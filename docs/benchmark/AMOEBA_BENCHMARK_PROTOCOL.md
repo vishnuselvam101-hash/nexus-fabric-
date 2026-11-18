@@ -1,6 +1,6 @@
 # AMOEBA Benchmark Protocol
 
-Protocol version 1.1 · 18 November 2026 (v1.0 earlier the same day; change log in §13) · Governs ADR-009B and ADR-012 · Supersedes section B-4 of the [AMOEBA Architecture Benchmark](AMOEBA_ARCHITECTURE_BENCHMARK.md) (that document is preserved; its other sections remain in force as safety and scale tests)
+Protocol version 1.2 · 18 November 2026 (change log in §13) · Governs ADR-009B and ADR-012 · Supersedes section B-4 of the [AMOEBA Architecture Benchmark](AMOEBA_ARCHITECTURE_BENCHMARK.md) (that document is preserved; its other sections remain in force as safety and scale tests)
 
 ## 0. Freeze status
 
@@ -105,20 +105,73 @@ Additionally, outside the arm comparison: mandatory dependency propagation and a
 
 A mechanism whose removal does not worsen the pre-declared metrics beyond the signed minimum effect is **not shown to contribute** and is a candidate for removal on complexity grounds.
 
-## 9. Provisional preregistered parameters (approved 18 November 2026)
+## 9. Provisional preregistered parameters (protocol v1.2, approved 18 November 2026)
 
-| Parameter | Proposed | Note |
+These are **experimental design thresholds chosen by the project owner — not industry standards and not scientific constants.** They may be revised (as a new protocol version, with reason) at any time **before** the held-out benchmark is executed, and never after any held-out result has been observed.
+
+| Parameter | Value | Justification |
 |---|---|---|
-| Budget levels `b` | 1.25, 1.5, 2, 4 × mandatory-work cost | Approved. Justification: spans "a little extra effort" to "several times the mandatory cost" so that results are a curve, not one point. Primary level 2 is the author's proposal and still needs confirmation |
-| Significance level (family-wise) | 0.05, with multiple-comparison correction (Holm) | Approved. Conventional choice; not evidence of practical importance |
-| Minimum practically meaningful improvement — critical-defect recall, A4 vs A1 | +5 percentage points absolute | Approved as **provisional**. Justification: a judgement of the smallest difference likely to matter in practice; it is not derived from data and should be revisited with the factory once the cost of a missed critical defect and of review time is known |
-| Alternative efficiency effect | Equal recall reached with ≥ 20 % fewer work units | |
-| Non-inferiority margin — false-positive rate | ≤ +2 percentage points relative to A1 | |
-| Non-inferiority margin — human effort | ≤ +5 % | |
-| Power | 0.8 | Author's proposal; a power analysis before the held-out run is **required**, and confidence intervals are reported for every comparison |
-| Minimum share of natural-defect jobs in the held-out set | To be set once the factory states how many exist | Open requirement |
+| Primary budget level | 2 × mandatory-work cost | A single pre-declared level prevents choosing the most favourable point of the curve afterwards |
+| Additional budget levels | 1.25 ×, 1.5 ×, 4 × | Descriptive curve from "a little extra" to "several times" the mandatory cost |
+| Significance level | 0.05 family-wise, Holm correction | Conventional; says nothing about practical importance |
+| Statistical power | ≥ 0.80 for the primary comparison at the minimum effect | Conventional minimum; determines the required sample size |
+| Minimum practically meaningful improvement | +5 percentage points critical-defect recall, A4 vs A1 | Owner's judgement of the smallest difference likely to matter; to be revisited with the factory |
+| False-positive non-inferiority margin | 2 percentage points (absolute) | Owner's judgement |
+| Human review burden non-inferiority margin | 10 % relative increase | Owner's judgement |
+| Known critical dependency omissions reaching release | **Zero tolerated** | A critical dependency failure must not be averaged away by good performance elsewhere |
+| Efficiency alternative (equal recall with ≥ 20 % fewer work units) | Author's proposal — **not yet approved** | |
+| Minimum share of natural-defect jobs in the held-out set | **Open** — depends on what the factory can supply | |
 
-Rows not marked *Approved* (efficiency effect, non-inferiority margins, primary budget level, power, natural-defect share) are the author's proposals and remain to be confirmed. All values are engineering judgement, not derived quantities.
+## 9a. Statistical analysis plan
+
+**Units.** The *job* (one engineering package) is the sampling unit. Defects within a job are not independent, so all interval estimates and tests resample or pair **by job**. Every job is run under every arm at every budget level (paired design). All confirmatory analyses use the sealed held-out set of authorised real drawings at the primary budget level; other budget levels and all synthetic results are descriptive.
+
+**Metric definitions and denominators.**
+
+| Metric | Numerator | Denominator |
+|---|---|---|
+| Recall, severity *s* (critical / major / minor — each separately) | Ground-truth defects of severity *s* for which, before the stop, a Finding was raised that references at least one ground-truth record of that defect | All ground-truth defects of severity *s* in the analysed jobs |
+| False-negative rate, severity *s* | Ground-truth defects of severity *s* not detected | Same as recall |
+| False-positive proportion | Findings presented for review that adjudicators (blind to arm) judge to correspond to no defect | All Findings presented for review |
+| False findings per clean job | False findings | Jobs known to contain no defect |
+| Human review burden | Items presented for human action (findings, obligations, confirmations, exclusions) until an approvable state | Per job; compared as ratio of arm means |
+| Additional computational cost | Work units beyond mandatory work (also wall-clock, memory) | Per job |
+| Detection latency | Work units consumed before the first correct Finding for a defect; undetected defects censored at the budget | Per defect; summarised as restricted mean and detection-vs-budget curve |
+| Secondary-defect recall | Detected secondary (consequential) defects | All ground-truth secondary defects |
+| Propagation attribution | Secondary defects whose first correct Finding arose from a scrutiny obligation | Detected secondary defects |
+| Obligation yield | Obligations leading to a confirmed Finding | Obligations created, by direction |
+| Reproducibility | Jobs whose replay reproduces the identical primary state | Jobs replayed |
+| Residual-uncertainty capture | Undetected defects lying within items the Residual Uncertainty Statement listed as unresolved | Undetected defects |
+
+**Dependency-edge failures — three categories, always reported separately.** Ground truth is a dependency graph prepared for each benchmark project by engineers, with each edge marked critical or non-critical.
+
+| Category | Definition | Numerator / denominator | Treatment |
+|---|---|---|---|
+| **K — Known dependency omitted** | An edge in the ground-truth graph that the system's graph lacks (or whose rule-table entry is missing) | Omitted ground-truth edges ÷ ground-truth edges; for **critical** edges, each omission listed individually with whether the dependent defect was nevertheless detected and whether the job reached a releasable state | **Zero tolerance:** any known *critical* dependency omission whose dependent defect escapes detection and whose job passes all automated gates is a protocol failure (F8), irrespective of every other result |
+| **U — Unknown dependency discovered** | A real dependency evidenced during testing that is in neither the ground truth nor the system's graph | Count; each described | Not scored for or against any arm; triggers a recorded revision of the ground truth and the rule table for *future* protocol versions; never used to alter the current run's results |
+| **S — Incorrect (spurious) dependency** | An edge in the system's graph that is not in the ground truth, and the unnecessary obligations it created | Spurious edges ÷ system edges; spurious obligations ÷ obligations; review items caused | Counts toward human review burden and computational cost |
+
+Because zero observed failures in a finite sample does not show a zero rate, a zero count for category K-critical is reported with its sample size and an upper confidence bound (for 0 events in *n* critical edges, the one-sided 95 % upper bound is approximately 3 ⁄ *n*).
+
+**Estimation.** Every proportion is reported with a 95 % confidence interval (Wilson interval for single proportions; cluster bootstrap over jobs for differences, ratios and latency summaries). No result is reported as a bare point estimate.
+
+**Confirmatory tests.**
+
+| Test | Hypothesis | Method | Multiplicity |
+|---|---|---|---|
+| Primary (superiority) | Critical-defect recall, A4 − A1 > 0 | Paired, job-clustered bootstrap test; defect-level McNemar test as a sensitivity analysis | Holm family, first |
+| Secondary (superiority) | Critical-defect recall: A2 − A1; A3 − A1; A4 − H; A4 − max(A2, A3). Secondary-defect recall: A3 − A1 | Same | Holm family with the primary |
+| Non-inferiority: false positives | False-positive proportion A4 − A1 < 2 percentage points | Upper limit of the one-sided 95 % interval below the margin | Required conjunct; no adjustment (all conjuncts must hold) |
+| Non-inferiority: review burden | Ratio of mean review burden A4 ⁄ A1 < 1.10 | Upper limit of the one-sided 95 % interval below 1.10 | Required conjunct |
+| Zero tolerance | Category K-critical escapes = 0 | Count | Required conjunct |
+
+Major- and minor-defect recall, and all other metrics, are reported with intervals for every arm but are not confirmatory.
+
+**Power and sample size.** Before the held-out run, the number of jobs and critical defects needed for power ≥ 0.80 on the primary test at the +5-point minimum effect is computed from development-set estimates (baseline recall in A1, between-job variance, discordance between arms). If the sealed real-drawing set is smaller, the confirmatory analysis is not run as such and all results are labelled *inconclusive*.
+
+**Support requires all of:** point estimate ≥ minimum effect; corrected interval for the primary difference excludes zero; required sample size reached; both non-inferiority conjuncts hold; zero K-critical escapes; safety prerequisites passed. Statistical significance alone is never sufficient.
+
+**Handling of deviations.** Jobs failing for operational reasons are reported and analysed as failures for the arm concerned (no exclusion after the fact). Any departure from this plan is listed in the report as a deviation with its reason.
 
 ## 10. Falsification criteria (fixed before testing)
 
@@ -133,8 +186,8 @@ The effectiveness claim (ADR-009B) is **not supported** if, on the held-out real
 | F5 | Expected and actual test outcomes are uncorrelated (the scheduler's judgement carries no information) |
 | F6 | Any safety prerequisite fails with adaptivity enabled and cannot be restored without removing the adaptive mechanism |
 | F7 | The advantage appears only on synthetic or seeded data and not on natural defects |
-| F8 | Dependency-directed investigation (A3) finds no more secondary defects than A1, **or** more than a pre-declared share of missed secondary defects are attributable to missing or incorrect dependency edges (the dependency model itself is inadequate) — share to be fixed before execution |
-| F9 | Recall gains are accompanied by a human review burden above the non-inferiority margin (the system "succeeds" by generating excessive review work) |
+| F8 | **Any** known critical dependency omission whose dependent defect escapes detection and whose job reaches a releasable state (category K-critical, §9a). Not averaged with other results. Additionally reported, but not by itself falsifying: A3 finds no more secondary defects than A1 |
+| F9 | Recall gains are accompanied by a human review burden above the 10 % margin or false positives above the 2-point margin (the system "succeeds" by generating excessive review work) |
 
 Consequences are decided now: if F1–F5 or F7 hold, adaptive investigation is switched off by default and offered at most as an experimental option; mechanisms failing their ablation are removed; the dependency obligations, audits, coverage ledger, lanes and release closure — which do not depend on this benchmark — remain. AMOEBA remains the governing architecture (ADR-009A) in either case, with its adaptive component honestly described as unproven.
 
@@ -152,3 +205,4 @@ A minimal system implementing the framework and all arms; cost functions; probe 
 |---|---|---|---|
 | 1.0 | 18 Nov 2026 | Initial structure | — |
 | 1.1 | 18 Nov 2026 | Parameters recorded as provisional preregistered values with justification; severities reported separately; added major/minor recall, dependency-propagation effectiveness, dependency-edge failures, spurious obligations, human review burden and computational cost as explicit metrics; conclusion rule (significance alone insufficient); falsification criteria F8, F9 | Owner decision: the benchmark must not let AMOEBA appear successful while generating excessive review work or missing downstream consequences. Made before any system, data or result exists |
+| 1.2 | 18 Nov 2026 | Remaining parameters set (primary budget 2×, power ≥ 0.80, non-inferiority margins 2 points and 10 %); zero tolerance for known critical dependency omissions reaching release; statistical analysis plan with denominators, intervals, multiplicity, power and conclusion rule; three separately reported dependency-edge failure categories; F8 and F9 made exact | Owner decision. Made before any system, data or result exists |

@@ -1,6 +1,6 @@
 # Decision Register
 
-Version 1.1 · 18 November 2026 · The single place where the status of every architectural decision, proposal and open question is kept visible. Specifications 01–03 are **not** edited to reflect these decisions until amendments are formally applied as new versions with change logs.
+Version 1.2 · 18 November 2026 · The single place where the status of every architectural decision, proposal and open question is kept visible. Specifications 01–03 are **not** edited to reflect these decisions until amendments are formally applied as new versions with change logs.
 
 Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, detailed design under review) · **Accepted with conditions** · **Provisional** (awaiting evidence) · **Deferred** · **Proposed** (no decision yet) · **Withdrawn/Merged**.
 
@@ -46,6 +46,19 @@ Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, 
 | D-31 | Targeted fabrication-engineering review of the dependency model and interface rules is required before Specification 04 becomes an implementation baseline; paper examples must not be represented as validated cases | Accepted | [Review package](../reviews/FABRICATION_ENGINEERING_REVIEW_PACKAGE.md) |
 | D-32 | Next milestone is validated engineering knowledge, not further architecture documents | Accepted | Roadmap |
 
+### Third round (18 November 2026)
+
+| ID | Subject | Status | Record |
+|---|---|---|---|
+| D-33 | Primary budget 2× mandatory-work cost; additional levels 1.25×, 1.5×, 4× | Accepted (provisional preregistered) | [Protocol v1.2](../benchmark/AMOEBA_BENCHMARK_PROTOCOL.md) §9 |
+| D-34 | Power ≥ 0.80; significance 0.05 with correction | Accepted (provisional preregistered) | Protocol §9, §9a |
+| D-35 | Non-inferiority margins: false positives 2 percentage points; human review burden 10 % relative | Accepted (provisional preregistered) | Protocol §9, §9a |
+| D-36 | Zero tolerance for known critical dependency omissions that escape detection and reach release; three dependency-failure categories reported separately | Accepted | Protocol §9a, F8 |
+| D-37 | Reviewer requirements for the fabrication-engineering review; review conducted on the original 56 statements; reviewer independent of the author of the rules where possible | Accepted | [Review package](../reviews/FABRICATION_ENGINEERING_REVIEW_PACKAGE.md) §1 |
+| D-38 | A Japanese-language version must be translated and independently checked by a Japanese-speaking fabrication engineer before use at the factory | Accepted — **not yet produced** | Review package §0 |
+| D-39 | Five evidence levels, kept as separate kinds of evidence, not interchangeable approval labels | Accepted | [Evidence levels](EVIDENCE_LEVELS.md) |
+| D-40 | Specification 04 is not to be started; no further expansion of the architecture while its engineering assumptions are untested | Accepted | Roadmap |
+
 Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded on them.
 
 ## 2. Designs produced in this refinement (all Proposed — awaiting review)
@@ -82,29 +95,38 @@ Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded o
 | Review amendments (19) | Listed in the review §12; most are covered by P-01…P-16 — a one-to-one reconciliation table is still to be made | [Review](../reviews/AMOEBA_INDEPENDENT_ARCHITECTURE_REVIEW.md) |
 | Master plan | Describe AMOEBA as governing architecture in §4 | Migration note §6 |
 
-## 4. Decisions needed from the owner
+## 4. Validation boundary (must remain stated until evidence changes it)
 
-| # | Decision |
+| Statement | Status on 18 November 2026 |
 |---|---|
-| 1 | Benchmark parameters not yet approved: primary budget level, efficiency effect, non-inferiority margins, power, natural-defect share, and the F8 share |
-| 2 | Who performs the fabrication-engineering review (D-31), and by when |
-| 3 | When to apply accepted amendments to Specs 01–03 (new versions with change logs) |
-| 4 | ADR-001…008: record decisions or leave proposed |
+| Dependency statements independently reviewed | **0 of 56** |
+| Factory dependency rules validated | **None** |
+| Spec 02 mathematical models independently reviewed | **None** |
+| Process allowances calibrated | **None** |
+| Factory drawings or factory data received | **None** |
+| Standards identified and verified | **None** |
+| Japanese review package and vocabulary checked by a native-speaking engineer | **No** |
+| Evidence level of every engineering relationship in the repository | **EV-1 (AI-generated proposal)** |
+| Specification 04 | **Not started; not implementation-ready** |
 
-Resolved since v1.0: excluded-content state (D-27); gates G18/G19 (D-28, D-29); replay audit frequency (D-30); review before Spec 04 (D-31); core benchmark parameters (D-23…D-26).
+This table is updated only when a named reviewer's returned evidence, a factory record or an experimental result is filed in the repository.
 
-## 4a. Validation status of engineering knowledge
+## 4a. Blockers for Specification 04
 
-| Item | Reviewed by a qualified fabrication engineer? |
-|---|---|
-| Dependency edge types and interface constraints | **No** |
-| Propagation rule table | **No** |
-| Example 1 (header with branch), Example 2 (reducer halves), Example 3 (transition) | **No** — symbolic paper exercises, not factory cases |
-| Spec 02 family models (reducers, branches, transitions) | **No** |
-| Process and allowance models | **No**; none calibrated |
-| Japanese drawing vocabulary | **No** |
+| # | Blocker | Who can remove it |
+|---|---|---|
+| 1 | Fabrication-engineering review of the 56 statements (at least the 18 header-and-branch statements and the 10 rules) returned with reviewer identity and reasoning | Qualified fabrication engineer |
+| 2 | Answers to the five factory checklist questions (component types, formats, historical jobs, projection convention, inside/outside dimensioning) | Factory |
+| 3 | Independent engineering review of the Spec 02 models for reducers, branches and transitions | Mechanical/manufacturing engineer |
+| 4 | Decision on development-class terminology (Spec 02 §14) | Owner, after 3 |
+| 5 | Incorporation of review results into the dependency model and rule table, with attribution and evidence level | Project team, after 1 |
+| 6 | Authorised representative drawings (at least for the first target geometry) | Factory / owner |
 
-Everything above is AI-generated proposal. Specification 04 is **not ready** to serve as a basis for implementation.
+Not blockers for drafting, but blockers for *implementation*: process-parameter calibration; licensing evaluation records; standards review; benchmark corpus.
+
+## 4b. Decisions still needed from the owner
+
+Who performs the fabrication-engineering review and by when · who translates and who independently checks the Japanese version · efficiency-alternative parameter and natural-defect share in the protocol · when to apply accepted amendments to Specs 01–03 · ADR-001…008 status.
 
 ## 5. Unresolved engineering questions
 
