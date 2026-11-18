@@ -25,12 +25,15 @@ struct App {
     key: [u8; 32],
     data_dir: PathBuf,
     started: u64,
+    cookie_secure: bool,
+    key_outside_data_dir: bool,
 }
 
 type Ctx = State<Arc<App>>;
 
 #[derive(Clone)]
 struct User {
+    #[allow(dead_code)]
     id: i64,
     username: String,
     role: String,
@@ -49,19 +52,36 @@ fn ok(v: Value) -> Response {
 }
 
 const SCHEMA: &str = "
-CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS projects(id INTEGER PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS documents(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, filename TEXT NOT NULL, detected_type TEXT NOT NULL, size INTEGER NOT NULL, sha256 TEXT NOT NULL, extension_mismatch INTEGER NOT NULL, record_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, project_id INTEGER NOT NULL, family TEXT NOT NULL, kind TEXT NOT NULL, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS calculations(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, family TEXT NOT NULL, state TEXT NOT NULL, closure_hash TEXT NOT NULL, result_json TEXT NOT NULL, replay_json TEXT, dxf_sha256 TEXT, supersedes INTEGER, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS obligations(id INTEGER PRIMARY KEY, origin_calc INTEGER NOT NULL, target_calc INTEGER NOT NULL, record_id TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL, direction TEXT NOT NULL, via TEXT NOT NULL, required_check TEXT NOT NULL, state TEXT NOT NULL, note TEXT NOT NULL, resolved_by TEXT, resolved_at INTEGER, created_at INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, at INTEGER NOT NULL, username TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, at INTEGER NOT NULL, username TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL, prev TEXT, hash TEXT);
+CREATE TABLE IF NOT EXISTS project_members(project_id INTEGER NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY(project_id, user_id));
+CREATE TABLE IF NOT EXISTS login_failures(username TEXT NOT NULL, at INTEGER NOT NULL);
 ";
 
+fn audit_hash(prev: &str, at: i64, user: &str, action: &str, detail: &str) -> String {
+    nf_core::sha256_hex(serde_json::to_string(&json!([prev, at, user, action, detail])).unwrap_or_default().as_bytes())
+}
+
 impl App {
+    /// The database lock. A panic in one request must not take the service
+    /// down for everyone, so a poisoned lock is recovered instead of propagated.
+    fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
+        self.db.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Append to the audit log. Each entry carries the hash of its predecessor,
+    /// so removing or altering an entry is detectable (`/api/audit/verify`).
     fn audit(&self, db: &Connection, user: &str, action: &str, detail: &str) {
-        let _ = db.execute("INSERT INTO audit(at, username, action, detail) VALUES (?,?,?,?)", params![now() as i64, user, action, detail]);
+        let prev: String = db.query_row("SELECT hash FROM audit ORDER BY id DESC LIMIT 1", [], |r| r.get::<_, Option<String>>(0)).ok().flatten().unwrap_or_else(|| "genesis".into());
+        let at = now() as i64;
+        let hash = audit_hash(&prev, at, user, action, detail);
+        let _ = db.execute("INSERT INTO audit(at, username, action, detail, prev, hash) VALUES (?,?,?,?,?,?)", params![at, user, action, detail, prev, hash]);
     }
 
     /// Append-only: an existing id is never overwritten.
@@ -106,9 +126,9 @@ fn auth(app: &App, headers: &HeaderMap) -> Result<User, Response> {
     let deny = || fail(StatusCode::UNAUTHORIZED, "not signed in");
     let token = session_token(headers).ok_or_else(deny)?;
     let th = nf_core::sha256_hex(token.as_bytes());
-    let db = app.db.lock().unwrap();
+    let db = app.db();
     db.query_row(
-        "SELECT u.id, u.username, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?",
+        "SELECT u.id, u.username, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.active = 1",
         params![th, now() as i64],
         |r| Ok(User { id: r.get(0)?, username: r.get(1)?, role: r.get(2)? }),
     )
@@ -124,6 +144,21 @@ fn require(user: &User, roles: &[&str]) -> Result<(), Response> {
     } else {
         Err(fail(StatusCode::FORBIDDEN, "your role does not permit this action"))
     }
+}
+
+/// SQL condition restricting `project_id` to projects the user may see.
+/// Built from an integer id only, never from request text.
+fn scope(u: &User) -> String {
+    if u.role == "admin" { "1=1".into() } else { format!("project_id IN (SELECT project_id FROM project_members WHERE user_id = {})", u.id) }
+}
+
+fn can_access(db: &Connection, u: &User, project: i64) -> bool {
+    u.role == "admin" || db.query_row("SELECT COUNT(*) FROM project_members WHERE project_id = ? AND user_id = ?", params![project, u.id], |r| r.get::<_, i64>(0)).unwrap_or(0) == 1
+}
+
+/// Hide the existence of things the caller may not see.
+fn not_found() -> Response {
+    fail(StatusCode::NOT_FOUND, "not found")
 }
 
 macro_rules! guard {
@@ -160,14 +195,14 @@ fn s(v: &Value, k: &str) -> String {
 // ---------- handlers ----------
 
 async fn health(State(app): Ctx) -> Response {
-    let db = app.db.lock().unwrap();
+    let db = app.db();
     let users: i64 = db.query_row("SELECT COUNT(*) FROM users", [], |r| r.get(0)).unwrap_or(0);
     ok(json!({ "status": "ok", "engine": nf_core::ENGINE_VERSION, "setup_required": users == 0, "uptime_seconds": now() - app.started,
                "build_notice": "Development build. Not validated. No output of this software may be used for manufacturing." }))
 }
 
 async fn setup(State(app): Ctx, Json(body): Json<Value>) -> Response {
-    let db = app.db.lock().unwrap();
+    let db = app.db();
     let users: i64 = db.query_row("SELECT COUNT(*) FROM users", [], |r| r.get(0)).unwrap_or(1);
     if users != 0 {
         return fail(StatusCode::CONFLICT, "setup already completed");
@@ -183,9 +218,18 @@ async fn setup(State(app): Ctx, Json(body): Json<Value>) -> Response {
 
 async fn login(State(app): Ctx, Json(body): Json<Value>) -> Response {
     let (username, password) = (s(&body, "username"), s(&body, "password"));
-    let db = app.db.lock().unwrap();
+    let db = app.db();
+    // Throttling: 5 failures per account in 15 minutes, 40 failures overall per minute.
+    let t = now() as i64;
+    let _ = db.execute("DELETE FROM login_failures WHERE at < ?", params![t - 900]);
+    let per_user: i64 = db.query_row("SELECT COUNT(*) FROM login_failures WHERE username = ?", params![username], |r| r.get(0)).unwrap_or(0);
+    let overall: i64 = db.query_row("SELECT COUNT(*) FROM login_failures WHERE at > ?", params![t - 60], |r| r.get(0)).unwrap_or(0);
+    if per_user >= 5 || overall >= 40 {
+        app.audit(&db, &username, "login_throttled", "");
+        return fail(StatusCode::TOO_MANY_REQUESTS, "too many failed sign-in attempts; try again in 15 minutes");
+    }
     let row: Option<(i64, String, String, String)> = db
-        .query_row("SELECT id, role, salt, hash FROM users WHERE username = ?", params![username], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+        .query_row("SELECT id, role, salt, hash FROM users WHERE username = ? AND active = 1", params![username], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
         .optional()
         .ok()
         .flatten();
@@ -193,20 +237,22 @@ async fn login(State(app): Ctx, Json(body): Json<Value>) -> Response {
     let (id, role, salt, hash) = row.unwrap_or((0, String::new(), "00000000000000000000000000000000".into(), String::new()));
     let computed = crypto::hash_password(&password, &hex::decode(&salt).unwrap_or_default()).unwrap_or_default();
     if id == 0 || !crypto::constant_time_eq(&computed, &hash) {
+        let _ = db.execute("INSERT INTO login_failures(username, at) VALUES (?,?)", params![username, t]);
         app.audit(&db, &username, "login_failed", "");
         return fail(StatusCode::UNAUTHORIZED, "invalid username or password");
     }
+    let _ = db.execute("DELETE FROM login_failures WHERE username = ?", params![username]);
     let token = hex::encode(crypto::random_bytes::<32>());
     let _ = db.execute("DELETE FROM sessions WHERE expires_at <= ?", params![now() as i64]);
     let _ = db.execute("INSERT INTO sessions(token_hash, user_id, expires_at) VALUES (?,?,?)", params![nf_core::sha256_hex(token.as_bytes()), id, (now() + 12 * 3600) as i64]);
     app.audit(&db, &username, "login", "");
-    let cookie = format!("nf_session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200");
+    let cookie = format!("nf_session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200{}", if app.cookie_secure { "; Secure" } else { "" });
     ([(header::SET_COOKIE, cookie)], Json(json!({ "username": username, "role": role }))).into_response()
 }
 
 async fn logout(State(app): Ctx, headers: HeaderMap) -> Response {
     if let Some(t) = session_token(&headers) {
-        let db = app.db.lock().unwrap();
+        let db = app.db();
         let _ = db.execute("DELETE FROM sessions WHERE token_hash = ?", params![nf_core::sha256_hex(t.as_bytes())]);
     }
     ([(header::SET_COOKIE, "nf_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0")], Json(json!({ "ok": true }))).into_response()
@@ -220,16 +266,16 @@ async fn me(State(app): Ctx, headers: HeaderMap) -> Response {
 async fn list_users(State(app): Ctx, headers: HeaderMap) -> Response {
     let u = guard!(auth(&app, &headers));
     guard!(require(&u, &["admin"]));
-    let db = app.db.lock().unwrap();
-    let mut st = db.prepare("SELECT id, username, role, created_at FROM users ORDER BY id").unwrap();
-    let rows: Vec<Value> = st.query_map([], |r| Ok(json!({ "id": r.get::<_, i64>(0)?, "username": r.get::<_, String>(1)?, "role": r.get::<_, String>(2)?, "created_at": r.get::<_, i64>(3)? }))).unwrap().flatten().collect();
+    let db = app.db();
+    let mut st = db.prepare("SELECT id, username, role, created_at, active FROM users ORDER BY id").unwrap();
+    let rows: Vec<Value> = st.query_map([], |r| Ok(json!({ "id": r.get::<_, i64>(0)?, "username": r.get::<_, String>(1)?, "role": r.get::<_, String>(2)?, "created_at": r.get::<_, i64>(3)?, "active": r.get::<_, bool>(4)? }))).unwrap().flatten().collect();
     ok(json!(rows))
 }
 
 async fn add_user(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value>) -> Response {
     let u = guard!(auth(&app, &headers));
     guard!(require(&u, &["admin"]));
-    let db = app.db.lock().unwrap();
+    let db = app.db();
     match create_user(&db, &s(&body, "username"), &s(&body, "password"), &s(&body, "role")) {
         Ok(id) => {
             app.audit(&db, &u.username, "user_created", &format!("{} ({})", s(&body, "username"), s(&body, "role")));
@@ -239,11 +285,116 @@ async fn add_user(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value>) 
     }
 }
 
+/// Change one's own password. All sessions of the account are revoked.
+async fn change_password(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value>) -> Response {
+    let u = guard!(auth(&app, &headers));
+    let (current, new) = (s(&body, "current"), s(&body, "new"));
+    if new.chars().count() < 10 {
+        return fail(StatusCode::BAD_REQUEST, "new password must have at least 10 characters");
+    }
+    let db = app.db();
+    let (salt, hash): (String, String) = match db.query_row("SELECT salt, hash FROM users WHERE id = ?", params![u.id], |r| Ok((r.get(0)?, r.get(1)?))) {
+        Ok(x) => x,
+        Err(_) => return fail(StatusCode::UNAUTHORIZED, "not signed in"),
+    };
+    let computed = crypto::hash_password(&current, &hex::decode(&salt).unwrap_or_default()).unwrap_or_default();
+    if !crypto::constant_time_eq(&computed, &hash) {
+        app.audit(&db, &u.username, "password_change_failed", "");
+        return fail(StatusCode::FORBIDDEN, "current password is incorrect");
+    }
+    let nsalt: [u8; 16] = crypto::random_bytes();
+    let nhash = match crypto::hash_password(&new, &nsalt) {
+        Ok(h) => h,
+        Err(e) => return fail(StatusCode::INTERNAL_SERVER_ERROR, &e),
+    };
+    let _ = db.execute("UPDATE users SET salt = ?, hash = ? WHERE id = ?", params![hex::encode(nsalt), nhash, u.id]);
+    let _ = db.execute("DELETE FROM sessions WHERE user_id = ?", params![u.id]);
+    app.audit(&db, &u.username, "password_changed", "all sessions revoked");
+    ok(json!({ "changed": true, "sessions_revoked": true }))
+}
+
+/// Activate or deactivate an account (administrator). Deactivation revokes its sessions.
+async fn set_user_active(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Json(body): Json<Value>) -> Response {
+    let u = guard!(auth(&app, &headers));
+    guard!(require(&u, &["admin"]));
+    let Some(active) = body.get("active").and_then(|v| v.as_bool()) else { return fail(StatusCode::BAD_REQUEST, "active must be true or false") };
+    if id == u.id && !active {
+        return fail(StatusCode::BAD_REQUEST, "you cannot deactivate your own account");
+    }
+    let db = app.db();
+    if db.execute("UPDATE users SET active = ? WHERE id = ?", params![active, id]).unwrap_or(0) == 0 {
+        return not_found();
+    }
+    if !active {
+        let _ = db.execute("DELETE FROM sessions WHERE user_id = ?", params![id]);
+    }
+    app.audit(&db, &u.username, if active { "user_activated" } else { "user_deactivated" }, &format!("user #{id}"));
+    ok(json!({ "active": active }))
+}
+
+async fn add_member(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Json(body): Json<Value>) -> Response {
+    let u = guard!(auth(&app, &headers));
+    guard!(require(&u, &["admin"]));
+    let db = app.db();
+    let uid: Option<i64> = db.query_row("SELECT id FROM users WHERE username = ?", params![s(&body, "username")], |r| r.get(0)).optional().ok().flatten();
+    let exists: bool = db.query_row("SELECT COUNT(*) FROM projects WHERE id = ?", params![id], |r| r.get::<_, i64>(0)).unwrap_or(0) == 1;
+    let (Some(uid), true) = (uid, exists) else { return not_found() };
+    let remove = body.get("remove").and_then(|v| v.as_bool()).unwrap_or(false);
+    if remove {
+        let _ = db.execute("DELETE FROM project_members WHERE project_id = ? AND user_id = ?", params![id, uid]);
+    } else {
+        let _ = db.execute("INSERT OR IGNORE INTO project_members(project_id, user_id) VALUES (?,?)", params![id, uid]);
+    }
+    app.audit(&db, &u.username, if remove { "member_removed" } else { "member_added" }, &format!("project #{id} user {}", s(&body, "username")));
+    ok(json!({ "ok": true }))
+}
+
+async fn audit_verify(State(app): Ctx, headers: HeaderMap) -> Response {
+    let u = guard!(auth(&app, &headers));
+    guard!(require(&u, &["admin"]));
+    let db = app.db();
+    let mut st = db.prepare("SELECT id, at, username, action, detail, prev, hash FROM audit ORDER BY id").unwrap();
+    let rows: Vec<(i64, i64, String, String, String, Option<String>, Option<String>)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?))).unwrap().flatten().collect();
+    let mut prev = "genesis".to_string();
+    let mut broken: Option<i64> = None;
+    for (id, at, user, action, detail, p, h) in &rows {
+        let expect = audit_hash(&prev, *at, user, action, detail);
+        if p.as_deref() != Some(prev.as_str()) || h.as_deref() != Some(expect.as_str()) {
+            broken = Some(*id);
+            break;
+        }
+        prev = expect;
+    }
+    ok(json!({ "intact": broken.is_none(), "entries": rows.len(), "first_broken_entry": broken,
+               "limitation": "Detects alteration or removal of entries inside the chain. Someone with write access to the database file could rebuild the whole chain or truncate its tail; an external anchor for the latest hash is not implemented." }))
+}
+
+async fn security_status(State(app): Ctx, headers: HeaderMap) -> Response {
+    let u = guard!(auth(&app, &headers));
+    guard!(require(&u, &["admin"]));
+    ok(json!({
+        "transport": "This server speaks plain HTTP. TLS must be provided by a terminating proxy; none is built in.",
+        "cookie_secure_flag": app.cookie_secure,
+        "session_lifetime_hours": 12,
+        "password_hashing": "Argon2id (library defaults), per-user random salt",
+        "login_throttling": "5 failed attempts per account per 15 minutes; 40 failed attempts overall per minute",
+        "multi_factor_authentication": false,
+        "blob_encryption": "AES-256-GCM, one key for all blobs",
+        "storage_key_outside_data_directory": app.key_outside_data_dir,
+        "key_rotation": false,
+        "database_encrypted_at_rest": false,
+        "project_isolation": "Per-project membership enforced on every project, job, file, obligation and summary endpoint; administrators see all projects",
+        "anti_forgery": "State-changing API requests require the X-NF-Request header and a same-origin Origin; session cookie is SameSite=Strict",
+        "audit_log": "Hash-chained; verify with /api/audit/verify",
+        "sandboxed_parsers": "Not applicable yet: uploaded files are stored, never parsed",
+    }))
+}
+
 async fn list_projects(State(app): Ctx, headers: HeaderMap) -> Response {
-    guard!(auth(&app, &headers));
-    let db = app.db.lock().unwrap();
+    let u = guard!(auth(&app, &headers));
+    let db = app.db();
     let mut st = db
-        .prepare("SELECT p.id, p.name, p.description, p.created_by, p.created_at, (SELECT COUNT(*) FROM documents d WHERE d.project_id = p.id), (SELECT COUNT(*) FROM calculations c WHERE c.project_id = p.id) FROM projects p ORDER BY p.id DESC")
+        .prepare(&format!("SELECT p.id, p.name, p.description, p.created_by, p.created_at, (SELECT COUNT(*) FROM documents d WHERE d.project_id = p.id), (SELECT COUNT(*) FROM calculations c WHERE c.project_id = p.id) FROM projects p WHERE {} ORDER BY p.id DESC", scope(&u).replace("project_id IN", "p.id IN")))
         .unwrap();
     let rows: Vec<Value> = st
         .query_map([], |r| Ok(json!({ "id": r.get::<_, i64>(0)?, "name": r.get::<_, String>(1)?, "description": r.get::<_, String>(2)?, "created_by": r.get::<_, String>(3)?, "created_at": r.get::<_, i64>(4)?, "documents": r.get::<_, i64>(5)?, "calculations": r.get::<_, i64>(6)? })))
@@ -260,23 +411,27 @@ async fn add_project(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value
     if name.is_empty() || name.len() > 200 {
         return fail(StatusCode::BAD_REQUEST, "project name is required (max 200 characters)");
     }
-    let db = app.db.lock().unwrap();
+    let db = app.db();
     db.execute("INSERT INTO projects(name, description, created_by, created_at) VALUES (?,?,?,?)", params![name, s(&body, "description"), u.username, now() as i64]).unwrap();
     let id = db.last_insert_rowid();
+    let _ = db.execute("INSERT OR IGNORE INTO project_members(project_id, user_id) VALUES (?,?)", params![id, u.id]);
     app.audit(&db, &u.username, "project_created", &format!("#{id} {name}"));
     ok(json!({ "id": id }))
 }
 
-fn calc_rows(db: &Connection, where_sql: &str, arg: i64) -> Vec<Value> {
+fn calc_rows(db: &Connection, where_sql: &str) -> Vec<Value> {
     let sql = format!("SELECT id, project_id, family, state, closure_hash, created_by, created_at, replay_json IS NOT NULL, (SELECT COUNT(*) FROM calculations n WHERE n.supersedes = calculations.id), (SELECT COUNT(*) FROM obligations o WHERE o.target_calc = calculations.id AND o.state = 'open') FROM calculations {where_sql} ORDER BY id DESC LIMIT 200");
     let mut st = db.prepare(&sql).unwrap();
     let map = |r: &rusqlite::Row| Ok(json!({ "id": r.get::<_, i64>(0)?, "project_id": r.get::<_, i64>(1)?, "family": r.get::<_, String>(2)?, "state": r.get::<_, String>(3)?, "closure_hash": r.get::<_, String>(4)?, "created_by": r.get::<_, String>(5)?, "created_at": r.get::<_, i64>(6)?, "replayed": r.get::<_, bool>(7)?, "superseded": r.get::<_, i64>(8)? > 0, "open_obligations": r.get::<_, i64>(9)? }));
-    if where_sql.is_empty() { st.query_map([], map).unwrap().flatten().collect() } else { st.query_map(params![arg], map).unwrap().flatten().collect() }
+    st.query_map([], map).unwrap().flatten().collect()
 }
 
 async fn get_project(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Response {
-    guard!(auth(&app, &headers));
-    let db = app.db.lock().unwrap();
+    let u = guard!(auth(&app, &headers));
+    let db = app.db();
+    if !can_access(&db, &u, id) {
+        return not_found();
+    }
     let p: Option<Value> = db
         .query_row("SELECT id, name, description, created_by, created_at FROM projects WHERE id = ?", params![id], |r| Ok(json!({ "id": r.get::<_, i64>(0)?, "name": r.get::<_, String>(1)?, "description": r.get::<_, String>(2)?, "created_by": r.get::<_, String>(3)?, "created_at": r.get::<_, i64>(4)? })))
         .optional()
@@ -291,7 +446,9 @@ async fn get_project(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -
         .collect();
     let snapshot: Option<String> = db.query_row("SELECT id FROM records WHERE project_id = ? AND kind = 'snapshot' ORDER BY rowid DESC LIMIT 1", params![id], |r| r.get(0)).optional().ok().flatten();
     p["documents"] = json!(docs);
-    p["calculations"] = json!(calc_rows(&db, "WHERE project_id = ?", id));
+    p["calculations"] = json!(calc_rows(&db, &format!("WHERE project_id = {id}")));
+    let mut st = db.prepare("SELECT u.username FROM project_members m JOIN users u ON u.id = m.user_id WHERE m.project_id = ? ORDER BY u.username").unwrap();
+    p["members"] = json!(st.query_map(params![id], |r| r.get::<_, String>(0)).unwrap().flatten().collect::<Vec<_>>());
     p["snapshot"] = json!(snapshot);
     ok(p)
 }
@@ -300,10 +457,10 @@ async fn upload(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, body: 
     let u = guard!(auth(&app, &headers));
     guard!(require(&u, &["admin", "engineer"]));
     let filename: String = headers.get("x-filename").and_then(|v| v.to_str().ok()).unwrap_or("unnamed").chars().filter(|c| !c.is_control() && *c != '/' && *c != '\\').take(200).collect();
-    let db = app.db.lock().unwrap();
+    let db = app.db();
     let exists: bool = db.query_row("SELECT COUNT(*) FROM projects WHERE id = ?", params![id], |r| r.get::<_, i64>(0)).unwrap_or(0) == 1;
-    if !exists {
-        return fail(StatusCode::NOT_FOUND, "project not found");
+    if !exists || !can_access(&db, &u, id) {
+        return not_found();
     }
     let detected = match membrane::admit(&body) {
         membrane::Admission::Accepted { detected_type } => detected_type,
@@ -365,10 +522,10 @@ async fn calculate(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Jso
         Err(e) => return fail(StatusCode::BAD_REQUEST, &format!("invalid request: {e}")),
     };
     let out = job::run(&req, &u.username);
-    let db = app.db.lock().unwrap();
+    let db = app.db();
     let exists: bool = db.query_row("SELECT COUNT(*) FROM projects WHERE id = ?", params![id], |r| r.get::<_, i64>(0)).unwrap_or(0) == 1;
-    if !exists {
-        return fail(StatusCode::NOT_FOUND, "project not found");
+    if !exists || !can_access(&db, &u, id) {
+        return not_found();
     }
     match persist_calc(&app, &db, id, &out, &u.username, None) {
         Ok(cid) => {
@@ -453,15 +610,15 @@ fn effective_gates(db: &Connection, id: i64, c: &Calc) -> (Vec<nf_core::Gate>, n
 }
 
 async fn list_calcs(State(app): Ctx, headers: HeaderMap) -> Response {
-    guard!(auth(&app, &headers));
-    let db = app.db.lock().unwrap();
-    ok(json!(calc_rows(&db, "", 0)))
+    let u = guard!(auth(&app, &headers));
+    let db = app.db();
+    ok(json!(calc_rows(&db, &format!("WHERE {}", scope(&u)))))
 }
 
 async fn get_calc(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Response {
-    guard!(auth(&app, &headers));
-    let db = app.db.lock().unwrap();
-    let Some(c) = load_calc(&db, id) else { return fail(StatusCode::NOT_FOUND, "calculation not found") };
+    let u = guard!(auth(&app, &headers));
+    let db = app.db();
+    let Some(c) = load_calc(&db, id).filter(|c| can_access(&db, &u, c.project)) else { return not_found() };
     let (gates, state) = effective_gates(&db, id, &c);
     let mut result = c.result.clone();
     result["id"] = json!(id);
@@ -508,17 +665,17 @@ async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Res
     let u = guard!(auth(&app, &headers));
     guard!(require(&u, &["admin", "engineer"]));
     let c = {
-        let db = app.db.lock().unwrap();
-        match load_calc(&db, id) {
+        let db = app.db();
+        match load_calc(&db, id).filter(|c| can_access(&db, &u, c.project)) {
             Some(c) => c,
-            None => return fail(StatusCode::NOT_FOUND, "calculation not found"),
+            None => return not_found(),
         }
     };
     let expected_hash = c.result["closure_hash"].as_str().unwrap_or("").to_string();
     let ids: Vec<String> = c.result["records"].as_array().map(|a| a.iter().filter_map(|r| r["id"].as_str().map(String::from)).collect()).unwrap_or_default();
     // Recompute in a separate operating-system process that receives only the request.
     let child = replay_in_separate_process(&c.result["request"], &c.created_by);
-    let db = app.db.lock().unwrap();
+    let db = app.db();
     // Confirm that the stored records are intact (identity recomputed from content).
     let mut tampered = 0;
     for rid in &ids {
@@ -550,8 +707,8 @@ async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Res
 
 async fn get_dxf(State(app): Ctx, headers: HeaderMap, Path((id, part)): Path<(i64, String)>) -> Response {
     let u = guard!(auth(&app, &headers));
-    let db = app.db.lock().unwrap();
-    let Some(c) = load_calc(&db, id) else { return fail(StatusCode::NOT_FOUND, "calculation not found") };
+    let db = app.db();
+    let Some(c) = load_calc(&db, id).filter(|c| can_access(&db, &u, c.project)) else { return not_found() };
     if let Some(n) = c.superseded_by {
         return fail(StatusCode::CONFLICT, &format!("this result was superseded by job #{n}; its files are withheld"));
     }
@@ -581,8 +738,8 @@ async fn correct(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Json(
     if reason.len() < 5 {
         return fail(StatusCode::BAD_REQUEST, "a reason is required for every correction");
     }
-    let db = app.db.lock().unwrap();
-    let Some(c) = load_calc(&db, id) else { return fail(StatusCode::NOT_FOUND, "calculation not found") };
+    let db = app.db();
+    let Some(c) = load_calc(&db, id).filter(|c| can_access(&db, &u, c.project)) else { return not_found() };
     if c.superseded_by.is_some() {
         return fail(StatusCode::CONFLICT, "this result is already superseded; correct the current one");
     }
@@ -626,9 +783,9 @@ async fn correct(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Json(
 }
 
 async fn list_obligations(State(app): Ctx, headers: HeaderMap) -> Response {
-    guard!(auth(&app, &headers));
-    let db = app.db.lock().unwrap();
-    ok(json!(obligation_rows(&db, "", 0)))
+    let u = guard!(auth(&app, &headers));
+    let db = app.db();
+    ok(json!(obligation_rows(&db, &format!("WHERE target_calc IN (SELECT id FROM calculations WHERE {})", scope(&u)), 0)))
 }
 
 async fn resolve_obligation(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Json(body): Json<Value>) -> Response {
@@ -643,9 +800,13 @@ async fn resolve_obligation(State(app): Ctx, headers: HeaderMap, Path(id): Path<
     if reason.len() < 5 {
         return fail(StatusCode::BAD_REQUEST, "a reason is required");
     }
-    let db = app.db.lock().unwrap();
+    let db = app.db();
     let row: Option<(String, i64, String)> = db.query_row("SELECT state, target_calc, record_id FROM obligations WHERE id = ?", params![id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).optional().ok().flatten();
-    let Some((state, target, record_id)) = row else { return fail(StatusCode::NOT_FOUND, "obligation not found") };
+    let Some((state, target, record_id)) = row else { return not_found() };
+    let project_of: i64 = db.query_row("SELECT project_id FROM calculations WHERE id = ?", params![target], |r| r.get(0)).unwrap_or(-1);
+    if !can_access(&db, &u, project_of) {
+        return not_found();
+    }
     if state != "open" {
         return fail(StatusCode::CONFLICT, "obligation is not open");
     }
@@ -658,9 +819,9 @@ async fn resolve_obligation(State(app): Ctx, headers: HeaderMap, Path(id): Path<
 }
 
 async fn dependencies(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Response {
-    guard!(auth(&app, &headers));
-    let db = app.db.lock().unwrap();
-    let Some(c) = load_calc(&db, id) else { return fail(StatusCode::NOT_FOUND, "calculation not found") };
+    let u = guard!(auth(&app, &headers));
+    let db = app.db();
+    let Some(c) = load_calc(&db, id).filter(|c| can_access(&db, &u, c.project)) else { return not_found() };
     let records: Vec<Record> = serde_json::from_value(c.result["records"].clone()).unwrap_or_default();
     let name = |r: &Record| -> String { r.payload.get("part").or_else(|| r.payload.get("name")).and_then(|v| v.as_str()).map(|x| format!("{} · {x}", r.kind)).unwrap_or_else(|| r.kind.clone()) };
     let by_id: std::collections::BTreeMap<&str, &Record> = records.iter().map(|r| (r.id.as_str(), r)).collect();
@@ -678,30 +839,33 @@ async fn dependencies(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) 
 }
 
 async fn dashboard(State(app): Ctx, headers: HeaderMap) -> Response {
-    guard!(auth(&app, &headers));
-    let db = app.db.lock().unwrap();
-    let n = |sql: &str| -> i64 { db.query_row(sql, [], |r| r.get(0)).unwrap_or(0) };
+    let u = guard!(auth(&app, &headers));
+    let db = app.db();
+    let sc = scope(&u);
+    let n = |sql: String| -> i64 { db.query_row(&sql, [], |r| r.get(0)).unwrap_or(0) };
+    let calcs = format!("SELECT COUNT(*) FROM calculations WHERE {sc}");
     ok(json!({
-        "projects": n("SELECT COUNT(*) FROM projects"),
-        "documents": n("SELECT COUNT(*) FROM documents"),
-        "calculations": n("SELECT COUNT(*) FROM calculations"),
-        "review_required": n("SELECT COUNT(*) FROM calculations WHERE state = 'REVIEW_REQUIRED'"),
-        "rejected": n("SELECT COUNT(*) FROM calculations WHERE state = 'REJECTED'"),
-        "open_obligations": n("SELECT COUNT(*) FROM obligations WHERE state = 'open'"),
-        "approved": n("SELECT COUNT(*) FROM calculations WHERE state = 'APPROVED'"),
-        "records": n("SELECT COUNT(*) FROM records"),
-        "recent": calc_rows(&db, "", 0).into_iter().take(8).collect::<Vec<_>>(),
+        "projects": n(format!("SELECT COUNT(*) FROM projects WHERE {}", sc.replace("project_id IN", "id IN"))),
+        "documents": n(format!("SELECT COUNT(*) FROM documents WHERE {sc}")),
+        "calculations": n(calcs.clone()),
+        "review_required": n(format!("{calcs} AND state = 'REVIEW_REQUIRED'")),
+        "rejected": n(format!("{calcs} AND state = 'REJECTED'")),
+        "approved": n(format!("{calcs} AND state = 'APPROVED'")),
+        "open_obligations": n(format!("SELECT COUNT(*) FROM obligations WHERE state = 'open' AND target_calc IN (SELECT id FROM calculations WHERE {sc})")),
+        "records": n(format!("SELECT COUNT(*) FROM records WHERE {sc}")),
+        "recent": calc_rows(&db, &format!("WHERE {sc}")).into_iter().take(8).collect::<Vec<_>>(),
         "uptime_seconds": now() - app.started,
         "engine": nf_core::ENGINE_VERSION,
     }))
 }
 
 async fn amoeba_summary(State(app): Ctx, headers: HeaderMap) -> Response {
-    guard!(auth(&app, &headers));
-    let db = app.db.lock().unwrap();
-    let mut st = db.prepare("SELECT family, kind, COUNT(*) FROM records GROUP BY family, kind ORDER BY family, kind").unwrap();
+    let u = guard!(auth(&app, &headers));
+    let db = app.db();
+    let sc = scope(&u);
+    let mut st = db.prepare(&format!("SELECT family, kind, COUNT(*) FROM records WHERE {sc} GROUP BY family, kind ORDER BY family, kind")).unwrap();
     let kinds: Vec<Value> = st.query_map([], |r| Ok(json!({ "family": r.get::<_, String>(0)?, "kind": r.get::<_, String>(1)?, "count": r.get::<_, i64>(2)? }))).unwrap().flatten().collect();
-    let mut st = db.prepare("SELECT kind, json FROM records WHERE family = 'activity'").unwrap();
+    let mut st = db.prepare(&format!("SELECT kind, json FROM records WHERE family = 'activity' AND {sc}")).unwrap();
     let mut work: std::collections::BTreeMap<String, (i64, i64)> = Default::default();
     for (kind, j) in st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))).unwrap().flatten() {
         let wu = serde_json::from_str::<Value>(&j).ok().and_then(|v| v["payload"]["work_units"].as_i64()).unwrap_or(0);
@@ -709,14 +873,14 @@ async fn amoeba_summary(State(app): Ctx, headers: HeaderMap) -> Response {
         e.0 += 1;
         e.1 += wu;
     }
-    let mut st = db.prepare("SELECT project_id, id FROM records WHERE kind = 'snapshot' ORDER BY rowid DESC LIMIT 10").unwrap();
+    let mut st = db.prepare(&format!("SELECT project_id, id FROM records WHERE kind = 'snapshot' AND {sc} ORDER BY rowid DESC LIMIT 10")).unwrap();
     let snaps: Vec<Value> = st.query_map([], |r| Ok(json!({ "project_id": r.get::<_, i64>(0)?, "snapshot": r.get::<_, String>(1)? }))).unwrap().flatten().collect();
     ok(json!({
         "records_by_kind": kinds,
         "activities": work.into_iter().map(|(k, (n, wu))| json!({ "type": k, "distinct_activities": n, "declared_work_units": wu })).collect::<Vec<_>>(),
         "recent_snapshots": snaps,
         "implemented": ["content-addressed append-only records", "project snapshots with predecessor links", "typed dependency edges (derivation, interface, common cause)", "dependency propagation with scrutiny obligations (provisional rule table)", "interface constraint verification between parts", "corrections as attestations with supersession", "release closure hash", "gate evaluation with obligation and replay state", "replay audit in a separate process", "membrane admission checks"],
-        "obligations": { "open": db.query_row("SELECT COUNT(*) FROM obligations WHERE state = 'open'", [], |r| r.get::<_, i64>(0)).unwrap_or(0), "total": db.query_row("SELECT COUNT(*) FROM obligations", [], |r| r.get::<_, i64>(0)).unwrap_or(0) },
+        "obligations": { "open": db.query_row(&format!("SELECT COUNT(*) FROM obligations WHERE state = 'open' AND target_calc IN (SELECT id FROM calculations WHERE {sc})"), [], |r| r.get::<_, i64>(0)).unwrap_or(0), "total": db.query_row(&format!("SELECT COUNT(*) FROM obligations WHERE target_calc IN (SELECT id FROM calculations WHERE {sc})"), [], |r| r.get::<_, i64>(0)).unwrap_or(0) },
         "not_implemented": ["round scheduler and budgets", "exploration probes", "hypothesis-driven investigation", "coverage ledger", "lanes and overlays", "quarantine", "strategy switching", "self-consistency audits A1-A4", "replay on a separate machine or build", "engineer approval"],
     }))
 }
@@ -724,7 +888,7 @@ async fn amoeba_summary(State(app): Ctx, headers: HeaderMap) -> Response {
 async fn audit_log(State(app): Ctx, headers: HeaderMap) -> Response {
     let u = guard!(auth(&app, &headers));
     guard!(require(&u, &["admin"]));
-    let db = app.db.lock().unwrap();
+    let db = app.db();
     let mut st = db.prepare("SELECT at, username, action, detail FROM audit ORDER BY id DESC LIMIT 300").unwrap();
     let rows: Vec<Value> = st.query_map([], |r| Ok(json!({ "at": r.get::<_, i64>(0)?, "username": r.get::<_, String>(1)?, "action": r.get::<_, String>(2)?, "detail": r.get::<_, String>(3)? }))).unwrap().flatten().collect();
     ok(json!(rows))
@@ -732,6 +896,40 @@ async fn audit_log(State(app): Ctx, headers: HeaderMap) -> Response {
 
 fn asset(content_type: &'static str, body: &'static str) -> Response {
     ([(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "no-store")], body).into_response()
+}
+
+/// Applied to every request: anti-forgery checks on state-changing API calls
+/// and security headers on every response.
+async fn security_layer(req: axum::extract::Request, next: axum::middleware::Next) -> Response {
+    let state_changing = !matches!(*req.method(), axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS);
+    let is_api = req.uri().path().starts_with("/api/");
+    if is_api && state_changing {
+        let h = req.headers();
+        if h.get("x-nf-request").is_none() {
+            return fail(StatusCode::FORBIDDEN, "missing anti-forgery header");
+        }
+        if let Some(origin) = h.get(header::ORIGIN).and_then(|v| v.to_str().ok()) {
+            let host = h.get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or("");
+            if origin.split("://").nth(1) != Some(host) {
+                return fail(StatusCode::FORBIDDEN, "cross-origin request refused");
+            }
+        }
+    }
+    let mut resp = next.run(req).await;
+    let h = resp.headers_mut();
+    let set = |h: &mut HeaderMap, k: &'static str, v: &'static str| {
+        h.insert(k, axum::http::HeaderValue::from_static(v));
+    };
+    set(h, "content-security-policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'");
+    set(h, "x-content-type-options", "nosniff");
+    set(h, "x-frame-options", "DENY");
+    set(h, "referrer-policy", "no-referrer");
+    set(h, "permissions-policy", "camera=(), microphone=(), geolocation=()");
+    set(h, "cross-origin-opener-policy", "same-origin");
+    if is_api {
+        set(h, "cache-control", "no-store");
+    }
+    resp
 }
 
 fn router(app: Arc<App>) -> Router {
@@ -745,9 +943,14 @@ fn router(app: Arc<App>) -> Router {
         .route("/api/logout", post(logout))
         .route("/api/me", get(me))
         .route("/api/users", get(list_users).post(add_user))
+        .route("/api/users/{id}/active", post(set_user_active))
+        .route("/api/password", post(change_password))
+        .route("/api/projects/{id}/members", post(add_member))
+        .route("/api/audit/verify", get(audit_verify))
+        .route("/api/security/status", get(security_status))
         .route("/api/projects", get(list_projects).post(add_project))
         .route("/api/projects/{id}", get(get_project))
-        .route("/api/projects/{id}/documents", post(upload))
+        .route("/api/projects/{id}/documents", post(upload).layer(DefaultBodyLimit::max(membrane::MAX_UPLOAD_BYTES + 1024)))
         .route("/api/projects/{id}/calculations", post(calculate))
         .route("/api/calculations", get(list_calcs))
         .route("/api/calculations/{id}", get(get_calc))
@@ -760,7 +963,8 @@ fn router(app: Arc<App>) -> Router {
         .route("/api/dashboard", get(dashboard))
         .route("/api/amoeba/summary", get(amoeba_summary))
         .route("/api/audit", get(audit_log))
-        .layer(DefaultBodyLimit::max(membrane::MAX_UPLOAD_BYTES + 1024))
+        .layer(DefaultBodyLimit::max(256 * 1024))
+        .layer(axum::middleware::from_fn(security_layer))
         .with_state(app)
 }
 
@@ -773,12 +977,19 @@ async fn main() {
     let data_dir = PathBuf::from(std::env::var("NF_DATA_DIR").unwrap_or_else(|_| "data".into()));
     let addr = std::env::var("NF_LISTEN").unwrap_or_else(|_| "127.0.0.1:8787".into());
     std::fs::create_dir_all(data_dir.join("blobs")).expect("cannot create data directory");
-    let key = crypto::load_or_create_key(&data_dir.join("storage.key")).expect("cannot load or create storage key");
+    // The storage key should live apart from the data it protects: set NF_KEY_FILE to a path outside the data directory.
+    let key_path = std::env::var("NF_KEY_FILE").map(PathBuf::from).unwrap_or_else(|_| data_dir.join("storage.key"));
+    let key_outside_data_dir = !key_path.starts_with(&data_dir);
+    let key = crypto::load_or_create_key(&key_path).expect("cannot load or create storage key");
     let db = Connection::open(data_dir.join("nexus-fabric.sqlite")).expect("cannot open database");
     db.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;").ok();
     db.execute_batch(SCHEMA).expect("cannot create schema");
     let _ = db.execute("ALTER TABLE calculations ADD COLUMN supersedes INTEGER", []); // older development databases
-    let app = Arc::new(App { db: Mutex::new(db), key, data_dir, started: now() });
+    for migration in ["ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1", "ALTER TABLE audit ADD COLUMN prev TEXT", "ALTER TABLE audit ADD COLUMN hash TEXT"] {
+        let _ = db.execute(migration, []); // older development databases
+    }
+    let cookie_secure = std::env::var("NF_COOKIE_SECURE").map(|v| v == "1").unwrap_or(false);
+    let app = Arc::new(App { db: Mutex::new(db), key, data_dir, started: now(), cookie_secure, key_outside_data_dir });
     let listener = tokio::net::TcpListener::bind(&addr).await.expect("cannot bind listen address");
     println!("NEXUS FABRIC development build listening on http://{addr}  (data: {})", app.data_dir.display());
     println!("NOT VALIDATED - no output of this software may be used for manufacturing.");

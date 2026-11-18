@@ -12,10 +12,10 @@ for _ in $(seq 1 50); do curl -fsS "$BASE/api/health" >/dev/null 2>&1 && break; 
 pass=0; fail=0
 check() { if eval "$2"; then pass=$((pass+1)); echo "ok   - $1"; else fail=$((fail+1)); echo "FAIL - $1"; fi; }
 j() { python3 -c "import sys,json; d=json.load(sys.stdin); print(eval(sys.argv[1]))" "$1"; }
-code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
-post() { curl -s -b "$JAR" -H 'Content-Type: application/json' -d "$2" "$BASE$1"; }
+code() { curl -s -H "X-NF-Request: 1" -o /dev/null -w '%{http_code}' "$@"; }
+post() { curl -s -H "X-NF-Request: 1" -b "$JAR" -H 'Content-Type: application/json' -d "$2" "$BASE$1"; }
 
-check "health reports setup required"            '[ "$(curl -s $BASE/api/health | j "d[\"setup_required\"]")" = True ]'
+check "health reports setup required"            '[ "$(curl -s -H "X-NF-Request: 1" $BASE/api/health | j "d[\"setup_required\"]")" = True ]'
 check "API refuses unauthenticated access"        '[ "$(code $BASE/api/projects)" = 401 ]'
 check "weak password refused at setup"            '[ "$(code -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"short\"}" $BASE/api/setup)" = 400 ]'
 check "administrator created"                     '[ "$(code -H "Content-Type: application/json" -d "{\"username\":\"admin\",\"password\":\"correct-horse-9\"}" $BASE/api/setup)" = 200 ]'
@@ -27,12 +27,12 @@ check "project created"                           '[ "$PID_P" = 1 ]'
 
 printf '%%PDF-1.7\nsmoke test, not a drawing\n' > "$DATA/a.pdf"
 printf 'MZ not allowed' > "$DATA/b.pdf"
-UP=$(curl -s -b "$JAR" -H 'X-Filename: a.pdf' --data-binary @"$DATA/a.pdf" "$BASE/api/projects/1/documents")
+UP=$(curl -s -H "X-NF-Request: 1" -b "$JAR" -H 'X-Filename: a.pdf' --data-binary @"$DATA/a.pdf" "$BASE/api/projects/1/documents")
 check "PDF admitted by content"                   '[ "$(echo "$UP" | j "d[\"detected_type\"]")" = pdf ]'
 check "executable rejected at the membrane"       '[ "$(code -b $JAR -H "X-Filename: b.pdf" --data-binary @$DATA/b.pdf $BASE/api/projects/1/documents)" = 422 ]'
 SHA=$(echo "$UP" | j 'd["sha256"]')
 check "stored blob is encrypted (plaintext absent)" '! grep -q "smoke test" "$DATA/blobs/$SHA.bin"'
-check "snapshot recorded"                         '[ -n "$(curl -s -b $JAR $BASE/api/projects/1 | j "d[\"snapshot\"]")" ]'
+check "snapshot recorded"                         '[ -n "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/projects/1 | j "d[\"snapshot\"]")" ]'
 
 run() { post /api/projects/1/calculations "$1" | j 'd["id"]'; }
 C1=$(run '{"family":"cone_frustum","r1":200,"r2":100,"h":300}')
@@ -40,7 +40,7 @@ C2=$(run '{"family":"eccentric_reducer","r1":200,"r2":100,"h":300,"e":100}')
 C3=$(run '{"family":"branch_stub","header_radius":150,"branch_radius":100,"branch_dev_radius":100,"beta_deg":60,"delta":0,"s_end":400}')
 C4=$(run '{"family":"cylinder_shell","r_dev":500,"length":1000}')
 C5=$(run '{"family":"cone_frustum","r1":200,"r2":199.99,"h":300}')
-get() { curl -s -b "$JAR" "$BASE/api/calculations/$1"; }
+get() { curl -s -H "X-NF-Request: 1" -b "$JAR" "$BASE/api/calculations/$1"; }
 for c in $C1 $C2 $C3 $C4; do
   R=$(get $c)
   check "job $c: REVIEW_REQUIRED, never APPROVED"  '[ "$(echo "$R" | j "d[\"state\"]")" = REVIEW_REQUIRED ]'
@@ -51,10 +51,10 @@ check "CONE-01 sector angle matches reference"    '[ "$(get $C1 | j "abs(d[\"pat
 check "ECC-01 developed angle matches reference"  '[ "$(get $C2 | j "abs(d[\"patterns\"][0][\"quantities\"][\"developed_angle\"]-1.861891289225)<1e-10")" = True ]'
 check "unsupported input: no pattern, no DXF"     '[ "$(get $C5 | j "d[\"patterns\"] == []")" = True ]'
 check "unsupported input: DXF endpoint 404"       '[ "$(code -b $JAR $BASE/api/calculations/$C5/dxf/reducer)" = 404 ]'
-curl -s -b "$JAR" -D "$DATA/h" -o "$DATA/out.dxf" "$BASE/api/calculations/$C1/dxf/reducer"
+curl -s -H "X-NF-Request: 1" -b "$JAR" -D "$DATA/h" -o "$DATA/out.dxf" "$BASE/api/calculations/$C1/dxf/reducer"
 check "DXF downloads and ends with EOF"           '[ "$(tail -1 $DATA/out.dxf)" = EOF ]'
 check "DXF file name marked NOT-RELEASED"         'grep -qi "filename=\"NOT-RELEASED_REVIEW_REQUIRED" "$DATA/h"'
-RP=$(curl -s -b $JAR -X POST $BASE/api/calculations/$C2/replay)
+RP=$(curl -s -H "X-NF-Request: 1" -b $JAR -X POST $BASE/api/calculations/$C2/replay)
 check "replay audit in a separate process matches"  '[ "$(echo "$RP" | j "d[\"matches\"] and d[\"kind\"]==\"separate_process_replay\"")" = True ]'
 check "G19 reflects the replay but does not pass"   '[ "$(get $C2 | j "[g[\"result\"] for g in d[\"gates\"] if g[\"id\"]==\"G19\"][0]")" = INCONCLUSIVE ]'
 C6=$(run '{"family":"cone_frustum","r1":200,"r2":100,"h":300}')
@@ -64,7 +64,7 @@ A1=$(run '{"family":"header_with_branch","header_radius":150,"header_dev_radius"
 RA=$(get $A1)
 check "assembly: two parts, opening on the header"  '[ "$(echo "$RA" | j "[p[\"part\"] for p in d[\"patterns\"]]==[\"header\",\"branch\"] and len(d[\"patterns\"][0][\"holes\"])==1")" = True ]'
 check "assembly: interface checks pass"             '[ "$(echo "$RA" | j "[c[\"verdict\"] for c in d[\"checks\"] if c[\"scope\"]==\"interface\"]==[\"PASS\",\"PASS\"]")" = True ]'
-check "assembly: dependency edges exposed"          '[ "$(curl -s -b $JAR $BASE/api/calculations/$A1/dependencies | j "len(d[\"edges\"])>=20")" = True ]'
+check "assembly: dependency edges exposed"          '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/calculations/$A1/dependencies | j "len(d[\"edges\"])>=20")" = True ]'
 check "correction without a reason refused"         '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"parameter\":\"header_radius\",\"new_value\":142}" $BASE/api/calculations/$A1/corrections)" = 400 ]'
 CR=$(post /api/calculations/$A1/corrections '{"parameter":"header_radius","new_value":142,"reason":"drawing dimension is the inside diameter"}')
 A2=$(echo "$CR" | j 'd["new_calculation"]')
@@ -81,20 +81,20 @@ OID=$(echo "$RB" | j '[o["id"] for o in d["obligations"] if o["state"]=="open"][
 check "resolving without reason refused"            '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"decision\":\"confirmed\"}" $BASE/api/obligations/$OID/resolve)" = 400 ]'
 check "obligation resolved by engineer decision"    '[ "$(post /api/obligations/$OID/resolve "{\"decision\":\"confirmed\",\"reason\":\"checked against the drawing: outside\"}" | j "d[\"state\"]")" = discharged_by_decision ]'
 check "resolved obligation cannot be resolved twice" '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"decision\":\"waived\",\"reason\":\"second attempt\"}" $BASE/api/obligations/$OID/resolve)" = 409 ]'
-check "two obligations remain open"                 '[ "$(curl -s -b $JAR $BASE/api/obligations | j "sum(1 for o in d if o[\"state\"]==\"open\")")" = 2 ]'
+check "two obligations remain open"                 '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/obligations | j "sum(1 for o in d if o[\"state\"]==\"open\")")" = 2 ]'
 check "new job still REVIEW_REQUIRED"               '[ "$(get $A2 | j "d[\"state\"]")" = REVIEW_REQUIRED ]'
 check "single-part job cannot be corrected this way" '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"parameter\":\"r1\",\"new_value\":210,\"reason\":\"test reason\"}" $BASE/api/calculations/$C1/corrections)" = 400 ]'
 check "malformed request refused"                 '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"family\":\"teapot\"}" $BASE/api/projects/1/calculations)" = 400 ]'
 
 check "viewer account created"                    '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"username\":\"viewer1\",\"password\":\"read-only-pass\",\"role\":\"viewer\"}" $BASE/api/users)" = 200 ]'
-curl -s -o /dev/null -c "$VJAR" -H 'Content-Type: application/json' -d '{"username":"viewer1","password":"read-only-pass"}' "$BASE/api/login"
+curl -s -H "X-NF-Request: 1" -o /dev/null -c "$VJAR" -H 'Content-Type: application/json' -d '{"username":"viewer1","password":"read-only-pass"}' "$BASE/api/login"
 check "viewer can read"                           '[ "$(code -b $VJAR $BASE/api/projects)" = 200 ]'
 check "viewer cannot calculate"                   '[ "$(code -b $VJAR -H "Content-Type: application/json" -d "{\"family\":\"cylinder_shell\",\"r_dev\":1,\"length\":1}" $BASE/api/projects/1/calculations)" = 403 ]'
 check "viewer cannot resolve obligations"           '[ "$(code -b $VJAR -H "Content-Type: application/json" -d "{\"decision\":\"waived\",\"reason\":\"viewer attempt\"}" $BASE/api/obligations/1/resolve)" = 403 ]'
 check "viewer cannot see audit log"               '[ "$(code -b $VJAR $BASE/api/audit)" = 403 ]'
-check "audit log records the rejected upload"     '[ "$(curl -s -b $JAR $BASE/api/audit | j "any(a[\"action\"]==\"upload_rejected\" for a in d)")" = True ]'
-check "AMOEBA summary lists activity records"     '[ "$(curl -s -b $JAR $BASE/api/amoeba/summary | j "len(d[\"activities\"])>=5")" = True ]'
-check "web client served"                         'curl -s $BASE/ | grep -q "NEXUS FABRIC"'
-curl -s -o /dev/null -b "$JAR" -X POST "$BASE/api/logout"
+check "audit log records the rejected upload"     '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/audit | j "any(a[\"action\"]==\"upload_rejected\" for a in d)")" = True ]'
+check "AMOEBA summary lists activity records"     '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/amoeba/summary | j "len(d[\"activities\"])>=5")" = True ]'
+check "web client served"                         'curl -s -H "X-NF-Request: 1" $BASE/ | grep -q "NEXUS FABRIC"'
+curl -s -H "X-NF-Request: 1" -o /dev/null -b "$JAR" -X POST "$BASE/api/logout"
 check "session invalid after logout"              '[ "$(code -b $JAR $BASE/api/projects)" = 401 ]'
 echo "----"; echo "passed: $pass  failed: $fail"; [ "$fail" = 0 ]
