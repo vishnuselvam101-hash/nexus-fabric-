@@ -4,9 +4,20 @@ Engineering Drawing-to-Manufacturing Geometry System: converts engineering drawi
 
 AI interprets the drawing; deterministic mathematical engines calculate; independent verification challenges the result; an authorised engineer releases it.
 
+## Software
+
+A development build exists: one binary serving a browser client. Build, run and test: [Build and Test Guide](docs/BUILD_AND_TEST_GUIDE.md). What works and what does not: [Implementation Status](docs/IMPLEMENTATION_STATUS.md) · [Dependency Matrix](docs/IMPLEMENTATION_DEPENDENCY_MATRIX.md) · [Release Readiness](docs/RELEASE_READINESS.md).
+
+**Not validated. No output may be used for manufacturing. Not for confidential drawings.**
+
+```
+cargo build --release -p nf-server && NF_DATA_DIR=./data target/release/nf-server   # then open http://127.0.0.1:8787
+cargo test --workspace && bash tests/e2e_smoke.sh
+```
+
 ## Status
 
-Specification phase. No application code yet, and no technology or library is committed.
+Specifications are drafts or provisional; a first development build of the software exists (see above). No engineering content is validated, and no geometry kernel, PDF or OCR technology has been selected.
 
 ## Documents
 

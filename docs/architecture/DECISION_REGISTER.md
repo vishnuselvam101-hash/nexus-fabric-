@@ -1,6 +1,6 @@
 # Decision Register
 
-Version 1.3 · 18 November 2026 · The single place where the status of every architectural decision, proposal and open question is kept visible. Specifications 01–03 are **not** edited to reflect these decisions until amendments are formally applied as new versions with change logs.
+Version 1.4 · 18 November 2026 · The single place where the status of every architectural decision, proposal and open question is kept visible. Specifications 01–03 are **not** edited to reflect these decisions until amendments are formally applied as new versions with change logs.
 
 Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, detailed design under review) · **Accepted with conditions** · **Provisional** (awaiting evidence) · **Deferred** · **Proposed** (no decision yet) · **Withdrawn/Merged**.
 
@@ -68,6 +68,16 @@ Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, 
 | D-43 | The first authorised factory drawing is taken in as a **controlled reference case** before any use for tuning; original preserved; ground truth kept separate from AMOEBA predictions | Accepted | [Reference-case intake specification](../benchmark/reference-cases/REFERENCE_CASE_INTAKE_SPECIFICATION.md) |
 | D-44 | Next milestone order: engineer review of H1–H18 and RT1–RT10 → one authorised header-and-oblique-branch drawing → factory questions → independent mathematical review → Specification 04 | Accepted | Roadmap |
 
+### Fifth round (18 November 2026) — implementation authorised
+
+| ID | Subject | Status | Record |
+|---|---|---|---|
+| D-45 | Software implementation of NEXUS FABRIC is authorised and is to proceed incrementally toward one integrated product. **This supersedes D-22 and D-40** (no implementation before Specs 04–06; Spec 04 on hold) as far as building software is concerned | Accepted | [Implementation Status](../IMPLEMENTATION_STATUS.md) |
+| D-46 | Unresolved engineering decisions are implemented as replaceable interfaces with recorded limitations; no engineering rule or manufacturing parameter is invented | Accepted | [Dependency Matrix](../IMPLEMENTATION_DEPENDENCY_MATRIX.md) |
+| D-47 | The validation boundary (section 4) is **unchanged by implementation**: code that runs is not engineering knowledge that is validated. Every implemented model remains EV-1 | Accepted | [Release Readiness](../RELEASE_READINESS.md) |
+| D-48 | Bilingual promotional films to be produced by the stated seven-step workflow; planned capabilities must be distinguished from implemented ones | Accepted — at step 1 (plan awaiting approval) | [Creative plan](../marketing/AD_CREATIVE_PLAN_AND_STORYBOARD.md) |
+| D-49 | "Hybrid storage placement, Always Encrypt, Balanced Retention" cited as approved defaults | **Not previously defined in this repository** — interim interpretation recorded; owner confirmation needed | Dependency Matrix, last section |
+
 Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded on them.
 
 ## 2. Designs produced in this refinement (all Proposed — awaiting review)
@@ -118,6 +128,7 @@ Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded o
 | Japanese review package and vocabulary checked by a native-speaking engineer | **No** |
 | Evidence level of every engineering relationship in the repository | **EV-1 (AI-generated proposal)** |
 | Specification 04 | **Not started; not implementation-ready** |
+| Software | **Development build exists (session 1). Launchable. Not validated; `APPROVED` unreachable; not for confidential data or manufacturing** |
 
 This table is updated only when a named reviewer's returned evidence, a factory record or an experimental result is filed in the repository.
 

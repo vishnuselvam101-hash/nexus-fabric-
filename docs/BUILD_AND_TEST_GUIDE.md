@@ -1,0 +1,62 @@
+# Build and Test Guide
+
+Updated 18 November 2026
+
+## Requirements
+
+Rust toolchain (built with 1.97), a C compiler (for bundled SQLite). For the tests additionally: `bash`, `curl`, `python3`; for the browser test Node.js with Playwright and Chromium. No internet access is needed at run time; building needs the crates (online, or a vendored copy).
+
+## Build
+
+```
+cargo build --release -p nf-server        # binary: target/release/nf-server
+```
+
+The web client is embedded in the binary; there is no separate front-end build.
+
+## Run
+
+```
+NF_DATA_DIR=/path/to/data NF_LISTEN=127.0.0.1:8787 target/release/nf-server
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `NF_DATA_DIR` | `./data` | Database (`nexus-fabric.sqlite`), encrypted blobs (`blobs/`), storage key (`storage.key`) |
+| `NF_LISTEN` | `127.0.0.1:8787` | Listen address. The server speaks plain HTTP: bind to localhost or put a TLS-terminating proxy in front |
+
+First start: open the address in a browser and create the administrator account. Then: *Projects & Documents* → new project → *New development calculation*.
+
+**Keep `storage.key` with the data and back both up together; without the key the stored documents cannot be decrypted. Protect it: anyone with the key and the files can read them.**
+
+## Tests
+
+```
+cargo test --workspace            # 28 unit and integration tests
+bash tests/e2e_smoke.sh           # 41 end-to-end checks against a fresh temporary server (port 8791, override with NF_TEST_PORT)
+```
+
+Browser test (needs an empty data directory because it performs first-run setup):
+
+```
+NF_DATA_DIR=$(mktemp -d) NF_LISTEN=127.0.0.1:8793 target/debug/nf-server &
+NF_BASE=http://127.0.0.1:8793 node tests/ui_smoke.js
+```
+
+Expected output: `state: "REVIEW REQUIRED"`, 4 pattern curves, no entries in `errs`, `tabletOverflow: false`.
+
+## What passing tests do and do not show
+
+They show that the code reproduces the documented reference values, that verifiers catch the seeded faults, that the API enforces authentication and roles, and that results are reproducible. They do **not** show that the mathematical models are right for real fabrication (no independent review), that DXF files are accepted by any CAM system, or that anything is fit for manufacturing.
+
+## Repository layout
+
+```
+crates/uem        mathematics: developments, profile checks, verification
+crates/nf-dxf     DXF writer and independent reader
+crates/nf-core    AMOEBA records, closure, gates, development job
+crates/nf-server  HTTP server, storage, authentication
+web/              client (embedded into the server binary)
+tests/            end-to-end and browser smoke tests
+docs/             specifications, decisions, status
+```
