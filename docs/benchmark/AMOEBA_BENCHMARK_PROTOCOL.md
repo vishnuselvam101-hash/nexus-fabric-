@@ -1,6 +1,6 @@
 # AMOEBA Benchmark Protocol
 
-Protocol version 1.2 · 18 November 2026 (change log in §13) · Governs ADR-009B and ADR-012 · Supersedes section B-4 of the [AMOEBA Architecture Benchmark](AMOEBA_ARCHITECTURE_BENCHMARK.md) (that document is preserved; its other sections remain in force as safety and scale tests)
+Protocol version 1.3 · 18 November 2026 (change log in §13) · Governs ADR-009B and ADR-012 · Supersedes section B-4 of the [AMOEBA Architecture Benchmark](AMOEBA_ARCHITECTURE_BENCHMARK.md) (that document is preserved; its other sections remain in force as safety and scale tests)
 
 ## 0. Freeze status
 
@@ -119,8 +119,9 @@ These are **experimental design thresholds chosen by the project owner — not i
 | False-positive non-inferiority margin | 2 percentage points (absolute) | Owner's judgement |
 | Human review burden non-inferiority margin | 10 % relative increase | Owner's judgement |
 | Known critical dependency omissions reaching release | **Zero tolerated** | A critical dependency failure must not be averaged away by good performance elsewhere |
-| Efficiency alternative (equal recall with ≥ 20 % fewer work units) | Author's proposal — **not yet approved** | |
-| Minimum share of natural-defect jobs in the held-out set | **Open** — depends on what the factory can supply | |
+| Efficiency criterion (**secondary** success criterion) | ≥ 20 % fewer logical work units at equal critical-defect recall | Approved. Conditions in §9a. It is secondary: it cannot substitute for a failed safety prerequisite or a zero-tolerance failure |
+| Non-inferiority margin for "equal" critical-defect recall in the efficiency criterion | **Open — must be set before execution** | "Equal within the preregistered margin" needs a number that has not been decided; the efficiency criterion cannot be evaluated until it is |
+| Share of natural-defect jobs in the held-out set | **Deliberately not set.** To be decided only after the factory's historical data has been seen | No percentage is invented in advance |
 
 ## 9a. Statistical analysis plan
 
@@ -165,6 +166,10 @@ Because zero observed failures in a finite sample does not show a zero rate, a z
 | Non-inferiority: review burden | Ratio of mean review burden A4 ⁄ A1 < 1.10 | Upper limit of the one-sided 95 % interval below 1.10 | Required conjunct |
 | Zero tolerance | Category K-critical escapes = 0 | Count | Required conjunct |
 
+**Efficiency criterion (secondary).** Supported only if all hold: (1) critical-defect recall of the adaptive arm at the reduced budget is non-inferior to the comparison arm at the full budget, within the preregistered recall margin (interval-based, as for the other non-inferiority tests); (2) work units are lower by at least 20 %, with the confidence interval for the saving excluding smaller values; (3) false-positive and human-review-burden margins are not exceeded; (4) the comparison is on the same jobs with the same defect-severity composition (paired design; any imbalance reported); (5) confidence intervals are reported for every quantity involved.
+
+**Natural versus injected defects.** *Naturally occurring factory errors* (found historically in checking, on the shop floor or by a customer) answer: does the system find the kinds of mistakes that really happen, at their real frequency and subtlety? *Deliberately injected defects* (synthetic, or seeded into real drawings) answer: can the system find a defect of a known class at a known place, and how does detection vary with controlled factors? Neither substitutes for the other. They are never pooled; every metric is reported for each separately, and the confirmatory conclusion requires the natural-defect result to point the same way (F7).
+
 Major- and minor-defect recall, and all other metrics, are reported with intervals for every arm but are not confirmatory.
 
 **Power and sample size.** Before the held-out run, the number of jobs and critical defects needed for power ≥ 0.80 on the primary test at the +5-point minimum effect is computed from development-set estimates (baseline recall in A1, between-job variance, discordance between arms). If the sealed real-drawing set is smaller, the confirmatory analysis is not run as such and all results are labelled *inconclusive*.
@@ -206,3 +211,4 @@ A minimal system implementing the framework and all arms; cost functions; probe 
 | 1.0 | 18 Nov 2026 | Initial structure | — |
 | 1.1 | 18 Nov 2026 | Parameters recorded as provisional preregistered values with justification; severities reported separately; added major/minor recall, dependency-propagation effectiveness, dependency-edge failures, spurious obligations, human review burden and computational cost as explicit metrics; conclusion rule (significance alone insufficient); falsification criteria F8, F9 | Owner decision: the benchmark must not let AMOEBA appear successful while generating excessive review work or missing downstream consequences. Made before any system, data or result exists |
 | 1.2 | 18 Nov 2026 | Remaining parameters set (primary budget 2×, power ≥ 0.80, non-inferiority margins 2 points and 10 %); zero tolerance for known critical dependency omissions reaching release; statistical analysis plan with denominators, intervals, multiplicity, power and conclusion rule; three separately reported dependency-edge failure categories; F8 and F9 made exact | Owner decision. Made before any system, data or result exists |
+| 1.3 | 18 Nov 2026 | Efficiency criterion accepted as a secondary success criterion with five conditions; recall non-inferiority margin for it recorded as open; natural-defect share deliberately left unset until factory data is seen; natural and injected defects defined as answering different questions and never pooled | Owner decision. Made before any system, data or result exists |

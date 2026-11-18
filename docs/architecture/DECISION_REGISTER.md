@@ -1,6 +1,6 @@
 # Decision Register
 
-Version 1.2 · 18 November 2026 · The single place where the status of every architectural decision, proposal and open question is kept visible. Specifications 01–03 are **not** edited to reflect these decisions until amendments are formally applied as new versions with change logs.
+Version 1.3 · 18 November 2026 · The single place where the status of every architectural decision, proposal and open question is kept visible. Specifications 01–03 are **not** edited to reflect these decisions until amendments are formally applied as new versions with change logs.
 
 Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, detailed design under review) · **Accepted with conditions** · **Provisional** (awaiting evidence) · **Deferred** · **Proposed** (no decision yet) · **Withdrawn/Merged**.
 
@@ -59,6 +59,15 @@ Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, 
 | D-39 | Five evidence levels, kept as separate kinds of evidence, not interchangeable approval labels | Accepted | [Evidence levels](EVIDENCE_LEVELS.md) |
 | D-40 | Specification 04 is not to be started; no further expansion of the architecture while its engineering assumptions are untested | Accepted | Roadmap |
 
+### Fourth round (18 November 2026)
+
+| ID | Subject | Status | Record |
+|---|---|---|---|
+| D-41 | Efficiency criterion: ≥ 20 % fewer logical work units at equal critical-defect recall, as a **secondary** success criterion with conditions | Accepted (provisional preregistered) | [Protocol v1.3](../benchmark/AMOEBA_BENCHMARK_PROTOCOL.md) §9, §9a |
+| D-42 | No natural-defect percentage is set before the factory's historical data has been seen; natural and injected defects are reported separately | Accepted | Protocol §9, §9a |
+| D-43 | The first authorised factory drawing is taken in as a **controlled reference case** before any use for tuning; original preserved; ground truth kept separate from AMOEBA predictions | Accepted | [Reference-case intake specification](../benchmark/reference-cases/REFERENCE_CASE_INTAKE_SPECIFICATION.md) |
+| D-44 | Next milestone order: engineer review of H1–H18 and RT1–RT10 → one authorised header-and-oblique-branch drawing → factory questions → independent mathematical review → Specification 04 | Accepted | Roadmap |
+
 Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded on them.
 
 ## 2. Designs produced in this refinement (all Proposed — awaiting review)
@@ -104,6 +113,7 @@ Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded o
 | Spec 02 mathematical models independently reviewed | **None** |
 | Process allowances calibrated | **None** |
 | Factory drawings or factory data received | **None** |
+| Reference cases | **RC-001 at state S0 (prepared; no material, no truth, no reviewer); 0 of 12 validation requirements met** |
 | Standards identified and verified | **None** |
 | Japanese review package and vocabulary checked by a native-speaking engineer | **No** |
 | Evidence level of every engineering relationship in the repository | **EV-1 (AI-generated proposal)** |
@@ -126,7 +136,7 @@ Not blockers for drafting, but blockers for *implementation*: process-parameter 
 
 ## 4b. Decisions still needed from the owner
 
-Who performs the fabrication-engineering review and by when · who translates and who independently checks the Japanese version · efficiency-alternative parameter and natural-defect share in the protocol · when to apply accepted amendments to Specs 01–03 · ADR-001…008 status.
+Who performs the fabrication-engineering review and by when · who translates and who independently checks the Japanese version · recall non-inferiority margin for the efficiency criterion (open in Protocol v1.3) · when to apply accepted amendments to Specs 01–03 · ADR-001…008 status.
 
 ## 5. Unresolved engineering questions
 

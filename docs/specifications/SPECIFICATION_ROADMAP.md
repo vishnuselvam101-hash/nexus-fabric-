@@ -129,11 +129,11 @@ Order of development for the remaining specifications, with dependencies and rev
 
 ## Recommended immediate sequence
 
-**Next milestone: validated engineering knowledge, not further architecture documents.**
+**Next milestone: the first real engineering evidence. No further architecture expansion.** Validation boundary and Spec 04 blockers: [Decision Register](../architecture/DECISION_REGISTER.md) §4–4a.
 
-0. Validation boundary and Spec 04 blockers are kept in the [Decision Register](../architecture/DECISION_REGISTER.md) §4–4a.
-1. Targeted fabrication-engineering review using the [handoff](../reviews/ENGINEER_REVIEW_HANDOFF.md) and [review package](../reviews/FABRICATION_ENGINEERING_REVIEW_PACKAGE.md) — header with branch first, then reducer halves, then transitions. Currently 0 of 56 statements reviewed.
-2. Factory answers to the five checklist questions and the `FR-` requests; independent engineering review of Spec 02 (provisional).
-3. Incorporate the review results into the dependency model and rule table (with attribution).
-4. **04 Geometry Reconstruction and Fabrication Specification** — only then; it is **not started** and is not ready to serve as a basis for implementation. If no qualified engineer is available, it may be drafted only as explicitly provisional documentation.
-5. Then 05 and 06; 07 alongside; 08 last. No platform implementation before 04–06 are defined; first software milestone is one narrow vertical slice.
+1. **Fabrication engineer review** — return H1–H18 and RT1–RT10 first ([handoff](../reviews/ENGINEER_REVIEW_HANDOFF.md), [package](../reviews/FABRICATION_ENGINEERING_REVIEW_PACKAGE.md)). 0 of 56 reviewed.
+2. **Representative drawing** — one authorised header-and-oblique-branch drawing with revisions and any approved development or DXF, taken in as controlled reference case [RC-001](../benchmark/reference-cases/RC-001-header-oblique-branch/CASE_STATUS.md) before any use for tuning. State S0, nothing received.
+3. **Factory questions** — dimensioning conventions, common geometry families, CAD formats, revision practices.
+4. **Independent mathematical review** — reducer, branch and rectangular-to-round models of Spec 02 (provisional).
+5. **04 Geometry Reconstruction and Fabrication Specification** — written against the reviewed evidence. Not started; not implementation-ready.
+6. Then 05 and 06; 07 alongside; 08 last. No platform implementation before 04–06 are defined; first software milestone is one narrow vertical slice.
