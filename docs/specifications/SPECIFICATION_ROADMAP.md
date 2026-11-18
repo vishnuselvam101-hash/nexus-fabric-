@@ -131,7 +131,8 @@ Order of development for the remaining specifications, with dependencies and rev
 
 **Next milestone: validated engineering knowledge, not further architecture documents.**
 
-1. Targeted fabrication-engineering review using the [review package](../reviews/FABRICATION_ENGINEERING_REVIEW_PACKAGE.md) — header with branch first, then reducer halves, then transitions. Currently 0 of 56 statements reviewed.
+0. Validation boundary and Spec 04 blockers are kept in the [Decision Register](../architecture/DECISION_REGISTER.md) §4–4a.
+1. Targeted fabrication-engineering review using the [handoff](../reviews/ENGINEER_REVIEW_HANDOFF.md) and [review package](../reviews/FABRICATION_ENGINEERING_REVIEW_PACKAGE.md) — header with branch first, then reducer halves, then transitions. Currently 0 of 56 statements reviewed.
 2. Factory answers to the five checklist questions and the `FR-` requests; independent engineering review of Spec 02 (provisional).
 3. Incorporate the review results into the dependency model and rule table (with attribution).
 4. **04 Geometry Reconstruction and Fabrication Specification** — only then; it is **not started** and is not ready to serve as a basis for implementation. If no qualified engineer is available, it may be drafted only as explicitly provisional documentation.
