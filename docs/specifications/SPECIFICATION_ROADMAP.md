@@ -4,6 +4,16 @@ Version 0.1 · 18 November 2026
 
 Order of development for the remaining specifications, with dependencies and review gates. Numbering follows the development sequence below (it differs from the list in master plan §20, which was unordered).
 
+## Status (18 November 2026)
+
+| Spec | Status | Outstanding before approval |
+|---|---|---|
+| 01 System Architecture | Draft 0.1 — awaiting review | Update §3.1 component table to the twelve subsystems of Spec 02 §1.1; decide proposed development-class amendment (Spec 02 §14) |
+| 02 Mathematical Engineering | **Draft 0.1 complete — awaiting independent review** | Second-person derivation check; independent recomputation of [reference cases](../benchmark/MATHEMATICAL_REFERENCE_CASES.md); factory inputs FR-02-1…10; standards review R-11…R-14 in the [research register](../research/MATHEMATICAL_RESEARCH_REGISTER.md) |
+| 03–08 | Not started | — |
+| 09 Research | Licensing review started | Quotations, counsel, patent search |
+| 10 Benchmark | Plan drafted; tier-S mathematical cases drafted | Factory data and authorisation |
+
 ## Dependency order
 
 ```
@@ -31,7 +41,7 @@ Order of development for the remaining specifications, with dependencies and rev
 - **Required research:** closed-form versus numeric development for eccentric and oblique reducers; interval methods for transcendental functions; conditioning of multi-view constraint systems; JIS conventions for dimensioning and tolerancing; published reference solutions for cross-checking.
 - **Deliverables:** per-algorithm sheets (formulation, regime, bounds, validity range, failure outcomes, reference cases); notation and unit system; a definition separating *numerical error*, *measurement uncertainty* and *manufacturing tolerance*.
 - **Acceptance:** each algorithm has ≥ 2 independent derivations or references; every formula dimensionally checked; reviewed by a qualified mathematician/engineer; no algorithm lacks a stated validity range.
-- **Open requirements:** FR-02-1 which part families the factory actually produces, with frequency; FR-02-2 whether drawings dimension to inside, outside or mid-thickness; FR-02-3 customary tolerances.
+- **Open requirements:** FR-02-1 which part families the factory actually produces, with frequency; FR-02-2 whether drawings dimension to inside, outside or mid-thickness; FR-02-3 customary tolerances; FR-02-4…10 as listed in Spec 02 §13.
 
 ## 03 — Drawing Intelligence and Ingestion Specification
 
@@ -117,7 +127,7 @@ Order of development for the remaining specifications, with dependencies and rev
 
 ## Recommended immediate sequence
 
-1. **02 Mathematical Engineering Specification** (next), with **10** data collection and **09** licensing/quotations running in parallel.
-2. 03 in parallel with the kernel and PDF/OCR evaluations.
+1. ~~02 Mathematical Engineering Specification~~ — drafted; now in independent review.
+2. **03 Drawing Intelligence and Ingestion Specification** (next), in parallel with the kernel and PDF/OCR evaluations, **10** data collection and **09** licensing/quotations.
 3. 04, then 05 and 06.
 4. 07 alongside 04–06; 08 last.
