@@ -47,22 +47,50 @@ for c in $C1 $C2 $C3 $C4; do
   check "job $c: all verification checks PASS"     '[ "$(echo "$R" | j "all(c[\"verdict\"]==\"PASS\" for c in d[\"checks\"]) and len(d[\"checks\"])>=4")" = True ]'
   check "job $c: approval gate not implemented"    '[ "$(echo "$R" | j "[g[\"result\"] for g in d[\"gates\"] if g[\"id\"]==\"G16\"][0]")" = NOT_IMPLEMENTED ]'
 done
-check "CONE-01 sector angle matches reference"    '[ "$(get $C1 | j "abs(d[\"pattern\"][\"quantities\"][\"sector_angle\"]-1.986917653159)<1e-11")" = True ]'
-check "ECC-01 developed angle matches reference"  '[ "$(get $C2 | j "abs(d[\"pattern\"][\"quantities\"][\"developed_angle\"]-1.861891289225)<1e-10")" = True ]'
-check "unsupported input: no pattern, no DXF"     '[ "$(get $C5 | j "d[\"pattern\"] is None and d[\"dxf_available\"] is False")" = True ]'
-check "unsupported input: DXF endpoint 404"       '[ "$(code -b $JAR $BASE/api/calculations/$C5/dxf)" = 404 ]'
-curl -s -b "$JAR" -D "$DATA/h" -o "$DATA/out.dxf" "$BASE/api/calculations/$C1/dxf"
+check "CONE-01 sector angle matches reference"    '[ "$(get $C1 | j "abs(d[\"patterns\"][0][\"quantities\"][\"sector_angle\"]-1.986917653159)<1e-11")" = True ]'
+check "ECC-01 developed angle matches reference"  '[ "$(get $C2 | j "abs(d[\"patterns\"][0][\"quantities\"][\"developed_angle\"]-1.861891289225)<1e-10")" = True ]'
+check "unsupported input: no pattern, no DXF"     '[ "$(get $C5 | j "d[\"patterns\"] == []")" = True ]'
+check "unsupported input: DXF endpoint 404"       '[ "$(code -b $JAR $BASE/api/calculations/$C5/dxf/reducer)" = 404 ]'
+curl -s -b "$JAR" -D "$DATA/h" -o "$DATA/out.dxf" "$BASE/api/calculations/$C1/dxf/reducer"
 check "DXF downloads and ends with EOF"           '[ "$(tail -1 $DATA/out.dxf)" = EOF ]'
 check "DXF file name marked NOT-RELEASED"         'grep -qi "filename=\"NOT-RELEASED_REVIEW_REQUIRED" "$DATA/h"'
-check "replay audit matches"                      '[ "$(curl -s -b $JAR -X POST $BASE/api/calculations/$C2/replay | j "d[\"matches\"]")" = True ]'
+RP=$(curl -s -b $JAR -X POST $BASE/api/calculations/$C2/replay)
+check "replay audit in a separate process matches"  '[ "$(echo "$RP" | j "d[\"matches\"] and d[\"kind\"]==\"separate_process_replay\"")" = True ]'
+check "G19 reflects the replay but does not pass"   '[ "$(get $C2 | j "[g[\"result\"] for g in d[\"gates\"] if g[\"id\"]==\"G19\"][0]")" = INCONCLUSIVE ]'
 C6=$(run '{"family":"cone_frustum","r1":200,"r2":100,"h":300}')
 check "identical request gives identical closure" '[ "$(get $C1 | j "d[\"closure_hash\"]")" = "$(get $C6 | j "d[\"closure_hash\"]")" ]'
+# --- assembly, correction, dependency propagation, obligations
+A1=$(run '{"family":"header_with_branch","header_radius":150,"header_dev_radius":150,"header_length":1200,"branch_station":600,"branch_radius":100,"branch_dev_radius":100,"beta_deg":60,"delta":0,"s_end":400,"surface_reference":"outside"}')
+RA=$(get $A1)
+check "assembly: two parts, opening on the header"  '[ "$(echo "$RA" | j "[p[\"part\"] for p in d[\"patterns\"]]==[\"header\",\"branch\"] and len(d[\"patterns\"][0][\"holes\"])==1")" = True ]'
+check "assembly: interface checks pass"             '[ "$(echo "$RA" | j "[c[\"verdict\"] for c in d[\"checks\"] if c[\"scope\"]==\"interface\"]==[\"PASS\",\"PASS\"]")" = True ]'
+check "assembly: dependency edges exposed"          '[ "$(curl -s -b $JAR $BASE/api/calculations/$A1/dependencies | j "len(d[\"edges\"])>=20")" = True ]'
+check "correction without a reason refused"         '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"parameter\":\"header_radius\",\"new_value\":142}" $BASE/api/calculations/$A1/corrections)" = 400 ]'
+CR=$(post /api/calculations/$A1/corrections '{"parameter":"header_radius","new_value":142,"reason":"drawing dimension is the inside diameter"}')
+A2=$(echo "$CR" | j 'd["new_calculation"]')
+check "correction creates a new job"                '[ "$A2" -gt "$A1" ]'
+check "correction raises obligations, 3 stay open"  '[ "$(echo "$CR" | j "d[\"obligations\"]>=9 and d[\"open\"]==3")" = True ]'
+check "old job marked superseded"                   '[ "$(get $A1 | j "d[\"superseded_by\"]")" = "$A2" ]'
+check "old job effectively REJECTED"                '[ "$(get $A1 | j "d[\"state\"]")" = REJECTED ]'
+check "superseded DXF withheld"                     '[ "$(code -b $JAR $BASE/api/calculations/$A1/dxf/header)" = 409 ]'
+RB=$(get $A2)
+check "new job: open obligations are common-cause"  '[ "$(echo "$RB" | j "sorted(o[\"label\"] for o in d[\"obligations\"] if o[\"state\"]==\"open\")==[\"branch_dev_radius\",\"branch_radius\",\"header_dev_radius\"]")" = True ]'
+check "new job: downstream+lateral discharged by evidence" '[ "$(echo "$RB" | j "all(o[\"state\"]==\"discharged\" for o in d[\"obligations\"] if o[\"direction\"]!=\"common_cause\")")" = True ]'
+check "new job: G18 reports open obligations"       '[ "$(echo "$RB" | j "\"OPEN\" in [g[\"detail\"] for g in d[\"gates\"] if g[\"id\"]==\"G18\"][0]")" = True ]'
+OID=$(echo "$RB" | j '[o["id"] for o in d["obligations"] if o["state"]=="open"][0]')
+check "resolving without reason refused"            '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"decision\":\"confirmed\"}" $BASE/api/obligations/$OID/resolve)" = 400 ]'
+check "obligation resolved by engineer decision"    '[ "$(post /api/obligations/$OID/resolve "{\"decision\":\"confirmed\",\"reason\":\"checked against the drawing: outside\"}" | j "d[\"state\"]")" = discharged_by_decision ]'
+check "resolved obligation cannot be resolved twice" '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"decision\":\"waived\",\"reason\":\"second attempt\"}" $BASE/api/obligations/$OID/resolve)" = 409 ]'
+check "two obligations remain open"                 '[ "$(curl -s -b $JAR $BASE/api/obligations | j "sum(1 for o in d if o[\"state\"]==\"open\")")" = 2 ]'
+check "new job still REVIEW_REQUIRED"               '[ "$(get $A2 | j "d[\"state\"]")" = REVIEW_REQUIRED ]'
+check "single-part job cannot be corrected this way" '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"parameter\":\"r1\",\"new_value\":210,\"reason\":\"test reason\"}" $BASE/api/calculations/$C1/corrections)" = 400 ]'
 check "malformed request refused"                 '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"family\":\"teapot\"}" $BASE/api/projects/1/calculations)" = 400 ]'
 
 check "viewer account created"                    '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"username\":\"viewer1\",\"password\":\"read-only-pass\",\"role\":\"viewer\"}" $BASE/api/users)" = 200 ]'
 curl -s -o /dev/null -c "$VJAR" -H 'Content-Type: application/json' -d '{"username":"viewer1","password":"read-only-pass"}' "$BASE/api/login"
 check "viewer can read"                           '[ "$(code -b $VJAR $BASE/api/projects)" = 200 ]'
 check "viewer cannot calculate"                   '[ "$(code -b $VJAR -H "Content-Type: application/json" -d "{\"family\":\"cylinder_shell\",\"r_dev\":1,\"length\":1}" $BASE/api/projects/1/calculations)" = 403 ]'
+check "viewer cannot resolve obligations"           '[ "$(code -b $VJAR -H "Content-Type: application/json" -d "{\"decision\":\"waived\",\"reason\":\"viewer attempt\"}" $BASE/api/obligations/1/resolve)" = 403 ]'
 check "viewer cannot see audit log"               '[ "$(code -b $VJAR $BASE/api/audit)" = 403 ]'
 check "audit log records the rejected upload"     '[ "$(curl -s -b $JAR $BASE/api/audit | j "any(a[\"action\"]==\"upload_rejected\" for a in d)")" = True ]'
 check "AMOEBA summary lists activity records"     '[ "$(curl -s -b $JAR $BASE/api/amoeba/summary | j "len(d[\"activities\"])>=5")" = True ]'

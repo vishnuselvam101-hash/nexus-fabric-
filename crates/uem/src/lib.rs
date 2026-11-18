@@ -40,6 +40,7 @@ impl P2 {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Layer {
     CutOuter,
+    CutInner,
     Reference,
 }
 
@@ -86,6 +87,8 @@ pub struct Pattern {
     pub class: DevClass,
     /// Closed outer profile, curves in order, end of each = start of next.
     pub outline: Vec<Curve>,
+    /// Closed inner profiles (openings), each a single closed polyline, clockwise.
+    pub holes: Vec<Curve>,
     /// Estimated numerical error of pattern coordinates (mm). Not certified.
     pub eps_num: f64,
     /// Largest representation error among polyline curves (mm). Estimated.
