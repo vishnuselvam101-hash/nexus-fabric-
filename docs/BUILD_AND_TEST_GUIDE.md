@@ -32,8 +32,8 @@ First start: open the address in a browser and create the administrator account.
 ## Tests
 
 ```
-cargo test --workspace            # 28 unit and integration tests
-bash tests/e2e_smoke.sh           # 41 end-to-end checks against a fresh temporary server (port 8791, override with NF_TEST_PORT)
+cargo test --workspace            # 34 unit and integration tests
+bash tests/e2e_smoke.sh           # 61 end-to-end checks against a fresh temporary server (port 8791, override with NF_TEST_PORT)
 ```
 
 Browser test (needs an empty data directory because it performs first-run setup):
@@ -43,7 +43,9 @@ NF_DATA_DIR=$(mktemp -d) NF_LISTEN=127.0.0.1:8793 target/debug/nf-server &
 NF_BASE=http://127.0.0.1:8793 node tests/ui_smoke.js
 ```
 
-Expected output: `state: "REVIEW REQUIRED"`, 4 pattern curves, no entries in `errs`, `tabletOverflow: false`.
+The script exits 0 on success and prints what it observed (single-part and assembly results, obligations before and after a decision, no script errors, no overflow at tablet width).
+
+The replay audit starts the same binary as a child process (`nf-server replay-check`); the binary must be allowed to execute itself.
 
 ## What passing tests do and do not show
 

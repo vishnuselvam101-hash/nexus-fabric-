@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated 18 November 2026 · implementation session 1 · engine `nf-core 0.1.0 / uem 0.1.0`
+Updated 18 November 2026 · implementation session 2 · engine `nf-core 0.1.0 / uem 0.1.0`
 
 Four different things are tracked separately and must not be confused:
 
@@ -16,6 +16,17 @@ Four different things are tracked separately and must not be confused:
 
 A launchable single-binary application exists: sign in, create projects, upload documents (stored encrypted, not interpreted), enter geometry parameters for four part families, obtain a flat pattern with independent verification checks, a DXF, a gate evaluation and a replay audit — every result ends in REVIEW REQUIRED or REJECTED. `APPROVED` cannot be reached.
 
+## Added in session 2
+
+- **Assembly job:** header shell (with the branch opening as an inner profile) plus set-on branch, as two parts with one joint.
+- **Interface verification:** the branch cut and the header opening, each folded back to 3D from its own pattern, must be the same curve.
+- **Typed dependency edges** per parameter (derivation, interface, common cause) and **propagation** in three directions.
+- **Corrections:** an engineer's correction never edits a job; it is an attestation that creates a new job, supersedes the old one and raises **scrutiny obligations**. Downstream and lateral obligations are discharged only by passing evidence in the recomputed job; common-cause obligations stay open until an engineer records a decision with a reason.
+- **Gates G18 and G19** are evaluated when a result is read; superseded and rejected results have their DXF withheld.
+- **Replay audit** now runs in a separate operating-system process that receives only the request.
+
+The dependency **rule table is provisional** (EV-1; 0 of 56 statements reviewed). The mechanism is tested; whether the rules are the right ones is an engineering question that remains open.
+
 ## Mathematical engine (`crates/uem`)
 
 | Feature | Code | Engineering validation | Notes |
@@ -29,7 +40,9 @@ A launchable single-binary application exists: sign in, create projects, upload 
 | Profile validation (closure, self-intersection, orientation) | INTEGRATED | — | binary64, not exact predicates |
 | Independent verification checks per family | INTEGRATED | None | Different formulation, same crate (class I-F only) |
 | Seeded-fault tests for verifiers | TESTED | — | Wrong radius reference, wrong offset, inside/outside header, scale |
-| Header opening pattern; branch on cone/sphere | NOT STARTED | | |
+| Header shell with branch opening (inner profile) | INTEGRATED | None | Seam fixed opposite the branch; no clearance rule |
+| Interface check: branch cut ≡ header opening | INTEGRATED | None | Seeded faults: inside/outside header, angle mismatch |
+| Branch on cone/sphere; several branches | NOT STARTED | | |
 | Rectangular-to-round, irregular transitions | NOT STARTED | | |
 | Thickness / neutral surface, roll and weld allowances, kerf | NOT STARTED | | BLOCKED on calibrated process data for real use |
 | Constraint solving, frames/view projection | NOT STARTED | | |
@@ -42,16 +55,17 @@ A launchable single-binary application exists: sign in, create projects, upload 
 | Mechanism | Code | Notes |
 |---|---|---|
 | Immutable content-addressed records, seven families | INTEGRATED | Identity = SHA-256 of canonical JSON; exact float round-trip enforced by test |
-| Typed relations | INTEGRATED | Derivation edges only; interface and common-cause edges NOT STARTED |
+| Typed dependency edges | INTEGRATED | Derivation, interface and common-cause edges for the header/branch assembly; single-part jobs have one request claim |
 | Project snapshot with predecessor (engulfment) | INTEGRATED | Enumeration of source content for coverage NOT STARTED |
 | Membrane admission (content-based type, size limit) | INTEGRATED | No sandboxed parsing yet — nothing is parsed |
 | Activities with logical work units | INTEGRATED | Costs are fixed declarations, not calibrated |
 | Release closure and closure hash | INTEGRATED | Unrelated additions do not change the hash (tested) |
-| Gate evaluation and release state | INTEGRATED | G01, G05, G06, G08, G10, G11, G14, G15, G16, G18, G19 reported; unevaluable gates are NOT_IMPLEMENTED, never PASS |
-| Replay audit | INTEGRATED (same process) | Independent-instance replay NOT STARTED |
+| Gate evaluation and release state | INTEGRATED | G01, G02 (assemblies), G05, G06, G08, G10, G11, G14, G15, G16, G18, G19; G18/G19 evaluated at read time; unevaluable gates never PASS |
+| Replay audit | INTEGRATED (separate process, same machine and build) | Separate build or machine NOT STARTED |
 | Round scheduler, signals, budgets | NOT STARTED | Jobs run synchronously in one pass |
 | Exploration probes, hypothesis-driven investigation | NOT STARTED | |
-| Dependency propagation, scrutiny obligations (G18) | NOT STARTED | Rule table unreviewed (0/56) |
+| Dependency propagation, scrutiny obligations (G18) | INTEGRATED for parameter corrections | **Rule table provisional, unreviewed (0/56)**. Not yet raised by drawing revisions, verification failures or algorithm faults |
+| Corrections with supersession; obligation resolution by recorded decision | INTEGRATED | Reason mandatory; resolved obligations are immutable |
 | Coverage ledger (G17 deferred) | NOT STARTED | |
 | Lanes / overlays, quarantine, retirement | NOT STARTED | All algorithms marked `not_production_qualified` |
 | Self-consistency audits A1–A4 | NOT STARTED | |
@@ -115,12 +129,12 @@ A launchable single-binary application exists: sign in, create projects, upload 
 
 | Suite | Count | Covers |
 |---|---|---|
-| `cargo test -p uem` | 15 | Reference cases CYL-02, MITRE-01, CONE-01, ECC-01/02, BR-01/03/04, BEND-01; limits; profile checks; verifier seeded faults |
+| `cargo test -p uem` | 17 | Reference cases; limits; profile checks; header opening; interface check; verifier seeded faults |
 | `cargo test -p nf-dxf` | 2 | Round trip; corruption, truncation, foreign entity, layer change |
-| `cargo test -p nf-core` | 8 | Record identity, closure, release-state rules, job determinism, storage round trip, rejection on failed verification |
+| `cargo test -p nf-core` | 12 | Record identity and storage round trip; closure; release-state rules; job determinism; assembly structure; propagation reach, locality and determinism; discharge rules |
 | `cargo test -p nf-server` | 3 | Encryption, password hashing, membrane |
-| `tests/e2e_smoke.sh` | 41 checks | Fresh server: setup, auth, roles, upload admission and encryption, four job families, reference values through the API, DXF export, replay, audit |
-| `tests/ui_smoke.js` | 1 flow | Real browser: setup, project, calculation, pattern rendering, replay, all areas, no script errors, no overflow at tablet width |
+| `tests/e2e_smoke.sh` | 61 checks | Fresh server: setup, auth, roles, upload admission and encryption, five job families, reference values through the API, DXF export, separate-process replay, correction → supersession → obligations → resolution, withheld files, audit |
+| `tests/ui_smoke.js` | 1 flow | Real browser: setup, single-part job, assembly job, correction, resolving an obligation, superseded job, all areas, no script errors, no overflow at tablet width |
 
 Not yet present: performance tests, security tests beyond the above, failure-recovery tests, frontend unit tests, CAM acceptance tests.
 

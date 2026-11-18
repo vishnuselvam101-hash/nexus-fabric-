@@ -12,11 +12,11 @@ What each remaining block of work needs before it can be built (**B**) and befor
 | Thickness, allowances, kerf | ProcessData record type (free) | **Calibrated factory parameters (EV-5)** — none exist | BLOCKED for real use |
 | Constraint solver | Free (Spec 02 §2.3) | Benchmark on real drawings | Open |
 | Round scheduler, budgets, signals | Free (Determinism note) | Replay benchmark | Open |
-| Dependency edges, obligations, Gate G18 | Edge types and mechanism: free. **Rule table content: engineer review (0/56)** | Review package returned | Mechanism can be built; rules BLOCKED |
+| Dependency edges, obligations, Gate G18 | Mechanism built for one assembly type. **Rule table content: engineer review (0/56)** | Review package returned | Mechanism done; rules BLOCKED |
 | Investigations, probes, strategy profiles | Mechanism free; explanation catalogues need engineering authorship | Benchmark protocol v1.3 | Partly blocked |
 | Coverage ledger | Vector/CAD enumeration needs parsers; raster enumeration needs imaging library | Benchmark | Blocked on parser selection |
 | Lanes, overlays, quarantine | Free | Safety-invariant tests | Open |
-| Independent-instance replay | Free (second process) | — | Open |
+| Independent-instance replay | Separate process done; separate build/machine open | — | Partly done |
 | Engineer approval (G16) and release | Requires G18, G19, lanes, per-user signing, roles for release authority | Security review | Deliberately last |
 | PDF parsing | **Library selection + Dependency Evaluation Record** (PDFium / lopdf / own) | Benchmark on CAD-plotted Japanese PDFs | BLOCKED on selection and sample drawings |
 | OCR (JA/EN), dimension recognition | **Engine and model selection; weight licences** | Authorised Japanese drawings | BLOCKED |
