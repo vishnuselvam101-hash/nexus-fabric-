@@ -78,7 +78,7 @@ const views = {
   },
   async projects() {
     const ps = await api('/api/projects');
-    setTimeout(() => { const f = $('#np'); if (f) f.onsubmit = async (e) => { e.preventDefault(); try { const r = await api('/api/projects', { method: 'POST', json: { name: e.target.n.value, description: e.target.d.value } }); location.hash = `#/project/${r.id}`; } catch (err) { alert(err.message); } }; });
+    after(() => { const f = $('#np'); if (f) f.onsubmit = async (e) => { e.preventDefault(); try { const r = await api('/api/projects', { method: 'POST', json: { name: e.target.n.value, description: e.target.d.value } }); location.hash = `#/project/${r.id}`; } catch (err) { alert(err.message); } }; });
     return `<h1>Projects & Documents</h1><p class="sub">Projects, source documents and their immutable snapshots.</p>
       <div class="card">${ps.length ? `<table><tr><th>#</th><th>Name</th><th>Documents</th><th>Jobs</th><th>Created</th></tr>${ps.map((p) => `<tr><td>${p.id}</td><td><a href="#/project/${p.id}">${esc(p.name)}</a><br><span class="sub">${esc(p.description)}</span></td><td>${p.documents}</td><td>${p.calculations}</td><td>${esc(p.created_by)} · ${when(p.created_at)}</td></tr>`).join('')}</table>` : '<p class="sub">No projects yet.</p>'}</div>
       ${me.role === 'viewer' ? '' : `<div class="card"><h2 style="margin-top:0">New project</h2><form id="np"><div class="grid2"><div><label>Name</label><input name="n" required maxlength="200"></div><div><label>Description</label><input name="d"></div></div><p><button>Create project</button></p></form></div>`}
@@ -86,7 +86,7 @@ const views = {
   },
   async project(id) {
     const p = await api(`/api/projects/${id}`);
-    setTimeout(() => {
+    after(() => {
       const up = $('#up'); if (!up) return;
       up.onsubmit = async (e) => {
         e.preventDefault(); const file = e.target.file.files[0]; if (!file) return;
@@ -126,7 +126,7 @@ const views = {
       branch_stub: { label: 'Branch stub on cylindrical header', f: [['header_radius', 'Header contact radius (mm)', 150], ['branch_radius', 'Branch contact radius (mm)', 100], ['branch_dev_radius', 'Branch development radius (mm)', 100], ['beta_deg', 'Angle between axes (deg)', 60], ['delta', 'Axis offset (mm)', 0], ['s_end', 'Square end, distance along branch axis (mm)', 400]] },
     };
     const fields = (k) => F[k].f.map(([n, l, v]) => `<div><label>${l}</label><input name="${n}" type="number" step="any" value="${v}" required></div>`).join('');
-    setTimeout(() => {
+    after(() => {
       const form = $('#calc'); if (!form) return;
       form.fam.onchange = () => { $('#fields').innerHTML = fields(form.fam.value); };
       form.onsubmit = async (e) => {
@@ -145,7 +145,7 @@ const views = {
   },
   async calc(id) {
     const c = await api(`/api/calculations/${id}`);
-    setTimeout(() => { const b = $('#replay'); if (b) b.onclick = async () => { b.disabled = true; try { await api(`/api/calculations/${id}/replay`, { method: 'POST' }); route(); } catch (err) { alert(err.message); b.disabled = false; } }; });
+    after(() => { const b = $('#replay'); if (b) b.onclick = async () => { b.disabled = true; try { await api(`/api/calculations/${id}/replay`, { method: 'POST' }); route(); } catch (err) { alert(err.message); b.disabled = false; } }; });
     let svg = '';
     if (c.pattern) {
       const pts = c.pattern.curves.flatMap((k) => k.points);
@@ -190,7 +190,7 @@ const views = {
   async admin() {
     if (me.role !== 'admin') return `<h1>Administration</h1><div class="info">Administrator role required.</div>`;
     const [users, audit] = await Promise.all([api('/api/users'), api('/api/audit')]);
-    setTimeout(() => { const f = $('#nu'); if (f) f.onsubmit = async (e) => { e.preventDefault(); try { await api('/api/users', { method: 'POST', json: { username: e.target.u.value, password: e.target.p.value, role: e.target.r.value } }); route(); } catch (err) { $('#umsg').innerHTML = `<div class="err">${esc(err.message)}</div>`; } }; });
+    after(() => { const f = $('#nu'); if (f) f.onsubmit = async (e) => { e.preventDefault(); try { await api('/api/users', { method: 'POST', json: { username: e.target.u.value, password: e.target.p.value, role: e.target.r.value } }); route(); } catch (err) { $('#umsg').innerHTML = `<div class="err">${esc(err.message)}</div>`; } }; });
     return `<h1>Administration</h1>
       <div class="card"><h2 style="margin-top:0">Users</h2><table><tr><th>#</th><th>Username</th><th>Role</th><th>Created</th></tr>${users.map((u) => `<tr><td>${u.id}</td><td>${esc(u.username)}</td><td>${esc(u.role)}</td><td>${when(u.created_at)}</td></tr>`).join('')}</table>
       <form id="nu"><div class="grid2"><div><label>Username</label><input name="u" required></div><div><label>Password (min 10)</label><input name="p" type="password" required></div><div><label>Role</label><select name="r"><option>engineer</option><option>viewer</option><option>admin</option></select></div></div><p><button>Add user</button></p><div id="umsg"></div></form></div>
@@ -199,12 +199,20 @@ const views = {
   },
 };
 
+let renderSeq = 0;
+let pendingWire = null;
+// A view registers the function that attaches its event handlers; it runs only if that view is the one shown.
+function after(fn) { pendingWire = fn; }
 async function route() {
   if (!me) return;
+  const seq = ++renderSeq; // a slower, older navigation must never overwrite a newer one
   const [, name = 'dashboard', arg] = location.hash.split('/');
   const view = views[name] || views.dashboard;
   const navKey = name === 'project' ? 'projects' : name === 'calc' ? 'verification' : name;
-  try { shell(navKey, await view(arg)); } catch (err) { if (me) shell(navKey, `<div class="err">${esc(err.message)}</div>`); }
+  let html;
+  try { html = await view(arg); } catch (err) { html = `<div class="err">${esc(err.message)}</div>`; }
+  const wire = pendingWire; pendingWire = null;
+  if (seq === renderSeq && me) { shell(navKey, html); if (wire) wire(); }
 }
 
 window.addEventListener('hashchange', route);
