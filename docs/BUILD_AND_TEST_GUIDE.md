@@ -23,6 +23,8 @@ NF_DATA_DIR=/path/to/data NF_LISTEN=127.0.0.1:8787 target/release/nf-server
 | Variable | Default | Meaning |
 |---|---|---|
 | `NF_DATA_DIR` | `./data` | Database (`nexus-fabric.sqlite`), encrypted blobs (`blobs/`), storage key (`storage.key`) |
+| `NF_KEY_FILE` | `<data>/storage.key` | Location of the storage key. **Set it to a path outside the data directory**, on separately protected storage |
+| `NF_COOKIE_SECURE` | unset | Set to `1` when the server is reached through TLS, so the session cookie is marked Secure |
 | `NF_LISTEN` | `127.0.0.1:8787` | Listen address. The server speaks plain HTTP: bind to localhost or put a TLS-terminating proxy in front |
 
 First start: open the address in a browser and create the administrator account. Then: *Projects & Documents* → new project → *New development calculation*.
@@ -33,7 +35,9 @@ First start: open the address in a browser and create the administrator account.
 
 ```
 cargo test --workspace            # 34 unit and integration tests
-bash tests/e2e_smoke.sh           # 61 end-to-end checks against a fresh temporary server (port 8791, override with NF_TEST_PORT)
+bash tests/e2e_smoke.sh           # 61 end-to-end checks
+bash tests/security_smoke.sh      # 52 adversarial security checks (port 8792)
+cargo audit                       # dependency advisories (cargo install cargo-audit) against a fresh temporary server (port 8791, override with NF_TEST_PORT)
 ```
 
 Browser test (needs an empty data directory because it performs first-run setup):

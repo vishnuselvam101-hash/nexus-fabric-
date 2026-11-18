@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated 18 November 2026 · implementation session 2 · engine `nf-core 0.1.0 / uem 0.1.0`
+Updated 18 November 2026 · implementation session 3 · engine `nf-core 0.1.0 / uem 0.1.0`
 
 Four different things are tracked separately and must not be confused:
 
@@ -15,6 +15,18 @@ Four different things are tracked separately and must not be confused:
 ## Summary
 
 A launchable single-binary application exists: sign in, create projects, upload documents (stored encrypted, not interpreted), enter geometry parameters for four part families, obtain a flat pattern with independent verification checks, a DXF, a gate evaluation and a replay audit — every result ends in REVIEW REQUIRED or REJECTED. `APPROVED` cannot be reached.
+
+## Added in session 3 (security hardening and interface quality)
+
+- **Project isolation:** membership enforced on every project, job, file, obligation and summary endpoint.
+- **Anti-forgery header and same-origin check**, security response headers with a restrictive content security policy.
+- **Sign-in throttling, password change with session revocation, account deactivation.**
+- **Hash-chained audit log** with a verification endpoint; storage key location configurable outside the data directory.
+- **Tamper detection exercised by test:** altered audit entries, engineering records and stored files are detected; a job with altered records becomes REJECTED and its files are withheld.
+- **Interface:** keyboard focus and skip link, labelled inputs, inline decisions instead of browser dialogs, account page, project members, running security configuration.
+- Documents: [security set](security/SECURITY_AUDIT.md), [UI/UX audit](design/UI_UX_AUDIT.md), [design system](design/DESIGN_SYSTEM.md).
+
+Four High security findings remain open (no TLS, unencrypted database, single unrotated key, no multi-factor authentication): **still not for confidential drawings.**
 
 ## Added in session 2
 
@@ -96,15 +108,17 @@ The dependency **rule table is provisional** (EV-1; 0 of 56 statements reviewed)
 
 | Feature | Code | Notes |
 |---|---|---|
-| Authentication (Argon2id), sessions, logout | INTEGRATED | No rate limiting, MFA or password change |
+| Authentication (Argon2id), sessions, logout | INTEGRATED | Throttling, password change, session revocation, deactivation. No MFA, recovery or SSO |
 | Roles: admin / engineer / viewer | INTEGRATED | Enforced server-side (tested) |
+| Per-project membership | INTEGRATED | 15 cross-project attack checks; administrators see all projects |
+| Anti-forgery, security headers, body limits | INTEGRATED | Tested |
 | Projects, documents, calculations, DXF export API | INTEGRATED | |
-| Audit log | INTEGRATED | Stored in the database, not hash-chained |
+| Audit log | INTEGRATED | Hash-chained, verifiable; not externally anchored |
 | Blob encryption at rest (AES-256-GCM) | INTEGRATED | Interim single local key file |
 | Database encryption at rest | NOT STARTED | SQLite file is plaintext — see Release Readiness |
 | TLS | NOT STARTED | Must run behind a TLS-terminating proxy |
 | Job orchestration / queue, notifications | NOT STARTED | |
-| Tenant isolation, per-project permissions | NOT STARTED | Single tenant |
+| Tenant separation | NOT STARTED | One organisation per installation |
 | Backup / restore, retention | NOT STARTED | |
 | Sandboxed native workers | NOT STARTED | No native geometry or parsing code is run yet |
 
@@ -134,6 +148,8 @@ The dependency **rule table is provisional** (EV-1; 0 of 56 statements reviewed)
 | `cargo test -p nf-core` | 12 | Record identity and storage round trip; closure; release-state rules; job determinism; assembly structure; propagation reach, locality and determinism; discharge rules |
 | `cargo test -p nf-server` | 3 | Encryption, password hashing, membrane |
 | `tests/e2e_smoke.sh` | 61 checks | Fresh server: setup, auth, roles, upload admission and encryption, five job families, reference values through the API, DXF export, separate-process replay, correction → supersession → obligations → resolution, withheld files, audit |
+| `tests/security_smoke.sh` | 52 checks | Forgery, headers, cross-project access, traversal, hostile input, plaintext search, key handling, tampering with audit/records/blobs, password and session handling, throttling |
+| `cargo audit` | 104 crates | No known advisories (advisory database of 18 November 2026) |
 | `tests/ui_smoke.js` | 1 flow | Real browser: setup, single-part job, assembly job, correction, resolving an obligation, superseded job, all areas, no script errors, no overflow at tablet width |
 
 Not yet present: performance tests, security tests beyond the above, failure-recovery tests, frontend unit tests, CAM acceptance tests.

@@ -12,8 +12,10 @@ A development build exists: one binary serving a browser client. Build, run and 
 
 ```
 cargo build --release -p nf-server && NF_DATA_DIR=./data target/release/nf-server   # then open http://127.0.0.1:8787
-cargo test --workspace && bash tests/e2e_smoke.sh
+cargo test --workspace && bash tests/e2e_smoke.sh && bash tests/security_smoke.sh
 ```
+
+Security: [audit](docs/security/SECURITY_AUDIT.md) · [threat model](docs/security/THREAT_MODEL.md) · [vulnerability register](docs/security/VULNERABILITY_REGISTER.md) · [release checklist](docs/security/SECURITY_RELEASE_CHECKLIST.md). Design: [UI/UX audit](docs/design/UI_UX_AUDIT.md) · [design system](docs/design/DESIGN_SYSTEM.md). Campaign (draft stage): [marketing/nexus-fabric](marketing/nexus-fabric/README.md).
 
 ## Status
 
