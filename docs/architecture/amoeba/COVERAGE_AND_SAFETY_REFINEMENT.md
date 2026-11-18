@@ -20,7 +20,23 @@ Proposed wording change: the phrase "fully inspected" is withdrawn. The stronges
 
 ### D2. States
 
-The owner's five states are kept. Proposed addition (decision pending): a distinct **`excluded_by_decision`** state, so that content a person declared irrelevant is counted separately from content the system explained. Until decided, exclusions are reported as a sub-count of `fully_examined`.
+**Decided (owner, 18 November 2026): a distinct `EXCLUDED` state is added.** The states are now: fully examined · partially examined · unexamined · unsupported · ambiguous · **excluded**. Excluded content is never counted as examined or validated; it is reported as its own count (and ink/area share) in every coverage statement.
+
+Every exclusion is an Attestation record:
+
+```
+Exclusion { id,
+  authorised_by: person, role and the authority under which they may exclude,
+  reason: category (sheet furniture | other part | reference only | illegible | out of scope | other) + text,
+  subject: exact source region(s) or object ids (source coordinates / entity ids),
+  time, document revision and EOS version,
+  potential_downstream_impact: outputs and parts whose release closure or scope the subject intersects
+                               (computed, shown to the authoriser before signing),
+  blocks_release: bool  (true when the subject intersects a part's views, notes or tables and the
+                         exclusion has not been accepted by a person with release authority) }
+```
+
+Rules: no bulk exclusion of content intersecting a part's scope; template-driven exclusions (tenant knowledge) are still individual records naming the template and its approver; an exclusion can be revoked only by a new record; exclusions inside a release closure are shown at approval.
 
 "Explained" has one definition: linked to at least one record that is **current and accepted** on the validation axis ([Consolidated Record Model](CONSOLIDATED_RECORD_MODEL.md) §3) — a current but unaccepted candidate explains nothing.
 

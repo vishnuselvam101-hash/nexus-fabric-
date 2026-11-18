@@ -17,6 +17,7 @@ Specification phase. No application code yet, and no technology or library is co
 | [AMOEBA Independent Architecture Review](docs/reviews/AMOEBA_INDEPENDENT_ARCHITECTURE_REVIEW.md) | Critical document review: weaknesses, missing mechanisms, ADR recommendations, roadmap (findings not yet applied) |
 | [Decision Register](docs/architecture/DECISION_REGISTER.md) | **Start here for status:** every decision, proposal, pending owner decision and unresolved engineering question |
 | [AMOEBA notes](docs/architecture/amoeba/) | State model, mechanisms, coverage model, migration of Specs 01–03; refinements: [dependency model](docs/architecture/amoeba/DEPENDENCY_MODEL.md), [investigation model](docs/architecture/amoeba/INVESTIGATION_MODEL.md), [determinism and approval](docs/architecture/amoeba/DETERMINISM_AND_APPROVAL.md), [coverage and safety](docs/architecture/amoeba/COVERAGE_AND_SAFETY_REFINEMENT.md), [record model](docs/architecture/amoeba/CONSOLIDATED_RECORD_MODEL.md), [engineering process catalogue](docs/architecture/amoeba/ENGINEERING_PROCESS_CATALOGUE.md), [diagrams](docs/architecture/amoeba/ARCHITECTURE_DIAGRAMS.md) |
+| [Fabrication Engineering Review Package](docs/reviews/FABRICATION_ENGINEERING_REVIEW_PACKAGE.md) | 56 plain-language statements and rules for a qualified fabrication engineer to classify — **0 reviewed; all provisional** |
 | [AMOEBA Benchmark Protocol](docs/benchmark/AMOEBA_BENCHMARK_PROTOCOL.md) | Frozen comparison protocol with arms, ablations and falsification criteria (parameters awaiting sign-off; nothing run) |
 | [01 System Architecture Specification](docs/specifications/01_SYSTEM_ARCHITECTURE_SPECIFICATION.md) | Trust zones, services, mathematics engine, data, security, APIs, decision register |
 | [02 Mathematical Engineering Specification](docs/specifications/02_MATHEMATICAL_ENGINEERING_SPECIFICATION.md) | Mathematics engine: foundations, development classes, fabrication models, precision, uncertainty, verification, release states, algorithms (**provisional** until independently reviewed) |
@@ -32,4 +33,4 @@ Specification phase. No application code yet, and no technology or library is co
 | [AMOEBA Architecture Benchmark](docs/benchmark/AMOEBA_ARCHITECTURE_BENCHMARK.md) · [AMOEBA Research Note](docs/research/AMOEBA_BIOLOGICAL_AND_COMPUTATIONAL_RESEARCH.md) | Tests required before the AMOEBA ADRs can be accepted; biological caveats and computational prior art |
 | [Engineering Benchmark Plan](docs/benchmark/ENGINEERING_BENCHMARK_PLAN.md) | Corpus, metrics and protocols; no data collected yet |
 
-Next: owner decisions in the Decision Register §4; then Specification 04.
+Next: fabrication-engineering review of the dependency and interface rules. Specification 04 is not started.
