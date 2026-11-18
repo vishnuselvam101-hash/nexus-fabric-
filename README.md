@@ -14,6 +14,7 @@ Specification phase. No application code yet, and no technology or library is co
 |---|---|
 | [Master Plan v1.0](docs/MASTER_PLAN.md) | Product, engineering and development strategy |
 | [AMOEBA-Native System Architecture](docs/specifications/AMOEBA_NATIVE_SYSTEM_ARCHITECTURE.md) | Governing architecture: lifecycle, Engineering Organism State, mechanisms, coverage, safety boundaries (draft; definition awaiting owner confirmation) |
+| [AMOEBA Independent Architecture Review](docs/reviews/AMOEBA_INDEPENDENT_ARCHITECTURE_REVIEW.md) | Critical document review: weaknesses, missing mechanisms, ADR recommendations, roadmap (findings not yet applied) |
 | [AMOEBA notes](docs/architecture/amoeba/) | State model, mechanisms, coverage model, migration of Specs 01–03, proposed ADRs |
 | [01 System Architecture Specification](docs/specifications/01_SYSTEM_ARCHITECTURE_SPECIFICATION.md) | Trust zones, services, mathematics engine, data, security, APIs, decision register |
 | [02 Mathematical Engineering Specification](docs/specifications/02_MATHEMATICAL_ENGINEERING_SPECIFICATION.md) | Mathematics engine: foundations, development classes, fabrication models, precision, uncertainty, verification, release states, algorithms (**provisional** until independently reviewed) |
@@ -29,4 +30,4 @@ Specification phase. No application code yet, and no technology or library is co
 | [AMOEBA Architecture Benchmark](docs/benchmark/AMOEBA_ARCHITECTURE_BENCHMARK.md) · [AMOEBA Research Note](docs/research/AMOEBA_BIOLOGICAL_AND_COMPUTATIONAL_RESEARCH.md) | Tests required before the AMOEBA ADRs can be accepted; biological caveats and computational prior art |
 | [Engineering Benchmark Plan](docs/benchmark/ENGINEERING_BENCHMARK_PLAN.md) | Corpus, metrics and protocols; no data collected yet |
 
-Next: confirmation and independent review of the AMOEBA architecture and of Specification 02; Specification 04 is on hold until then.
+Next: owner decisions on the AMOEBA review findings; Specification 04 remains on hold until then.
