@@ -22,6 +22,8 @@ async function api(path, opts = {}) {
 
 const stateBadge = (s) => `<span class="badge ${s === 'APPROVED' ? 'b-ok' : s === 'REJECTED' ? 'b-bad' : 'b-warn'}">${esc(String(s).replace('_', ' '))}</span>`;
 const resultBadge = (r) => `<span class="badge ${r === 'PASS' ? 'b-ok' : r === 'FAIL' ? 'b-bad' : r === 'INCONCLUSIVE' ? 'b-warn' : 'b-na'}">${esc(String(r).replace('_', ' '))}</span>`;
+// Inline message instead of a blocking browser dialog.
+function say(msg, kind = 'err') { const v = $('#view'); if (!v) return; let m = $('#flash'); if (!m) { m = document.createElement('div'); m.id = 'flash'; m.setAttribute('role', 'alert'); v.prepend(m); } m.className = kind; m.textContent = msg; m.scrollIntoView({ block: 'nearest' }); }
 const notImpl = (title, items) => `<div class="ni"><b>${esc(title)} — not implemented in this build</b><ul class="tight">${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></div>`;
 
 const NAV = [
@@ -33,11 +35,11 @@ function setTheme(t) { if (t) document.documentElement.dataset.theme = t; try { 
 try { setTheme(localStorage.getItem('nf-theme')); } catch { /* ignore */ }
 
 function shell(route, html) {
-  $('#app').innerHTML = `<div class="shell"><aside><div class="brand">NEXUS FABRIC<small>AMOEBA-native engineering</small></div>
-    <nav>${NAV.map(([k, l]) => `<a href="#/${k}" class="${route === k ? 'act' : ''}">${l}</a>`).join('')}</nav></aside>
+  $('#app').innerHTML = `<a class="skip" href="#view">Skip to content</a><div class="shell"><aside><div class="brand">NEXUS FABRIC<small>AMOEBA-native engineering</small></div>
+    <nav aria-label="Main">${NAV.map(([k, l]) => `<a href="#/${k}" class="${route === k ? 'act' : ''}" ${route === k ? 'aria-current="page"' : ''}>${l}</a>`).join('')}</nav></aside>
     <main><div class="top"><span class="notice">Development build — not validated — outputs must not be used for manufacturing</span>
-      <span class="row"><span>${esc(me.username)} · ${esc(me.role)}</span><button class="sec" id="theme">Theme</button><button class="sec" id="logout">Sign out</button></span></div>
-      <div class="content" id="view">${html}</div></main></div>`;
+      <span class="row"><a href="#/account">${esc(me.username)}</a><span class="sub">${esc(me.role)}</span><button class="sec" id="theme">Theme</button><button class="sec" id="logout">Sign out</button></span></div>
+      <div class="content" id="view" tabindex="-1">${html}</div></main></div>`;
   $('#theme').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
   $('#logout').onclick = async () => { await api('/api/logout', { method: 'POST' }); me = null; renderLogin(false); };
 }
@@ -78,7 +80,7 @@ const views = {
   },
   async projects() {
     const ps = await api('/api/projects');
-    after(() => { const f = $('#np'); if (f) f.onsubmit = async (e) => { e.preventDefault(); try { const r = await api('/api/projects', { method: 'POST', json: { name: e.target.n.value, description: e.target.d.value } }); location.hash = `#/project/${r.id}`; } catch (err) { alert(err.message); } }; });
+    after(() => { const f = $('#np'); if (f) f.onsubmit = async (e) => { e.preventDefault(); try { const r = await api('/api/projects', { method: 'POST', json: { name: e.target.n.value, description: e.target.d.value } }); location.hash = `#/project/${r.id}`; } catch (err) { say(err.message); } }; });
     return `<h1>Projects & Documents</h1><p class="sub">Projects, source documents and their immutable snapshots.</p>
       <div class="card">${ps.length ? `<table><tr><th>#</th><th>Name</th><th>Documents</th><th>Jobs</th><th>Created</th></tr>${ps.map((p) => `<tr><td>${p.id}</td><td><a href="#/project/${p.id}">${esc(p.name)}</a><br><span class="sub">${esc(p.description)}</span></td><td>${p.documents}</td><td>${p.calculations}</td><td>${esc(p.created_by)} · ${when(p.created_at)}</td></tr>`).join('')}</table>` : '<p class="sub">No projects yet.</p>'}</div>
       ${me.role === 'viewer' ? '' : `<div class="card"><h2 style="margin-top:0">New project</h2><form id="np"><div class="grid2"><div><label>Name</label><input name="n" required maxlength="200"></div><div><label>Description</label><input name="d"></div></div><p><button>Create project</button></p></form></div>`}
@@ -87,6 +89,7 @@ const views = {
   async project(id) {
     const p = await api(`/api/projects/${id}`);
     after(() => {
+      const mem = $('#mem'); if (mem) { const send = async (remove) => { try { await api(`/api/projects/${id}/members`, { method: 'POST', json: { username: mem.u.value, remove } }); route(); } catch (err) { $('#memmsg').innerHTML = `<div class="err">${esc(err.message)}</div>`; } }; mem.onsubmit = (e) => { e.preventDefault(); send(false); }; $('#memrm').onclick = () => send(true); }
       const up = $('#up'); if (!up) return;
       up.onsubmit = async (e) => {
         e.preventDefault(); const file = e.target.file.files[0]; if (!file) return;
@@ -96,11 +99,13 @@ const views = {
     });
     return `<h1>${esc(p.name)}</h1><p class="sub">${esc(p.description)} · created by ${esc(p.created_by)} · ${when(p.created_at)}</p>
       <div class="card"><h2 style="margin-top:0">Source documents</h2>
-      ${p.documents.length ? `<table><tr><th>File</th><th>Detected type</th><th>Size</th><th>SHA-256</th><th>Uploaded</th></tr>${p.documents.map((d) => `<tr><td>${esc(decodeURIComponent(d.filename))}${d.extension_mismatch ? ' <span class="badge b-warn">extension ≠ content</span>' : ''}</td><td>${esc(d.detected_type)}</td><td class="num">${d.size}</td><td class="mono">${esc(d.sha256)}</td><td>${esc(d.created_by)} · ${when(d.created_at)}</td></tr>`).join('')}</table>` : '<p class="sub">No documents.</p>'}
+      ${p.documents.length ? `<table><tr><th>File</th><th>Detected type</th><th>Size</th><th>SHA-256</th><th>Uploaded</th></tr>${p.documents.map((d) => `<tr><td>${esc((() => { try { return decodeURIComponent(d.filename); } catch { return d.filename; } })())}${d.extension_mismatch ? ' <span class="badge b-warn">extension ≠ content</span>' : ''}</td><td>${esc(d.detected_type)}</td><td class="num">${d.size}</td><td class="mono">${esc(d.sha256)}</td><td>${esc(d.created_by)} · ${when(d.created_at)}</td></tr>`).join('')}</table>` : '<p class="sub">No documents.</p>'}
       <p class="sub">Current project snapshot: <span class="mono">${esc(p.snapshot || 'none')}</span></p>
       ${me.role === 'viewer' ? '' : `<form id="up" class="row"><input type="file" name="file" required style="max-width:420px"><button>Upload</button></form><div id="upmsg"></div>
       <p class="sub">Accepted by content: PDF, PNG, JPEG, TIFF, DXF, STEP (max 50 MB). Files are hashed and stored encrypted. <b>No drawing content is read yet.</b></p>`}</div>
-      <div class="card"><h2 style="margin-top:0">Engineering jobs</h2>${calcTable(p.calculations)}<p><a class="btn" href="#/math/${p.id}">New development calculation</a></p></div>`;
+      <div class="card"><h2 style="margin-top:0">Engineering jobs</h2>${calcTable(p.calculations)}<p><a class="btn" href="#/math/${p.id}">New development calculation</a></p></div>
+      <div class="card"><h2 style="margin-top:0">Access</h2><p>Members: ${p.members.map(esc).join(', ') || 'none'}. Administrators can see every project; other users only the projects they are members of.</p>
+      ${me.role === 'admin' ? `<form id="mem" class="row"><label class="vh" for="memu">Username</label><input id="memu" name="u" placeholder="username" required style="max-width:220px"><button>Add member</button><button class="sec" type="button" id="memrm">Remove member</button></form><div id="memmsg"></div>` : ''}</div>`;
   },
   async workspace() {
     return `<h1>Engineering Workspace</h1><p class="sub">Drawing viewing, interpretation and reconstruction.</p>
@@ -127,8 +132,8 @@ const views = {
       header_with_branch: { label: 'Assembly: header shell with set-on branch (two parts, one joint)', f: [['header_radius', 'Header contact radius (mm)', 150], ['header_dev_radius', 'Header development radius (mm)', 150], ['header_length', 'Header shell length (mm)', 1200], ['branch_station', 'Branch position along header (mm)', 600], ['branch_radius', 'Branch contact radius (mm)', 100], ['branch_dev_radius', 'Branch development radius (mm)', 100], ['beta_deg', 'Angle between axes (deg)', 60], ['delta', 'Axis offset (mm)', 0], ['s_end', 'Branch square end, distance along branch axis (mm)', 400]], sref: true },
       branch_stub: { label: 'Branch stub on cylindrical header', f: [['header_radius', 'Header contact radius (mm)', 150], ['branch_radius', 'Branch contact radius (mm)', 100], ['branch_dev_radius', 'Branch development radius (mm)', 100], ['beta_deg', 'Angle between axes (deg)', 60], ['delta', 'Axis offset (mm)', 0], ['s_end', 'Square end, distance along branch axis (mm)', 400]] },
     };
-    const fields = (k) => F[k].f.map(([n, l, v]) => `<div><label>${l}</label><input name="${n}" type="number" step="any" value="${v}" required></div>`).join('')
-      + (F[k].sref ? `<div><label>Entered radii refer to which wall surface?</label><select name="surface_reference"><option value="unknown">unknown — to be established</option><option>outside</option><option>inside</option><option>neutral</option></select></div>` : '');
+    const fields = (k) => F[k].f.map(([n, l, v]) => `<div><label for="f_${n}">${l}</label><input id="f_${n}" name="${n}" type="number" step="any" value="${v}" required></div>`).join('')
+      + (F[k].sref ? `<div><label for="f_sref">Entered radii refer to which wall surface?</label><select id="f_sref" name="surface_reference"><option value="unknown">unknown — to be established</option><option>outside</option><option>inside</option><option>neutral</option></select></div>` : '');
     after(() => {
       const form = $('#calc'); if (!form) return;
       form.fam.onchange = () => { $('#fields').innerHTML = fields(form.fam.value); };
@@ -151,16 +156,17 @@ const views = {
     const [c, dep] = await Promise.all([api(`/api/calculations/${id}`), api(`/api/calculations/${id}/dependencies`)]);
     const canEdit = me.role !== 'viewer';
     after(() => {
-      const b = $('#replay'); if (b) b.onclick = async () => { b.disabled = true; try { await api(`/api/calculations/${id}/replay`, { method: 'POST' }); route(); } catch (err) { alert(err.message); b.disabled = false; } };
+      const b = $('#replay'); if (b) b.onclick = async () => { b.disabled = true; try { await api(`/api/calculations/${id}/replay`, { method: 'POST' }); route(); } catch (err) { say(err.message); b.disabled = false; } };
       const f = $('#corr'); if (f) f.onsubmit = async (e) => {
         e.preventDefault();
         try { const r = await api(`/api/calculations/${id}/corrections`, { method: 'POST', json: { parameter: f.p.value, new_value: Number(f.v.value), reason: f.r.value } }); location.hash = `#/calc/${r.new_calculation}`; }
         catch (err) { $('#corrmsg').innerHTML = `<div class="err">${esc(err.message)}</div>`; }
       };
       document.querySelectorAll('[data-resolve]').forEach((btn) => { btn.onclick = async () => {
-        const reason = prompt(btn.dataset.decision === 'confirmed' ? 'State what you checked and why this value still stands:' : 'State why this obligation is waived:');
-        if (!reason) return;
-        try { await api(`/api/obligations/${btn.dataset.resolve}/resolve`, { method: 'POST', json: { decision: btn.dataset.decision, reason } }); route(); } catch (err) { alert(err.message); }
+        const input = document.querySelector(`[data-reason="${btn.dataset.resolve}"]`);
+        const reason = input.value.trim();
+        if (reason.length < 5) { input.focus(); input.setAttribute('aria-invalid', 'true'); say('Enter what you checked (the reason is recorded with your name).'); return; }
+        try { await api(`/api/obligations/${btn.dataset.resolve}/resolve`, { method: 'POST', json: { decision: btn.dataset.decision, reason } }); route(); } catch (err) { say(err.message); }
       }; });
     });
     const drawing = (p) => {
@@ -195,7 +201,7 @@ const views = {
         <p class="sub">Created by following the dependency edges of the corrected job. Rule table: ${esc(dep.rule_table)}. Open obligations cannot be closed by time or budget.</p>
         <table><tr><th>#</th><th>Direction</th><th>Affected</th><th>Required check</th><th>State</th><th>Evidence / decision</th><th></th></tr>${c.obligations.slice().reverse().map((o) =>
         `<tr><td>${o.id}</td><td>${esc(dirLabel[o.direction] || o.direction)}<br><span class="sub">via ${esc(o.via)}</span></td><td>${esc(o.kind)} · ${esc(o.label)}</td><td>${esc(o.required_check)}</td><td>${oblState(o.state)}</td><td>${esc(o.note)}${o.resolved_by ? `<br><span class="sub">${esc(o.resolved_by)} · ${when(o.resolved_at)}</span>` : ''}</td>
-         <td>${o.state === 'open' && canEdit ? `<button class="sec" data-resolve="${o.id}" data-decision="confirmed">Confirm checked</button> <button class="sec" data-resolve="${o.id}" data-decision="waived">Waive</button>` : ''}</td></tr>`).join('')}</table></div>` : ''}
+         <td>${o.state === 'open' && canEdit ? `<label class="vh" for="reason${o.id}">Reason for obligation ${o.id}</label><input id="reason${o.id}" data-reason="${o.id}" placeholder="What did you check?" style="min-width:190px"><div class="row" style="margin-top:6px"><button class="sec" data-resolve="${o.id}" data-decision="confirmed">Confirm checked</button><button class="sec" data-resolve="${o.id}" data-decision="waived">Waive</button></div>` : ''}</td></tr>`).join('')}</table></div>` : ''}
       ${c.correctable_parameters.length && !c.superseded_by && canEdit ? `<div class="card"><h2 style="margin-top:0">Record a correction</h2>
         <p class="sub">A correction never edits this job. It creates a new job, marks this one superseded, and raises an obligation for every record that depends on the corrected value, mates with something affected, or was entered under the same convention.</p>
         <form id="corr"><div class="grid2"><div><label>Parameter</label><select name="p">${c.correctable_parameters.map(([k, v]) => `<option value="${esc(k)}">${esc(k)} (now ${fmt(v)})</option>`).join('')}</select></div>
@@ -225,15 +231,36 @@ const views = {
       <div class="card"><h2 style="margin-top:0">Engineering jobs</h2>${calcTable(cs)}</div>
       ${notImpl('Quality workflow', ['Engineer approval — no job can reach APPROVED in this build', 'Findings by severity (critical / major / minor) and investigations', 'Self-consistency audits A1–A4; replay on a separate machine or build', 'Obligations from drawing revisions and from verification failures (only parameter corrections raise them today)'])}`;
   },
+  async account() {
+    after(() => { const f = $('#pw'); f.onsubmit = async (e) => { e.preventDefault();
+      if (f.n.value !== f.n2.value) { $('#pwmsg').innerHTML = '<div class="err">The two new passwords differ.</div>'; return; }
+      try { await api('/api/password', { method: 'POST', json: { current: f.c.value, new: f.n.value } }); me = null; renderLogin(false, 'Password changed. All sessions were signed out; sign in again.'); }
+      catch (err) { $('#pwmsg').innerHTML = `<div class="err">${esc(err.message)}</div>`; } }; });
+    return `<h1>Account</h1><p class="sub">${esc(me.username)} · ${esc(me.role)}</p>
+      <div class="card"><h2 style="margin-top:0">Change password</h2><form id="pw"><div class="grid2"><div><label for="pwc">Current password</label><input id="pwc" name="c" type="password" autocomplete="current-password" required></div>
+      <div><label for="pwn">New password (at least 10 characters)</label><input id="pwn" name="n" type="password" autocomplete="new-password" minlength="10" required></div>
+      <div><label for="pwn2">Repeat new password</label><input id="pwn2" name="n2" type="password" autocomplete="new-password" minlength="10" required></div></div>
+      <p><button>Change password</button></p><div id="pwmsg"></div><p class="sub">Changing the password signs out every session of this account.</p></form></div>
+      ${notImpl('Account security', ['Multi-factor authentication', 'Account recovery (an administrator must create a new account)', 'List and revoke individual sessions'])}`;
+  },
   async admin() {
     if (me.role !== 'admin') return `<h1>Administration</h1><div class="info">Administrator role required.</div>`;
-    const [users, audit] = await Promise.all([api('/api/users'), api('/api/audit')]);
-    after(() => { const f = $('#nu'); if (f) f.onsubmit = async (e) => { e.preventDefault(); try { await api('/api/users', { method: 'POST', json: { username: e.target.u.value, password: e.target.p.value, role: e.target.r.value } }); route(); } catch (err) { $('#umsg').innerHTML = `<div class="err">${esc(err.message)}</div>`; } }; });
+    const [users, audit, sec, chain] = await Promise.all([api('/api/users'), api('/api/audit'), api('/api/security/status'), api('/api/audit/verify')]);
+    after(() => {
+      const f = $('#nu'); f.onsubmit = async (e) => { e.preventDefault(); try { await api('/api/users', { method: 'POST', json: { username: e.target.u.value, password: e.target.p.value, role: e.target.r.value } }); route(); } catch (err) { $('#umsg').innerHTML = `<div class="err">${esc(err.message)}</div>`; } };
+      document.querySelectorAll('[data-user]').forEach((b) => { b.onclick = async () => { try { await api(`/api/users/${b.dataset.user}/active`, { method: 'POST', json: { active: b.dataset.to === '1' } }); route(); } catch (err) { say(err.message); } }; });
+    });
+    const yn = (v) => (v === true ? '<span class="badge b-ok">yes</span>' : v === false ? '<span class="badge b-bad">no</span>' : esc(v));
     return `<h1>Administration</h1>
-      <div class="card"><h2 style="margin-top:0">Users</h2><table><tr><th>#</th><th>Username</th><th>Role</th><th>Created</th></tr>${users.map((u) => `<tr><td>${u.id}</td><td>${esc(u.username)}</td><td>${esc(u.role)}</td><td>${when(u.created_at)}</td></tr>`).join('')}</table>
-      <form id="nu"><div class="grid2"><div><label>Username</label><input name="u" required></div><div><label>Password (min 10)</label><input name="p" type="password" required></div><div><label>Role</label><select name="r"><option>engineer</option><option>viewer</option><option>admin</option></select></div></div><p><button>Add user</button></p><div id="umsg"></div></form></div>
-      <div class="card"><h2 style="margin-top:0">Audit log (latest 300)</h2><table><tr><th>When</th><th>User</th><th>Action</th><th>Detail</th></tr>${audit.map((a) => `<tr><td>${when(a.at)}</td><td>${esc(a.username)}</td><td>${esc(a.action)}</td><td>${esc(a.detail)}</td></tr>`).join('')}</table></div>
-      ${notImpl('Administration', ['Password change, user deactivation, multi-factor authentication, login rate limiting', 'TLS (run behind a TLS-terminating proxy), database encryption at rest, key rotation', 'Backup and restore tooling, retention policies', 'AI/model configuration, engineering standards and factory rule management', 'Tenant isolation (this build is single-tenant)'])}`;
+      <div class="card"><h2 style="margin-top:0">Users</h2><table><tr><th>#</th><th>Username</th><th>Role</th><th>Status</th><th>Created</th><th></th></tr>${users.map((u) => `<tr><td>${u.id}</td><td>${esc(u.username)}</td><td>${esc(u.role)}</td><td>${u.active ? 'active' : '<span class="badge b-na">deactivated</span>'}</td><td>${when(u.created_at)}</td>
+        <td>${u.id === me.id ? '' : `<button class="sec" data-user="${u.id}" data-to="${u.active ? 0 : 1}">${u.active ? 'Deactivate' : 'Reactivate'}</button>`}</td></tr>`).join('')}</table>
+      <form id="nu"><div class="grid2"><div><label for="nuu">Username</label><input id="nuu" name="u" required></div><div><label for="nup">Password (min 10)</label><input id="nup" name="p" type="password" autocomplete="new-password" required></div><div><label for="nur">Role</label><select id="nur" name="r"><option>engineer</option><option>viewer</option><option>admin</option></select></div></div><p><button>Add user</button></p><div id="umsg"></div></form>
+      <p class="sub">Project access is granted per project, on the project page.</p></div>
+      <div class="card"><h2 style="margin-top:0">Security configuration (as running)</h2><table>${Object.entries(sec).map(([k, v]) => `<tr><td>${esc(k.replaceAll('_', ' '))}</td><td>${yn(v)}</td></tr>`).join('')}</table></div>
+      <div class="card"><h2 style="margin-top:0">Audit log</h2>
+        <p>Chain check: ${chain.intact ? '<span class="badge b-ok">INTACT</span>' : `<span class="badge b-bad">BROKEN at entry ${esc(chain.first_broken_entry)}</span>`} over ${chain.entries} entries. <span class="sub">${esc(chain.limitation)}</span></p>
+        <table><tr><th>When</th><th>User</th><th>Action</th><th>Detail</th></tr>${audit.map((a) => `<tr><td>${when(a.at)}</td><td>${esc(a.username)}</td><td>${esc(a.action)}</td><td>${esc(a.detail)}</td></tr>`).join('')}</table></div>
+      ${notImpl('Administration', ['Multi-factor authentication, single sign-on', 'Built-in TLS, database encryption at rest, key rotation', 'Backup and restore tooling, retention policies', 'AI/model configuration, engineering standards and factory rule management', 'Separate tenants (isolation is per project within one installation)'])}`;
   },
 };
 
@@ -247,10 +274,11 @@ async function route() {
   const [, name = 'dashboard', arg] = location.hash.split('/');
   const view = views[name] || views.dashboard;
   const navKey = name === 'project' ? 'projects' : name === 'calc' ? 'verification' : name;
+  const titles = Object.fromEntries(NAV); document.title = `${titles[navKey] || 'Account'} — NEXUS FABRIC`;
   let html;
   try { html = await view(arg); } catch (err) { html = `<div class="err">${esc(err.message)}</div>`; }
   const wire = pendingWire; pendingWire = null;
-  if (seq === renderSeq && me) { shell(navKey, html); if (wire) wire(); }
+  if (seq === renderSeq && me) { shell(navKey, html); if (wire) wire(); const v = $('#view'); if (v && location.hash) v.focus({ preventScroll: true }); }
 }
 
 window.addEventListener('hashchange', route);
