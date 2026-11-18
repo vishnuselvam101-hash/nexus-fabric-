@@ -27,17 +27,18 @@ Updated 18 November 2026
 
 ## Security gaps that block use with confidential data
 
+Full list: [Vulnerability Register](security/VULNERABILITY_REGISTER.md); conditions: [Security Release Checklist](security/SECURITY_RELEASE_CHECKLIST.md). Fourteen findings were fixed and tested in session 3. Still open:
+
 | Gap | Risk |
 |---|---|
-| No TLS in the server | Credentials and drawings in clear text unless a proxy is added; session cookie is not marked Secure |
-| Database not encrypted at rest | Project names, file names, parameters, results and audit log readable from the file |
-| Single local key file, no rotation, no KMS | Key compromise exposes all blobs |
-| No login rate limiting, lockout, MFA or password change | Password guessing; no recovery path |
-| No per-project permissions, single tenant | Every user can read every project |
-| Audit log not tamper-evident | An administrator with file access can alter it |
-| No backup/restore tooling | Data loss |
-| No sandbox | Acceptable only because nothing is parsed; becomes a blocker the moment a parser is added |
-| No independent security review or penetration test | Unknown defects |
+| No TLS in the server (V-20) | Credentials and drawings in clear text unless a proxy is added |
+| Database not encrypted at rest (V-21) | Project names, file names, parameters, results and audit log readable from the file |
+| One key for all blobs, no rotation, no key service (V-22) | Key compromise exposes all stored files |
+| No multi-factor authentication, recovery or single sign-on (V-23) | Account takeover by password alone |
+| Audit chain not externally anchored; hashes unsigned (V-25, V-28) | A file-level insider can rewrite consistently |
+| No parser sandbox (V-26) | Acceptable only while nothing is parsed; blocking condition for any parser |
+| No backup/restore tooling; no alerting | Data loss; incidents noticed late |
+| No independent security review or penetration test | Unknown defects — this is a self-assessment |
 
 ## Engineering gaps that block use on real work
 

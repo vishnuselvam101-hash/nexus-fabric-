@@ -1,6 +1,6 @@
 # Decision Register
 
-Version 1.4 · 18 November 2026 · The single place where the status of every architectural decision, proposal and open question is kept visible. Specifications 01–03 are **not** edited to reflect these decisions until amendments are formally applied as new versions with change logs.
+Version 1.5 · 18 November 2026 · The single place where the status of every architectural decision, proposal and open question is kept visible. Specifications 01–03 are **not** edited to reflect these decisions until amendments are formally applied as new versions with change logs.
 
 Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, detailed design under review) · **Accepted with conditions** · **Provisional** (awaiting evidence) · **Deferred** · **Proposed** (no decision yet) · **Withdrawn/Merged**.
 
@@ -77,6 +77,16 @@ Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, 
 | D-47 | The validation boundary (section 4) is **unchanged by implementation**: code that runs is not engineering knowledge that is validated. Every implemented model remains EV-1 | Accepted | [Release Readiness](../RELEASE_READINESS.md) |
 | D-48 | Bilingual promotional films to be produced by the stated seven-step workflow; planned capabilities must be distinguished from implemented ones | Accepted — at step 1 (plan awaiting approval) | [Creative plan](../marketing/AD_CREATIVE_PLAN_AND_STORYBOARD.md) |
 | D-49 | "Hybrid storage placement, Always Encrypt, Balanced Retention" cited as approved defaults | **Not previously defined in this repository** — interim interpretation recorded; owner confirmation needed | Dependency Matrix, last section |
+
+### Sixth round (18 November 2026) — hardening and campaign
+
+| ID | Subject | Status | Record |
+|---|---|---|---|
+| D-50 | Security objective is defence in depth, independent testing and continuous hardening; the product is never described as hack-proof, certified or compliant without evidence | Accepted | [Security Release Checklist](../security/SECURITY_RELEASE_CHECKLIST.md) |
+| D-51 | Three security priorities: malicious PDF/CAD protection, engineering-data integrity, AMOEBA isolation | Accepted; first is a merge condition for any parser, second partly implemented, third defined but not yet exercised | [Threat Model](../security/THREAT_MODEL.md) |
+| D-52 | Interface standard: no decorative or generic-dashboard patterns, no invented data, every control functional | Accepted | [Design System](../design/DESIGN_SYSTEM.md) |
+| D-53 | Advertising campaign: every film under 60 seconds; narration, slogan and structure as briefed; approval required before final rendering; pricing shown only after management approval | Accepted — at workflow step 6 (awaiting approval of draft) | [Campaign](../../marketing/nexus-fabric/README.md) |
+| D-54 | Script version for the three beats describing unimplemented capabilities (A as briefed with on-screen concept labels, or B adjusted) | **Open — owner decision** | [Flagship script](../../marketing/nexus-fabric/scripts/FLAGSHIP_SCRIPT.md) |
 
 Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded on them.
 
