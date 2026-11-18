@@ -33,7 +33,6 @@ type Ctx = State<Arc<App>>;
 
 #[derive(Clone)]
 struct User {
-    #[allow(dead_code)]
     id: i64,
     username: String,
     role: String,
