@@ -13,6 +13,8 @@ Specification phase. No application code yet, and no technology or library is co
 | Document | Purpose |
 |---|---|
 | [Master Plan v1.0](docs/MASTER_PLAN.md) | Product, engineering and development strategy |
+| [AMOEBA-Native System Architecture](docs/specifications/AMOEBA_NATIVE_SYSTEM_ARCHITECTURE.md) | Governing architecture: lifecycle, Engineering Organism State, mechanisms, coverage, safety boundaries (draft; definition awaiting owner confirmation) |
+| [AMOEBA notes](docs/architecture/amoeba/) | State model, mechanisms, coverage model, migration of Specs 01–03, proposed ADRs |
 | [01 System Architecture Specification](docs/specifications/01_SYSTEM_ARCHITECTURE_SPECIFICATION.md) | Trust zones, services, mathematics engine, data, security, APIs, decision register |
 | [02 Mathematical Engineering Specification](docs/specifications/02_MATHEMATICAL_ENGINEERING_SPECIFICATION.md) | Mathematics engine: foundations, development classes, fabrication models, precision, uncertainty, verification, release states, algorithms (**provisional** until independently reviewed) |
 | [03 Drawing Intelligence and Ingestion Specification](docs/specifications/03_DRAWING_INTELLIGENCE_AND_INGESTION_SPECIFICATION.md) | Input formats, pre-processing, text and dimension reading, views, observation model, reconciliation, review workflow, output contract (draft) |
@@ -24,6 +26,7 @@ Specification phase. No application code yet, and no technology or library is co
 | [Mathematical Research Register](docs/research/MATHEMATICAL_RESEARCH_REGISTER.md) | Open questions, calibration needs, sources to verify |
 | [Drawing Intelligence Test Plan](docs/benchmark/DRAWING_INTELLIGENCE_TEST_PLAN.md) | Test classes, metrics and safety metrics for ingestion and interpretation |
 | [Drawing Intelligence Research Register](docs/research/DRAWING_INTELLIGENCE_RESEARCH_REGISTER.md) | Technology candidates with licences, research items, standards to obtain |
+| [AMOEBA Architecture Benchmark](docs/benchmark/AMOEBA_ARCHITECTURE_BENCHMARK.md) · [AMOEBA Research Note](docs/research/AMOEBA_BIOLOGICAL_AND_COMPUTATIONAL_RESEARCH.md) | Tests required before the AMOEBA ADRs can be accepted; biological caveats and computational prior art |
 | [Engineering Benchmark Plan](docs/benchmark/ENGINEERING_BENCHMARK_PLAN.md) | Corpus, metrics and protocols; no data collected yet |
 
-Next: independent review of Specification 02; then 04 Geometry Reconstruction and Fabrication Specification.
+Next: confirmation and independent review of the AMOEBA architecture and of Specification 02; Specification 04 is on hold until then.

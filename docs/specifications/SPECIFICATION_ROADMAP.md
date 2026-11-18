@@ -11,7 +11,8 @@ Order of development for the remaining specifications, with dependencies and rev
 | 01 System Architecture | Draft 0.1 — awaiting review | Proposed amendments pending decision (none applied): twelve-subsystem table (Spec 02 §1.1); development-class labels (Spec 02 §14); eight origin classes and reading states in the Observation record (Spec 03 §14) |
 | 02 Mathematical Engineering | Draft 0.1 — **provisional until independently reviewed** | Second-person derivation check; verification of eccentric reducer, branch and rectangular-to-round models against actual fabrication geometry; independent recomputation of [reference cases](../benchmark/MATHEMATICAL_REFERENCE_CASES.md); factory inputs FR-02-1…10; standards review. The four-class development scheme remains a **proposal**, not adopted in the master plan |
 | 03 Drawing Intelligence and Ingestion | Draft 0.1 complete — awaiting review | Validation against authorised drawings (FR-03-1…12); native-speaker review of the vocabulary; standards N-01…N-08 and benchmarks T-01…T-21 in the [research register](../research/DRAWING_INTELLIGENCE_RESEARCH_REGISTER.md); Spec 05 decision on automatic acceptance of readings (DI-33) |
-| 04–08 | Not started | — |
+| AMOEBA-Native System Architecture | Draft 0.1 — awaiting owner confirmation of the definition and independent architecture review | Proposed ADRs 009–016 and amendments A-01…A-07, A-02-x, A-03-x undecided (see [migration note](../architecture/amoeba/EXISTING_ARCHITECTURE_MIGRATION.md)); hypotheses untested ([benchmark](../benchmark/AMOEBA_ARCHITECTURE_BENCHMARK.md)) |
+| 04–08 | Not started — **04 is on hold** until the AMOEBA integration is reviewed | — |
 | 09 Research | Licensing review started | Quotations, counsel, patent search |
 | 10 Benchmark | Plan drafted; mathematical cases and drawing-intelligence test plan drafted | Factory data and authorisation |
 
@@ -128,7 +129,8 @@ Order of development for the remaining specifications, with dependencies and rev
 
 ## Recommended immediate sequence
 
-1. Independent review of 02 (provisional) and collection of factory answers — in progress, owner: project lead.
-2. **04 Geometry Reconstruction and Fabrication Specification** (next), then 05 and 06.
-3. 07 alongside 04–06; 08 last.
-4. No platform implementation before 04–06 are defined. First software milestone: one narrow vertical slice — one fabrication geometry, one documented input workflow, independently verified development, and a DXF accepted by the factory's CAM system.
+1. Owner confirmation of the AMOEBA definition; independent architecture review of the AMOEBA documents; independent engineering review of Spec 02 (provisional); factory answers.
+2. Decide the proposed ADRs and amendments; issue revised Specs 01–03 with change logs.
+3. **04 Geometry Reconstruction and Fabrication Specification**, written against the EOS and process model; then 05 and 06.
+4. 07 alongside 04–06; 08 last.
+5. No platform implementation before 04–06 are defined. First software milestone: one narrow vertical slice — one fabrication geometry, one documented input workflow, independently verified development, and a DXF accepted by the factory's CAM system.
