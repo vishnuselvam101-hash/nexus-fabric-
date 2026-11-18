@@ -500,7 +500,7 @@ Internet availability cannot be assumed for industrial customers:
 
 Do not build a CAD kernel from scratch.
 
-> Open items for document 02: licence review (OCCT is LGPL-2.1 with exception; many CGAL packages are GPL/commercial dual-licensed, which matters for a proprietary on-premises product) and the Rust↔C++ binding strategy.
+> **Superseded in part (18 Nov 2026):** OCCT and CGAL are candidates, not commitments. No geometry library is adopted until licensing, integration, performance and suitability are evaluated — see [ADR-003](architecture/ADR-003-cad-kernel-selection-strategy.md) and the [licensing review](research/DEPENDENCY_LICENSING_REVIEW.md). Specifications are developed in the order given in the [specification roadmap](specifications/SPECIFICATION_ROADMAP.md), whose numbering replaces the list in section 20.
 
 ## 12. Performance and reliability
 
