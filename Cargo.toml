@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = ["crates/uem", "crates/nf-dxf", "crates/nf-core", "crates/nf-server"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Proprietary"
+publish = false
+
+[profile.release]
+opt-level = 2
