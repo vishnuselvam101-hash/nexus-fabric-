@@ -8,11 +8,12 @@ Order of development for the remaining specifications, with dependencies and rev
 
 | Spec | Status | Outstanding before approval |
 |---|---|---|
-| 01 System Architecture | Draft 0.1 — awaiting review | Update §3.1 component table to the twelve subsystems of Spec 02 §1.1; decide proposed development-class amendment (Spec 02 §14) |
-| 02 Mathematical Engineering | **Draft 0.1 complete — awaiting independent review** | Second-person derivation check; independent recomputation of [reference cases](../benchmark/MATHEMATICAL_REFERENCE_CASES.md); factory inputs FR-02-1…10; standards review R-11…R-14 in the [research register](../research/MATHEMATICAL_RESEARCH_REGISTER.md) |
-| 03–08 | Not started | — |
+| 01 System Architecture | Draft 0.1 — awaiting review | Proposed amendments pending decision (none applied): twelve-subsystem table (Spec 02 §1.1); development-class labels (Spec 02 §14); eight origin classes and reading states in the Observation record (Spec 03 §14) |
+| 02 Mathematical Engineering | Draft 0.1 — **provisional until independently reviewed** | Second-person derivation check; verification of eccentric reducer, branch and rectangular-to-round models against actual fabrication geometry; independent recomputation of [reference cases](../benchmark/MATHEMATICAL_REFERENCE_CASES.md); factory inputs FR-02-1…10; standards review. The four-class development scheme remains a **proposal**, not adopted in the master plan |
+| 03 Drawing Intelligence and Ingestion | Draft 0.1 complete — awaiting review | Validation against authorised drawings (FR-03-1…12); native-speaker review of the vocabulary; standards N-01…N-08 and benchmarks T-01…T-21 in the [research register](../research/DRAWING_INTELLIGENCE_RESEARCH_REGISTER.md); Spec 05 decision on automatic acceptance of readings (DI-33) |
+| 04–08 | Not started | — |
 | 09 Research | Licensing review started | Quotations, counsel, patent search |
-| 10 Benchmark | Plan drafted; tier-S mathematical cases drafted | Factory data and authorisation |
+| 10 Benchmark | Plan drafted; mathematical cases and drawing-intelligence test plan drafted | Factory data and authorisation |
 
 ## Dependency order
 
@@ -51,7 +52,7 @@ Order of development for the remaining specifications, with dependencies and rev
 - **Required research:** PDF library evaluation; OCR/vision model evaluation on Japanese engineering drawings; vectorisation methods and their error behaviour; JIS drawing conventions (projection method, symbols, weld symbols); handwriting/stamp handling.
 - **Deliverables:** schema; pipeline stage contracts; uncertainty model for scanned measurements; list of unsupported input conditions with required system behaviour.
 - **Acceptance:** schema exercised against a sample of authorised drawings; every stage has metrics defined in Spec 10; every ambiguity class has a defined escalation path.
-- **Open requirements:** FR-03-1 sample drawings (authorised); FR-03-2 proportion of vector PDF / scan / photo / DWG / DXF inputs; FR-03-3 typical scan quality; FR-03-4 first- or third-angle projection and house drawing standards; FR-03-5 customer restrictions on external AI.
+- **Open requirements:** FR-03-1 sample drawings (authorised); FR-03-2 proportion of vector PDF / scan / photo / DWG / DXF inputs; FR-03-3 typical scan quality; FR-03-4 first- or third-angle projection and house drawing standards; FR-03-5 customer restrictions on external AI; FR-03-6…12 as listed in Spec 03 §15.
 
 ## 04 — Geometry Reconstruction and Fabrication Specification
 
@@ -127,7 +128,7 @@ Order of development for the remaining specifications, with dependencies and rev
 
 ## Recommended immediate sequence
 
-1. ~~02 Mathematical Engineering Specification~~ — drafted; now in independent review.
-2. **03 Drawing Intelligence and Ingestion Specification** (next), in parallel with the kernel and PDF/OCR evaluations, **10** data collection and **09** licensing/quotations.
-3. 04, then 05 and 06.
-4. 07 alongside 04–06; 08 last.
+1. Independent review of 02 (provisional) and collection of factory answers — in progress, owner: project lead.
+2. **04 Geometry Reconstruction and Fabrication Specification** (next), then 05 and 06.
+3. 07 alongside 04–06; 08 last.
+4. No platform implementation before 04–06 are defined. First software milestone: one narrow vertical slice — one fabrication geometry, one documented input workflow, independently verified development, and a DXF accepted by the factory's CAM system.
