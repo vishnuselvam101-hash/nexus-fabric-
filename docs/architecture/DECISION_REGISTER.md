@@ -1,6 +1,6 @@
 # Decision Register
 
-Version 1.0 · 18 November 2026 · The single place where the status of every architectural decision, proposal and open question is kept visible. Specifications 01–03 are **not** edited to reflect these decisions until amendments are formally applied as new versions with change logs.
+Version 1.1 · 18 November 2026 · The single place where the status of every architectural decision, proposal and open question is kept visible. Specifications 01–03 are **not** edited to reflect these decisions until amendments are formally applied as new versions with change logs.
 
 Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, detailed design under review) · **Accepted with conditions** · **Provisional** (awaiting evidence) · **Deferred** · **Proposed** (no decision yet) · **Withdrawn/Merged**.
 
@@ -30,6 +30,21 @@ Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, 
 | D-20 | Specification 02 | Provisional until independently reviewed | Roadmap |
 | D-21 | Specification 03 | Provisional; approved for further architecture work, not for implementation | Roadmap |
 | D-22 | No platform implementation before Specs 04–06 are defined; first milestone is one narrow vertical slice | Accepted | Roadmap |
+
+### Second round (18 November 2026)
+
+| ID | Subject | Status | Record |
+|---|---|---|---|
+| D-23 | Benchmark minimum practically meaningful improvement: +5 percentage points critical-defect recall | Accepted as a **provisional preregistered** parameter; revisable before execution only | [Protocol v1.1](../benchmark/AMOEBA_BENCHMARK_PROTOCOL.md) §9 |
+| D-24 | Budget levels 1.25×, 1.5×, 2×, 4× mandatory-work cost | Accepted (provisional preregistered) | Protocol §9 |
+| D-25 | Significance 0.05 with multiple-comparison correction; power analysis and confidence intervals required; significance alone insufficient; no superiority claim from synthetic data alone | Accepted | Protocol §7, §9 |
+| D-26 | Benchmark reports critical, major and minor defects separately, plus false positives/negatives, human review burden, computational cost, dependency-propagation effectiveness, dependency-edge failures, reproducibility, residual uncertainty | Accepted | Protocol §5 |
+| D-27 | Distinct EXCLUDED coverage state with mandatory exclusion record | Accepted | [Coverage refinement](amoeba/COVERAGE_AND_SAFETY_REFINEMENT.md) D2 |
+| D-28 | Release Gate A — obligation closure (G18) | **Adopted, mandatory** | [Release gates addendum](amoeba/RELEASE_GATES_ADDENDUM.md) |
+| D-29 | Release Gate B — self-consistency (G19) | **Adopted, mandatory** | Release gates addendum |
+| D-30 | Deterministic replay audit on an independent execution instance before **every** manufacturing release; does not replace independent engineering verification | Accepted | Release gates addendum |
+| D-31 | Targeted fabrication-engineering review of the dependency model and interface rules is required before Specification 04 becomes an implementation baseline; paper examples must not be represented as validated cases | Accepted | [Review package](../reviews/FABRICATION_ENGINEERING_REVIEW_PACKAGE.md) |
+| D-32 | Next milestone is validated engineering knowledge, not further architecture documents | Accepted | Roadmap |
 
 Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded on them.
 
@@ -71,13 +86,25 @@ Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded o
 
 | # | Decision |
 |---|---|
-| 1 | Sign the benchmark protocol parameters (minimum effects, budget levels, margins) — or change them before sign-off |
-| 2 | Distinct `excluded_by_decision` coverage state: adopt or not |
-| 3 | Proposed gates G18 (obligations) and G19 (self-consistency): adopt, defer or reject |
-| 4 | Whether replay audit A5 is required before *every* release or sampled |
-| 5 | Whether P-01…P-15 go to human architecture review before Specification 04 starts, or Spec 04 proceeds on them as proposals |
-| 6 | When to apply accepted amendments to Specs 01–03 (new versions with change logs) |
-| 7 | ADR-001…008: record decisions or leave proposed |
+| 1 | Benchmark parameters not yet approved: primary budget level, efficiency effect, non-inferiority margins, power, natural-defect share, and the F8 share |
+| 2 | Who performs the fabrication-engineering review (D-31), and by when |
+| 3 | When to apply accepted amendments to Specs 01–03 (new versions with change logs) |
+| 4 | ADR-001…008: record decisions or leave proposed |
+
+Resolved since v1.0: excluded-content state (D-27); gates G18/G19 (D-28, D-29); replay audit frequency (D-30); review before Spec 04 (D-31); core benchmark parameters (D-23…D-26).
+
+## 4a. Validation status of engineering knowledge
+
+| Item | Reviewed by a qualified fabrication engineer? |
+|---|---|
+| Dependency edge types and interface constraints | **No** |
+| Propagation rule table | **No** |
+| Example 1 (header with branch), Example 2 (reducer halves), Example 3 (transition) | **No** — symbolic paper exercises, not factory cases |
+| Spec 02 family models (reducers, branches, transitions) | **No** |
+| Process and allowance models | **No**; none calibrated |
+| Japanese drawing vocabulary | **No** |
+
+Everything above is AI-generated proposal. Specification 04 is **not ready** to serve as a basis for implementation.
 
 ## 5. Unresolved engineering questions
 

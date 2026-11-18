@@ -129,8 +129,10 @@ Order of development for the remaining specifications, with dependencies and rev
 
 ## Recommended immediate sequence
 
-1. Owner decisions listed in the [Decision Register](../architecture/DECISION_REGISTER.md) §4, in particular whether the refinement designs are reviewed before Specification 04 starts.
-2. **04 Geometry Reconstruction and Fabrication Specification**, written natively against the EOS, the dependency model, the investigation model and the [engineering process catalogue](../architecture/amoeba/ENGINEERING_PROCESS_CATALOGUE.md); then 05 and 06.
-3. In parallel: independent engineering review of Spec 02 (provisional); factory answers; application of accepted amendments to Specs 01–03 as new versions.
-4. 07 alongside 04–06; 08 last.
-5. No platform implementation before 04–06 are defined. First software milestone: one narrow vertical slice — one fabrication geometry, one documented input workflow, independently verified development, and a DXF accepted by the factory's CAM system.
+**Next milestone: validated engineering knowledge, not further architecture documents.**
+
+1. Targeted fabrication-engineering review using the [review package](../reviews/FABRICATION_ENGINEERING_REVIEW_PACKAGE.md) — header with branch first, then reducer halves, then transitions. Currently 0 of 56 statements reviewed.
+2. Factory answers to the five checklist questions and the `FR-` requests; independent engineering review of Spec 02 (provisional).
+3. Incorporate the review results into the dependency model and rule table (with attribution).
+4. **04 Geometry Reconstruction and Fabrication Specification** — only then; it is **not started** and is not ready to serve as a basis for implementation. If no qualified engineer is available, it may be drafted only as explicitly provisional documentation.
+5. Then 05 and 06; 07 alongside; 08 last. No platform implementation before 04–06 are defined; first software milestone is one narrow vertical slice.

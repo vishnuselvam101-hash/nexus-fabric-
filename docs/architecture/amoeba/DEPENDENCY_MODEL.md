@@ -2,6 +2,8 @@
 
 Version 0.1 (refinement A) · 18 November 2026 · Proposed design under ADR-010 conditions · Responds to review findings W1, W2 and requirement "dependency-following investigation"
 
+**Review status (18 November 2026): not reviewed by any fabrication engineer.** Review is requested through the [Fabrication Engineering Review Package](../../reviews/FABRICATION_ENGINEERING_REVIEW_PACKAGE.md); until it is completed every rule, edge type and example here is an unvalidated hypothesis.
+
 **Status.** Proposed [P]. The worked examples are paper exercises using symbolic values; they demonstrate the mechanism, not a validated capability. The rule table (§4) is a first draft to be reviewed by fabrication engineers — which checks a defect *should* trigger is engineering knowledge, and gaps in it are gaps in the product.
 
 ---
@@ -82,7 +84,7 @@ Obligation { id, origin_finding, path: [edge ids], target, direction,
 
 - **DEP-03** Obligations are created by a deterministic function of (finding kind, edge type, target kind) from a versioned, human-authored **rule table**. The table is production-lane data; it is never generated or modified by a model.
 - **DEP-04** A mandatory obligation can be discharged only by evidence from the required checks, or waived by an engineer's Decision with reason. It cannot expire, be dropped for budget, or be stopped by a yield rule.
-- **DEP-05** Proposed gate **G18 `obligations_discharged`**: no open mandatory obligation targets a record in the release closure. (Proposed amendment; not applied to Spec 02.)
+- **DEP-05** Gate **G18 `obligations_discharged`** (adopted by owner decision D-28; see the [Release Gates Addendum](RELEASE_GATES_ADDENDUM.md)): no open mandatory obligation targets a record in the release closure. To be incorporated into Spec 02 at its next revision.
 - **DEP-06** Propagation terminates: downstream traversal is over a DAG; lateral propagation continues only via *new* confirmed Findings, each recorded; common-cause sets are finite and visited once per originating finding.
 
 Rule table (first draft, excerpt):
