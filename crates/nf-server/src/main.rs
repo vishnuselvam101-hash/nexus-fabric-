@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, user_id INTEGER
 CREATE TABLE IF NOT EXISTS projects(id INTEGER PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS documents(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, filename TEXT NOT NULL, detected_type TEXT NOT NULL, size INTEGER NOT NULL, sha256 TEXT NOT NULL, extension_mismatch INTEGER NOT NULL, record_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, project_id INTEGER NOT NULL, family TEXT NOT NULL, kind TEXT NOT NULL, json TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS calculations(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, family TEXT NOT NULL, state TEXT NOT NULL, closure_hash TEXT NOT NULL, result_json TEXT NOT NULL, replay_json TEXT, dxf_sha256 TEXT, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS calculations(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, family TEXT NOT NULL, state TEXT NOT NULL, closure_hash TEXT NOT NULL, result_json TEXT NOT NULL, replay_json TEXT, dxf_sha256 TEXT, supersedes INTEGER, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS obligations(id INTEGER PRIMARY KEY, origin_calc INTEGER NOT NULL, target_calc INTEGER NOT NULL, record_id TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL, direction TEXT NOT NULL, via TEXT NOT NULL, required_check TEXT NOT NULL, state TEXT NOT NULL, note TEXT NOT NULL, resolved_by TEXT, resolved_at INTEGER, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, at INTEGER NOT NULL, username TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
 ";
 
@@ -267,9 +268,9 @@ async fn add_project(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value
 }
 
 fn calc_rows(db: &Connection, where_sql: &str, arg: i64) -> Vec<Value> {
-    let sql = format!("SELECT id, project_id, family, state, closure_hash, created_by, created_at, replay_json IS NOT NULL FROM calculations {where_sql} ORDER BY id DESC LIMIT 200");
+    let sql = format!("SELECT id, project_id, family, state, closure_hash, created_by, created_at, replay_json IS NOT NULL, (SELECT COUNT(*) FROM calculations n WHERE n.supersedes = calculations.id), (SELECT COUNT(*) FROM obligations o WHERE o.target_calc = calculations.id AND o.state = 'open') FROM calculations {where_sql} ORDER BY id DESC LIMIT 200");
     let mut st = db.prepare(&sql).unwrap();
-    let map = |r: &rusqlite::Row| Ok(json!({ "id": r.get::<_, i64>(0)?, "project_id": r.get::<_, i64>(1)?, "family": r.get::<_, String>(2)?, "state": r.get::<_, String>(3)?, "closure_hash": r.get::<_, String>(4)?, "created_by": r.get::<_, String>(5)?, "created_at": r.get::<_, i64>(6)?, "replayed": r.get::<_, bool>(7)? }));
+    let map = |r: &rusqlite::Row| Ok(json!({ "id": r.get::<_, i64>(0)?, "project_id": r.get::<_, i64>(1)?, "family": r.get::<_, String>(2)?, "state": r.get::<_, String>(3)?, "closure_hash": r.get::<_, String>(4)?, "created_by": r.get::<_, String>(5)?, "created_at": r.get::<_, i64>(6)?, "replayed": r.get::<_, bool>(7)?, "superseded": r.get::<_, i64>(8)? > 0, "open_obligations": r.get::<_, i64>(9)? }));
     if where_sql.is_empty() { st.query_map([], map).unwrap().flatten().collect() } else { st.query_map(params![arg], map).unwrap().flatten().collect() }
 }
 
@@ -338,6 +339,24 @@ async fn upload(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, body: 
                "interpretation": "not implemented: the file is stored encrypted and hashed; no drawing content is read" }))
 }
 
+/// Persist a finished job: records (append-only), encrypted DXF blobs, calculation row.
+fn persist_calc(app: &App, db: &Connection, project: i64, out: &job::JobOutput, user: &str, supersedes: Option<i64>) -> Result<i64, String> {
+    for r in &out.records {
+        app.put_record(db, project, r).map_err(|e| e.to_string())?;
+    }
+    for (_, text) in &out.dxf {
+        app.store_blob(text.as_bytes())?;
+    }
+    let family = serde_json::to_value(&out.request).ok().and_then(|v| v.get("family").and_then(|f| f.as_str().map(String::from))).unwrap_or_default();
+    let state = serde_json::to_value(out.state).ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_default();
+    db.execute(
+        "INSERT INTO calculations(project_id, family, state, closure_hash, result_json, supersedes, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)",
+        params![project, family, state, out.closure_hash, serde_json::to_string(out).unwrap_or_default(), supersedes, user, now() as i64],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(db.last_insert_rowid())
+}
+
 async fn calculate(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Json(body): Json<Value>) -> Response {
     let u = guard!(auth(&app, &headers));
     guard!(require(&u, &["admin", "engineer"]));
@@ -351,36 +370,86 @@ async fn calculate(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Jso
     if !exists {
         return fail(StatusCode::NOT_FOUND, "project not found");
     }
-    for r in &out.records {
-        app.put_record(&db, id, r).unwrap();
+    match persist_calc(&app, &db, id, &out, &u.username, None) {
+        Ok(cid) => {
+            app.audit(&db, &u.username, "calculation", &format!("#{cid} project #{id} -> {:?}", out.state));
+            ok(json!({ "id": cid, "state": out.state }))
+        }
+        Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, &e),
     }
-    let dxf_sha = match &out.dxf {
-        Some(t) => match app.store_blob(t.as_bytes()) {
-            Ok(x) => Some(x),
-            Err(e) => return fail(StatusCode::INTERNAL_SERVER_ERROR, &e),
-        },
-        None => None,
-    };
-    let family = serde_json::to_value(&req).ok().and_then(|v| v.get("family").and_then(|f| f.as_str().map(String::from))).unwrap_or_default();
-    let state = serde_json::to_value(out.state).ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_default();
-    db.execute(
-        "INSERT INTO calculations(project_id, family, state, closure_hash, result_json, dxf_sha256, created_by, created_at) VALUES (?,?,?,?,?,?,?,?)",
-        params![id, family, state, out.closure_hash, serde_json::to_string(&out).unwrap_or_default(), dxf_sha, u.username, now() as i64],
-    )
-    .unwrap();
-    let cid = db.last_insert_rowid();
-    app.audit(&db, &u.username, "calculation", &format!("#{cid} project #{id} {family} -> {state}"));
-    ok(json!({ "id": cid, "state": state }))
 }
 
-fn load_calc(db: &Connection, id: i64) -> Option<(Value, Option<String>, Option<String>, String, i64)> {
-    db.query_row("SELECT result_json, replay_json, dxf_sha256, created_by, project_id FROM calculations WHERE id = ?", params![id], |r| {
-        Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, Option<String>>(2)?, r.get::<_, String>(3)?, r.get::<_, i64>(4)?))
-    })
-    .optional()
-    .ok()
-    .flatten()
-    .map(|(j, rp, d, by, pid)| (serde_json::from_str(&j).unwrap_or(Value::Null), rp, d, by, pid))
+struct Calc {
+    result: Value,
+    replay: Option<Value>,
+    created_by: String,
+    project: i64,
+    supersedes: Option<i64>,
+    superseded_by: Option<i64>,
+}
+
+fn load_calc(db: &Connection, id: i64) -> Option<Calc> {
+    let row = db
+        .query_row("SELECT result_json, replay_json, created_by, project_id, supersedes FROM calculations WHERE id = ?", params![id], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, String>(2)?, r.get::<_, i64>(3)?, r.get::<_, Option<i64>>(4)?))
+        })
+        .optional()
+        .ok()
+        .flatten()?;
+    let superseded_by: Option<i64> = db.query_row("SELECT id FROM calculations WHERE supersedes = ? ORDER BY id LIMIT 1", params![id], |r| r.get(0)).optional().ok().flatten();
+    Some(Calc { result: serde_json::from_str(&row.0).unwrap_or(Value::Null), replay: row.1.and_then(|r| serde_json::from_str(&r).ok()), created_by: row.2, project: row.3, supersedes: row.4, superseded_by })
+}
+
+fn obligation_rows(db: &Connection, where_sql: &str, arg: i64) -> Vec<Value> {
+    let sql = format!("SELECT id, origin_calc, target_calc, kind, label, direction, via, required_check, state, note, resolved_by, resolved_at, created_at FROM obligations {where_sql} ORDER BY id DESC LIMIT 500");
+    let mut st = db.prepare(&sql).unwrap();
+    let map = |r: &rusqlite::Row| {
+        Ok(json!({ "id": r.get::<_, i64>(0)?, "origin_calc": r.get::<_, i64>(1)?, "target_calc": r.get::<_, i64>(2)?, "kind": r.get::<_, String>(3)?, "label": r.get::<_, String>(4)?,
+                   "direction": r.get::<_, String>(5)?, "via": r.get::<_, String>(6)?, "required_check": r.get::<_, String>(7)?, "state": r.get::<_, String>(8)?, "note": r.get::<_, String>(9)?,
+                   "resolved_by": r.get::<_, Option<String>>(10)?, "resolved_at": r.get::<_, Option<i64>>(11)?, "created_at": r.get::<_, i64>(12)? }))
+    };
+    if where_sql.contains('?') { st.query_map(params![arg], map).unwrap().flatten().collect() } else { st.query_map([], map).unwrap().flatten().collect() }
+}
+
+/// Gates G18 and G19 depend on state that changes after the job ran; they are
+/// evaluated here, at read time, and the release state is recomputed from the
+/// resulting table. Nothing in this function can produce APPROVED: G16 stays
+/// NOT_IMPLEMENTED.
+fn effective_gates(db: &Connection, id: i64, c: &Calc) -> (Vec<nf_core::Gate>, nf_core::ReleaseState) {
+    use nf_core::GateResult as R;
+    let mut gates: Vec<nf_core::Gate> = serde_json::from_value(c.result["gates"].clone()).unwrap_or_default();
+    let open: i64 = db.query_row("SELECT COUNT(*) FROM obligations WHERE target_calc = ? AND state = 'open'", params![id], |r| r.get(0)).unwrap_or(0);
+    let total: i64 = db.query_row("SELECT COUNT(*) FROM obligations WHERE target_calc = ?", params![id], |r| r.get(0)).unwrap_or(0);
+    for g in gates.iter_mut() {
+        if g.id == "G18" {
+            g.result = R::Inconclusive;
+            g.detail = if open > 0 {
+                format!("{open} of {total} mandatory scrutiny obligations are OPEN. They cannot be closed by budget or time, only by evidence or an engineer's decision.")
+            } else if total > 0 {
+                format!("All {total} scrutiny obligations are resolved. The propagation rule table is provisional ({}), so closure cannot be certified.", nf_core::deps::RULE_TABLE_VERSION)
+            } else {
+                format!("No scrutiny obligations recorded for this result. The propagation rule table is provisional ({}).", nf_core::deps::RULE_TABLE_VERSION)
+            };
+        }
+        if g.id == "G19" {
+            match &c.replay {
+                None => {}
+                Some(r) if r["matches"] == true => {
+                    g.result = R::Inconclusive;
+                    g.detail = format!("Replay audit ({}) reproduced the release closure. Audits A1-A4 are not implemented, and the replay used the same machine and build.", r["kind"].as_str().unwrap_or("replay"));
+                }
+                Some(_) => {
+                    g.result = R::Fail;
+                    g.detail = "Replay audit did NOT reproduce the stored result. The result is rejected and must be investigated.".into();
+                }
+            }
+        }
+    }
+    if c.superseded_by.is_some() {
+        gates.push(nf_core::Gate { id: "G00".into(), name: "current_revision".into(), critical: true, result: R::Fail, detail: format!("Superseded by job #{} after a correction. This result must not be used.", c.superseded_by.unwrap_or(0)) });
+    }
+    let state = nf_core::release_state(&gates);
+    (gates, state)
 }
 
 async fn list_calcs(State(app): Ctx, headers: HeaderMap) -> Response {
@@ -392,24 +461,65 @@ async fn list_calcs(State(app): Ctx, headers: HeaderMap) -> Response {
 async fn get_calc(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Response {
     guard!(auth(&app, &headers));
     let db = app.db.lock().unwrap();
-    let Some((mut result, replay, dxf, by, pid)) = load_calc(&db, id) else { return fail(StatusCode::NOT_FOUND, "calculation not found") };
+    let Some(c) = load_calc(&db, id) else { return fail(StatusCode::NOT_FOUND, "calculation not found") };
+    let (gates, state) = effective_gates(&db, id, &c);
+    let mut result = c.result.clone();
     result["id"] = json!(id);
-    result["project_id"] = json!(pid);
-    result["created_by"] = json!(by);
-    result["dxf_available"] = json!(dxf.is_some());
-    result["replay"] = replay.and_then(|r| serde_json::from_str::<Value>(&r).ok()).unwrap_or(Value::Null);
+    result["project_id"] = json!(c.project);
+    result["created_by"] = json!(c.created_by);
+    result["gates"] = json!(gates);
+    result["state"] = json!(state);
+    result["replay"] = c.replay.clone().unwrap_or(Value::Null);
+    result["supersedes"] = json!(c.supersedes);
+    result["superseded_by"] = json!(c.superseded_by);
+    result["obligations"] = json!(obligation_rows(&db, "WHERE target_calc = ?", id));
+    result["correctable_parameters"] = json!(serde_json::from_value::<Request>(c.result["request"].clone()).ok().filter(|r| matches!(r, Request::HeaderWithBranch { .. })).map(|r| r.numeric_params()).unwrap_or_default());
     ok(result)
+}
+
+/// `nf-server replay-check`: read {request, entered_by} on stdin, recompute in
+/// this fresh process, print the closure hash and record ids.
+fn replay_child() {
+    let mut input = String::new();
+    std::io::Read::read_to_string(&mut std::io::stdin(), &mut input).ok();
+    let v: Value = serde_json::from_str(&input).unwrap_or(Value::Null);
+    let Ok(req) = serde_json::from_value::<Request>(v["request"].clone()) else {
+        eprintln!("replay-check: unreadable request");
+        std::process::exit(2);
+    };
+    let out = job::run(&req, v["entered_by"].as_str().unwrap_or(""));
+    println!("{}", json!({ "closure_hash": out.closure_hash, "ids": out.records.iter().map(|r| r.id.clone()).collect::<Vec<_>>() }));
+}
+
+fn replay_in_separate_process(request: &Value, entered_by: &str) -> Result<Value, String> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let mut child = Command::new(exe).arg("replay-check").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().map_err(|e| e.to_string())?;
+    child.stdin.take().ok_or("no stdin")?.write_all(json!({ "request": request, "entered_by": entered_by }).to_string().as_bytes()).map_err(|e| e.to_string())?;
+    let out = child.wait_with_output().map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        return Err(format!("replay process exited with {}", out.status));
+    }
+    serde_json::from_slice(&out.stdout).map_err(|e| e.to_string())
 }
 
 async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Response {
     let u = guard!(auth(&app, &headers));
     guard!(require(&u, &["admin", "engineer"]));
+    let c = {
+        let db = app.db.lock().unwrap();
+        match load_calc(&db, id) {
+            Some(c) => c,
+            None => return fail(StatusCode::NOT_FOUND, "calculation not found"),
+        }
+    };
+    let expected_hash = c.result["closure_hash"].as_str().unwrap_or("").to_string();
+    let ids: Vec<String> = c.result["records"].as_array().map(|a| a.iter().filter_map(|r| r["id"].as_str().map(String::from)).collect()).unwrap_or_default();
+    // Recompute in a separate operating-system process that receives only the request.
+    let child = replay_in_separate_process(&c.result["request"], &c.created_by);
     let db = app.db.lock().unwrap();
-    let Some((result, _, _, by, pid)) = load_calc(&db, id) else { return fail(StatusCode::NOT_FOUND, "calculation not found") };
-    let Ok(req) = serde_json::from_value::<Request>(result["request"].clone()) else { return fail(StatusCode::INTERNAL_SERVER_ERROR, "stored request unreadable") };
-    let expected_hash = result["closure_hash"].as_str().unwrap_or("").to_string();
-    let ids: Vec<String> = result["records"].as_array().map(|a| a.iter().filter_map(|r| r["id"].as_str().map(String::from)).collect()).unwrap_or_default();
-    // also confirm that the stored records are intact (identity recomputed from content)
+    // Confirm that the stored records are intact (identity recomputed from content).
     let mut tampered = 0;
     for rid in &ids {
         let stored: Option<String> = db.query_row("SELECT json FROM records WHERE id = ?", params![rid], |r| r.get(0)).optional().ok().flatten();
@@ -418,30 +528,153 @@ async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Res
             _ => tampered += 1,
         }
     }
-    let (matches, got) = job::replay_matches(&req, &by, &expected_hash, &ids);
-    let report = json!({ "kind": "same_process_replay", "matches": matches && tampered == 0, "expected_closure_hash": expected_hash, "replayed_closure_hash": got,
+    let (matches, got, problem) = match &child {
+        Ok(v) => {
+            let got_ids: Vec<String> = v["ids"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
+            (v["closure_hash"] == expected_hash.as_str() && got_ids == ids, v["closure_hash"].as_str().unwrap_or("").to_string(), None)
+        }
+        Err(e) => (false, String::new(), Some(e.clone())),
+    };
+    let report = json!({ "kind": "separate_process_replay", "matches": matches && tampered == 0, "expected_closure_hash": expected_hash, "replayed_closure_hash": got, "process_error": problem,
                          "stored_records_checked": ids.len(), "stored_records_failing_identity_check": tampered, "run_by": u.username, "at": now(),
-                         "limitation": "Replay ran in the same process and build. The independent-instance replay required before manufacturing release is not implemented." });
+                         "limitation": "Replay ran in a separate process that received only the request, on the same machine with the same build. A separately built binary or separate machine is not used. Discrepancies are reported, never repaired. This audit shows reproducibility, not correctness." });
     let audit_rec = Record::new(Family::Assessment, "replay_audit", report.clone(), ids.last().map(|g| vec![rel("audits", g)]).unwrap_or_default(), None);
-    app.put_record(&db, pid, &audit_rec).unwrap();
+    app.put_record(&db, c.project, &audit_rec).unwrap();
     db.execute("UPDATE calculations SET replay_json = ? WHERE id = ?", params![report.to_string(), id]).unwrap();
+    if !(matches && tampered == 0) {
+        db.execute("UPDATE calculations SET state = 'REJECTED' WHERE id = ?", params![id]).unwrap();
+    }
     app.audit(&db, &u.username, "replay_audit", &format!("calculation #{id}: {}", if matches && tampered == 0 { "match" } else { "MISMATCH" }));
     ok(report)
 }
 
-async fn get_dxf(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Response {
+async fn get_dxf(State(app): Ctx, headers: HeaderMap, Path((id, part)): Path<(i64, String)>) -> Response {
     let u = guard!(auth(&app, &headers));
     let db = app.db.lock().unwrap();
-    let Some((result, _, dxf, _, _)) = load_calc(&db, id) else { return fail(StatusCode::NOT_FOUND, "calculation not found") };
-    let Some(sha) = dxf else { return fail(StatusCode::NOT_FOUND, "no DXF was produced for this calculation") };
+    let Some(c) = load_calc(&db, id) else { return fail(StatusCode::NOT_FOUND, "calculation not found") };
+    if let Some(n) = c.superseded_by {
+        return fail(StatusCode::CONFLICT, &format!("this result was superseded by job #{n}; its files are withheld"));
+    }
+    let (_, state) = effective_gates(&db, id, &c);
+    if state == nf_core::ReleaseState::Rejected {
+        return fail(StatusCode::CONFLICT, "this result is REJECTED; its files are withheld");
+    }
+    let sha = c.result["patterns"].as_array().and_then(|a| a.iter().find(|p| p["part"] == part.as_str())).and_then(|p| p["dxf_sha256"].as_str().map(String::from));
+    let Some(sha) = sha else { return fail(StatusCode::NOT_FOUND, "no DXF for this part") };
     let bytes = match app.load_blob(&sha) {
         Ok(b) => b,
         Err(e) => return fail(StatusCode::INTERNAL_SERVER_ERROR, &e),
     };
-    let state = result["state"].as_str().unwrap_or("UNKNOWN");
-    app.audit(&db, &u.username, "dxf_export", &format!("calculation #{id} state {state} sha {sha}"));
-    let name = format!("NOT-RELEASED_{state}_calc{id}_{}.dxf", &sha[..8]);
+    app.audit(&db, &u.username, "dxf_export", &format!("calculation #{id} part {part} sha {sha}"));
+    let name = format!("NOT-RELEASED_REVIEW_REQUIRED_calc{id}_{part}_{}.dxf", &sha[..8]);
     ([(header::CONTENT_TYPE, "application/dxf".to_string()), (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{name}\""))], bytes).into_response()
+}
+
+/// Record an engineer's correction to one parameter of an assembly job:
+/// propagate along the dependency edges of the old result, recompute, and
+/// create a scrutiny obligation for everything affected.
+async fn correct(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Json(body): Json<Value>) -> Response {
+    let u = guard!(auth(&app, &headers));
+    guard!(require(&u, &["admin", "engineer"]));
+    let (pname, reason) = (s(&body, "parameter"), s(&body, "reason").trim().to_string());
+    let Some(new_value) = body.get("new_value").and_then(|v| v.as_f64()).filter(|v| v.is_finite()) else { return fail(StatusCode::BAD_REQUEST, "new_value must be a finite number") };
+    if reason.len() < 5 {
+        return fail(StatusCode::BAD_REQUEST, "a reason is required for every correction");
+    }
+    let db = app.db.lock().unwrap();
+    let Some(c) = load_calc(&db, id) else { return fail(StatusCode::NOT_FOUND, "calculation not found") };
+    if c.superseded_by.is_some() {
+        return fail(StatusCode::CONFLICT, "this result is already superseded; correct the current one");
+    }
+    let Ok(req) = serde_json::from_value::<Request>(c.result["request"].clone()) else { return fail(StatusCode::INTERNAL_SERVER_ERROR, "stored request unreadable") };
+    if !matches!(req, Request::HeaderWithBranch { .. }) {
+        return fail(StatusCode::BAD_REQUEST, "corrections with dependency propagation are implemented for assembly jobs only");
+    }
+    let Some(old_value) = req.numeric_params().into_iter().find(|(k, _)| *k == pname).map(|(_, v)| v) else { return fail(StatusCode::BAD_REQUEST, "unknown parameter") };
+    if old_value == new_value {
+        return fail(StatusCode::BAD_REQUEST, "new value equals the current value");
+    }
+    let Some(new_req) = req.with_param(&pname, new_value) else { return fail(StatusCode::BAD_REQUEST, "parameter cannot be corrected") };
+    let records: std::collections::BTreeMap<String, Record> = serde_json::from_value::<Vec<Record>>(c.result["records"].clone()).unwrap_or_default().into_iter().map(|r| (r.id.clone(), r)).collect();
+    let Some(old_param) = records.values().find(|r| r.kind == "parameter" && r.payload["name"] == pname.as_str()).map(|r| r.id.clone()) else { return fail(StatusCode::INTERNAL_SERVER_ERROR, "parameter record not found") };
+
+    let attestation = Record::new(Family::Attestation, "correction", json!({ "parameter": pname, "old_value": old_value, "new_value": new_value, "reason": reason, "by": u.username, "at": now(), "calculation": id }), vec![rel("corrects", &old_param)], None);
+    app.put_record(&db, c.project, &attestation).unwrap();
+    let affected = nf_core::deps::propagate(&records, &old_param);
+    let out = job::run(&new_req, &u.username);
+    let new_id = match persist_calc(&app, &db, c.project, &out, &u.username, Some(id)) {
+        Ok(x) => x,
+        Err(e) => return fail(StatusCode::INTERNAL_SERVER_ERROR, &e),
+    };
+    let mut open = 0;
+    for a in &affected {
+        let (done, note) = nf_core::deps::discharge(a, &out);
+        if !done {
+            open += 1;
+        }
+        let dir = serde_json::to_value(a.direction).ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_default();
+        let finding = Record::new(Family::Finding, "obligation", json!({ "target": a, "rule_table": nf_core::deps::RULE_TABLE_VERSION, "initial_state": if done { "discharged" } else { "open" }, "note": note, "new_calculation_closure": out.closure_hash }), vec![rel("origin", &attestation.id), rel("target", &a.record_id)], None);
+        app.put_record(&db, c.project, &finding).unwrap();
+        db.execute(
+            "INSERT INTO obligations(origin_calc, target_calc, record_id, kind, label, direction, via, required_check, state, note, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            params![id, new_id, finding.id, a.kind, a.label, dir, a.via, a.required_check, if done { "discharged" } else { "open" }, note, now() as i64],
+        )
+        .unwrap();
+    }
+    app.audit(&db, &u.username, "correction", &format!("calculation #{id} {pname}: {old_value} -> {new_value} ({reason}); new #{new_id}; {} obligations, {open} open", affected.len()));
+    ok(json!({ "new_calculation": new_id, "obligations": affected.len(), "open": open }))
+}
+
+async fn list_obligations(State(app): Ctx, headers: HeaderMap) -> Response {
+    guard!(auth(&app, &headers));
+    let db = app.db.lock().unwrap();
+    ok(json!(obligation_rows(&db, "", 0)))
+}
+
+async fn resolve_obligation(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Json(body): Json<Value>) -> Response {
+    let u = guard!(auth(&app, &headers));
+    guard!(require(&u, &["admin", "engineer"]));
+    let (decision, reason) = (s(&body, "decision"), s(&body, "reason").trim().to_string());
+    let new_state = match decision.as_str() {
+        "confirmed" => "discharged_by_decision",
+        "waived" => "waived",
+        _ => return fail(StatusCode::BAD_REQUEST, "decision must be 'confirmed' or 'waived'"),
+    };
+    if reason.len() < 5 {
+        return fail(StatusCode::BAD_REQUEST, "a reason is required");
+    }
+    let db = app.db.lock().unwrap();
+    let row: Option<(String, i64, String)> = db.query_row("SELECT state, target_calc, record_id FROM obligations WHERE id = ?", params![id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).optional().ok().flatten();
+    let Some((state, target, record_id)) = row else { return fail(StatusCode::NOT_FOUND, "obligation not found") };
+    if state != "open" {
+        return fail(StatusCode::CONFLICT, "obligation is not open");
+    }
+    let project: i64 = db.query_row("SELECT project_id FROM calculations WHERE id = ?", params![target], |r| r.get(0)).unwrap_or(0);
+    let att = Record::new(Family::Attestation, "obligation_resolution", json!({ "decision": decision, "reason": reason, "by": u.username, "role": u.role, "at": now() }), vec![rel("resolves", &record_id)], None);
+    app.put_record(&db, project, &att).unwrap();
+    db.execute("UPDATE obligations SET state = ?, note = ?, resolved_by = ?, resolved_at = ? WHERE id = ? AND state = 'open'", params![new_state, reason, u.username, now() as i64, id]).unwrap();
+    app.audit(&db, &u.username, "obligation_resolved", &format!("#{id} {decision}: {reason}"));
+    ok(json!({ "state": new_state }))
+}
+
+async fn dependencies(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Response {
+    guard!(auth(&app, &headers));
+    let db = app.db.lock().unwrap();
+    let Some(c) = load_calc(&db, id) else { return fail(StatusCode::NOT_FOUND, "calculation not found") };
+    let records: Vec<Record> = serde_json::from_value(c.result["records"].clone()).unwrap_or_default();
+    let name = |r: &Record| -> String { r.payload.get("part").or_else(|| r.payload.get("name")).and_then(|v| v.as_str()).map(|x| format!("{} · {x}", r.kind)).unwrap_or_else(|| r.kind.clone()) };
+    let by_id: std::collections::BTreeMap<&str, &Record> = records.iter().map(|r| (r.id.as_str(), r)).collect();
+    let mut edges = Vec::new();
+    for r in records.iter().filter(|r| r.family == Family::Claim) {
+        for e in &r.relations {
+            if let Some(t) = by_id.get(e.to.as_str()) {
+                if ["computed_from", "developed_from", "rendered_from", "defined_by", "pattern_of", "mates_at", "interface_feature", "positioned_by", "convention_of"].contains(&e.rel.as_str()) {
+                    edges.push(json!({ "from": name(r), "rel": e.rel, "to": name(t) }));
+                }
+            }
+        }
+    }
+    ok(json!({ "edges": edges, "rule_table": nf_core::deps::RULE_TABLE_VERSION }))
 }
 
 async fn dashboard(State(app): Ctx, headers: HeaderMap) -> Response {
@@ -454,6 +687,7 @@ async fn dashboard(State(app): Ctx, headers: HeaderMap) -> Response {
         "calculations": n("SELECT COUNT(*) FROM calculations"),
         "review_required": n("SELECT COUNT(*) FROM calculations WHERE state = 'REVIEW_REQUIRED'"),
         "rejected": n("SELECT COUNT(*) FROM calculations WHERE state = 'REJECTED'"),
+        "open_obligations": n("SELECT COUNT(*) FROM obligations WHERE state = 'open'"),
         "approved": n("SELECT COUNT(*) FROM calculations WHERE state = 'APPROVED'"),
         "records": n("SELECT COUNT(*) FROM records"),
         "recent": calc_rows(&db, "", 0).into_iter().take(8).collect::<Vec<_>>(),
@@ -481,8 +715,9 @@ async fn amoeba_summary(State(app): Ctx, headers: HeaderMap) -> Response {
         "records_by_kind": kinds,
         "activities": work.into_iter().map(|(k, (n, wu))| json!({ "type": k, "distinct_activities": n, "declared_work_units": wu })).collect::<Vec<_>>(),
         "recent_snapshots": snaps,
-        "implemented": ["content-addressed append-only records", "project snapshots with predecessor links", "typed relations", "release closure hash", "gate evaluation", "same-process replay audit", "membrane admission checks"],
-        "not_implemented": ["round scheduler", "exploration probes", "hypothesis-driven investigation", "dependency propagation and scrutiny obligations", "coverage ledger", "lanes and overlays", "quarantine", "strategy switching", "independent-instance replay", "engineer approval"],
+        "implemented": ["content-addressed append-only records", "project snapshots with predecessor links", "typed dependency edges (derivation, interface, common cause)", "dependency propagation with scrutiny obligations (provisional rule table)", "interface constraint verification between parts", "corrections as attestations with supersession", "release closure hash", "gate evaluation with obligation and replay state", "replay audit in a separate process", "membrane admission checks"],
+        "obligations": { "open": db.query_row("SELECT COUNT(*) FROM obligations WHERE state = 'open'", [], |r| r.get::<_, i64>(0)).unwrap_or(0), "total": db.query_row("SELECT COUNT(*) FROM obligations", [], |r| r.get::<_, i64>(0)).unwrap_or(0) },
+        "not_implemented": ["round scheduler and budgets", "exploration probes", "hypothesis-driven investigation", "coverage ledger", "lanes and overlays", "quarantine", "strategy switching", "self-consistency audits A1-A4", "replay on a separate machine or build", "engineer approval"],
     }))
 }
 
@@ -517,7 +752,11 @@ fn router(app: Arc<App>) -> Router {
         .route("/api/calculations", get(list_calcs))
         .route("/api/calculations/{id}", get(get_calc))
         .route("/api/calculations/{id}/replay", post(replay))
-        .route("/api/calculations/{id}/dxf", get(get_dxf))
+        .route("/api/calculations/{id}/dxf/{part}", get(get_dxf))
+        .route("/api/calculations/{id}/corrections", post(correct))
+        .route("/api/calculations/{id}/dependencies", get(dependencies))
+        .route("/api/obligations", get(list_obligations))
+        .route("/api/obligations/{id}/resolve", post(resolve_obligation))
         .route("/api/dashboard", get(dashboard))
         .route("/api/amoeba/summary", get(amoeba_summary))
         .route("/api/audit", get(audit_log))
@@ -527,6 +766,10 @@ fn router(app: Arc<App>) -> Router {
 
 #[tokio::main]
 async fn main() {
+    if std::env::args().nth(1).as_deref() == Some("replay-check") {
+        replay_child();
+        return;
+    }
     let data_dir = PathBuf::from(std::env::var("NF_DATA_DIR").unwrap_or_else(|_| "data".into()));
     let addr = std::env::var("NF_LISTEN").unwrap_or_else(|_| "127.0.0.1:8787".into());
     std::fs::create_dir_all(data_dir.join("blobs")).expect("cannot create data directory");
@@ -534,6 +777,7 @@ async fn main() {
     let db = Connection::open(data_dir.join("nexus-fabric.sqlite")).expect("cannot open database");
     db.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;").ok();
     db.execute_batch(SCHEMA).expect("cannot create schema");
+    let _ = db.execute("ALTER TABLE calculations ADD COLUMN supersedes INTEGER", []); // older development databases
     let app = Arc::new(App { db: Mutex::new(db), key, data_dir, started: now() });
     let listener = tokio::net::TcpListener::bind(&addr).await.expect("cannot bind listen address");
     println!("NEXUS FABRIC development build listening on http://{addr}  (data: {})", app.data_dir.display());

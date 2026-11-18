@@ -198,6 +198,68 @@ pub fn verify_branch(p: &Pattern, b: &Branch, r_dev: f64, s_end: f64) -> Vec<Che
     v
 }
 
+fn hole_points(p: &Pattern) -> Vec<P2> {
+    p.holes.first().and_then(|c| if let Geom::Polyline { pts, .. } = &c.geom { Some(pts.clone()) } else { None }).unwrap_or_default()
+}
+
+fn opening_3d(q: &P2, big_r: f64, r_dev_header: f64, station: f64) -> [f64; 3] {
+    let omega = q.y / r_dev_header - std::f64::consts::PI;
+    [q.x - station, big_r * omega.sin(), big_r * omega.cos()]
+}
+
+/// Header shell with opening: fold the opening back onto the header surface
+/// and test it against the *branch* cylinder's implicit equation.
+pub fn verify_header_opening(p: &Pattern, b: &Branch, r_dev_header: f64, length: f64, station: f64) -> Vec<Check> {
+    let (sb, cb) = b.beta.sin_cos();
+    let d = [cb, 0.0, sb];
+    let mut branch_res: f64 = 0.0;
+    let pts = hole_points(p);
+    for q in &pts {
+        let pt = opening_3d(q, b.big_r, r_dev_header, station);
+        let w = [pt[0], pt[1] - b.delta, pt[2]];
+        let c = [w[1] * d[2] - w[2] * d[1], w[2] * d[0] - w[0] * d[2], w[0] * d[1] - w[1] * d[0]];
+        branch_res = branch_res.max(((c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).sqrt() - b.r).abs());
+    }
+    let hole = profile::check(&p.holes, 1e-9);
+    let inside = pts.iter().all(|q| q.x > 0.0 && q.x < length && q.y > 0.0 && q.y < TAU * r_dev_header);
+    vec![
+        cmp("opening_points_on_branch_surface", "fold-back onto the header, then |(P-O) x d| distance from the branch axis", if pts.is_empty() { f64::NAN } else { branch_res }, 0.0, AGREE_ABS),
+        cmp("shell_edge_equals_circumference", "circumference 2*pi*r from the input radius", curve_len(p, "bottom"), TAU * r_dev_header, AGREE_ABS),
+        cmp("seam_edges_equal_length", "length of the opposite seam edge", curve_len(p, "seam_a"), curve_len(p, "seam_b"), AGREE_ABS),
+        cmp("opening_closed_simple_inside_shell", "profile test of the opening and bounds test against the shell rectangle", if hole.closed && hole.self_intersections == 0 && inside { 0.0 } else { 1.0 }, 0.0, 0.5),
+    ]
+}
+
+fn seg_dist(p: [f64; 3], a: [f64; 3], b: [f64; 3]) -> f64 {
+    let ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    let ap = [p[0] - a[0], p[1] - a[1], p[2] - a[2]];
+    let l2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
+    let t = if l2 > 0.0 { ((ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / l2).clamp(0.0, 1.0) } else { 0.0 };
+    let c = [a[0] + t * ab[0] - p[0], a[1] + t * ab[1] - p[1], a[2] + t * ab[2] - p[2]];
+    (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).sqrt()
+}
+
+/// Interface constraint for a set-on branch: the branch end cut and the header
+/// opening, each folded back to 3D from its *own* pattern with its own part's
+/// parameters, must be the same curve. `hb` / `bb` are the branch geometries
+/// as used by the header pattern and by the branch pattern respectively — if
+/// the two parts were made from different interpretations, they differ.
+pub fn verify_interface(header: &Pattern, hb: &Branch, r_dev_header: f64, station: f64, branch: &Pattern, bb: &Branch, r_dev_branch: f64, s_end: f64) -> Vec<Check> {
+    let open3: Vec<[f64; 3]> = hole_points(header).iter().map(|q| opening_3d(q, hb.big_r, r_dev_header, station)).collect();
+    let cut: Vec<P2> = branch.outline.iter().find(|c| c.name == "saddle_cut").and_then(|c| if let Geom::Polyline { pts, .. } = &c.geom { Some(pts.clone()) } else { None }).unwrap_or_default();
+    let cut3: Vec<[f64; 3]> = cut.iter().map(|q| bb.point(q.x / r_dev_branch, s_end - q.y)).collect();
+    let one_way = |from: &[[f64; 3]], to: &[[f64; 3]]| -> f64 {
+        if from.is_empty() || to.len() < 2 {
+            return f64::NAN;
+        }
+        from.iter().map(|p| to.windows(2).map(|w| seg_dist(*p, w[0], w[1])).fold(f64::MAX, f64::min)).fold(0.0, f64::max)
+    };
+    vec![
+        cmp("branch_cut_lies_on_header_opening", "3D distance from each folded-back branch cut point to the folded-back header opening curve", one_way(&cut3, &open3), 0.0, AGREE_ABS),
+        cmp("header_opening_lies_on_branch_cut", "3D distance from each folded-back opening point to the folded-back branch cut curve", one_way(&open3, &cut3), 0.0, AGREE_ABS),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,6 +281,23 @@ mod tests {
             let p = branch_stub(rr, r, r, beta, delta, 900.0).unwrap();
             all_pass(&verify_branch(&p, &Branch { big_r: rr, r, beta: f64::to_radians(beta), delta }, r, 900.0));
         }
+    }
+
+    #[test]
+    fn header_opening_and_interface() {
+        let b = Branch { big_r: 150.0, r: 100.0, beta: 60f64.to_radians(), delta: 20.0 };
+        let hp = header_with_opening(&b, 150.0, 1200.0, 600.0).unwrap();
+        let bp = branch_stub(150.0, 100.0, 100.0, 60.0, 20.0, 400.0).unwrap();
+        all_pass(&verify_header_opening(&hp, &b, 150.0, 1200.0, 600.0));
+        all_pass(&verify_interface(&hp, &b, 150.0, 600.0, &bp, &b, 100.0, 400.0));
+        // seeded fault: branch made against the header's inside surface, header opened for the outside surface
+        let wrong = Branch { big_r: 142.0, ..b };
+        let bp_wrong = branch_stub(142.0, 100.0, 100.0, 60.0, 20.0, 400.0).unwrap();
+        assert!(verify_interface(&hp, &b, 150.0, 600.0, &bp_wrong, &wrong, 100.0, 400.0).iter().any(|c| c.verdict == Verdict::Fail));
+        // seeded fault: branch angle differs between the two parts
+        let tilted = Branch { beta: 55f64.to_radians(), ..b };
+        let bp_tilt = branch_stub(150.0, 100.0, 100.0, 55.0, 20.0, 400.0).unwrap();
+        assert!(verify_interface(&hp, &b, 150.0, 600.0, &bp_tilt, &tilted, 100.0, 400.0).iter().any(|c| c.verdict == Verdict::Fail));
     }
 
     // Seeded faults (Spec 02 §12 group 13): each must be caught by a verifier.

@@ -21,6 +21,7 @@ pub fn cylinder_shell(r_dev: f64, length: f64) -> Result<Pattern, UemError> {
         family: "cylinder_shell",
         class: DevClass::ExactClosedForm,
         outline: vec![line("bottom", p0, p1), line("seam_b", p1, p2), line("top", p2, p3), line("seam_a", p3, p0)],
+        holes: vec![],
         eps_num: 4.0 * f64::EPSILON * w.max(length),
         eps_rep: 0.0,
         quantities: vec![("developed_width", w), ("length", length), ("area", w * length)],
@@ -61,6 +62,7 @@ pub fn cone_frustum(r1: f64, r2: f64, h: f64) -> Result<Pattern, UemError> {
         family: "cone_frustum",
         class: DevClass::ExactClosedForm,
         outline,
+        holes: vec![],
         eps_num: 8.0 * f64::EPSILON * l1,
         eps_rep: 0.0,
         quantities: vec![
@@ -172,6 +174,7 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
         family: "eccentric_reducer",
         class: DevClass::ExactNumeric,
         outline,
+        holes: vec![],
         eps_num: qerr * rho_max + 16.0 * f64::EPSILON * rho_max,
         eps_rep,
         quantities: vec![
@@ -263,6 +266,7 @@ pub fn branch_stub(big_r: f64, r: f64, r_dev: f64, beta_deg: f64, delta: f64, s_
         family: "branch_stub",
         class: DevClass::ExactClosedForm,
         outline,
+        holes: vec![],
         eps_num: 16.0 * f64::EPSILON * (big_r + s_end) / beta.sin(),
         eps_rep,
         quantities: vec![("developed_width", w), ("s_min", s_min), ("s_max", s_max), ("s_at_0", sv[0]), ("s_at_90", sv[n / 2])],
@@ -274,6 +278,62 @@ pub fn branch_stub(big_r: f64, r: f64, r_dev: f64, beta_deg: f64, delta: f64, s_
             "Seam at branch azimuth phi = 0.",
         ],
     })
+}
+
+/// Header shell (rolled from plate) with the opening for a set-on branch.
+/// Spec 02 §4.4: the opening is the same intersection curve as the branch cut,
+/// developed on the header. Shell: x along the header axis in [0, length];
+/// v = r_dev_header * (omega + pi), i.e. the longitudinal seam is diametrically
+/// opposite the branch side. `station` is the header-axis position of the
+/// point where the branch axis is closest to the header axis.
+pub fn header_with_opening(b: &Branch, r_dev_header: f64, length: f64, station: f64) -> Result<Pattern, UemError> {
+    finite_pos("header_dev_radius", r_dev_header)?;
+    finite_pos("header_length", length)?;
+    if !station.is_finite() {
+        return Err(UemError::OutOfRange { param: "branch_station", reason: "must be finite".into() });
+    }
+    if !(b.beta.sin() > 0.17) || b.delta.abs() + b.r >= b.big_r * (1.0 - 1e-6) {
+        return Err(UemError::OutOfRange { param: "branch", reason: "branch geometry outside the supported range (see branch stub limits)".into() });
+    }
+    let mut shell = cylinder_shell(r_dev_header, length)?;
+    let n = 720;
+    let dphi = TAU / (2 * n) as f64;
+    let at = |i: usize| -> P2 {
+        let phi = i as f64 * dphi;
+        let s = b.s(phi);
+        let omega = ((b.delta + b.r * phi.cos()) / b.big_r).asin();
+        P2::new(station + s * b.beta.cos() - b.r * phi.sin() * b.beta.sin(), r_dev_header * (omega + std::f64::consts::PI))
+    };
+    let all: Vec<P2> = (0..=2 * n).map(at).collect();
+    let mut eps_rep: f64 = 0.0;
+    let mut pts = Vec::with_capacity(n + 1);
+    for i in 0..=n {
+        pts.push(all[2 * i]);
+        if i < n {
+            let mid = P2::new(0.5 * (all[2 * i].x + all[2 * i + 2].x), 0.5 * (all[2 * i].y + all[2 * i + 2].y));
+            eps_rep = eps_rep.max(mid.dist(all[2 * i + 1]));
+        }
+    }
+    pts[n] = pts[0]; // close exactly
+    let (xmin, xmax) = pts.iter().fold((f64::MAX, f64::MIN), |(lo, hi), p| (lo.min(p.x), hi.max(p.x)));
+    if xmin <= 0.0 || xmax >= length {
+        return Err(UemError::OutOfRange { param: "branch_station", reason: format!("opening spans x = {xmin:.3} .. {xmax:.3} and does not lie inside the shell length {length}") });
+    }
+    let area2: f64 = pts.windows(2).map(|w| w[0].x * w[1].y - w[1].x * w[0].y).sum();
+    if area2 > 0.0 {
+        pts.reverse(); // inner profiles are clockwise
+    }
+    let perimeter: f64 = pts.windows(2).map(|w| w[0].dist(w[1])).sum();
+    shell.family = "header_shell_with_opening";
+    shell.holes = vec![Curve { name: "branch_opening", layer: Layer::CutInner, geom: Geom::Polyline { pts, eps_rep } }];
+    shell.eps_rep = eps_rep;
+    shell.eps_num = shell.eps_num.max(16.0 * f64::EPSILON * (b.big_r + length) / b.beta.sin());
+    shell.quantities.push(("opening_x_min", xmin));
+    shell.quantities.push(("opening_x_max", xmax));
+    shell.quantities.push(("opening_perimeter", perimeter));
+    shell.assumptions.push("Header rolled from plate; longitudinal seam placed diametrically opposite the branch. No seam-to-opening clearance rule is applied.");
+    shell.assumptions.push("Set-on joint assumed: opening defined by the branch contact surface meeting the header contact surface. Which wall surfaces these are is an engineering decision entered by the user.");
+    Ok(shell)
 }
 
 #[cfg(test)]
@@ -348,6 +408,17 @@ mod tests {
         let b = Branch { big_r: 150.0, r: 80.0, beta: PI / 2.0, delta: 40.0 }; // BR-04
         assert!(close(b.s(0.0), 90.0, 1e-9));
         assert!(close(b.s(0.75 * PI), 149.0821364201, 1e-9));
+    }
+
+    #[test]
+    fn header_opening_is_inside_shell_and_clockwise() {
+        let b = Branch { big_r: 150.0, r: 100.0, beta: 60f64.to_radians(), delta: 0.0 };
+        let p = header_with_opening(&b, 150.0, 1200.0, 600.0).unwrap();
+        assert_eq!(p.holes.len(), 1);
+        let r = crate::profile::check(&p.holes, 1e-9);
+        assert!(r.closed && r.self_intersections == 0 && r.signed_area < 0.0);
+        assert!(p.quantity("opening_x_min").unwrap() > 0.0 && p.quantity("opening_x_max").unwrap() < 1200.0);
+        assert!(header_with_opening(&b, 150.0, 300.0, 100.0).is_err(), "opening outside the shell must be refused");
     }
 
     #[test]

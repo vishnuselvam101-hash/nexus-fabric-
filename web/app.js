@@ -63,7 +63,7 @@ function renderLogin(setup, error) {
 }
 
 const calcTable = (rows) => rows.length ? `<table><tr><th>#</th><th>Project</th><th>Family</th><th>State</th><th>Replay</th><th>By</th><th>When</th></tr>${rows.map((c) =>
-  `<tr><td><a href="#/calc/${c.id}">${c.id}</a></td><td><a href="#/project/${c.project_id}">${c.project_id}</a></td><td>${esc(c.family)}</td><td>${stateBadge(c.state)}</td><td>${c.replayed ? 'run' : '—'}</td><td>${esc(c.created_by)}</td><td>${when(c.created_at)}</td></tr>`).join('')}</table>`
+  `<tr><td><a href="#/calc/${c.id}">${c.id}</a></td><td><a href="#/project/${c.project_id}">${c.project_id}</a></td><td>${esc(c.family)}</td><td>${c.superseded ? '<span class="badge b-na">SUPERSEDED</span>' : stateBadge(c.state)}${c.open_obligations ? ` <span class="badge b-bad">${c.open_obligations} open obligations</span>` : ''}</td><td>${c.replayed ? 'run' : '—'}</td><td>${esc(c.created_by)}</td><td>${when(c.created_at)}</td></tr>`).join('')}</table>`
   : '<p class="sub">No calculations yet.</p>';
 
 const views = {
@@ -72,7 +72,7 @@ const views = {
     return `<h1>Dashboard</h1><p class="sub">Engine ${esc(d.engine)} · up ${Math.round(d.uptime_seconds / 60)} min</p>
       <div class="tiles"><div class="tile"><b>${d.projects}</b><span>Projects</span></div><div class="tile"><b>${d.documents}</b><span>Source documents</span></div>
       <div class="tile"><b>${d.calculations}</b><span>Engineering jobs</span></div><div class="tile"><b>${d.review_required}</b><span>Review required</span></div>
-      <div class="tile"><b>${d.rejected}</b><span>Rejected</span></div><div class="tile"><b>${d.approved}</b><span>Approved</span></div><div class="tile"><b>${d.records}</b><span>Immutable records</span></div></div>
+      <div class="tile"><b>${d.rejected}</b><span>Rejected</span></div><div class="tile"><b>${d.open_obligations}</b><span>Open scrutiny obligations</span></div><div class="tile"><b>${d.approved}</b><span>Approved</span></div><div class="tile"><b>${d.records}</b><span>Immutable records</span></div></div>
       <div class="card"><h2 style="margin-top:0">Recent engineering jobs</h2>${calcTable(d.recent)}</div>
       ${notImpl('Notifications, alerts, processing queue', ['Jobs run synchronously; there is no queue or notification service yet.'])}`;
   },
@@ -114,6 +114,7 @@ const views = {
       <div class="card"><h2 style="margin-top:0">Records by family and kind</h2>${a.records_by_kind.length ? `<table><tr><th>Family</th><th>Kind</th><th>Count</th></tr>${a.records_by_kind.map((r) => `<tr><td>${esc(r.family)}</td><td>${esc(r.kind)}</td><td class="num">${r.count}</td></tr>`).join('')}</table>` : '<p class="sub">No records yet.</p>'}</div>
       <div class="card"><h2 style="margin-top:0">Activities and declared logical work units</h2>${a.activities.length ? `<table><tr><th>Activity type</th><th>Distinct activities</th><th>Work units</th></tr>${a.activities.map((r) => `<tr><td>${esc(r.type)}</td><td class="num">${r.distinct_activities}</td><td class="num">${r.declared_work_units}</td></tr>`).join('')}</table><p class="sub">Identical activities on identical inputs are one record (content addressing), so repeated identical jobs do not add rows.</p>` : '<p class="sub">No activities yet.</p>'}</div>
       <div class="card"><h2 style="margin-top:0">Recent project snapshots</h2>${a.recent_snapshots.length ? `<table><tr><th>Project</th><th>Snapshot id</th></tr>${a.recent_snapshots.map((s) => `<tr><td>${s.project_id}</td><td class="mono">${esc(s.snapshot)}</td></tr>`).join('')}</table>` : '<p class="sub">No snapshots yet.</p>'}</div>
+      <div class="card"><h2 style="margin-top:0">Scrutiny obligations</h2><p>${a.obligations.open} open of ${a.obligations.total} recorded. <a href="#/verification">Verification &amp; Quality</a> lists them.</p></div>
       <div class="card"><h2 style="margin-top:0">Mechanisms in this build</h2><div class="grid2"><div><b>Implemented</b>${li(a.implemented)}</div><div><b>Not implemented</b>${li(a.not_implemented)}</div></div></div>`;
   },
   async math(projectId) {
@@ -123,15 +124,18 @@ const views = {
       cylinder_shell: { label: 'Cylindrical shell', f: [['r_dev', 'Development radius (mm)', 500], ['length', 'Length (mm)', 1000]] },
       cone_frustum: { label: 'Concentric reducer (right cone frustum)', f: [['r1', 'Large-end radius (mm)', 200], ['r2', 'Small-end radius (mm)', 100], ['h', 'Axial height (mm)', 300]] },
       eccentric_reducer: { label: 'Eccentric reducer (oblique cone frustum)', f: [['r1', 'Large-end radius (mm)', 200], ['r2', 'Small-end radius (mm)', 100], ['h', 'Axial height (mm)', 300], ['e', 'Offset of small end (mm)', 100]] },
+      header_with_branch: { label: 'Assembly: header shell with set-on branch (two parts, one joint)', f: [['header_radius', 'Header contact radius (mm)', 150], ['header_dev_radius', 'Header development radius (mm)', 150], ['header_length', 'Header shell length (mm)', 1200], ['branch_station', 'Branch position along header (mm)', 600], ['branch_radius', 'Branch contact radius (mm)', 100], ['branch_dev_radius', 'Branch development radius (mm)', 100], ['beta_deg', 'Angle between axes (deg)', 60], ['delta', 'Axis offset (mm)', 0], ['s_end', 'Branch square end, distance along branch axis (mm)', 400]], sref: true },
       branch_stub: { label: 'Branch stub on cylindrical header', f: [['header_radius', 'Header contact radius (mm)', 150], ['branch_radius', 'Branch contact radius (mm)', 100], ['branch_dev_radius', 'Branch development radius (mm)', 100], ['beta_deg', 'Angle between axes (deg)', 60], ['delta', 'Axis offset (mm)', 0], ['s_end', 'Square end, distance along branch axis (mm)', 400]] },
     };
-    const fields = (k) => F[k].f.map(([n, l, v]) => `<div><label>${l}</label><input name="${n}" type="number" step="any" value="${v}" required></div>`).join('');
+    const fields = (k) => F[k].f.map(([n, l, v]) => `<div><label>${l}</label><input name="${n}" type="number" step="any" value="${v}" required></div>`).join('')
+      + (F[k].sref ? `<div><label>Entered radii refer to which wall surface?</label><select name="surface_reference"><option value="unknown">unknown — to be established</option><option>outside</option><option>inside</option><option>neutral</option></select></div>` : '');
     after(() => {
       const form = $('#calc'); if (!form) return;
       form.fam.onchange = () => { $('#fields').innerHTML = fields(form.fam.value); };
       form.onsubmit = async (e) => {
         e.preventDefault(); const fam = form.fam.value; const req = { family: fam };
         for (const [n] of F[fam].f) req[n] = Number(form[n].value);
+        if (F[fam].sref) req.surface_reference = form.surface_reference.value;
         try { const r = await api(`/api/projects/${form.project.value}/calculations`, { method: 'POST', json: req }); location.hash = `#/calc/${r.id}`; }
         catch (err) { $('#cmsg').innerHTML = `<div class="err">${esc(err.message)}</div>`; }
       };
@@ -141,38 +145,69 @@ const views = {
       ${me.role === 'viewer' ? '<div class="info">Your role can view results but not run calculations.</div>' : `<div class="card"><form id="calc"><div class="grid2"><div><label>Project</label><select name="project">${ps.map((p) => `<option value="${p.id}" ${String(p.id) === String(projectId) ? 'selected' : ''}>#${p.id} ${esc(p.name)}</option>`).join('')}</select></div>
       <div><label>Geometry family</label><select name="fam">${Object.entries(F).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select></div></div>
       <div class="grid2" id="fields">${fields('cylinder_shell')}</div><p><button>Develop, verify and generate DXF</button></p><div id="cmsg"></div></form></div>`}
-      ${notImpl('Further mathematical capabilities', ['Constraint solving from drawing dimensions', 'Rectangular-to-round and irregular transitions; equal-diameter and partial branch intersections; oblique cylinders; near-cylindrical cones', 'Thickness / neutral-surface treatment, bend and roll allowances from calibrated process data', 'Uncertainty and tolerance analysis; interval-certified error bounds', 'Plate division and seam optimisation'])}`;
+      ${notImpl('Further mathematical capabilities', ['Constraint solving from drawing dimensions', 'Assemblies other than one header with one branch; several branches; flanges and supports', 'Rectangular-to-round and irregular transitions; equal-diameter and partial branch intersections; oblique cylinders; near-cylindrical cones', 'Thickness / neutral-surface treatment, bend and roll allowances from calibrated process data', 'Uncertainty and tolerance analysis; interval-certified error bounds', 'Plate division and seam optimisation'])}`;
   },
   async calc(id) {
-    const c = await api(`/api/calculations/${id}`);
-    after(() => { const b = $('#replay'); if (b) b.onclick = async () => { b.disabled = true; try { await api(`/api/calculations/${id}/replay`, { method: 'POST' }); route(); } catch (err) { alert(err.message); b.disabled = false; } }; });
-    let svg = '';
-    if (c.pattern) {
-      const pts = c.pattern.curves.flatMap((k) => k.points);
-      const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    const [c, dep] = await Promise.all([api(`/api/calculations/${id}`), api(`/api/calculations/${id}/dependencies`)]);
+    const canEdit = me.role !== 'viewer';
+    after(() => {
+      const b = $('#replay'); if (b) b.onclick = async () => { b.disabled = true; try { await api(`/api/calculations/${id}/replay`, { method: 'POST' }); route(); } catch (err) { alert(err.message); b.disabled = false; } };
+      const f = $('#corr'); if (f) f.onsubmit = async (e) => {
+        e.preventDefault();
+        try { const r = await api(`/api/calculations/${id}/corrections`, { method: 'POST', json: { parameter: f.p.value, new_value: Number(f.v.value), reason: f.r.value } }); location.hash = `#/calc/${r.new_calculation}`; }
+        catch (err) { $('#corrmsg').innerHTML = `<div class="err">${esc(err.message)}</div>`; }
+      };
+      document.querySelectorAll('[data-resolve]').forEach((btn) => { btn.onclick = async () => {
+        const reason = prompt(btn.dataset.decision === 'confirmed' ? 'State what you checked and why this value still stands:' : 'State why this obligation is waived:');
+        if (!reason) return;
+        try { await api(`/api/obligations/${btn.dataset.resolve}/resolve`, { method: 'POST', json: { decision: btn.dataset.decision, reason } }); route(); } catch (err) { alert(err.message); }
+      }; });
+    });
+    const drawing = (p) => {
+      const all = [...p.curves, ...p.holes];
+      const pts = all.flatMap((k) => k.points);
+      const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
       const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
       const w = x1 - x0 || 1, h = y1 - y0 || 1, m = 0.04 * Math.max(w, h);
-      svg = `<svg class="pattern" viewBox="${x0 - m} ${-(y1 + m)} ${w + 2 * m} ${h + 2 * m}" role="img" aria-label="Flat pattern outline">${c.pattern.curves.map((k) =>
-        `<polyline fill="none" stroke="var(--accent)" stroke-width="${Math.max(w, h) / 420}" stroke-linejoin="round" points="${k.points.map((p) => `${p[0]},${-p[1]}`).join(' ')}"><title>${esc(k.name)} (${esc(k.kind)}), length ${fmt(k.length)} mm</title></polyline>`).join('')}</svg>`;
-    }
+      return `<svg class="pattern" viewBox="${x0 - m} ${-(y1 + m)} ${w + 2 * m} ${h + 2 * m}" role="img" aria-label="Flat pattern of ${esc(p.part)}">${all.map((k) =>
+        `<polyline fill="none" stroke="${k.layer === 'CUT_INNER' ? 'var(--warn)' : 'var(--accent)'}" stroke-width="${Math.max(w, h) / 420}" stroke-linejoin="round" points="${k.points.map((q) => `${q[0]},${-q[1]}`).join(' ')}"><title>${esc(k.name)} (${esc(k.kind)}, ${esc(k.layer)}), length ${fmt(k.length)} mm</title></polyline>`).join('')}</svg>`;
+    };
     const rp = c.replay;
+    const blocked = c.superseded_by || c.state === 'REJECTED';
+    const dirLabel = { downstream: 'Downstream (derived from it)', lateral: 'Lateral (must still fit)', common_cause: 'Common cause (same convention)' };
+    const oblState = (s) => `<span class="badge ${s === 'open' ? 'b-bad' : s === 'waived' ? 'b-warn' : 'b-ok'}">${esc(s.replaceAll('_', ' '))}</span>`;
     return `<h1>Engineering job #${c.id} ${stateBadge(c.state)}</h1>
-      <p class="sub"><a href="#/project/${c.project_id}">Project ${c.project_id}</a> · ${esc(c.request.family)} · entered by ${esc(c.created_by)} · engine ${esc(c.engine)}</p>
-      ${c.state === 'REJECTED' ? '<div class="err">REJECTED: a critical gate failed. No output of this job may be used.</div>' : '<div class="info">REVIEW REQUIRED: this result cannot be released for manufacturing. See the gate table for every reason.</div>'}
+      <p class="sub"><a href="#/project/${c.project_id}">Project ${c.project_id}</a> · ${esc(c.request.family)} · entered by ${esc(c.created_by)} · engine ${esc(c.engine)}
+        ${c.supersedes ? ` · corrects <a href="#/calc/${c.supersedes}">job #${c.supersedes}</a>` : ''}</p>
+      ${c.superseded_by ? `<div class="err">SUPERSEDED by <a href="#/calc/${c.superseded_by}">job #${c.superseded_by}</a> after a correction. This result must not be used; its files are withheld.</div>`
+        : c.state === 'REJECTED' ? '<div class="err">REJECTED: a critical gate failed. No output of this job may be used.</div>'
+        : '<div class="info">REVIEW REQUIRED: this result cannot be released for manufacturing. See the gate table for every reason.</div>'}
       ${c.outcome ? `<div class="err">No pattern produced: ${esc(c.outcome)}</div>` : ''}
       <div class="card"><h2 style="margin-top:0">Request (entered manually)</h2><table>${Object.entries(c.request).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${fmt(v)}</td></tr>`).join('')}</table></div>
-      ${c.pattern ? `<div class="card"><h2 style="margin-top:0">Flat pattern — class ${esc(c.pattern.class)} (proposed naming)</h2>${svg}
-        <div class="row" style="margin-top:10px">${c.dxf_available ? `<a class="btn" href="/api/calculations/${c.id}/dxf">Download DXF (not released)</a>` : ''}<span class="sub">Numerical error (estimated): ${fmt(c.pattern.eps_num)} mm · curve representation error (estimated): ${fmt(c.pattern.eps_rep)} mm</span></div>
-        <h2>Quantities</h2><table>${Object.entries(c.pattern.quantities).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${fmt(v)}</td></tr>`).join('')}</table>
-        <h2>Curves</h2><table><tr><th>Curve</th><th>Entity</th><th>Layer</th><th>Length (mm)</th></tr>${c.pattern.curves.map((k) => `<tr><td>${esc(k.name)}</td><td>${esc(k.kind)}</td><td>${esc(k.layer)}</td><td class="num">${fmt(k.length)}</td></tr>`).join('')}</table>
-        <h2>Assumptions</h2><ul class="tight">${c.pattern.assumptions.map((a) => `<li>${esc(a)}</li>`).join('')}</ul></div>` : ''}
-      ${c.checks.length ? `<div class="card"><h2 style="margin-top:0">Independent verification</h2><table><tr><th>Check</th><th>Reference method</th><th>Primary</th><th>Reference</th><th>Difference</th><th>Tolerance</th><th></th></tr>${c.checks.map((k) =>
-        `<tr><td>${esc(k.name)}<br><span class="sub">${esc(k.independence)}</span></td><td>${esc(k.method)}</td><td class="num">${fmt(k.primary)}</td><td class="num">${fmt(k.reference)}</td><td class="num">${fmt(k.difference)}</td><td class="num">${fmt(k.tolerance)}</td><td>${resultBadge(k.verdict)}</td></tr>`).join('')}</table></div>` : ''}
+      ${c.patterns.map((p) => `<div class="card"><h2 style="margin-top:0">Flat pattern: ${esc(p.part)} — class ${esc(p.class)} (proposed naming)</h2>${drawing(p)}
+        <div class="row" style="margin-top:10px">${blocked ? '<span class="sub">DXF withheld.</span>' : `<a class="btn" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}">Download DXF (not released)</a>`}<span class="sub">Numerical error (estimated): ${fmt(p.eps_num)} mm · curve representation error (estimated): ${fmt(p.eps_rep)} mm${p.holes.length ? ' · opening shown in amber (layer CUT_INNER)' : ''}</span></div>
+        <h2>Quantities</h2><table>${Object.entries(p.quantities).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${fmt(v)}</td></tr>`).join('')}</table>
+        <h2>Curves</h2><table><tr><th>Curve</th><th>Entity</th><th>Layer</th><th>Length (mm)</th></tr>${[...p.curves, ...p.holes].map((k) => `<tr><td>${esc(k.name)}</td><td>${esc(k.kind)}</td><td>${esc(k.layer)}</td><td class="num">${fmt(k.length)}</td></tr>`).join('')}</table>
+        <h2>Assumptions</h2><ul class="tight">${p.assumptions.map((a) => `<li>${esc(a)}</li>`).join('')}</ul></div>`).join('')}
+      ${c.checks.length ? `<div class="card"><h2 style="margin-top:0">Independent verification</h2><table><tr><th>Scope</th><th>Check</th><th>Reference method</th><th>Primary</th><th>Reference</th><th>Difference</th><th>Tolerance</th><th></th></tr>${c.checks.map((k) =>
+        `<tr><td>${esc(k.scope)}</td><td>${esc(k.name)}<br><span class="sub">${esc(k.independence)}</span></td><td>${esc(k.method)}</td><td class="num">${fmt(k.primary)}</td><td class="num">${fmt(k.reference)}</td><td class="num">${fmt(k.difference)}</td><td class="num">${fmt(k.tolerance)}</td><td>${resultBadge(k.verdict)}</td></tr>`).join('')}</table></div>` : ''}
+      ${c.obligations.length ? `<div class="card"><h2 style="margin-top:0">Scrutiny obligations from the correction</h2>
+        <p class="sub">Created by following the dependency edges of the corrected job. Rule table: ${esc(dep.rule_table)}. Open obligations cannot be closed by time or budget.</p>
+        <table><tr><th>#</th><th>Direction</th><th>Affected</th><th>Required check</th><th>State</th><th>Evidence / decision</th><th></th></tr>${c.obligations.slice().reverse().map((o) =>
+        `<tr><td>${o.id}</td><td>${esc(dirLabel[o.direction] || o.direction)}<br><span class="sub">via ${esc(o.via)}</span></td><td>${esc(o.kind)} · ${esc(o.label)}</td><td>${esc(o.required_check)}</td><td>${oblState(o.state)}</td><td>${esc(o.note)}${o.resolved_by ? `<br><span class="sub">${esc(o.resolved_by)} · ${when(o.resolved_at)}</span>` : ''}</td>
+         <td>${o.state === 'open' && canEdit ? `<button class="sec" data-resolve="${o.id}" data-decision="confirmed">Confirm checked</button> <button class="sec" data-resolve="${o.id}" data-decision="waived">Waive</button>` : ''}</td></tr>`).join('')}</table></div>` : ''}
+      ${c.correctable_parameters.length && !c.superseded_by && canEdit ? `<div class="card"><h2 style="margin-top:0">Record a correction</h2>
+        <p class="sub">A correction never edits this job. It creates a new job, marks this one superseded, and raises an obligation for every record that depends on the corrected value, mates with something affected, or was entered under the same convention.</p>
+        <form id="corr"><div class="grid2"><div><label>Parameter</label><select name="p">${c.correctable_parameters.map(([k, v]) => `<option value="${esc(k)}">${esc(k)} (now ${fmt(v)})</option>`).join('')}</select></div>
+        <div><label>Corrected value</label><input name="v" type="number" step="any" required></div><div><label>Reason (required)</label><input name="r" required minlength="5" placeholder="e.g. drawing dimension is inside diameter"></div></div>
+        <p><button>Record correction and propagate</button></p><div id="corrmsg"></div></form></div>` : ''}
       <div class="card"><h2 style="margin-top:0">Release gates</h2><table><tr><th>Gate</th><th>Result</th><th>Detail</th></tr>${c.gates.map((g) => `<tr><td>${esc(g.id)} ${esc(g.name)}</td><td>${resultBadge(g.result)}</td><td>${esc(g.detail)}</td></tr>`).join('')}</table></div>
+      ${dep.edges.length ? `<div class="card"><h2 style="margin-top:0">Dependency edges</h2><p class="sub">“From” depends on “to”. A change to a record on the right affects everything that reaches it on the left.</p>
+        <table><tr><th>From</th><th>Edge</th><th>To</th></tr>${dep.edges.map((e) => `<tr><td>${esc(e.from)}</td><td class="mono">${esc(e.rel)}</td><td>${esc(e.to)}</td></tr>`).join('')}</table></div>` : ''}
       <div class="card"><h2 style="margin-top:0">Provenance and replay</h2>
         <p>Release closure: <span class="mono">${esc(c.closure_hash)}</span> (${c.closure_size} records, ${c.work_units} declared work units)</p>
         ${rp ? `<p>Replay audit: ${resultBadge(rp.matches ? 'PASS' : 'FAIL')} ${when(rp.at)} by ${esc(rp.run_by)} — ${rp.stored_records_checked} stored records checked, ${rp.stored_records_failing_identity_check} failing.</p><p class="sub">${esc(rp.limitation)}</p>` : '<p class="sub">No replay audit has been run.</p>'}
-        ${me.role === 'viewer' ? '' : '<button id="replay" class="sec">Run replay audit</button>'}
+        ${canEdit ? '<button id="replay" class="sec">Run replay audit</button>' : ''}
         <h2>Records</h2><table><tr><th>Family</th><th>Kind</th><th>Id</th></tr>${c.records.map((r) => `<tr><td>${esc(r.family)}</td><td>${esc(r.kind)}</td><td class="mono">${esc(r.id)}</td></tr>`).join('')}</table></div>`;
   },
   async manufacturing() {
@@ -182,10 +217,13 @@ const views = {
       ${notImpl('Manufacturing planning', ['Plate division and stock fitting', 'Seam and weld planning', 'Allowance management (requires calibrated process data)', 'Manufacturing feasibility checks against machine limits', 'Bend-line, marking and inner-profile layers; kerf handling', 'CAM system acceptance testing'])}`;
   },
   async verification() {
-    const cs = await api('/api/calculations');
-    return `<h1>Verification & Quality</h1><p class="sub">Release state of every engineering job.</p>
-      <div class="card">${calcTable(cs)}</div>
-      ${notImpl('Quality workflow', ['Engineer approval — no job can reach APPROVED in this build', 'Scrutiny obligations from dependency propagation', 'Findings by severity (critical / major / minor) and investigations', 'Independent-instance deterministic replay', 'Self-consistency audits A1–A4'])}`;
+    const [cs, obs] = await Promise.all([api('/api/calculations'), api('/api/obligations')]);
+    const open = obs.filter((o) => o.state === 'open');
+    return `<h1>Verification & Quality</h1><p class="sub">Release state of every engineering job, and scrutiny obligations raised by corrections.</p>
+      <div class="card"><h2 style="margin-top:0">Open scrutiny obligations (${open.length})</h2>${open.length ? `<table><tr><th>#</th><th>Job</th><th>Affected</th><th>Required check</th><th>Raised</th></tr>${open.map((o) => `<tr><td>${o.id}</td><td><a href="#/calc/${o.target_calc}">#${o.target_calc}</a> (corrects #${o.origin_calc})</td><td>${esc(o.kind)} · ${esc(o.label)}</td><td>${esc(o.required_check)}</td><td>${when(o.created_at)}</td></tr>`).join('')}</table><p class="sub">Open a job to confirm or waive an obligation; every decision is recorded with its reason.</p>` : '<p class="sub">None open.</p>'}
+        <p class="sub">${obs.length} obligations recorded in total. The rule table that creates them is provisional and unreviewed.</p></div>
+      <div class="card"><h2 style="margin-top:0">Engineering jobs</h2>${calcTable(cs)}</div>
+      ${notImpl('Quality workflow', ['Engineer approval — no job can reach APPROVED in this build', 'Findings by severity (critical / major / minor) and investigations', 'Self-consistency audits A1–A4; replay on a separate machine or build', 'Obligations from drawing revisions and from verification failures (only parameter corrections raise them today)'])}`;
   },
   async admin() {
     if (me.role !== 'admin') return `<h1>Administration</h1><div class="info">Administrator role required.</div>`;

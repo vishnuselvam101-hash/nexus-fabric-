@@ -16,6 +16,7 @@
 //! exploration, investigations, dependency obligations, coverage ledger,
 //! lanes/overlays, quarantine.
 
+pub mod deps;
 pub mod job;
 
 use serde::{Deserialize, Serialize};
@@ -211,8 +212,10 @@ mod roundtrip_tests {
     /// which requires exact float round-tripping (serde_json `float_roundtrip`).
     #[test]
     fn records_survive_json_storage_bit_exactly() {
-        let out = job::run(&job::Request::EccentricReducer { r1: 200.0, r2: 100.0, h: 300.0, e: 100.0 }, "t");
-        for r in &out.records {
+        let asm = job::Request::HeaderWithBranch { header_radius: 150.0, header_dev_radius: 150.0, header_length: 1200.0, branch_station: 600.0, branch_radius: 100.0, branch_dev_radius: 100.0, beta_deg: 60.0, delta: 12.5, s_end: 400.0, surface_reference: "outside".into() };
+        let mut all = job::run(&job::Request::EccentricReducer { r1: 200.0, r2: 100.0, h: 300.0, e: 100.0 }, "t").records;
+        all.extend(job::run(&asm, "t").records);
+        for r in &all {
             let text = serde_json::to_string(r).unwrap();
             let back: Record = serde_json::from_str(&text).unwrap();
             assert!(back.verify_id(), "record {} ({}) changed identity after a JSON round trip", r.kind, r.id);
