@@ -9,7 +9,7 @@ const when = (t) => new Date(t * 1000).toLocaleString();
 let me = null;
 
 async function api(path, opts = {}) {
-  const init = { method: opts.method || 'GET', headers: {}, credentials: 'same-origin' };
+  const init = { method: opts.method || 'GET', headers: { 'X-NF-Request': '1' }, credentials: 'same-origin' }; // anti-forgery header required by the server
   if (opts.json !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(opts.json); }
   if (opts.body !== undefined) { init.body = opts.body; Object.assign(init.headers, opts.headers || {}); }
   const res = await fetch(path, init);
