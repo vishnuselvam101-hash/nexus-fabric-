@@ -1,5 +1,7 @@
 # Proposed ADRs for the AMOEBA architecture
 
+> **Superseded as a status record (18 November 2026).** Decisions on these proposals are recorded in the [Decision Register](../DECISION_REGISTER.md) and in ADR-009A, 009B and 010–016. The original text below is preserved unchanged.
+
 Version 0.1 · 18 November 2026 · All **Proposed — not accepted**. Listed here rather than filed as ADR-009…014 until the owner confirms the AMOEBA definition and the independent architecture review has taken place.
 
 | # | Title | Decision proposed | Main alternatives | Evidence required before acceptance |
