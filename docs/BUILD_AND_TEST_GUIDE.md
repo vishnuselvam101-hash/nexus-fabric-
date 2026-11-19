@@ -66,3 +66,15 @@ web/              client (embedded into the server binary)
 tests/            end-to-end and browser smoke tests
 docs/             specifications, decisions, status
 ```
+
+## Creating the first administrator from the command line
+
+The browser client does this on first visit. From a shell, every state-changing request must carry the anti-forgery header `X-NF-Request`; without it the server answers 403.
+
+```
+curl -sS -X POST http://127.0.0.1:8787/api/setup \
+  -H 'Content-Type: application/json' -H 'X-NF-Request: 1' \
+  -d '{"username":"<name>","password":"<a long password>"}'
+```
+
+Setup works once: a second call answers 409. Weak passwords answer 400. Replace the port if `NF_LISTEN` was changed.

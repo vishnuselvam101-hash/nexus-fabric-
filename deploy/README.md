@@ -2,7 +2,7 @@
 
 **Status: development build. Not validated. No output may be used for manufacturing. Do not upload confidential drawings.** See `docs/RELEASE_READINESS.md` and `docs/security/VULNERABILITY_REGISTER.md`.
 
-Requirements: a VPS with root SSH access (Ubuntu 22.04/24.04 or Debian 12, 2 GB RAM or more for the build) and a domain whose A record points at it. Shared web hosting cannot run this server: it is a long-running native program, not PHP.
+Requirements: a VPS with root SSH access (Ubuntu 22.04/24.04/26.04 or Debian 12; other systems are refused unless `NF_FORCE_OS=1`, 2 GB RAM or more for the build) and a domain whose A record points at it. Shared web hosting cannot run this server: it is a long-running native program, not PHP.
 
 ```
 git clone <repository> && cd nexus-fabric-
@@ -18,4 +18,6 @@ What this closes and what it does not: HTTPS in front of the server addresses th
 Updating: `git pull && cargo build --release -p nf-server && sudo install -m 0755 target/release/nf-server /usr/local/bin/nf-server && sudo systemctl restart nf-server`.
 Backup: stop the service, copy `/var/lib/nexus-fabric` and `/etc/nexus-fabric/master.key`, start the service.
 
-The values of `NF_LISTEN`, `NF_DATA_DIR`, `NF_KEY_FILE`, `NF_COOKIE_SECURE` in `nf-server.service` are the server's documented settings; this deployment has not yet been run on a real VPS.
+Servers that already host other sites: pass `NF_PORT=<free port>`; the script refuses a port in use, backs up an existing Caddyfile and appends one site block instead of replacing it, and fails if the service does not answer.
+
+Deployment record: installed by hand (same steps as the script) on a Hostinger VPS, Ubuntu 26.04, on 2026-11-19, listening on 127.0.0.1:8792 behind an existing Caddy. The revised script itself has not been run end to end on a server; on that VPS, updates are done by rebuilding and replacing the binary, not by re-running the script.
