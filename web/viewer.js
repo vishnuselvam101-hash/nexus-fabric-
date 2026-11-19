@@ -11,6 +11,8 @@ const el = (name, attrs, parent) => {
 };
 export const f3 = (n) => (Math.abs(n) < 5e-4 ? 0 : n).toFixed(3);
 const stepLabel = (v, step) => (step >= 1 ? String(Math.round(v)) : v.toFixed(Math.min(4, Math.ceil(-Math.log10(step)))));
+// ruler labels: thousands and millions of mm are abbreviated (12k = 12 000 mm, 3M = 3 000 000 mm) so they never clip
+const rulerLabel = (v, step) => (step >= 1e6 ? `${+(v / 1e6).toFixed(3)}M` : step >= 1e3 ? `${+(v / 1e3).toFixed(3)}k` : stepLabel(v, step));
 
 export class PatternViewer {
   constructor(host, callbacks = {}) {
@@ -36,7 +38,7 @@ export class PatternViewer {
     for (const c of this.curves) for (const [x, y] of c.points) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
     this.bbox = { x0, x1, y0, y1, w: x1 - x0, h: y1 - y0 };
     this.svg.setAttribute('aria-label', `Flat pattern of ${p.part}: ${this.curves.length} curves, extents ${f3(this.bbox.w)} by ${f3(this.bbox.h)} millimetres. Arrow keys pan, plus and minus zoom, F fits, M measures. The curve table lists every curve.`);
-    const w = this.gWorld; w.textContent = '';
+    const w = this.gWorld; w.textContent = ''; this.gGhost = el('g', {}, w);
     // material fill: outer profile minus openings, only if the outer curves chain into one closed loop
     const tol = 1e-6 * Math.max(1, this.bbox.w, this.bbox.h);
     const near = (a, b) => Math.abs(a[0] - b[0]) <= tol && Math.abs(a[1] - b[1]) <= tol;
@@ -46,14 +48,21 @@ export class PatternViewer {
       const loop = (pts) => 'M' + pts.map((q) => `${q[0]} ${q[1]}`).join('L') + 'Z';
       el('path', { class: 'fill', 'fill-rule': 'evenodd', d: loop(outer.flatMap((c) => c.points)) + p.holes.map((h) => loop(h.points)).join('') }, w);
     }
+    this.hits = [];
     this.lines = this.curves.map((c, i) => {
       const pts = c.points.map((q) => `${q[0]},${q[1]}`).join(' ');
       const shape = i >= p.curves.length ? 'polygon' : 'polyline'; // openings are closed profiles
       const line = el(shape, { class: 'c' + (c.layer === 'CUT_INNER' ? ' inner' : ''), points: pts }, w);
-      el(shape, { class: 'hit', points: pts, 'data-ci': i }, w);
+      this.hits.push(el(shape, { class: 'hit', points: pts, 'data-ci': i }, w));
       return line;
     });
     this.fitted = true; this.resize(true); this.emit();
+  }
+
+  // Dashed outline of another pattern (the job this one corrects) in the same coordinates, for comparison only.
+  setGhost(p) {
+    if (!this.gGhost) return; this.gGhost.textContent = '';
+    if (p) for (const [list, shape] of [[p.curves, 'polyline'], [p.holes, 'polygon']]) for (const c of list) el(shape, { class: 'ghost', points: c.points.map((q) => `${q[0]},${q[1]}`).join(' ') }, this.gGhost);
   }
 
   // ---- view
@@ -68,7 +77,7 @@ export class PatternViewer {
     this.draw();
   }
   computeFit() {
-    const b = this.bbox, ml = 64, mr = 72, mt = 40, mb = 64; // room for rulers and extent dimensions
+    const b = this.bbox, ml = 72, mr = 76, mt = 44, mb = 64; // room for rulers and extent dimensions
     this.fitScale = Math.max(1e-6, Math.min((this.W - ml - mr) / (b.w || 1), (this.H - mt - mb) / (b.h || 1)));
     this.fitT = { tx: ml + (this.W - ml - mr) / 2 - (b.x0 + b.w / 2) * this.fitScale, ty: mt + (this.H - mt - mb) / 2 + (b.y0 + b.h / 2) * this.fitScale };
   }
@@ -103,7 +112,7 @@ export class PatternViewer {
     if (!this.bbox || !this.W) return;
     const { s, tx, ty } = this.view, W = this.W, H = this.H;
     this.gWorld.setAttribute('transform', `matrix(${s} 0 0 ${-s} ${tx} ${ty})`);
-    this.lines.forEach((l, i) => { l.classList.toggle('sel', i === this.sel); l.classList.toggle('hov', i === this.hov && i !== this.sel); });
+    this.lines.forEach((l, i) => { l.classList.toggle('sel', i === this.sel); l.classList.toggle('hov', i === this.hov && i !== this.sel); this.hits[i].classList.toggle('halo', i === this.sel); });
 
     // grid and rulers
     const g = this.gGrid; g.textContent = '';
@@ -119,12 +128,13 @@ export class PatternViewer {
       el('path', { class: 'g-minor', d: dm }, g); el('path', { class: 'g-major', d: dM }, g);
       el('path', { class: 'g-axis', d: `M${Math.round(tx) + 0.5} 0V${H}M0 ${Math.round(ty) + 0.5}H${W}` }, g);
     }
-    const RT = 18, RL = 46;
+    const RT = 20, lab = []; for (let y = Math.ceil(wy0 / step) * step; y <= wy1; y += step) lab.push(rulerLabel(y, step));
+    const RL = Math.max(46, 12 + 6.7 * Math.max(...lab.map((t) => t.length), 2));
     el('rect', { class: 'ruler', x: 0, y: 0, width: W, height: RT }, g); el('rect', { class: 'ruler', x: 0, y: 0, width: RL, height: H }, g);
     el('path', { class: 'ruler-line', d: `M0 ${RT + 0.5}H${W}M${RL + 0.5} 0V${H}` }, g);
-    for (let x = Math.ceil(wx0 / step) * step; x <= wx1; x += step) { const X = x * s + tx; if (X > RL + 14) el('text', { x: X + 3, y: 12 }, g).textContent = stepLabel(x, step); }
-    for (let y = Math.ceil(wy0 / step) * step; y <= wy1; y += step) { const Y = ty - y * s; if (Y > RT + 12) el('text', { x: RL - 4, y: Y - 3, 'text-anchor': 'end' }, g).textContent = stepLabel(y, step); }
-    el('rect', { class: 'ruler', x: 0, y: 0, width: RL, height: RT }, g); el('text', { x: RL - 4, y: 12, 'text-anchor': 'end' }, g).textContent = 'mm';
+    for (let x = Math.ceil(wx0 / step) * step; x <= wx1; x += step) { const X = x * s + tx; if (X > RL + 14) el('text', { x: X + 3, y: 14 }, g).textContent = rulerLabel(x, step); }
+    for (let y = Math.ceil(wy0 / step) * step; y <= wy1; y += step) { const Y = ty - y * s; if (Y > RT + 12) el('text', { x: RL - 4, y: Y - 3, 'text-anchor': 'end' }, g).textContent = rulerLabel(y, step); }
+    el('rect', { class: 'ruler', x: 0, y: 0, width: RL, height: RT }, g); el('text', { x: RL - 4, y: 14, 'text-anchor': 'end' }, g).textContent = 'mm';
 
     // overlay
     const o = this.gOver; o.textContent = '';

@@ -62,7 +62,7 @@ System stack, no web fonts (offline, CSP): `-apple-system, "SF Pro Text", "Segoe
 | `--fs-3` | 15 / 600 | Workspace title |
 | `--fs-2` | 13 / 400–600 | Body, controls, panel titles (`h2` 600) |
 | `--fs-1` | 12 | Tables, property lists, meta |
-| `--fs-0` | 11 | Captions, hints, status bar; uppercase 600 with +0.07em for section labels (`h3`, table heads, tags 10.5) |
+| `--fs-0` | 11 | Smallest size for anything read as text: captions, hints, status bar, rulers, graph labels, table heads; only uppercase tags and graph kind labels use 10.5 |
 
 Line height 1.45. One `h1` per view; `h2` per panel; `h3` for labels inside panels.
 
@@ -90,9 +90,13 @@ Motion: `--t-fast` 120 ms (hover, press, focus), `--t-med` 180 ms (overlay and t
 
 Status vocabulary: `PASS` ✓ green · `INCONCLUSIVE` / `REVIEW REQUIRED` ▲ amber · `FAIL` / `REJECTED` / `OPEN` ✕/▲ red · `NOT IMPLEMENTED` / `SUPERSEDED` – neutral · `PLANNED` ◌ amber dashed.
 
+## Effective job state (one rule, used by every tag, count, banner and watermark)
+
+`superseded` > `no result` > the state the server stores. **NO RESULT** (red ✕) is a job whose input the engine refused: the server stores it as `REVIEW_REQUIRED` with an `outcome` and no pattern; the client never shows it as reviewable, never offers DXF, replay or correction on it, and announces it with an error notification. **SUPERSEDED** jobs carry a red frame and hatch on the canvas, the watermark "Superseded — do not use", strokes at 40 %, and "Open current job #N" as the primary action. Computed numbers use one display rule: three decimals with thousands separators and a unit; below 0.001 scientific; full precision in the hover title. Angles from the engine (radians) are shown in degrees with the radian value beside. Dates are ISO 8601 local time. Notifications: one toast at a time, bottom centre, 4 s (errors 8 s); the session log keeps all.
+
 ## Components
 
-Application shell (top bar with breadcrumb, build notice, notifications, help, theme, account, sign-out; collapsible navigation rail in four groups; status bar with connection, engine, build status, open obligations) · page header · panel (header, count, tools, footer) · stat strip · segmented state bar · dense table (sticky head, client-side filter) · property list (`dl.kv`) · status tag · note / banner · planned panel · empty / loading / error states · tabs (ARIA tablist, arrow keys) · collapsible section (`details`) · form field with hint and inline error · buttons (default, primary, danger, ghost, icon) · tooltip (`data-tip`, shown on hover and focus) · toast and notification popover · modal dialog (native `<dialog>`) · resizable split (`role=separator`, drag, arrow keys, double-click to reset) · **pattern viewer** (grid, rulers, extent dimensions, scale bar, selection, hover snap, measurement) · **dependency graph** (layered, upstream amber / downstream blue) · timeline.
+Application shell (top bar with breadcrumb, build notice, notifications, help, theme, account, sign-out; collapsible navigation rail in four groups; status bar with connection, engine, build status, open obligations) · page header · panel (header, count, tools, footer) · stat strip · segmented state bar · dense table (sticky head, client-side filter) · property list (`dl.kv`) · status tag · note / banner · planned panel · empty / loading / error states · tabs (ARIA tablist, arrow keys) · collapsible section (`details`) · form field with hint and inline error · buttons (default, primary, danger, ghost, icon) · tooltip (`data-tip`, shown on hover and focus) · toast and notification popover · modal dialog (native `<dialog>`) · resizable split (`role=separator`, drag, arrow keys, double-click to reset) · **pattern viewer** (grid, rulers, extent dimensions, scale bar, selection, hover snap, measurement) · **dependency graph** (drawn, layered, upstream amber / downstream blue) and its narrow-panel form, **dependency layers** (the same layers as wrapped record chips) · **parameter schematic** (to-scale elevation and end view drawn from the form values, dimension highlighted with the focused field) · difference table (before / after / change) · timeline.
 
 Icons: 33 glyphs drawn for this product, 16 px grid, 1.5 px stroke, round caps and joins, `currentColor`, inline SVG, always `aria-hidden` next to a text label or inside a control with `aria-label`.
 

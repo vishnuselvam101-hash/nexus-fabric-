@@ -10,6 +10,7 @@ const ADMIN = { username: 'admin', password: 'correct-horse-9' }, NEW_PW = 'corr
 const results = [];
 const check = (name, ok, detail) => { results.push({ name, ok: !!ok, detail }); console.log(`${ok ? 'ok  ' : 'FAIL'} - ${name}${ok || detail === undefined ? '' : `  [${JSON.stringify(detail)}]`}`); };
 const f3 = (n) => (Math.abs(n) < 5e-4 ? 0 : n).toFixed(3);
+const n3 = (n) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(n); // the client's display rule for computed numbers
 
 // Elements that stick out of the viewport without a scrollable or clipping ancestor that itself fits.
 const overflowProbe = () => {
@@ -49,7 +50,8 @@ const controlProbe = () => {
   const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, acceptDownloads: true, deviceScaleFactor: SHOTS ? 2 : 1 });
   const p = await ctx.newPage(); watch(p, 'admin');
   const apiGet = async (path) => (await ctx.request.get(B + path, { headers: { 'X-NF-Request': '1' } })).json();
-  const go = async (hash, sel) => { await p.goto(`${B}/#/${hash}`); await p.waitForSelector(sel || '#view h1'); };
+  // navigation is complete when the client marks the view with the hash it rendered
+  const go = async (hash, sel) => { await p.goto(`${B}/#/${hash}`); await p.waitForFunction((h) => { const v = document.querySelector('#view'); return v && v.dataset.hash === h; }, `#/${hash}`); await p.waitForSelector(sel || '#view h1'); };
   const sweepControls = async () => { const c = await p.evaluate(controlProbe); approveControls += c.approve; approvedTags += c.approvedTags; return c; };
   const vpos = (ci, vi) => p.evaluate(([c, v]) => { const pl = document.querySelector(`.pv .hit[data-ci="${c}"]`), q = pl.points[v], m = pl.getScreenCTM(); return [q.x * m.a + q.y * m.c + m.e, q.x * m.b + q.y * m.d + m.f]; }, [ci, vi]);
   const transform = () => p.evaluate(() => document.querySelector('.pv g[transform]').getAttribute('transform'));
@@ -94,6 +96,37 @@ const controlProbe = () => {
     await sweepControls();
   }
 
+  // ---- 3b. a refusal must look like a refusal everywhere
+  const jobCount = async () => (await apiGet('/api/calculations')).length;
+  const before = await jobCount();
+  await go('math/1', '#calc'); await p.selectOption('select[name=fam]', 'header_with_branch');
+  check('new calculation: parameter schematic is drawn from the form values', /R 150/.test(await p.textContent('#sketch svg')) && /station 600/.test(await p.textContent('#sketch svg')) && /not the computed pattern/.test(await p.textContent('#sketch')));
+  await p.fill('#f_branch_station', '450'); await p.focus('#f_beta_deg');
+  check('new calculation: schematic follows the entered values and highlights the focused dimension', /station 450/.test(await p.textContent('#sketch svg')) && (await p.locator('#sketch .hot[data-dim=beta_deg]').count()) === 1);
+  check('new calculation: run button stays on screen', await p.evaluate(() => { const r = document.querySelector('#run').getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight; }));
+  await p.fill('#f_header_radius', '-150'); await p.click('#run'); await p.waitForSelector('#calc .field-err');
+  const negMsg = await p.textContent('#calc .field-err');
+  await p.fill('#f_header_radius', '150'); await p.fill('#f_branch_radius', '400'); await p.click('#run'); await p.waitForSelector('#calc .field-err');
+  const bigMsg = await p.textContent('#calc .field-err');
+  check('refusal: negative radius and impossible intersection are stopped at the field, nothing is sent', /must be greater than 0/.test(negMsg) && /must be smaller than the header radius/.test(bigMsg) && /Not sent/.test(await p.textContent('#cmsg')) && (await jobCount()) === before && p.url().includes('#/math'), { negMsg, bigMsg });
+  await p.selectOption('select[name=fam]', 'cylinder_shell'); await p.fill('#f_r_dev', '1e9'); await p.click('#run'); await p.waitForSelector('#plaus');
+  check('refusal: an absurd magnitude is questioned before anything is sent', /more than 20 m/.test(await p.textContent('#plaus')) && (await jobCount()) === before && /unusual/i.test(await p.textContent('#run')));
+  // a request the client cannot judge and the engine refuses (square end inside the saddle): recorded, but as NO RESULT
+  await p.selectOption('select[name=fam]', 'header_with_branch'); await p.fill('#f_s_end', '150'); await p.click('#run');
+  await p.waitForURL(/#\/calc\/\d+$/); await p.waitForSelector('.ws-banner.bad');
+  const R = Number(p.url().split('/').pop());
+  const rj = { tag: (await p.textContent('.ws-head h1 .tag')).trim(), toastErr: await p.locator('.toast.err').count(), toastOk: await p.locator('.toast.ok').count(), toast: await p.locator('.toast').first().textContent(), banner: await p.textContent('.ws-banner'), dxf: await p.locator('#dxf, #dxf-all, a[href*="/dxf/"]').count(), replay: await p.locator('#replay').count(), corr: await p.locator('#corr-open, [data-correct]').count(), pv: await p.locator('.pv').count() };
+  check('refusal: an engine-refused job is shown as NO RESULT with an error notification, never as a computed result', rj.tag === 'No result' && rj.toastErr === 1 && rj.toastOk === 0 && /NO RESULT/.test(rj.toast) && /NO RESULT/.test(rj.banner) && /s_end/.test(rj.banner) && !/REVIEW REQUIRED/.test(await p.textContent('.ws')), rj);
+  check('refusal: no DXF, replay or correction is offered on a job without a result', rj.dxf === 0 && rj.replay === 0 && rj.corr === 0 && rj.pv === 0, rj);
+  await go('dashboard', '.stats');
+  const dashR = { none: (await p.textContent('#st-none b')).trim(), review: (await p.textContent('#st-review b')).trim(), row: (await p.locator('#jobs-recent tbody tr', { hasText: `Job #${R}` }).textContent()) };
+  check('refusal: dashboard counts it as no result, not as review required', dashR.none === '1' && dashR.review === String(before) && /No result/.test(dashR.row) && /input refused/.test(dashR.row) && !/Review required/i.test(dashR.row), dashR);
+  await go('manufacturing'); const mfg = await p.textContent('#view');
+  await go('workspace'); const wsRow = await p.locator('#jobs-all tbody tr', { hasText: `Job #${R}` }).textContent();
+  await go('verification'); const verRow = await p.locator('#jobs-ver tbody tr', { hasText: `Job #${R}` }).textContent();
+  check('refusal: absent from DXF outputs, labelled NO RESULT in the job lists', (await (async () => { await go('manufacturing'); return p.locator('#tbl-dxf tbody tr', { hasText: `Job #${R}` }).count(); })()) === 0 && /1 job produced no pattern/.test(mfg) && /No result/.test(wsRow) && /No result/.test(verRow) && /none run/.test(verRow), { wsRow, verRow });
+  check('manufacturing: one row per part with extents, hash and download', (await p.locator('#tbl-dxf tbody tr').count()) === 6 && (await p.locator('#tbl-dxf a[href*="/dxf/"]').count()) === 6 && /CUT_OUTER/.test(mfg));
+
   // ---- 4. pattern viewer on the eccentric reducer: real geometry read-out, selection, zoom, pan, fit, measure
   const J = jobs.eccentric_reducer;
   const data = await apiGet(`/api/calculations/${J}`);
@@ -103,10 +136,10 @@ const controlProbe = () => {
   await p.waitForFunction((n) => document.querySelector('#ro-info').textContent.includes(n), curve0.name);
   const ro = await p.textContent('#ro-info');
   check('viewer: hover read-out names the curve, its computed length and the real vertex coordinates', ro.includes(curve0.name) && ro.includes(`length ${f3(curve0.length)} mm`) && ro.includes(`vertex 101/${curve0.points.length} (${f3(v100[0])}, ${f3(v100[1])})`), ro);
-  check('viewer: cursor coordinates are pattern coordinates in mm', Math.abs(Number(await p.textContent('#ro-x')) - v100[0]) < 2 && Math.abs(Number(await p.textContent('#ro-y')) - v100[1]) < 2);
+  check('viewer: cursor coordinates are pattern coordinates in mm', Math.abs(parseFloat(await p.textContent('#ro-x')) - v100[0]) < 2 && Math.abs(parseFloat(await p.textContent('#ro-y')) - v100[1]) < 2 && / mm$/.test(await p.textContent('#ro-x')));
   await p.mouse.click(x, y);
   const selText = await p.textContent('#sel');
-  check('viewer: clicking a curve selects it and shows its properties from the result data', selText.includes(curve0.name) && selText.includes(String(Number(curve0.length.toPrecision(12)))) && selText.includes(String(curve0.points.length)) && (await p.getAttribute('#curves tr[data-ci="0"]', 'aria-selected')) === 'true', selText);
+  check('viewer: clicking a curve selects it and shows its properties from the result data', selText.includes(curve0.name) && selText.includes(`${n3(curve0.length)} mm`) && (await p.getAttribute('#sel dd span[title]', 'title')).startsWith(String(Number(curve0.length.toPrecision(12)))) && selText.includes(String(curve0.points.length)) && (await p.getAttribute('#curves tr[data-ci="0"]', 'aria-selected')) === 'true', selText);
   await p.click('#curves button[data-ci="2"]');
   check('viewer: curve table selects a curve by keyboard-reachable control', (await p.textContent('#sel')).includes(data.patterns[0].curves[2].name) && (await p.locator('.pv .c.sel').count()) === 1);
   const t0 = await transform(); await p.click('#z-in'); await p.click('#z-in');
@@ -126,8 +159,10 @@ const controlProbe = () => {
   [x, y] = await vpos(3, 0); await p.mouse.click(x, y); [x, y] = await vpos(3, 1); await p.mouse.move(x, y); await p.mouse.click(x, y);
   await p.waitForFunction(() => /^Distance/.test(document.querySelector('#ro-info').textContent));
   const meas = await p.textContent('#ro-info');
-  check('viewer: measuring between two computed vertices gives the engine length of that line', meas.startsWith(`Distance ${f3(seam.length)} mm`), meas);
+  check('viewer: measuring between two computed vertices gives the engine length of that line', meas.startsWith(`Distance ${f3(seam.length)} mm`) && (await p.textContent('#meas')).includes(`${f3(seam.length)} mm`) && /vertex/.test(await p.textContent('#meas')), meas);
   await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
+  const quant = (await p.textContent('#quant')).replace(/\s+/g, ' ');
+  check('quantities: every value has a unit, angles in degrees, one precision', new RegExp(`Developed angle ?developed_angle ?${n3(data.patterns[0].quantities.developed_angle * 180 / Math.PI)} ° \\(${n3(data.patterns[0].quantities.developed_angle)} rad\\)`).test(quant) && quant.includes(`${n3(data.patterns[0].quantities.area)} mm²`) && !/unit not stated/.test(quant), quant);
   check('viewer: canvas exposes an accessible description', /Flat pattern of reducer: 4 curves, extents/.test(await p.getAttribute('.pv', 'aria-label')));
 
   // ---- 5. DXF download
@@ -137,35 +172,46 @@ const controlProbe = () => {
 
   // ---- 6. replay audit
   await p.click('#replay'); await p.waitForSelector('#tp-ws-records:not([hidden]) >> text=stored records checked');
-  check('replay: audit reproduces the closure and is reported with its limitation', /PASS/.test(await p.textContent('#tp-ws-records .kv')) && /same machine/.test(await p.textContent('#tp-ws-records')));
+  check('replay: audit reproduces the closure and is reported with its limitation', /Replay match/i.test(await p.textContent('#replay-state')) && /Replay match/i.test(await p.locator('.toast').first().textContent()) && /same machine/.test(await p.textContent('#tp-ws-records')));
   await p.click('#tab-ws-history');
-  check('history: replay audit appears in the job history', /Replay audit reproduced the closure/.test(await p.textContent('#tp-ws-history')));
+  check('history: replay audit appears in the job history', /Replay match/.test(await p.textContent('#tp-ws-history')));
 
   // ---- 7. assembly: parts, interface checks, dependency graph
   const A = jobs.header_with_branch;
   await go(`calc/${A}`, '.pv'); await p.waitForSelector('.pv .c', { state: 'attached' });
   const headerCurves = await p.locator('.pv .c').count(), innerCurves = await p.locator('.pv .c.inner').count();
   await p.keyboard.press('2'); await p.waitForFunction(() => document.querySelector('#curves-part').textContent.includes('branch'));
+  const [d1, d2] = await (async () => { const got = []; const on = (d) => got.push(d.suggestedFilename()); p.on('download', on); await p.click('#dxf-all'); await p.waitForFunction(() => /2 DXF files requested/.test(document.querySelector('#toasts').textContent)); await p.waitForTimeout(300); p.off('download', on); return got.sort(); })();
+  check('DXF: all parts of an assembly download in one action, each marked NOT-RELEASED', /^NOT-RELEASED.*_branch_/.test(d1 || '') && /^NOT-RELEASED.*_header_/.test(d2 || ''), [d1, d2]);
   check('assembly: header shows its opening, key 2 switches to the branch pattern', headerCurves === 5 && innerCurves === 1 && (await p.locator('.pv .c').count()) === 4 && /branch/.test(await p.getAttribute('#dxf', 'href')));
   await p.click('#tab-ws-checks'); const interfaceChecks = await p.locator('#tp-ws-checks .id:text-is("interface")').count();
-  await p.click('#tab-ws-records'); const interfaceRecords = await p.locator('#tp-ws-records .rec b:text-is("interface")').count();
+  await p.click('#tab-ws-records'); const interfaceRecords = await p.locator('#tp-ws-records .rec-t', { hasText: /^interface ·/ }).count();
   check('assembly: two interface checks and the interface record', interfaceChecks === 2 && interfaceRecords === 1, { interfaceChecks, interfaceRecords });
   await p.click('#tp-ws-records .rec >> nth=0'); await p.waitForSelector('#tp-ws-records .rec[open] pre');
-  check('records: a record opens to its stored payload', /header_with_branch/.test(await p.textContent('#tp-ws-records .rec[open] pre')));
-  await p.click('#tab-ws-graph'); const nodes = await p.locator('#tp-ws-graph .dg .n').count(), edges = await p.locator('#tp-ws-graph .dg .e').count();
-  await p.locator('#tp-ws-graph .dg .n', { hasText: 'header_radius' }).first().click();
+  check('records: a record opens to its stored payload; rows name their subject', /header_with_branch/.test(await p.textContent('#tp-ws-records .rec[open] pre')) && (await p.locator('#tp-ws-records .rec-t', { hasText: 'parameter · header_radius = 150 mm' }).count()) === 1);
+  await p.click('#tab-ws-graph'); const nodes = await p.locator('#tp-ws-graph .dgl .node').count(), edges = await p.locator('#tp-ws-graph details tbody tr').count();
+  const clipped = await p.evaluate(() => { const pane = document.querySelector('#tp-ws-graph').getBoundingClientRect(); return [...document.querySelectorAll('#tp-ws-graph .dgl .node')].filter((n) => { const r = n.getBoundingClientRect(); return r.right > pane.right + 1 || r.left < pane.left - 1; }).length; });
+  await p.locator('#tp-ws-graph .dgl .node', { hasText: 'header_radius' }).first().click();
   const reach = await p.textContent('#tp-ws-graph .dg-info');
-  check('dependencies: graph drawn from the edge list, selecting a record traces what a change reaches', nodes >= 15 && edges >= 20 && /header_radius depends on 1 record\. A change to it reaches \d+:.*pattern · header/.test(reach), { nodes, edges, reach });
+  check('dependencies: layers built from the edge list, nothing clipped, selecting a record traces what a change reaches', nodes >= 15 && edges >= 20 && clipped === 0 && /header_radius depends on 1 record\. A change to it reaches \d+:.*pattern · header/.test(reach), { nodes, edges, reach });
 
   // ---- 8. correction -> obligations -> resolution
-  await p.selectOption('#corr select[name=p]', 'header_radius'); await p.fill('#corr input[name=v]', '142');
-  await p.click('#corr button'); await p.waitForSelector('#corr .field-err');
-  check('correction: refused inline without a reason', p.url().endsWith(`/calc/${A}`));
-  await p.fill('#corr input[name=r]', 'drawing dimension is the inside diameter'); await p.click('#corr button');
-  await p.waitForURL((u) => /#\/calc\/\d+$/.test(u.hash) && !u.hash.endsWith(`/${A}`)); await p.waitForSelector('#obls');
+  await p.click('[data-correct=header_radius]'); await p.waitForSelector('#corrdlg[open]');
+  check('correction: opens from the request row with that parameter selected, labelled in words', (await p.inputValue('#corr select[name=p]')) === 'header_radius' && /Header contact radius — header_radius \(now 150 mm\)/.test(await p.textContent('#corr select[name=p]')));
+  await p.fill('#corr input[name=v]', '-5'); await p.click('#corr-go'); await p.waitForSelector('#corr .field-err');
+  const corrNeg = await p.textContent('#corr .field-err');
+  await p.fill('#corr input[name=v]', '142'); await p.click('#corr-go'); await p.waitForSelector('#corr .field-err');
+  check('correction: an impossible value and a missing reason are refused inline', /greater than 0/.test(corrNeg) && /reason/i.test(await p.textContent('#corr .field-err')) && p.url().endsWith(`/calc/${A}`), corrNeg);
+  await p.fill('#corr input[name=r]', 'drawing dimension is the inside diameter'); await p.click('#corr-go');
+  await p.waitForURL((u) => /#\/calc\/\d+$/.test(u.hash) && !u.hash.endsWith(`/${A}`)); await p.waitForSelector('#tp-ws-changes:not([hidden]) table');
+  const diff = (await p.textContent('#tp-ws-changes')).replace(/\s+/g, ' ');
+  check('correction: the new job opens on what changed — parameter before and after, and the computed values that moved', /Header contact radius ?header_radius ?150\.000 ?142\.000 ?-8\.000 mm/.test(diff) && /Curve branch_opening length/.test(diff) && /Pattern · branch/.test(diff) && (await p.locator('#tp-ws-changes [data-diff^="curve:"]').count()) >= 2 && (await p.locator('#corrects').getAttribute('href')) === `#/calc/${A}`, diff.slice(0, 400));
+  await p.click('#v-prev'); const ghosts = await p.locator('.pv .ghost').count(); await p.click('#v-prev');
+  check('correction: the earlier pattern can be overlaid on the canvas', ghosts === 5 && (await p.locator('.pv .ghost').count()) === 0, ghosts);
+  await p.click('#tab-ws-scrutiny'); await p.waitForSelector('#obls');
   const N = Number(p.url().split('/').pop());
   const openBefore = await p.locator('button[data-decision=confirmed]').count();
-  check('correction: new job opens on its scrutiny obligations, three need an engineer', N > A && openBefore === 3 && (await p.locator('#obls > li').count()) >= 9 && /corrects job #/.test((await p.textContent('.ws-meta')).replace(/\s+/g, ' ')), { N, openBefore });
+  check('correction: new job opens on its scrutiny obligations, three need an engineer', N > A && openBefore === 3 && (await p.locator('#obls > li').count()) >= 9 && (await p.textContent('#corrects')).trim() === `corrects #${A}`, { N, openBefore });
   if (SHOTS) await p.screenshot({ path: `${SHOTS}/obligations.png` });
   await p.locator('button[data-decision=confirmed]').first().click(); await p.waitForSelector('#obls .field-err');
   check('obligation: decision refused inline without a reason', (await p.locator('button[data-decision=confirmed]').count()) === openBefore);
@@ -181,7 +227,13 @@ const controlProbe = () => {
   check('history: decisions listed with who and why', /Obligation #\d+ discharged by decision/.test(await p.textContent('#tp-ws-history')) && /admin: checked against the drawing/.test(await p.textContent('#tp-ws-history')));
   await go(`calc/${A}`, '.ws-banner.bad');
   const withheld = [await p.locator('#dxfseg .tag:text-is("DXF withheld")').count()]; await p.keyboard.press('2'); withheld.push(await p.locator('#dxfseg .tag:text-is("DXF withheld")').count());
-  check('superseded job: marked, DXF withheld for both parts, cannot be corrected again', /SUPERSEDED by job #/.test(await p.textContent('.ws-banner')) && withheld.join() === '1,1' && (await p.locator('#dxf').count()) === 0 && (await p.locator('#corr').count()) === 0, withheld);
+  check('superseded job: marked, DXF withheld for both parts', /SUPERSEDED by job #/.test(await p.textContent('.ws-banner')) && withheld.join() === '1,1' && (await p.locator('#dxf, #dxf-all').count()) === 0, withheld);
+  const sup = { tag: (await p.textContent('.ws-head h1 .tag')).trim(), wm: (await p.textContent('#wm')).trim(), dead: await p.locator('.stage.dead').count(), opacity: await p.evaluate(() => getComputedStyle(document.querySelector('.pv .c')).opacity), succ: await p.getAttribute('#successor', 'href'), corr: await p.locator('#corr-open, [data-correct], #corrdlg').count(), replay: await p.locator('#replay').count(), text: await p.textContent('.ws') };
+  check('superseded job: unmistakable — own watermark, dimmed pattern, link to its successor, no replay or correction', sup.tag === 'Superseded' && /^Superseded — do not use$/i.test(sup.wm) && !/REVIEW REQUIRED/i.test(sup.text) && sup.dead === 1 && Number(sup.opacity) <= 0.5 && sup.succ === `#/calc/${N}` && sup.corr === 0 && sup.replay === 0, { ...sup, text: undefined });
+  await go('dashboard', '.stats');
+  const dash = { sup: (await p.textContent('#st-sup b')).trim(), review: (await p.textContent('#st-review b')).trim(), none: (await p.textContent('#st-none b')).trim(), legend: (await p.textContent('#legend')).replace(/\s+/g, ' '), rowsSup: await p.locator('#jobs-recent .tag:text-is("Superseded")').count(), rowsReview: await p.locator('#jobs-recent .tag:text-is("REVIEW REQUIRED")').count(), total: (await apiGet('/api/calculations')).length };
+  check('dashboard: counts agree with the rows after a correction (superseded is not review required)', dash.sup === '1' && dash.rowsSup === 1 && dash.none === '1' && Number(dash.review) === dash.total - 2 && dash.rowsReview === Number(dash.review) && dash.legend.includes(`${dash.review} review required`) && dash.legend.includes('1 superseded'), dash);
+  await go(`calc/${A}`, '.ws-banner.bad');
   check('superseded job: server refuses the DXF', (await ctx.request.get(`${B}/api/calculations/${A}/dxf/header`, { headers: { 'X-NF-Request': '1' } })).status() === 409);
 
   // ---- 9. lessons and advisories
@@ -200,7 +252,9 @@ const controlProbe = () => {
   check('AMOEBA: lessons view counts the match', /header_radius/.test(await p.textContent('#tp-am-lessons')) && (await p.textContent('#tp-am-lessons tbody td.num')).trim() === '1');
   await p.click('#tab-am-obligations');
   check('AMOEBA: obligation ledger lists every obligation with its state', (await p.locator('#tbl-obl tbody tr').count()) >= 9 && (await p.locator('#tbl-obl .tag:text-is("open")').count()) === 1);
-  await p.fill('#flt-tbl-obl', 'waived'); check('tables: filter narrows the ledger', (await p.locator('#tbl-obl tbody tr:visible').count()) === 1);
+  await p.fill('#flt-tbl-obl', 'waived'); check('tables: filter narrows the ledger and its count', (await p.locator('#tbl-obl tbody tr:visible').count()) === 1 && /^1 of \d+$/.test((await p.textContent('#tp-am-obligations .panel-h .cnt')).trim()));
+  await p.fill('#flt-tbl-obl', 'zzzz'); const nomatch = await p.textContent('#tbl-obl tbody tr.nomatch'); await p.click('#tbl-obl tr.nomatch button');
+  check('tables: a filter without matches says so and can be cleared', /Nothing matches “zzzz”/.test(nomatch) && (await p.inputValue('#flt-tbl-obl')) === '' && (await p.locator('#tbl-obl tbody tr:visible').count()) >= 9);
   await p.click('#tab-am-records'); const recKinds = await p.locator('#tbl-rec tbody tr').count();
   await p.click('#tab-am-dependencies'); await p.waitForSelector('#tp-am-dependencies .dg');
   await p.click('#tab-am-mechanisms');
@@ -222,8 +276,8 @@ const controlProbe = () => {
   await p.click('#tab-ad-security');
   check('admin: security configuration as running is shown', /password hashing/i.test(await p.textContent('#tp-ad-security')) && /Argon2id/.test(await p.textContent('#tp-ad-security')));
   await go('project/1', '#mem');
-  for (const u of ['viewer1', 'engineer1']) { await p.fill('#memu', u); await p.click('#mem button >> nth=0'); await p.waitForSelector(`.panel .tag:text-is("${u}")`); }
-  check('project: members added', (await p.locator('.panel .tag:text-is("viewer1")').count()) === 1);
+  for (const u of ['viewer1', 'engineer1']) { await p.selectOption('#memu', u); await p.click('#mem button'); await p.waitForSelector(`.members li:has-text("${u}")`); }
+  check('project: members picked from the active users, shown as entered', (await p.locator('.members li', { hasText: 'viewer1' }).count()) === 1 && (await p.locator('#memu option[value=temp1]').count()) === 0);
 
   // ---- 11. shell: shortcuts, help overlay, notifications, theme, navigation rail
   await go('dashboard', '.stats'); await p.locator('#view').focus();
@@ -284,7 +338,7 @@ const controlProbe = () => {
   const vDash = { newCalc: await v.locator('#view a:has-text("New calculation")').count(), adminNav: await v.locator('.rail a[data-nav=admin]').count() };
   await v.goto(`${B}/#/math/1`); await v.waitForSelector('#view h1'); const vMath = await v.textContent('#view');
   await v.goto(`${B}/#/calc/${N}`); await v.waitForSelector('.pv .c', { state: 'attached' }); await v.click('#tab-ws-scrutiny');
-  const vJob = { replay: await v.locator('#replay').count(), corr: await v.locator('#corr').count(), resolve: await v.locator('[data-resolve]').count(), obligations: await v.locator('#obls > li').count(), dxf: await v.locator('#dxf').count() };
+  const vJob = { replay: await v.locator('#replay').count(), corr: await v.locator('#corr-open, [data-correct]').count(), resolve: await v.locator('[data-resolve]').count(), obligations: await v.locator('#obls > li').count(), dxf: await v.locator('#dxf').count() };
   await v.goto(`${B}/#/admin`); await v.waitForSelector('#view h1'); const vAdmin = await v.textContent('#view');
   await v.goto(`${B}/#/projects`); await v.waitForSelector('#view h1'); const vProj = await v.locator('#np').count();
   check('viewer: can read results, but sees no way to calculate, correct, decide, replay or administer', vDash.newCalc === 0 && vDash.adminNav === 0 && /can view results but not run calculations/.test(vMath) && vJob.replay === 0 && vJob.corr === 0 && vJob.resolve === 0 && vJob.obligations >= 9 && vJob.dxf === 1 && /Administrator role required/.test(vAdmin) && vProj === 0, { vDash, vJob, vProj });
@@ -308,7 +362,7 @@ const controlProbe = () => {
   allow401 = true; // the one refused request this test provokes on purpose
   await p.fill('input[name=u]', ADMIN.username); await p.fill('input[name=p]', ADMIN.password); await p.click('#f button'); await p.waitForFunction(() => { const a = document.querySelector('.login-card [role=alert]'); return a && !/Password changed/.test(a.textContent); });
   const refused = await p.textContent('.login-card [role=alert]'); allow401 = false;
-  check('login: old password refused with a message', refused.trim().length > 0 && (await p.locator('#f').count()) === 1 && expected401 === 1, { refused, expected401 });
+  check('login: old password refused with a plain message, username kept', refused.trim() === 'Incorrect username or password.' && (await p.inputValue('input[name=u]')) === ADMIN.username && (await p.evaluate(() => document.activeElement.name)) === 'p' && expected401 === 1, { refused, expected401 });
   await p.fill('input[name=u]', ADMIN.username); await p.fill('input[name=p]', NEW_PW); await p.click('#f button'); await p.waitForSelector('#view h1');
   check('login: new password signs in and returns to the page the user was on', (await p.textContent('#view h1')).trim() === 'Account' && (await p.textContent('.who')).includes('admin'));
   await p.click('#logout'); await p.waitForSelector('#f');
