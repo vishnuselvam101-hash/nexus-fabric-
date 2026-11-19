@@ -4,7 +4,7 @@
 //   video : 900 frames at 30 fps piped to ffmpeg -> nexus-fabric-30s-<lang>.mp4 (picture only; audio is muxed later)
 const { chromium } = require('playwright'); const { spawn, spawnSync } = require('child_process'); const fs = require('fs'); const path = require('path');
 const TIMES = [2.5, 5.2, 7, 9.5, 11.3, 13, 16.5, 18.5, 21, 23.5, 25.5, 27, 29], OUT = 'r07';
-const BURSTS = { b1: [4.4, 5.8], b2: [10.5, 12.0], b3: [17.5, 19.0], b4: [24.3, 26.0] };   // node render.js burst <lang>: 10 fps contact sheets of the scene changes
+const BURSTS = { b1: [4.4, 5.8], b2: [10.3, 12.0], b3: [17.5, 19.0], b4: [24.3, 26.0] };   // node render.js burst <lang>: 10 fps contact sheets of the scene changes
 (async () => {
   const [mode = 'stills', lang = 'en', list] = process.argv.slice(2);
   const b = await chromium.launch({ args: ['--allow-file-access-from-files', '--font-render-hinting=none'] });
