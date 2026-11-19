@@ -1,0 +1,20 @@
+{
+ "id": "E-ecc-near-cyl",
+ "group": "refusal",
+ "title": "eccentric: near-cylindrical",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 200,
+  "r2": 199.9,
+  "h": 300,
+  "e": 50
+ },
+ "expect": "refuse",
+ "derivation": "Declared unsupported.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "cylind"
+  ]
+ }
+}

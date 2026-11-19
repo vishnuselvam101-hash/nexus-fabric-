@@ -1,0 +1,19 @@
+{
+ "id": "E-eccentric_reducer-r2-missing",
+ "group": "refusal",
+ "title": "eccentric_reducer: r2 missing",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 200,
+  "h": 300,
+  "e": 100
+ },
+ "expect": "refuse",
+ "derivation": "A missing parameter must not be defaulted.",
+ "refusal": {
+  "kind": "malformed",
+  "mentions": [
+   "r2"
+  ]
+ }
+}

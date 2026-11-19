@@ -1,0 +1,20 @@
+{
+ "id": "E-branch_stub-s_end-1e308",
+ "group": "refusal",
+ "title": "branch_stub: s_end = 1e308",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 150,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 60,
+  "delta": 20,
+  "s_end": 1e+308
+ },
+ "expect": "refuse",
+ "derivation": "A finite but absurd magnitude: products of lengths overflow binary64. The only acceptable outcomes are a refusal or a finite, correct pattern; a pattern containing non-finite numbers is a defect. Expected here: refusal.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": []
+ }
+}

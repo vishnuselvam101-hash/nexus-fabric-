@@ -1,0 +1,13 @@
+{
+ "id": "E-branch_stub-branch_radius-string",
+ "group": "refusal",
+ "title": "branch_stub: branch_radius = \"12\"",
+ "request": null,
+ "expect": "refuse",
+ "derivation": "\"12\" is not a finite JSON number: the request must be rejected at the boundary (HTTP 400), never computed.",
+ "refusal": {
+  "kind": "malformed",
+  "mentions": []
+ },
+ "raw_body": "{\"family\": \"branch_stub\", \"header_radius\": 150, \"branch_radius\": \"12\", \"branch_dev_radius\": 100, \"beta_deg\": 60, \"delta\": 20, \"s_end\": 400}"
+}

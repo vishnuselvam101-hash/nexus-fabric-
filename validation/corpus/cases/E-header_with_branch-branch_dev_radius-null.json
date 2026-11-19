@@ -1,0 +1,13 @@
+{
+ "id": "E-header_with_branch-branch_dev_radius-null",
+ "group": "refusal",
+ "title": "header_with_branch: branch_dev_radius = null",
+ "request": null,
+ "expect": "refuse",
+ "derivation": "null is not a finite JSON number: the request must be rejected at the boundary (HTTP 400), never computed.",
+ "refusal": {
+  "kind": "malformed",
+  "mentions": []
+ },
+ "raw_body": "{\"family\": \"header_with_branch\", \"header_radius\": 150, \"header_dev_radius\": 150, \"header_length\": 1200, \"branch_station\": 500, \"branch_radius\": 100, \"branch_dev_radius\": null, \"beta_deg\": 60, \"delta\": 20, \"s_end\": 400, \"surface_reference\": \"outside\"}"
+}

@@ -1,0 +1,21 @@
+{
+ "id": "E-cone-r1-eq-r2",
+ "group": "refusal",
+ "title": "cone: r1 = r2",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 200,
+  "r2": 200,
+  "h": 300
+ },
+ "expect": "refuse",
+ "derivation": "Equal radii is a cylinder, not a cone (apex at infinity).",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "r1",
+   "r2",
+   "cylinder"
+  ]
+ }
+}

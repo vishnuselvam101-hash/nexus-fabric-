@@ -1,0 +1,21 @@
+{
+ "id": "E-ecc-e-negative",
+ "group": "refusal",
+ "title": "eccentric: e < 0",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 200,
+  "r2": 100,
+  "h": 300,
+  "e": -100
+ },
+ "expect": "refuse",
+ "derivation": "The offset is a magnitude; its direction is fixed by the seam datum.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "e",
+   "offset"
+  ]
+ }
+}

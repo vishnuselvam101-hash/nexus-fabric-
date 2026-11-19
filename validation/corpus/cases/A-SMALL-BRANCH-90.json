@@ -1,0 +1,48 @@
+{
+ "id": "A-SMALL-BRANCH-90",
+ "group": "limit",
+ "title": "Branch radius -> small (r/R = 1e-3), beta = 90: opening tends to an ellipse",
+ "request": {
+  "family": "header_with_branch",
+  "header_radius": 1000,
+  "header_dev_radius": 1000,
+  "header_length": 2200,
+  "branch_station": 50,
+  "branch_radius": 1,
+  "branch_dev_radius": 1,
+  "beta_deg": 90,
+  "delta": 0,
+  "s_end": 1100,
+  "surface_reference": "outside"
+ },
+ "expect": "accept",
+ "derivation": "For r << R the header is locally a plane cut obliquely by the branch: an ellipse with semi-axes r/sin(beta) = 1 along the axis and r = 1 around it. Area -> pi r^2/sin(beta); perimeter -> 4 a E(1 - b^2/a^2). Curvature corrections are O((r/R)^2) = 1e-6 relative; tolerance 2e-4 relative. The station is where the branch axis meets the header axis (work point), so the opening centre on the surface is at station + R/tan(beta) = 50, on the generator facing the branch (y = pi R).",
+ "measures": {
+  "header": {
+   "hole_area": [
+    3.141592653589793,
+    0.0006283185307179586
+   ],
+   "hole_perimeter": [
+    6.283185307179586,
+    0.0012566370614359172
+   ],
+   "hole_w": [
+    2.0,
+    0.0002
+   ],
+   "hole_h": [
+    2,
+    0.0002
+   ],
+   "hole_cy": [
+    3141.592653589793,
+    1e-06
+   ],
+   "hole_cx": [
+    50.000000000000064,
+    0.002
+   ]
+  }
+ }
+}

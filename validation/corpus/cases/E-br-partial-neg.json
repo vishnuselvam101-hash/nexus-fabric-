@@ -1,0 +1,22 @@
+{
+ "id": "E-br-partial-neg",
+ "group": "refusal",
+ "title": "branch: |delta| + r > R, delta negative",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 150,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 90,
+  "delta": -60,
+  "s_end": 400
+ },
+ "expect": "refuse",
+ "derivation": "Partial intersection on the other side.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "delta"
+  ]
+ }
+}

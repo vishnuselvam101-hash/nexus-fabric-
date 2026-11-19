@@ -1,0 +1,16 @@
+{
+ "id": "S-SCALE-cyl-25.4",
+ "group": "symmetry",
+ "title": "Uniform scale x25.4 of cylinder_shell",
+ "request": {
+  "family": "cylinder_shell",
+  "r_dev": 500,
+  "length": 1000
+ },
+ "expect": "accept",
+ "derivation": "Scaling every length by k scales every pattern coordinate by k (lengths x k, areas x k^2); angles unchanged. For k a power of two the result should be identical to rounding; otherwise agreement to ~1e-12 relative.",
+ "relation": {
+  "type": "scale",
+  "k": 25.4
+ }
+}

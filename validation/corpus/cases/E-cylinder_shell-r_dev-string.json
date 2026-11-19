@@ -1,0 +1,13 @@
+{
+ "id": "E-cylinder_shell-r_dev-string",
+ "group": "refusal",
+ "title": "cylinder_shell: r_dev = \"12\"",
+ "request": null,
+ "expect": "refuse",
+ "derivation": "\"12\" is not a finite JSON number: the request must be rejected at the boundary (HTTP 400), never computed.",
+ "refusal": {
+  "kind": "malformed",
+  "mentions": []
+ },
+ "raw_body": "{\"family\": \"cylinder_shell\", \"r_dev\": \"12\", \"length\": 1000}"
+}

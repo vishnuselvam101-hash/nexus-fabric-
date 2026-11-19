@@ -1,0 +1,19 @@
+{
+ "id": "E-cone-near-cyl",
+ "group": "refusal",
+ "title": "cone: near-cylindrical (CONE-02)",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 200,
+  "r2": 199.9,
+  "h": 300
+ },
+ "expect": "refuse",
+ "derivation": "sin(alpha) = 3.3e-4: declared unsupported (apex-free method not implemented).",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "cylind"
+  ]
+ }
+}

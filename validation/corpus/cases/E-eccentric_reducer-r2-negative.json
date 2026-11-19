@@ -1,0 +1,22 @@
+{
+ "id": "E-eccentric_reducer-r2-negative",
+ "group": "refusal",
+ "title": "eccentric_reducer: r2 = -100",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 200,
+  "r2": -100,
+  "h": 300,
+  "e": 100
+ },
+ "expect": "refuse",
+ "derivation": "r2 must be a finite positive length; -100 describes no part.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "r2",
+   "radius",
+   "> 0"
+  ]
+ }
+}
