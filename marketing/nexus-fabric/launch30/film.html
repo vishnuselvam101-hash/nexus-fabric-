@@ -88,7 +88,8 @@ const sb = Math.sin(BETA), cb = Math.cos(BETA);
 const sOf = (phi) => (Math.sqrt(R * R - (r * Math.cos(phi)) ** 2) - r * Math.sin(phi) * cb) / sb;                // branch stub length along its axis
 const opX = (phi) => sOf(phi) * cb - r * Math.sin(phi) * sb, opU = (phi) => R * Math.asin(r * Math.cos(phi) / R);   // opening edge on the header flat plate
 const polyLen = (f, n = 20000) => { let s = 0, p = f(0); for (let i = 1; i <= n; i++) { const q = f(2 * PI * i / n); s += Math.hypot(q[0] - p[0], q[1] - p[1]); p = q; } return s; };
-const LEN = { c_r: 2 * PI * r * MM, c_R: 2 * PI * R * MM, hl: HLEN * MM, open: polyLen((p) => [opX(p), opU(p)]) * MM, saddle: polyLen((p) => [r * p, sOf(p)]) * MM };
+// cut lengths as the product reports them: its DXF polylines have 720 chords, uniform in phi (uem develop.rs, n = 720)
+const LEN = { c_r: 2 * PI * r * MM, c_R: 2 * PI * R * MM, hl: HLEN * MM, open: polyLen((p) => [opX(p), opU(p)], 720) * MM, saddle: polyLen((p) => [r * p, sOf(p)], 720) * MM };
 const mm = (v, d = 3) => v.toFixed(d);
 const A0 = [cb, 0, sb], E2 = [-sb, 0, cb];                                                                        // branch axis; in-plane normal to it
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sc = (a, k) => [a[0] * k, a[1] * k, a[2] * k], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -245,7 +246,7 @@ function draw3D(t) {
     const la2 = sm(22.6, 23.2, t), oc = H((Math.min(...OPEN.map((p) => p[0])) + Math.max(...OPEN.map((p) => p[0]))) / 2, 0), ob = Math.max(...OPEN.map(([x, u]) => H(x, u)[1]));
     text(g, 'CUT_INNER', oc[0], ob + 26, { a: la2, col: C.blue, font: `13px ${MONO}` }); text(g, mm(LEN.open), oc[0], ob + 46, { a: la2, col: C.t2, font: `13px ${MONO}` });
     text(g, 'CUT_OUTER', x0 + 18, y1 - 22, { a: la2, al: 'left', col: C.t1, font: `13px ${MONO}` });
-    text(g, 'CUT_OUTER', b0 + 18, y1 - 42, { a: la2, al: 'left', col: C.t1, font: `13px ${MONO}` }); text(g, mm(LEN.saddle), b0 + 18, y1 - 22, { a: la2, al: 'left', col: C.t2, font: `13px ${MONO}` });
+    text(g, 'CUT_OUTER', b0 + 18, y1 - 42, { a: la2, al: 'left', col: C.t1, font: `13px ${MONO}` }); text(g, `saddle_cut ${mm(LEN.saddle)}`, b0 + 18, y1 - 22, { a: la2, al: 'left', col: C.t2, font: `13px ${MONO}` });
     text(g, X.unit, x1, y1 + 32, { a: la2, al: 'right', col: C.t1, font: lang === 'ja' ? `14px ${JAF}` : `13px ${MONO}` });
     g.restore();
   }
@@ -298,7 +299,7 @@ window.seek = (t) => {
   // scene 3: governing equation and live values
   set($('eq'), win(14.0, 14.7, 17.5, 17.9, t), 8 * (1 - out(14.0, 14.9, t)));
   const va = win(14.5, 15.2, 17.5, 17.9, t); set($('vals'), va);
-  if (va > 0) { const phi = PHI(t); $('vals').innerHTML = [['R', mm(R * MM, 0) + ' mm'], ['r', mm(r * MM, 0) + ' mm'], ['β', (BETA * 180 / PI).toFixed(0) + '°']].map(([k, v]) => `<div class="row"><span>${k}</span><b>${v}</b></div>`).join('') +
+  if (va > 0) { const phi = Math.round(PHI(t) * 1800 / PI) * PI / 1800; /* read-out: s is evaluated at the angle as printed (0.1 deg) */ $('vals').innerHTML = [['R', mm(R * MM, 0) + ' mm'], ['r', mm(r * MM, 0) + ' mm'], ['β', (BETA * 180 / PI).toFixed(0) + '°']].map(([k, v]) => `<div class="row"><span>${k}</span><b>${v}</b></div>`).join('') +
     `<div class="row live"><span>φ</span><b>${(phi * 180 / PI).toFixed(1).padStart(5, ' ')}°</b></div><div class="row live"><span>s(φ)</span><b>${mm(sOf(phi) * MM, 2)} mm</b></div>`; }
   // scene 4: what is implemented
   const ck = $('checks').children; for (let i = 0; i < ck.length; i++) { const s0 = 22.3 + i * 0.18; set(ck[i], sm(s0, s0 + 0.5, t) * (1 - sm(24.5, 24.9, t)), 6 * (1 - out(s0, s0 + 0.7, t))); }
