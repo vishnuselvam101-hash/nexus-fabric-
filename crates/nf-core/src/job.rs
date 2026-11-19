@@ -423,7 +423,7 @@ fn header_with_branch(req: &Request, entered_by: &str, hr: f64, hdev: f64, hlen:
     let (pat_b, _) = b.part("branch", &branch_pat, vec![rel("developed_from", &curve), rel("developed_from", &p_bdev), rel("developed_from", &p_send), rel("pattern_of", &part_b)], bc);
 
     // Interface constraint, evaluated from the two finished patterns.
-    let ic = verify::verify_interface(&header_pat, &geo, hdev, station, &branch_pat, &geo, bdev, s_end);
+    let ic = verify::verify_interface(verify::Side { pattern: &header_pat, geo: &geo, r_dev: hdev, along: station }, verify::Side { pattern: &branch_pat, geo: &geo, r_dev: bdev, along: s_end });
     let a_if = b.act("verify.interface", "Z3", &[&pat_h, &pat_b, &interface], 3000);
     let views: Vec<CheckView> = ic.iter().map(|c| check_view("interface", c)).collect();
     let ev = b.push(Record::new(Family::Assessment, "interface_evidence", json!({ "scope": "interface", "checks": views }), vec![rel("verifies", &interface), rel("uses", &pat_h), rel("uses", &pat_b)], Some(a_if)));

@@ -183,14 +183,14 @@ mod tests {
         for r in [&a, &b, &c, &unrelated] {
             m.insert(r.id.clone(), r.clone());
         }
-        let (ids, missing) = closure(&m, &[c.id.clone()]);
+        let (ids, missing) = closure(&m, std::slice::from_ref(&c.id));
         assert!(ids.contains(&a.id) && ids.contains(&b.id) && !ids.contains(&unrelated.id));
         assert_eq!(missing, vec!["deadbeef".to_string()]);
         // unrelated additions do not change the closure hash
         let h1 = closure_hash(&ids);
         let more = Record::new(Family::Claim, "v", json!(5), vec![], None);
         m.insert(more.id.clone(), more);
-        assert_eq!(closure_hash(&closure(&m, &[c.id.clone()]).0), h1);
+        assert_eq!(closure_hash(&closure(&m, std::slice::from_ref(&c.id)).0), h1);
     }
 
     #[test]
