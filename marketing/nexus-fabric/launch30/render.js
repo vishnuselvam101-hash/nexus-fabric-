@@ -3,8 +3,9 @@
 //   stills: key frames to stills/r06/<lang>-<t>.png plus contact sheet stills/r06/sheet-<lang>.png
 //   video : 900 frames at 30 fps piped to ffmpeg -> nexus-fabric-30s-<lang>.mp4 (picture only; audio is muxed later)
 const { chromium } = require('playwright'); const { spawn, spawnSync } = require('child_process'); const fs = require('fs'); const path = require('path');
-const TIMES = [2.5, 5.2, 7, 9.5, 11.3, 13, 16.5, 18.5, 21, 23.5, 25.5, 27, 29], OUT = 'r07';
-const BURSTS = { b1: [4.4, 5.8], b2: [10.3, 12.0], b3: [17.5, 19.0], b4: [24.3, 26.0] };   // node render.js burst <lang>: 10 fps contact sheets of the scene changes
+const TIMES = [2.5, 5.2, 7, 8, 9.5, 11.3, 13, 16.5, 18.5, 20, 23.5, 25.3, 27, 29], OUT = 'r08';
+const BURSTS = { b1: [4.4, 5.8], b2: [10.3, 12.0], b3: [17.5, 19.0], b4: [24.1, 26.0] };
+const SWAPS = { h1: 5, h2: 11, h3: 18, h4: 24.5 };   // node render.js strip <lang>: every frame at 30 fps across each headline change (top band of the picture)   // node render.js burst <lang>: 10 fps contact sheets of the scene changes
 (async () => {
   const [mode = 'stills', lang = 'en', list] = process.argv.slice(2);
   const b = await chromium.launch({ args: ['--allow-file-access-from-files', '--font-render-hinting=none'] });
@@ -18,6 +19,13 @@ const BURSTS = { b1: [4.4, 5.8], b2: [10.3, 12.0], b3: [17.5, 19.0], b4: [24.3, 
       args.push('-filter_complex', files.map((_, i) => `[${i}:v]scale=768:432,pad=776:440:4:4:color=0x2A313A[v${i}]`).join(';') + ';' + files.map((_, i) => `[v${i}]`).join('') + `xstack=inputs=${files.length}:layout=` + files.map((_, i) => `${(i % 5) * 776}_${Math.floor(i / 5) * 440}`).join('|'), '-frames:v', '1', path.join(dir, `sheet-${lang}.png`));
       spawnSync('ffmpeg', args, { stdio: 'inherit' }); }
     console.log('lengths (mm)', JSON.stringify(await p.evaluate('window.LENGTHS')));
+  } else if (mode === 'strip') {
+    const dir = path.join(__dirname, 'stills', OUT), tmp = path.join(dir, 'tmp'); fs.mkdirSync(tmp, { recursive: true });
+    for (const [name, a] of Object.entries(SWAPS)) { const files = []; for (let k = -10; k <= 13; k++) { await p.evaluate((x) => window.seek(x), a + k / 30); const f = path.join(tmp, `${name}-${files.length}.png`); await p.screenshot({ path: f, clip: { x: 0, y: 80, width: 1920, height: 180 } }); files.push(f); }
+      const args = ['-loglevel', 'error', '-y']; for (const f of files) args.push('-i', f); const cols = 2;
+      args.push('-filter_complex', files.map((_, i) => `[${i}:v]scale=1280:120,pad=1288:124:4:2:color=0x2A313A[v${i}]`).join(';') + ';' + files.map((_, i) => `[v${i}]`).join('') + `xstack=inputs=${files.length}:layout=` + files.map((_, i) => `${(i % cols) * 1288}_${Math.floor(i / cols) * 124}`).join('|'), '-frames:v', '1', path.join(dir, `strip-${lang}-${name}.png`));
+      spawnSync('ffmpeg', args, { stdio: 'inherit' }); }
+    fs.rmSync(tmp, { recursive: true, force: true });
   } else if (mode === 'burst') {
     const dir = path.join(__dirname, 'stills', OUT), tmp = path.join(dir, 'tmp'); fs.mkdirSync(tmp, { recursive: true });
     for (const [name, [a, b]] of Object.entries(BURSTS)) { const files = []; for (let t = a; t <= b + 1e-6; t += 0.1) { await p.evaluate((x) => window.seek(x), t); const f = path.join(tmp, `${name}-${files.length}.png`); await p.screenshot({ path: f }); files.push(f); }
