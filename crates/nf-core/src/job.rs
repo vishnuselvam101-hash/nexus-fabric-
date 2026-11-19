@@ -22,6 +22,10 @@ use uem::{Geom, Layer, Pattern, UemError, profile};
 
 pub const SURFACE_REFERENCES: [&str; 4] = ["outside", "inside", "neutral", "unknown"];
 
+fn unknown_surface() -> String {
+    "unknown".into()
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "family", rename_all = "snake_case")]
 pub enum Request {
@@ -47,6 +51,10 @@ pub enum Request {
         beta_deg: f64,
         delta: f64,
         s_end: f64,
+        /// Which wall surface the contact radii refer to. Optional for this family
+        /// (requests written before it existed stay valid): absent means "unknown".
+        #[serde(default = "unknown_surface")]
+        surface_reference: String,
     },
     /// Assembly: header shell rolled from plate with one set-on branch.
     HeaderWithBranch {
@@ -123,7 +131,16 @@ pub struct CurveView {
     pub name: String,
     pub layer: String,
     pub kind: String,
+    /// Lines and polylines: the exact vertices that are cut. Arcs: points on
+    /// the arc joined by chords, FOR DISPLAY ONLY (the DXF carries the exact arc).
     pub points: Vec<[f64; 2]>,
+    /// False for arcs: `points` is then an approximation of the curve.
+    #[serde(default)]
+    pub points_exact: bool,
+    /// Largest distance between the chords through `points` and the exact
+    /// curve (mm); 0 when `points_exact`. Exact value for a circular arc.
+    #[serde(default)]
+    pub points_max_deviation: f64,
     pub length: f64,
 }
 
@@ -132,7 +149,13 @@ pub struct PatternView {
     pub part: String,
     pub family: String,
     pub class: String,
+    /// Face of the formed part the pattern is seen from ("outside" / "inside"):
+    /// the marking side of Spec 02 §0.3. A provisional convention of this build.
+    #[serde(default)]
+    pub marking_side: String,
+    /// ESTIMATE of the numerical error (mm), not a bound.
     pub eps_num: f64,
+    /// ESTIMATE of the polyline representation error (mm), not a bound.
     pub eps_rep: f64,
     pub quantities: BTreeMap<String, f64>,
     pub assumptions: Vec<String>,
@@ -212,6 +235,19 @@ pub fn to_entities(p: &Pattern) -> Vec<Entity> {
         .collect()
 }
 
+/// Chords used to show an arc in the JSON result. Display only.
+const ARC_DISPLAY_CHORDS: usize = 96;
+
+/// The annotation line every DXF of this build carries about its marking side.
+pub fn marking_side_note(side: uem::ViewSide) -> String {
+    format!(
+        "MARKING SIDE: PATTERN DRAWN AS SEEN FROM THE {} OF THE FORMED PART - PROVISIONAL CONVENTION, NOT REVIEWED",
+        side.code().to_uppercase()
+    )
+}
+
+const MARKING_SIDE_SCRUTINY: &str = "Marking side: every pattern of this job is drawn as seen from the OUTSIDE of the formed part (pattern normal toward the outside). Spec 02 §0.3 requires a declared marking side but does not choose one; this side follows from the frames the specification writes down (§4.1, §4.4) and is a PROVISIONAL convention declared by the software. It has not been reviewed by a fabrication engineer. Marking a pattern on the other face mirrors the part (misfit of tens of millimetres for an offset, oblique branch). An engineer must confirm the marking side before use.";
+
 fn curve_view(c: &uem::Curve) -> CurveView {
     CurveView {
         name: c.name.to_string(),
@@ -222,10 +258,18 @@ fn curve_view(c: &uem::Curve) -> CurveView {
             Geom::Polyline { .. } => "polyline",
         }
         .to_string(),
-        points: profile::flatten(std::slice::from_ref(c), 96)
+        points: profile::flatten(std::slice::from_ref(c), ARC_DISPLAY_CHORDS)
             .iter()
             .map(|q| [q.x, q.y])
             .collect(),
+        points_exact: !matches!(c.geom, Geom::Arc { .. }),
+        points_max_deviation: match c.geom {
+            // sagitta of one chord: r·(1 − cos(sweep / 2n)), exact for a circle (validation defect D7)
+            Geom::Arc { r, a0, a1, .. } => {
+                r * (1.0 - ((a1 - a0).abs() / (2.0 * ARC_DISPLAY_CHORDS as f64)).cos())
+            }
+            _ => 0.0,
+        },
         length: profile::length(c),
     }
 }
@@ -284,6 +328,8 @@ struct Builder {
     reimport_ok: bool,
     has_polyline: bool,
     evaluated: Vec<String>,
+    /// Declared marking side of every part, in order.
+    sides: Vec<uem::ViewSide>,
 }
 
 impl Builder {
@@ -299,6 +345,7 @@ impl Builder {
             reimport_ok: true,
             has_polyline: false,
             evaluated: vec![],
+            sides: vec![],
         }
     }
     fn push(&mut self, r: Record) -> String {
@@ -347,12 +394,14 @@ impl Builder {
         let inputs: Vec<&str> = deps.iter().map(|d| d.to.as_str()).collect();
         let a_dev = self.act("build.develop", "Z2", &inputs, 1500);
         let entities = to_entities(pattern);
-        let text = nf_dxf::write(&entities);
+        let notes = vec![marking_side_note(pattern.marking_side)];
+        let text = nf_dxf::write_annotated(&entities, &notes);
         let dxf_sha = sha256_hex(text.as_bytes());
         let pv = PatternView {
             part: part.to_string(),
             family: pattern.family.to_string(),
             class: pattern.class.code().to_string(),
+            marking_side: pattern.marking_side.code().to_string(),
             eps_num: pattern.eps_num,
             eps_rep: pattern.eps_rep,
             quantities: pattern
@@ -360,7 +409,15 @@ impl Builder {
                 .iter()
                 .map(|(k, v)| (k.to_string(), *v))
                 .collect(),
-            assumptions: pattern.assumptions.iter().map(|s| s.to_string()).collect(),
+            assumptions: pattern
+                .assumptions
+                .iter()
+                .map(|s| s.to_string())
+                .chain([
+                    format!("Marking side: drawn as seen from the {} of the formed part. Provisional convention of this build (Spec 02 §0.3 requires a declared side and does not choose one); not reviewed by a fabrication engineer.", pattern.marking_side.code().to_uppercase()),
+                    "eps_num and eps_rep are estimates, not bounds: independent validation measured up to 6 times eps_num and 1.2 times the earlier eps_rep near tangency.".to_string(),
+                ])
+                .collect(),
             curves: pattern.outline.iter().map(curve_view).collect(),
             holes: pattern.holes.iter().map(curve_view).collect(),
             dxf_sha256: dxf_sha.clone(),
@@ -389,17 +446,18 @@ impl Builder {
         let dxf_id = self.push(Record::new(
             Family::Claim,
             "dxf_output",
-            json!({ "part": part, "sha256": dxf_sha, "bytes": text.len(), "entities": entities.len(), "format": "DXF AC1009 subset", "units": "mm: $LUNITS=2 (decimal), $AUNITS=0, $ANGDIR=0 in the header; the unit is stated in a comment and a TEXT annotation (R12 has no unit-of-measure variable)", "marking": { "layer": nf_dxf::MARK_LAYER, "text": nf_dxf::MARK_TEXT } }),
+            json!({ "part": part, "sha256": dxf_sha, "bytes": text.len(), "entities": entities.len(), "format": "DXF AC1009 subset", "units": "mm: $LUNITS=2 (decimal), $AUNITS=0, $ANGDIR=0 in the header; the unit is stated in a comment and a TEXT annotation (R12 has no unit-of-measure variable)", "marking": { "layer": nf_dxf::MARK_LAYER, "text": nf_dxf::MARK_TEXT, "marking_side": notes[0] } }),
             vec![rel("rendered_from", &pattern_id)],
             Some(a_dxf),
         ));
         let a_re = self.act("verify.reimport", "Z3", &[&dxf_id, &pattern_id], 200);
-        let re = nf_dxf::reimport_check(&entities, &text, 1e-8);
+        let re = nf_dxf::reimport_check_annotated(&entities, &text, 1e-8, &notes);
+        self.sides.push(pattern.marking_side);
         self.reimport_ok &= re.pass;
         let re_id = self.push(Record::new(
             Family::Assessment,
             "reimport_report",
-            json!({ "part": part, "pass": re.pass, "entities_written": re.entities_written, "entities_read": re.entities_read, "unknown_entities": re.unknown_entities, "max_point_deviation": re.max_point_deviation, "max_length_deviation": re.max_length_deviation, "layers_match": re.layers_match, "annotations_read": re.annotations_read, "not_released_marking": re.not_released_marking, "units_declared": re.units_declared }),
+            json!({ "part": part, "pass": re.pass, "entities_written": re.entities_written, "entities_read": re.entities_read, "unknown_entities": re.unknown_entities, "max_point_deviation": re.max_point_deviation, "max_length_deviation": re.max_length_deviation, "layers_match": re.layers_match, "annotations_read": re.annotations_read, "not_released_marking": re.not_released_marking, "units_declared": re.units_declared, "extents_match": re.extents_match, "marking_side_stated": re.required_notes_present }),
             vec![rel("verifies", &dxf_id)],
             Some(a_re),
         ));
@@ -422,6 +480,16 @@ impl Builder {
             Some((why, field)) => (Some(why), field),
             None => (None, None),
         };
+        // D1: every part of one job must be drawn from the same, declared side. Anything else fails G02.
+        if self.sides.iter().any(|s| *s != uem::MARKING_SIDE)
+            && let Some(g) = gates.iter_mut().find(|g| g.id == "G02")
+        {
+            g.result = GateResult::Fail;
+            g.detail = format!(
+                "The parts of this job are not all drawn from the declared marking side ({:?}); marked on one face they would not fit. {}",
+                self.sides, g.detail
+            );
+        }
         // A refusal is not a result under review: it has its own state, end to end (BE-003).
         let state = if outcome.is_some() || self.patterns.is_empty() {
             ReleaseState::Refused
@@ -518,9 +586,9 @@ pub fn evaluate_gates(
             true,
             GateResult::Inconclusive,
             if has_polyline {
-                "Numerical and curve-representation errors are estimated, not interval-certified."
+                "eps_num and eps_rep are ESTIMATES, not bounds, and not interval-certified. Independent validation measured true errors up to 6 times eps_num near tangency; eps_rep is the largest deviation at three interior samples per polyline segment."
             } else {
-                "Numerical error is estimated, not interval-certified."
+                "eps_num is an ESTIMATE, not a bound, and not interval-certified."
             },
         ),
         gate(
@@ -573,19 +641,24 @@ pub fn evaluate_gates(
             "Evaluated when the result is read: depends on replay audits. Audits A1-A4 are not implemented.",
         ),
     ];
+    // G02: open ambiguities. The marking side is one on every job (validation defect D1); the surface the
+    // entered radii refer to is another where the request has radii of two kinds.
+    let mut detail = MARKING_SIDE_SCRUTINY.to_string();
     if let Some(sr) = surface_reference {
-        let (res, detail) = if sr == "unknown" {
-            (GateResult::Inconclusive, "Surface reference of the entered radii is declared UNKNOWN: inside / outside / neutral must be established by an engineer before use.".to_string())
+        detail.push(' ');
+        detail.push_str(&if sr == "unknown" {
+            "Surface reference of the entered radii is declared UNKNOWN: inside / outside / neutral must be established by an engineer before use.".to_string()
         } else {
-            (
-                GateResult::Inconclusive,
-                format!(
-                    "Surface reference declared by the user as '{sr}'. The declaration is recorded, not checked against a drawing."
-                ),
-            )
-        };
-        g.push(gate("G02", "no_open_ambiguity", true, res, &detail));
+            format!("Surface reference declared by the user as '{sr}'. The declaration is recorded, not checked against a drawing.")
+        });
     }
+    g.push(gate(
+        "G02",
+        "no_open_ambiguity",
+        true,
+        GateResult::Inconclusive,
+        &detail,
+    ));
     g
 }
 
@@ -639,21 +712,73 @@ fn single(
 ) -> JobOutput {
     let mut b = Builder::new();
     let rq = b.push(request_claim(req, entered_by));
+    // BE-001 for the single branch stub: the same rule as for the assembly, when a surface is declared.
+    let mut scrutiny: Option<String> = None;
+    if let Request::BranchStub {
+        branch_radius,
+        branch_dev_radius,
+        surface_reference,
+        ..
+    } = req
+    {
+        if !SURFACE_REFERENCES.contains(&surface_reference.as_str()) {
+            return err_output(
+                req,
+                b,
+                &rq,
+                UemError::OutOfRange {
+                    param: "surface_reference",
+                    reason: format!("must be one of {SURFACE_REFERENCES:?}"),
+                },
+            );
+        }
+        if branch_radius.is_finite()
+            && *branch_radius > 0.0
+            && branch_dev_radius.is_finite()
+            && *branch_dev_radius > 0.0
+        {
+            match radius_consistency(
+                surface_reference,
+                "branch_radius",
+                *branch_radius,
+                "branch_dev_radius",
+                *branch_dev_radius,
+            ) {
+                Err(reason) => {
+                    return err_output(
+                        req,
+                        b,
+                        &rq,
+                        UemError::OutOfRange {
+                            param: "branch_dev_radius",
+                            reason,
+                        },
+                    );
+                }
+                Ok(note) => scrutiny = note,
+            }
+        }
+    }
     match r {
         Err(e) => err_output(req, b, &rq, e),
         Ok((p, checks)) => {
             b.part(part, &p, vec![rel("developed_from", &rq)], checks);
+            let sref = match req {
+                Request::BranchStub {
+                    surface_reference, ..
+                } => Some(surface_reference.as_str()),
+                _ => None,
+            };
             let mut gates = evaluate_gates(
                 &b.all_checks,
                 Some(b.topo_ok),
                 Some(b.reimport_ok),
                 b.has_polyline,
-                None,
+                sref,
             );
-            if matches!(req, Request::BranchStub { .. }) {
-                // BE-001: this family has contact radii and a development radius but no declared surface
-                // reference, so their relation cannot be checked. That is an open ambiguity, said so.
-                gates.push(gate("G02", "no_open_ambiguity", true, GateResult::Inconclusive, "No surface reference (inside / outside / neutral) can be declared for a single branch stub in this build. The relation between the entered contact radii and the development radius was therefore NOT checked (Spec 02 §6.1); an engineer must establish it before use."));
+            if let (Some(g), Some(note)) = (gates.iter_mut().find(|g| g.id == "G02"), scrutiny) {
+                g.detail.push(' ');
+                g.detail.push_str(&note);
             }
             b.finish(req, gates, None)
         }
@@ -1020,6 +1145,7 @@ pub fn run(req: &Request, entered_by: &str) -> JobOutput {
             beta_deg,
             delta,
             s_end,
+            ..
         } => single(
             req,
             entered_by,
@@ -1129,6 +1255,7 @@ mod tests {
                 beta_deg: 60.0,
                 delta: 0.0,
                 s_end: 400.0,
+                surface_reference: "unknown".into(),
             },
             assembly(),
         ]
@@ -1176,7 +1303,7 @@ mod tests {
         assert_eq!(o.patterns[0].holes.len(), 1);
         assert_eq!(
             o.checks.iter().filter(|c| c.scope == "interface").count(),
-            2
+            3 // two 3D checks, and since D1 the check that both parts declare the same marking side
         );
         assert!(o.dxf[0].1.contains("CUT_INNER"));
         assert!(o.gates.iter().any(|g| g.id == "G02"));
@@ -1397,7 +1524,8 @@ mod tests {
         let stub = run(&reqs()[3], "t");
         assert!(stub.gates.iter().any(|g| g.id == "G02"
             && g.result == GateResult::Inconclusive
-            && g.detail.contains("NOT checked")));
+            && g.detail.contains("declared UNKNOWN")
+            && g.detail.contains("could not be checked")));
         // a negative radius is still reported as a negative radius, not as an inconsistency
         let neg = run(&with_radii("outside", -150.0, 150.0, 100.0, 100.0), "t");
         assert_eq!(
@@ -1561,5 +1689,269 @@ mod tests {
                         && x.payload["pass"] == true)
             );
         }
+    }
+
+    fn chiral_assembly() -> Request {
+        Request::HeaderWithBranch {
+            header_radius: 150.0,
+            header_dev_radius: 150.0,
+            header_length: 1200.0,
+            branch_station: 500.0,
+            branch_radius: 100.0,
+            branch_dev_radius: 100.0,
+            beta_deg: 60.0,
+            delta: 20.0,
+            s_end: 400.0,
+            surface_reference: "outside".into(),
+        }
+    }
+
+    /// Validation defect D1: every pattern, record, DXF and gate table states the marking side, the same for all parts.
+    #[test]
+    fn d1_marking_side_is_declared_everywhere_and_the_same_for_all_parts() {
+        let mut all = reqs();
+        all.push(chiral_assembly());
+        for r in all {
+            let o = run(&r, "t");
+            assert_eq!(o.state, ReleaseState::ReviewRequired, "{r:?}");
+            assert!(!o.patterns.is_empty());
+            assert!(
+                o.patterns.iter().all(|p| p.marking_side == "outside"),
+                "{r:?}"
+            );
+            assert!(o.patterns.iter().all(|p| p.assumptions.iter().any(|a| {
+                a.contains("Marking side: drawn as seen from the OUTSIDE")
+                    && a.contains("Provisional")
+            })));
+            // mandatory scrutiny: G02 on EVERY job, never PASS, says provisional and unreviewed
+            let g = o
+                .gates
+                .iter()
+                .find(|g| g.id == "G02")
+                .expect("G02 on every job");
+            assert_eq!(g.result, GateResult::Inconclusive);
+            assert!(
+                g.critical
+                    && g.detail.contains("PROVISIONAL convention")
+                    && g.detail
+                        .contains("not been reviewed by a fabrication engineer"),
+                "{}",
+                g.detail
+            );
+            for (part, text) in &o.dxf {
+                let (ents, _) = nf_dxf::read(text).unwrap();
+                let note = marking_side_note(uem::ViewSide::Outside);
+                assert!(ents.iter().any(|e| matches!(e, Entity::Text { layer, text, .. } if layer == nf_dxf::MARK_LAYER && *text == note)), "{part}");
+                assert!(note.contains("OUTSIDE") && note.contains("PROVISIONAL"));
+            }
+            assert!(
+                o.records
+                    .iter()
+                    .filter(|x| x.kind == "pattern")
+                    .all(|x| x.payload["pattern"]["marking_side"] == "outside")
+            );
+            assert!(
+                o.records
+                    .iter()
+                    .filter(|x| x.kind == "reimport_report")
+                    .all(|x| x.payload["marking_side_stated"] == true
+                        && x.payload["extents_match"] == true)
+            );
+            assert!(
+                o.records
+                    .iter()
+                    .filter(|x| x.kind == "dxf_output")
+                    .all(|x| x.payload["marking"]["marking_side"]
+                        .as_str()
+                        .is_some_and(|m| m.contains("OUTSIDE")))
+            );
+        }
+        // the assembly carries the cross-part check, and it passes for the chiral case
+        let o = run(&chiral_assembly(), "t");
+        let names: Vec<&str> = o
+            .checks
+            .iter()
+            .filter(|c| c.scope == "interface")
+            .map(|c| c.name.as_str())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "parts_declare_the_same_marking_side",
+                "branch_cut_lies_on_header_opening",
+                "header_opening_lies_on_branch_cut"
+            ]
+        );
+        assert!(o.checks.iter().all(|c| c.verdict == "PASS"));
+        assert!(o.checks.iter().any(|c| c.scope == "branch" && c.name == "saddle_handedness_matches_declared_side"));
+        assert!(
+            crate::REQUIRED_GATES.contains(&"G02"),
+            "a stored result without the marking-side gate is incomplete"
+        );
+    }
+
+    /// D1: a job whose parts are not all drawn from the declared side cannot stay reviewable.
+    #[test]
+    fn d1_parts_from_different_sides_fail_the_ambiguity_gate() {
+        let mut b = Builder::new();
+        b.sides = vec![uem::ViewSide::Outside, uem::ViewSide::Inside];
+        let p = develop::cylinder_shell(100.0, 250.0).unwrap();
+        let rq = b.push(request_claim(&reqs()[0], "t"));
+        let checks = verify::verify_cylinder(&p, 100.0, 250.0);
+        b.part("shell", &p, vec![rel("developed_from", &rq)], checks);
+        let gates = evaluate_gates(&b.all_checks, Some(true), Some(true), false, None);
+        let o = b.finish(&reqs()[0], gates, None);
+        assert_eq!(o.state, ReleaseState::Rejected);
+        assert!(o.gates.iter().any(|g| {
+            g.id == "G02"
+                && g.result == GateResult::Fail
+                && g.detail
+                    .contains("not all drawn from the declared marking side")
+        }));
+    }
+
+    /// D7: arc points in the JSON are labelled as a display approximation with their true deviation.
+    #[test]
+    fn d7_arc_points_are_labelled_as_an_approximation() {
+        let o = run(
+            &Request::ConeFrustum {
+                r1: 200.0,
+                r2: 100.0,
+                h: 300.0,
+            },
+            "t",
+        ); // CONE-01
+        let p = &o.patterns[0];
+        let arc = p.curves.iter().find(|c| c.name == "large_end").unwrap();
+        assert!(arc.kind == "arc" && !arc.points_exact);
+        // measured: largest distance of chord midpoints from the circle of radius L1
+        let l1 = p.quantities["apex_radius_large"];
+        let measured = arc
+            .points
+            .windows(2)
+            .map(|w| l1 - (0.5 * (w[0][0] + w[1][0])).hypot(0.5 * (w[0][1] + w[1][1])))
+            .fold(0.0, f64::max);
+        assert!(
+            (arc.points_max_deviation - measured).abs() < 1e-9 && (measured - 0.034).abs() < 1e-3,
+            "stated {} measured {measured}",
+            arc.points_max_deviation
+        );
+        for c in p.curves.iter().filter(|c| c.kind != "arc") {
+            assert!(c.points_exact && c.points_max_deviation == 0.0);
+        }
+        let poly = run(&reqs()[3], "t");
+        assert!(poly.patterns[0].curves.iter().all(|c| c.points_exact));
+        // D3 / D4: nothing calls the estimates bounds
+        let g08 = |o: &JobOutput| {
+            o.gates
+                .iter()
+                .find(|g| g.id == "G08")
+                .unwrap()
+                .detail
+                .clone()
+        };
+        assert!(
+            g08(&o).contains("ESTIMATE, not a bound")
+                && g08(&poly).contains("ESTIMATES, not bounds")
+        );
+        assert!(
+            poly.patterns[0]
+                .assumptions
+                .iter()
+                .any(|a| a.contains("estimates, not bounds"))
+        );
+    }
+
+    /// D2: an absurd magnitude in ANY length field is refused before anything is computed.
+    #[test]
+    fn d2_absurd_magnitude_in_any_field_is_refused_before_computation() {
+        let mut n = 0;
+        let mut all = reqs();
+        all.push(chiral_assembly());
+        for r in all {
+            for (name, _) in r.numeric_params() {
+                if name == "beta_deg" {
+                    continue;
+                }
+                for v in [1e308, -1e308, 2e8] {
+                    let o = run(&r.with_param(&name, v).unwrap(), "t");
+                    assert_eq!(o.state, ReleaseState::Refused, "{name} = {v}");
+                    assert_eq!(
+                        o.refused_field.as_deref(),
+                        Some(name.as_str()),
+                        "{name} = {v}: {:?}",
+                        o.outcome
+                    );
+                    assert!(
+                        o.outcome
+                            .as_deref()
+                            .unwrap()
+                            .contains("implementation limit")
+                    );
+                    // refused before computation: no development activity ran on a pattern, nothing non-finite is stored
+                    assert!(o.patterns.is_empty() && o.checks.is_empty() && o.dxf.is_empty());
+                    assert!(!serde_json::to_string(&o).unwrap().contains("null,\"eps"));
+                    assert_eq!(o.records.iter().filter(|x| x.kind == "pattern").count(), 0);
+                    n += 1;
+                }
+            }
+        }
+        assert!(
+            n >= 3 * (2 + 3 + 4 + 5 + 8),
+            "every length field of every family: {n}"
+        );
+    }
+
+    /// BE-001 follow-up: the single branch stub can declare its surface, with the same rule as the assembly.
+    #[test]
+    fn be001_branch_stub_declares_its_surface() {
+        let stub = |sref: &str, r: f64, dev: f64| Request::BranchStub {
+            header_radius: 150.0,
+            branch_radius: r,
+            branch_dev_radius: dev,
+            beta_deg: 60.0,
+            delta: 0.0,
+            s_end: 400.0,
+            surface_reference: sref.into(),
+        };
+        for (sref, r, dev) in [
+            ("outside", 100.0, 104.0),
+            ("inside", 100.0, 96.0),
+            ("neutral", 100.0, 100.5),
+            ("whatever", 100.0, 100.0),
+        ] {
+            let o = run(&stub(sref, r, dev), "t");
+            assert_eq!(o.state, ReleaseState::Refused, "{sref} {r}/{dev}");
+        }
+        assert_eq!(
+            run(&stub("outside", 100.0, 104.0), "t")
+                .refused_field
+                .as_deref(),
+            Some("branch_dev_radius")
+        );
+        for (sref, r, dev) in [
+            ("outside", 100.0, 96.0),
+            ("inside", 100.0, 104.0),
+            ("neutral", 100.0, 100.0),
+            ("unknown", 100.0, 110.0),
+        ] {
+            assert_eq!(
+                run(&stub(sref, r, dev), "t").state,
+                ReleaseState::ReviewRequired,
+                "{sref} {r}/{dev}"
+            );
+        }
+        let g = |o: &JobOutput| {
+            o.gates
+                .iter()
+                .find(|g| g.id == "G02")
+                .unwrap()
+                .detail
+                .clone()
+        };
+        assert!(g(&run(&stub("outside", 100.0, 100.0), "t")).contains("zero thickness"));
+        // a request written before the field existed still parses, as "unknown"
+        let old = Request::parse_strict(&json!({ "family": "branch_stub", "header_radius": 150, "branch_radius": 100, "branch_dev_radius": 100, "beta_deg": 60, "delta": 0, "s_end": 400 })).unwrap();
+        assert_eq!(old, stub("unknown", 100.0, 100.0));
     }
 }

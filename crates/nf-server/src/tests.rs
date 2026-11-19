@@ -2156,6 +2156,7 @@ async fn s2_page_corruption_is_not_reported_as_an_intact_log() {
         upload_slots: Semaphore::new(1),
         replay_slots: Semaphore::new(1),
         anon_audit: Mutex::new((0, 0, 0)),
+        verified: Mutex::new((-1, Default::default())),
         fault: Mutex::new(None),
     });
     let verdict = match verify_audit(&app2, &app2.db()) {
@@ -2415,4 +2416,142 @@ async fn s7_listing_uses_indexes_is_paginated_and_returns_the_same_rows() {
         }
         assert!(plan.iter().any(|s| s.contains("INDEX") || s.contains("PRIMARY KEY")), "{plan:?}");
     }
+}
+
+// ---------------------------------------------------------------- second pass (validation defects, follow-ups)
+
+/// The gap left by the fast list (S-7): an alteration of a stored result that keeps its byte length.
+#[tokio::test]
+async fn list_sees_a_same_length_alteration_made_by_another_process() {
+    let t = boot();
+    let id = t.job(cone()).await;
+    let row = |v: Value| {
+        v.as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["id"] == id)
+            .cloned()
+            .unwrap()
+    };
+    assert_eq!(
+        row(t.get("/api/calculations").await)["state"],
+        "REVIEW_REQUIRED"
+    );
+    assert_eq!(
+        row(t.get("/api/calculations").await)["state"],
+        "REVIEW_REQUIRED",
+        "second list: served from the stored summary"
+    );
+    let before: i64 = t.count(&format!(
+        "SELECT length(CAST(result_json AS BLOB)) FROM calculations WHERE id = {id}"
+    ));
+    {
+        // another process (a database shell, a restore tool) flips a gate result: same number of bytes
+        let other = Connection::open(t.dir.join("nexus-fabric.sqlite")).unwrap();
+        let n = other.execute("UPDATE calculations SET result_json = replace(result_json, '\"result\":\"PASS\"', '\"result\":\"FAIL\"') WHERE id = ?", params![id]).unwrap();
+        assert_eq!(n, 1);
+    }
+    assert_eq!(
+        t.count(&format!(
+            "SELECT length(CAST(result_json AS BLOB)) FROM calculations WHERE id = {id}"
+        )),
+        before,
+        "the alteration keeps the length"
+    );
+    let r = row(t.get("/api/calculations").await);
+    assert_eq!(
+        (r["state"].as_str(), r["integrity_failure"].as_bool()),
+        (Some("REJECTED"), Some(true)),
+        "{r}"
+    );
+    assert_eq!(
+        row(t.get("/api/dashboard").await["recent"].clone())["state"],
+        "REJECTED"
+    );
+    assert_eq!(
+        t.get(&format!("/api/calculations/{id}")).await["state"],
+        "REJECTED"
+    );
+    assert_consistent_and_never_approved(&t).await;
+}
+
+/// G21 covers every earlier engine, also 0.2.0 (branch drawn from the inside: validation defect D1).
+#[tokio::test]
+async fn d1_results_of_engine_0_2_0_are_flagged_for_recomputation() {
+    let t = boot();
+    let id = t.job(good_assembly()).await;
+    assert!(nf_core::ENGINE_VERSION.starts_with("nf-engine 0.3.0+src."));
+    t.sql(&format!("UPDATE calculations SET result_json = json_set(result_json, '$.engine', 'nf-engine 0.2.0+src.0123456789abcdef') WHERE id = {id}"));
+    let d = t.get(&format!("/api/calculations/{id}")).await;
+    assert_eq!(d["state"], "REJECTED");
+    assert!(gate_of(&d, "G21")["detail"].as_str().unwrap().contains(
+        "Computed by a superseded engine version (nf-engine 0.2.0+src.0123456789abcdef) — recompute"
+    ));
+    assert_eq!(t.dxf_status(id, "branch").await, StatusCode::CONFLICT);
+    // a current result states its marking side in the result, the gate table and the DXF
+    let now = t.job(assembly("outside", 150.0, 150.0, 100.0, 100.0)).await;
+    let d = t.get(&format!("/api/calculations/{now}")).await;
+    assert!(
+        d["patterns"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|p| p["marking_side"] == "outside")
+    );
+    assert!(
+        gate_of(&d, "G02")["detail"]
+            .as_str()
+            .unwrap()
+            .contains("PROVISIONAL convention")
+    );
+    assert_eq!(gate_of(&d, "G02")["result"], "INCONCLUSIVE");
+    let (_, _, bytes) = t
+        .send(
+            "GET",
+            &format!("/api/calculations/{now}/dxf/branch"),
+            None,
+            &[],
+        )
+        .await;
+    assert!(String::from_utf8(bytes).unwrap().contains("MARKING SIDE: PATTERN DRAWN AS SEEN FROM THE OUTSIDE OF THE FORMED PART - PROVISIONAL CONVENTION, NOT REVIEWED"));
+    // a stored result that lost the marking-side gate is incomplete: REJECTED
+    t.sql(&format!("UPDATE calculations SET result_json = json_remove(result_json, '$.gates[1]') WHERE id = {now} AND json_extract(result_json, '$.gates[1].id') = 'G02'"));
+    assert_eq!(
+        t.get(&format!("/api/calculations/{now}")).await["state"],
+        "REJECTED"
+    );
+}
+
+/// BE-033: expired sessions and old sign-in failures are removed by the periodic task.
+#[tokio::test]
+async fn be033_housekeeping_removes_expired_sessions_and_old_failures() {
+    let t = boot();
+    let past = now() as i64 - 10_000;
+    t.app
+        .db()
+        .execute(
+            "INSERT INTO sessions(token_hash, user_id, expires_at) VALUES ('old', 1, ?)",
+            params![past],
+        )
+        .unwrap();
+    t.app
+        .db()
+        .execute(
+            "INSERT INTO login_failures(username, at, client) VALUES ('x', ?, 'c'), ('y', ?, 'c')",
+            params![past, now() as i64],
+        )
+        .unwrap();
+    assert_eq!(housekeeping(&t.app).unwrap(), 2);
+    assert_eq!(
+        (
+            t.count("SELECT COUNT(*) FROM sessions"),
+            t.count("SELECT COUNT(*) FROM login_failures")
+        ),
+        (1, 1)
+    );
+    assert_eq!(
+        t.call("GET", "/api/me", None).await.0,
+        StatusCode::OK,
+        "the live session is kept"
+    );
 }

@@ -59,6 +59,8 @@ pub(crate) struct App {
     replay_slots: Semaphore,
     /// (window start, unauthenticated audit rows written, suppressed) — V-34.
     anon_audit: Mutex<(u64, u32, u32)>,
+    /// (database data_version, jobs whose stored summary was checked against the full result at that version).
+    verified: Mutex<(i64, std::collections::HashSet<i64>)>,
     #[cfg(test)]
     fault: Mutex<Option<&'static str>>,
 }
@@ -1257,7 +1259,12 @@ async fn get_project(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -
     )?;
     let snapshot: Option<String> = db.query_row("SELECT id FROM records WHERE project_id = ? AND kind = 'snapshot' ORDER BY rowid DESC LIMIT 1", params![id], |r| r.get(0)).optional()?;
     p["documents"] = json!(docs);
-    p["calculations"] = json!(calc_rows(&db, &format!("WHERE c.project_id = {id}"), 200)?);
+    p["calculations"] = json!(calc_rows(
+        &app,
+        &db,
+        &format!("WHERE c.project_id = {id}"),
+        200
+    )?);
     p["members"] = json!(q_all(
         &db,
         "SELECT u.username FROM project_members m JOIN users u ON u.id = m.user_id WHERE m.project_id = ? ORDER BY u.username",
@@ -1749,8 +1756,22 @@ fn row_json(c: &Core, e: &Eval) -> Value {
 
 /// Job list rows. The state of each row comes from `evaluate`, exactly as in
 /// the detail view (BE-009). A stale state column is corrected on the way.
-fn calc_rows(db: &Connection, where_sql: &str, limit: usize) -> rusqlite::Result<Vec<Value>> {
-    let cores = q_all(
+///
+/// The stored summary of a result (`core_json`) is used only for jobs that were
+/// evaluated from their full stored result since the database last changed
+/// under this process: SQLite's `data_version` changes whenever another
+/// connection commits, and after a restart nothing counts as checked. So an
+/// alteration made by another process or while the server was stopped, also
+/// one that keeps the byte length, is seen by the next list (closes the gap
+/// left by S-7). This process's own writes always re-derive the summary.
+fn calc_rows(
+    app: &App,
+    db: &Connection,
+    where_sql: &str,
+    limit: usize,
+) -> rusqlite::Result<Vec<Value>> {
+    let version: i64 = db.query_row("PRAGMA data_version", [], |r| r.get(0))?;
+    let mut cores = q_all(
         db,
         &format!(
             "{} {where_sql} ORDER BY c.id DESC LIMIT {}",
@@ -1760,6 +1781,26 @@ fn calc_rows(db: &Connection, where_sql: &str, limit: usize) -> rusqlite::Result
         [],
         core_row,
     )?;
+    {
+        let mut seen = app.verified.lock().unwrap_or_else(|e| e.into_inner());
+        if seen.0 != version {
+            *seen = (version, Default::default());
+        }
+        for c in cores.iter_mut() {
+            if !seen.1.contains(&c.id) {
+                if let Some(full) = load_core(db, c.id)? {
+                    *c = full;
+                }
+                // bring the stored summary in line with the result as it is now; only then may later lists use it
+                match db.execute(&format!("UPDATE calculations AS c SET core_json = {CORE_EXPR}, result_bytes = length(CAST(c.result_json AS BLOB)) WHERE c.id = ?"), params![c.id]) {
+                    Ok(_) => {
+                        seen.1.insert(c.id);
+                    }
+                    Err(err) => eprintln!("nf-server: could not refresh the stored summary of job #{}: {err}", c.id),
+                }
+            }
+        }
+    }
     let mut out = Vec::with_capacity(cores.len());
     for c in &cores {
         let e = evaluate(db, c)?;
@@ -2147,6 +2188,7 @@ async fn list_calcs(
         .unwrap_or(200)
         .clamp(1, 200);
     ok(json!(calc_rows(
+        &app,
         &db,
         &format!(
             "WHERE {} AND c.id < {before}",
@@ -2956,7 +2998,12 @@ async fn dashboard(State(app): Ctx, headers: HeaderMap) -> Api {
     let db = app.db();
     let u = auth_db(&db, &app, &headers)?;
     let sc = scope(&u);
-    let recent = calc_rows(&db, &format!("WHERE {}", scope_col(&u, "c.project_id")), 8)?;
+    let recent = calc_rows(
+        &app,
+        &db,
+        &format!("WHERE {}", scope_col(&u, "c.project_id")),
+        8,
+    )?;
     let n = |sql: String| q_count(&db, &sql, []);
     let calcs = format!("SELECT COUNT(*) FROM calculations WHERE {sc}");
     let current = "NOT EXISTS (SELECT 1 FROM calculations n WHERE n.supersedes = calculations.id)";
@@ -3420,6 +3467,7 @@ pub(crate) fn build_app(cfg: Config) -> Result<Arc<App>, String> {
         upload_slots: Semaphore::new(4),
         replay_slots: Semaphore::new(2),
         anon_audit: Mutex::new((0, 0, 0)),
+        verified: Mutex::new((-1, Default::default())),
         #[cfg(test)]
         fault: Mutex::new(None),
     };
@@ -3514,6 +3562,19 @@ async fn serve(
     Ok(())
 }
 
+/// Remove expired sessions and sign-in failures older than the throttle window. Returns rows removed.
+fn housekeeping(app: &App) -> rusqlite::Result<usize> {
+    let db = app.db();
+    let t = now() as i64;
+    Ok(
+        db.execute("DELETE FROM sessions WHERE expires_at <= ?", params![t])?
+            + db.execute(
+                "DELETE FROM login_failures WHERE at < ?",
+                params![t - THROTTLE_WINDOW],
+            )?,
+    )
+}
+
 #[tokio::main]
 async fn main() {
     if std::env::args().nth(1).as_deref() == Some("replay-check") {
@@ -3552,6 +3613,17 @@ async fn main() {
         app.request_timeout.as_secs(),
         limits.max_connections
     );
+    // BE-033: expired sessions and old sign-in failures are removed every hour, not only at the next sign-in.
+    let keeper = app.clone();
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(Duration::from_secs(3600));
+        loop {
+            tick.tick().await;
+            if let Err(e) = housekeeping(&keeper) {
+                eprintln!("nf-server: housekeeping failed: {e}");
+            }
+        }
+    });
     let service = router(app.clone());
     if let Err(e) = serve(listener, service, limits).await {
         eprintln!("nf-server: server error: {e}");
