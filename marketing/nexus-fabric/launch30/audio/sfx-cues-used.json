@@ -37,7 +37,18 @@
    "gain": 0.6
   },
   {
+   "t": 5.8,
+   "type": "sweep",
+   "gain": 0.8,
+   "until": 6.9
+  },
+  {
    "t": 7.9,
+   "type": "whoosh",
+   "gain": 0.6
+  },
+  {
+   "t": 9.1,
    "type": "whoosh",
    "gain": 0.6
   },

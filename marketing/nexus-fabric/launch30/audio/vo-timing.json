@@ -314,23 +314,23 @@
      25
     ],
     "start": 18.25,
-    "end": 24.36,
-    "duration": 6.11,
+    "end": 24.386,
+    "duration": 6.136,
     "speed": 1.0,
     "measured_rate": 1.0,
-    "pause_cap": 0.34,
+    "pause_cap": null,
     "natural_rate": true,
     "fits": true,
-    "margin_to_next_segment": 0.64,
-    "text": "板展開の計算。製造制約の評価。追跡可能なCADデータの生成。",
+    "margin_to_next_segment": 0.614,
+    "text": "板展開の計算。製造制約の評価。トレーサブルなCADデータの生成。",
     "pauses": [
      [
-      19.675,
-      20.015
+      19.665,
+      20.065
      ],
      [
-      21.665,
-      22.005
+      21.69,
+      22.165
      ]
     ]
    },
@@ -340,28 +340,28 @@
      25,
      30
     ],
-    "start": 24.876,
+    "start": 25.172,
     "end": 29.7,
-    "duration": 4.824,
+    "duration": 4.528,
     "speed": 1.0,
     "measured_rate": 1.0,
     "pause_cap": null,
     "natural_rate": true,
     "fits": true,
     "margin_to_next_segment": 0.3,
-    "text": "図面から、製造の知恵へ。NEXUS FABRIC。設計、再定義。",
+    "text": "図面から、製造へ。NEXUS FABRIC。設計を、再定義。",
     "pauses": [
      [
-      27.716,
-      27.836
+      27.557,
+      27.687
      ],
      [
-      27.991,
-      28.451
+      27.837,
+      28.297
      ],
      [
-      28.641,
-      28.751
+      28.487,
+      28.597
      ]
     ]
    }
@@ -420,38 +420,32 @@
    },
    {
     "start": 18.2,
-    "end": 21.915,
+    "end": 22.04,
     "lines": [
      "板展開の計算。",
      "製造制約の評価。"
     ]
    },
    {
-    "start": 21.955,
-    "end": 24.71,
+    "start": 22.115,
+    "end": 24.736,
     "lines": [
-     "追跡可能なCADデータの生成。"
+     "トレーサブルなCADデータの生成。"
     ]
    },
    {
-    "start": 24.826,
-    "end": 26.616,
+    "start": 25.122,
+    "end": 28.507,
     "lines": [
-     "図面から、製造の知恵へ。"
-    ]
-   },
-   {
-    "start": 26.656,
-    "end": 28.661,
-    "lines": [
+     "図面から、製造へ。",
      "NEXUS FABRIC。"
     ]
    },
    {
-    "start": 28.701,
+    "start": 28.547,
     "end": 29.96,
     "lines": [
-     "設計、再定義。"
+     "設計を、再定義。"
     ]
    }
   ]

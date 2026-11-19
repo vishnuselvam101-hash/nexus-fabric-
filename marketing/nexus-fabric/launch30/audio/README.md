@@ -20,6 +20,21 @@ cd marketing/nexus-fabric/launch30/audio
 ~/.venvs/nf-audio/bin/python verify_asr.py   # optional: Whisper round-trip -> asr-roundtrip.json
 ```
 
+### After the film's `../cues.json` changes
+
+One command rebuilds the sound effects (from the current `cues.json`), both mixes, the
+voiceless bed, the FLAC copies and `checks.json`; the voice stems are not touched:
+
+```sh
+cd marketing/nexus-fabric/launch30/audio && ~/.venvs/nf-audio/bin/python make_music.py && ~/.venvs/nf-audio/bin/python make_mix.py
+```
+
+It prints `ALL PASS` and exits 0 when every check holds. `sfx-cues-used.json` lists the sound
+placed for each cue. Cue kinds understood: `scene_start`, `transition`, `draw_on`, `reveal`,
+`camera_move`, `sweep`, `unroll`, `impact_soft`, `brand_reveal` (others are ignored); time ranges
+and tick lists are read from the `note` text ("12.2-15.4 s", "at 22.0, 22.2, 22.4 s",
+"five soft steps 0.18 s apart").
+
 A venv is needed because the system setuptools cannot build `unidic-lite`. `KOKORO_DIR` overrides
 the model folder. Music and sfx are deterministic (seeded); the voice is deterministic on the same
 onnxruntime build.
