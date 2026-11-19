@@ -2,10 +2,43 @@
 //! radii supplied by the caller: thickness and process allowances are NOT
 //! modelled in this build, which is recorded as an assumption on every pattern.
 
-use crate::{Curve, DevClass, Geom, Layer, P2, Pattern, TAU, UemError, finite_pos, gauss};
+use crate::{
+    Curve, DevClass, Geom, Layer, MARKING_SIDE, P2, Pattern, TAU, UemError, finite_pos, gauss,
+};
 
 const ASSUME_REF: &str = "Radii are taken as reference-surface (neutral) radii exactly as entered; thickness, neutral-factor, weld gap, shrinkage and kerf are not modelled.";
 const ASSUME_MODEL: &str = "Mathematical model from Specification 02 (provisional; not independently reviewed; evidence level EV-1).";
+
+/// A developed sector at or beyond this fraction of a full turn is refused for every conical family:
+/// its seam edges would touch or overlap. Implementation limit (no seam clearance rule exists in the
+/// specification); it is the value the eccentric reducer always used.
+pub const FULL_TURN_LIMIT: f64 = 0.999;
+
+/// Polyline segments per closed curve, and samples per segment used for the deviation estimate.
+const SEGMENTS: usize = 720;
+const SUB: usize = 4;
+
+/// Largest distance from the exact samples strictly inside each segment to its chord, over all
+/// segments. `all` holds SUB samples per segment (index i*SUB is a vertex). An ESTIMATE of the
+/// representation error: the true maximum may lie between samples.
+fn chord_deviation(all: &[P2]) -> f64 {
+    let mut worst: f64 = 0.0;
+    for seg in 0..(all.len() - 1) / SUB {
+        let (a, b) = (all[seg * SUB], all[(seg + 1) * SUB]);
+        let (dx, dy) = (b.x - a.x, b.y - a.y);
+        let len = dx.hypot(dy);
+        for k in 1..SUB {
+            let q = all[seg * SUB + k];
+            let d = if len > 0.0 {
+                ((q.x - a.x) * dy - (q.y - a.y) * dx).abs() / len
+            } else {
+                q.dist(a)
+            };
+            worst = worst.max(d);
+        }
+    }
+    worst
+}
 
 fn line(name: &'static str, a: P2, b: P2) -> Curve {
     Curve {
@@ -28,6 +61,7 @@ pub fn cylinder_shell(r_dev: f64, length: f64) -> Result<Pattern, UemError> {
     );
     Ok(Pattern {
         family: "cylinder_shell",
+        marking_side: MARKING_SIDE,
         class: DevClass::ExactClosedForm,
         outline: vec![
             line("bottom", p0, p1),
@@ -72,6 +106,13 @@ pub fn cone_frustum(r1: f64, r2: f64, h: f64) -> Result<Pattern, UemError> {
     }
     let (l1, l2) = (r1 / sin_a, r2 / sin_a);
     let phi = TAU * sin_a;
+    // Same rule, same limit and same words as the eccentric reducer: a sector within 0.1 % of a full turn
+    // closes on itself (its seam edges touch), which is not a producible pattern.
+    if phi >= TAU * FULL_TURN_LIMIT {
+        return Err(UemError::NotDevelopable(format!(
+            "developed angle {phi:.6} rad would overlap"
+        )));
+    }
     let c = P2::new(0.0, 0.0);
     let outline = vec![
         Curve {
@@ -99,6 +140,7 @@ pub fn cone_frustum(r1: f64, r2: f64, h: f64) -> Result<Pattern, UemError> {
     ];
     Ok(Pattern {
         family: "cone_frustum",
+        marking_side: MARKING_SIDE,
         class: DevClass::ExactClosedForm,
         outline,
         holes: vec![],
@@ -187,7 +229,7 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
     let n = 360;
     let (s, qerr) = oblique_cone_samples(&g, n);
     let psi_total = s[2 * n].2;
-    if psi_total >= TAU * 0.999 {
+    if psi_total >= TAU * FULL_TURN_LIMIT {
         return Err(UemError::NotDevelopable(format!(
             "developed angle {psi_total:.6} rad would overlap"
         )));
@@ -237,6 +279,7 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
     ];
     Ok(Pattern {
         family: "eccentric_reducer",
+        marking_side: MARKING_SIDE,
         class: DevClass::ExactNumeric,
         outline,
         holes: vec![],
@@ -320,9 +363,9 @@ pub fn branch_stub(
         beta,
         delta,
     };
-    let n = 720;
-    let dphi = TAU / (2 * n) as f64;
-    let sv: Vec<f64> = (0..=2 * n).map(|i| b.s(i as f64 * dphi)).collect();
+    let n = SEGMENTS;
+    let dphi = TAU / (SUB * n) as f64;
+    let sv: Vec<f64> = (0..=SUB * n).map(|i| b.s(i as f64 * dphi)).collect();
     let s_max = sv.iter().cloned().fold(f64::MIN, f64::max);
     let s_min = sv.iter().cloned().fold(f64::MAX, f64::min);
     if s_end <= s_max {
@@ -332,21 +375,19 @@ pub fn branch_stub(
         });
     }
     let w = TAU * r_dev;
-    let mut eps_rep: f64 = 0.0;
-    let mut cut = Vec::with_capacity(n + 1);
-    for i in 0..=n {
-        cut.push(P2::new(r_dev * (2 * i) as f64 * dphi, s_end - sv[2 * i]));
-        if i < n {
-            let mid_exact = s_end - sv[2 * i + 1];
-            let mid_chord = s_end - 0.5 * (sv[2 * i] + sv[2 * i + 2]);
-            eps_rep = eps_rep.max((mid_exact - mid_chord).abs());
-        }
-    }
-    cut.reverse(); // traverse the loop counter-clockwise: bottom -> right seam -> cut (right to left) -> left seam
-    let (p0, p1) = (P2::new(0.0, 0.0), P2::new(w, 0.0));
+    // Spec 02 §4.4: the branch pattern is (r·φ, s). With φ increasing to the right and s upward the pattern
+    // normal is the outward surface normal: the view from OUTSIDE (MARKING_SIDE). The saddle cut is at the
+    // bottom, the square end at v = s_end. (Until engine 0.2.0 this was drawn as (r·φ, s_end − s), its
+    // mirror image, while the header plate was drawn from outside: validation defect D1.)
+    let all: Vec<P2> = (0..=SUB * n)
+        .map(|i| P2::new(r_dev * i as f64 * dphi, sv[i]))
+        .collect();
+    let eps_rep = chord_deviation(&all);
+    let mut cut: Vec<P2> = (0..=n).map(|i| all[SUB * i]).collect();
+    cut[n] = P2::new(w, cut[0].y); // the seam edges are the same ruling: close exactly
+    let (p_top_r, p_top_l) = (P2::new(w, s_end), P2::new(0.0, s_end));
+    // counter-clockwise: cut (left to right) -> right seam (up) -> square end (right to left) -> left seam (down)
     let outline = vec![
-        line("square_end", p0, p1),
-        line("seam_b", p1, cut[0]),
         Curve {
             name: "saddle_cut",
             layer: Layer::CutOuter,
@@ -355,10 +396,13 @@ pub fn branch_stub(
                 eps_rep,
             },
         },
-        line("seam_a", cut[n], p0),
+        line("seam_b", cut[n], p_top_r),
+        line("square_end", p_top_r, p_top_l),
+        line("seam_a", p_top_l, cut[0]),
     ];
     Ok(Pattern {
         family: "branch_stub",
+        marking_side: MARKING_SIDE,
         class: DevClass::ExactClosedForm,
         outline,
         holes: vec![],
@@ -369,7 +413,7 @@ pub fn branch_stub(
             ("s_min", s_min),
             ("s_max", s_max),
             ("s_at_0", sv[0]),
-            ("s_at_90", sv[n / 2]),
+            ("s_at_90", sv[SUB * n / 4]),
         ],
         assumptions: vec![
             ASSUME_REF,
@@ -428,8 +472,10 @@ pub fn header_with_opening(
         line("seam_b", p2, p3),
         line("bottom", p3, p0),
     ];
-    let n = 720;
-    let dphi = TAU / (2 * n) as f64;
+    let n = SEGMENTS;
+    let dphi = TAU / (SUB * n) as f64;
+    // v = r_dev·(ω + π) with ω increasing from −y to +y, x along the axis: the pattern normal is the
+    // outward normal of the header, the view from OUTSIDE (MARKING_SIDE), like the branch.
     let at = |i: usize| -> P2 {
         let phi = i as f64 * dphi;
         let s = b.s(phi);
@@ -439,19 +485,9 @@ pub fn header_with_opening(
             r_dev_header * (omega + std::f64::consts::PI),
         )
     };
-    let all: Vec<P2> = (0..=2 * n).map(at).collect();
-    let mut eps_rep: f64 = 0.0;
-    let mut pts = Vec::with_capacity(n + 1);
-    for i in 0..=n {
-        pts.push(all[2 * i]);
-        if i < n {
-            let mid = P2::new(
-                0.5 * (all[2 * i].x + all[2 * i + 2].x),
-                0.5 * (all[2 * i].y + all[2 * i + 2].y),
-            );
-            eps_rep = eps_rep.max(mid.dist(all[2 * i + 1]));
-        }
-    }
+    let all: Vec<P2> = (0..=SUB * n).map(at).collect();
+    let eps_rep = chord_deviation(&all);
+    let mut pts: Vec<P2> = (0..=n).map(|i| all[SUB * i]).collect();
     pts[n] = pts[0]; // close exactly
     let (xmin, xmax) = pts.iter().fold((f64::MAX, f64::MIN), |(lo, hi), p| {
         (lo.min(p.x), hi.max(p.x))
@@ -665,5 +701,72 @@ mod tests {
             628.318530718,
             1e-9
         ));
+    }
+
+    /// Validation defect D6: both conical families refuse a sector that closes on itself, with the same rule.
+    #[test]
+    fn d6_right_cone_refuses_a_full_turn_like_the_eccentric_reducer() {
+        for h in [0.01, 1e-8] {
+            let e = cone_frustum(300.0, 50.0, h).unwrap_err();
+            assert!(
+                matches!(&e, UemError::NotDevelopable(m) if m.contains("would overlap")),
+                "{e:?}"
+            );
+            let e = eccentric_reducer(300.0, 50.0, h, 0.0).unwrap_err();
+            assert!(
+                matches!(&e, UemError::NotDevelopable(m) if m.contains("would overlap")),
+                "{e:?}"
+            );
+        }
+        // just inside the limit both still develop; just beyond both refuse
+        let h_at = |turn: f64| 250.0 * (1.0 - turn * turn).sqrt() / turn; // sin(alpha) = turn
+        assert!(
+            cone_frustum(300.0, 50.0, h_at(0.9985)).is_ok()
+                && eccentric_reducer(300.0, 50.0, h_at(0.9985), 0.0).is_ok()
+        );
+        assert!(
+            cone_frustum(300.0, 50.0, h_at(0.9995)).is_err()
+                && eccentric_reducer(300.0, 50.0, h_at(0.9995), 0.0).is_err()
+        );
+    }
+
+    /// Validation defect D3: the representation estimate near tangency. It is an estimate (three interior
+    /// samples per segment); this measures it against a dense sampling of the exact curve.
+    #[test]
+    fn d3_representation_estimate_near_tangency_is_close_to_the_dense_truth() {
+        for (r, mid_only_ratio) in [(150.0 * (1.0 - 1.1e-6), 1.21), (150.0 * (1.0 - 1e-5), 1.04)] {
+            let b = Branch {
+                big_r: 150.0,
+                r,
+                beta: 45f64.to_radians(),
+                delta: 0.0,
+            };
+            let p = branch_stub(150.0, r, r, 45.0, 0.0, 600.0).unwrap();
+            // dense truth: 64 samples per segment against the chord
+            let (n, m) = (SEGMENTS, 64);
+            let dphi = TAU / (n * m) as f64;
+            let dense: Vec<P2> = (0..=n * m)
+                .map(|i| P2::new(r * i as f64 * dphi, b.s(i as f64 * dphi)))
+                .collect();
+            let mut truth: f64 = 0.0;
+            for seg in 0..n {
+                let (a, c) = (dense[seg * m], dense[(seg + 1) * m]);
+                let (dx, dy) = (c.x - a.x, c.y - a.y);
+                for k in 1..m {
+                    let q = dense[seg * m + k];
+                    truth = truth.max(((q.x - a.x) * dy - (q.y - a.y) * dx).abs() / dx.hypot(dy));
+                }
+            }
+            let ratio = truth / p.eps_rep;
+            assert!(
+                ratio >= 1.0 - 1e-9,
+                "an estimate from fewer samples cannot exceed the dense value"
+            );
+            assert!(
+                ratio < 1.08,
+                "estimate {} against dense {truth}: ratio {ratio} (the midpoint-only estimate was off by {mid_only_ratio})",
+                p.eps_rep
+            );
+        }
     }
 }

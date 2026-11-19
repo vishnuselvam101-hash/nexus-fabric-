@@ -37,7 +37,18 @@
     "r2": 4.281216347829106,
     "h": 2428.9360249873457
    },
-   "expect": "verified"
+   "expect": "refused",
+   "note": "Changed on 2026-11-19 (validation defect D6): this sector is 99.944 % of a full turn. Right cones now refuse a sector of 99.9 % or more, the rule the eccentric reducer always applied. The arc-precision coverage of this case is kept by the next case: same radii, sector 99.8 %."
+  },
+  {
+   "request": {
+    "family": "cone_frustum",
+    "r1": 72726.7170436382,
+    "r2": 4.281216347829106,
+    "h": 4606.282989621548
+   },
+   "expect": "verified",
+   "note": "Replacement for the case above (D6): same radii, sector 99.8 % of a full turn."
   }
  ]
 }

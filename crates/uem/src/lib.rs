@@ -92,17 +92,52 @@ impl DevClass {
     }
 }
 
+/// The face of the formed part from which a pattern is seen: the pattern
+/// normal +z points to this side (Spec 02 §0.3, "marking side"). Marking a
+/// pattern on the other face mirrors the part.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ViewSide {
+    Outside,
+    Inside,
+}
+
+impl ViewSide {
+    pub fn code(self) -> &'static str {
+        match self {
+            ViewSide::Outside => "outside",
+            ViewSide::Inside => "inside",
+        }
+    }
+}
+
+/// The side every pattern of this build is drawn from.
+///
+/// Spec 02 §0.3 requires a declared side but does not choose one. The frames
+/// the specification writes down decide it for the parts built here: §4.1
+/// (u = r·θ, v = z) and §4.4 (branch pattern (r·φ, s)) are right-handed with
+/// the outward surface normal, i.e. they are the view from OUTSIDE. This is a
+/// convention declared by the software, recorded with every result and every
+/// DXF; whether a workshop marks on that face has NOT been reviewed by a
+/// fabrication engineer.
+pub const MARKING_SIDE: ViewSide = ViewSide::Outside;
+
 #[derive(Clone, Debug)]
 pub struct Pattern {
     pub family: &'static str,
+    /// Face of the formed part the pattern is seen from. Every part of one job must declare the same side.
+    pub marking_side: ViewSide,
     pub class: DevClass,
     /// Closed outer profile, curves in order, end of each = start of next.
     pub outline: Vec<Curve>,
     /// Closed inner profiles (openings), each a single closed polyline, clockwise.
     pub holes: Vec<Curve>,
-    /// Estimated numerical error of pattern coordinates (mm). Not certified.
+    /// ESTIMATE of the numerical error of pattern coordinates (mm). Not a
+    /// bound: independent validation measured up to 6 times this value near
+    /// tangency (cancellation in R² − y²) and 2 times for a very flat oblique reducer.
     pub eps_num: f64,
-    /// Largest representation error among polyline curves (mm). Estimated.
+    /// ESTIMATE of the largest distance between a polyline and the exact curve
+    /// (mm): the largest deviation found at three interior samples of every
+    /// segment. Not a bound; 0 only for patterns made of lines and exact arcs.
     pub eps_rep: f64,
     /// Named scalar results (mm, rad, mm²) for reporting and verification.
     pub quantities: Vec<(&'static str, f64)>,

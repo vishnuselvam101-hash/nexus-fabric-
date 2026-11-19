@@ -122,6 +122,12 @@ impl Entity {
 /// The annotation this build adds to every drawing: release marking and unit
 /// statement, below the lower-left corner of the geometry, sized from its extent.
 pub fn marking(minx: f64, miny: f64, maxx: f64, maxy: f64) -> Vec<Entity> {
+    marking_with(minx, miny, maxx, maxy, &[])
+}
+
+/// As `marking`, followed by further annotation lines supplied by the caller
+/// (for example the declared marking side of the pattern).
+pub fn marking_with(minx: f64, miny: f64, maxx: f64, maxy: f64, extra: &[String]) -> Vec<Entity> {
     let span = (maxx - minx).max(maxy - miny);
     let h = if span.is_finite() && span > 0.0 {
         span / 50.0
@@ -132,7 +138,7 @@ pub fn marking(minx: f64, miny: f64, maxx: f64, maxy: f64) -> Vec<Entity> {
         if minx.is_finite() { minx } else { 0.0 },
         if miny.is_finite() { miny } else { 0.0 },
     );
-    vec![
+    let mut notes = vec![
         Entity::Text {
             layer: MARK_LAYER.into(),
             at: (x, y - 2.0 * h),
@@ -145,7 +151,89 @@ pub fn marking(minx: f64, miny: f64, maxx: f64, maxy: f64) -> Vec<Entity> {
             height: h,
             text: UNITS_TEXT.into(),
         },
+    ];
+    for (i, line) in extra.iter().enumerate() {
+        notes.push(Entity::Text {
+            layer: MARK_LAYER.into(),
+            at: (x, y - (6.0 + 2.0 * i as f64) * h),
+            height: h,
+            // one line of plain text: a line break would break the group-code structure of the file
+            text: line
+                .chars()
+                .map(|c| if c.is_control() { ' ' } else { c })
+                .collect::<String>()
+                .trim()
+                .to_string(),
+        });
+    }
+    notes
+}
+
+/// Exact bounding box of a counter-clockwise arc: its end points and every
+/// axis direction (0, 90, 180, 270 degrees) that lies inside its sweep.
+fn arc_box(c: (f64, f64), r: f64, start_deg: f64, end_deg: f64) -> [(f64, f64); 6] {
+    let at = |deg: f64| {
+        (
+            c.0 + r * deg.to_radians().cos(),
+            c.1 + r * deg.to_radians().sin(),
+        )
+    };
+    let (a, b) = (at(start_deg), at(end_deg));
+    let sweep = {
+        let s = (end_deg - start_deg) % 360.0;
+        if s < 0.0 { s + 360.0 } else { s }
+    };
+    let inside = |deg: f64| {
+        let d = (deg - start_deg) % 360.0;
+        (if d < 0.0 { d + 360.0 } else { d }) <= sweep
+    };
+    let axis = |deg: f64, p: (f64, f64)| if inside(deg) { p } else { a };
+    [
+        a,
+        b,
+        axis(0.0, (c.0 + r, c.1)),
+        axis(90.0, (c.0, c.1 + r)),
+        axis(180.0, (c.0 - r, c.1)),
+        axis(270.0, (c.0, c.1 - r)),
     ]
+}
+
+/// Bounding box by a different method (dense sampling of arcs), used by the
+/// round-trip check to test the extents the writer put into the header.
+/// Returns (minx, miny, maxx, maxy, largest sampling error).
+fn sampled_box(entities: &[Entity]) -> (f64, f64, f64, f64, f64) {
+    const N: usize = 4096;
+    let (mut b, mut err) = ((f64::MAX, f64::MAX, f64::MIN, f64::MIN), 0.0f64);
+    let mut add = |x: f64, y: f64| b = (b.0.min(x), b.1.min(y), b.2.max(x), b.3.max(y));
+    for e in entities {
+        match e {
+            Entity::Arc {
+                c,
+                r,
+                start_deg,
+                end_deg,
+                ..
+            } => {
+                let mut sweep = end_deg - start_deg;
+                if sweep < 0.0 {
+                    sweep += 360.0;
+                }
+                for i in 0..=N {
+                    let a = (start_deg + sweep * i as f64 / N as f64).to_radians();
+                    add(c.0 + r * a.cos(), c.1 + r * a.sin());
+                }
+                err = err.max(r.abs() * (1.0 - (sweep.to_radians() / (2.0 * N as f64)).cos()));
+            }
+            Entity::Text {
+                at, height, text, ..
+            } => {
+                add(at.0, at.1);
+                add(at.0 + height * text.len() as f64, at.1 + height);
+            }
+            other => other.points().into_iter().for_each(|(x, y)| add(x, y)),
+        }
+    }
+    (b.0, b.1, b.2, b.3, err)
 }
 
 fn num(v: f64) -> String {
@@ -165,6 +253,11 @@ fn num(v: f64) -> String {
 /// Write the geometry `entities` (caller's cut geometry; any annotation among
 /// them is ignored) followed by this build's release marking.
 pub fn write(entities: &[Entity]) -> String {
+    write_annotated(entities, &[])
+}
+
+/// As `write`, with further annotation lines on the annotation layer.
+pub fn write_annotated(entities: &[Entity], extra_notes: &[String]) -> String {
     let geometry: Vec<&Entity> = entities.iter().filter(|e| !e.is_annotation()).collect();
     let mut o = String::new();
     let mut p = |code: i32, val: &str| {
@@ -172,12 +265,18 @@ pub fn write(entities: &[Entity]) -> String {
     };
     let (mut minx, mut miny, mut maxx, mut maxy) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
     for e in &geometry {
-        // extents from defining points (arcs: end points and centre +/- r, conservative)
-        let mut pts = e.points();
-        if let Entity::Arc { c, r, .. } = e {
-            pts.push((c.0 - r, c.1 - r));
-            pts.push((c.0 + r, c.1 + r));
-        }
+        // extents of the geometry itself: for an arc its end points and the axis points inside its sweep
+        // (the box of the full circle was written before: validation defect D5)
+        let pts = match e {
+            Entity::Arc {
+                c,
+                r,
+                start_deg,
+                end_deg,
+                ..
+            } => arc_box(*c, *r, *start_deg, *end_deg).to_vec(),
+            other => other.points(),
+        };
         for (x, y) in pts {
             minx = minx.min(x);
             miny = miny.min(y);
@@ -188,9 +287,13 @@ pub fn write(entities: &[Entity]) -> String {
     if geometry.is_empty() {
         (minx, miny, maxx, maxy) = (0.0, 0.0, 0.0, 0.0);
     }
-    let notes = marking(minx, miny, maxx, maxy);
+    let notes = marking_with(minx, miny, maxx, maxy, extra_notes);
     // drawing extents include the annotation (text width estimated as one height per character)
-    let (mut eminx, mut eminy, mut emaxx, mut emaxy) = (minx, miny, maxx, maxy);
+    let (mut eminx, mut eminy, mut emaxx, mut emaxy) = if geometry.is_empty() {
+        (f64::MAX, f64::MAX, f64::MIN, f64::MIN)
+    } else {
+        (minx, miny, maxx, maxy)
+    };
     for n in &notes {
         if let Entity::Text {
             at, height, text, ..
@@ -502,12 +605,28 @@ pub struct ReimportReport {
     /// Header declares decimal units and counter-clockwise degrees, and the
     /// drawing states millimetres.
     pub units_declared: bool,
+    /// $EXTMIN / $EXTMAX of the header agree with the extents of the entities
+    /// read back, computed by a different method (dense sampling of arcs).
+    pub extents_match: bool,
+    /// Every annotation line the caller required is present on the annotation layer.
+    pub required_notes_present: bool,
     pub pass: bool,
 }
 
 /// Compare intended geometry with what an independent parse of `text` yields,
 /// and confirm the release marking and unit declarations of the file.
 pub fn reimport_check(intended: &[Entity], text: &str, tol: f64) -> ReimportReport {
+    reimport_check_annotated(intended, text, tol, &[])
+}
+
+/// As `reimport_check`, and every line of `required_notes` must be present as
+/// annotation on the annotation layer.
+pub fn reimport_check_annotated(
+    intended: &[Entity],
+    text: &str,
+    tol: f64,
+    required_notes: &[String],
+) -> ReimportReport {
     let intended: Vec<&Entity> = intended.iter().filter(|e| !e.is_annotation()).collect();
     let fail = |n: usize, u: Vec<String>| ReimportReport {
         entities_written: intended.len(),
@@ -519,6 +638,8 @@ pub fn reimport_check(intended: &[Entity], text: &str, tol: f64) -> ReimportRepo
         layers_match: false,
         not_released_marking: false,
         units_declared: false,
+        extents_match: false,
+        required_notes_present: false,
         pass: false,
     };
     let (all, unknown) = match read(text) {
@@ -531,7 +652,8 @@ pub fn reimport_check(intended: &[Entity], text: &str, tol: f64) -> ReimportRepo
     }
     let (mut dp, mut dl): (f64, f64) = (0.0, 0.0);
     let mut layers_match = true;
-    let mut lowest = f64::INFINITY;
+    let geometry_box = sampled_box(&got);
+    let lowest = geometry_box.1 - geometry_box.4;
     for (a, b) in intended.iter().zip(&got) {
         if a.layer() != b.layer() || std::mem::discriminant(*a) != std::mem::discriminant(b) {
             layers_match = false;
@@ -544,11 +666,6 @@ pub fn reimport_check(intended: &[Entity], text: &str, tol: f64) -> ReimportRepo
             dp = dp.max((x.0 - y.0).abs()).max((x.1 - y.1).abs());
         }
         dl = dl.max((a.length() - b.length()).abs());
-        let mut ys: Vec<f64> = pb.iter().map(|q| q.1).collect();
-        if let Entity::Arc { c, r, .. } = b {
-            ys.push(c.1 - r);
-        }
-        lowest = ys.into_iter().fold(lowest, f64::min);
     }
     // Marking: exactly on the annotation layer, nothing else there, no text on a cut layer, below the geometry.
     let text_of = |e: &Entity| match e {
@@ -575,12 +692,38 @@ pub fn reimport_check(intended: &[Entity], text: &str, tol: f64) -> ReimportRepo
         && var("$ANGDIR", 70, "0")
         && var("$ANGBASE", 50, "0.0")
         && on_mark(UNITS_TEXT);
+    let required_notes_present = required_notes.iter().all(|want| on_mark(want.trim()));
+    // D5: the header extents against the box of everything read back (geometry and annotation).
+    let everything: Vec<Entity> = got.iter().cloned().chain(notes.iter().cloned()).collect();
+    let (bx0, by0, bx1, by1, sample_err) = sampled_box(&everything);
+    let header_xy = |name: &str| -> Option<(f64, f64)> {
+        let v = header.get(name)?;
+        let get = |code: i32| {
+            v.iter()
+                .find(|(c, _)| *c == code)
+                .and_then(|(_, x)| x.parse::<f64>().ok())
+        };
+        Some((get(10)?, get(20)?))
+    };
+    let extents_match = match (header_xy("$EXTMIN"), header_xy("$EXTMAX")) {
+        (Some(lo), Some(hi)) => {
+            let scale = (bx1 - bx0).abs().max((by1 - by0).abs()).max(1.0);
+            let t = tol.max(sample_err) + 1e-9 * scale;
+            (lo.0 - bx0).abs() <= t
+                && (lo.1 - by0).abs() <= t
+                && (hi.0 - bx1).abs() <= t
+                && (hi.1 - by1).abs() <= t
+        }
+        _ => false,
+    };
     let pass = unknown.is_empty()
         && layers_match
         && dp <= tol
         && dl <= tol
         && not_released_marking
-        && units_declared;
+        && units_declared
+        && extents_match
+        && required_notes_present;
     ReimportReport {
         entities_written: intended.len(),
         entities_read: got.len(),
@@ -591,6 +734,8 @@ pub fn reimport_check(intended: &[Entity], text: &str, tol: f64) -> ReimportRepo
         layers_match,
         not_released_marking,
         units_declared,
+        extents_match,
+        required_notes_present,
         pass,
     }
 }
@@ -778,5 +923,130 @@ mod tests {
             read(&stripped).is_ok() && !reimport_check(&e, &stripped, 1e-8).pass,
             "marking removed"
         );
+    }
+
+    /// Validation defect D5: $EXTMIN / $EXTMAX are the extents of the sector, not of its full circles.
+    #[test]
+    fn d5_header_extents_are_those_of_the_geometry_and_are_checked() {
+        // CONE-01: apex radii 632.4555 and 316.2278, sector 113.84 degrees
+        let (l1, l2, phi) = (
+            632.455532033676f64,
+            316.227766016838f64,
+            113.84199576606166f64,
+        );
+        let at = |r: f64, d: f64| (r * d.to_radians().cos(), r * d.to_radians().sin());
+        let e = vec![
+            Entity::Arc {
+                layer: "CUT_OUTER".into(),
+                c: (0.0, 0.0),
+                r: l1,
+                start_deg: 0.0,
+                end_deg: phi,
+            },
+            Entity::Line {
+                layer: "CUT_OUTER".into(),
+                a: at(l1, phi),
+                b: at(l2, phi),
+            },
+            Entity::Arc {
+                layer: "CUT_OUTER".into(),
+                c: (0.0, 0.0),
+                r: l2,
+                start_deg: 0.0,
+                end_deg: phi,
+            },
+            Entity::Line {
+                layer: "CUT_OUTER".into(),
+                a: at(l2, 0.0),
+                b: at(l1, 0.0),
+            },
+        ];
+        let t = write(&e);
+        let h = read_header(&t).unwrap();
+        let xy = |name: &str| -> (f64, f64) {
+            (h[name][0].1.parse().unwrap(), h[name][1].1.parse().unwrap())
+        };
+        let (lo, hi) = (xy("$EXTMIN"), xy("$EXTMAX"));
+        // the geometry spans x = -255.5 .. 632.5 and y = 0 .. 632.5; the annotation lies below and may be wider
+        assert!(
+            (lo.0 - at(l1, phi).0).abs() < 1e-9 && (lo.0 + 255.6).abs() < 0.2,
+            "{lo:?}"
+        );
+        assert!(
+            (hi.1 - l1).abs() < 1e-9,
+            "top of the large arc at 90 degrees: {hi:?}"
+        );
+        assert!(
+            lo.1 < 0.0 && lo.1 > -0.2 * l1,
+            "annotation just below y = 0, not the full circle: {lo:?}"
+        );
+        assert!(hi.0 >= l1 && lo.0 > -l1 + 300.0);
+        let r = reimport_check(&e, &t, 1e-8);
+        assert!(r.pass && r.extents_match, "{r:?}");
+        // wrong extents (the old full-circle box, or anything else) fail the round trip
+        let wrong = t.replacen(
+            &format!("$EXTMIN\n 10\n{}", num(lo.0)),
+            &format!("$EXTMIN\n 10\n{}", num(-l1)),
+            1,
+        );
+        assert_ne!(wrong, t);
+        let r = reimport_check(&e, &wrong, 1e-8);
+        assert!(!r.extents_match && !r.pass, "{r:?}");
+        // arcs through 180 and 270 degrees, and a sweep across 0
+        for (s0, s1, want) in [
+            (100.0, 200.0, (-10.0, -3.4202, -1.7365, 9.8481)),
+            (250.0, 20.0, (-3.4202, -10.0, 10.0, 3.4202)),
+            (10.0, 80.0, (1.7365, 1.7365, 9.8481, 9.8481)),
+        ] {
+            let b = arc_box((0.0, 0.0), 10.0, s0, s1);
+            let got = b
+                .iter()
+                .fold((f64::MAX, f64::MAX, f64::MIN, f64::MIN), |m, p| {
+                    (m.0.min(p.0), m.1.min(p.1), m.2.max(p.0), m.3.max(p.1))
+                });
+            for (g, w) in [
+                (got.0, want.0),
+                (got.1, want.1),
+                (got.2, want.2),
+                (got.3, want.3),
+            ] {
+                assert!((g - w).abs() < 1e-3, "{s0}..{s1}: {got:?} against {want:?}");
+            }
+            let one = [Entity::Arc {
+                layer: "CUT_OUTER".into(),
+                c: (0.0, 0.0),
+                r: 10.0,
+                start_deg: s0,
+                end_deg: s1,
+            }];
+            assert!(reimport_check(&one, &write(&one), 1e-8).pass);
+        }
+    }
+
+    #[test]
+    fn extra_annotation_lines_are_written_on_the_annotation_layer_and_required_by_the_check() {
+        let e = sample();
+        let notes = vec!["MARKING SIDE: OUTSIDE (PROVISIONAL)".to_string()];
+        let t = write_annotated(&e, &notes);
+        let (all, _) = read(&t).unwrap();
+        assert!(all.iter().any(|x| matches!(x, Entity::Text { layer, text, .. } if layer == MARK_LAYER && text == &notes[0])));
+        assert!(reimport_check_annotated(&e, &t, 1e-8, &notes).pass);
+        assert!(
+            !reimport_check_annotated(&e, &write(&e), 1e-8, &notes).pass,
+            "a required line that is missing fails the check"
+        );
+        assert!(
+            !reimport_check_annotated(
+                &e,
+                &t.replace("OUTSIDE (PROVISIONAL)", "INSIDE (PROVISIONAL)"),
+                1e-8,
+                &notes
+            )
+            .required_notes_present
+        );
+        // the cut geometry is byte-identical with and without the extra line
+        let cut =
+            |t: &str| t[t.find("ENTITIES").unwrap()..t.find("  0\nTEXT").unwrap()].to_string();
+        assert_eq!(cut(&t), cut(&write(&e)));
     }
 }

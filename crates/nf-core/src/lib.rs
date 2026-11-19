@@ -33,7 +33,12 @@ use std::collections::{BTreeMap, BTreeSet};
 /// of the uem, nf-dxf and nf-core sources taken at build time (build.rs), so
 /// that a result of one build can never be mistaken for a result of another.
 /// It is recorded in every result and in every activity record.
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.2.0+src.", env!("NF_ENGINE_SRC_HASH"));
+///
+/// 0.3.0 (19 Nov 2026): branch patterns are drawn from the OUTSIDE like header
+/// plates (validation defect D1; up to 0.2.0 they were the mirror image), and
+/// every pattern declares its marking side. Results of 0.2.0 and earlier are
+/// results of another engine: REJECTED with gate G21, "recompute".
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.3.0+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the
@@ -210,8 +215,8 @@ pub enum ReleaseState {
 
 /// Gates every computed result must carry. A stored gate table that lacks one
 /// of them is incomplete, and an incomplete table is a failed one.
-pub const REQUIRED_GATES: [&str; 11] = [
-    "G01", "G05", "G06", "G08", "G10", "G11", "G14", "G15", "G16", "G18", "G19",
+pub const REQUIRED_GATES: [&str; 12] = [
+    "G01", "G02", "G05", "G06", "G08", "G10", "G11", "G14", "G15", "G16", "G18", "G19",
 ];
 
 /// Release state from gate results (Spec 02 §10.3). A model confidence score

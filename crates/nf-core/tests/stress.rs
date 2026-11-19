@@ -230,6 +230,7 @@ fn stress_branch() {
                 beta_deg: beta,
                 delta,
                 s_end,
+                surface_reference: "unknown".into(), // field added with BE-001; "unknown" keeps this campaign as it was
             },
             &mut t,
         );

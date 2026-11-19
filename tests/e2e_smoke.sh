@@ -72,7 +72,15 @@ check "DXF file name marked NOT-RELEASED"         'grep -qi "filename=\"NOT-RELE
 check "DXF carries the NOT RELEASED marking on a non-cutting layer" 'grep -q "^NOT RELEASED - DEVELOPMENT BUILD" "$DATA/out.dxf" && [ "$(grep -B2 -A0 "^10$" "$DATA/out.dxf" >/dev/null; python3 - "$DATA/out.dxf" <<PY
 import sys
 L=open(sys.argv[1]).read().split("\n"); p=list(zip(L[0::2],L[1::2])); i=[k for k,(c,v) in enumerate(p) if c.strip()=="0" and v=="TEXT"]
-print(all(p[k+1]==("  8","NF_NOT_RELEASED") for k in i) and len(i)==2 and not any(v=="NF_NOT_RELEASED" and p[k-1][1] in ("LINE","ARC","POLYLINE","VERTEX") for k,(c,v) in enumerate(p)))
+print(all(p[k+1]==("  8","NF_NOT_RELEASED") for k in i) and len(i)==3 and not any(v=="NF_NOT_RELEASED" and p[k-1][1] in ("LINE","ARC","POLYLINE","VERTEX") for k,(c,v) in enumerate(p)))
+PY
+)" = True ]'
+# D1 (validation): every pattern states the side it is drawn from, the same for all parts, in result, gates and DXF
+check "marking side stated in the DXF (non-cutting text) and in the result" 'grep -q "^MARKING SIDE: PATTERN DRAWN AS SEEN FROM THE OUTSIDE OF THE FORMED PART - PROVISIONAL CONVENTION, NOT REVIEWED" "$DATA/out.dxf" && [ "$(get $C3 | j "all(p[\"marking_side\"]==\"outside\" for p in d[\"patterns\"]) and \"PROVISIONAL convention\" in [g[\"detail\"] for g in d[\"gates\"] if g[\"id\"]==\"G02\"][0] and [g[\"result\"] for g in d[\"gates\"] if g[\"id\"]==\"G02\"][0]==\"INCONCLUSIVE\"")" = True ]'
+check "DXF header extents are those of the cone sector, not of its full circles" '[ "$(python3 - "$DATA/out.dxf" <<PY
+import sys
+L=open(sys.argv[1]).read().split("\n"); i=L.index("\$EXTMIN"); j=L.index("\$EXTMAX")
+print(abs(float(L[i+2])+255.6485)<1e-3 and abs(float(L[j+4])-632.4555)<1e-3 and float(L[i+4])>-150)
 PY
 )" = True ]'
 check "DXF header declares decimal units, degrees counter-clockwise; millimetres stated" 'grep -A2 "^\$LUNITS" "$DATA/out.dxf" | tail -1 | grep -qx 2 && grep -A2 "^\$ANGDIR" "$DATA/out.dxf" | tail -1 | grep -qx 0 && grep -q "^UNITS: MILLIMETRES" "$DATA/out.dxf"'
@@ -85,7 +93,7 @@ check "identical request gives identical closure" '[ "$(get $C1 | j "d[\"closure
 A1=$(run '{"family":"header_with_branch","header_radius":150,"header_dev_radius":150,"header_length":1200,"branch_station":600,"branch_radius":100,"branch_dev_radius":100,"beta_deg":60,"delta":0,"s_end":400,"surface_reference":"outside"}')
 RA=$(get $A1)
 check "assembly: two parts, opening on the header"  '[ "$(echo "$RA" | j "[p[\"part\"] for p in d[\"patterns\"]]==[\"header\",\"branch\"] and len(d[\"patterns\"][0][\"holes\"])==1")" = True ]'
-check "assembly: interface checks pass"             '[ "$(echo "$RA" | j "[c[\"verdict\"] for c in d[\"checks\"] if c[\"scope\"]==\"interface\"]==[\"PASS\",\"PASS\"]")" = True ]'
+check "assembly: interface checks pass"             '[ "$(echo "$RA" | j "[c[\"verdict\"] for c in d[\"checks\"] if c[\"scope\"]==\"interface\"]==[\"PASS\",\"PASS\",\"PASS\"]")" = True ]'
 check "assembly: dependency edges exposed"          '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/calculations/$A1/dependencies | j "len(d[\"edges\"])>=20")" = True ]'
 check "correction without a reason refused"         '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"parameter\":\"header_radius\",\"new_value\":158}" $BASE/api/calculations/$A1/corrections)" = 400 ]'
 # BE-004: a correction the engine refuses changes nothing (it used to supersede the valid job and record a lesson)
