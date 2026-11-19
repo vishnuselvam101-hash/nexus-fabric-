@@ -1,0 +1,9 @@
+# Replace app.example.com with your domain (its DNS A record must point at the server).
+app.example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8787
+	header Strict-Transport-Security "max-age=31536000"
+	log {
+		output file /var/log/caddy/nexus-fabric.log
+	}
+}
