@@ -296,6 +296,13 @@ pub fn header_with_opening(b: &Branch, r_dev_header: f64, length: f64, station: 
         return Err(UemError::OutOfRange { param: "branch", reason: "branch geometry outside the supported range (see branch stub limits)".into() });
     }
     let mut shell = cylinder_shell(r_dev_header, length)?;
+    // The opening is computed in the frame (x along the header axis, v around it), so the plate outline must be
+    // in that same frame: length along x, developed circumference along y. Reusing the plain shell's rectangle
+    // (circumference along x) put the opening in the wrong place and turned by a quarter turn; see
+    // nf-core/tests/regressions/002-header-outline-frame.json.
+    let w = TAU * r_dev_header;
+    let (p0, p1, p2, p3) = (P2::new(0.0, 0.0), P2::new(length, 0.0), P2::new(length, w), P2::new(0.0, w));
+    shell.outline = vec![line("seam_a", p0, p1), line("top", p1, p2), line("seam_b", p2, p3), line("bottom", p3, p0)];
     let n = 720;
     let dphi = TAU / (2 * n) as f64;
     let at = |i: usize| -> P2 {
