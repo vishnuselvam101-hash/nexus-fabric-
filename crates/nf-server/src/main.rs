@@ -1051,6 +1051,7 @@ fn router(app: Arc<App>) -> Router {
     Router::new()
         .route("/", get(|| async { asset("text/html; charset=utf-8", include_str!("../../../web/index.html")) }))
         .route("/app.js", get(|| async { asset("text/javascript; charset=utf-8", include_str!("../../../web/app.js")) }))
+        .route("/viewer.js", get(|| async { asset("text/javascript; charset=utf-8", include_str!("../../../web/viewer.js")) }))
         .route("/styles.css", get(|| async { asset("text/css; charset=utf-8", include_str!("../../../web/styles.css")) }))
         .route("/api/health", get(health))
         .route("/api/setup", post(setup))

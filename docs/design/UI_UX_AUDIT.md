@@ -19,15 +19,17 @@ No decorative gradients, glass effects, hero sections, fake charts or invented m
 | U-07 | Table headers scroll away on long tables | Low | Sticky headers | Fixed |
 | U-08 | No print style for a job (engineers print) | Low | Print stylesheet hides chrome | Fixed (basic) |
 | U-09 | Motion preferences ignored | Low | `prefers-reduced-motion` respected (the UI has almost no motion) | Fixed |
-| U-10 | Pattern preview cannot be zoomed, panned or measured; no entity selection | **High** | — | **Open** |
-| U-11 | Job page is one long scroll: request, patterns, checks, obligations, gates, edges, records | Medium | — | Open: needs sections/tabs after seeing real use |
-| U-12 | Dependency edges shown as a table, not a graph | Medium | — | Open |
-| U-13 | Engineering Workspace (drawing viewer, 2D/3D) does not exist | **High** | — | Open: blocked on parser and rendering decisions |
+| U-10 | Pattern preview cannot be zoomed, panned or measured; no entity selection | **High** | Pattern viewer: zoom, pan, fit, hover read-out, selection, vertex-snapped measurement (`web/viewer.js`) | Fixed 19 Nov, browser-tested |
+| U-11 | Job page is one long scroll: request, patterns, checks, obligations, gates, edges, records | Medium | Three-panel workspace: properties · canvas · tabbed results | Fixed 19 Nov; still needs observation of real use |
+| U-12 | Dependency edges shown as a table, not a graph | Medium | Layered graph with upstream/downstream tracing; table kept as alternative | Fixed 19 Nov |
+| U-13 | Engineering Workspace (drawing viewer, 2D/3D) does not exist | **High** | Workspace exists for computed patterns (2D). Source-drawing viewer and 3D remain absent and are labelled planned | Partly fixed; drawing side open: blocked on parser decisions |
 | U-14 | No Japanese interface | **High** for the first market | — | Open: vocabulary needs native review |
-| U-15 | Colour contrast not measured with a tool; state is never colour-only (text always present) | Medium | — | Open: measure both themes |
-| U-16 | No notifications, no job queue view | Medium | — | Open: no backend for it |
-| U-17 | Correction flow navigates to the new job without summarising what changed | Medium | — | Open |
-| U-18 | No confirmation step before deactivating a user | Low | — | Open |
+| U-15 | Colour contrast not measured with a tool; state is never colour-only (text always present) | Medium | Ratios computed for both themes, table in `DESIGN_SYSTEM.md`; all text ≥ 4.5:1, control boundaries ≥ 3:1 | Fixed (computed); assistive-technology audit open |
+| U-16 | No notifications, no job queue view | Medium | Toasts and a session log for the user's own actions. Server notifications and queue: none, labelled planned | Partly fixed; server side open: no backend |
+| U-17 | Correction flow navigates to the new job without summarising what changed | Medium | Notification states parameter, new value, obligations raised and open; new job opens on its Scrutiny tab; History tab lists the events | Fixed 19 Nov |
+| U-18 | No confirmation step before deactivating a user | Low | Second explicit click within 5 s | Fixed 19 Nov, browser-tested |
+
+**Update 19 November 2026.** The client was rebuilt as an engineering workstation (see `FRONTEND_ARCHITECTURE_AUDIT.md` and `DESIGN_SYSTEM.md`). The rows above marked 19 Nov were closed by that work; before/after screenshots are in `screenshots/`. U-14 (Japanese interface) is unchanged and still High.
 
 ## Steps for the common workflow (measured)
 
