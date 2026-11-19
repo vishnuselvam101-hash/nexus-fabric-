@@ -58,3 +58,49 @@ Stopped on the hard cap. Reported plainly as below the bar.
 2. Setting: visible lit bay (brighter walls, gantry, racks, plate stock), textured stands, cutting table under the flat patterns with contact shadows.
 3. Layout: caption-safe framing; no caption on the end card.
 4. Motion has not been reviewed at all: only stills exist.
+
+## Round 5 (production strategy changed at the owner's instruction)
+
+References: R01 geometry (branch on pipe), R02 fabrication hall, R03 TIG weld macro (owner-supplied; kept local in `cook/refs/`, not committed).
+Bar: 9/10 in each of seven categories from two independent zero-context critics. Fixed budget: one build pass, two correction passes, one scored review. Stills only; no video rendered.
+
+Changes: physical steel material (anisotropic, roughness and albedo variation), AgX tone mapping, ribbed weld bead with heat tint on the exact intersection curve, fabrication hall (skylights, windows, gantry, benches, welders, pipe rack, plate stack, cutting table), plan board for the drawing, new camera sequence (board, approach, joint, weld macro, unroll to table, hero), depth of field, unboxed labels inside title-safe margins, separate JA caption layout, no caption on the end card.
+
+### Measured acceptance criteria (stills in `cook/stills/r05/`)
+
+| Criterion | Limit | Result |
+|---|---|---|
+| Clipped highlights (luma >= 250) per frame | < 0.5 % | pass, max 0.24 % (t18.5) |
+| Crushed shadows (luma <= 8) per frame | < 2 % | fail on end card t0053 (2.82 %); others <= 0.14 % |
+| Caption and labels inside 5 % title-safe margins | all frames | pass |
+| Labels clear of scene objects | all frames | fail (t0036 label overlapped by plan board; amber note over windows) |
+| No console errors | 0 | pass (one NaN in heat-tint strip found and fixed) |
+
+### Critic scores (unaltered)
+
+| Category | Critic A | Critic B | Bar |
+|---|---|---|---|
+| Composition | 5 | 6 | 9 |
+| Lighting | 4 | 5 | 9 |
+| Materials | 4 | 5 | 9 |
+| Geometry | 6 | 6 | 9 |
+| Realism | 3 | 4 | 9 |
+| Typography | 7 | 6 | 9 |
+| Storytelling | 7 | 6 | 9 |
+
+Result: bar not met in any category. Compared with round 4 the critics were stricter (two reviewers, seven categories, direct comparison with R02/R03); this is not a like-for-like drop, and no score was adjusted.
+
+### Defects recorded (both critics agree unless marked)
+
+1. Weld bead reads as a twisted pearlescent ribbon lying on the surface: no fillet section, no fusion at the toes, ripples are folded flaps not overlapping crescents; bead colour pink rather than steel grey.
+2. Heat tint is a wide airbrushed pale halo, lighter than the parent metal; hard overlay edge on the branch; should be narrow dark oxide bands at the toes.
+3. Hall is a block-out: blank white window rectangles, untextured walls, box props, no haze, no floor wear or reflections; far from R02.
+4. Steel reads as brushed aluminium with oversized smeared streaks; tonal/UV seam across the header at the branch; branch looks matte.
+5. Supports: single small roller visible per stand, pipe appears to float; unexplained warm glow under the right stand.
+6. Flat-pattern shot: blown blotch on the plate (0 % clipped by measure, but reads as an artefact), no visible plate thickness, no part marks; (B) the opening appears rotated off the shell axis and must be checked against the equations before any further use; unroll frame t0032 poorly framed and parts hover.
+7. Labels collide with scene objects; amber note unreadable over windows; (B) JA label and disclaimer too small, tagline punctuation spacing.
+8. Drawing: title-block text clipped; 1200 and ⌀200 lack dimension lines; a stray line crosses the header.
+9. End card: hero dim and cropped, blank wall in the right third.
+10. (B) Lower branch wall appears translucent in the macro.
+
+Budget for this round is spent. Stop for an owner decision before further rounds.
