@@ -153,7 +153,7 @@ pub fn write(entities: &[Entity]) -> String {
 /// silently ignored.
 pub fn read(text: &str) -> Result<(Vec<Entity>, Vec<String>), String> {
     let lines: Vec<&str> = text.lines().collect();
-    if lines.len() % 2 != 0 {
+    if !lines.len().is_multiple_of(2) {
         return Err("odd number of lines: group code without value".into());
     }
     let mut pairs = Vec::with_capacity(lines.len() / 2);

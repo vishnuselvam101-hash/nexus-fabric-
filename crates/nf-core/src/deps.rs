@@ -83,10 +83,9 @@ pub fn propagate(records: &BTreeMap<String, Record>, changed: &str) -> Vec<Affec
     let mut out: Vec<Affected> = Vec::new();
     let mut seen: BTreeSet<String> = BTreeSet::from([changed.to_string()]);
     let add = |out: &mut Vec<Affected>, r: &Record, dir: Direction, via: &str| {
-        if let Some(check) = rule(&r.kind, dir) {
-            if !out.iter().any(|a| a.record_id == r.id && a.direction == dir) {
-                out.push(Affected { record_id: r.id.clone(), kind: r.kind.clone(), label: label(r), direction: dir, via: via.to_string(), required_check: check.to_string(), mandatory: true });
-            }
+        let Some(check) = rule(&r.kind, dir) else { return };
+        if !out.iter().any(|a| a.record_id == r.id && a.direction == dir) {
+            out.push(Affected { record_id: r.id.clone(), kind: r.kind.clone(), label: label(r), direction: dir, via: via.to_string(), required_check: check.to_string(), mandatory: true });
         }
     };
     // Downstream: unbounded traversal over derivation edges. Interfaces touched on the way create lateral obligations.
@@ -99,11 +98,9 @@ pub fn propagate(records: &BTreeMap<String, Record>, changed: &str) -> Vec<Affec
                 continue;
             }
             match edge_class(via) {
-                Some(EdgeClass::Derivation) => {
-                    if seen.insert(dep.to_string()) {
-                        add(&mut out, r, Direction::Downstream, via);
-                        queue.push_back(dep.to_string());
-                    }
+                Some(EdgeClass::Derivation) if seen.insert(dep.to_string()) => {
+                    add(&mut out, r, Direction::Downstream, via);
+                    queue.push_back(dep.to_string());
                 }
                 Some(EdgeClass::Interface) => {
                     touched_interfaces.insert(dep.to_string());

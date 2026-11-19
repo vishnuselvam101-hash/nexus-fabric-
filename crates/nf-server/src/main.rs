@@ -123,7 +123,7 @@ fn session_token(headers: &HeaderMap) -> Option<String> {
     cookies.split(';').filter_map(|c| c.trim().strip_prefix("nf_session=")).next().map(String::from)
 }
 
-fn auth(app: &App, headers: &HeaderMap) -> Result<User, Response> {
+fn auth(app: &App, headers: &HeaderMap) -> Result<User, Box<Response>> {
     let deny = || fail(StatusCode::UNAUTHORIZED, "not signed in");
     let token = session_token(headers).ok_or_else(deny)?;
     let th = nf_core::sha256_hex(token.as_bytes());
@@ -136,14 +136,14 @@ fn auth(app: &App, headers: &HeaderMap) -> Result<User, Response> {
     .optional()
     .ok()
     .flatten()
-    .ok_or_else(deny)
+    .ok_or_else(|| Box::new(deny()))
 }
 
-fn require(user: &User, roles: &[&str]) -> Result<(), Response> {
+fn require(user: &User, roles: &[&str]) -> Result<(), Box<Response>> {
     if roles.contains(&user.role.as_str()) {
         Ok(())
     } else {
-        Err(fail(StatusCode::FORBIDDEN, "your role does not permit this action"))
+        Err(Box::new(fail(StatusCode::FORBIDDEN, "your role does not permit this action")))
     }
 }
 
@@ -166,7 +166,7 @@ macro_rules! guard {
     ($e:expr) => {
         match $e {
             Ok(v) => v,
-            Err(resp) => return resp,
+            Err(resp) => return *resp,
         }
     };
 }
@@ -355,7 +355,8 @@ async fn audit_verify(State(app): Ctx, headers: HeaderMap) -> Response {
     guard!(require(&u, &["admin"]));
     let db = app.db();
     let mut st = db.prepare("SELECT id, at, username, action, detail, prev, hash FROM audit ORDER BY id").unwrap();
-    let rows: Vec<(i64, i64, String, String, String, Option<String>, Option<String>)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?))).unwrap().flatten().collect();
+    type AuditRow = (i64, i64, String, String, String, Option<String>, Option<String>);
+    let rows: Vec<AuditRow> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?))).unwrap().flatten().collect();
     let mut prev = "genesis".to_string();
     let mut broken: Option<i64> = None;
     for (id, at, user, action, detail, p, h) in &rows {
@@ -544,7 +545,8 @@ fn raise_advisories(db: &Connection, project: i64, calc_id: i64, req: &Request) 
     let params_now = req.numeric_params();
     let req_json = serde_json::to_string(req).unwrap_or_default();
     let mut st = db.prepare("SELECT id, kind, parameter, wrong_value, right_value, detail, source_calc FROM lessons WHERE project_id = ? AND family = ? ORDER BY id").unwrap();
-    let rows: Vec<(i64, String, String, Option<f64>, Option<f64>, String, i64)> = st.query_map(params![project, family], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?))).unwrap().flatten().collect();
+    type LessonRow = (i64, String, String, Option<f64>, Option<f64>, String, i64);
+    let rows: Vec<LessonRow> = st.query_map(params![project, family], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?))).unwrap().flatten().collect();
     let mut n = 0;
     for (lid, kind, parameter, wrong, right, detail, source) in rows {
         let message = match kind.as_str() {
@@ -943,10 +945,9 @@ async fn dependencies(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) 
     let mut edges = Vec::new();
     for r in records.iter().filter(|r| r.family == Family::Claim) {
         for e in &r.relations {
-            if let Some(t) = by_id.get(e.to.as_str()) {
-                if ["computed_from", "developed_from", "rendered_from", "defined_by", "pattern_of", "mates_at", "interface_feature", "positioned_by", "convention_of"].contains(&e.rel.as_str()) {
-                    edges.push(json!({ "from": name(r), "rel": e.rel, "to": name(t) }));
-                }
+            let Some(t) = by_id.get(e.to.as_str()) else { continue };
+            if ["computed_from", "developed_from", "rendered_from", "defined_by", "pattern_of", "mates_at", "interface_feature", "positioned_by", "convention_of"].contains(&e.rel.as_str()) {
+                edges.push(json!({ "from": name(r), "rel": e.rel, "to": name(t) }));
             }
         }
     }

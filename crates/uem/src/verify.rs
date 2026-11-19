@@ -251,15 +251,26 @@ fn seg_dist(p: [f64; 3], a: [f64; 3], b: [f64; 3]) -> f64 {
     (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).sqrt()
 }
 
+/// One side of an interface constraint: a developed pattern, the branch geometry
+/// it was made from, its dev radius and its position along the run.
+pub struct Side<'a> {
+    pub pattern: &'a Pattern,
+    pub geo: &'a Branch,
+    pub r_dev: f64,
+    pub along: f64,
+}
+
 /// Interface constraint for a set-on branch: the branch end cut and the header
 /// opening, each folded back to 3D from its *own* pattern with its own part's
 /// parameters, must be the same curve. `hb` / `bb` are the branch geometries
 /// as used by the header pattern and by the branch pattern respectively — if
 /// the two parts were made from different interpretations, they differ.
-pub fn verify_interface(header: &Pattern, hb: &Branch, r_dev_header: f64, station: f64, branch: &Pattern, bb: &Branch, r_dev_branch: f64, s_end: f64) -> Vec<Check> {
-    let open3: Vec<[f64; 3]> = hole_points(header).iter().map(|q| opening_3d(q, hb.big_r, r_dev_header, station)).collect();
-    let cut: Vec<P2> = branch.outline.iter().find(|c| c.name == "saddle_cut").and_then(|c| if let Geom::Polyline { pts, .. } = &c.geom { Some(pts.clone()) } else { None }).unwrap_or_default();
-    let cut3: Vec<[f64; 3]> = cut.iter().map(|q| bb.point(q.x / r_dev_branch, s_end - q.y)).collect();
+/// `header` / `branch` each carry that part's pattern, branch geometry, dev
+/// radius and position along the run (station for the header, s_end for the branch).
+pub fn verify_interface(header: Side, branch: Side) -> Vec<Check> {
+    let open3: Vec<[f64; 3]> = hole_points(header.pattern).iter().map(|q| opening_3d(q, header.geo.big_r, header.r_dev, header.along)).collect();
+    let cut: Vec<P2> = branch.pattern.outline.iter().find(|c| c.name == "saddle_cut").and_then(|c| if let Geom::Polyline { pts, .. } = &c.geom { Some(pts.clone()) } else { None }).unwrap_or_default();
+    let cut3: Vec<[f64; 3]> = cut.iter().map(|q| branch.geo.point(q.x / branch.r_dev, branch.along - q.y)).collect();
     let one_way = |from: &[[f64; 3]], to: &[[f64; 3]]| -> f64 {
         if from.is_empty() || to.len() < 2 {
             return f64::NAN;
@@ -318,15 +329,15 @@ mod tests {
         let hp = header_with_opening(&b, 150.0, 1200.0, 600.0).unwrap();
         let bp = branch_stub(150.0, 100.0, 100.0, 60.0, 20.0, 400.0).unwrap();
         all_pass(&verify_header_opening(&hp, &b, 150.0, 1200.0, 600.0));
-        all_pass(&verify_interface(&hp, &b, 150.0, 600.0, &bp, &b, 100.0, 400.0));
+        all_pass(&verify_interface(Side { pattern: &hp, geo: &b, r_dev: 150.0, along: 600.0 }, Side { pattern: &bp, geo: &b, r_dev: 100.0, along: 400.0 }));
         // seeded fault: branch made against the header's inside surface, header opened for the outside surface
         let wrong = Branch { big_r: 142.0, ..b };
         let bp_wrong = branch_stub(142.0, 100.0, 100.0, 60.0, 20.0, 400.0).unwrap();
-        assert!(verify_interface(&hp, &b, 150.0, 600.0, &bp_wrong, &wrong, 100.0, 400.0).iter().any(|c| c.verdict == Verdict::Fail));
+        assert!(verify_interface(Side { pattern: &hp, geo: &b, r_dev: 150.0, along: 600.0 }, Side { pattern: &bp_wrong, geo: &wrong, r_dev: 100.0, along: 400.0 }).iter().any(|c| c.verdict == Verdict::Fail));
         // seeded fault: branch angle differs between the two parts
         let tilted = Branch { beta: 55f64.to_radians(), ..b };
         let bp_tilt = branch_stub(150.0, 100.0, 100.0, 55.0, 20.0, 400.0).unwrap();
-        assert!(verify_interface(&hp, &b, 150.0, 600.0, &bp_tilt, &tilted, 100.0, 400.0).iter().any(|c| c.verdict == Verdict::Fail));
+        assert!(verify_interface(Side { pattern: &hp, geo: &b, r_dev: 150.0, along: 600.0 }, Side { pattern: &bp_tilt, geo: &tilted, r_dev: 100.0, along: 400.0 }).iter().any(|c| c.verdict == Verdict::Fail));
     }
 
     // Seeded faults (Spec 02 §12 group 13): each must be caught by a verifier.

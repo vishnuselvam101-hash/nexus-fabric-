@@ -4,6 +4,7 @@
 //!   * a pattern whose independent checks, profile check and DXF re-import all
 //!     pass, and which replays to the identical release closure; or
 //!   * an explicit refusal (no pattern, no DXF, a stated reason).
+//!
 //! Anything else — a pattern that fails its own verification, an invalid
 //! profile, a non-reproducible result, a panic — is a DEFECT and fails the
 //! test. A wrong-but-plausible pattern is the outcome this campaign exists to
