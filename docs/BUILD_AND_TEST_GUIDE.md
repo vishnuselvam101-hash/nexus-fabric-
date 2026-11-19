@@ -69,12 +69,18 @@ docs/             specifications, decisions, status
 
 ## Creating the first administrator from the command line
 
-The browser client does this on first visit. From a shell, every state-changing request must carry the anti-forgery header `X-NF-Request`; without it the server answers 403.
+The browser client does this on first visit. From a shell, use the API directly:
 
 ```
 curl -sS -X POST http://127.0.0.1:8787/api/setup \
   -H 'Content-Type: application/json' -H 'X-NF-Request: 1' \
-  -d '{"username":"<name>","password":"<a long password>"}'
+  -d '{"username":"<name>","password":"<a password of at least 10 characters>"}'
 ```
 
-Setup works once: a second call answers 409. Weak passwords answer 400. Replace the port if `NF_LISTEN` was changed.
+Rules for every state-changing request under `/api/` (POST, PUT, PATCH, DELETE):
+
+- The header `X-NF-Request: 1` is required; without it the server answers 403 "missing anti-forgery header".
+- If the request carries an `Origin` header, it must match the `Host` header (`scheme://host[:port]` must equal `Host`); otherwise the server answers 403 "cross-origin request refused". `curl` sends no `Origin` unless you add one, so the example above needs only `X-NF-Request`.
+- Passwords need at least 10 characters (setup and password change alike); a shorter one answers 400. Usernames are 3 to 64 characters: letters, digits, `.`, `_`, `-`.
+
+Setup works once: a second call answers 409. Replace the port if `NF_PORT` was set at install time (the install script defaults to 8787). `GET /api/health` answers `{"status":"ok", "setup_required": true, ...}` while no account exists, which is a quick check that the server is up.
