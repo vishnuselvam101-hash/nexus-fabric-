@@ -6,6 +6,8 @@
 
 use crate::develop::{Branch, ObliqueCone};
 use crate::{gauss, profile, Geom, Pattern, P2, TAU};
+#[cfg(test)]
+use crate::{Curve, Layer};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Verdict {
@@ -222,7 +224,17 @@ pub fn verify_header_opening(p: &Pattern, b: &Branch, r_dev_header: f64, length:
     }
     let hole = profile::check(&p.holes, 1e-9);
     let inside = pts.iter().all(|q| q.x > 0.0 && q.x < length && q.y > 0.0 && q.y < TAU * r_dev_header);
+    // The outline must be drawn in the frame the opening is computed in: length along x, circumference along y.
+    let (mut ex, mut ey) = (0.0f64, 0.0f64);
+    for c in &p.outline {
+        if let Geom::Line { a, b } = &c.geom {
+            ex = ex.max(a.x).max(b.x);
+            ey = ey.max(a.y).max(b.y);
+        }
+    }
     vec![
+        cmp("outline_extent_along_header_axis", "largest x of the plate outline against the input header length", ex, length, AGREE_ABS),
+        cmp("outline_extent_around_header", "largest y of the plate outline against 2*pi*r from the input radius", ey, TAU * r_dev_header, AGREE_ABS),
         cmp("opening_points_on_branch_surface", "fold-back onto the header, then |(P-O) x d| distance from the branch axis", if pts.is_empty() { f64::NAN } else { branch_res }, 0.0, AGREE_ABS),
         cmp("shell_edge_equals_circumference", "circumference 2*pi*r from the input radius", curve_len(p, "bottom"), TAU * r_dev_header, AGREE_ABS),
         cmp("seam_edges_equal_length", "length of the opposite seam edge", curve_len(p, "seam_a"), curve_len(p, "seam_b"), AGREE_ABS),
@@ -269,6 +281,23 @@ mod tests {
         for c in v {
             assert_eq!(c.verdict, Verdict::Pass, "{} diff {} tol {}", c.name, c.difference, c.tolerance);
         }
+    }
+
+    #[test]
+    fn header_outline_and_opening_share_one_frame() {
+        let b = Branch { big_r: 150.0, r: 100.0, beta: std::f64::consts::FRAC_PI_3, delta: 0.0 };
+        let hp = header_with_opening(&b, 150.0, 1200.0, 600.0).unwrap();
+        all_pass(&verify_header_opening(&hp, &b, 150.0, 1200.0, 600.0));
+        // zero offset: the opening is centred on the line opposite the seam, v = pi * r
+        let pts = hole_points(&hp);
+        let (lo, hi) = pts.iter().fold((f64::MAX, f64::MIN), |(lo, hi), q| (lo.min(q.y), hi.max(q.y)));
+        assert!(((lo + hi) / 2.0 - std::f64::consts::PI * 150.0).abs() < 1e-9);
+        // the old defect: outline drawn with circumference along x. The verifier must reject it.
+        let mut bad = hp.clone();
+        let w = TAU * 150.0;
+        let l = |n, a: (f64, f64), b: (f64, f64)| Curve { name: n, layer: Layer::CutOuter, geom: Geom::Line { a: P2::new(a.0, a.1), b: P2::new(b.0, b.1) } };
+        bad.outline = vec![l("bottom", (0.0, 0.0), (w, 0.0)), l("seam_b", (w, 0.0), (w, 1200.0)), l("top", (w, 1200.0), (0.0, 1200.0)), l("seam_a", (0.0, 1200.0), (0.0, 0.0))];
+        assert!(verify_header_opening(&bad, &b, 150.0, 1200.0, 600.0).iter().any(|c| c.verdict != Verdict::Pass));
     }
 
     #[test]

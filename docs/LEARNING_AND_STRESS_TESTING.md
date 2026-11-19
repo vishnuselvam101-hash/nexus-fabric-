@@ -67,3 +67,12 @@ Lessons cover only mistakes already seen in that project · no learning across p
 cargo test --release -p nf-core --test stress -- --nocapture          # default size
 NF_STRESS_SCALE=6 cargo test --release -p nf-core --test stress -- --nocapture
 ```
+
+## Defect 002: header plate outline and opening in different frames (2026-11-19)
+
+Found by an independent reviewer of the launch film, who compared a screen capture of the application with a pattern drawn independently from the same equations. Not found by the stress campaign, the mutation campaign, the interface check or the DXF re-import check.
+
+- **What was wrong:** for a header shell with a branch opening, the plate outline was drawn with the circumference along x, while the opening was computed with the header axis along x. The opening therefore sat in the wrong place on the plate, turned a quarter turn. For a 1200 mm header of radius 150 it still fell inside the rectangle, so nothing failed. Every header-with-branch DXF produced before the fix has this error.
+- **Why the checks missed it:** each check worked inside one frame. The fold-back check and the interface check used the opening's frame only; the re-import check compares the DXF with the intended geometry, which was itself wrong. No check compared the outline's frame with the opening's frame. The mutation campaign alters input values, not the construction.
+- **Fix:** the outline is now built in the opening's frame (length along x, circumference along y). Two verifier checks compare the outline's extents with the input length and 2πr, and a unit test confirms the verifier rejects the old construction. Regression cases: `crates/nf-core/tests/regressions/002-header-outline-frame.json`.
+- **Lesson for the method:** agreement between checks that share a construction is not independence. An independently built reference (a different person or program drawing the same part) found in minutes what 4,000 generated cases did not. Results computed before the fix must be recomputed; stored jobs are not rewritten.
