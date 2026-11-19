@@ -1,0 +1,46 @@
+name: quality-gate
+# Every change must pass this before it may be merged. A failing or skipped step is a failed gate.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release --workspace --locked
+      - name: Lint (warnings are errors)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Unit, property, stress and regression tests
+        run: cargo test --workspace --locked
+      - name: Dependency vulnerabilities
+        run: cargo install cargo-audit --locked && cargo audit
+      - name: End-to-end API tests
+        run: bash tests/e2e_smoke.sh
+      - name: Security tests
+        run: bash tests/security_smoke.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Browser workflow tests
+        run: |
+          npm install --no-save playwright@1 && npx playwright install --with-deps chromium
+          NF_DATA_DIR="$(mktemp -d)" NF_LISTEN=127.0.0.1:8793 target/release/nf-server &
+          sleep 2
+          node tests/ui_smoke.js
+      - name: Independent computational and DXF validation
+        if: hashFiles('validation/run_all.py') != ''
+        run: |
+          python3 -m pip install -r validation/requirements.txt
+          NF_DATA_DIR="$(mktemp -d)" NF_LISTEN=127.0.0.1:8802 target/release/nf-server &
+          sleep 2
+          python3 validation/run_all.py --url http://127.0.0.1:8802
