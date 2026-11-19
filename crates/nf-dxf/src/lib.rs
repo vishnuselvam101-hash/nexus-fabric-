@@ -8,37 +8,72 @@
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Entity {
-    Line { layer: String, a: (f64, f64), b: (f64, f64) },
+    Line {
+        layer: String,
+        a: (f64, f64),
+        b: (f64, f64),
+    },
     /// Counter-clockwise arc, angles in degrees (DXF convention).
-    Arc { layer: String, c: (f64, f64), r: f64, start_deg: f64, end_deg: f64 },
-    Polyline { layer: String, pts: Vec<(f64, f64)> },
+    Arc {
+        layer: String,
+        c: (f64, f64),
+        r: f64,
+        start_deg: f64,
+        end_deg: f64,
+    },
+    Polyline {
+        layer: String,
+        pts: Vec<(f64, f64)>,
+    },
 }
 
 impl Entity {
     pub fn layer(&self) -> &str {
         match self {
-            Entity::Line { layer, .. } | Entity::Arc { layer, .. } | Entity::Polyline { layer, .. } => layer,
+            Entity::Line { layer, .. }
+            | Entity::Arc { layer, .. }
+            | Entity::Polyline { layer, .. } => layer,
         }
     }
     pub fn length(&self) -> f64 {
         match self {
             Entity::Line { a, b, .. } => (a.0 - b.0).hypot(a.1 - b.1),
-            Entity::Arc { r, start_deg, end_deg, .. } => {
+            Entity::Arc {
+                r,
+                start_deg,
+                end_deg,
+                ..
+            } => {
                 let mut sweep = end_deg - start_deg;
                 if sweep < 0.0 {
                     sweep += 360.0;
                 }
                 r * sweep.to_radians()
             }
-            Entity::Polyline { pts, .. } => pts.windows(2).map(|w| (w[0].0 - w[1].0).hypot(w[0].1 - w[1].1)).sum(),
+            Entity::Polyline { pts, .. } => pts
+                .windows(2)
+                .map(|w| (w[0].0 - w[1].0).hypot(w[0].1 - w[1].1))
+                .sum(),
         }
     }
     fn points(&self) -> Vec<(f64, f64)> {
         match self {
             Entity::Line { a, b, .. } => vec![*a, *b],
-            Entity::Arc { c, r, start_deg, end_deg, .. } => vec![
-                (c.0 + r * start_deg.to_radians().cos(), c.1 + r * start_deg.to_radians().sin()),
-                (c.0 + r * end_deg.to_radians().cos(), c.1 + r * end_deg.to_radians().sin()),
+            Entity::Arc {
+                c,
+                r,
+                start_deg,
+                end_deg,
+                ..
+            } => vec![
+                (
+                    c.0 + r * start_deg.to_radians().cos(),
+                    c.1 + r * start_deg.to_radians().sin(),
+                ),
+                (
+                    c.0 + r * end_deg.to_radians().cos(),
+                    c.1 + r * end_deg.to_radians().sin(),
+                ),
             ],
             Entity::Polyline { pts, .. } => pts.clone(),
         }
@@ -52,7 +87,11 @@ fn num(v: f64) -> String {
     // end points by more than the re-import tolerance — regression 001.)
     let v = if v == 0.0 { 0.0 } else { v };
     let s = format!("{v}");
-    if s.contains('.') || s.contains("inf") || s.contains("NaN") { s } else { format!("{s}.0") }
+    if s.contains('.') || s.contains("inf") || s.contains("NaN") {
+        s
+    } else {
+        format!("{s}.0")
+    }
 }
 
 pub fn write(entities: &[Entity]) -> String {
@@ -78,7 +117,10 @@ pub fn write(entities: &[Entity]) -> String {
     if entities.is_empty() {
         (minx, miny, maxx, maxy) = (0.0, 0.0, 0.0, 0.0);
     }
-    p(999, "NEXUS FABRIC DXF - units: millimetres - not a released manufacturing file unless approved");
+    p(
+        999,
+        "NEXUS FABRIC DXF - units: millimetres - not a released manufacturing file unless approved",
+    );
     p(0, "SECTION");
     p(2, "HEADER");
     p(9, "$ACADVER");
@@ -119,7 +161,13 @@ pub fn write(entities: &[Entity]) -> String {
                 p(11, &num(b.0));
                 p(21, &num(b.1));
             }
-            Entity::Arc { layer, c, r, start_deg, end_deg } => {
+            Entity::Arc {
+                layer,
+                c,
+                r,
+                start_deg,
+                end_deg,
+            } => {
                 p(0, "ARC");
                 p(8, layer);
                 p(10, &num(c.0));
@@ -158,10 +206,16 @@ pub fn read(text: &str) -> Result<(Vec<Entity>, Vec<String>), String> {
     }
     let mut pairs = Vec::with_capacity(lines.len() / 2);
     for ch in lines.chunks(2) {
-        let code: i32 = ch[0].trim().parse().map_err(|_| format!("bad group code '{}'", ch[0]))?;
+        let code: i32 = ch[0]
+            .trim()
+            .parse()
+            .map_err(|_| format!("bad group code '{}'", ch[0]))?;
         pairs.push((code, ch[1].trim()));
     }
-    let start = pairs.iter().position(|&(c, v)| c == 2 && v == "ENTITIES").ok_or("no ENTITIES section")?;
+    let start = pairs
+        .iter()
+        .position(|&(c, v)| c == 2 && v == "ENTITIES")
+        .ok_or("no ENTITIES section")?;
     let mut ents = Vec::new();
     let mut unknown = Vec::new();
     let mut i = start + 1;
@@ -184,12 +238,21 @@ pub fn read(text: &str) -> Result<(Vec<Entity>, Vec<String>), String> {
         match val {
             "LINE" => ents.push(Entity::Line {
                 layer,
-                a: (f(get(10).ok_or("LINE without 10")?)?, f(get(20).ok_or("LINE without 20")?)?),
-                b: (f(get(11).ok_or("LINE without 11")?)?, f(get(21).ok_or("LINE without 21")?)?),
+                a: (
+                    f(get(10).ok_or("LINE without 10")?)?,
+                    f(get(20).ok_or("LINE without 20")?)?,
+                ),
+                b: (
+                    f(get(11).ok_or("LINE without 11")?)?,
+                    f(get(21).ok_or("LINE without 21")?)?,
+                ),
             }),
             "ARC" => ents.push(Entity::Arc {
                 layer,
-                c: (f(get(10).ok_or("ARC without 10")?)?, f(get(20).ok_or("ARC without 20")?)?),
+                c: (
+                    f(get(10).ok_or("ARC without 10")?)?,
+                    f(get(20).ok_or("ARC without 20")?)?,
+                ),
                 r: f(get(40).ok_or("ARC without 40")?)?,
                 start_deg: f(get(50).ok_or("ARC without 50")?)?,
                 end_deg: f(get(51).ok_or("ARC without 51")?)?,
@@ -206,7 +269,10 @@ pub fn read(text: &str) -> Result<(Vec<Entity>, Vec<String>), String> {
                         }
                         let vb = &pairs[k + 1..m];
                         let g = |c: i32| vb.iter().find(|p| p.0 == c).map(|p| p.1);
-                        pts.push((f(g(10).ok_or("VERTEX without 10")?)?, f(g(20).ok_or("VERTEX without 20")?)?));
+                        pts.push((
+                            f(g(10).ok_or("VERTEX without 10")?)?,
+                            f(g(20).ok_or("VERTEX without 20")?)?,
+                        ));
                         k = m;
                     } else if pairs[k].0 == 0 && pairs[k].1 == "SEQEND" {
                         closed = true;
@@ -283,7 +349,15 @@ pub fn reimport_check(intended: &[Entity], text: &str, tol: f64) -> ReimportRepo
         dl = dl.max((a.length() - b.length()).abs());
     }
     let pass = unknown.is_empty() && layers_match && dp <= tol && dl <= tol;
-    ReimportReport { entities_written: intended.len(), entities_read: got.len(), unknown_entities: unknown, max_point_deviation: dp, max_length_deviation: dl, layers_match, pass }
+    ReimportReport {
+        entities_written: intended.len(),
+        entities_read: got.len(),
+        unknown_entities: unknown,
+        max_point_deviation: dp,
+        max_length_deviation: dl,
+        layers_match,
+        pass,
+    }
 }
 
 #[cfg(test)]
@@ -292,9 +366,22 @@ mod tests {
 
     fn sample() -> Vec<Entity> {
         vec![
-            Entity::Line { layer: "CUT_OUTER".into(), a: (0.0, 0.0), b: (628.318530718, 0.0) },
-            Entity::Arc { layer: "CUT_OUTER".into(), c: (0.0, 0.0), r: 632.4555320337, start_deg: 0.0, end_deg: 113.8419957661 },
-            Entity::Polyline { layer: "CUT_OUTER".into(), pts: vec![(1.0, 2.0), (3.5, -4.25), (1e3, 1e-3)] },
+            Entity::Line {
+                layer: "CUT_OUTER".into(),
+                a: (0.0, 0.0),
+                b: (628.318530718, 0.0),
+            },
+            Entity::Arc {
+                layer: "CUT_OUTER".into(),
+                c: (0.0, 0.0),
+                r: 632.4555320337,
+                start_deg: 0.0,
+                end_deg: 113.8419957661,
+            },
+            Entity::Polyline {
+                layer: "CUT_OUTER".into(),
+                pts: vec![(1.0, 2.0), (3.5, -4.25), (1e3, 1e-3)],
+            },
         ]
     }
 
@@ -310,9 +397,25 @@ mod tests {
     #[test]
     fn large_radius_arcs_survive_exactly() {
         // Regression 001: 9 fixed decimals moved the end of this arc by about 1e-5 mm.
-        let e = vec![Entity::Arc { layer: "CUT_OUTER".into(), c: (0.0, 0.0), r: 987654.3210987654, start_deg: 0.0, end_deg: 12.345678901234567 }, Entity::Line { layer: "CUT_OUTER".into(), a: (1e-9, -0.0), b: (123456789.12345679, 1.0 / 3.0) }];
+        let e = vec![
+            Entity::Arc {
+                layer: "CUT_OUTER".into(),
+                c: (0.0, 0.0),
+                r: 987654.3210987654,
+                start_deg: 0.0,
+                end_deg: 12.345678901234567,
+            },
+            Entity::Line {
+                layer: "CUT_OUTER".into(),
+                a: (1e-9, -0.0),
+                b: (123456789.12345679, 1.0 / 3.0),
+            },
+        ];
         let r = reimport_check(&e, &write(&e), 0.0);
-        assert!(r.pass && r.max_point_deviation == 0.0 && r.max_length_deviation == 0.0, "{r:?}");
+        assert!(
+            r.pass && r.max_point_deviation == 0.0 && r.max_length_deviation == 0.0,
+            "{r:?}"
+        );
     }
 
     #[test]
@@ -321,8 +424,22 @@ mod tests {
         let t = write(&e);
         assert!(!reimport_check(&e, &t.replace("632.4555320337", "632.4555321337"), 1e-8).pass);
         assert!(!reimport_check(&e, &t[..t.len() - 12], 1e-8).pass);
-        assert!(!reimport_check(&e, &t.replace("  0\nEOF", "  0\nCIRCLE\n  8\nX\n  0\nEOF"), 1e-8).pass);
-        assert!(!reimport_check(&e, &t.replacen("CUT_OUTER\n 10\n0.0", "NO_CUT\n 10\n0.0", 1), 1e-8).pass);
+        assert!(
+            !reimport_check(
+                &e,
+                &t.replace("  0\nEOF", "  0\nCIRCLE\n  8\nX\n  0\nEOF"),
+                1e-8
+            )
+            .pass
+        );
+        assert!(
+            !reimport_check(
+                &e,
+                &t.replacen("CUT_OUTER\n 10\n0.0", "NO_CUT\n 10\n0.0", 1),
+                1e-8
+            )
+            .pass
+        );
         assert!(read("garbage").is_err());
     }
 }

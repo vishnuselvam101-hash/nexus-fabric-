@@ -46,13 +46,24 @@ pub enum Layer {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Geom {
-    Line { a: P2, b: P2 },
+    Line {
+        a: P2,
+        b: P2,
+    },
     /// Circular arc traversed from angle `a0` to `a1` (radians): counter-clockwise
     /// if a1 > a0, clockwise if a1 < a0.
-    Arc { c: P2, r: f64, a0: f64, a1: f64 },
+    Arc {
+        c: P2,
+        r: f64,
+        a0: f64,
+        a1: f64,
+    },
     /// Polyline approximation of an exact curve; `eps_rep` is the estimated
     /// maximum deviation from the exact curve (mm).
-    Polyline { pts: Vec<P2>, eps_rep: f64 },
+    Polyline {
+        pts: Vec<P2>,
+        eps_rep: f64,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -101,7 +112,10 @@ pub struct Pattern {
 
 impl Pattern {
     pub fn quantity(&self, name: &str) -> Option<f64> {
-        self.quantities.iter().find(|(n, _)| *n == name).map(|(_, v)| *v)
+        self.quantities
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, v)| *v)
     }
 }
 
@@ -129,7 +143,10 @@ pub(crate) fn finite_pos(name: &'static str, v: f64) -> Result<(), UemError> {
     if v.is_finite() && v > 0.0 {
         Ok(())
     } else {
-        Err(UemError::OutOfRange { param: name, reason: format!("must be finite and > 0, got {v}") })
+        Err(UemError::OutOfRange {
+            param: name,
+            reason: format!("must be finite and > 0, got {v}"),
+        })
     }
 }
 
@@ -138,14 +155,21 @@ pub(crate) fn finite_pos(name: &'static str, v: f64) -> Result<(), UemError> {
 /// error *estimate*, not a bound.
 pub fn gauss(f: &dyn Fn(f64) -> f64, a: f64, b: f64, n: usize) -> (f64, f64) {
     const X5: [f64; 3] = [0.0, 0.538_469_310_105_683_1, 0.906_179_845_938_664];
-    const W5: [f64; 3] = [0.568_888_888_888_888_9, 0.478_628_670_499_366_47, 0.236_926_885_056_189_08];
+    const W5: [f64; 3] = [
+        0.568_888_888_888_888_9,
+        0.478_628_670_499_366_47,
+        0.236_926_885_056_189_08,
+    ];
     const X3: f64 = 0.774_596_669_241_483_4;
     let h = (b - a) / n as f64;
     let (mut s5, mut s3) = (0.0, 0.0);
     for i in 0..n {
         let m = a + (i as f64 + 0.5) * h;
         let k = 0.5 * h;
-        s5 += k * (W5[0] * f(m) + W5[1] * (f(m - k * X5[1]) + f(m + k * X5[1])) + W5[2] * (f(m - k * X5[2]) + f(m + k * X5[2])));
+        s5 += k
+            * (W5[0] * f(m)
+                + W5[1] * (f(m - k * X5[1]) + f(m + k * X5[1]))
+                + W5[2] * (f(m - k * X5[2]) + f(m + k * X5[2])));
         s3 += k * (8.0 / 9.0 * f(m) + 5.0 / 9.0 * (f(m - k * X3) + f(m + k * X3)));
     }
     (s5, (s5 - s3).abs())

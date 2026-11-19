@@ -20,7 +20,7 @@ pub mod deps;
 pub mod job;
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -69,25 +69,51 @@ fn canonical(v: &Value) -> String {
 }
 
 impl Record {
-    pub fn new(family: Family, kind: &str, payload: Value, relations: Vec<Rel>, activity: Option<String>) -> Record {
+    pub fn new(
+        family: Family,
+        kind: &str,
+        payload: Value,
+        relations: Vec<Rel>,
+        activity: Option<String>,
+    ) -> Record {
         let body = json!({ "family": family, "kind": kind, "payload": payload, "relations": relations, "activity": activity });
         let id = sha256_hex(canonical(&body).as_bytes());
-        Record { id, family, kind: kind.to_string(), payload, relations, activity }
+        Record {
+            id,
+            family,
+            kind: kind.to_string(),
+            payload,
+            relations,
+            activity,
+        }
     }
 
     /// Recompute the identity from content (used by audits and on load).
     pub fn verify_id(&self) -> bool {
-        Record::new(self.family, &self.kind, self.payload.clone(), self.relations.clone(), self.activity.clone()).id == self.id
+        Record::new(
+            self.family,
+            &self.kind,
+            self.payload.clone(),
+            self.relations.clone(),
+            self.activity.clone(),
+        )
+        .id == self.id
     }
 }
 
 pub fn rel(name: &str, to: &str) -> Rel {
-    Rel { rel: name.to_string(), to: to.to_string() }
+    Rel {
+        rel: name.to_string(),
+        to: to.to_string(),
+    }
 }
 
 /// Smallest set containing `roots` and closed under relations (and producing
 /// activities). Records missing from `records` are reported, never ignored.
-pub fn closure(records: &BTreeMap<String, Record>, roots: &[String]) -> (BTreeSet<String>, Vec<String>) {
+pub fn closure(
+    records: &BTreeMap<String, Record>,
+    roots: &[String],
+) -> (BTreeSet<String>, Vec<String>) {
     let mut seen = BTreeSet::new();
     let mut missing = Vec::new();
     let mut stack: Vec<String> = roots.to_vec();
@@ -112,7 +138,11 @@ pub fn closure(records: &BTreeMap<String, Record>, roots: &[String]) -> (BTreeSe
 
 /// Hash of a release closure: SHA-256 over the sorted record ids.
 pub fn closure_hash(ids: &BTreeSet<String>) -> String {
-    let joined: String = ids.iter().map(|s| s.as_str()).collect::<Vec<_>>().join("\n");
+    let joined: String = ids
+        .iter()
+        .map(|s| s.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
     sha256_hex(joined.as_bytes())
 }
 
@@ -147,9 +177,15 @@ pub enum ReleaseState {
 /// Release state from gate results (Spec 02 §10.3). A model confidence score
 /// is not an input to this function, and cannot be.
 pub fn release_state(gates: &[Gate]) -> ReleaseState {
-    if gates.iter().any(|g| g.critical && g.result == GateResult::Fail) {
+    if gates
+        .iter()
+        .any(|g| g.critical && g.result == GateResult::Fail)
+    {
         ReleaseState::Rejected
-    } else if gates.iter().all(|g| matches!(g.result, GateResult::Pass | GateResult::NotApplicable)) {
+    } else if gates
+        .iter()
+        .all(|g| matches!(g.result, GateResult::Pass | GateResult::NotApplicable))
+    {
         ReleaseState::Approved
     } else {
         ReleaseState::ReviewRequired
@@ -176,8 +212,20 @@ mod tests {
     #[test]
     fn closure_follows_relations_and_reports_missing() {
         let a = Record::new(Family::Claim, "a", json!(1), vec![], None);
-        let b = Record::new(Family::Claim, "b", json!(2), vec![rel("computed_from", &a.id)], None);
-        let c = Record::new(Family::Claim, "c", json!(3), vec![rel("computed_from", &b.id), rel("x", "deadbeef")], None);
+        let b = Record::new(
+            Family::Claim,
+            "b",
+            json!(2),
+            vec![rel("computed_from", &a.id)],
+            None,
+        );
+        let c = Record::new(
+            Family::Claim,
+            "c",
+            json!(3),
+            vec![rel("computed_from", &b.id), rel("x", "deadbeef")],
+            None,
+        );
         let unrelated = Record::new(Family::Claim, "u", json!(4), vec![], None);
         let mut m = BTreeMap::new();
         for r in [&a, &b, &c, &unrelated] {
@@ -190,17 +238,44 @@ mod tests {
         let h1 = closure_hash(&ids);
         let more = Record::new(Family::Claim, "v", json!(5), vec![], None);
         m.insert(more.id.clone(), more);
-        assert_eq!(closure_hash(&closure(&m, std::slice::from_ref(&c.id)).0), h1);
+        assert_eq!(
+            closure_hash(&closure(&m, std::slice::from_ref(&c.id)).0),
+            h1
+        );
     }
 
     #[test]
     fn release_state_rules() {
-        let g = |critical, result| Gate { id: "G".into(), name: "n".into(), critical, result, detail: String::new() };
-        assert_eq!(release_state(&[g(true, GateResult::Pass), g(true, GateResult::Fail)]), ReleaseState::Rejected);
-        assert_eq!(release_state(&[g(true, GateResult::Pass), g(false, GateResult::Fail)]), ReleaseState::ReviewRequired);
-        assert_eq!(release_state(&[g(true, GateResult::Pass), g(true, GateResult::NotImplemented)]), ReleaseState::ReviewRequired);
-        assert_eq!(release_state(&[g(true, GateResult::Pass), g(true, GateResult::Inconclusive)]), ReleaseState::ReviewRequired);
-        assert_eq!(release_state(&[g(true, GateResult::Pass)]), ReleaseState::Approved);
+        let g = |critical, result| Gate {
+            id: "G".into(),
+            name: "n".into(),
+            critical,
+            result,
+            detail: String::new(),
+        };
+        assert_eq!(
+            release_state(&[g(true, GateResult::Pass), g(true, GateResult::Fail)]),
+            ReleaseState::Rejected
+        );
+        assert_eq!(
+            release_state(&[g(true, GateResult::Pass), g(false, GateResult::Fail)]),
+            ReleaseState::ReviewRequired
+        );
+        assert_eq!(
+            release_state(&[
+                g(true, GateResult::Pass),
+                g(true, GateResult::NotImplemented)
+            ]),
+            ReleaseState::ReviewRequired
+        );
+        assert_eq!(
+            release_state(&[g(true, GateResult::Pass), g(true, GateResult::Inconclusive)]),
+            ReleaseState::ReviewRequired
+        );
+        assert_eq!(
+            release_state(&[g(true, GateResult::Pass)]),
+            ReleaseState::Approved
+        );
     }
 }
 
@@ -212,13 +287,38 @@ mod roundtrip_tests {
     /// which requires exact float round-tripping (serde_json `float_roundtrip`).
     #[test]
     fn records_survive_json_storage_bit_exactly() {
-        let asm = job::Request::HeaderWithBranch { header_radius: 150.0, header_dev_radius: 150.0, header_length: 1200.0, branch_station: 600.0, branch_radius: 100.0, branch_dev_radius: 100.0, beta_deg: 60.0, delta: 12.5, s_end: 400.0, surface_reference: "outside".into() };
-        let mut all = job::run(&job::Request::EccentricReducer { r1: 200.0, r2: 100.0, h: 300.0, e: 100.0 }, "t").records;
+        let asm = job::Request::HeaderWithBranch {
+            header_radius: 150.0,
+            header_dev_radius: 150.0,
+            header_length: 1200.0,
+            branch_station: 600.0,
+            branch_radius: 100.0,
+            branch_dev_radius: 100.0,
+            beta_deg: 60.0,
+            delta: 12.5,
+            s_end: 400.0,
+            surface_reference: "outside".into(),
+        };
+        let mut all = job::run(
+            &job::Request::EccentricReducer {
+                r1: 200.0,
+                r2: 100.0,
+                h: 300.0,
+                e: 100.0,
+            },
+            "t",
+        )
+        .records;
         all.extend(job::run(&asm, "t").records);
         for r in &all {
             let text = serde_json::to_string(r).unwrap();
             let back: Record = serde_json::from_str(&text).unwrap();
-            assert!(back.verify_id(), "record {} ({}) changed identity after a JSON round trip", r.kind, r.id);
+            assert!(
+                back.verify_id(),
+                "record {} ({}) changed identity after a JSON round trip",
+                r.kind,
+                r.id
+            );
         }
     }
 }
