@@ -16,7 +16,7 @@
   "surface_reference": "outside"
  },
  "expect": "refuse",
- "derivation": "Station 20: the opening (centre at station + R/tan(beta) = 106.6, reaching about 30 mm before the station) would cross the plate end x = 0.",
+ "derivation": "Station 20: the opening (centre at station + R/tan(beta) = 106.6, reaching 30 mm before it) would cross the plate end x = 0.",
  "refusal": {
   "kind": "engineering",
   "mentions": [

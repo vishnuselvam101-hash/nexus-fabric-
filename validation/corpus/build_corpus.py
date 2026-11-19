@@ -225,7 +225,7 @@ for R in (150.0,):
                      'Layout expectation from the float reference tier: header and branch cylinders placed in 3D, intersection by bisection on each branch ruling, '
                      'opening extents on the plate in the frame x = station, y = arc from the seam opposite the branch; saddle heights on the branch.', quantities=qq, measures=mm)
 # development radius different from contact radius, stations near the plate ends, large and small sizes
-for k, (R, Rd, r, rd, beta, delta, scale) in enumerate([(150, 145, 100, 96, 60, 20, 1), (150, 155, 60, 63, 40, -30, 1), (1500, 1490, 400, 394, 75, 300, 1), (150, 150, 100, 100, 60, 20, 0.01), (150, 150, 100, 100, 60, 20, 100)]):
+for k, (R, Rd, r, rd, beta, delta, scale, sref) in enumerate([(150, 145, 100, 96, 60, 20, 1, 'outside'), (150, 155, 60, 63, 40, -30, 1, 'inside'), (1500, 1490, 400, 394, 75, 300, 1, 'outside'), (150, 150, 100, 100, 60, 20, 0.01, 'outside'), (150, 150, 100, 100, 60, 20, 100, 'unknown')]):
     R, Rd, r, rd, delta = (v * scale for v in (R, Rd, r, rd, delta))
     j = RF.Joint3D(R, r, beta, delta)
     ph = np.linspace(0, 2 * np.pi, 20001)
@@ -234,7 +234,7 @@ for k, (R, Rd, r, rd, beta, delta, scale) in enumerate([(150, 145, 100, 96, 60, 
     for pos in ('near_start', 'near_end'):
         L = float(round(x.max() - x.min() + 3 * R, 6))
         st = float(round(-x.min() + 0.01 * R, 6)) if pos == 'near_start' else float(round(L - x.max() - 0.01 * R, 6))
-        rq = hwb(R, r, beta, delta, L, st, float(round(s.max() + 0.25 * R, 6)), R_dev=Rd, r_dev=rd)
+        rq = hwb(R, r, beta, delta, L, st, float(round(s.max() + 0.25 * R, 6)), R_dev=Rd, r_dev=rd, sref=sref)
         qq, mm = assembly_expect(rq)
         case(f'D-ASM-DEV-{k + 1}-{pos}', 'assembly', f'R={R:g} (dev {Rd:g}), r={r:g} (dev {rd:g}), beta={beta}, delta={delta:g}, opening {pos.replace("_", " ")} of the plate', rq,
              'As the D-ASM cases; development radii differ from contact radii (angles from the contact surfaces, arc lengths on the development radius); opening 0.01 R from a plate end.',
@@ -312,6 +312,13 @@ refuse('E-asm-sref-invalid', 'assembly: undeclared surface reference', dict(asm,
 refuse('E-asm-equal-tee', 'assembly: equal tee', dict(asm, branch_radius=150, branch_dev_radius=150, beta_deg=90, delta=0), ['delta', 'branch'], 'Equal tee not implemented.')
 refuse('E-asm-partial', 'assembly: |delta| + r > R', dict(asm, delta=60), ['delta', 'branch'], 'Partial intersection.')
 refuse('E-asm-beta-0', 'assembly: beta = 0', dict(asm, beta_deg=0), ['beta', 'angle', 'branch'], 'Parallel axes.')
+refuse('E-unknown-field', 'unknown request field', dict(base_cone, thickness=12), ['unknown', 'thickness'], 'A field the family does not have must not be ignored silently (contract since engine 0.2.0).', kind='malformed')
+for sref, Rd, rd in (('outside', 155, 100), ('outside', 150, 104), ('inside', 145, 100), ('inside', 150, 97), ('neutral', 149, 100), ('neutral', 150, 100.5)):
+    refuse(f'E-asm-sref-{sref}-{Rd}-{rd}', f'assembly: development radii impossible for contact radii declared {sref} (R 150 / dev {Rd}, r 100 / dev {rd})', dict(asm, header_dev_radius=Rd, branch_dev_radius=rd, surface_reference=sref),
+           ['surface_reference', 'inconsistent'], 'Spec 02 6.1: the development surface lies inside the wall (r_inside <= r_dev <= r_outside). A development radius beyond the declared contact surface means a negative wall thickness.')
+for fam, (base, pos) in valid.items():
+    refuse(f'E-{fam}-{pos[0]}-2e8', f'{fam}: {pos[0]} = 2e8 mm', dict(base, **{pos[0]: 2e8}), ['magnitude', 'exceeds'], 'Declared implementation limit of the build: magnitudes above 1e8 mm are refused.')
+    refuse(f'E-{fam}-{pos[-1]}-5e-7', f'{fam}: {pos[-1]} = 5e-7 mm', dict(base, **{pos[-1]: 5e-7}), ['below', 'smallest'], 'Declared implementation limit of the build: positive dimensions below 1e-6 mm are refused.')
 NOTES = {'not_constructible': [{'id': 'E-asm-opening-crosses-seam', 'reason': 'The product fixes the longitudinal seam diametrically opposite the branch and accepts no seam position input; '
                                 'the opening spans |omega| < 90 deg for every supported joint, so an opening crossing the seam cannot be requested. The validator instead measures the '
                                 'opening-to-seam clearance on every accepted assembly (checks/compare.py, opening_seam_clearance).'}]}

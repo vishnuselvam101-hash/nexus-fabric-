@@ -1,5 +1,44 @@
 # Computational validation report
 
+## 0. Re-run on engine `nf-engine 0.3.0` (commit 469c6d9), 19 November 2026
+
+Sections 1–8 below describe the first run, against the build of 02:38. This section is the current state. The reference (`validation/reference/`) was **not changed** between runs: it draws every pattern as seen from outside by construction (pattern normal = outward surface normal), and the product is mapped onto it with and without mirroring. Only the harness was adapted to the new contract.
+
+**Result: 1,362 cases — 925 agree, 0 disagree, 437 refused correctly, 0 wrongly accepted, 0 wrongly refused.** The run still exits non-zero because D4 is open.
+
+| Defect | State on 0.3.0 | Evidence from the independent run |
+|---|---|---|
+| D1 marking side | **fixed** | every part declares `marking_side: outside` in the result and in a DXF text line; in all 301 assemblies compared the header and the branch match the outside-view reference without mirroring (174 asymmetric joints: outside only, both parts); folded from the same face the saddle meets the opening within 4.8e-11 mm. The R150 / r100 / β60 / δ20 case: 2.6e-13 mm outside/outside; 114 and 57 mm for the mixed combinations |
+| D2 non-finite output | **fixed** | 1e308 and 2e8 mm inputs refused (HTTP 422, state REFUSED); no accepted job contains a non-finite number |
+| D3 `eps_rep` low near tangency | **fixed as an estimate** | largest ratio true / stated 1.052 (was 1.21); the harness now reports a ratio above 1.10. The error itself still reaches about 0.2 mm at R = 150 next to tangency; it is reported, not reduced |
+| D4 `eps_num` exceeded | **still reproduces** | 11 parts in 6 near-tangent cases, factors 1.1…6.1, absolute ≤ 1.4e-11 mm. Relabelled an estimate; the value is unchanged (the product's own register lists it as open) |
+| D5 DXF extents | **fixed** | header extents equal the cut-geometry box on the sides not occupied by the marking text, in every cone |
+| D6 cone closing on itself | **fixed** | right cones refused from 99.9 % of a turn, as reducers are |
+| D7 JSON arc points | **fixed by labelling** | each arc carries `points_exact: false` and a `points_max_deviation` not smaller than the measured sagitta |
+| D8 scale dependence | **fixed inside the declared range** | exact scaling from 2^-26 to 2^16 of the test parts; outside 1e-6…1e8 mm every request is refused |
+
+Nothing new was broken: no geometry difference from the reference appeared in any accepted job.
+
+Contract changes absorbed by the harness (expectations changed only where the contract changed):
+
+- first-run setup token (`--setup-token` or `NF_SETUP_TOKEN`; `--spawn` generates one);
+- an engineering refusal is HTTP 422 with state REFUSED (291 cases); malformed input and unknown fields are HTTP 400 (146);
+- magnitudes outside 1e-6…1e8 mm and development radii impossible for the declared surface are refusals; the oracle, the workload generator and 17 new corpus cases follow (corpus now 518);
+- DXF: both readers accept non-cutting TEXT on layer `NF_NOT_RELEASED` only; any other entity off the `CUT_*` layers, any non-line/arc/polyline on them, and any change to cut geometry fails. `seeded_faults.py` plants five such tamperings (vertex moved 1e-6 mm, extra line on a cut layer, on the marking layer, on a new layer, opening moved to the outer layer) and all are reported;
+- new checks: declared marking side against the side the geometry is really drawn from, agreement of result and DXF, same side on all parts, mating from the declared side. The planted D1 (mirrored saddle) and Defect 002 are both reported.
+
+Observations that remain: a real set-on joint (branch inside surface on header outside surface) can only be declared `unknown`, because one surface reference covers all radii; with `unknown`, development radii of any size are still accepted (R_dev = 10 R passes); the station is the axis work point and the DXF does not label the station-0 end; the marking side is a provisional convention that no fabrication engineer has confirmed.
+
+CI command (about 2 minutes, 155 cases, includes the Defect 002 and D1 detectors, the DXF tampering tests and every closed-form case):
+
+```
+pip install -r validation/requirements.txt && python3 validation/run_all.py --spawn target/release/nf-server --quick
+```
+
+It fails today on D4 only (case `N-tangent-d-b90-g2e-06`).
+
+---
+
 19 November 2026 · suite in `validation/` · raw results in `validation/results/latest.json`
 
 **Build tested:** the `nf-server` release binary copied from the shared build tree at 02:38 on 19 November (engine `nf-core 0.1.0 / uem 0.1.0`, after the Defect 002 fix), driven through its HTTP API on a private data directory. Product code was not edited. Anything changed in the source tree after that copy is not covered.

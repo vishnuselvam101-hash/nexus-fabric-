@@ -13,7 +13,7 @@
   "beta_deg": 40,
   "delta": -30,
   "s_end": 339.281049,
-  "surface_reference": "outside"
+  "surface_reference": "inside"
  },
  "expect": "accept",
  "derivation": "As the D-ASM cases; development radii differ from contact radii (angles from the contact surfaces, arc lengths on the development radius); opening 0.01 R from a plate end.",

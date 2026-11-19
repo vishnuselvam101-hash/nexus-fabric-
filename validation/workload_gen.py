@@ -38,7 +38,14 @@ def _expected(req):
 def _header_branch(rng, hi, bi, sref):
     od, t = PIPE_OD[hi], WALL[hi]
     bod, bt = PIPE_OD[bi], WALL[bi]
-    R, r = od / 2, bod / 2 - bt                   # set-on: branch inside surface on header outside surface
+    R = od / 2
+    # A real set-on joint puts the branch INSIDE surface on the header OUTSIDE surface.  The product has one
+    # surface_reference for all radii, so that mix can only be declared 'unknown'; the other parts use the
+    # outside surfaces of both pipes, declared 'outside'.
+    if sref == 'unknown':
+        r = bod / 2 - bt
+    else:
+        r, sref = bod / 2, 'outside'
     beta = rng.choice(ANGLES)
     slack = R - r
     delta = 0.0 if rng.random() < 0.6 else round(rng.uniform(-0.8, 0.8) * slack, 1)
@@ -105,7 +112,7 @@ def generate(parts=1000, seed=1, invalid=0.0, repeat=0.15, mirror=0.10):
         spool += 1
         hi = rng.randrange(3, len(PIPE_OD))
         od, t = PIPE_OD[hi], WALL[hi]
-        sref = rng.choice(['outside', 'outside', 'inside', 'neutral', 'unknown'])
+        sref = rng.choice(['outside', 'unknown'])
         new = []
         for _ in range(rng.randint(1, 4)):                                   # branches on this header
             bi = rng.randrange(0, hi)

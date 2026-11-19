@@ -9,6 +9,7 @@ import urllib.request
 from http.cookiejar import CookieJar
 
 USER, PASSWORD = 'validator', 'independent-check-7'
+SETUP_TOKEN_ENV = 'NF_SETUP_TOKEN'
 
 
 class Client:
@@ -19,10 +20,10 @@ class Client:
         self._cred = None
         self.engine = None
 
-    def raw(self, method, path, body=None, raw_body=None):
+    def raw(self, method, path, body=None, raw_body=None, headers=None):
         """Returns (status, bytes).  `raw_body` sends text exactly as given (for malformed JSON tests)."""
         data = raw_body.encode() if raw_body is not None else (json.dumps(body).encode() if body is not None else None)
-        req = urllib.request.Request(self.base + path, data=data, method=method, headers={'X-NF-Request': '1', 'Content-Type': 'application/json'})
+        req = urllib.request.Request(self.base + path, data=data, method=method, headers=dict({'X-NF-Request': '1', 'Content-Type': 'application/json'}, **(headers or {})))
         for attempt in range(40):
             try:
                 with self.opener.open(req, timeout=120) as r:
@@ -43,18 +44,21 @@ class Client:
         except Exception:
             return st, {'_raw': b.decode('utf-8', 'replace')}
 
-    def connect(self, user=USER, password=PASSWORD):
+    def connect(self, user=USER, password=PASSWORD, setup_token=None):
         st, h = self.json('GET', '/api/health')
         if st != 200:
             raise RuntimeError(f'server not healthy: {st}')
         if h.get('setup_required'):
-            self.json('POST', '/api/setup', {'username': user, 'password': password})
+            token = setup_token or os.environ.get(SETUP_TOKEN_ENV)
+            st, b = self.raw('POST', '/api/setup', {'username': user, 'password': password}, headers={'X-NF-Setup-Token': token} if token else None)
+            if st != 200:
+                raise RuntimeError(f'first-run setup failed ({st}): {b[:300]!r}. Pass the installation setup token with --setup-token or {SETUP_TOKEN_ENV}.')
         self.login(user, password)
         st, r = self.json('POST', '/api/projects', {'name': 'computational validation ' + time.strftime('%Y%m%d-%H%M%S'), 'description': 'independent validation run'})
         if st != 200:
             raise RuntimeError(f'cannot create project: {st} {r}')
         self.project = r['id']
-        self.engine = h.get('engine')
+        self.engine = h.get('engine')      # newer builds report the engine id on each result instead
         return self
 
     def login(self, user=USER, password=PASSWORD):
@@ -72,9 +76,10 @@ class Client:
         except Exception:
             out['error'] = b.decode('utf-8', 'replace')
             return out
-        if st != 200:
+        if st not in (200, 422) or 'id' not in r:
             out['error'] = r.get('error', str(r))
             return out
+        out['error'] = r.get('error')      # 422: refused, recorded as a job in state REFUSED
         out['id'] = r['id']
         st2, res = self.json('GET', f"/api/calculations/{r['id']}")
         out['result'] = res if st2 == 200 else None
@@ -90,6 +95,8 @@ class SpawnedServer:
 
     def __init__(self, binary, port=8802):
         import threading
+        import secrets
+        self.token = os.environ.get(SETUP_TOKEN_ENV) or secrets.token_hex(20)
         self.binary, self.port = binary, port
         self.dir = tempfile.mkdtemp(prefix='nf-validation-')
         self.url = f'http://127.0.0.1:{port}'
@@ -99,7 +106,7 @@ class SpawnedServer:
         threading.Thread(target=self._watch, daemon=True).start()
 
     def _start(self):
-        env = dict(os.environ, NF_DATA_DIR=self.dir, NF_LISTEN=f'127.0.0.1:{self.port}')
+        env = dict(os.environ, NF_DATA_DIR=self.dir, NF_LISTEN=f'127.0.0.1:{self.port}', NF_SETUP_TOKEN=self.token)
         self.proc = subprocess.Popen([self.binary], env=env, stdout=self.log, stderr=subprocess.STDOUT)
         for _ in range(100):
             try:

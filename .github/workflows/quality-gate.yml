@@ -38,9 +38,6 @@ jobs:
           sleep 2
           node tests/ui_smoke.js
       - name: Independent computational and DXF validation
-        if: hashFiles('validation/run_all.py') != ''
         run: |
           python3 -m pip install -r validation/requirements.txt
-          NF_DATA_DIR="$(mktemp -d)" NF_LISTEN=127.0.0.1:8802 target/release/nf-server &
-          sleep 2
-          python3 validation/run_all.py --url http://127.0.0.1:8802
+          python3 validation/run_all.py --spawn target/release/nf-server --quick

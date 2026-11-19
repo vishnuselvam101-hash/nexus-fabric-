@@ -64,14 +64,16 @@ def cases():
     add('aspect-branch-long', 'very long stub s_end = 1e6 R', {'family': 'branch_stub', 'header_radius': 150, 'branch_radius': 100, 'branch_dev_radius': 100, 'beta_deg': 60, 'delta': 20, 's_end': 1.5e8})
     a = _asm(150.0, 100.0, 60, 20.0)
     add('aspect-header-long', 'very long header L = 1e7 R', dict(a, header_length=1.5e9, branch_station=7.5e8))
-    add('devradius-mismatch', 'development radii far from contact radii (R_dev = 10 R, r_dev = 0.1 r): accepted without any plausibility check?', dict(a, header_dev_radius=1500.0, branch_dev_radius=10.0), hp=False)
+    add('devradius-mismatch', 'development radii impossible for the declared surface (R_dev = 10 R, declared outside)', dict(a, header_dev_radius=1500.0, branch_dev_radius=10.0), hp=False)
+    add('devradius-mismatch-unknown', 'development radii far from contact radii with surface reference unknown (R_dev = 10 R, r_dev = 0.1 r): accepted without plausibility check', dict(a, header_dev_radius=1500.0, branch_dev_radius=10.0, surface_reference='unknown'), hp=False)
     # extreme magnitudes through exact scaling
     bases = {'cyl': {'family': 'cylinder_shell', 'r_dev': 500, 'length': 1000}, 'cone': {'family': 'cone_frustum', 'r1': 200, 'r2': 100, 'h': 300},
              'ecc': {'family': 'eccentric_reducer', 'r1': 200, 'r2': 100, 'h': 300, 'e': 100}, 'asm': a}
     for name, b in bases.items():
-        for n in (-1040, -1000, -520, -500, -200, -60, -20, 20, 60, 200, 500, 505, 1000, 1010):
-            cs.append({'id': f'N-magnitude-{name}-2^{n}', 'group': 'stability', 'title': f'{b["family"]} scaled by 2^{n} (~{2.0 ** n:.1e})', 'request': b, 'expect': 'accept', 'compare': False, 'hp': False,
-                       'relation': {'type': 'scale', 'k': 2.0 ** n, 'refusal_ok': True}})
+        for n in (-1040, -200, -60, -30, -26, -22, -16, -8, 8, 14, 16, 18, 30, 200, 505, 1010):
+            inside = -26 <= n <= 16      # every dimension of the scaled part stays within the declared 1e-6 .. 1e8 mm
+            cs.append({'id': f'N-magnitude-{name}-2^{n}', 'group': 'stability', 'title': f'{b["family"]} scaled by 2^{n} (~{2.0 ** n:.1e})' + ('' if inside else ' - outside the declared range'), 'request': b, 'expect': 'accept', 'compare': False, 'hp': False,
+                       'relation': {'type': 'scale', 'k': 2.0 ** n, 'refusal_ok': not inside}})
     return cs
 
 
