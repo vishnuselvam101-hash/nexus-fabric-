@@ -7,7 +7,10 @@ html,body{margin:0;background:var(--g0);overflow:hidden}
 #stage.ja{font-family:"IPAPGothic","IPAGothic","Liberation Sans",sans-serif}
 #stage>*{position:absolute}
 #shot{overflow:hidden;background:var(--g1);opacity:0}
-#shot img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;object-position:left top;opacity:0}
+#shot{box-shadow:0 36px 90px rgba(0,0,0,.55)}
+#shot img{position:absolute;left:0;top:0;transform-origin:0 0;opacity:0}
+#sub{left:0;right:0;top:178px;text-align:center;font-size:23px;line-height:28px;letter-spacing:.005em;color:var(--t2);white-space:nowrap;opacity:0}
+.ja #sub{font-size:22px;letter-spacing:.14em}
 canvas{left:0;top:0}
 .lat{font-family:"Liberation Sans","Helvetica Neue",Helvetica,Arial,sans-serif}
 .mono{font-family:"Liberation Mono","DejaVu Sans Mono",monospace}
@@ -50,11 +53,11 @@ sup{font-size:.6em;font-style:normal;line-height:0}
 .ja #bs{font-size:19px;letter-spacing:.3em}
 #bs span{opacity:0;display:inline-block;margin:0 .55em}
 </style></head><body><div id="stage">
-<div id="shot"><img id="i1" src="assets/app-amoeba.png"><img id="i2" src="assets/app-verification.png"></div>
+<div id="shot"><img id="i1" src="assets/app-verification.png"><img id="i2" src="assets/app-pattern-branch.png"><img id="i3" src="assets/app-amoeba.png"></div>
 <canvas id="c" width="1920" height="1080"></canvas>
 <div id="wm" class="lat"><svg id="glyph" width="34" height="16" viewBox="0 0 34 16"></svg><span>NEXUS FABRIC</span></div>
 <div id="idx" class="mono"></div>
-<div id="head"></div>
+<div id="head"></div><div id="sub"></div>
 <div id="eq"><div class="kick"><i class="mk i"></i><span id="eqk"></span></div>
  <div class="math"><span>s<span class="up">(</span>φ<span class="up">)</span></span><span class="up">=</span><span class="frac"><span class="n"><span class="up">√</span><span class="rad">R<sup>2</sup> <span class="up">−</span> <span class="up">(</span>r <span class="up">cos</span> φ<span class="up">)</span><sup>2</sup></span> <span class="up">−</span> r <span class="up">sin</span> φ <span class="up">cos</span> β</span><span class="d"><span class="up">sin</span> β</span></span></div>
  <div class="note mono" id="eqn"></div></div>
@@ -144,7 +147,7 @@ function dim(c, a, b, label, f, o = {}) {       // dimension line with oblique t
 
 // ---------- scene 1-2: the drawing sheet, which becomes the application frame, which collapses into the header axis
 const FC = [960, 590];
-function frameRect(t) { const w = 1248 * (0.965 + 0.035 * cl(t / 5)) + 96 * out(5.0, 5.9, t), h = w * 9 / 16 * (1 - sm(10.55, 11.1, t)); return { x: FC[0] - w / 2, y: FC[1] - h / 2, w, h, s: w / 1248 }; }
+function frameRect(t) { const w = 1248 * (0.965 + 0.035 * cl(t / 5)) + 32 * out(5.0, 5.9, t), h = w * 9 / 16 * (1 - sm(10.55, 11.1, t)); return { x: FC[0] - w / 2, y: FC[1] - h / 2, w, h, s: w / 1248 }; }
 function drawSheet(t) {
   const F = frameRect(t), s = F.s, a1 = 1 - sm(4.65, 5.15, t);
   g.save(); g.lineWidth = 1; g.strokeStyle = C.line;
@@ -203,7 +206,7 @@ function draw3D(t) {
   const sa = sm(12.35, 13.5, t), flat = sm(21.5, 22.3, t), gone = sm(24.5, 25.1, t);
   const HP = (x, u) => P(hdrPt(x, u, kH)), BP = (w, s) => P(brPt(F, w, s, kB));
   // header axis: the collapsed application frame becomes the centreline
-  const Lh = mix(672 / 70, 6.7, sm(11.05, 11.8, t)), axA = 1 - sm(12.7, 13.7, t);
+  const Lh = mix(640 / 70, 6.7, sm(11.05, 11.8, t)), axA = 1 - sm(12.7, 13.7, t);
   if (axA > 0) { g.save(); g.lineWidth = 1; const a = P([-Lh, 0, 0]), b = P([Lh, 0, 0]), k = sm(11.2, 11.9, t); g.globalAlpha = axA * (1 - k); g.strokeStyle = C.line; poly(g, [a, b]); g.globalAlpha = axA * k; g.strokeStyle = C.t1; g.setLineDash([22, 5, 3, 5]); poly(g, [a, b]);
     poly(g, [P(sc(A0, -1)), P(sc(A0, S_END + 0.8))], sm(11.5, 12.3, t)); g.restore(); }
   // elevation linework (the drawing view is the front projection of the solid)
@@ -266,7 +269,8 @@ const strip = (s) => s.split(/[:：]/)[0].trim();
 let HEADS = [], STL = [], STR = [];
 function build() {
   const lb = L.labels;
-  HEADS = L.headline;
+  HEADS = L.headline.slice(); if (lang === 'ja') HEADS[1] = 'NEXUS FABRIC';
+  $('sub').textContent = lang === 'ja' ? ((L.vo && L.vo[1]) || 'AMOEBAを核とする、AIネイティブの設計基盤').split('。')[0] : 'AI-native engineering platform powered by AMOEBA';
   STL = [lbl('c', `${X.concept} · ${lb.fictional}`), lbl('i', `${lb.implemented} · ${lb.actual}`), lbl('p', lb.planned_concept, 1), lbl('i', `${lb.demonstrated} · ${X.redrawn}`), lbl('p', lb.disclaimer)];
   STR = ['', '', lbl('p', lb.planned_reading, 1), lbl('p', lb.planned_constraints, 1), ''];
   $('eqk').textContent = `${lb.implemented} · ${X.c1}`; $('eqn').innerHTML = `R = ${R * MM} &nbsp; r = ${r * MM} &nbsp; β = ${Math.round(BETA * 180 / PI)}°<br>${X.ref}`; if (lang === 'ja') $('eqn').style.fontFamily = JAF;
@@ -282,15 +286,19 @@ window.seek = (t) => {
   t = Math.min(Math.max(+t || 0, 0), 30); g.clearRect(0, 0, 1920, 1080);
   // application frame and captures (real screenshots, slow push)
   const F = frameRect(t), sh = $('shot'), ia = win(5.05, 5.6, 10.3, 10.75, t); sh.style.left = F.x + 'px'; sh.style.top = F.y + 'px'; sh.style.width = F.w + 'px'; sh.style.height = F.h + 'px'; sh.style.opacity = ia;
-  const x2 = sm(7.9, 8.5, t); $('i1').style.opacity = 1; $('i2').style.opacity = x2;
-  $('i1').style.transform = `scale(${1 + 0.035 * cl((t - 5) / 3.5)})`; $('i1').style.transformOrigin = '50% 40%';
-  $('i2').style.transform = `scale(${1.2 + 0.05 * cl((t - 7.9) / 3.1)})`; $('i2').style.transformOrigin = '56% 62%';
+  // virtual camera on the captures: crops and scaling only (cx, cy in capture pixels of a 1920 x 1080 page; z = 1 shows the whole page)
+  const IW = F.w, IH = F.w * 9 / 16, push = sm(5.8, 6.9, t), dr = cl((t - 6.9) / 2.5), d3 = cl((t - 9.1) / 1.9);
+  const cams = [[mix(960, 1214, push), mix(540, 578, push), mix(1.0, 1.35, push) + 0.012 * dr], [1214, 578, 1.35 + 0.012 * dr], [915, 552, 1.41 + 0.015 * d3]];
+  const al = [1, sm(7.9, 8.4, t), sm(9.1, 9.6, t)];
+  ['i1', 'i2', 'i3'].forEach((id, k) => { const e = $(id), [cx, cy, z] = cams[k]; e.style.width = IW + 'px'; e.style.height = IH + 'px'; e.style.opacity = al[k];
+    e.style.transform = `translate(${(IW / 2 - z * cx / 1920 * IW).toFixed(3)}px,${(F.h / 2 - z * cy / 1080 * IH).toFixed(3)}px) scale(${z.toFixed(5)})`; });
+  if (ia > 0 && F.h > 2) { g.save(); g.globalAlpha = ia * 0.6; g.strokeStyle = C.t1; g.lineWidth = 1; g.strokeRect(Math.round(F.x) + 0.5, Math.round(F.y) + 0.5, Math.round(F.w), Math.round(F.h)); g.restore(); }
   if (t < 11.1) drawSheet(t);
   if (t >= 11.05 && t < 25.2) draw3D(t);
   drawRule(t);
   // headline, status labels, index
   const n = Math.min(4, SEG.findIndex(([a, b]) => t >= a && t < b) < 0 ? 4 : SEG.findIndex(([a, b]) => t >= a && t < b)), [a, b] = SEG[n];
-  const hv = n === 4 ? 0 : sm(a + 0.3, a + 0.95, t) * (1 - sm(b - 0.5, b - 0.12, t)); $('head').textContent = HEADS[n]; set($('head'), hv, 10 * (1 - out(a + 0.3, a + 1.2, t)));
+  const hv = n === 4 ? 0 : sm(a + 0.3, a + 0.95, t) * (1 - sm(b - 0.5, b - 0.12, t)); $('head').textContent = HEADS[n]; set($('sub'), n === 1 ? sm(a + 0.6, a + 1.3, t) * (1 - sm(b - 0.5, b - 0.12, t)) : 0, 6 * (1 - out(a + 0.6, a + 1.5, t))); set($('head'), hv, 10 * (1 - out(a + 0.3, a + 1.2, t)));
   const sv = n === 4 ? sm(26.3, 27.0, t) : sm(a + 0.5, a + 1.1, t) * (1 - sm(b - 0.45, b - 0.1, t));
   if ($('stl').dataset.n !== String(n)) { $('stl').innerHTML = STL[n]; $('str').innerHTML = STR[n]; $('stl').dataset.n = n; }
   set($('stl'), sv); set($('str'), n === 2 ? win(12.6, 13.2, 17.55, 17.9, t) : sv);
