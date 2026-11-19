@@ -83,6 +83,21 @@ check "obligation resolved by engineer decision"    '[ "$(post /api/obligations/
 check "resolved obligation cannot be resolved twice" '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"decision\":\"waived\",\"reason\":\"second attempt\"}" $BASE/api/obligations/$OID/resolve)" = 409 ]'
 check "two obligations remain open"                 '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/obligations | j "sum(1 for o in d if o[\"state\"]==\"open\")")" = 2 ]'
 check "new job still REVIEW_REQUIRED"               '[ "$(get $A2 | j "d[\"state\"]")" = REVIEW_REQUIRED ]'
+# --- learning from mistakes: the corrected value must not slip through again
+check "correction recorded as a lesson"            '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/lessons | j "[(l[\"kind\"],l[\"parameter\"],l[\"wrong_value\"],l[\"right_value\"]) for l in d]==[(\"corrected_value\",\"header_radius\",150.0,142.0)]")" = True ]'
+check "corrected job itself raises no advisory"    '[ "$(get $A2 | j "d[\"advisories\"]")" = "[]" ]'
+A3=$(run '{"family":"header_with_branch","header_radius":150,"header_dev_radius":150,"header_length":900,"branch_station":450,"branch_radius":90,"branch_dev_radius":90,"beta_deg":75,"delta":0,"s_end":400,"surface_reference":"outside"}')
+RC=$(get $A3)
+check "repeating the corrected value raises an advisory" '[ "$(echo "$RC" | j "len(d[\"advisories\"])==1 and \"header_radius = 150\" in d[\"advisories\"][0][\"message\"] and d[\"advisories\"][0][\"state\"]==\"open\"")" = True ]'
+check "known-mistake gate holds the job in review"  '[ "$(echo "$RC" | j "[g[\"result\"] for g in d[\"gates\"] if g[\"id\"]==\"G20\"][0]")" = INCONCLUSIVE ]'
+check "the value itself was not changed"            '[ "$(echo "$RC" | j "d[\"request\"][\"header_radius\"]")" = 150.0 ]'
+AID=$(echo "$RC" | j 'd["advisories"][0]["id"]')
+check "acknowledging without a reason refused"      '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{}" $BASE/api/advisories/$AID/acknowledge)" = 400 ]'
+check "engineer acknowledges with a reason"         '[ "$(post /api/advisories/$AID/acknowledge "{\"reason\":\"different header: this one is dimensioned outside\"}" | j "d[\"state\"]")" = acknowledged ]'
+check "known-mistake gate passes after acknowledgement" '[ "$(get $A3 | j "[g[\"result\"] for g in d[\"gates\"] if g[\"id\"]==\"G20\"][0]")" = PASS ]'
+check "job still not approved"                      '[ "$(get $A3 | j "d[\"state\"]")" = REVIEW_REQUIRED ]'
+A4=$(run '{"family":"header_with_branch","header_radius":142,"header_dev_radius":150,"header_length":900,"branch_station":450,"branch_radius":90,"branch_dev_radius":90,"beta_deg":75,"delta":0,"s_end":400,"surface_reference":"inside"}')
+check "the corrected value raises no advisory"      '[ "$(get $A4 | j "d[\"advisories\"]")" = "[]" ]'
 check "single-part job cannot be corrected this way" '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"parameter\":\"r1\",\"new_value\":210,\"reason\":\"test reason\"}" $BASE/api/calculations/$C1/corrections)" = 400 ]'
 check "malformed request refused"                 '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"family\":\"teapot\"}" $BASE/api/projects/1/calculations)" = 400 ]'
 

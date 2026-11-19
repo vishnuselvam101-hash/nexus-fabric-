@@ -46,6 +46,8 @@ check "other engineer: cannot replay"                     '[ "$(asc bob -X POST 
 check "other engineer: cannot correct"                    '[ "$(asc bob -H "$CT" -d "{\"parameter\":\"delta\",\"new_value\":5,\"reason\":\"attempted tamper\"}" $BASE/api/calculations/$NEW/corrections)" = 404 ]'
 check "other engineer: obligations list is empty"         '[ "$(as bob $BASE/api/obligations | j "len(d)")" = 0 ]'
 check "other engineer: cannot resolve an obligation"      '[ "$(asc bob -H "$CT" -d "{\"decision\":\"waived\",\"reason\":\"attempted bypass\"}" $BASE/api/obligations/1/resolve)" = 404 ]'
+check "other engineer: lessons of the project hidden"    '[ "$(as bob $BASE/api/lessons | j "len(d)")" = 0 ]'
+check "other engineer: cannot acknowledge an advisory"    '[ "$(as alice -H "$CT" -d "{\"family\":\"header_with_branch\",\"header_radius\":150,\"header_dev_radius\":150,\"header_length\":1200,\"branch_station\":600,\"branch_radius\":100,\"branch_dev_radius\":100,\"beta_deg\":60,\"delta\":0,\"s_end\":400,\"surface_reference\":\"outside\"}" $BASE/api/projects/1/calculations | j "d[\"advisories\"]")" = 1 ] && [ "$(asc bob -H "$CT" -d "{\"reason\":\"attempted bypass\"}" $BASE/api/advisories/1/acknowledge)" = 404 ]'
 check "other engineer: dashboard shows nothing of it"     '[ "$(as bob $BASE/api/dashboard | j "d[\"calculations\"]+d[\"documents\"]+d[\"records\"]+d[\"open_obligations\"]")" = 0 ]'
 check "other engineer: record summary shows nothing"      '[ "$(as bob $BASE/api/amoeba/summary | j "len(d[\"records_by_kind\"])")" = 0 ]'
 check "engineer cannot grant themselves membership"       '[ "$(asc bob -H "$CT" -d "{\"username\":\"bob\"}" $BASE/api/projects/1/members)" = 403 ]'

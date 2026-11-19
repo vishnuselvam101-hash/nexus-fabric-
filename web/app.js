@@ -162,6 +162,11 @@ const views = {
         try { const r = await api(`/api/calculations/${id}/corrections`, { method: 'POST', json: { parameter: f.p.value, new_value: Number(f.v.value), reason: f.r.value } }); location.hash = `#/calc/${r.new_calculation}`; }
         catch (err) { $('#corrmsg').innerHTML = `<div class="err">${esc(err.message)}</div>`; }
       };
+      document.querySelectorAll('[data-ack]').forEach((btn) => { btn.onclick = async () => {
+        const input = document.querySelector(`[data-advreason="${btn.dataset.ack}"]`); const reason = input.value.trim();
+        if (reason.length < 5) { input.focus(); input.setAttribute('aria-invalid', 'true'); say('Enter why the value is right this time (recorded with your name).'); return; }
+        try { await api(`/api/advisories/${btn.dataset.ack}/acknowledge`, { method: 'POST', json: { reason } }); route(); } catch (err) { say(err.message); }
+      }; });
       document.querySelectorAll('[data-resolve]').forEach((btn) => { btn.onclick = async () => {
         const input = document.querySelector(`[data-reason="${btn.dataset.resolve}"]`);
         const reason = input.value.trim();
@@ -197,6 +202,11 @@ const views = {
         <h2>Assumptions</h2><ul class="tight">${p.assumptions.map((a) => `<li>${esc(a)}</li>`).join('')}</ul></div>`).join('')}
       ${c.checks.length ? `<div class="card"><h2 style="margin-top:0">Independent verification</h2><table><tr><th>Scope</th><th>Check</th><th>Reference method</th><th>Primary</th><th>Reference</th><th>Difference</th><th>Tolerance</th><th></th></tr>${c.checks.map((k) =>
         `<tr><td>${esc(k.scope)}</td><td>${esc(k.name)}<br><span class="sub">${esc(k.independence)}</span></td><td>${esc(k.method)}</td><td class="num">${fmt(k.primary)}</td><td class="num">${fmt(k.reference)}</td><td class="num">${fmt(k.difference)}</td><td class="num">${fmt(k.tolerance)}</td><td>${resultBadge(k.verdict)}</td></tr>`).join('')}</table></div>` : ''}
+      ${c.advisories.length ? `<div class="card"><h2 style="margin-top:0">Known-mistake check</h2>
+        <p class="sub">This job was compared with the lessons recorded in this project (earlier corrections and failures). A match never changes a value; it asks an engineer to look.</p>
+        <table><tr><th>#</th><th>What was seen before</th><th>State</th><th></th></tr>${c.advisories.map((a) => `<tr><td>${a.id}</td><td>${esc(a.message)}${a.note ? `<br><span class="sub">${esc(a.resolved_by)} · ${when(a.resolved_at)}: ${esc(a.note)}</span>` : ''}</td>
+          <td><span class="badge ${a.state === 'open' ? 'b-bad' : 'b-ok'}">${esc(a.state)}</span></td>
+          <td>${a.state === 'open' && canEdit ? `<label class="vh" for="adv${a.id}">Reason for advisory ${a.id}</label><input id="adv${a.id}" data-advreason="${a.id}" placeholder="Why is it right this time?" style="min-width:210px"><div class="row" style="margin-top:6px"><button class="sec" data-ack="${a.id}">Acknowledge</button></div>` : ''}</td></tr>`).join('')}</table></div>` : ''}
       ${c.obligations.length ? `<div class="card"><h2 style="margin-top:0">Scrutiny obligations from the correction</h2>
         <p class="sub">Created by following the dependency edges of the corrected job. Rule table: ${esc(dep.rule_table)}. Open obligations cannot be closed by time or budget.</p>
         <table><tr><th>#</th><th>Direction</th><th>Affected</th><th>Required check</th><th>State</th><th>Evidence / decision</th><th></th></tr>${c.obligations.slice().reverse().map((o) =>
@@ -223,11 +233,16 @@ const views = {
       ${notImpl('Manufacturing planning', ['Plate division and stock fitting', 'Seam and weld planning', 'Allowance management (requires calibrated process data)', 'Manufacturing feasibility checks against machine limits', 'Bend-line, marking and inner-profile layers; kerf handling', 'CAM system acceptance testing'])}`;
   },
   async verification() {
-    const [cs, obs] = await Promise.all([api('/api/calculations'), api('/api/obligations')]);
+    const [cs, obs, lessons] = await Promise.all([api('/api/calculations'), api('/api/obligations'), api('/api/lessons')]);
     const open = obs.filter((o) => o.state === 'open');
     return `<h1>Verification & Quality</h1><p class="sub">Release state of every engineering job, and scrutiny obligations raised by corrections.</p>
       <div class="card"><h2 style="margin-top:0">Open scrutiny obligations (${open.length})</h2>${open.length ? `<table><tr><th>#</th><th>Job</th><th>Affected</th><th>Required check</th><th>Raised</th></tr>${open.map((o) => `<tr><td>${o.id}</td><td><a href="#/calc/${o.target_calc}">#${o.target_calc}</a> (corrects #${o.origin_calc})</td><td>${esc(o.kind)} · ${esc(o.label)}</td><td>${esc(o.required_check)}</td><td>${when(o.created_at)}</td></tr>`).join('')}</table><p class="sub">Open a job to confirm or waive an obligation; every decision is recorded with its reason.</p>` : '<p class="sub">None open.</p>'}
         <p class="sub">${obs.length} obligations recorded in total. The rule table that creates them is provisional and unreviewed.</p></div>
+      <div class="card"><h2 style="margin-top:0">Lessons learned (${lessons.length})</h2>
+        <p class="sub">Recorded automatically when an engineer corrects a value, when verification rejects a result, or when a stored result fails its integrity check. Every later job in the same project is compared with them.</p>
+        ${lessons.length ? `<table><tr><th>#</th><th>Project</th><th>What went wrong</th><th>From job</th><th>Matched since</th><th>Recorded</th></tr>${lessons.map((l) => `<tr><td>${l.id}</td><td>${l.project_id}</td>
+          <td>${l.kind === 'corrected_value' ? `${esc(l.family)} · <b>${esc(l.parameter)}</b>: ${fmt(l.wrong_value)} was wrong, ${fmt(l.right_value)} is right<br><span class="sub">${esc(l.detail)}</span>` : `${esc(l.kind.replace('_', ' '))} · ${esc(l.family)}`}</td>
+          <td><a href="#/calc/${l.source_calc}">#${l.source_calc}</a></td><td class="num">${l.times_matched}</td><td>${esc(l.created_by)} · ${when(l.created_at)}</td></tr>`).join('')}</table>` : '<p class="sub">No lessons recorded yet.</p>'}</div>
       <div class="card"><h2 style="margin-top:0">Engineering jobs</h2>${calcTable(cs)}</div>
       ${notImpl('Quality workflow', ['Engineer approval — no job can reach APPROVED in this build', 'Findings by severity (critical / major / minor) and investigations', 'Self-consistency audits A1–A4; replay on a separate machine or build', 'Obligations from drawing revisions and from verification failures (only parameter corrections raise them today)'])}`;
   },

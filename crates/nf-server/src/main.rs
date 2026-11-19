@@ -59,6 +59,8 @@ CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, project_id INTEGER NOT N
 CREATE TABLE IF NOT EXISTS calculations(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, family TEXT NOT NULL, state TEXT NOT NULL, closure_hash TEXT NOT NULL, result_json TEXT NOT NULL, replay_json TEXT, dxf_sha256 TEXT, supersedes INTEGER, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS obligations(id INTEGER PRIMARY KEY, origin_calc INTEGER NOT NULL, target_calc INTEGER NOT NULL, record_id TEXT NOT NULL, kind TEXT NOT NULL, label TEXT NOT NULL, direction TEXT NOT NULL, via TEXT NOT NULL, required_check TEXT NOT NULL, state TEXT NOT NULL, note TEXT NOT NULL, resolved_by TEXT, resolved_at INTEGER, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, at INTEGER NOT NULL, username TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL, prev TEXT, hash TEXT);
+CREATE TABLE IF NOT EXISTS lessons(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, kind TEXT NOT NULL, family TEXT NOT NULL, parameter TEXT NOT NULL, wrong_value REAL, right_value REAL, detail TEXT NOT NULL, source_calc INTEGER NOT NULL, record_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS advisories(id INTEGER PRIMARY KEY, calc_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL, message TEXT NOT NULL, state TEXT NOT NULL, note TEXT NOT NULL, resolved_by TEXT, resolved_at INTEGER);
 CREATE TABLE IF NOT EXISTS project_members(project_id INTEGER NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY(project_id, user_id));
 CREATE TABLE IF NOT EXISTS login_failures(username TEXT NOT NULL, at INTEGER NOT NULL);
 ";
@@ -513,6 +515,92 @@ fn persist_calc(app: &App, db: &Connection, project: i64, out: &job::JobOutput, 
     Ok(db.last_insert_rowid())
 }
 
+// ---------- learning from mistakes ----------
+// A lesson is an immutable record of something that went wrong in a project:
+// a value an engineer had to correct, a result the verifiers rejected, a
+// stored result that failed its integrity check. Lessons never change a value
+// and never approve anything. They are matched against every later job in the
+// same project; a match raises an advisory that keeps the job in REVIEW
+// REQUIRED until an engineer acknowledges it with a reason.
+
+fn family_of(req: &Request) -> String {
+    serde_json::to_value(req).ok().and_then(|v| v.get("family").and_then(|f| f.as_str().map(String::from))).unwrap_or_default()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_lesson(app: &App, db: &Connection, project: i64, kind: &str, family: &str, parameter: &str, wrong: Option<f64>, right: Option<f64>, detail: &str, source_calc: i64, user: &str) {
+    let rec = Record::new(Family::Finding, "lesson", json!({ "kind": kind, "family": family, "parameter": parameter, "wrong_value": wrong, "right_value": right, "detail": detail, "source_calculation": source_calc, "recorded_by": user, "at": now() }), vec![], None);
+    let _ = app.put_record(db, project, &rec);
+    let _ = db.execute(
+        "INSERT INTO lessons(project_id, kind, family, parameter, wrong_value, right_value, detail, source_calc, record_id, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        params![project, kind, family, parameter, wrong, right, detail, source_calc, rec.id, user, now() as i64],
+    );
+    app.audit(db, user, "lesson_recorded", &format!("project #{project} {kind} {family} {parameter}"));
+}
+
+/// Compare a new job with the lessons of its project and raise advisories.
+fn raise_advisories(db: &Connection, project: i64, calc_id: i64, req: &Request) -> usize {
+    let family = family_of(req);
+    let params_now = req.numeric_params();
+    let req_json = serde_json::to_string(req).unwrap_or_default();
+    let mut st = db.prepare("SELECT id, kind, parameter, wrong_value, right_value, detail, source_calc FROM lessons WHERE project_id = ? AND family = ? ORDER BY id").unwrap();
+    let rows: Vec<(i64, String, String, Option<f64>, Option<f64>, String, i64)> = st.query_map(params![project, family], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?))).unwrap().flatten().collect();
+    let mut n = 0;
+    for (lid, kind, parameter, wrong, right, detail, source) in rows {
+        let message = match kind.as_str() {
+            "corrected_value" => {
+                let now_v = params_now.iter().find(|(k, _)| *k == parameter).map(|(_, v)| *v);
+                match (now_v, wrong) {
+                    (Some(v), Some(w)) if (v - w).abs() <= 1e-9 * w.abs().max(1.0) => format!("{parameter} = {v} repeats a value that was corrected in this project (job #{source}: {w} -> {}; reason: {detail}). Confirm that {v} is right this time.", right.unwrap_or(f64::NAN)),
+                    _ => continue,
+                }
+            }
+            "engine_failure" | "integrity_failure" if detail == req_json => format!("This exact request produced a {} before in this project (job #{source}).", if kind == "engine_failure" { "result rejected by verification" } else { "stored result that failed its integrity check" }),
+            _ => continue,
+        };
+        let _ = db.execute("INSERT INTO advisories(calc_id, lesson_id, message, state, note) VALUES (?,?,?, 'open', '')", params![calc_id, lid, message]);
+        n += 1;
+    }
+    n
+}
+
+async fn list_lessons(State(app): Ctx, headers: HeaderMap) -> Response {
+    let u = guard!(auth(&app, &headers));
+    let db = app.db();
+    let mut st = db.prepare(&format!("SELECT id, project_id, kind, family, parameter, wrong_value, right_value, detail, source_calc, created_by, created_at, (SELECT COUNT(*) FROM advisories a WHERE a.lesson_id = lessons.id) FROM lessons WHERE {} ORDER BY id DESC LIMIT 300", scope(&u))).unwrap();
+    let rows: Vec<Value> = st
+        .query_map([], |r| Ok(json!({ "id": r.get::<_, i64>(0)?, "project_id": r.get::<_, i64>(1)?, "kind": r.get::<_, String>(2)?, "family": r.get::<_, String>(3)?, "parameter": r.get::<_, String>(4)?, "wrong_value": r.get::<_, Option<f64>>(5)?, "right_value": r.get::<_, Option<f64>>(6)?,
+                              "detail": r.get::<_, String>(7)?, "source_calc": r.get::<_, i64>(8)?, "created_by": r.get::<_, String>(9)?, "created_at": r.get::<_, i64>(10)?, "times_matched": r.get::<_, i64>(11)? })))
+        .unwrap()
+        .flatten()
+        .collect();
+    ok(json!(rows))
+}
+
+async fn acknowledge_advisory(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Json(body): Json<Value>) -> Response {
+    let u = guard!(auth(&app, &headers));
+    guard!(require(&u, &["admin", "engineer"]));
+    let reason = s(&body, "reason").trim().to_string();
+    if reason.len() < 5 {
+        return fail(StatusCode::BAD_REQUEST, "a reason is required");
+    }
+    let db = app.db();
+    let row: Option<(i64, String)> = db.query_row("SELECT calc_id, state FROM advisories WHERE id = ?", params![id], |r| Ok((r.get(0)?, r.get(1)?))).optional().ok().flatten();
+    let Some((calc_id, state)) = row else { return not_found() };
+    let project: i64 = db.query_row("SELECT project_id FROM calculations WHERE id = ?", params![calc_id], |r| r.get(0)).unwrap_or(-1);
+    if !can_access(&db, &u, project) {
+        return not_found();
+    }
+    if state != "open" {
+        return fail(StatusCode::CONFLICT, "advisory is not open");
+    }
+    let att = Record::new(Family::Attestation, "advisory_acknowledgement", json!({ "advisory": id, "calculation": calc_id, "reason": reason, "by": u.username, "role": u.role, "at": now() }), vec![], None);
+    let _ = app.put_record(&db, project, &att);
+    db.execute("UPDATE advisories SET state = 'acknowledged', note = ?, resolved_by = ?, resolved_at = ? WHERE id = ? AND state = 'open'", params![reason, u.username, now() as i64, id]).unwrap();
+    app.audit(&db, &u.username, "advisory_acknowledged", &format!("#{id} job #{calc_id}: {reason}"));
+    ok(json!({ "state": "acknowledged" }))
+}
+
 async fn calculate(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Json(body): Json<Value>) -> Response {
     let u = guard!(auth(&app, &headers));
     guard!(require(&u, &["admin", "engineer"]));
@@ -529,7 +617,12 @@ async fn calculate(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Jso
     match persist_calc(&app, &db, id, &out, &u.username, None) {
         Ok(cid) => {
             app.audit(&db, &u.username, "calculation", &format!("#{cid} project #{id} -> {:?}", out.state));
-            ok(json!({ "id": cid, "state": out.state }))
+            let advisories = raise_advisories(&db, id, cid, &req);
+            if out.state == nf_core::ReleaseState::Rejected && !out.patterns.is_empty() {
+                // the engine produced a pattern that its own verification rejected: remember the exact request
+                record_lesson(&app, &db, id, "engine_failure", &family_of(&req), "", None, None, &serde_json::to_string(&req).unwrap_or_default(), cid, &u.username);
+            }
+            ok(json!({ "id": cid, "state": out.state, "advisories": advisories }))
         }
         Err(e) => fail(StatusCode::INTERNAL_SERVER_ERROR, &e),
     }
@@ -601,6 +694,22 @@ fn effective_gates(db: &Connection, id: i64, c: &Calc) -> (Vec<nf_core::Gate>, n
             }
         }
     }
+    let adv_open: i64 = db.query_row("SELECT COUNT(*) FROM advisories WHERE calc_id = ? AND state = 'open'", params![id], |r| r.get(0)).unwrap_or(0);
+    let adv_all: i64 = db.query_row("SELECT COUNT(*) FROM advisories WHERE calc_id = ?", params![id], |r| r.get(0)).unwrap_or(0);
+    let lessons_n: i64 = db.query_row("SELECT COUNT(*) FROM lessons WHERE project_id = ?", params![c.project], |r| r.get(0)).unwrap_or(0);
+    gates.push(nf_core::Gate {
+        id: "G20".into(),
+        name: "known_mistakes".into(),
+        critical: true,
+        result: if adv_open > 0 { R::Inconclusive } else { R::Pass },
+        detail: if adv_open > 0 {
+            format!("{adv_open} advisory(ies) open: this job repeats something that went wrong before in this project. An engineer must acknowledge each with a reason.")
+        } else if adv_all > 0 {
+            format!("{adv_all} advisory(ies) raised and acknowledged by an engineer.")
+        } else {
+            format!("No match among the {lessons_n} lesson(s) recorded in this project. Lessons cover only mistakes already seen here.")
+        },
+    });
     if c.superseded_by.is_some() {
         gates.push(nf_core::Gate { id: "G00".into(), name: "current_revision".into(), critical: true, result: R::Fail, detail: format!("Superseded by job #{} after a correction. This result must not be used.", c.superseded_by.unwrap_or(0)) });
     }
@@ -629,6 +738,8 @@ async fn get_calc(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> R
     result["supersedes"] = json!(c.supersedes);
     result["superseded_by"] = json!(c.superseded_by);
     result["obligations"] = json!(obligation_rows(&db, "WHERE target_calc = ?", id));
+    let mut st = db.prepare("SELECT id, lesson_id, message, state, note, resolved_by, resolved_at FROM advisories WHERE calc_id = ? ORDER BY id").unwrap();
+    result["advisories"] = json!(st.query_map(params![id], |r| Ok(json!({ "id": r.get::<_, i64>(0)?, "lesson_id": r.get::<_, i64>(1)?, "message": r.get::<_, String>(2)?, "state": r.get::<_, String>(3)?, "note": r.get::<_, String>(4)?, "resolved_by": r.get::<_, Option<String>>(5)?, "resolved_at": r.get::<_, Option<i64>>(6)? }))).unwrap().flatten().collect::<Vec<_>>());
     result["correctable_parameters"] = json!(serde_json::from_value::<Request>(c.result["request"].clone()).ok().filter(|r| matches!(r, Request::HeaderWithBranch { .. })).map(|r| r.numeric_params()).unwrap_or_default());
     ok(result)
 }
@@ -699,6 +810,9 @@ async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Res
     db.execute("UPDATE calculations SET replay_json = ? WHERE id = ?", params![report.to_string(), id]).unwrap();
     if !(matches && tampered == 0) {
         db.execute("UPDATE calculations SET state = 'REJECTED' WHERE id = ?", params![id]).unwrap();
+        if let Ok(req) = serde_json::from_value::<Request>(c.result["request"].clone()) {
+            record_lesson(&app, &db, c.project, "integrity_failure", &family_of(&req), "", None, None, &serde_json::to_string(&req).unwrap_or_default(), id, &u.username);
+        }
     }
     app.audit(&db, &u.username, "replay_audit", &format!("calculation #{id}: {}", if matches && tampered == 0 { "match" } else { "MISMATCH" }));
     ok(report)
@@ -762,6 +876,8 @@ async fn correct(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Json(
         Ok(x) => x,
         Err(e) => return fail(StatusCode::INTERNAL_SERVER_ERROR, &e),
     };
+    record_lesson(&app, &db, c.project, "corrected_value", &family_of(&req), &pname, Some(old_value), Some(new_value), &reason, id, &u.username);
+    raise_advisories(&db, c.project, new_id, &new_req);
     let mut open = 0;
     for a in &affected {
         let (done, note) = nf_core::deps::discharge(a, &out);
@@ -878,7 +994,7 @@ async fn amoeba_summary(State(app): Ctx, headers: HeaderMap) -> Response {
         "records_by_kind": kinds,
         "activities": work.into_iter().map(|(k, (n, wu))| json!({ "type": k, "distinct_activities": n, "declared_work_units": wu })).collect::<Vec<_>>(),
         "recent_snapshots": snaps,
-        "implemented": ["content-addressed append-only records", "project snapshots with predecessor links", "typed dependency edges (derivation, interface, common cause)", "dependency propagation with scrutiny obligations (provisional rule table)", "interface constraint verification between parts", "corrections as attestations with supersession", "release closure hash", "gate evaluation with obligation and replay state", "replay audit in a separate process", "membrane admission checks"],
+        "implemented": ["content-addressed append-only records", "project snapshots with predecessor links", "typed dependency edges (derivation, interface, common cause)", "dependency propagation with scrutiny obligations (provisional rule table)", "interface constraint verification between parts", "lessons from corrections and failures, matched against every later job in the project", "corrections as attestations with supersession", "release closure hash", "gate evaluation with obligation and replay state", "replay audit in a separate process", "membrane admission checks"],
         "obligations": { "open": db.query_row(&format!("SELECT COUNT(*) FROM obligations WHERE state = 'open' AND target_calc IN (SELECT id FROM calculations WHERE {sc})"), [], |r| r.get::<_, i64>(0)).unwrap_or(0), "total": db.query_row(&format!("SELECT COUNT(*) FROM obligations WHERE target_calc IN (SELECT id FROM calculations WHERE {sc})"), [], |r| r.get::<_, i64>(0)).unwrap_or(0) },
         "not_implemented": ["round scheduler and budgets", "exploration probes", "hypothesis-driven investigation", "coverage ledger", "lanes and overlays", "quarantine", "strategy switching", "self-consistency audits A1-A4", "replay on a separate machine or build", "engineer approval"],
     }))
@@ -957,6 +1073,8 @@ fn router(app: Arc<App>) -> Router {
         .route("/api/calculations/{id}/dxf/{part}", get(get_dxf))
         .route("/api/calculations/{id}/corrections", post(correct))
         .route("/api/calculations/{id}/dependencies", get(dependencies))
+        .route("/api/lessons", get(list_lessons))
+        .route("/api/advisories/{id}/acknowledge", post(acknowledge_advisory))
         .route("/api/obligations", get(list_obligations))
         .route("/api/obligations/{id}/resolve", post(resolve_obligation))
         .route("/api/dashboard", get(dashboard))
