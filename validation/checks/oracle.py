@@ -13,6 +13,20 @@ import numpy as np
 from reference import families as RF
 
 SREF = ('outside', 'inside', 'neutral', 'unknown')
+LENGTHS = ['r_dev', 'length', 'r1', 'r2', 'h', 'e', 'header_radius', 'header_dev_radius', 'header_length', 'branch_station', 'branch_radius', 'branch_dev_radius', 'delta', 's_end']
+SIGNED = ('e', 'branch_station', 'delta')
+
+
+def sref_consistent(sref, contact, dev):
+    """Spec 02 6.1: the development surface lies inside the wall, r_inside <= r_dev <= r_outside."""
+    same = abs(dev - contact) <= 1e-12 * max(abs(dev), abs(contact))
+    if sref == 'outside':
+        return same or dev < contact
+    if sref == 'inside':
+        return same or dev > contact
+    if sref == 'neutral':
+        return same
+    return True
 
 
 def _pos(req, names):
@@ -28,6 +42,14 @@ def classify(req):
     for k, v in req.items():
         if k not in ('family', 'surface_reference') and (not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v)):
             return 'invalid', f'{k} is not a finite number'
+    # declared implementation limit of the build (contract since engine 0.2.0): magnitudes within 1e-6 .. 1e8 mm
+    for k in LENGTHS:
+        if k in req:
+            x = abs(req[k])
+            if x > 1e8 or (0 < req[k] < 1e-6 and k not in SIGNED):
+                return 'unsupported', f'{k} outside the declared magnitude range 1e-6 .. 1e8 mm'
+            if abs(x - 1e8) < 1e-3 or (k not in SIGNED and abs(x - 1e-6) < 1e-15):
+                return 'edge', 'at the magnitude limit'
     if fam == 'cylinder_shell':
         bad = _pos(req, ['r_dev', 'length'])
         return ('invalid', f'{bad} <= 0') if bad else ('valid', '')
@@ -48,6 +70,11 @@ def classify(req):
             return 'edge', 'at the near-cylindrical limit'
         if sa < 1e-3:
             return 'unsupported', 'near-cylindrical'
+        if fam == 'cone_frustum':
+            if abs(sa - 0.999) < 1e-9:
+                return 'edge', 'at the full-turn limit'
+            if sa >= 0.999:
+                return 'unsupported', 'sector within 0.1 % of a full turn'
         if fam == 'eccentric_reducer':
             a, H = e * r1 / (r1 - r2), h * r1 / (r1 - r2)
             th = (np.arange(4000) + 0.5) * 2 * np.pi / 4000
@@ -65,6 +92,10 @@ def classify(req):
         if fam == 'header_with_branch' and req.get('surface_reference') not in SREF:
             return 'invalid', 'surface_reference'
         R, r, beta, delta = req['header_radius'], req['branch_radius'], req['beta_deg'], req['delta']
+        if fam == 'header_with_branch':
+            for c, d in (('header_radius', 'header_dev_radius'), ('branch_radius', 'branch_dev_radius')):
+                if not sref_consistent(req['surface_reference'], req[c], req[d]):
+                    return 'invalid', f'{d} impossible for a contact radius declared {req["surface_reference"]} (negative wall thickness)'
         if not (0 < beta < 180):
             return 'invalid', 'beta outside (0, 180)'
         sb = math.sin(math.radians(beta))

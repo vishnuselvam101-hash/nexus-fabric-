@@ -62,10 +62,25 @@ def branch(req, part):
     """Normal distance of each saddle vertex from the exact developed saddle (product layout u = r_dev*phi, v = s_end - s inferred from the output)."""
     j = hp.Joint(req['header_radius'], req['branch_radius'], req['beta_deg'], req['delta'])
     rd, s_end = hp.M(req['branch_dev_radius']), hp.M(req['s_end'])
+    pts = part.curve('saddle_cut').pts
+    W = hp.TAU * rd
+    best = None
+    # four possible layouts of a branch pattern (seen from either side, saddle up or down); the right one is
+    # identified by its residual, which is ~1e-12 against ~1e+1 for the others
+    for flip_u in (False, True):
+        for from_end in (False, True):
+            errs = []
+            for p in pts[:: max(1, len(pts) // 12)]:
+                phi = (W - mp.mpf(p[0]) if flip_u else mp.mpf(p[0])) / rd
+                errs.append(abs(mp.mpf(p[1]) - ((s_end - j.s(phi)) if from_end else j.s(phi))))
+            m = max(errs)
+            if best is None or m < best[0]:
+                best = (m, flip_u, from_end)
+    _, flip_u, from_end = best
     errs = []
-    for p in part.curve('saddle_cut').pts:
-        phi = mp.mpf(p[0]) / rd
-        ev = mp.mpf(p[1]) - (s_end - j.s(phi))
+    for p in pts:
+        phi = (W - mp.mpf(p[0]) if flip_u else mp.mpf(p[0])) / rd
+        ev = mp.mpf(p[1]) - ((s_end - j.s(phi)) if from_end else j.s(phi))
         slope = mp.diff(j.s, phi) / rd if 0 < phi < hp.TAU else 0
         errs.append(abs(ev) / mp.sqrt(1 + slope ** 2))
     return {'branch': _max(errs)}

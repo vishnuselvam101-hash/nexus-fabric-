@@ -37,8 +37,18 @@ def dxf_roundtrip(part, issues):
     m = {'entities': len(part.ents)}
     if hashlib.sha256(part.dxf_text.encode()).hexdigest() != v.get('dxf_sha256'):
         issues.append(f'{part.name}: served DXF does not hash to dxf_sha256 of the result')
+    # entities that are not cut geometry: only the non-cutting NOT-RELEASED marking text is tolerated
+    m['non_cut_entities'] = [f'{e.kind}@{e.layer}' for e in part.other]
+    for e in part.other:
+        if not (e.kind == 'text' and e.layer == 'NF_NOT_RELEASED'):
+            issues.append(f'{part.name}: DXF contains {e.kind} on layer {e.layer}: geometry outside the CUT layers / an unexpected entity')
+    for e in part.ents:
+        if e.kind not in ('line', 'arc', 'polyline'):
+            issues.append(f'{part.name}: DXF contains a {e.kind} entity on cut layer {e.layer}')
+    if len(part.all) != len(part.all_min) or any(a.kind != b.kind or a.layer != b.layer for a, b in zip(part.all, part.all_min)):
+        issues.append(f'{part.name}: ezdxf and the minimal reader disagree on the entity list of the DXF')
     if len(part.ents) != len(jc):
-        issues.append(f'{part.name}: DXF has {len(part.ents)} entities, JSON has {len(jc)} curves')
+        issues.append(f'{part.name}: DXF has {len(part.ents)} cut entities, JSON has {len(jc)} curves')
         return m
     # the two readers must see the same file
     if len(part.ents_min) != len(part.ents) or any(a.kind != b.kind or a.layer != b.layer or a.pts.shape != b.pts.shape or np.abs(a.pts - b.pts).max() > 0 for a, b in zip(part.ents, part.ents_min)):
@@ -57,9 +67,12 @@ def dxf_roundtrip(part, issues):
             if d > 1e-9 * scale or dend > 1e-9 * scale:
                 issues.append(f"{part.name}/{c['name']}: JSON arc points off the DXF arc by {max(d, dend):.3e}")
             m.setdefault('json_arc_sagitta', 0.0)
-            # how far the JSON display polyline is from the true arc
+            # how far the JSON display polyline is from the true arc, and whether the result says so
             mid = 0.5 * (jp[:-1] + jp[1:])
-            m['json_arc_sagitta'] = max(m['json_arc_sagitta'], float(e.dist(mid).max()))
+            sag = float(e.dist(mid).max())
+            m['json_arc_sagitta'] = max(m['json_arc_sagitta'], sag)
+            labelled = c.get('points_exact') is False and isinstance(c.get('points_max_deviation'), (int, float)) and c['points_max_deviation'] * (1 + 1e-6) + 1e-12 * scale >= sag
+            m['json_arc_labelled'] = bool(m.get('json_arc_labelled', True) and labelled)
         else:
             # every JSON point must be a DXF vertex bit-for-bit (the JSON may drop a repeated closing point)
             dv = set(map(tuple, e.pts.tolist()))
@@ -111,13 +124,23 @@ def dxf_roundtrip(part, issues):
         issues.append(f'{part.name}: polygon construction failed: {ex}')
     # header data of the file
     mm = part.meta_min
-    m['units_declared'] = 'comment-only' if any('millimetre' in c.lower() for c in mm['comment']) else 'none'
+    m['units_declared'] = ('comment' if any('millimetre' in c.lower() for c in mm['comment']) else 'none') + ('+text' if any('MILLIMETRE' in getattr(e, 'text', '').upper() for e in part.other) else '')
+    m['lunits'], m['aunits'], m['angdir'] = mm.get('lunits'), mm.get('aunits'), mm.get('angdir')
+    if mm.get('aunits') not in (None, '0') or mm.get('angdir') not in (None, '0'):
+        issues.append(f"{part.name}: DXF declares $AUNITS={mm.get('aunits')} $ANGDIR={mm.get('angdir')}; arcs are read as decimal degrees, counter-clockwise")
     m['insunits'] = mm['insunits']
     if not mm['eof']:
         issues.append(f'{part.name}: DXF does not end with EOF')
     bb = part.measures()
     if 'extmin' in mm and 'extmax' in mm:
-        ext_err = max(abs(mm['extmin'][0] - bb['bbox_xmin']), abs(mm['extmin'][1] - bb['bbox_ymin']), abs(mm['extmax'][0] - bb['bbox_xmax']), abs(mm['extmax'][1] - bb['bbox_ymax']))
+        # The marking text is placed by the writer relative to its own box, so it must not be allowed to excuse a
+        # wrong box.  Judged on the two sides the text does not touch: the left edge and the top edge of the cut
+        # geometry (the text sits below the part and runs to the right; its width needs font metrics).
+        has_text = any(e.kind == 'text' for e in part.other)
+        if has_text:
+            ext_err = max(abs(mm['extmin'][0] - bb['bbox_xmin']), abs(mm['extmax'][1] - bb['bbox_ymax']), max(bb['bbox_xmax'] - mm['extmax'][0], 0.0), max(mm['extmin'][1] - bb['bbox_ymin'], 0.0))
+        else:
+            ext_err = max(abs(mm['extmin'][0] - bb['bbox_xmin']), abs(mm['extmin'][1] - bb['bbox_ymin']), abs(mm['extmax'][0] - bb['bbox_xmax']), abs(mm['extmax'][1] - bb['bbox_ymax']))
         m['extents_header_error'] = float(ext_err)
     return m
 
@@ -255,6 +278,7 @@ def _cmp_cone(ref, part, issues):
         corners = np.array([part.corner('seam_a', 'large_end'), part.corner('seam_b', 'large_end'), part.corner('seam_a', 'small_end'), part.corner('seam_b', 'small_end')])
         _, Pc, _, _ = ref.fold(_to_ref(e, corners))
         rep['seam_gap_3d'] = float(max(np.linalg.norm(Pc[0] - Pc[1]), np.linalg.norm(Pc[2] - Pc[3])))
+        rep['turn_fraction'] = ref.info['psi_total'] / TAU
         rep['flat_seam_clearance'] = float(shapely.distance(shapely.LineString(part.curve('seam_a').pts), shapely.LineString(part.curve('seam_b').pts)))
         for k in ('fold_large_on_circle', 'fold_small_on_circle', 'seam_gap_3d'):
             if rep[k] > 5 * tol:
@@ -360,6 +384,25 @@ def mating(req, hpart, bpart, href, bref, hev, bev):
     return res
 
 
+def declared_side(part, pr, issues, findings, chiral):
+    """The result and the DXF must declare a marking side, the same one, and the geometry must really be drawn from it."""
+    side = part.view.get('marking_side')
+    pr['marking_side_declared'] = side
+    texts = [getattr(e, 'text', '').upper() for e in part.other if e.kind == 'text']
+    dxf_side = next(('outside' if 'OUTSIDE' in t else 'inside' if 'INSIDE' in t else None for t in texts if 'MARKING SIDE' in t), None)
+    pr['marking_side_in_dxf'] = dxf_side
+    if side not in ('outside', 'inside'):
+        findings.append({'code': 'MARKING_SIDE_UNDECLARED', 'detail': f'{part.name}: the result declares no marking side (Spec 02 0.3)'})
+        return
+    if dxf_side is None:
+        findings.append({'code': 'MARKING_SIDE_UNDECLARED', 'detail': f'{part.name}: the DXF file does not state the marking side'})
+    elif dxf_side != side:
+        issues.append(f'{part.name}: DXF states marking side {dxf_side}, result states {side}')
+    views = pr.get('views_matching')
+    if views is not None and side not in views:
+        issues.append(f'{part.name}: declared as drawn from the {side.upper()}, but the geometry matches the reference only as seen from the {"/".join(views) or "?"}')
+
+
 def is_chiral(req, threshold=1e-9):
     """A branch joint is mirror-asymmetric iff it is both offset and oblique."""
     R = req['header_radius']
@@ -423,16 +466,30 @@ def compare_job(req, job, ndense=6001):
         part = job.parts[name]
         if 'chord_dev' in pr:
             tol = rel_tol(pr['scale'])
-            if pr['chord_dev'] > part.eps_rep * 1.02 + tol:
+            # eps_rep is declared an estimate (not a bound); an estimate that is low by more than 10 % is reported
+            if pr['chord_dev'] > part.eps_rep * 1.10 + tol:
                 findings.append({'code': 'EPS_REP_EXCEEDED', 'detail': f"{name}: true curve-representation error {pr['chord_dev']:.4g} mm exceeds stated eps_rep {part.eps_rep:.4g} mm (x{pr['chord_dev'] / part.eps_rep if part.eps_rep else float('inf'):.2f})"})
         d = pr['dxf']
-        if pr.get('flat_seam_clearance', 1.0) < 1e-3:
+        if pr.get('turn_fraction', 0.0) >= 0.999:     # a small clearance next to a tiny small end is ordinary geometry; a sector closing the turn is not
             findings.append({'code': 'FLAT_SEAM_CLEARANCE', 'detail': f"{name}: the two seam edges of the flat pattern are {pr['flat_seam_clearance']:.3g} mm apart (pattern closes on itself)"})
         if d.get('extents_header_error', 0) > 1e-6 * max(pr.get('scale', 1), 1e-300):
             findings.append({'code': 'DXF_EXTENTS_WRONG', 'detail': f"{name}: $EXTMIN/$EXTMAX differ from the true extents by {d['extents_header_error']:.4g} mm"})
-        if d.get('json_arc_sagitta', 0) > 1e-3:
-            findings.append({'code': 'JSON_ARC_COARSE', 'detail': f"{name}: JSON 'points' of an arc deviate {d['json_arc_sagitta']:.4g} mm from the arc while eps_rep = {part.eps_rep}"})
+        if d.get('json_arc_sagitta', 0) > 1e-9 * max(pr.get('scale', 1), 1e-300) and not d.get('json_arc_labelled', False):
+            findings.append({'code': 'JSON_ARC_UNLABELLED', 'detail': f"{name}: JSON 'points' of an arc deviate {d['json_arc_sagitta']:.4g} mm from the arc while eps_rep = {part.eps_rep}"})
         # the product's own checks must all have passed for an accepted job
+    # declared marking side against the side the geometry is actually drawn from (reference = outside view by construction)
+    sides = {}
+    for name, pr in rep['parts'].items():
+        declared_side(job.parts[name], pr, issues, findings, rep.get('chiral', False))
+        sides[name] = pr.get('marking_side_declared')
+    if len(set(sides.values())) > 1:
+        issues.append(f'parts of one job declare different marking sides: {sides}')
+    if fam == 'header_with_branch' and 'mating_3d' in rep and len(set(sides.values())) == 1 and list(sides.values())[0] in ('outside', 'inside'):
+        s = list(sides.values())[0]
+        v = rep['mating_3d'].get(f'header {s} / branch {s}')
+        rep['mating_on_declared_side'] = v
+        if v is None or v > 3 * rep['mating_tol']:
+            issues.append(f'assembly: folded from the declared marking side ({s}) the saddle misses the opening by {v} mm')
     bad = [c['name'] for c in job.checks() if c['verdict'] != 'PASS']
     if bad:
         findings.append({'code': 'PRODUCT_CHECK_NOT_PASS', 'detail': f'product verification checks not PASS: {bad}'})

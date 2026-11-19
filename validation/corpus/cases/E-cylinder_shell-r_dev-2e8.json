@@ -1,0 +1,19 @@
+{
+ "id": "E-cylinder_shell-r_dev-2e8",
+ "group": "refusal",
+ "title": "cylinder_shell: r_dev = 2e8 mm",
+ "request": {
+  "family": "cylinder_shell",
+  "r_dev": 200000000.0,
+  "length": 1000
+ },
+ "expect": "refuse",
+ "derivation": "Declared implementation limit of the build: magnitudes above 1e8 mm are refused.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "magnitude",
+   "exceeds"
+  ]
+ }
+}

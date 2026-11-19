@@ -23,7 +23,7 @@ sys.path.insert(0, HERE)
 import numpy as np
 import shapely
 
-from checks.client import Client, SpawnedServer, USER, PASSWORD
+from checks.client import Client, SpawnedServer, USER, PASSWORD, SETUP_TOKEN_ENV
 from checks.product import Job
 from checks.compare import compare_job, rel_tol
 from checks.oracle import classify
@@ -32,7 +32,7 @@ from checks import hpcheck
 PARTS = {'cylinder_shell': ['shell'], 'cone_frustum': ['reducer'], 'eccentric_reducer': ['reducer'], 'branch_stub': ['branch'], 'header_with_branch': ['header', 'branch']}
 LENGTH_KEYS = ['r_dev', 'length', 'r1', 'r2', 'h', 'e', 'header_radius', 'header_dev_radius', 'header_length', 'branch_station', 'branch_radius', 'branch_dev_radius', 'delta', 's_end']
 # findings that are defects of the product (exit non-zero); the others are observations
-DEFECT_CODES = {'VIEW_SIDE_CONFLICT', 'EPS_REP_EXCEEDED', 'EPS_NUM_EXCEEDED', 'DXF_EXTENTS_WRONG', 'NON_FINITE_OUTPUT', 'REFUSAL_NOT_CLEAN', 'PRODUCT_CHECK_NOT_PASS', 'SCALE_NOT_INVARIANT', 'REFUSAL_KIND'}
+DEFECT_CODES = {'MARKING_SIDE_UNDECLARED', 'JSON_ARC_UNLABELLED', 'FLAT_SEAM_CLEARANCE', 'VIEW_SIDE_CONFLICT', 'EPS_REP_EXCEEDED', 'EPS_NUM_EXCEEDED', 'DXF_EXTENTS_WRONG', 'NON_FINITE_OUTPUT', 'REFUSAL_NOT_CLEAN', 'PRODUCT_CHECK_NOT_PASS', 'SCALE_NOT_INVARIANT', 'REFUSAL_KIND'}
 
 _client = None
 
@@ -195,7 +195,9 @@ def check_refusal(case, job, findings):
     """A refusal must be clean: no pattern, no DXF, never APPROVED, and it should say why."""
     exp = case.get('refusal') or {}
     fam = (case.get('request') or {}).get('family')
-    if job.http == 200:
+    if job.http in (200, 422):
+        if job.http == 200 or job.state != 'REFUSED':
+            findings.append({'code': 'REFUSAL_KIND', 'detail': f'refusal answered HTTP {job.http} with state {job.state}; the contract is HTTP 422 with state REFUSED'})
         if job.state == 'APPROVED':
             findings.append({'code': 'REFUSAL_NOT_CLEAN', 'detail': 'refused job is in state APPROVED'})
         for part in PARTS.get(fam, []):
@@ -204,9 +206,9 @@ def check_refusal(case, job, findings):
                 findings.append({'code': 'REFUSAL_NOT_CLEAN', 'detail': f'refused job serves a DXF for part {part}'})
         if not job.outcome:
             findings.append({'code': 'REFUSAL_NOT_CLEAN', 'detail': 'refused job has no stated outcome'})
-    if exp.get('kind') == 'malformed' and job.http == 200:
+    if exp.get('kind') == 'malformed' and job.http != 400:
         findings.append({'code': 'REFUSAL_KIND', 'detail': 'request that is not valid input was stored as a job instead of being rejected with HTTP 400'})
-    if exp.get('kind') == 'engineering' and job.http != 200:
+    if exp.get('kind') == 'engineering' and job.http != 422:
         findings.append({'code': 'REFUSAL_KIND_NOTE', 'detail': f'engineering refusal expected as a recorded job, got HTTP {job.http}'})
     m = exp.get('mentions') or []
     text = job.refusal_text().lower()
@@ -220,8 +222,8 @@ def run_case(case):
     t0 = time.time()
     try:
         job = submit(case.get('request'), case.get('raw_body'))
-        out['http'], out['job_id'], out['outcome'], out['state'] = job.http, job.id, job.refusal_text() if job.refused else None, job.state
-        if job.http in (401, 403, 404, 500, 502, 503):
+        out['http'], out['job_id'], out['outcome'], out['state'], out['engine'] = job.http, job.id, job.refusal_text() if job.refused else None, job.state, job.engine
+        if job.http in (401, 403, 404, 421, 429, 500, 502, 503):
             out['class'] = 'error'
             out['issues'].append(f'server answered HTTP {job.http}: {job.error}')
             return out
@@ -273,16 +275,24 @@ def run_case(case):
 
 
 # ------------------------------------------------------------------ case sources
+QUICK_ALWAYS = ('A-TEE-90', 'A-CONE-HALFDISC', 'A-CYL-01', 'HP-JOINT-4', 'HP-ECC-1', 'HP-CONE-1', 'S-MIRROR-DELTA', 'S-MIRROR-BETA', 'S-STATION-SHIFT', 'D-ASM-DEV-1-near_start')
+
+
 def corpus_cases(quick):
     cs = [json.load(open(f)) for f in sorted(glob.glob(os.path.join(HERE, 'corpus', 'cases', '*.json')))]
     for c in cs:
         if c['group'] == 'high_precision':
             c['hp'] = True
     if quick:
-        keep = {}
+        # CI subset: every closed form, fixed frame / view-side / mirror cases, and a thin slice of everything else
+        step = {'closed_form': 1, 'limit': 2, 'high_precision': 6, 'assembly': 9, 'symmetry': 8, 'refusal': 6}
+        keep, n = [], {}
         for c in cs:
-            keep.setdefault(c['group'], []).append(c)
-        cs = [c for g in keep.values() for c in g[::6]]
+            i = n.get(c['group'], 0)
+            n[c['group']] = i + 1
+            if c['id'] in QUICK_ALWAYS or i % step.get(c['group'], 6) == 0:
+                keep.append(c)
+        cs = keep
     return cs
 
 
@@ -407,7 +417,8 @@ def main():
     ap.add_argument('--random', type=int, default=60, help='random cases per family')
     ap.add_argument('--workload', type=int, default=400, help='synthetic workload parts')
     ap.add_argument('--workers', type=int, default=3)
-    ap.add_argument('--quick', action='store_true')
+    ap.add_argument('--quick', action='store_true', help='CI mode: a few minutes; keeps the Defect-002 detector, the view-side check and every closed-form case')
+    ap.add_argument('--setup-token', default=os.environ.get(SETUP_TOKEN_ENV), help=f'one-time first-run setup token of the server (or env {SETUP_TOKEN_ENV}); only needed while the server has no administrator')
     ap.add_argument('--only', help='comma-separated group names')
     ap.add_argument('--out', default=os.path.join(HERE, 'results', 'latest.json'))
     a = ap.parse_args()
@@ -415,20 +426,29 @@ def main():
     if a.spawn:
         server = SpawnedServer(a.spawn, a.port)
         a.url = server.url
+        a.setup_token = server.token
     t0 = time.time()
     st = selftest()
     print(f'[0] reference self-test: {sum(r["ok"] for r in st)}/{len(st)} ok')
     for r in st:
         if not r['ok']:
             print('    FAIL', r)
-    client = Client(a.url).connect(a.user, a.password)
+    client = Client(a.url).connect(a.user, a.password, a.setup_token)
+    # the validator validates itself against the live build: planted faults (Defect 002 among them) must be reported
+    import seeded_faults
+    sf_ok, sf_lines = seeded_faults.run(client)
+    print(f'[0] seeded faults (incl. Defect 002 and DXF tampering): {"all detected" if sf_ok else "NOT ALL DETECTED"}')
+    for ln in sf_lines:
+        if not ln.startswith('ok'):
+            print('    ' + ln)
     cases = corpus_cases(a.quick)
-    cases += random_cases(a.seed, 6 if a.quick else a.random)
-    cases += workload_cases(40 if a.quick else a.workload, a.seed)
-    cases += stability_cases()[:: (5 if a.quick else 1)]
+    cases += random_cases(a.seed, 5 if a.quick else a.random)
+    cases += workload_cases(24 if a.quick else a.workload, a.seed)
+    stab = stability_cases()
+    cases += [c for i, c in enumerate(stab) if i % 12 == 0 or c['id'] in ('N-tangent-r-b45-g1.1e-06', 'N-tangent-d-b90-g2e-06', 'N-aspect-cone-flat-h0.01')] if a.quick else stab
     if a.only:
         cases = [c for c in cases if c['group'] in a.only.split(',')]
-    print(f'[1-4] {len(cases)} cases against {a.url} (engine {client.engine}), project {client.project}')
+    print(f'[1-4] {len(cases)} cases against {a.url} (health reports engine {client.engine}), project {client.project}')
     with mp_.Pool(a.workers, initializer=_init, initargs=(a.url, a.user, a.password, client.project)) as pool:
         results = []
         for i, r in enumerate(pool.imap(run_case, cases, chunksize=1)):
@@ -467,11 +487,12 @@ def main():
         for r in bad[:60]:
             print(f'  [{r["class"]}] {r["id"]}: {r["issues"][0][:230] if r["issues"] else ""}')
             print(f'      request: {json.dumps(r["request"])[:300]}')
-    selftest_ok = all(r['ok'] for r in st)
+    selftest_ok = all(r['ok'] for r in st) and sf_ok
+    engines = sorted({r.get('engine') for r in results if r.get('engine')})
     ok = selftest_ok and not bad and not any(c in DEFECT_CODES for c in fcount)
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     with open(a.out, 'w') as fh:
-        json.dump({'when': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'url': a.url, 'engine': client.engine, 'seed': a.seed, 'elapsed_s': round(time.time() - t0, 1), 'verdict': 'PASS' if ok else 'FAIL', 'server_restarts_during_run': restarts,
+        json.dump({'when': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'url': a.url, 'engine': engines, 'mode': 'quick' if a.quick else 'full', 'seeded_faults': sf_lines, 'seed': a.seed, 'elapsed_s': round(time.time() - t0, 1), 'verdict': 'PASS' if ok else 'FAIL', 'server_restarts_during_run': restarts,
                    'selftest': st, 'summary': {'groups': groups, 'total': total}, 'findings_by_code': fcount, 'results': results}, fh, indent=1, default=str)
     print(f'\n{"PASS" if ok else "FAIL"}  ({time.time() - t0:.0f} s)  ->  {a.out}')
     sys.exit(0 if ok else 1)

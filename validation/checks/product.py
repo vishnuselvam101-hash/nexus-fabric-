@@ -100,6 +100,9 @@ def read_dxf_ezdxf(text):
             if e.is_closed:
                 pts.append(pts[0])
             ents.append(PCurve('polyline', e.dxf.layer, pts))
+        elif t == 'TEXT':
+            ents.append(PCurve('text', e.dxf.layer, [[e.dxf.insert.x, e.dxf.insert.y], [e.dxf.insert.x, e.dxf.insert.y]]))
+            ents[-1].text = e.dxf.text
         else:
             ents.append(PCurve('unknown:' + t, e.dxf.layer, [[0, 0], [0, 0]]))
     meta = {'version': doc.dxfversion, 'insunits': doc.header.get('$INSUNITS', None),
@@ -120,6 +123,8 @@ def read_dxf_minimal(text):
             meta['acadver'] = pairs[i + 1][1]
         if c == 9 and v == '$INSUNITS':
             meta['insunits'] = pairs[i + 1][1]
+        if c == 9 and v in ('$LUNITS', '$AUNITS', '$ANGDIR', '$ANGBASE'):
+            meta[v[1:].lower()] = pairs[i + 1][1]
         if c == 9 and v == '$MEASUREMENT':
             meta['measurement'] = pairs[i + 1][1]
         if c == 9 and v in ('$EXTMIN', '$EXTMAX'):
@@ -148,6 +153,9 @@ def read_dxf_minimal(text):
                     poly['pts'].append(poly['pts'][0])
                 ents.append(PCurve('polyline', poly['layer'], poly['pts']))
                 poly = None
+            elif v == 'TEXT':
+                ents.append(PCurve('text', body.get(8, '0'), [[float(body[10]), float(body[20])]] * 2))
+                ents[-1].text = body.get(1, '')
             elif v in ('ENDSEC', 'EOF'):
                 pass
             else:
@@ -165,8 +173,14 @@ class Part:
         self.q = view['quantities']
         self.eps_num, self.eps_rep = view['eps_num'], view['eps_rep']
         self.dxf_text = dxf_text
-        self.ents_min, self.meta_min = read_dxf_minimal(dxf_text)
-        self.ents, self.meta = (read_dxf_ezdxf(dxf_text) if HAVE_EZDXF else (self.ents_min, self.meta_min))
+        self.all_min, self.meta_min = read_dxf_minimal(dxf_text)
+        self.all, self.meta = (read_dxf_ezdxf(dxf_text) if HAVE_EZDXF else (self.all_min, self.meta_min))
+        # geometry that would be cut: everything on a CUT_* layer.  Anything else is kept separately and policed
+        # by the round-trip check (only non-cutting TEXT on NF_NOT_RELEASED is tolerated).
+        is_cut = lambda e: e.layer.startswith('CUT')
+        self.ents = [e for e in self.all if is_cut(e)]
+        self.ents_min = [e for e in self.all_min if is_cut(e)]
+        self.other = [e for e in self.all if not is_cut(e)]
         jc = view['curves'] + view['holes']
         self.n_outline = len(view['curves'])
         for e, c in zip(self.ents, jc):
@@ -242,6 +256,7 @@ class Job:
         r = self.result
         self.outcome = r.get('outcome') if r else None
         self.state = r.get('state') if r else None
+        self.engine = r.get('engine') if r else None
         # a job whose own gates REJECT it withholds its files: for the caller that is a refusal
         self.self_rejected = bool(r and r.get('patterns') and r.get('state') == 'REJECTED')
         self.accepted = bool(r and r.get('patterns')) and not self.self_rejected

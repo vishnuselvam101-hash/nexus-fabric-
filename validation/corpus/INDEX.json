@@ -1,12 +1,12 @@
 {
- "count": 501,
+ "count": 518,
  "groups": {
   "closed_form": 9,
   "limit": 7,
   "high_precision": 22,
   "assembly": 172,
   "symmetry": 39,
-  "refusal": 252
+  "refusal": 269
  },
  "ids": {
   "closed_form": [
@@ -520,7 +520,24 @@
    "E-asm-sref-invalid",
    "E-asm-equal-tee",
    "E-asm-partial",
-   "E-asm-beta-0"
+   "E-asm-beta-0",
+   "E-unknown-field",
+   "E-asm-sref-outside-155-100",
+   "E-asm-sref-outside-150-104",
+   "E-asm-sref-inside-145-100",
+   "E-asm-sref-inside-150-97",
+   "E-asm-sref-neutral-149-100",
+   "E-asm-sref-neutral-150-100.5",
+   "E-cylinder_shell-r_dev-2e8",
+   "E-cylinder_shell-length-5e-7",
+   "E-cone_frustum-r1-2e8",
+   "E-cone_frustum-h-5e-7",
+   "E-eccentric_reducer-r1-2e8",
+   "E-eccentric_reducer-h-5e-7",
+   "E-branch_stub-header_radius-2e8",
+   "E-branch_stub-s_end-5e-7",
+   "E-header_with_branch-header_radius-2e8",
+   "E-header_with_branch-s_end-5e-7"
   ]
  },
  "notes": {
