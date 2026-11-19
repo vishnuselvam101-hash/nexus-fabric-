@@ -28,7 +28,7 @@ onnxruntime build.
 
 | File | What |
 |---|---|
-| `vo-en.wav`, `vo-ja.wav` | mono voice stems, each line at segment start + 0.25 s |
+| `vo-en.wav`, `vo-ja.wav` | mono voice stems (WAV + FLAC); lines 1–4 at segment start + 0.25 s, line 5 see below |
 | `music.wav` | stereo score, synthesised in `make_music.py` (no samples); D minor tension, dominant build from 18 s, D(add9) resolution at 25 s, silent from 29.9 s; 1–4 kHz dipped for the voice |
 | `sfx.wav` | stereo whooshes, ticks, soft glints, movement beds and the brand impact, placed from `../cues.json` |
 | `mix-en.wav`, `mix-ja.wav` | voice + music + sfx; music ducked 9 dB under the voice (90 ms attack, 450 ms release, 60 ms look-ahead); −16 LUFS, true peak ≤ −1 dBTP |
@@ -40,4 +40,6 @@ onnxruntime build.
 Subtitle cues follow the measured pauses in the placed voice, max 2 lines, 42 characters per line
 (EN) / 20 (JA). Re-run `make_voice.py` after any script change; it rewrites them.
 
-Known issue: English line 5 only fits at speed 1.36 (flagged `natural_rate: false`). See `VOICES.md`.
+Line 5 in both languages may start before 25.0 s (0.3 s after line 4) and ends by 29.70 s; the
+English line 4 is tightened to make room. `make_mix.py` also writes FLAC copies of `vo-en`,
+`vo-ja` and `music-sfx-only`. See `VOICES.md`.

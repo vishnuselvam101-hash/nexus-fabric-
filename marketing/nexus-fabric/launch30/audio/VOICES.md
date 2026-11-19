@@ -27,15 +27,16 @@ espeak-class robotic voice was used.
 ## Quality — blunt assessment
 
 - **English**: neural, clear, the best-graded Kokoro voice. It is a good synthetic voice, not a
-  voice actor: limited emotional range, no direction possible. Lines 1–4 are at natural rate
-  (speed 1.00–1.08, some pauses trimmed to 0.26–0.34 s).
-- **English line 5 does NOT fit at a natural rate.** "From engineering drawings to manufacturing
-  intelligence. NEXUS FABRIC. Engineering, reimagined." needs about 6.0 s of pure speech at the
-  voice's normal pace; the slot is 4.55 s. It was synthesised at model speed 1.36 (native rate
-  control, not time-stretching) so that it ends at 29.55 s. It will sound rushed, and the ASR
-  round-trip heard the brand name there as "Next is fabric". Fix the script (for example
-  "Drawings to manufacturing intelligence. NEXUS FABRIC. Engineering, reimagined.") or give the
-  scene more time, then re-run.
+  voice actor: limited emotional range, no direction possible. Measured rates are 1.00–1.07x,
+  with some pauses trimmed to 0.22–0.34 s.
+- **English line 5** (lead decision): the text was shortened to "From drawings to manufacturing
+  intelligence. NEXUS FABRIC. Engineering, reimagined." and the line starts early, 0.33 s after
+  line 4 ends: 24.62–29.70 s. Measured speech rate 1.07x (nominal Kokoro speed 1.12), pauses capped
+  at 0.22 s. Line 4 was tightened to a measured 1.05x (nominal 1.18) and ends at 24.29 s.
+  Kokoro's speed input is non-linear, so limits are enforced on the measured rate
+  (speech-only duration at speed 1.0 / speech-only duration of the take); both numbers are in
+  `vo-timing.json`. The pacing across lines 4–5 is continuous and tight; it has not been heard.
+- **Japanese line 5** also starts early (24.88–29.70 s) at speed 1.00 with no pause trimming.
 - **Japanese: not verified as native quality, and probably not native quality.** Upstream grades
   `jf_alpha` C+ and the misaki Japanese front end used here supplies no pitch-accent marks, so
   wrong pitch accent on some words is likely (intelligible, but audibly synthetic to a native
@@ -46,11 +47,12 @@ espeak-class robotic voice was used.
 
 ## What was verified (see `checks.json`, `vo-timing.json`, `asr-roundtrip.json`)
 
-- Each line placed at segment start + 0.25 s and ends before the next segment (margins 0.22–1.15 s).
+- Lines 1–4 start at segment start + 0.25 s and end inside their segment; line 5 starts at least
+  0.3 s after line 4 and ends by 29.70 s.
 - No silent segment, no clipping (per-line peak −3 dBFS).
-- Whisper-small round trip, English: all five lines recovered word-for-word except
-  "NEXUS FABRIC" → "Next is fabric" in the fast line 5.
+- Whisper-small round trip, English: all five lines recovered word-for-word, including
+  "Nexus Fabric" in line 5.
 - Whisper-small round trip, Japanese: all five lines recovered; the differences are homophone or
-  near-homophone choices by the recogniser — 工数→コース, 核とする→拡充する, 制約→製薬, 再定義→最低技.
+  near-homophone choices by the recogniser — 工数→コース, 核とする→拡充する, 制約→製薬, 知恵へ→地位へ, 再定義→最低儀.
   工数 heard as コース and 核とする as 拡充する may also indicate slightly unclear vowel length
   or phrasing there; ask the native reviewer to check those two spots first.

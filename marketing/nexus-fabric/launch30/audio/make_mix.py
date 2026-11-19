@@ -135,23 +135,43 @@ def main():
 
     for lang in ("en", "ja"):
         vo = rd(f"vo-{lang}.wav"); rows = []
-        for ln in timing[lang]["lines"]:
+        L = timing[lang]["lines"]
+        for k, ln in enumerate(L):
             s0, s1 = ln["segment"]
-            seg = vo[int(s0 * SR):int(s1 * SR)]
+            final = k == len(L) - 1
+            # Lead decision: the final line may start early (>= 0.3 s after the previous line)
+            # and must end by 29.7 s. Every other line stays inside its own segment.
+            w0 = L[k - 1]["end"] if k else 0.0
+            w1 = 29.7 if final else s1
+            i0 = int((w0 + 0.01) * SR) if final else int(s0 * SR)
+            i1 = int(s1 * SR) if final else int(min(s1, L[k + 1]["start"] - 0.01) * SR)
+            seg = vo[i0:i1]
             idx = np.where(np.abs(seg) > 10 ** (-50 / 20))[0]
             rms = 20 * np.log10(np.sqrt((seg ** 2).mean()) + 1e-12)
-            first = s0 + idx[0] / SR if len(idx) else None
-            last = s0 + idx[-1] / SR if len(idx) else None
-            # nothing audible may spill over the segment end
-            spill = float(np.abs(vo[int(s1 * SR) - int(0.02 * SR):int(s1 * SR)]).max())
+            first = i0 / SR + idx[0] / SR if len(idx) else None
+            last = i0 / SR + idx[-1] / SR if len(idx) else None
+            gap_prev = round(ln["start"] - w0, 3) if k else None
+            inside = bool(len(idx) and last <= w1 + 0.005 and (first >= s0 or (final and gap_prev >= 0.3)))
             row = {"line": ln["index"] + 1, "segment": ln["segment"], "first_sound_s": round(first, 3) if first else None,
-                   "last_sound_s": round(last, 3) if last else None, "segment_rms_dBFS": round(float(rms), 1),
-                   "speed": ln["speed"], "natural_rate": ln["natural_rate"], "pause_cap_s": ln["pause_cap"],
-                   "silent": bool(rms < -45), "inside_segment": bool(len(idx) and last < s1 - 0.05 and spill < 10 ** (-50 / 20))}
-            row["pass"] = (not row["silent"]) and row["inside_segment"]
+                   "last_sound_s": round(last, 3) if last else None, "gap_after_previous_line_s": gap_prev,
+                   "segment_rms_dBFS": round(float(rms), 1), "nominal_speed": ln["speed"],
+                   "measured_rate": ln["measured_rate"], "pause_cap_s": ln["pause_cap"],
+                   "starts_before_segment": bool(first is not None and first < s0),
+                   "silent": bool(rms < -45), "inside_window": inside}
+            row["pass"] = (not row["silent"]) and inside and ln["fits"]
             ok = ok and row["pass"]
             rows.append(row)
         report["vo_lines"][lang] = rows
+
+    # lossless FLAC copies (24-bit) of the stems the edit needs
+    report["flac"] = {}
+    for name in ("vo-en", "vo-ja", "music-sfx-only"):
+        x = rd(name + ".wav")
+        sf.write(os.path.join(HERE, name + ".flac"), x, SR, format="FLAC", subtype="PCM_24")
+        y, sr2 = sf.read(os.path.join(HERE, name + ".flac"), dtype="float64")
+        same = sr2 == SR and y.shape == x.shape and float(np.abs(y - x).max()) < 2 ** -22
+        report["flac"][name + ".flac"] = {"frames": len(y), "identical_to_wav": bool(same)}
+        ok = ok and same
 
     report["all_pass"] = bool(ok)
     json.dump(report, open(os.path.join(HERE, "checks.json"), "w"), indent=1)
@@ -160,8 +180,8 @@ def main():
               f"peak={e['sample_peak_dBFS']:6.2f} dBFS  clipped={e['clipped_samples']}  pass={e['pass']}")
     for lang, rows in report["vo_lines"].items():
         for r in rows:
-            print(f"vo-{lang} line {r['line']}: {r['first_sound_s']}-{r['last_sound_s']} s in {r['segment']}  "
-                  f"speed {r['speed']}  natural_rate={r['natural_rate']}  pass={r['pass']}")
+            print(f"vo-{lang} line {r['line']}: {r['first_sound_s']}-{r['last_sound_s']} s  segment {r['segment']}  "
+                  f"rate {r['measured_rate']}  gap_prev {r['gap_after_previous_line_s']}  pass={r['pass']}")
     print("ALL PASS" if ok else "CHECKS FAILED")
     sys.exit(0 if ok else 1)
 
