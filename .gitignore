@@ -1,3 +1,4 @@
 target/
 data/
 *.key
+node_modules/

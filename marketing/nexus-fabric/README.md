@@ -12,6 +12,8 @@ Status on 18 November 2026: **approval workflow steps 1–5 done; waiting at ste
 | 6 Approval | — | **Waiting** |
 | 7–10 Final renders, feature films, QC, delivery | — | Not started |
 
+**Code-rendered 3D film (in progress, 19 November 2026):** [film/](film/) builds the flagship in three.js with geometry from the product's equations; stills of round 4 are in [film/cook/stills/r04/](film/cook/stills/r04/), ledger in [film/cook/ROUNDS.md](film/cook/ROUNDS.md). A zero-context critic scores it 5/5/5/5/4 out of 10 against a bar of 9: **not yet at cinematic standard; no final render made.**
+
 Subtitles for the flagship: [subtitles/](subtitles/) (SRT and VTT, English and Japanese). Production and quality report: [reports/PRODUCTION_REPORT.md](reports/PRODUCTION_REPORT.md).
 
 Not yet created (and why): final English/Japanese videos, feature and pricing films, how-to videos, thumbnails, voice-over assets, music and sound effects — see the production report.
