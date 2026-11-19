@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>NEXUS FABRIC launch film 30 s</title>
+<style>
+html,body{margin:0;background:#000;overflow:hidden}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:#000;color:#fff;font-family:-apple-system,"Helvetica Neue","Liberation Sans",Arial,"IPAPGothic","IPAGothic",sans-serif}
+.bg{position:absolute;inset:0;opacity:0}
+#b1{background:radial-gradient(120% 90% at 50% 0%,#1b2330,#05070a 70%)}
+#b2{background:radial-gradient(120% 100% at 30% 10%,#2f6fd6,#0b2a6b 55%,#040d24)}
+#b3{background:radial-gradient(120% 100% at 70% 10%,#19a08f,#0a4a4f 55%,#03181c)}
+#b4{background:radial-gradient(120% 100% at 40% 10%,#e08a2c,#8a3d12 55%,#200c04)}
+#island{position:absolute;left:50%;top:26px;background:#000;border-radius:22px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.pane{position:absolute;left:50%;top:0;width:1180px;height:580px;margin-left:-590px;opacity:0}
+.pane svg{position:absolute;inset:0;width:100%;height:100%}
+#shot{position:absolute;inset:14px;border-radius:12px;background:url(../drafts/source/app-amoeba.png) center top/cover}
+.ln{fill:none;stroke:#e8eef5;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.dimn{fill:none;stroke:#8fa1b3;stroke-width:1.4}
+.tx{fill:#c9d4df;font-size:22px;font-weight:500}.am{fill:#f3b85f}
+#cap{position:absolute;left:0;right:0;top:700px;text-align:center;font-size:58px;font-weight:600;line-height:1.22;letter-spacing:-.01em;padding:0 240px;text-wrap:balance}
+#cap.ja{font-size:52px;letter-spacing:.03em;line-height:1.4;word-break:keep-all;overflow-wrap:anywhere}
+#cap em{font-style:normal}
+#tag{position:absolute;left:0;right:0;bottom:58px;text-align:center;font-size:20px;letter-spacing:.08em;color:rgba(255,255,255,.72)}
+#end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0}
+#end .wm{font-size:112px;font-weight:700;letter-spacing:.22em;margin-left:.22em}
+#end .l1{font-size:34px;color:#c3cfdb;margin-top:26px}
+#end .l2{font-size:26px;color:#7fbdf8;margin-top:34px;letter-spacing:.16em}
+#end .l3{font-size:30px;margin-top:30px;font-weight:600}
+#end .l4{font-size:19px;color:#f3b85f;margin-top:44px}
+</style></head><body><div id="stage">
+<div class="bg" id="b1"></div><div class="bg" id="b2"></div><div class="bg" id="b3"></div><div class="bg" id="b4"></div>
+<div id="island">
+ <div class="pane" id="p1"><svg viewBox="0 0 1180 580" id="s1"></svg></div>
+ <div class="pane" id="p2"><div id="shot"></div></div>
+ <div class="pane" id="p3"><svg viewBox="0 0 1180 580" id="s3"></svg></div>
+ <div class="pane" id="p4"><svg viewBox="0 0 1180 580" id="s4"></svg></div>
+</div>
+<div id="cap"></div><div id="tag"></div>
+<div id="end"><div class="wm">NEXUS FABRIC</div><div class="l1"></div><div class="l3"></div><div class="l2"></div><div class="l4"></div></div>
+</div>
+<script>
+const Q = new URLSearchParams(location.search), lang = Q.get('lang') === 'ja' ? 'ja' : 'en';
+const L = { en: {
+  cap: ['Complex engineering drawings. Difficult geometry. <em>Hours of engineering work.</em>', 'Meet NEXUS FABRIC, an <em>AMOEBA-native engineering platform.</em>', 'Understand complex drawings. <em>Reconstruct 3D geometry.</em>', 'Calculate plate developments. <em>Generate traceable CAD deliverables.</em>', ''],
+  tag: ['Fictional drawing made for this film', 'Actual software · development build', 'Concept · drawing reading and 3D reconstruction are planned', 'Patterns computed from the product’s equations · DXF written, re-read and compared', ''],
+  l1: 'From engineering drawings to manufacturing intelligence.', l3: 'Rethink engineering.', l2: 'UNDERSTAND. RECONSTRUCT. VERIFY. MANUFACTURE.', l4: 'Product concept. Capabilities in development. Not validated for manufacturing.' },
+ ja: {
+  cap: ['複雑な製作図面。難しい形状。<em>膨大な設計・計算時間。</em>', 'NEXUS FABRIC。AMOEBAを中核にした<em>エンジニアリングプラットフォーム。</em>', '複雑な図面を理解し、<em>3D形状を再構築。</em>', '板材展開を計算し、<em>CADデータを生成。</em>', ''],
+  tag: ['この映像のために作成した架空の図面', '実際のソフトウェア画面 · 開発版', 'コンセプト · 図面読取と3D再構築は計画中', '製品の計算式による展開形状 · DXFを出力し、再読込して照合', ''],
+  l1: '図面から、製造の未来へ。', l3: 'エンジニアリングを再定義する。', l2: '理解する。再構築する。検証する。製造する。', l4: '製品コンセプト映像です。機能は開発中であり、製造用途の検証は完了していません。' } }[lang];
+const SEG = [[0, 5], [5, 11], [11, 18], [18, 25], [25, 30]], TINT = ['#9fb4cc', '#a9cbff', '#8fe6d6', '#ffd09a', '#fff'];
+const $ = (id) => document.getElementById(id), cl = (x) => Math.min(1, Math.max(0, x)), sm = (a, b, t) => { const x = cl((t - a) / (b - a)); return x * x * (3 - 2 * x); };
+const spring = (x) => x <= 0 ? 0 : 1 - Math.exp(-8 * x) * (Math.cos(6 * x) + (8 / 6) * Math.sin(6 * x));   // soft open, slight overshoot
+const NS = 'http://www.w3.org/2000/svg';
+const el = (svg, tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text) e.textContent = text; svg.appendChild(e); return e; };
+const path = (pts, close) => 'M' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') + (close ? 'Z' : '');
+
+// geometry of the product's reference assembly: header R150, branch r100 at 60 degrees (units of 100 mm)
+const R = 1.5, r = 1.0, BETA = Math.PI / 3, S_END = 4.0, HLEN = 12, sb = Math.sin(BETA), cb = Math.cos(BETA);
+const sOf = (phi) => (Math.sqrt(R * R - (r * Math.cos(phi)) ** 2) - r * Math.sin(phi) * cb) / sb;       // Spec 02 eq. (4.3)
+// side elevation: x along header, z up; 58 px per 100 mm
+const K = 58, OX = 590, OY = 400, E = (x, z) => [OX + x * K, OY - z * K];
+const ax = (s, o) => E(s * cb - o * sb, s * sb + o * cb);
+const hdr = [E(-6, -R), E(6, -R), E(6, R), E(-6, R)], br = [ax(sOf(Math.PI / 2), 1), ax(S_END, 1), ax(S_END, -1), ax(sOf(-Math.PI / 2), -1)];
+const draw = [];   // [element, start, end] stroke draw-on, in scene-local seconds
+function elevation(svg, t0) {
+  const add = (d, cls, a, b) => draw.push([el(svg, 'path', { d, class: cls, pathLength: 1, 'stroke-dasharray': 1, 'stroke-dashoffset': 1 }), a, b, svg.id]);
+  add(path(hdr, true), 'ln', t0, t0 + 1.2); add(path(br), 'ln', t0 + 0.6, t0 + 1.6);
+  add(path([E(-6.6, 0), E(6.6, 0)]), 'dimn', t0 + 1.0, t0 + 1.6); add(path([ax(-0.5, 0), ax(S_END + 0.6, 0)]), 'dimn', t0 + 1.0, t0 + 1.6);
+}
+{ const s = $('s1'); elevation(s, 0.5);
+  const dl = (a, b) => draw.push([el(s, 'path', { d: path([a, b]), class: 'dimn', pathLength: 1, 'stroke-dasharray': 1, 'stroke-dashoffset': 1 }), 1.6, 2.2, 's1']);
+  dl(E(-6, -2.3), E(6, -2.3)); dl(E(6.7, -R), E(6.7, R)); dl(ax(S_END + 0.35, -1), ax(S_END + 0.35, 1));
+  const tx = (x, y, s_, c = 'tx') => el(s, 'text', { x, y, class: c, 'text-anchor': 'middle', opacity: 0, 'data-a': 2.0 }, s_);
+  tx(...E(0, -2.85), '1200'); tx(E(7.5, 0)[0], E(7.5, 0.1)[1], '⌀300'); tx(E(7.6, 0)[0], E(7.6, -0.5)[1], '(⌀284)', 'tx am'); tx(...ax(S_END + 0.9, 0), '⌀200'); tx(...E(2.2, 1.85), '60°'); tx(...E(-4.6, 1.9), 't = ?', 'tx am'); }
+{ const s = $('s3'), defs = el(s, 'defs', {});
+  const grad = (id, x1, y1, x2, y2) => { const g = el(defs, 'linearGradient', { id, gradientUnits: 'userSpaceOnUse', x1, y1, x2, y2 }); for (const [o, c] of [[0, '#5d6873'], [0.22, '#e3e9ee'], [0.45, '#aab4bd'], [0.8, '#4a535d'], [1, '#2a3038']]) el(g, 'stop', { offset: o, 'stop-color': c }); };
+  grad('gh', 0, E(0, R)[1], 0, E(0, -R)[1]); const a = ax(2, 1), b = ax(2, -1); grad('gb', a[0], a[1], b[0], b[1]);
+  const solid = el(s, 'g', { id: 'solid', opacity: 0 });
+  el(solid, 'path', { d: path(br, true), fill: 'url(#gb)' }); el(solid, 'path', { d: path(hdr, true), fill: 'url(#gh)' });
+  const c0 = ax(S_END, 0); el(solid, 'ellipse', { cx: c0[0], cy: c0[1], rx: K, ry: K * 0.28, transform: `rotate(${-30} ${c0[0]} ${c0[1]})`, fill: '#1c2128', stroke: '#dfe6ec', 'stroke-width': 3 });
+  const w = []; for (let i = 0; i <= 60; i++) { const phi = -Math.PI / 2 + Math.PI * i / 60; const sv = sOf(phi); w.push(E(sv * cb - r * Math.sin(phi) * sb, sv * sb + r * Math.sin(phi) * cb)); }   // visible half of the true intersection curve, in elevation
+  el(solid, 'path', { d: path(w), fill: 'none', stroke: '#f3b85f', 'stroke-width': 4, 'stroke-linecap': 'round' });
+  elevation(s, 0.3); }
+{ const s = $('s4'), k = 40, add = (d, col, a, b, w = 3) => draw.push([el(s, 'path', { d, fill: 'none', stroke: col, 'stroke-width': w, 'stroke-linejoin': 'round', pathLength: 1, 'stroke-dasharray': 1, 'stroke-dashoffset': 1 }), a, b, 's4']);
+  const bx = 250, by = 420, bp = []; for (let i = 0; i <= 200; i++) { const phi = -Math.PI / 2 + 2 * Math.PI * i / 200; bp.push([bx + r * (phi - Math.PI / 2) * k, by - sOf(phi) * k]); }
+  const top = by - S_END * k; el(s, 'path', { id: 'f1', d: path([...bp, [bp[200][0], top], [bp[0][0], top]], true), fill: '#aab4bd', opacity: 0 });
+  add(path([...bp, [bp[200][0], top], [bp[0][0], top]], true), '#7fbdf8', 0.6, 2.2);
+  const hx = 760, hy = 290, W = Math.PI * R * k, H = HLEN / 2 * k, rect = [[hx - H, hy - W], [hx + H, hy - W], [hx + H, hy + W], [hx - H, hy + W]];
+  const op = []; for (let i = 0; i <= 200; i++) { const phi = 2 * Math.PI * i / 200, sv = sOf(phi); op.push([hx + (sv * cb - r * Math.sin(phi) * sb) * k, hy - R * Math.asin(r * Math.cos(phi) / R) * k]); }
+  el(s, 'path', { id: 'f2', d: path(rect, true) + path(op, true), fill: '#aab4bd', 'fill-rule': 'evenodd', opacity: 0 });
+  add(path(rect, true), '#7fbdf8', 1.2, 2.8); add(path(op, true), '#f3b85f', 2.4, 3.6);
+  el(s, 'text', { x: 1090, y: 545, class: 'tx', 'text-anchor': 'end', opacity: 0, 'data-a': 4.0, style: 'font-size:26px;font-weight:700;fill:#fff;letter-spacing:.12em' }, 'DXF'); }
+
+$('cap').className = lang; for (const k of ['l1', 'l2', 'l3', 'l4']) $('end').querySelector('.' + k).textContent = L[k];
+window.seek = (t) => {
+  const n = Math.max(0, SEG.findIndex(([a, b]) => t >= a && t < b)), [a, b] = SEG[n], lt = t - a;
+  for (let i = 0; i < 4; i++) $('b' + (i + 1)).style.opacity = sm(SEG[i][0] - 0.25, SEG[i][0] + 0.25, t) * (1 - sm(SEG[i][1] - 0.25, SEG[i][1] + 0.25, t)) || (i === 0 && t < 0.25 ? 1 : 0);
+  // island: motion is computed from the start of the film, so it never jumps between scenes
+  let o = 0; for (let i = 0; i < 4; i++) o = Math.max(o, spring(t - SEG[i][0] - 0.2) * (1 - sm(SEG[i][1] - 0.5, SEG[i][1] - 0.12, t)));
+  const oh = Math.min(o, 1), wI = 230 + (1180 - 230) * o, hI = 40 + (580 - 40) * oh;
+  const isl = $('island'); isl.style.width = wI + 'px'; isl.style.height = hI + 'px'; isl.style.marginLeft = -wI / 2 + 'px'; isl.style.borderRadius = 22 + 14 * oh + 'px';
+  for (let i = 0; i < 4; i++) $('p' + (i + 1)).style.opacity = i === n ? cl((o - 0.7) / 0.3) : 0;
+  for (const [e, s0, s1, id] of draw) if (id === 's' + (n + 1)) e.setAttribute('stroke-dashoffset', 1 - sm(s0, s1, lt));
+  document.querySelectorAll('#s' + (n + 1) + ' [data-a]').forEach((e) => e.setAttribute('opacity', sm(+e.dataset.a, +e.dataset.a + 0.5, lt)));
+  if (n === 2) $('solid').setAttribute('opacity', sm(2.4, 4.2, lt));
+  if (n === 3) { $('f1').setAttribute('opacity', 0.9 * sm(2.2, 3.0, lt)); $('f2').setAttribute('opacity', 0.9 * sm(3.4, 4.2, lt)); }
+  if (n === 1) $('shot').style.backgroundPositionY = -40 * sm(0.5, 6, lt) + 'px';
+  const cv = sm(0.35, 0.9, lt) * (1 - sm(b - a - 0.45, b - a - 0.1, lt));
+  $('cap').innerHTML = L.cap[n]; $('cap').style.opacity = cv; $('cap').style.transform = `translateY(${18 * (1 - sm(0.35, 0.9, lt))}px)`; const em = $('cap').querySelector('em'); if (em) em.style.color = TINT[n];
+  $('tag').textContent = L.tag[n]; $('tag').style.opacity = cv;
+  $('end').style.opacity = sm(25.3, 26.2, t); $('end').style.transform = `scale(${0.97 + 0.03 * sm(25.3, 27, t)})`;
+};
+window.seek(Number(Q.get('t') || 0)); window.READY = true;
+</script></body></html>
