@@ -1,0 +1,23 @@
+{
+ "assets_bytes": {
+  "/": 666,
+  "/app.js": 99061,
+  "/viewer.js": 15177,
+  "/styles.css": 33004,
+  "total": 147908
+ },
+ "perf": {
+  "dashboard": {
+   "domContentLoaded_ms": 45.9,
+   "first_view_rendered_ms": 116.6,
+   "dom_nodes": 355
+  },
+  "job": {
+   "domContentLoaded_ms": 42.4,
+   "first_view_rendered_ms": 124.3,
+   "dom_nodes": 1402
+  }
+ },
+ "console_errors": [],
+ "screenshots": 72
+}
