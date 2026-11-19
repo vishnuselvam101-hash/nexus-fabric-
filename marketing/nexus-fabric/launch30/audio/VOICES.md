@@ -36,7 +36,8 @@ espeak-class robotic voice was used.
   Kokoro's speed input is non-linear, so limits are enforced on the measured rate
   (speech-only duration at speed 1.0 / speech-only duration of the take); both numbers are in
   `vo-timing.json`. The pacing across lines 4–5 is continuous and tight; it has not been heard.
-- **Japanese line 5** also starts early (24.88–29.70 s) at speed 1.00 with no pause trimming.
+- **Japanese line 5** (revised script 「図面から、製造へ。NEXUS FABRIC。設計を、再定義。」) runs
+  25.17–29.70 s at speed 1.00 with no pause trimming; it did not need the early start.
 - **Japanese: not verified as native quality, and probably not native quality.** Upstream grades
   `jf_alpha` C+ and the misaki Japanese front end used here supplies no pitch-accent marks, so
   wrong pitch accent on some words is likely (intelligible, but audibly synthetic to a native
@@ -52,7 +53,7 @@ espeak-class robotic voice was used.
 - No silent segment, no clipping (per-line peak −3 dBFS).
 - Whisper-small round trip, English: all five lines recovered word-for-word, including
   "Nexus Fabric" in line 5.
-- Whisper-small round trip, Japanese: all five lines recovered; the differences are homophone or
-  near-homophone choices by the recogniser — 工数→コース, 核とする→拡充する, 制約→製薬, 知恵へ→地位へ, 再定義→最低儀.
-  工数 heard as コース and 核とする as 拡充する may also indicate slightly unclear vowel length
-  or phrasing there; ask the native reviewer to check those two spots first.
+- Whisper-small round trip, Japanese (revised script): all five lines recovered, including
+  ネクサスファブリック in lines 2 and 5; the differences are homophone or near-homophone choices
+  by the recogniser — 工数→コース, 核とする→拡充する, 再定義→最低義. 工数 and 核とする may
+  also indicate slightly unclear vowel length or phrasing; ask the native reviewer to check those first.

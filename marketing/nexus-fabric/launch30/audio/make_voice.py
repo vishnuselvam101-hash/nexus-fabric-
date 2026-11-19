@@ -26,7 +26,7 @@ SPEEDS = [1.0, 1.04, 1.08, 1.12, 1.16, 1.20]   # model-native rate, 1.20 = upper
 # nominal 1.18 is ~1.09x real), so the lead's limits are enforced on the MEASURED rate:
 # speech-only duration at speed 1.0 divided by speech-only duration of the take.
 NOMINAL = [1.0, 1.04, 1.08, 1.12, 1.16, 1.18, 1.20, 1.22]
-LAST_MAX_RATE = 1.10                            # final line: measured rate never above 1.10
+LAST_MAX_RATE = 1.08                            # final line: measured rate never above 1.08
 PREV_MAX_RATE = 1.08                            # line before it may be tightened to make room
 LAST_GAP = 0.30                                 # final line starts >= this long after the previous one
 LAST_END = 29.70                                # final line must end by here
