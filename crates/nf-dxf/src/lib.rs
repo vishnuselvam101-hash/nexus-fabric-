@@ -46,9 +46,13 @@ impl Entity {
 }
 
 fn num(v: f64) -> String {
-    // fixed 9 decimals: deterministic text, sub-nanometre resolution in mm
-    let s = format!("{:.9}", v);
-    if s == "-0.000000000" { "0.000000000".into() } else { s }
+    // Shortest decimal that reads back to exactly the same binary64 value:
+    // deterministic text and no precision loss. (A fixed number of decimals
+    // was used before; for large-radius arcs the rounded angle moved the arc
+    // end points by more than the re-import tolerance — regression 001.)
+    let v = if v == 0.0 { 0.0 } else { v };
+    let s = format!("{v}");
+    if s.contains('.') || s.contains("inf") || s.contains("NaN") { s } else { format!("{s}.0") }
 }
 
 pub fn write(entities: &[Entity]) -> String {
@@ -304,13 +308,21 @@ mod tests {
     }
 
     #[test]
+    fn large_radius_arcs_survive_exactly() {
+        // Regression 001: 9 fixed decimals moved the end of this arc by about 1e-5 mm.
+        let e = vec![Entity::Arc { layer: "CUT_OUTER".into(), c: (0.0, 0.0), r: 987654.3210987654, start_deg: 0.0, end_deg: 12.345678901234567 }, Entity::Line { layer: "CUT_OUTER".into(), a: (1e-9, -0.0), b: (123456789.12345679, 1.0 / 3.0) }];
+        let r = reimport_check(&e, &write(&e), 0.0);
+        assert!(r.pass && r.max_point_deviation == 0.0 && r.max_length_deviation == 0.0, "{r:?}");
+    }
+
+    #[test]
     fn detects_corruption_truncation_and_foreign_entities() {
         let e = sample();
         let t = write(&e);
-        assert!(!reimport_check(&e, &t.replace("632.455532034", "632.455532134"), 1e-8).pass);
+        assert!(!reimport_check(&e, &t.replace("632.4555320337", "632.4555321337"), 1e-8).pass);
         assert!(!reimport_check(&e, &t[..t.len() - 12], 1e-8).pass);
         assert!(!reimport_check(&e, &t.replace("  0\nEOF", "  0\nCIRCLE\n  8\nX\n  0\nEOF"), 1e-8).pass);
-        assert!(!reimport_check(&e, &t.replacen("CUT_OUTER\n 10\n0.000000000", "NO_CUT\n 10\n0.000000000", 1), 1e-8).pass);
+        assert!(!reimport_check(&e, &t.replacen("CUT_OUTER\n 10\n0.0", "NO_CUT\n 10\n0.0", 1), 1e-8).pass);
         assert!(read("garbage").is_err());
     }
 }

@@ -1,0 +1,43 @@
+{
+ "description": "DXF writer rounded arc angles to 9 decimals; for large apex radii the arc end points moved by more than the re-import tolerance and gate G15 failed although the geometry was right. Found by the stress campaign on 2026-11-19; fixed by exact round-trip number formatting in nf-dxf.",
+ "found": "2026-11-19",
+ "fixed_in": "nf-dxf num()",
+ "cases": [
+  {
+   "request": {
+    "family": "cone_frustum",
+    "r1": 1538.7514078524855,
+    "r2": 1261.4915241413987,
+    "h": 4285.875816124963
+   },
+   "expect": "verified"
+  },
+  {
+   "request": {
+    "family": "cone_frustum",
+    "r1": 599.5717002253497,
+    "r2": 0.07566235801724773,
+    "h": 18753.415781128937
+   },
+   "expect": "verified"
+  },
+  {
+   "request": {
+    "family": "cone_frustum",
+    "r1": 72954.55185444237,
+    "r2": 13015.916978239055,
+    "h": 31294.99061369842
+   },
+   "expect": "verified"
+  },
+  {
+   "request": {
+    "family": "cone_frustum",
+    "r1": 72726.7170436382,
+    "r2": 4.281216347829106,
+    "h": 2428.9360249873457
+   },
+   "expect": "verified"
+  }
+ ]
+}
