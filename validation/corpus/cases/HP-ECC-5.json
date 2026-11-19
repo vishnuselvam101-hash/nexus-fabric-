@@ -1,0 +1,63 @@
+{
+ "id": "HP-ECC-5",
+ "group": "high_precision",
+ "title": "Eccentric reducer r1=500 r2=480 h=60 e=20: mpmath values",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 500,
+  "r2": 480,
+  "h": 60,
+  "e": 20
+ },
+ "expect": "accept",
+ "derivation": "mpmath, 40 digits: developed angle = arc length of the spherical image of the rulings (tanh-sinh quadrature); area = 3D surface integral of |S_theta x S_lambda| (agrees with the polar integral to all digits).  The apex-free ODE route (reference/hp.py eccentric_apexfree_chord) reproduces the 0-180 deg chord of case 1 to 20 digits.",
+ "quantities": {
+  "reducer": {
+   "developed_angle": [
+    1.8618912892246622,
+    3.723782578449324e-11
+   ],
+   "rho_at_0": [
+    1500.0,
+    3e-09
+   ],
+   "rho_at_180": [
+    1802.7756377319947,
+    3.6055512754639894e-09
+   ],
+   "area": [
+    199057.4967750607,
+    0.0001990574967750607
+   ]
+  }
+ },
+ "measures": {
+  "reducer": {
+   "len_large_end": [
+    3141.5926535897934,
+    0.0942477796076938
+   ],
+   "len_small_end": [
+    3015.9289474462016,
+    0.09047786842338605
+   ],
+   "len_seam_a": [
+    60.0,
+    6e-10
+   ],
+   "len_seam_b": [
+    60.0,
+    6e-10
+   ],
+   "outline_area": [
+    199057.4967750607,
+    17.915174709755462
+   ]
+  }
+ },
+ "hp_strings": {
+  "developed_angle": "1.8618912892246621901",
+  "area": "199057.49677506069892",
+  "psi_180": "0.93094564461233109507"
+ }
+}

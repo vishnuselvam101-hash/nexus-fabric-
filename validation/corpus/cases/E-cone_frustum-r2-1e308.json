@@ -1,0 +1,17 @@
+{
+ "id": "E-cone_frustum-r2-1e308",
+ "group": "refusal",
+ "title": "cone_frustum: r2 = 1e308",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 200,
+  "r2": 1e+308,
+  "h": 300
+ },
+ "expect": "refuse",
+ "derivation": "A finite but absurd magnitude: products of lengths overflow binary64. The only acceptable outcomes are a refusal or a finite, correct pattern; a pattern containing non-finite numbers is a defect. Expected here: refusal.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": []
+ }
+}

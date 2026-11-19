@@ -1,0 +1,108 @@
+{
+ "id": "A-TEE-90",
+ "group": "closed_form",
+ "title": "90 deg centred tee, r/R = 1/2: saddle and opening extents in closed form",
+ "request": {
+  "family": "header_with_branch",
+  "header_radius": 150,
+  "header_dev_radius": 150,
+  "header_length": 1000,
+  "branch_station": 400,
+  "branch_radius": 75,
+  "branch_dev_radius": 75,
+  "beta_deg": 90,
+  "delta": 0,
+  "s_end": 300,
+  "surface_reference": "outside"
+ },
+ "expect": "accept",
+ "derivation": "Centred 90 deg tee: s(phi) = sqrt(R^2 - r^2 cos^2 phi), so s_min = sqrt(150^2-75^2) = 129.9038105676658 at phi=0,180 and s_max = R = 150 at phi=90,270. Opening on the plate: along the axis it spans station -/+ r = 325..475; around the header it spans R*(pi -/+ asin(r/R)) = 150*(pi -/+ pi/6) = 392.699..549.779 measured from a seam diametrically opposite the branch.  Plate 1000 x 2*pi*150.  Branch pattern: width 2*pi*75, seam length s_end - s(0) = 300 - 129.90381, height 300 - 129.90381.",
+ "quantities": {
+  "header": {
+   "opening_x_min": [
+    325,
+    0.030000000000000002
+   ],
+   "opening_x_max": [
+    475,
+    0.030000000000000002
+   ],
+   "developed_width": [
+    942.4777960769379,
+    9.424777960769378e-09
+   ]
+  },
+  "branch": {
+   "s_min": [
+    129.9038105676658,
+    1.2990381056766581e-08
+   ],
+   "s_max": [
+    150.0,
+    1.5000000000000002e-08
+   ],
+   "s_at_0": [
+    129.9038105676658,
+    1.299038105676658e-09
+   ],
+   "s_at_90": [
+    150.0,
+    1.5e-09
+   ],
+   "developed_width": [
+    471.23889803846896,
+    4.712388980384689e-09
+   ]
+  }
+ },
+ "measures": {
+  "header": {
+   "bbox_w": [
+    1000.0,
+    1e-08
+   ],
+   "bbox_h": [
+    942.4777960769379,
+    9.424777960769378e-09
+   ],
+   "hole_xmin": [
+    325,
+    0.030000000000000002
+   ],
+   "hole_xmax": [
+    475,
+    0.030000000000000002
+   ],
+   "hole_ymin": [
+    392.6990816987241,
+    0.030000000000000002
+   ],
+   "hole_ymax": [
+    549.7787143782137,
+    0.030000000000000002
+   ],
+   "hole_cx": [
+    400,
+    1e-06
+   ],
+   "hole_cy": [
+    471.23889803846896,
+    1e-06
+   ]
+  },
+  "branch": {
+   "bbox_w": [
+    471.23889803846896,
+    4.712388980384689e-09
+   ],
+   "bbox_h": [
+    170.0961894323342,
+    1.700961894323342e-08
+   ],
+   "len_seam_a": [
+    170.0961894323342,
+    1.7009618943233418e-09
+   ]
+  }
+ }
+}

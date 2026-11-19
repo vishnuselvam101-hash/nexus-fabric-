@@ -1,0 +1,20 @@
+{
+ "id": "S-SCALE-stub-2",
+ "group": "symmetry",
+ "title": "Uniform scale x2 of branch_stub",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 150,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 60,
+  "delta": 20,
+  "s_end": 400
+ },
+ "expect": "accept",
+ "derivation": "Scaling every length by k scales every pattern coordinate by k (lengths x k, areas x k^2); angles unchanged. For k a power of two the result should be identical to rounding; otherwise agreement to ~1e-12 relative.",
+ "relation": {
+  "type": "scale",
+  "k": 2.0
+ }
+}

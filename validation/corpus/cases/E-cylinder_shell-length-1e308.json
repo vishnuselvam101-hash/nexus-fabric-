@@ -1,0 +1,16 @@
+{
+ "id": "E-cylinder_shell-length-1e308",
+ "group": "refusal",
+ "title": "cylinder_shell: length = 1e308",
+ "request": {
+  "family": "cylinder_shell",
+  "r_dev": 500,
+  "length": 1e+308
+ },
+ "expect": "refuse",
+ "derivation": "A finite but absurd magnitude: products of lengths overflow binary64. The only acceptable outcomes are a refusal or a finite, correct pattern; a pattern containing non-finite numbers is a defect. Expected here: refusal.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": []
+ }
+}

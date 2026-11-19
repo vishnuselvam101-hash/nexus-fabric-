@@ -1,0 +1,13 @@
+{
+ "id": "E-cone_frustum-r1-NaN",
+ "group": "refusal",
+ "title": "cone_frustum: r1 = NaN",
+ "request": null,
+ "expect": "refuse",
+ "derivation": "NaN is not a finite JSON number: the request must be rejected at the boundary (HTTP 400), never computed.",
+ "refusal": {
+  "kind": "malformed",
+  "mentions": []
+ },
+ "raw_body": "{\"family\": \"cone_frustum\", \"r1\": NaN, \"r2\": 100, \"h\": 300}"
+}

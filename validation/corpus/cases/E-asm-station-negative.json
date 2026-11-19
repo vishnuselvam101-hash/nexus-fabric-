@@ -1,0 +1,27 @@
+{
+ "id": "E-asm-station-negative",
+ "group": "refusal",
+ "title": "assembly: negative station",
+ "request": {
+  "family": "header_with_branch",
+  "header_radius": 150,
+  "header_dev_radius": 150,
+  "header_length": 1200,
+  "branch_station": -600,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 60,
+  "delta": 20,
+  "s_end": 400,
+  "surface_reference": "outside"
+ },
+ "expect": "refuse",
+ "derivation": "Branch not on the plate at all.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "station",
+   "opening"
+  ]
+ }
+}

@@ -1,0 +1,116 @@
+{
+ "id": "D-ASM-086",
+ "group": "assembly",
+ "title": "Header R=150 / branch r=135, beta=75, delta=-7.5",
+ "request": {
+  "family": "header_with_branch",
+  "header_radius": 150.0,
+  "header_dev_radius": 150.0,
+  "header_length": 580.0,
+  "branch_station": 145.0,
+  "branch_radius": 135.0,
+  "branch_dev_radius": 135.0,
+  "beta_deg": 75,
+  "delta": -7.5,
+  "s_end": 229.0,
+  "surface_reference": "inside"
+ },
+ "expect": "accept",
+ "derivation": "Layout expectation from the float reference tier: header and branch cylinders placed in 3D, intersection by bisection on each branch ruling, opening extents on the plate in the frame x = station, y = arc from the seam opposite the branch; saddle heights on the branch.",
+ "quantities": {
+  "branch": {
+   "developed_width": [
+    848.2300164692441,
+    8.48230016469244e-09
+   ],
+   "s_min": [
+    46.926057971370454,
+    0.02827433388230814
+   ],
+   "s_max": [
+    191.42119716554373,
+    0.02827433388230814
+   ],
+   "s_at_0": [
+    81.80483531532406,
+    8.180483531532406e-09
+   ]
+  },
+  "header": {
+   "developed_width": [
+    942.4777960769379,
+    9.424777960769378e-09
+   ],
+   "length": [
+    580.0,
+    5.8e-09
+   ],
+   "opening_x_min": [
+    45.364507723248074,
+    0.02827433388230814
+   ],
+   "opening_x_max": [
+    324.9139007999732,
+    0.02827433388230814
+   ]
+  }
+ },
+ "measures": {
+  "branch": {
+   "bbox_w": [
+    848.2300164692441,
+    8.48230016469244e-09
+   ],
+   "bbox_h": [
+    182.07394202862955,
+    0.02827433388230814
+   ],
+   "len_seam_a": [
+    147.19516468467594,
+    1.4719516468467596e-08
+   ],
+   "len_seam_b": [
+    147.19516468467594,
+    1.4719516468467596e-08
+   ],
+   "len_square_end": [
+    848.2300164692441,
+    8.48230016469244e-09
+   ]
+  },
+  "header": {
+   "bbox_w": [
+    580.0,
+    5.8e-09
+   ],
+   "bbox_h": [
+    942.4777960769379,
+    9.424777960769378e-09
+   ],
+   "outline_area": [
+    546637.121724624,
+    5.466371217246239e-06
+   ],
+   "hole_xmin": [
+    45.364507723248074,
+    0.02827433388230814
+   ],
+   "hole_xmax": [
+    324.9139007999732,
+    0.02827433388230814
+   ],
+   "hole_ymin": [
+    283.25351341296266,
+    0.02827433388230814
+   ],
+   "hole_ymax": [
+    623.6366921106928,
+    0.02827433388230814
+   ],
+   "hole_count": [
+    1,
+    0
+   ]
+  }
+ }
+}

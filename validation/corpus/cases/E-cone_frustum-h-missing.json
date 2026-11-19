@@ -1,0 +1,18 @@
+{
+ "id": "E-cone_frustum-h-missing",
+ "group": "refusal",
+ "title": "cone_frustum: h missing",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 200,
+  "r2": 100
+ },
+ "expect": "refuse",
+ "derivation": "A missing parameter must not be defaulted.",
+ "refusal": {
+  "kind": "malformed",
+  "mentions": [
+   "h"
+  ]
+ }
+}

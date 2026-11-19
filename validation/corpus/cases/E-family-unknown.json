@@ -1,0 +1,14 @@
+{
+ "id": "E-family-unknown",
+ "group": "refusal",
+ "title": "unknown family",
+ "request": {
+  "family": "teapot"
+ },
+ "expect": "refuse",
+ "derivation": "Unknown part family.",
+ "refusal": {
+  "kind": "malformed",
+  "mentions": []
+ }
+}
