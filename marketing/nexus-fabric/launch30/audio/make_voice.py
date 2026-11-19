@@ -22,8 +22,15 @@ TAIL = 0.20          # voice must end this long before the next segment
 MODEL_DIR = os.environ.get("KOKORO_DIR", os.path.expanduser("~/.cache/nf-audio/kokoro"))
 VOICES = {"en": ("af_heart", "en-us"), "ja": ("jf_alpha", "ja")}
 SPEEDS = [1.0, 1.04, 1.08, 1.12, 1.16, 1.20]   # model-native rate, 1.20 = upper natural limit
-OVERDRIVE = [1.24, 1.28, 1.32, 1.36, 1.40]      # best-effort only; flagged natural_rate=false
-PAUSE_CAPS = [None, 0.34, 0.26]                # optional tightening of inter-sentence pauses (s)
+# Kokoro's `speed` input is strongly non-linear (nominal 1.08 and 1.10 give identical audio,
+# nominal 1.18 is ~1.09x real), so the lead's limits are enforced on the MEASURED rate:
+# speech-only duration at speed 1.0 divided by speech-only duration of the take.
+NOMINAL = [1.0, 1.04, 1.08, 1.12, 1.16, 1.18, 1.20, 1.22]
+LAST_MAX_RATE = 1.10                            # final line: measured rate never above 1.10
+PREV_MAX_RATE = 1.08                            # line before it may be tightened to make room
+LAST_GAP = 0.30                                 # final line starts >= this long after the previous one
+LAST_END = 29.70                                # final line must end by here
+PAUSE_CAPS = [None, 0.34, 0.26, 0.22]                # optional tightening of inter-sentence pauses (s)
 
 # Text normalisation for the synthesiser only (subtitles keep the script text).
 EN_SAY = [("NEXUS FABRIC", "Nexus Fabric"), ("AMOEBA", "Amoeba")]
@@ -261,31 +268,70 @@ def main():
     for lang in ("en", "ja"):
         track = np.zeros(int(SR * DUR))
         info = []; all_cues = []
-        for i, (text, (s0, s1)) in enumerate(zip(narr[lang]["vo"], segs)):
-            budget = (s1 - s0) - LEAD - TAIL
-            fits = False; cap = None
-            for speed in SPEEDS + OVERDRIVE:
-                raw = synth(engine, lang, text, speed)
+        lines = list(zip(narr[lang]["vo"], segs))
+        cache = {}
+
+        def speech_len(w):
+            return len(w) / SR - sum(b - a for a, b in silence_gaps(w, SR))
+
+        def take(text, speed):
+            if (text, speed) not in cache:
+                cache[(text, speed)] = synth(engine, lang, text, speed)
+            return cache[(text, speed)]
+
+        def rate(text, speed):
+            return speech_len(take(text, 1.0)) / speech_len(take(text, speed))
+
+        def variants(text, speeds, max_rate=None):
+            """Yield (wav, speed, pause_cap), mildest first."""
+            for speed in speeds:
+                raw = take(text, speed)
+                if max_rate is not None and rate(text, speed) > max_rate:
+                    continue
                 for cap in PAUSE_CAPS:
-                    wav = raw if cap is None else tighten_pauses(raw, SR, cap)
-                    fits = len(wav) / SR <= budget
-                    if fits:
-                        break
+                    yield (raw if cap is None else tighten_pauses(raw, SR, cap)), speed, cap
+
+        plan = []   # (wav, speed, cap, fits, start)
+        last = len(lines) - 1
+        for i, (text, (s0, s1)) in enumerate(lines[:last]):
+            budget = (s1 - s0) - LEAD - TAIL
+            for wav, speed, cap in variants(text, SPEEDS):
+                fits = len(wav) / SR <= budget
                 if fits:
                     break
+            plan.append((wav, speed, cap, fits, s0 + LEAD))
+        # Final line (lead decision): it may start before its segment, 0.3 s after the previous
+        # line ends, and must end by LAST_END. The previous line may be tightened to <= 1.08.
+        text, (s0, s1) = lines[last]
+        ps0 = lines[last - 1][1][0]
+        done = False
+        for wav, speed, cap in variants(text, NOMINAL, LAST_MAX_RATE):
+            for pw, pspeed, pcap in [plan[-1][:3]] + [v for v in variants(lines[last - 1][0], NOMINAL, PREV_MAX_RATE)
+                                                      if len(v[0]) < len(plan[-1][0])]:
+                earliest = ps0 + LEAD + len(pw) / SR + LAST_GAP
+                if earliest + len(wav) / SR <= LAST_END:
+                    done = True
+                    break
+            if done:
+                break
+        plan[-1] = (pw, pspeed, pcap, True, ps0 + LEAD)
+        start = max(earliest, min(s0 + LEAD, LAST_END - len(wav) / SR))
+        plan.append((wav, speed, cap, done, start))
+
+        for i, ((text, (s0, s1)), (wav, speed, cap, fits, t0)) in enumerate(zip(lines, plan)):
             pk = np.abs(wav).max()
             wav = wav * (10 ** (-3 / 20) / pk)          # per-line peak -3 dBFS
-            a = int(round((s0 + LEAD) * SR)); n = min(len(wav), len(track) - a)
+            a = int(round(t0 * SR)); n = min(len(wav), len(track) - a)
             track[a:a + n] += wav[:n]
-            t0 = s0 + LEAD; t1 = t0 + len(wav) / SR
+            t1 = t0 + len(wav) / SR
             gaps = [(t0 + ga, t0 + gb) for ga, gb in silence_gaps(wav, SR)]
             cues = make_cues(text, lang, t0, t1, gaps)
             all_cues += cues
             info.append({"index": i, "segment": [s0, s1], "start": round(t0, 3), "end": round(t1, 3),
-                         "duration": round(t1 - t0, 3), "speed": round(speed, 3), "pause_cap": cap, "natural_rate": bool(speed <= SPEEDS[-1]), "fits": bool(fits),
+                         "duration": round(t1 - t0, 3), "speed": round(speed, 3), "measured_rate": round(rate(text, speed), 3), "pause_cap": cap, "natural_rate": bool(rate(text, speed) <= 1.2), "fits": bool(fits),
                          "margin_to_next_segment": round(s1 - t1, 3), "text": text,
                          "pauses": [[round(x, 3), round(y, 3)] for x, y in gaps]})
-            print(f"{lang} line {i}: {t0:.2f}-{t1:.2f}s speed {speed:.2f} pause_cap {cap} fits={fits}")
+            print(f"{lang} line {i}: {t0:.2f}-{t1:.2f}s nominal speed {speed:.2f} measured rate {rate(text, speed):.3f} pause_cap {cap} fits={fits}")
         sf.write(os.path.join(HERE, f"vo-{lang}.wav"), track, SR, subtype="PCM_24")
         subs = write_subs(all_cues, lang)
         timing[lang] = {"voice": VOICES[lang][0], "lines": info,

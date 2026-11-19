@@ -1,0 +1,45 @@
+1
+00:00:00,200 --> 00:00:02,005
+Complex engineering drawings.
+
+2
+00:00:02,045 --> 00:00:05,109
+Difficult geometry.
+Hours of engineering work.
+
+3
+00:00:05,200 --> 00:00:10,240
+Meet NEXUS FABRIC, an AI-native
+engineering platform powered by AMOEBA.
+
+4
+00:00:11,200 --> 00:00:13,150
+Understand complex drawings.
+
+5
+00:00:13,190 --> 00:00:15,250
+Reconstruct 3D geometry.
+
+6
+00:00:15,290 --> 00:00:18,127
+Perform advanced engineering calculations.
+
+7
+00:00:18,200 --> 00:00:21,865
+Calculate plate developments,
+evaluate manufacturing constraints
+
+8
+00:00:21,905 --> 00:00:24,532
+and generate traceable CAD deliverables.
+
+9
+00:00:24,572 --> 00:00:27,072
+From drawings to
+manufacturing intelligence.
+
+10
+00:00:27,112 --> 00:00:29,960
+NEXUS FABRIC.
+Engineering, reimagined.
+
