@@ -2,13 +2,17 @@
 //! radii supplied by the caller: thickness and process allowances are NOT
 //! modelled in this build, which is recorded as an assumption on every pattern.
 
-use crate::{finite_pos, gauss, Curve, DevClass, Geom, Layer, Pattern, UemError, P2, TAU};
+use crate::{Curve, DevClass, Geom, Layer, P2, Pattern, TAU, UemError, finite_pos, gauss};
 
 const ASSUME_REF: &str = "Radii are taken as reference-surface (neutral) radii exactly as entered; thickness, neutral-factor, weld gap, shrinkage and kerf are not modelled.";
 const ASSUME_MODEL: &str = "Mathematical model from Specification 02 (provisional; not independently reviewed; evidence level EV-1).";
 
 fn line(name: &'static str, a: P2, b: P2) -> Curve {
-    Curve { name, layer: Layer::CutOuter, geom: Geom::Line { a, b } }
+    Curve {
+        name,
+        layer: Layer::CutOuter,
+        geom: Geom::Line { a, b },
+    }
 }
 
 /// Plain cylindrical shell: rectangle 2*pi*r_dev by length. Spec 02 §4.1.
@@ -16,15 +20,29 @@ pub fn cylinder_shell(r_dev: f64, length: f64) -> Result<Pattern, UemError> {
     finite_pos("r_dev", r_dev)?;
     finite_pos("length", length)?;
     let w = TAU * r_dev;
-    let (p0, p1, p2, p3) = (P2::new(0.0, 0.0), P2::new(w, 0.0), P2::new(w, length), P2::new(0.0, length));
+    let (p0, p1, p2, p3) = (
+        P2::new(0.0, 0.0),
+        P2::new(w, 0.0),
+        P2::new(w, length),
+        P2::new(0.0, length),
+    );
     Ok(Pattern {
         family: "cylinder_shell",
         class: DevClass::ExactClosedForm,
-        outline: vec![line("bottom", p0, p1), line("seam_b", p1, p2), line("top", p2, p3), line("seam_a", p3, p0)],
+        outline: vec![
+            line("bottom", p0, p1),
+            line("seam_b", p1, p2),
+            line("top", p2, p3),
+            line("seam_a", p3, p0),
+        ],
         holes: vec![],
         eps_num: 4.0 * f64::EPSILON * w.max(length),
         eps_rep: 0.0,
-        quantities: vec![("developed_width", w), ("length", length), ("area", w * length)],
+        quantities: vec![
+            ("developed_width", w),
+            ("length", length),
+            ("area", w * length),
+        ],
         assumptions: vec![ASSUME_REF, ASSUME_MODEL],
     })
 }
@@ -42,7 +60,10 @@ pub fn cone_frustum(r1: f64, r2: f64, h: f64) -> Result<Pattern, UemError> {
     finite_pos("r2", r2)?;
     finite_pos("h", h)?;
     if r1 <= r2 {
-        return Err(UemError::OutOfRange { param: "r1", reason: "requires r1 > r2 (large end first); equal radii is a cylinder".into() });
+        return Err(UemError::OutOfRange {
+            param: "r1",
+            reason: "requires r1 > r2 (large end first); equal radii is a cylinder".into(),
+        });
     }
     let s = h.hypot(r1 - r2);
     let sin_a = (r1 - r2) / s;
@@ -53,9 +74,27 @@ pub fn cone_frustum(r1: f64, r2: f64, h: f64) -> Result<Pattern, UemError> {
     let phi = TAU * sin_a;
     let c = P2::new(0.0, 0.0);
     let outline = vec![
-        Curve { name: "large_end", layer: Layer::CutOuter, geom: Geom::Arc { c, r: l1, a0: 0.0, a1: phi } },
+        Curve {
+            name: "large_end",
+            layer: Layer::CutOuter,
+            geom: Geom::Arc {
+                c,
+                r: l1,
+                a0: 0.0,
+                a1: phi,
+            },
+        },
         line("seam_b", P2::polar(l1, phi), P2::polar(l2, phi)),
-        Curve { name: "small_end", layer: Layer::CutOuter, geom: Geom::Arc { c, r: l2, a0: phi, a1: 0.0 } },
+        Curve {
+            name: "small_end",
+            layer: Layer::CutOuter,
+            geom: Geom::Arc {
+                c,
+                r: l2,
+                a0: phi,
+                a1: 0.0,
+            },
+        },
         line("seam_a", P2::polar(l2, 0.0), P2::polar(l1, 0.0)),
     ];
     Ok(Pattern {
@@ -130,20 +169,28 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
     finite_pos("r2", r2)?;
     finite_pos("h", h)?;
     if !e.is_finite() || e < 0.0 {
-        return Err(UemError::OutOfRange { param: "e", reason: "offset must be finite and >= 0".into() });
+        return Err(UemError::OutOfRange {
+            param: "e",
+            reason: "offset must be finite and >= 0".into(),
+        });
     }
     if r1 <= r2 {
         return Err(UemError::OutOfRange { param: "r1", reason: "requires r1 > r2; equal radii with offset (oblique cylinder) is not implemented in this build".into() });
     }
     if (r1 - r2) / h.hypot(r1 - r2) < 1e-3 {
-        return Err(UemError::OutOfRange { param: "r1-r2", reason: "near-cylindrical: apex-free method not implemented in this build".into() });
+        return Err(UemError::OutOfRange {
+            param: "r1-r2",
+            reason: "near-cylindrical: apex-free method not implemented in this build".into(),
+        });
     }
     let g = ObliqueCone { r1, r2, h, e };
     let n = 360;
     let (s, qerr) = oblique_cone_samples(&g, n);
     let psi_total = s[2 * n].2;
     if psi_total >= TAU * 0.999 {
-        return Err(UemError::NotDevelopable(format!("developed angle {psi_total:.6} rad would overlap")));
+        return Err(UemError::NotDevelopable(format!(
+            "developed angle {psi_total:.6} rad would overlap"
+        )));
     }
     let k = r2 / r1;
     let outer_all: Vec<P2> = s.iter().map(|&(_, rho, psi)| P2::polar(rho, psi)).collect();
@@ -158,16 +205,34 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
             eps_rep = eps_rep.max(mid.dist(chord_mid));
         }
     }
-    let inner: Vec<P2> = outer.iter().rev().map(|p| P2::new(p.x * k, p.y * k)).collect(); // traversed back toward theta = 0
+    let inner: Vec<P2> = outer
+        .iter()
+        .rev()
+        .map(|p| P2::new(p.x * k, p.y * k))
+        .collect(); // traversed back toward theta = 0
     let rho_max = s.iter().map(|x| x.1).fold(0.0, f64::max);
     let area = {
         let (v, _) = gauss(&|t| 0.5 * g.rho(t).powi(2) * g.dpsi(t), 0.0, TAU, 720);
         v * (1.0 - k * k)
     };
     let outline = vec![
-        Curve { name: "large_end", layer: Layer::CutOuter, geom: Geom::Polyline { pts: outer.clone(), eps_rep } },
+        Curve {
+            name: "large_end",
+            layer: Layer::CutOuter,
+            geom: Geom::Polyline {
+                pts: outer.clone(),
+                eps_rep,
+            },
+        },
         line("seam_b", outer[n], inner[0]),
-        Curve { name: "small_end", layer: Layer::CutOuter, geom: Geom::Polyline { pts: inner.clone(), eps_rep: eps_rep * k } },
+        Curve {
+            name: "small_end",
+            layer: Layer::CutOuter,
+            geom: Geom::Polyline {
+                pts: inner.clone(),
+                eps_rep: eps_rep * k,
+            },
+        },
         line("seam_a", inner[n], outer[0]),
     ];
     Ok(Pattern {
@@ -208,24 +273,39 @@ pub struct Branch {
 impl Branch {
     pub fn s(&self, phi: f64) -> f64 {
         let y = self.delta + self.r * phi.cos();
-        ((self.big_r * self.big_r - y * y).sqrt() - self.r * phi.sin() * self.beta.cos()) / self.beta.sin()
+        ((self.big_r * self.big_r - y * y).sqrt() - self.r * phi.sin() * self.beta.cos())
+            / self.beta.sin()
     }
     /// 3D point on the branch surface (header axis = x axis).
     pub fn point(&self, phi: f64, s: f64) -> [f64; 3] {
         let (sb, cb) = self.beta.sin_cos();
-        [s * cb - self.r * phi.sin() * sb, self.delta + self.r * phi.cos(), s * sb + self.r * phi.sin() * cb]
+        [
+            s * cb - self.r * phi.sin() * sb,
+            self.delta + self.r * phi.cos(),
+            s * sb + self.r * phi.sin() * cb,
+        ]
     }
 }
 
 /// Branch stub pattern: square end at distance `s_end` along the branch axis,
 /// saddle cut against the header. `r_dev` is the branch development radius.
-pub fn branch_stub(big_r: f64, r: f64, r_dev: f64, beta_deg: f64, delta: f64, s_end: f64) -> Result<Pattern, UemError> {
+pub fn branch_stub(
+    big_r: f64,
+    r: f64,
+    r_dev: f64,
+    beta_deg: f64,
+    delta: f64,
+    s_end: f64,
+) -> Result<Pattern, UemError> {
     finite_pos("header_radius", big_r)?;
     finite_pos("branch_radius", r)?;
     finite_pos("branch_dev_radius", r_dev)?;
     finite_pos("s_end", s_end)?;
     if !delta.is_finite() {
-        return Err(UemError::OutOfRange { param: "delta", reason: "must be finite".into() });
+        return Err(UemError::OutOfRange {
+            param: "delta",
+            reason: "must be finite".into(),
+        });
     }
     let beta = beta_deg.to_radians();
     if !(beta.sin() > 0.17 && beta_deg > 0.0 && beta_deg < 180.0) {
@@ -234,14 +314,22 @@ pub fn branch_stub(big_r: f64, r: f64, r_dev: f64, beta_deg: f64, delta: f64, s_
     if delta.abs() + r >= big_r * (1.0 - 1e-6) {
         return Err(UemError::OutOfRange { param: "delta+r", reason: "requires |delta| + r < R: tangent and partial intersections (including the equal-diameter tee) are not implemented in this build".into() });
     }
-    let b = Branch { big_r, r, beta, delta };
+    let b = Branch {
+        big_r,
+        r,
+        beta,
+        delta,
+    };
     let n = 720;
     let dphi = TAU / (2 * n) as f64;
     let sv: Vec<f64> = (0..=2 * n).map(|i| b.s(i as f64 * dphi)).collect();
     let s_max = sv.iter().cloned().fold(f64::MIN, f64::max);
     let s_min = sv.iter().cloned().fold(f64::MAX, f64::min);
     if s_end <= s_max {
-        return Err(UemError::OutOfRange { param: "s_end", reason: format!("square end must lie beyond the saddle: s_end > {s_max:.6}") });
+        return Err(UemError::OutOfRange {
+            param: "s_end",
+            reason: format!("square end must lie beyond the saddle: s_end > {s_max:.6}"),
+        });
     }
     let w = TAU * r_dev;
     let mut eps_rep: f64 = 0.0;
@@ -259,7 +347,14 @@ pub fn branch_stub(big_r: f64, r: f64, r_dev: f64, beta_deg: f64, delta: f64, s_
     let outline = vec![
         line("square_end", p0, p1),
         line("seam_b", p1, cut[0]),
-        Curve { name: "saddle_cut", layer: Layer::CutOuter, geom: Geom::Polyline { pts: cut.clone(), eps_rep } },
+        Curve {
+            name: "saddle_cut",
+            layer: Layer::CutOuter,
+            geom: Geom::Polyline {
+                pts: cut.clone(),
+                eps_rep,
+            },
+        },
         line("seam_a", cut[n], p0),
     ];
     Ok(Pattern {
@@ -269,7 +364,13 @@ pub fn branch_stub(big_r: f64, r: f64, r_dev: f64, beta_deg: f64, delta: f64, s_
         holes: vec![],
         eps_num: 16.0 * f64::EPSILON * (big_r + s_end) / beta.sin(),
         eps_rep,
-        quantities: vec![("developed_width", w), ("s_min", s_min), ("s_max", s_max), ("s_at_0", sv[0]), ("s_at_90", sv[n / 2])],
+        quantities: vec![
+            ("developed_width", w),
+            ("s_min", s_min),
+            ("s_max", s_max),
+            ("s_at_0", sv[0]),
+            ("s_at_90", sv[n / 2]),
+        ],
         assumptions: vec![
             ASSUME_REF,
             ASSUME_MODEL,
@@ -286,14 +387,27 @@ pub fn branch_stub(big_r: f64, r: f64, r_dev: f64, beta_deg: f64, delta: f64, s_
 /// v = r_dev_header * (omega + pi), i.e. the longitudinal seam is diametrically
 /// opposite the branch side. `station` is the header-axis position of the
 /// point where the branch axis is closest to the header axis.
-pub fn header_with_opening(b: &Branch, r_dev_header: f64, length: f64, station: f64) -> Result<Pattern, UemError> {
+pub fn header_with_opening(
+    b: &Branch,
+    r_dev_header: f64,
+    length: f64,
+    station: f64,
+) -> Result<Pattern, UemError> {
     finite_pos("header_dev_radius", r_dev_header)?;
     finite_pos("header_length", length)?;
     if !station.is_finite() {
-        return Err(UemError::OutOfRange { param: "branch_station", reason: "must be finite".into() });
+        return Err(UemError::OutOfRange {
+            param: "branch_station",
+            reason: "must be finite".into(),
+        });
     }
-    if b.beta.sin().partial_cmp(&0.17) != Some(std::cmp::Ordering::Greater) || b.delta.abs() + b.r >= b.big_r * (1.0 - 1e-6) {
-        return Err(UemError::OutOfRange { param: "branch", reason: "branch geometry outside the supported range (see branch stub limits)".into() });
+    if b.beta.sin().partial_cmp(&0.17) != Some(std::cmp::Ordering::Greater)
+        || b.delta.abs() + b.r >= b.big_r * (1.0 - 1e-6)
+    {
+        return Err(UemError::OutOfRange {
+            param: "branch",
+            reason: "branch geometry outside the supported range (see branch stub limits)".into(),
+        });
     }
     let mut shell = cylinder_shell(r_dev_header, length)?;
     // The opening is computed in the frame (x along the header axis, v around it), so the plate outline must be
@@ -301,15 +415,28 @@ pub fn header_with_opening(b: &Branch, r_dev_header: f64, length: f64, station: 
     // (circumference along x) put the opening in the wrong place and turned by a quarter turn; see
     // nf-core/tests/regressions/002-header-outline-frame.json.
     let w = TAU * r_dev_header;
-    let (p0, p1, p2, p3) = (P2::new(0.0, 0.0), P2::new(length, 0.0), P2::new(length, w), P2::new(0.0, w));
-    shell.outline = vec![line("seam_a", p0, p1), line("top", p1, p2), line("seam_b", p2, p3), line("bottom", p3, p0)];
+    let (p0, p1, p2, p3) = (
+        P2::new(0.0, 0.0),
+        P2::new(length, 0.0),
+        P2::new(length, w),
+        P2::new(0.0, w),
+    );
+    shell.outline = vec![
+        line("seam_a", p0, p1),
+        line("top", p1, p2),
+        line("seam_b", p2, p3),
+        line("bottom", p3, p0),
+    ];
     let n = 720;
     let dphi = TAU / (2 * n) as f64;
     let at = |i: usize| -> P2 {
         let phi = i as f64 * dphi;
         let s = b.s(phi);
         let omega = ((b.delta + b.r * phi.cos()) / b.big_r).asin();
-        P2::new(station + s * b.beta.cos() - b.r * phi.sin() * b.beta.sin(), r_dev_header * (omega + std::f64::consts::PI))
+        P2::new(
+            station + s * b.beta.cos() - b.r * phi.sin() * b.beta.sin(),
+            r_dev_header * (omega + std::f64::consts::PI),
+        )
     };
     let all: Vec<P2> = (0..=2 * n).map(at).collect();
     let mut eps_rep: f64 = 0.0;
@@ -317,24 +444,43 @@ pub fn header_with_opening(b: &Branch, r_dev_header: f64, length: f64, station: 
     for i in 0..=n {
         pts.push(all[2 * i]);
         if i < n {
-            let mid = P2::new(0.5 * (all[2 * i].x + all[2 * i + 2].x), 0.5 * (all[2 * i].y + all[2 * i + 2].y));
+            let mid = P2::new(
+                0.5 * (all[2 * i].x + all[2 * i + 2].x),
+                0.5 * (all[2 * i].y + all[2 * i + 2].y),
+            );
             eps_rep = eps_rep.max(mid.dist(all[2 * i + 1]));
         }
     }
     pts[n] = pts[0]; // close exactly
-    let (xmin, xmax) = pts.iter().fold((f64::MAX, f64::MIN), |(lo, hi), p| (lo.min(p.x), hi.max(p.x)));
+    let (xmin, xmax) = pts.iter().fold((f64::MAX, f64::MIN), |(lo, hi), p| {
+        (lo.min(p.x), hi.max(p.x))
+    });
     if xmin <= 0.0 || xmax >= length {
-        return Err(UemError::OutOfRange { param: "branch_station", reason: format!("opening spans x = {xmin:.3} .. {xmax:.3} and does not lie inside the shell length {length}") });
+        return Err(UemError::OutOfRange {
+            param: "branch_station",
+            reason: format!(
+                "opening spans x = {xmin:.3} .. {xmax:.3} and does not lie inside the shell length {length}"
+            ),
+        });
     }
-    let area2: f64 = pts.windows(2).map(|w| w[0].x * w[1].y - w[1].x * w[0].y).sum();
+    let area2: f64 = pts
+        .windows(2)
+        .map(|w| w[0].x * w[1].y - w[1].x * w[0].y)
+        .sum();
     if area2 > 0.0 {
         pts.reverse(); // inner profiles are clockwise
     }
     let perimeter: f64 = pts.windows(2).map(|w| w[0].dist(w[1])).sum();
     shell.family = "header_shell_with_opening";
-    shell.holes = vec![Curve { name: "branch_opening", layer: Layer::CutInner, geom: Geom::Polyline { pts, eps_rep } }];
+    shell.holes = vec![Curve {
+        name: "branch_opening",
+        layer: Layer::CutInner,
+        geom: Geom::Polyline { pts, eps_rep },
+    }];
     shell.eps_rep = eps_rep;
-    shell.eps_num = shell.eps_num.max(16.0 * f64::EPSILON * (b.big_r + length) / b.beta.sin());
+    shell.eps_num = shell
+        .eps_num
+        .max(16.0 * f64::EPSILON * (b.big_r + length) / b.beta.sin());
     shell.quantities.push(("opening_x_min", xmin));
     shell.quantities.push(("opening_x_max", xmax));
     shell.quantities.push(("opening_perimeter", perimeter));
@@ -355,27 +501,62 @@ mod tests {
     #[test]
     fn cyl_reference_cases() {
         let p = cylinder_shell(500.0, 1000.0).unwrap(); // CYL-02
-        assert!(close(p.quantity("developed_width").unwrap(), 3141.592653590, 1e-8));
-        assert!(close(mitre_cut_height(300.0, 100.0, 15f64.to_radians(), 0.0), 53.58983848622, 1e-10)); // MITRE-01
-        assert!(close(mitre_cut_height(300.0, 100.0, 15f64.to_radians(), PI / 2.0), 80.38475772934, 1e-10));
-        assert!(close(mitre_cut_height(300.0, 100.0, 15f64.to_radians(), PI), 107.1796769724, 1e-9));
+        assert!(close(
+            p.quantity("developed_width").unwrap(),
+            3141.592653590,
+            1e-8
+        ));
+        assert!(close(
+            mitre_cut_height(300.0, 100.0, 15f64.to_radians(), 0.0),
+            53.58983848622,
+            1e-10
+        )); // MITRE-01
+        assert!(close(
+            mitre_cut_height(300.0, 100.0, 15f64.to_radians(), PI / 2.0),
+            80.38475772934,
+            1e-10
+        ));
+        assert!(close(
+            mitre_cut_height(300.0, 100.0, 15f64.to_radians(), PI),
+            107.1796769724,
+            1e-9
+        ));
         assert!(cylinder_shell(-1.0, 10.0).is_err());
     }
 
     #[test]
     fn cone_reference_case_cone_01() {
         let p = cone_frustum(200.0, 100.0, 300.0).unwrap();
-        assert!(close(p.quantity("slant_length").unwrap(), 316.2277660168, 1e-9));
-        assert!(close(p.quantity("apex_radius_large").unwrap(), 632.4555320337, 1e-9));
-        assert!(close(p.quantity("sector_angle").unwrap(), 1.986917653159, 1e-11));
+        assert!(close(
+            p.quantity("slant_length").unwrap(),
+            316.2277660168,
+            1e-9
+        ));
+        assert!(close(
+            p.quantity("apex_radius_large").unwrap(),
+            632.4555320337,
+            1e-9
+        ));
+        assert!(close(
+            p.quantity("sector_angle").unwrap(),
+            1.986917653159,
+            1e-11
+        ));
         assert!(close(p.quantity("area").unwrap(), 298037.6479739, 1e-6));
-        assert!(close(p.quantity("chord_large_arc").unwrap(), 1059.892757121, 1e-8));
+        assert!(close(
+            p.quantity("chord_large_arc").unwrap(),
+            1059.892757121,
+            1e-8
+        ));
     }
 
     #[test]
     fn cone_degenerate_and_conditioning() {
         assert!(cone_frustum(100.0, 100.0, 300.0).is_err());
-        assert!(matches!(cone_frustum(200.0, 199.9, 300.0), Err(UemError::OutOfRange { .. }))); // CONE-02 refused
+        assert!(matches!(
+            cone_frustum(200.0, 199.9, 300.0),
+            Err(UemError::OutOfRange { .. })
+        )); // CONE-02 refused
         assert!(cone_frustum(200.0, 0.0, 300.0).is_err()); // DG-01
         assert!(cone_frustum(200.0, 100.0, 0.0).is_err()); // DG-02
     }
@@ -383,12 +564,25 @@ mod tests {
     #[test]
     fn eccentric_reference_case_ecc_01() {
         let p = eccentric_reducer(200.0, 100.0, 300.0, 100.0).unwrap();
-        assert!(close(p.quantity("developed_angle").unwrap(), 1.861891289225, 1e-10));
+        assert!(close(
+            p.quantity("developed_angle").unwrap(),
+            1.861891289225,
+            1e-10
+        ));
         assert!(close(p.quantity("rho_at_0").unwrap(), 600.0, 1e-10));
-        assert!(close(p.quantity("rho_at_180").unwrap(), 721.1102550928, 1e-9));
+        assert!(close(
+            p.quantity("rho_at_180").unwrap(),
+            721.1102550928,
+            1e-9
+        ));
         assert!(close(p.quantity("area").unwrap(), 304679.8420026, 1e-5));
         assert!(p.eps_rep > 0.0 && p.eps_rep < 0.05);
-        let g = ObliqueCone { r1: 200.0, r2: 100.0, h: 300.0, e: 100.0 };
+        let g = ObliqueCone {
+            r1: 200.0,
+            r2: 100.0,
+            h: 300.0,
+            e: 100.0,
+        };
         let (s, _) = oblique_cone_samples(&g, 360);
         assert!(close(s[180].2, 0.4919675896291, 1e-11)); // psi(90 deg)
         assert!(close(s[360].2, 0.9309456446123, 1e-11)); // psi(180 deg)
@@ -398,34 +592,64 @@ mod tests {
     fn eccentric_tends_to_right_cone() {
         // ECC-02: zero offset reproduces CONE-01
         let p = eccentric_reducer(200.0, 100.0, 300.0, 0.0).unwrap();
-        assert!(close(p.quantity("developed_angle").unwrap(), 1.986917653159, 1e-10));
+        assert!(close(
+            p.quantity("developed_angle").unwrap(),
+            1.986917653159,
+            1e-10
+        ));
         assert!(close(p.quantity("area").unwrap(), 298037.6479739, 1e-5));
     }
 
     #[test]
     fn branch_reference_cases() {
-        let b = Branch { big_r: 150.0, r: 100.0, beta: PI / 2.0, delta: 0.0 }; // BR-01
+        let b = Branch {
+            big_r: 150.0,
+            r: 100.0,
+            beta: PI / 2.0,
+            delta: 0.0,
+        }; // BR-01
         assert!(close(b.s(0.0), 111.803398875, 1e-9));
         assert!(close(b.s(PI / 4.0), 132.2875655532, 1e-9));
         assert!(close(b.s(PI / 2.0), 150.0, 1e-9));
-        let b = Branch { big_r: 150.0, r: 100.0, beta: 60f64.to_radians(), delta: 0.0 }; // BR-03
+        let b = Branch {
+            big_r: 150.0,
+            r: 100.0,
+            beta: 60f64.to_radians(),
+            delta: 0.0,
+        }; // BR-03
         assert!(close(b.s(0.0), 129.0994448736, 1e-9));
         assert!(close(b.s(PI / 4.0), 111.9276941188, 1e-9));
         assert!(close(b.s(1.5 * PI), 230.9401076759, 1e-9));
-        let b = Branch { big_r: 150.0, r: 80.0, beta: PI / 2.0, delta: 40.0 }; // BR-04
+        let b = Branch {
+            big_r: 150.0,
+            r: 80.0,
+            beta: PI / 2.0,
+            delta: 40.0,
+        }; // BR-04
         assert!(close(b.s(0.0), 90.0, 1e-9));
         assert!(close(b.s(0.75 * PI), 149.0821364201, 1e-9));
     }
 
     #[test]
     fn header_opening_is_inside_shell_and_clockwise() {
-        let b = Branch { big_r: 150.0, r: 100.0, beta: 60f64.to_radians(), delta: 0.0 };
+        let b = Branch {
+            big_r: 150.0,
+            r: 100.0,
+            beta: 60f64.to_radians(),
+            delta: 0.0,
+        };
         let p = header_with_opening(&b, 150.0, 1200.0, 600.0).unwrap();
         assert_eq!(p.holes.len(), 1);
         let r = crate::profile::check(&p.holes, 1e-9);
         assert!(r.closed && r.self_intersections == 0 && r.signed_area < 0.0);
-        assert!(p.quantity("opening_x_min").unwrap() > 0.0 && p.quantity("opening_x_max").unwrap() < 1200.0);
-        assert!(header_with_opening(&b, 150.0, 300.0, 100.0).is_err(), "opening outside the shell must be refused");
+        assert!(
+            p.quantity("opening_x_min").unwrap() > 0.0
+                && p.quantity("opening_x_max").unwrap() < 1200.0
+        );
+        assert!(
+            header_with_opening(&b, 150.0, 300.0, 100.0).is_err(),
+            "opening outside the shell must be refused"
+        );
     }
 
     #[test]
@@ -435,6 +659,10 @@ mod tests {
         assert!(branch_stub(150.0, 100.0, 100.0, 5.0, 0.0, 4000.0).is_err()); // grazing
         assert!(branch_stub(150.0, 100.0, 100.0, 90.0, 0.0, 100.0).is_err()); // square end inside saddle
         let p = branch_stub(150.0, 100.0, 100.0, 60.0, 0.0, 400.0).unwrap();
-        assert!(close(p.quantity("developed_width").unwrap(), 628.318530718, 1e-9));
+        assert!(close(
+            p.quantity("developed_width").unwrap(),
+            628.318530718,
+            1e-9
+        ));
     }
 }

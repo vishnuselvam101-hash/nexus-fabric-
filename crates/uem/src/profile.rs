@@ -10,7 +10,10 @@ use crate::{Curve, Geom, P2};
 pub fn endpoints(c: &Curve) -> (P2, P2) {
     match &c.geom {
         Geom::Line { a, b } => (*a, *b),
-        Geom::Arc { c, r, a0, a1 } => (P2::new(c.x + r * a0.cos(), c.y + r * a0.sin()), P2::new(c.x + r * a1.cos(), c.y + r * a1.sin())),
+        Geom::Arc { c, r, a0, a1 } => (
+            P2::new(c.x + r * a0.cos(), c.y + r * a0.sin()),
+            P2::new(c.x + r * a1.cos(), c.y + r * a1.sin()),
+        ),
         Geom::Polyline { pts, .. } => (pts[0], pts[pts.len() - 1]),
     }
 }
@@ -67,8 +70,18 @@ fn orient(a: P2, b: P2, c: P2) -> f64 {
 }
 
 fn proper_cross(a: P2, b: P2, c: P2, d: P2) -> bool {
-    let (o1, o2, o3, o4) = (orient(a, b, c), orient(a, b, d), orient(c, d, a), orient(c, d, b));
-    (o1 > 0.0) != (o2 > 0.0) && (o3 > 0.0) != (o4 > 0.0) && o1 != 0.0 && o2 != 0.0 && o3 != 0.0 && o4 != 0.0
+    let (o1, o2, o3, o4) = (
+        orient(a, b, c),
+        orient(a, b, d),
+        orient(c, d, a),
+        orient(c, d, b),
+    );
+    (o1 > 0.0) != (o2 > 0.0)
+        && (o3 > 0.0) != (o4 > 0.0)
+        && o1 != 0.0
+        && o2 != 0.0
+        && o3 != 0.0
+        && o4 != 0.0
 }
 
 pub fn check(outline: &[Curve], closure_tol: f64) -> ProfileReport {
@@ -93,8 +106,17 @@ pub fn check(outline: &[Curve], closure_tol: f64) -> ProfileReport {
             }
         }
     }
-    let signed_area = 0.5 * (0..m).map(|i| poly[i].x * poly[(i + 1) % m].y - poly[(i + 1) % m].x * poly[i].y).sum::<f64>();
-    ProfileReport { max_gap, closed: max_gap <= closure_tol, self_intersections: crossings, signed_area, vertices: m }
+    let signed_area = 0.5
+        * (0..m)
+            .map(|i| poly[i].x * poly[(i + 1) % m].y - poly[(i + 1) % m].x * poly[i].y)
+            .sum::<f64>();
+    ProfileReport {
+        max_gap,
+        closed: max_gap <= closure_tol,
+        self_intersections: crossings,
+        signed_area,
+        vertices: m,
+    }
 }
 
 #[cfg(test)]
@@ -120,8 +142,20 @@ mod tests {
     #[test]
     fn detects_bow_tie() {
         use crate::{Curve, Geom, Layer};
-        let l = |a: (f64, f64), b: (f64, f64)| Curve { name: "e", layer: Layer::CutOuter, geom: Geom::Line { a: P2::new(a.0, a.1), b: P2::new(b.0, b.1) } };
-        let bow = vec![l((0.0, 0.0), (10.0, 10.0)), l((10.0, 10.0), (10.0, 0.0)), l((10.0, 0.0), (0.0, 10.0)), l((0.0, 10.0), (0.0, 0.0))];
+        let l = |a: (f64, f64), b: (f64, f64)| Curve {
+            name: "e",
+            layer: Layer::CutOuter,
+            geom: Geom::Line {
+                a: P2::new(a.0, a.1),
+                b: P2::new(b.0, b.1),
+            },
+        };
+        let bow = vec![
+            l((0.0, 0.0), (10.0, 10.0)),
+            l((10.0, 10.0), (10.0, 0.0)),
+            l((10.0, 0.0), (0.0, 10.0)),
+            l((0.0, 10.0), (0.0, 0.0)),
+        ];
         assert_eq!(check(&bow, 1e-9).self_intersections, 1);
         let open = vec![l((0.0, 0.0), (10.0, 0.0)), l((10.0, 0.5), (0.0, 0.0))];
         assert!(!check(&open, 1e-9).closed);
