@@ -34,7 +34,7 @@ jobs:
       - name: Browser workflow tests
         run: |
           npm install --no-save playwright@1 && npx playwright install --with-deps chromium
-          NF_DATA_DIR="$(mktemp -d)" NF_LISTEN=127.0.0.1:8793 target/release/nf-server &
+          NF_SETUP_TOKEN=ui-smoke-setup-token NF_DATA_DIR="$(mktemp -d)" NF_LISTEN=127.0.0.1:8793 target/release/nf-server &
           sleep 2
           node tests/ui_smoke.js
       - name: Independent computational and DXF validation

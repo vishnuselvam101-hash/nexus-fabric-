@@ -256,6 +256,7 @@ fn seg_dist(p: [f64; 3], a: [f64; 3], b: [f64; 3]) -> f64 {
 /// parameters, must be the same curve. `hb` / `bb` are the branch geometries
 /// as used by the header pattern and by the branch pattern respectively — if
 /// the two parts were made from different interpretations, they differ.
+#[allow(clippy::too_many_arguments)] // two parts, each with its geometry and two development inputs
 pub fn verify_interface(header: &Pattern, hb: &Branch, r_dev_header: f64, station: f64, branch: &Pattern, bb: &Branch, r_dev_branch: f64, s_end: f64) -> Vec<Check> {
     let open3: Vec<[f64; 3]> = hole_points(header).iter().map(|q| opening_3d(q, hb.big_r, r_dev_header, station)).collect();
     let cut: Vec<P2> = branch.outline.iter().find(|c| c.name == "saddle_cut").and_then(|c| if let Geom::Polyline { pts, .. } = &c.geom { Some(pts.clone()) } else { None }).unwrap_or_default();

@@ -1,11 +1,14 @@
 // Browser test of every critical workflow. Requires a freshly started server with an EMPTY data directory
-// (it performs first-run setup). Usage: NF_BASE=http://127.0.0.1:8793 node tests/ui_smoke.js [screenshot-dir]
+// (it performs first-run setup). The server must be started with the same one-time setup token this test uses:
+//   NF_SETUP_TOKEN=ui-smoke-setup-token NF_DATA_DIR=$(mktemp -d) NF_LISTEN=127.0.0.1:8793 target/release/nf-server &
+// Usage: NF_BASE=http://127.0.0.1:8793 [NF_SETUP_TOKEN=...] node tests/ui_smoke.js [screenshot-dir]
 // Exits 0 only if every check passes. Prints each check and the exact pass/fail counts.
 const { chromium } = require('playwright');
 const fs = require('fs');
 
 const B = process.env.NF_BASE || 'http://127.0.0.1:8793';
 const SHOTS = process.argv[2];
+const SETUP_TOKEN = process.env.NF_SETUP_TOKEN || 'ui-smoke-setup-token';
 const ADMIN = { username: 'admin', password: 'correct-horse-9' }, NEW_PW = 'correct-horse-10';
 const results = [];
 const check = (name, ok, detail) => { results.push({ name, ok: !!ok, detail }); console.log(`${ok ? 'ok  ' : 'FAIL'} - ${name}${ok || detail === undefined ? '' : `  [${JSON.stringify(detail)}]`}`); };
@@ -41,10 +44,10 @@ const controlProbe = () => {
 
 (async () => {
   const browser = await chromium.launch();
-  const errs = []; let expected401 = 0, allow401 = false, dialogs = 0, approveControls = 0, approvedTags = 0;
+  const errs = []; let expected401 = 0, allow401 = false, expected422 = 0, allow422 = false, dialogs = 0, approveControls = 0, approvedTags = 0;
   const watch = (page, who) => {
     page.on('pageerror', (e) => errs.push(`${who} pageerror: ${e.message}`));
-    page.on('console', (m) => { if (m.type() !== 'error') return; if (allow401 && /401/.test(m.text())) expected401++; else errs.push(`${who} console: ${m.text()}`); });
+    page.on('console', (m) => { if (m.type() !== 'error') return; if (allow401 && /401/.test(m.text())) expected401++; else if (allow422 && /422/.test(m.text())) expected422++; else errs.push(`${who} console: ${m.text()}`); });
     page.on('dialog', (d) => { dialogs++; d.dismiss(); }); // the client must never use blocking dialogs; one would also reveal script injection
   };
   const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, acceptDownloads: true, deviceScaleFactor: SHOTS ? 2 : 1 });
@@ -62,7 +65,10 @@ const controlProbe = () => {
   await p.waitForSelector('#f');
   check('setup: first-run screen asks for the administrator', /Create the administrator/.test(await p.textContent('h1')));
   check('setup: sign-in screen carries the development-build notice', /Not validated/.test(await p.textContent('.login-card')));
-  await p.fill('input[name=u]', ADMIN.username); await p.fill('input[name=p]', ADMIN.password); await p.click('#f button');
+  // V-36: the first administrator can only be created with the installation's one-time setup token
+  await p.fill('input[name=u]', ADMIN.username); await p.fill('input[name=p]', ADMIN.password); await p.click('#f button'); await p.waitForSelector('#f .field-err');
+  check('setup: refused inline without the setup token', /setup token/i.test(await p.textContent('#f .field-err')) && (await (await ctx.request.get(`${B}/api/health`)).json()).setup_required === true);
+  await p.fill('input[name=t]', SETUP_TOKEN); await p.click('#f button');
   await p.waitForSelector('.stats');
   check('login: dashboard shown after setup', (await p.textContent('#view h1')).trim() === 'Dashboard');
   check('shell: landmarks present', await p.evaluate(() => !!document.querySelector('header.topbar') && !!document.querySelector('nav[aria-label="Main"]') && !!document.querySelector('main#view') && !!document.querySelector('footer.statusbar') && !!document.querySelector('a.skip')));
@@ -112,8 +118,11 @@ const controlProbe = () => {
   await p.selectOption('select[name=fam]', 'cylinder_shell'); await p.fill('#f_r_dev', '1e9'); await p.click('#run'); await p.waitForSelector('#plaus');
   check('refusal: an absurd magnitude is questioned before anything is sent', /more than 20 m/.test(await p.textContent('#plaus')) && (await jobCount()) === before && /unusual/i.test(await p.textContent('#run')));
   // a request the client cannot judge and the engine refuses (square end inside the saddle): recorded, but as NO RESULT
+  // BE-003: the server answers a refused request with 422 (it used to answer 200). That one answer is expected here.
+  allow422 = true;
   await p.selectOption('select[name=fam]', 'header_with_branch'); await p.fill('#f_s_end', '150'); await p.click('#run');
-  await p.waitForURL(/#\/calc\/\d+$/); await p.waitForSelector('.ws-banner.bad');
+  await p.waitForURL(/#\/calc\/\d+$/); await p.waitForSelector('.ws-banner.bad'); allow422 = false;
+  check('refusal: the server answered the refused request with 422, once', expected422 === 1, expected422);
   const R = Number(p.url().split('/').pop());
   const rj = { tag: (await p.textContent('.ws-head h1 .tag')).trim(), toastErr: await p.locator('.toast.err').count(), toastOk: await p.locator('.toast.ok').count(), toast: await p.locator('.toast').first().textContent(), banner: await p.textContent('.ws-banner'), dxf: await p.locator('#dxf, #dxf-all, a[href*="/dxf/"]').count(), replay: await p.locator('#replay').count(), corr: await p.locator('#corr-open, [data-correct]').count(), pv: await p.locator('.pv').count() };
   check('refusal: an engine-refused job is shown as NO RESULT with an error notification, never as a computed result', rj.tag === 'No result' && rj.toastErr === 1 && rj.toastOk === 0 && /NO RESULT/.test(rj.toast) && /NO RESULT/.test(rj.banner) && /s_end/.test(rj.banner) && !/REVIEW REQUIRED/.test(await p.textContent('.ws')), rj);
@@ -200,12 +209,12 @@ const controlProbe = () => {
   check('correction: opens from the request row with that parameter selected, labelled in words', (await p.inputValue('#corr select[name=p]')) === 'header_radius' && /Header contact radius — header_radius \(now 150 mm\)/.test(await p.textContent('#corr select[name=p]')));
   await p.fill('#corr input[name=v]', '-5'); await p.click('#corr-go'); await p.waitForSelector('#corr .field-err');
   const corrNeg = await p.textContent('#corr .field-err');
-  await p.fill('#corr input[name=v]', '142'); await p.click('#corr-go'); await p.waitForSelector('#corr .field-err');
+  await p.fill('#corr input[name=v]', '158'); await p.click('#corr-go'); await p.waitForSelector('#corr .field-err');
   check('correction: an impossible value and a missing reason are refused inline', /greater than 0/.test(corrNeg) && /reason/i.test(await p.textContent('#corr .field-err')) && p.url().endsWith(`/calc/${A}`), corrNeg);
-  await p.fill('#corr input[name=r]', 'drawing dimension is the inside diameter'); await p.click('#corr-go');
+  await p.fill('#corr input[name=r]', 'drawing dimension is the outside diameter of the thicker pipe'); await p.click('#corr-go');
   await p.waitForURL((u) => /#\/calc\/\d+$/.test(u.hash) && !u.hash.endsWith(`/${A}`)); await p.waitForSelector('#tp-ws-changes:not([hidden]) table');
   const diff = (await p.textContent('#tp-ws-changes')).replace(/\s+/g, ' ');
-  check('correction: the new job opens on what changed — parameter before and after, and the computed values that moved', /Header contact radius ?header_radius ?150\.000 ?142\.000 ?-8\.000 mm/.test(diff) && /Curve branch_opening length/.test(diff) && /Pattern · branch/.test(diff) && (await p.locator('#tp-ws-changes [data-diff^="curve:"]').count()) >= 2 && (await p.locator('#corrects').getAttribute('href')) === `#/calc/${A}`, diff.slice(0, 400));
+  check('correction: the new job opens on what changed — parameter before and after, and the computed values that moved', /Header contact radius ?header_radius ?150\.000 ?158\.000 ?\+?8\.000 mm/.test(diff) && /Curve branch_opening length/.test(diff) && /Pattern · branch/.test(diff) && (await p.locator('#tp-ws-changes [data-diff^="curve:"]').count()) >= 2 && (await p.locator('#corrects').getAttribute('href')) === `#/calc/${A}`, diff.slice(0, 400));
   await p.click('#v-prev'); const ghosts = await p.locator('.pv .ghost').count(); await p.click('#v-prev');
   check('correction: the earlier pattern can be overlaid on the canvas', ghosts === 5 && (await p.locator('.pv .ghost').count()) === 0, ghosts);
   await p.click('#tab-ws-scrutiny'); await p.waitForSelector('#obls');
@@ -239,7 +248,7 @@ const controlProbe = () => {
   // ---- 9. lessons and advisories
   await go('verification');
   const ver = (await p.textContent('#view')).replace(/\s+/g, ' ');
-  check('lessons: the correction is recorded as a lesson', /header_radius: 150 was wrong, 142 is right/.test(ver) && /Open scrutiny obligations ?1/.test(ver), ver.slice(0, 200));
+  check('lessons: the correction is recorded as a lesson', /header_radius: 150 was wrong, 158 is right/.test(ver) && /Open scrutiny obligations ?1/.test(ver), ver.slice(0, 200));
   await go('math/1', '#calc'); await p.selectOption('select[name=fam]', 'header_with_branch'); await p.selectOption('select[name=surface_reference]', 'outside'); await p.fill('#f_header_length', '900'); await p.fill('#f_branch_station', '450');
   await p.click('#run'); await p.waitForURL(/#\/calc\/\d+$/); await p.waitForSelector('.pv .c', { state: 'attached' });
   await p.click('#tab-ws-scrutiny');

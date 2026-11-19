@@ -83,10 +83,10 @@ pub fn propagate(records: &BTreeMap<String, Record>, changed: &str) -> Vec<Affec
     let mut out: Vec<Affected> = Vec::new();
     let mut seen: BTreeSet<String> = BTreeSet::from([changed.to_string()]);
     let add = |out: &mut Vec<Affected>, r: &Record, dir: Direction, via: &str| {
-        if let Some(check) = rule(&r.kind, dir) {
-            if !out.iter().any(|a| a.record_id == r.id && a.direction == dir) {
-                out.push(Affected { record_id: r.id.clone(), kind: r.kind.clone(), label: label(r), direction: dir, via: via.to_string(), required_check: check.to_string(), mandatory: true });
-            }
+        if let Some(check) = rule(&r.kind, dir)
+            && !out.iter().any(|a| a.record_id == r.id && a.direction == dir)
+        {
+            out.push(Affected { record_id: r.id.clone(), kind: r.kind.clone(), label: label(r), direction: dir, via: via.to_string(), required_check: check.to_string(), mandatory: true });
         }
     };
     // Downstream: unbounded traversal over derivation edges. Interfaces touched on the way create lateral obligations.
@@ -210,7 +210,10 @@ mod tests {
     fn recomputation_discharges_everything_except_common_cause() {
         let old = run(&assembly(), "t");
         let affected = propagate(&graph(&old), &param(&old, "header_radius"));
-        let new = run(&assembly().with_param("header_radius", 142.0).unwrap(), "t");
+        // BE-001: this used to correct to 142 while the request stayed "outside" with development radius 150,
+        // i.e. an outside radius smaller than the reference radius. That input is now refused, so the
+        // example uses a correction that is geometrically possible (outside 158 >= reference 150).
+        let new = run(&assembly().with_param("header_radius", 158.0).unwrap(), "t");
         for a in &affected {
             let (ok, _) = discharge(a, &new);
             assert_eq!(ok, a.direction != Direction::CommonCause, "{a:?}");

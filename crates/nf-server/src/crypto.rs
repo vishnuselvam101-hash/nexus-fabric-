@@ -1,13 +1,12 @@
 //! Password hashing, random tokens and blob encryption.
 //!
 //! Key management in this build is INTERIM: one AES-256-GCM key in a local key
-//! file created on first start. There is no KMS/HSM integration, no per-tenant
+//! file created on the first start of an empty installation (storage.rs). There is no KMS/HSM integration, no per-tenant
 //! keys and no rotation. The SQLite database itself is NOT encrypted at rest.
 
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use argon2::Argon2;
-use std::path::Path;
 
 pub fn random_bytes<const N: usize>() -> [u8; N] {
     let mut b = [0u8; N];
@@ -23,25 +22,6 @@ pub fn hash_password(password: &str, salt: &[u8]) -> Result<String, String> {
 
 pub fn constant_time_eq(a: &str, b: &str) -> bool {
     a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
-}
-
-pub fn load_or_create_key(path: &Path) -> std::io::Result<[u8; 32]> {
-    if let Ok(bytes) = std::fs::read(path) {
-        if bytes.len() == 32 {
-            let mut k = [0u8; 32];
-            k.copy_from_slice(&bytes);
-            return Ok(k);
-        }
-        return Err(std::io::Error::other("key file has wrong length"));
-    }
-    let k: [u8; 32] = random_bytes();
-    std::fs::write(path, k)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
-    }
-    Ok(k)
 }
 
 /// Encrypt: 12-byte random nonce followed by ciphertext+tag.

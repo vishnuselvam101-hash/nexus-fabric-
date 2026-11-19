@@ -292,7 +292,8 @@ pub fn header_with_opening(b: &Branch, r_dev_header: f64, length: f64, station: 
     if !station.is_finite() {
         return Err(UemError::OutOfRange { param: "branch_station", reason: "must be finite".into() });
     }
-    if !(b.beta.sin() > 0.17) || b.delta.abs() + b.r >= b.big_r * (1.0 - 1e-6) {
+    // (written with partial_cmp so that a NaN angle is refused, exactly as `!(sin > 0.17)` did)
+    if b.beta.sin().partial_cmp(&0.17) != Some(std::cmp::Ordering::Greater) || b.delta.abs() + b.r >= b.big_r * (1.0 - 1e-6) {
         return Err(UemError::OutOfRange { param: "branch", reason: "branch geometry outside the supported range (see branch stub limits)".into() });
     }
     let mut shell = cylinder_shell(r_dev_header, length)?;
