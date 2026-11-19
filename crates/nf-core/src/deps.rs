@@ -32,7 +32,9 @@ enum EdgeClass {
 
 fn edge_class(rel: &str) -> Option<EdgeClass> {
     match rel {
-        "computed_from" | "developed_from" | "rendered_from" | "defined_by" | "pattern_of" => Some(EdgeClass::Derivation),
+        "computed_from" | "developed_from" | "rendered_from" | "defined_by" | "pattern_of" => {
+            Some(EdgeClass::Derivation)
+        }
         "mates_at" | "interface_feature" | "positioned_by" => Some(EdgeClass::Interface),
         "convention_of" => Some(EdgeClass::CommonCause),
         _ => None, // evidence, activity inputs, declarations: not propagation edges
@@ -53,18 +55,32 @@ pub struct Affected {
 
 fn label(r: &Record) -> String {
     let p = &r.payload;
-    p.get("part").or_else(|| p.get("name")).and_then(|v| v.as_str()).map(String::from).unwrap_or_else(|| r.kind.clone())
+    p.get("part")
+        .or_else(|| p.get("name"))
+        .and_then(|v| v.as_str())
+        .map(String::from)
+        .unwrap_or_else(|| r.kind.clone())
 }
 
 /// Provisional rule table: (record kind, direction) -> required check.
 fn rule(kind: &str, dir: Direction) -> Option<&'static str> {
     Some(match (kind, dir) {
-        ("intersection_curve", Direction::Downstream) => "Recompute the intersection curve from the changed parameters",
-        ("pattern", Direction::Downstream) => "Recompute the development and pass family verification and the profile check",
-        ("dxf_output", Direction::Downstream) => "Regenerate the DXF and pass the independent re-import check",
-        ("interface", Direction::Lateral) => "Pass the interface check: both parts must reproduce the same joint curve",
+        ("intersection_curve", Direction::Downstream) => {
+            "Recompute the intersection curve from the changed parameters"
+        }
+        ("pattern", Direction::Downstream) => {
+            "Recompute the development and pass family verification and the profile check"
+        }
+        ("dxf_output", Direction::Downstream) => {
+            "Regenerate the DXF and pass the independent re-import check"
+        }
+        ("interface", Direction::Lateral) => {
+            "Pass the interface check: both parts must reproduce the same joint curve"
+        }
         ("part", Direction::Lateral) => "Re-check the fit of this part at the joint",
-        ("parameter", Direction::CommonCause) => "Engineer to re-confirm this value: it was entered under the same convention as the corrected one",
+        ("parameter", Direction::CommonCause) => {
+            "Engineer to re-confirm this value: it was entered under the same convention as the corrected one"
+        }
         _ => return None,
     })
 }
@@ -76,7 +92,10 @@ pub fn propagate(records: &BTreeMap<String, Record>, changed: &str) -> Vec<Affec
     for r in records.values() {
         for e in &r.relations {
             if edge_class(&e.rel).is_some() {
-                dependents.entry(e.to.as_str()).or_default().push((r.id.as_str(), e.rel.as_str()));
+                dependents
+                    .entry(e.to.as_str())
+                    .or_default()
+                    .push((r.id.as_str(), e.rel.as_str()));
             }
         }
     }
@@ -84,9 +103,19 @@ pub fn propagate(records: &BTreeMap<String, Record>, changed: &str) -> Vec<Affec
     let mut seen: BTreeSet<String> = BTreeSet::from([changed.to_string()]);
     let add = |out: &mut Vec<Affected>, r: &Record, dir: Direction, via: &str| {
         if let Some(check) = rule(&r.kind, dir)
-            && !out.iter().any(|a| a.record_id == r.id && a.direction == dir)
+            && !out
+                .iter()
+                .any(|a| a.record_id == r.id && a.direction == dir)
         {
-            out.push(Affected { record_id: r.id.clone(), kind: r.kind.clone(), label: label(r), direction: dir, via: via.to_string(), required_check: check.to_string(), mandatory: true });
+            out.push(Affected {
+                record_id: r.id.clone(),
+                kind: r.kind.clone(),
+                label: label(r),
+                direction: dir,
+                via: via.to_string(),
+                required_check: check.to_string(),
+                mandatory: true,
+            });
         }
     };
     // Downstream: unbounded traversal over derivation edges. Interfaces touched on the way create lateral obligations.
@@ -124,7 +153,11 @@ pub fn propagate(records: &BTreeMap<String, Record>, changed: &str) -> Vec<Affec
     }
     // Common cause: siblings under the same convention as the changed record.
     if let Some(ch) = records.get(changed) {
-        for e in ch.relations.iter().filter(|e| edge_class(&e.rel) == Some(EdgeClass::CommonCause)) {
+        for e in ch
+            .relations
+            .iter()
+            .filter(|e| edge_class(&e.rel) == Some(EdgeClass::CommonCause))
+        {
             for (sib, via) in dependents.get(e.to.as_str()).cloned().unwrap_or_default() {
                 if sib != changed && via == "convention_of" {
                     add(&mut out, &records[sib], Direction::CommonCause, via);
@@ -139,7 +172,11 @@ pub fn propagate(records: &BTreeMap<String, Record>, changed: &str) -> Vec<Affec
 /// Can evidence from the recomputed job discharge this obligation?
 /// Common-cause obligations are never discharged automatically.
 pub fn discharge(a: &Affected, new: &JobOutput) -> (bool, String) {
-    let gate_pass = |id: &str| new.gates.iter().any(|g| g.id == id && g.result == GateResult::Pass);
+    let gate_pass = |id: &str| {
+        new.gates
+            .iter()
+            .any(|g| g.id == id && g.result == GateResult::Pass)
+    };
     let scope_pass = |scope: &str| {
         let v: Vec<_> = new.checks.iter().filter(|c| c.scope == scope).collect();
         !v.is_empty() && v.iter().all(|c| c.verdict == "PASS")
@@ -147,10 +184,25 @@ pub fn discharge(a: &Affected, new: &JobOutput) -> (bool, String) {
     let has_part = new.patterns.iter().any(|p| p.part == a.label);
     match (a.kind.as_str(), a.direction) {
         (_, Direction::CommonCause) => (false, "requires an engineer's decision".into()),
-        ("pattern", _) if has_part && scope_pass(&a.label) && gate_pass("G11") => (true, format!("recomputed; verification checks for '{}' and the profile check pass", a.label)),
-        ("dxf_output", _) if has_part && gate_pass("G15") => (true, "regenerated; independent re-import check passes".into()),
-        ("intersection_curve", _) if scope_pass("interface") => (true, "recomputed; both parts reproduce the same joint curve".into()),
-        ("interface", _) | ("part", _) if scope_pass("interface") => (true, "interface check passes on the recomputed parts".into()),
+        ("pattern", _) if has_part && scope_pass(&a.label) && gate_pass("G11") => (
+            true,
+            format!(
+                "recomputed; verification checks for '{}' and the profile check pass",
+                a.label
+            ),
+        ),
+        ("dxf_output", _) if has_part && gate_pass("G15") => (
+            true,
+            "regenerated; independent re-import check passes".into(),
+        ),
+        ("intersection_curve", _) if scope_pass("interface") => (
+            true,
+            "recomputed; both parts reproduce the same joint curve".into(),
+        ),
+        ("interface", _) | ("part", _) if scope_pass("interface") => (
+            true,
+            "interface check passes on the recomputed parts".into(),
+        ),
         _ => (false, "no passing evidence in the recomputed job".into()),
     }
 }
@@ -158,22 +210,42 @@ pub fn discharge(a: &Affected, new: &JobOutput) -> (bool, String) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::job::{run, Request};
+    use crate::job::{Request, run};
 
     fn assembly() -> Request {
-        Request::HeaderWithBranch { header_radius: 150.0, header_dev_radius: 150.0, header_length: 1200.0, branch_station: 600.0, branch_radius: 100.0, branch_dev_radius: 100.0, beta_deg: 60.0, delta: 0.0, s_end: 400.0, surface_reference: "outside".into() }
+        Request::HeaderWithBranch {
+            header_radius: 150.0,
+            header_dev_radius: 150.0,
+            header_length: 1200.0,
+            branch_station: 600.0,
+            branch_radius: 100.0,
+            branch_dev_radius: 100.0,
+            beta_deg: 60.0,
+            delta: 0.0,
+            s_end: 400.0,
+            surface_reference: "outside".into(),
+        }
     }
 
     fn graph(o: &JobOutput) -> BTreeMap<String, Record> {
-        o.records.iter().map(|r| (r.id.clone(), r.clone())).collect()
+        o.records
+            .iter()
+            .map(|r| (r.id.clone(), r.clone()))
+            .collect()
     }
 
     fn param(o: &JobOutput, name: &str) -> String {
-        o.records.iter().find(|r| r.kind == "parameter" && r.payload["name"] == name).unwrap().id.clone()
+        o.records
+            .iter()
+            .find(|r| r.kind == "parameter" && r.payload["name"] == name)
+            .unwrap()
+            .id
+            .clone()
     }
 
     fn has(v: &[Affected], kind: &str, label: &str, dir: Direction) -> bool {
-        v.iter().any(|a| a.kind == kind && a.label == label && a.direction == dir)
+        v.iter()
+            .any(|a| a.kind == kind && a.label == label && a.direction == dir)
     }
 
     #[test]
@@ -181,29 +253,69 @@ mod tests {
         let o = run(&assembly(), "t");
         let a = propagate(&graph(&o), &param(&o, "header_radius"));
         // downstream: the shared curve, both patterns, both cutting files
-        assert!(has(&a, "intersection_curve", "intersection_curve", Direction::Downstream));
+        assert!(has(
+            &a,
+            "intersection_curve",
+            "intersection_curve",
+            Direction::Downstream
+        ));
         for part in ["header", "branch"] {
-            assert!(has(&a, "pattern", part, Direction::Downstream), "pattern {part}");
-            assert!(has(&a, "dxf_output", part, Direction::Downstream), "dxf {part}");
+            assert!(
+                has(&a, "pattern", part, Direction::Downstream),
+                "pattern {part}"
+            );
+            assert!(
+                has(&a, "dxf_output", part, Direction::Downstream),
+                "dxf {part}"
+            );
             assert!(has(&a, "part", part, Direction::Lateral), "fit of {part}");
         }
-        assert!(has(&a, "interface", "header-branch joint", Direction::Lateral));
+        assert!(has(
+            &a,
+            "interface",
+            "header-branch joint",
+            Direction::Lateral
+        ));
         // common cause: the other radii entered under the same convention — not the lengths or angles
-        let cc: Vec<&str> = a.iter().filter(|x| x.direction == Direction::CommonCause).map(|x| x.label.as_str()).collect();
-        assert_eq!(cc, ["branch_dev_radius", "branch_radius", "header_dev_radius"]);
+        let cc: Vec<&str> = a
+            .iter()
+            .filter(|x| x.direction == Direction::CommonCause)
+            .map(|x| x.label.as_str())
+            .collect();
+        assert_eq!(
+            cc,
+            ["branch_dev_radius", "branch_radius", "header_dev_radius"]
+        );
         assert!(a.iter().all(|x| x.mandatory));
-        assert_eq!(a, propagate(&graph(&o), &param(&o, "header_radius")), "propagation must be deterministic");
+        assert_eq!(
+            a,
+            propagate(&graph(&o), &param(&o, "header_radius")),
+            "propagation must be deterministic"
+        );
     }
 
     #[test]
     fn local_change_stays_local() {
         let o = run(&assembly(), "t");
         let a = propagate(&graph(&o), &param(&o, "header_length"));
-        assert!(has(&a, "pattern", "header", Direction::Downstream) && has(&a, "dxf_output", "header", Direction::Downstream));
-        assert!(!a.iter().any(|x| x.label == "branch" && x.direction == Direction::Downstream), "branch pattern does not depend on header length");
-        assert!(!a.iter().any(|x| x.direction == Direction::CommonCause), "a length is not under the radius convention");
+        assert!(
+            has(&a, "pattern", "header", Direction::Downstream)
+                && has(&a, "dxf_output", "header", Direction::Downstream)
+        );
+        assert!(
+            !a.iter()
+                .any(|x| x.label == "branch" && x.direction == Direction::Downstream),
+            "branch pattern does not depend on header length"
+        );
+        assert!(
+            !a.iter().any(|x| x.direction == Direction::CommonCause),
+            "a length is not under the radius convention"
+        );
         let a = propagate(&graph(&o), &param(&o, "s_end"));
-        assert!(has(&a, "pattern", "branch", Direction::Downstream) && !has(&a, "pattern", "header", Direction::Downstream));
+        assert!(
+            has(&a, "pattern", "branch", Direction::Downstream)
+                && !has(&a, "pattern", "header", Direction::Downstream)
+        );
     }
 
     #[test]

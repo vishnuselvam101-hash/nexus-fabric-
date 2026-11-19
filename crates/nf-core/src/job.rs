@@ -8,24 +8,46 @@
 //! records with typed dependency edges, so that `deps::propagate` can answer
 //! "what is affected if this parameter changes?".
 
-use crate::{closure, closure_hash, rel, sha256_hex, Family, Gate, GateResult, Record, ReleaseState, ENGINE_VERSION};
+use crate::{
+    ENGINE_VERSION, Family, Gate, GateResult, Record, ReleaseState, closure, closure_hash, rel,
+    sha256_hex,
+};
 use nf_dxf::Entity;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use uem::develop::{self, Branch};
 use uem::verify::{self, Check, Verdict};
-use uem::{profile, Geom, Layer, Pattern, UemError};
+use uem::{Geom, Layer, Pattern, UemError, profile};
 
 pub const SURFACE_REFERENCES: [&str; 4] = ["outside", "inside", "neutral", "unknown"];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "family", rename_all = "snake_case")]
 pub enum Request {
-    CylinderShell { r_dev: f64, length: f64 },
-    ConeFrustum { r1: f64, r2: f64, h: f64 },
-    EccentricReducer { r1: f64, r2: f64, h: f64, e: f64 },
-    BranchStub { header_radius: f64, branch_radius: f64, branch_dev_radius: f64, beta_deg: f64, delta: f64, s_end: f64 },
+    CylinderShell {
+        r_dev: f64,
+        length: f64,
+    },
+    ConeFrustum {
+        r1: f64,
+        r2: f64,
+        h: f64,
+    },
+    EccentricReducer {
+        r1: f64,
+        r2: f64,
+        h: f64,
+        e: f64,
+    },
+    BranchStub {
+        header_radius: f64,
+        branch_radius: f64,
+        branch_dev_radius: f64,
+        beta_deg: f64,
+        delta: f64,
+        s_end: f64,
+    },
     /// Assembly: header shell rolled from plate with one set-on branch.
     HeaderWithBranch {
         header_radius: f64,
@@ -47,21 +69,43 @@ impl Request {
     /// Names of numeric parameters that can be corrected individually.
     pub fn numeric_params(&self) -> Vec<(String, f64)> {
         let v = serde_json::to_value(self).unwrap_or(Value::Null);
-        v.as_object().map(|o| o.iter().filter_map(|(k, x)| x.as_f64().map(|f| (k.clone(), f))).collect()).unwrap_or_default()
+        v.as_object()
+            .map(|o| {
+                o.iter()
+                    .filter_map(|(k, x)| x.as_f64().map(|f| (k.clone(), f)))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
     /// Parse a request and refuse fields this build does not know (BE-016):
     /// a silently ignored "thickness" would let an engineer believe it was applied.
     pub fn parse_strict(v: &Value) -> Result<Request, String> {
-        let req: Request = serde_json::from_value(v.clone()).map_err(|e| format!("invalid request: {e}"))?;
+        let req: Request =
+            serde_json::from_value(v.clone()).map_err(|e| format!("invalid request: {e}"))?;
         let known = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let unknown: Vec<&str> = v.as_object().map(|o| o.keys().filter(|k| known.get(k.as_str()).is_none()).map(|k| k.as_str()).collect()).unwrap_or_default();
+        let unknown: Vec<&str> = v
+            .as_object()
+            .map(|o| {
+                o.keys()
+                    .filter(|k| known.get(k.as_str()).is_none())
+                    .map(|k| k.as_str())
+                    .collect()
+            })
+            .unwrap_or_default();
         if !unknown.is_empty() {
-            return Err(format!("invalid request: unknown field(s) {} for family '{}'. Nothing is ignored silently; remove them or use a family that has them", unknown.join(", "), known["family"].as_str().unwrap_or("")));
+            return Err(format!(
+                "invalid request: unknown field(s) {} for family '{}'. Nothing is ignored silently; remove them or use a family that has them",
+                unknown.join(", "),
+                known["family"].as_str().unwrap_or("")
+            ));
         }
         Ok(req)
     }
     pub fn family(&self) -> String {
-        serde_json::to_value(self).ok().and_then(|v| v.get("family").and_then(|f| f.as_str().map(String::from))).unwrap_or_default()
+        serde_json::to_value(self)
+            .ok()
+            .and_then(|v| v.get("family").and_then(|f| f.as_str().map(String::from)))
+            .unwrap_or_default()
     }
     pub fn with_param(&self, name: &str, value: f64) -> Option<Request> {
         let mut v = serde_json::to_value(self).ok()?;
@@ -147,9 +191,22 @@ pub fn to_entities(p: &Pattern) -> Vec<Entity> {
         .map(|c| {
             let layer = layer_name(c.layer).to_string();
             match &c.geom {
-                Geom::Line { a, b } => Entity::Line { layer, a: (a.x, a.y), b: (b.x, b.y) },
-                Geom::Arc { c, r, a0, a1 } => Entity::Arc { layer, c: (c.x, c.y), r: *r, start_deg: a0.min(*a1).to_degrees(), end_deg: a0.max(*a1).to_degrees() },
-                Geom::Polyline { pts, .. } => Entity::Polyline { layer, pts: pts.iter().map(|q| (q.x, q.y)).collect() },
+                Geom::Line { a, b } => Entity::Line {
+                    layer,
+                    a: (a.x, a.y),
+                    b: (b.x, b.y),
+                },
+                Geom::Arc { c, r, a0, a1 } => Entity::Arc {
+                    layer,
+                    c: (c.x, c.y),
+                    r: *r,
+                    start_deg: a0.min(*a1).to_degrees(),
+                    end_deg: a0.max(*a1).to_degrees(),
+                },
+                Geom::Polyline { pts, .. } => Entity::Polyline {
+                    layer,
+                    pts: pts.iter().map(|q| (q.x, q.y)).collect(),
+                },
             }
         })
         .collect()
@@ -165,7 +222,10 @@ fn curve_view(c: &uem::Curve) -> CurveView {
             Geom::Polyline { .. } => "polyline",
         }
         .to_string(),
-        points: profile::flatten(std::slice::from_ref(c), 96).iter().map(|q| [q.x, q.y]).collect(),
+        points: profile::flatten(std::slice::from_ref(c), 96)
+            .iter()
+            .map(|q| [q.x, q.y])
+            .collect(),
         length: profile::length(c),
     }
 }
@@ -179,15 +239,37 @@ fn verdict_str(v: Verdict) -> &'static str {
 }
 
 fn check_view(scope: &str, c: &Check) -> CheckView {
-    CheckView { scope: scope.into(), name: c.name.into(), method: c.method.into(), independence: c.independence.into(), primary: c.primary, reference: c.reference, difference: c.difference, tolerance: c.tolerance, verdict: verdict_str(c.verdict).into() }
+    CheckView {
+        scope: scope.into(),
+        name: c.name.into(),
+        method: c.method.into(),
+        independence: c.independence.into(),
+        primary: c.primary,
+        reference: c.reference,
+        difference: c.difference,
+        tolerance: c.tolerance,
+        verdict: verdict_str(c.verdict).into(),
+    }
 }
 
 fn activity(kind: &str, zone: &str, inputs: &[&str], work_units: u64) -> Record {
-    Record::new(Family::Activity, kind, json!({ "engine": ENGINE_VERSION, "zone": zone, "lane": "not_production_qualified", "work_units": work_units }), inputs.iter().map(|i| rel("input", i)).collect(), None)
+    Record::new(
+        Family::Activity,
+        kind,
+        json!({ "engine": ENGINE_VERSION, "zone": zone, "lane": "not_production_qualified", "work_units": work_units }),
+        inputs.iter().map(|i| rel("input", i)).collect(),
+        None,
+    )
 }
 
 fn gate(id: &str, name: &str, critical: bool, result: GateResult, detail: &str) -> Gate {
-    Gate { id: id.into(), name: name.into(), critical, result, detail: detail.into() }
+    Gate {
+        id: id.into(),
+        name: name.into(),
+        critical,
+        result,
+        detail: detail.into(),
+    }
 }
 
 /// Accumulates records and per-part results while a job runs.
@@ -206,7 +288,18 @@ struct Builder {
 
 impl Builder {
     fn new() -> Self {
-        Builder { recs: vec![], wu: 0, patterns: vec![], checks: vec![], all_checks: vec![], dxf: vec![], topo_ok: true, reimport_ok: true, has_polyline: false, evaluated: vec![] }
+        Builder {
+            recs: vec![],
+            wu: 0,
+            patterns: vec![],
+            checks: vec![],
+            all_checks: vec![],
+            dxf: vec![],
+            topo_ok: true,
+            reimport_ok: true,
+            has_polyline: false,
+            evaluated: vec![],
+        }
     }
     fn push(&mut self, r: Record) -> String {
         let id = r.id.clone();
@@ -219,10 +312,23 @@ impl Builder {
     }
 
     /// Record a verification evidence set about `subject`.
-    fn evidence(&mut self, scope: &str, subject: &str, edge: &str, checks: Vec<Check>, wu: u64) -> String {
+    fn evidence(
+        &mut self,
+        scope: &str,
+        subject: &str,
+        edge: &str,
+        checks: Vec<Check>,
+        wu: u64,
+    ) -> String {
         let a = self.act("verify.family", "Z3", &[subject], wu);
         let views: Vec<CheckView> = checks.iter().map(|c| check_view(scope, c)).collect();
-        let id = self.push(Record::new(Family::Assessment, "verification_evidence", json!({ "scope": scope, "checks": views }), vec![rel(edge, subject)], Some(a)));
+        let id = self.push(Record::new(
+            Family::Assessment,
+            "verification_evidence",
+            json!({ "scope": scope, "checks": views }),
+            vec![rel(edge, subject)],
+            Some(a),
+        ));
         self.checks.extend(views);
         self.all_checks.extend(checks);
         self.evaluated.push(id.clone());
@@ -231,7 +337,13 @@ impl Builder {
 
     /// Pattern claim, profile report, DXF output and re-import report for one part.
     /// `deps` are the typed edges from the pattern to what it was developed from.
-    fn part(&mut self, part: &str, pattern: &Pattern, deps: Vec<crate::Rel>, checks: Vec<Check>) -> (String, String) {
+    fn part(
+        &mut self,
+        part: &str,
+        pattern: &Pattern,
+        deps: Vec<crate::Rel>,
+        checks: Vec<Check>,
+    ) -> (String, String) {
         let inputs: Vec<&str> = deps.iter().map(|d| d.to.as_str()).collect();
         let a_dev = self.act("build.develop", "Z2", &inputs, 1500);
         let entities = to_entities(pattern);
@@ -243,7 +355,11 @@ impl Builder {
             class: pattern.class.code().to_string(),
             eps_num: pattern.eps_num,
             eps_rep: pattern.eps_rep,
-            quantities: pattern.quantities.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+            quantities: pattern
+                .quantities
+                .iter()
+                .map(|(k, v)| (k.to_string(), *v))
+                .collect(),
             assumptions: pattern.assumptions.iter().map(|s| s.to_string()).collect(),
             curves: pattern.outline.iter().map(curve_view).collect(),
             holes: pattern.holes.iter().map(curve_view).collect(),
@@ -258,7 +374,8 @@ impl Builder {
             let r = profile::check(std::slice::from_ref(h), 1e-9);
             r.closed && r.self_intersections == 0 && r.signed_area < 0.0
         });
-        let ok = outer.closed && outer.self_intersections == 0 && outer.signed_area > 0.0 && holes_ok;
+        let ok =
+            outer.closed && outer.self_intersections == 0 && outer.signed_area > 0.0 && holes_ok;
         self.topo_ok &= ok;
         let prof_id = self.push(Record::new(
             Family::Assessment,
@@ -289,28 +406,62 @@ impl Builder {
         self.has_polyline |= pattern.eps_rep > 0.0;
         self.patterns.push(pv);
         self.dxf.push((part.to_string(), text));
-        self.evaluated.extend([pattern_id.clone(), dxf_id.clone(), prof_id, re_id]);
+        self.evaluated
+            .extend([pattern_id.clone(), dxf_id.clone(), prof_id, re_id]);
         (pattern_id, dxf_id)
     }
 
     /// `refusal` = (reason, parameter) when the engine refused the request.
-    fn finish(mut self, req: &Request, mut gates: Vec<Gate>, refusal: Option<(String, Option<String>)>) -> JobOutput {
+    fn finish(
+        mut self,
+        req: &Request,
+        mut gates: Vec<Gate>,
+        refusal: Option<(String, Option<String>)>,
+    ) -> JobOutput {
         let (outcome, refused_field) = match refusal {
             Some((why, field)) => (Some(why), field),
             None => (None, None),
         };
         // A refusal is not a result under review: it has its own state, end to end (BE-003).
-        let state = if outcome.is_some() || self.patterns.is_empty() { ReleaseState::Refused } else { crate::release_state(&gates) };
+        let state = if outcome.is_some() || self.patterns.is_empty() {
+            ReleaseState::Refused
+        } else {
+            crate::release_state(&gates)
+        };
         // gate ids are stable; keep the table in a fixed order
         gates.sort_by_key(|g| g.id.clone());
         let rels: Vec<crate::Rel> = self.evaluated.iter().map(|e| rel("evaluates", e)).collect();
-        let gate_rec = Record::new(Family::Assessment, "gate_evaluation", json!({ "gates": gates, "state": state }), rels, None);
+        let gate_rec = Record::new(
+            Family::Assessment,
+            "gate_evaluation",
+            json!({ "gates": gates, "state": state }),
+            rels,
+            None,
+        );
         let root = gate_rec.id.clone();
         self.recs.push(gate_rec);
-        let map: BTreeMap<String, Record> = self.recs.iter().map(|r| (r.id.clone(), r.clone())).collect();
+        let map: BTreeMap<String, Record> = self
+            .recs
+            .iter()
+            .map(|r| (r.id.clone(), r.clone()))
+            .collect();
         let (ids, missing) = closure(&map, &[root]);
         debug_assert!(missing.is_empty());
-        JobOutput { engine: ENGINE_VERSION.into(), request: req.clone(), state, outcome, refused_field, gates, patterns: self.patterns, checks: self.checks, closure_hash: closure_hash(&ids), closure_size: ids.len(), work_units: self.wu, records: self.recs, dxf: self.dxf }
+        JobOutput {
+            engine: ENGINE_VERSION.into(),
+            request: req.clone(),
+            state,
+            outcome,
+            refused_field,
+            gates,
+            patterns: self.patterns,
+            checks: self.checks,
+            closure_hash: closure_hash(&ids),
+            closure_size: ids.len(),
+            work_units: self.wu,
+            records: self.recs,
+            dxf: self.dxf,
+        }
     }
 }
 
@@ -318,7 +469,13 @@ impl Builder {
 /// reported as NOT_IMPLEMENTED or INCONCLUSIVE — never as PASS. G18 and G19
 /// depend on state that changes after the job (obligations, replay) and are
 /// re-evaluated by the server when a result is read.
-pub fn evaluate_gates(checks: &[Check], topo_ok: Option<bool>, reimport_ok: Option<bool>, has_polyline: bool, surface_reference: Option<&str>) -> Vec<Gate> {
+pub fn evaluate_gates(
+    checks: &[Check],
+    topo_ok: Option<bool>,
+    reimport_ok: Option<bool>,
+    has_polyline: bool,
+    surface_reference: Option<&str>,
+) -> Vec<Gate> {
     let ver = if checks.is_empty() {
         GateResult::NotRun
     } else if checks.iter().any(|c| c.verdict == Verdict::Fail) {
@@ -334,23 +491,98 @@ pub fn evaluate_gates(checks: &[Check], topo_ok: Option<bool>, reimport_ok: Opti
         Some(false) => GateResult::Fail,
     };
     let mut g = vec![
-        gate("G01", "provenance_complete", true, GateResult::Inconclusive, "Parameters were entered manually; they are not linked to confirmed dimensions on a source drawing (drawing intelligence is not implemented)."),
-        gate("G05", "class_assigned", true, GateResult::Pass, "Development class assigned by the surface-type constructor. Class naming scheme is a proposal (Spec 02 §14), not adopted."),
-        gate("G06", "assumptions_backed", true, GateResult::Inconclusive, "No calibrated process data exists. Radii are used as reference-surface radii exactly as entered; thickness, allowances, weld gap and kerf are not modelled."),
-        gate("G08", "numeric_bounds", true, GateResult::Inconclusive, if has_polyline { "Numerical and curve-representation errors are estimated, not interval-certified." } else { "Numerical error is estimated, not interval-certified." }),
-        gate("G10", "verification", true, ver, "Independent-formulation checks (class I-F), including interface constraints where the job has several parts. No separately implemented verifier or external kernel cross-check exists yet."),
-        gate("G11", "profile_topology", true, tri(topo_ok), "Outer profiles closed, simple, counter-clockwise; openings closed, simple, clockwise (binary64 arithmetic, not exact predicates). Kerf-compensation ownership is not declared."),
-        gate("G14", "algorithm_status", true, GateResult::Inconclusive, "Algorithms are evidence level EV-1 (AI-generated, not independently reviewed) and not production-qualified."),
-        gate("G15", "output_integrity", true, tri(reimport_ok), "Every DXF re-imported by the independent reader and compared with the intended geometry. CAM acceptance not tested."),
-        gate("G16", "human_approval", true, GateResult::NotImplemented, "Engineer approval workflow is not implemented. This result cannot be released for manufacturing."),
-        gate("G18", "obligation_closure", true, GateResult::NotRun, "Evaluated when the result is read: depends on the current state of scrutiny obligations."),
-        gate("G19", "self_consistency", true, GateResult::NotRun, "Evaluated when the result is read: depends on replay audits. Audits A1-A4 are not implemented."),
+        gate(
+            "G01",
+            "provenance_complete",
+            true,
+            GateResult::Inconclusive,
+            "Parameters were entered manually; they are not linked to confirmed dimensions on a source drawing (drawing intelligence is not implemented).",
+        ),
+        gate(
+            "G05",
+            "class_assigned",
+            true,
+            GateResult::Pass,
+            "Development class assigned by the surface-type constructor. Class naming scheme is a proposal (Spec 02 §14), not adopted.",
+        ),
+        gate(
+            "G06",
+            "assumptions_backed",
+            true,
+            GateResult::Inconclusive,
+            "No calibrated process data exists. Radii are used as reference-surface radii exactly as entered; thickness, allowances, weld gap and kerf are not modelled.",
+        ),
+        gate(
+            "G08",
+            "numeric_bounds",
+            true,
+            GateResult::Inconclusive,
+            if has_polyline {
+                "Numerical and curve-representation errors are estimated, not interval-certified."
+            } else {
+                "Numerical error is estimated, not interval-certified."
+            },
+        ),
+        gate(
+            "G10",
+            "verification",
+            true,
+            ver,
+            "Independent-formulation checks (class I-F), including interface constraints where the job has several parts. No separately implemented verifier or external kernel cross-check exists yet.",
+        ),
+        gate(
+            "G11",
+            "profile_topology",
+            true,
+            tri(topo_ok),
+            "Outer profiles closed, simple, counter-clockwise; openings closed, simple, clockwise (binary64 arithmetic, not exact predicates). Kerf-compensation ownership is not declared.",
+        ),
+        gate(
+            "G14",
+            "algorithm_status",
+            true,
+            GateResult::Inconclusive,
+            "Algorithms are evidence level EV-1 (AI-generated, not independently reviewed) and not production-qualified.",
+        ),
+        gate(
+            "G15",
+            "output_integrity",
+            true,
+            tri(reimport_ok),
+            "Every DXF re-imported by the independent reader and compared with the intended geometry. CAM acceptance not tested.",
+        ),
+        gate(
+            "G16",
+            "human_approval",
+            true,
+            GateResult::NotImplemented,
+            "Engineer approval workflow is not implemented. This result cannot be released for manufacturing.",
+        ),
+        gate(
+            "G18",
+            "obligation_closure",
+            true,
+            GateResult::NotRun,
+            "Evaluated when the result is read: depends on the current state of scrutiny obligations.",
+        ),
+        gate(
+            "G19",
+            "self_consistency",
+            true,
+            GateResult::NotRun,
+            "Evaluated when the result is read: depends on replay audits. Audits A1-A4 are not implemented.",
+        ),
     ];
     if let Some(sr) = surface_reference {
         let (res, detail) = if sr == "unknown" {
             (GateResult::Inconclusive, "Surface reference of the entered radii is declared UNKNOWN: inside / outside / neutral must be established by an engineer before use.".to_string())
         } else {
-            (GateResult::Inconclusive, format!("Surface reference declared by the user as '{sr}'. The declaration is recorded, not checked against a drawing."))
+            (
+                GateResult::Inconclusive,
+                format!(
+                    "Surface reference declared by the user as '{sr}'. The declaration is recorded, not checked against a drawing."
+                ),
+            )
         };
         g.push(gate("G02", "no_open_ambiguity", true, res, &detail));
     }
@@ -360,12 +592,28 @@ pub fn evaluate_gates(checks: &[Check], topo_ok: Option<bool>, reimport_ok: Opti
 fn err_output(req: &Request, mut b: Builder, about: &str, e: UemError) -> JobOutput {
     let critical = !matches!(e, UemError::OutOfRange { .. });
     let a = b.act("build.develop", "Z2", &[about], 1500);
-    let f = b.push(Record::new(Family::Finding, "engineering_outcome", json!({ "outcome": format!("{e:?}"), "message": e.to_string(), "critical": critical }), vec![rel("about", about)], Some(a)));
+    let f = b.push(Record::new(
+        Family::Finding,
+        "engineering_outcome",
+        json!({ "outcome": format!("{e:?}"), "message": e.to_string(), "critical": critical }),
+        vec![rel("about", about)],
+        Some(a),
+    ));
     b.evaluated.push(f);
     b.patterns.clear();
     b.dxf.clear();
     b.checks.clear();
-    let gates = vec![gate("G05", "class_assigned", true, if critical { GateResult::Fail } else { GateResult::Inconclusive }, &format!("No pattern produced: {e}"))];
+    let gates = vec![gate(
+        "G05",
+        "class_assigned",
+        true,
+        if critical {
+            GateResult::Fail
+        } else {
+            GateResult::Inconclusive
+        },
+        &format!("No pattern produced: {e}"),
+    )];
     let field = match &e {
         UemError::OutOfRange { param, .. } => Some(param.to_string()),
         _ => None,
@@ -374,17 +622,34 @@ fn err_output(req: &Request, mut b: Builder, about: &str, e: UemError) -> JobOut
 }
 
 fn request_claim(req: &Request, entered_by: &str) -> Record {
-    Record::new(Family::Claim, "development_request", json!({ "request": req, "entered_by": entered_by, "axes": { "provenance": "human_entered", "authority": "assumed", "reading": "n/a", "validation": "candidate" } }), vec![], None)
+    Record::new(
+        Family::Claim,
+        "development_request",
+        json!({ "request": req, "entered_by": entered_by, "axes": { "provenance": "human_entered", "authority": "assumed", "reading": "n/a", "validation": "candidate" } }),
+        vec![],
+        None,
+    )
 }
 
-fn single(req: &Request, entered_by: &str, part: &str, r: Result<(Pattern, Vec<Check>), UemError>) -> JobOutput {
+fn single(
+    req: &Request,
+    entered_by: &str,
+    part: &str,
+    r: Result<(Pattern, Vec<Check>), UemError>,
+) -> JobOutput {
     let mut b = Builder::new();
     let rq = b.push(request_claim(req, entered_by));
     match r {
         Err(e) => err_output(req, b, &rq, e),
         Ok((p, checks)) => {
             b.part(part, &p, vec![rel("developed_from", &rq)], checks);
-            let mut gates = evaluate_gates(&b.all_checks, Some(b.topo_ok), Some(b.reimport_ok), b.has_polyline, None);
+            let mut gates = evaluate_gates(
+                &b.all_checks,
+                Some(b.topo_ok),
+                Some(b.reimport_ok),
+                b.has_polyline,
+                None,
+            );
             if matches!(req, Request::BranchStub { .. }) {
                 // BE-001: this family has contact radii and a development radius but no declared surface
                 // reference, so their relation cannot be checked. That is an open ambiguity, said so.
@@ -396,20 +661,54 @@ fn single(req: &Request, entered_by: &str, part: &str, r: Result<(Pattern, Vec<C
 }
 
 #[allow(clippy::too_many_arguments)]
-fn header_with_branch(req: &Request, entered_by: &str, hr: f64, hdev: f64, hlen: f64, station: f64, br: f64, bdev: f64, beta_deg: f64, delta: f64, s_end: f64, sref: &str) -> JobOutput {
+fn header_with_branch(
+    req: &Request,
+    entered_by: &str,
+    hr: f64,
+    hdev: f64,
+    hlen: f64,
+    station: f64,
+    br: f64,
+    bdev: f64,
+    beta_deg: f64,
+    delta: f64,
+    s_end: f64,
+    sref: &str,
+) -> JobOutput {
     let mut b = Builder::new();
     let rq = b.push(request_claim(req, entered_by));
     if !SURFACE_REFERENCES.contains(&sref) {
-        return err_output(req, b, &rq, UemError::OutOfRange { param: "surface_reference", reason: format!("must be one of {SURFACE_REFERENCES:?}") });
+        return err_output(
+            req,
+            b,
+            &rq,
+            UemError::OutOfRange {
+                param: "surface_reference",
+                reason: format!("must be one of {SURFACE_REFERENCES:?}"),
+            },
+        );
     }
     // BE-001: the declared surface of the contact radii must be geometrically possible for the entered
     // development radii. Checked only for radii the engine would accept at all (finite and > 0), so that
     // a negative radius is still reported as what it is.
     let mut scrutiny: Vec<String> = Vec::new();
-    for (contact_name, contact, dev_name, dev) in [("header_radius", hr, "header_dev_radius", hdev), ("branch_radius", br, "branch_dev_radius", bdev)] {
+    for (contact_name, contact, dev_name, dev) in [
+        ("header_radius", hr, "header_dev_radius", hdev),
+        ("branch_radius", br, "branch_dev_radius", bdev),
+    ] {
         if contact.is_finite() && contact > 0.0 && dev.is_finite() && dev > 0.0 {
             match radius_consistency(sref, contact_name, contact, dev_name, dev) {
-                Err(reason) => return err_output(req, b, &rq, UemError::OutOfRange { param: dev_name, reason }),
+                Err(reason) => {
+                    return err_output(
+                        req,
+                        b,
+                        &rq,
+                        UemError::OutOfRange {
+                            param: dev_name,
+                            reason,
+                        },
+                    );
+                }
                 Ok(Some(note)) => scrutiny.push(note),
                 Ok(None) => {}
             }
@@ -434,10 +733,35 @@ fn header_with_branch(req: &Request, entered_by: &str, hr: f64, hdev: f64, hlen:
     let p_delta = param(&mut b, "delta", delta, false);
     let p_send = param(&mut b, "s_end", s_end, false);
 
-    let part_h = b.push(Record::new(Family::Claim, "part", json!({ "name": "header" }), vec![rel("defined_by", &p_hr), rel("defined_by", &p_hdev), rel("defined_by", &p_hlen)], None));
-    let part_b = b.push(Record::new(Family::Claim, "part", json!({ "name": "branch" }), vec![rel("defined_by", &p_br), rel("defined_by", &p_bdev), rel("defined_by", &p_send)], None));
+    let part_h = b.push(Record::new(
+        Family::Claim,
+        "part",
+        json!({ "name": "header" }),
+        vec![
+            rel("defined_by", &p_hr),
+            rel("defined_by", &p_hdev),
+            rel("defined_by", &p_hlen),
+        ],
+        None,
+    ));
+    let part_b = b.push(Record::new(
+        Family::Claim,
+        "part",
+        json!({ "name": "branch" }),
+        vec![
+            rel("defined_by", &p_br),
+            rel("defined_by", &p_bdev),
+            rel("defined_by", &p_send),
+        ],
+        None,
+    ));
 
-    let geo = Branch { big_r: hr, r: br, beta: beta_deg.to_radians(), delta };
+    let geo = Branch {
+        big_r: hr,
+        r: br,
+        beta: beta_deg.to_radians(),
+        delta,
+    };
     let branch_pat = match develop::branch_stub(hr, br, bdev, beta_deg, delta, s_end) {
         Ok(p) => p,
         Err(e) => return err_output(req, b, &rq, e),
@@ -447,7 +771,12 @@ fn header_with_branch(req: &Request, entered_by: &str, hr: f64, hdev: f64, hlen:
         Err(e) => return err_output(req, b, &rq, e),
     };
     // The intersection curve is shared by both parts: it depends on both contact radii and the placement.
-    let a_int = b.act("build.intersect", "Z2", &[&p_hr, &p_br, &p_beta, &p_delta], 700);
+    let a_int = b.act(
+        "build.intersect",
+        "Z2",
+        &[&p_hr, &p_br, &p_beta, &p_delta],
+        700,
+    );
     let curve = b.push(Record::new(
         Family::Claim,
         "intersection_curve",
@@ -464,20 +793,71 @@ fn header_with_branch(req: &Request, entered_by: &str, hr: f64, hdev: f64, hlen:
     ));
 
     let hc = verify::verify_header_opening(&header_pat, &geo, hdev, hlen, station);
-    let (pat_h, _) = b.part("header", &header_pat, vec![rel("developed_from", &curve), rel("developed_from", &p_hdev), rel("developed_from", &p_hlen), rel("developed_from", &p_st), rel("pattern_of", &part_h)], hc);
+    let (pat_h, _) = b.part(
+        "header",
+        &header_pat,
+        vec![
+            rel("developed_from", &curve),
+            rel("developed_from", &p_hdev),
+            rel("developed_from", &p_hlen),
+            rel("developed_from", &p_st),
+            rel("pattern_of", &part_h),
+        ],
+        hc,
+    );
     let bc = verify::verify_branch(&branch_pat, &geo, bdev, s_end);
-    let (pat_b, _) = b.part("branch", &branch_pat, vec![rel("developed_from", &curve), rel("developed_from", &p_bdev), rel("developed_from", &p_send), rel("pattern_of", &part_b)], bc);
+    let (pat_b, _) = b.part(
+        "branch",
+        &branch_pat,
+        vec![
+            rel("developed_from", &curve),
+            rel("developed_from", &p_bdev),
+            rel("developed_from", &p_send),
+            rel("pattern_of", &part_b),
+        ],
+        bc,
+    );
 
     // Interface constraint, evaluated from the two finished patterns.
-    let ic = verify::verify_interface(&header_pat, &geo, hdev, station, &branch_pat, &geo, bdev, s_end);
-    let a_if = b.act("verify.interface", "Z3", &[&pat_h, &pat_b, &interface], 3000);
+    let ic = verify::verify_interface(
+        &header_pat,
+        &geo,
+        hdev,
+        station,
+        &branch_pat,
+        &geo,
+        bdev,
+        s_end,
+    );
+    let a_if = b.act(
+        "verify.interface",
+        "Z3",
+        &[&pat_h, &pat_b, &interface],
+        3000,
+    );
     let views: Vec<CheckView> = ic.iter().map(|c| check_view("interface", c)).collect();
-    let ev = b.push(Record::new(Family::Assessment, "interface_evidence", json!({ "scope": "interface", "checks": views }), vec![rel("verifies", &interface), rel("uses", &pat_h), rel("uses", &pat_b)], Some(a_if)));
+    let ev = b.push(Record::new(
+        Family::Assessment,
+        "interface_evidence",
+        json!({ "scope": "interface", "checks": views }),
+        vec![
+            rel("verifies", &interface),
+            rel("uses", &pat_h),
+            rel("uses", &pat_b),
+        ],
+        Some(a_if),
+    ));
     b.checks.extend(views);
     b.all_checks.extend(ic);
     b.evaluated.extend([ev, interface]);
 
-    let mut gates = evaluate_gates(&b.all_checks, Some(b.topo_ok), Some(b.reimport_ok), b.has_polyline, Some(sref));
+    let mut gates = evaluate_gates(
+        &b.all_checks,
+        Some(b.topo_ok),
+        Some(b.reimport_ok),
+        b.has_polyline,
+        Some(sref),
+    );
     if let Some(g) = gates.iter_mut().find(|g| g.id == "G02") {
         g.detail.push_str(" Contact and development radii were checked against the declared surface (Spec 02 §6.1): the direction is possible; no wall thickness is modelled, so its size is not checked.");
         for note in &scrutiny {
@@ -512,19 +892,37 @@ const SAME_RADIUS_REL: f64 = 1e-12;
 /// (MATH-16), so the size of the difference is not judged.
 ///
 /// Ok(None) = consistent; Ok(Some(note)) = accepted, engineer must look; Err = refused.
-pub fn radius_consistency(sref: &str, contact_name: &str, contact: f64, dev_name: &str, dev: f64) -> Result<Option<String>, String> {
+pub fn radius_consistency(
+    sref: &str,
+    contact_name: &str,
+    contact: f64,
+    dev_name: &str,
+    dev: f64,
+) -> Result<Option<String>, String> {
     let same = (dev - contact).abs() <= SAME_RADIUS_REL * dev.abs().max(contact.abs());
-    let zero_t = |side: &str| Some(format!("{dev_name} = {dev} equals the {side} contact radius {contact_name} = {contact}: that is a wall of zero thickness (an idealised surface). Thickness is not modelled; an engineer must confirm the radii before use."));
+    let zero_t = |side: &str| {
+        Some(format!(
+            "{dev_name} = {dev} equals the {side} contact radius {contact_name} = {contact}: that is a wall of zero thickness (an idealised surface). Thickness is not modelled; an engineer must confirm the radii before use."
+        ))
+    };
     match sref {
         "outside" if same => Ok(zero_t("outside")),
-        "outside" if dev > contact => Err(format!("inconsistent with surface_reference 'outside': {dev_name} = {dev} is larger than the outside contact radius {contact_name} = {contact}. The development (reference) surface lies inside the wall (Spec 02 §6.1: r_dev = r_i + k·t, 0 < k <= 0.5), so it cannot be larger than the outside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface")),
+        "outside" if dev > contact => Err(format!(
+            "inconsistent with surface_reference 'outside': {dev_name} = {dev} is larger than the outside contact radius {contact_name} = {contact}. The development (reference) surface lies inside the wall (Spec 02 §6.1: r_dev = r_i + k·t, 0 < k <= 0.5), so it cannot be larger than the outside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface"
+        )),
         "outside" => Ok(None),
         "inside" if same => Ok(zero_t("inside")),
-        "inside" if dev < contact => Err(format!("inconsistent with surface_reference 'inside': {dev_name} = {dev} is smaller than the inside contact radius {contact_name} = {contact}. The development (reference) surface lies inside the wall (Spec 02 §6.1: r_dev = r_i + k·t, 0 < k <= 0.5), so it cannot be smaller than the inside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface")),
+        "inside" if dev < contact => Err(format!(
+            "inconsistent with surface_reference 'inside': {dev_name} = {dev} is smaller than the inside contact radius {contact_name} = {contact}. The development (reference) surface lies inside the wall (Spec 02 §6.1: r_dev = r_i + k·t, 0 < k <= 0.5), so it cannot be smaller than the inside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface"
+        )),
         "inside" => Ok(None),
         "neutral" if same => Ok(None),
-        "neutral" => Err(format!("inconsistent with surface_reference 'neutral': the contact radius {contact_name} = {contact} is declared to be on the reference surface itself, so {dev_name} must equal it, but it is {dev}. Correct the radii or the declared surface")),
-        _ => Ok(Some(format!("The relation between {contact_name} = {contact} and {dev_name} = {dev} could not be checked because the surface reference is unknown."))),
+        "neutral" => Err(format!(
+            "inconsistent with surface_reference 'neutral': the contact radius {contact_name} = {contact} is declared to be on the reference surface itself, so {dev_name} must equal it, but it is {dev}. Correct the radii or the declared surface"
+        )),
+        _ => Ok(Some(format!(
+            "The relation between {contact_name} = {contact} and {dev_name} = {dev} could not be checked because the surface reference is unknown."
+        ))),
     }
 }
 
@@ -534,7 +932,22 @@ pub fn radius_consistency(sref: &str, contact_name: &str, contact: f64, dev_name
 /// and Spec 02 §9 requires `OutOfRange` outside the range that was shown.
 pub const MAX_MAGNITUDE_MM: f64 = 1e8;
 pub const MIN_DIMENSION_MM: f64 = 1e-6;
-const LENGTH_PARAMS: [&str; 14] = ["r_dev", "length", "r1", "r2", "h", "e", "header_radius", "header_dev_radius", "header_length", "branch_station", "branch_radius", "branch_dev_radius", "delta", "s_end"];
+const LENGTH_PARAMS: [&str; 14] = [
+    "r_dev",
+    "length",
+    "r1",
+    "r2",
+    "h",
+    "e",
+    "header_radius",
+    "header_dev_radius",
+    "header_length",
+    "branch_station",
+    "branch_radius",
+    "branch_dev_radius",
+    "delta",
+    "s_end",
+];
 /// Parameters that may legitimately be zero or negative (offsets and positions).
 const SIGNED_PARAMS: [&str; 3] = ["e", "branch_station", "delta"];
 
@@ -546,10 +959,20 @@ fn magnitude_check(req: &Request) -> Result<(), UemError> {
         // a non-finite number serialises as null; the engine reports those itself
         let Some(x) = raw.as_f64() else { continue };
         if x.abs() > MAX_MAGNITUDE_MM {
-            return Err(UemError::OutOfRange { param: name, reason: format!("magnitude {x:e} mm exceeds {MAX_MAGNITUDE_MM:e} mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)") });
+            return Err(UemError::OutOfRange {
+                param: name,
+                reason: format!(
+                    "magnitude {x:e} mm exceeds {MAX_MAGNITUDE_MM:e} mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)"
+                ),
+            });
         }
         if x > 0.0 && x < MIN_DIMENSION_MM && !SIGNED_PARAMS.contains(&name) {
-            return Err(UemError::OutOfRange { param: name, reason: format!("{x:e} mm is below {MIN_DIMENSION_MM:e} mm, the smallest dimension this build has been exercised with (implementation limit, not an engineering rule)") });
+            return Err(UemError::OutOfRange {
+                param: name,
+                reason: format!(
+                    "{x:e} mm is below {MIN_DIMENSION_MM:e} mm, the smallest dimension this build has been exercised with (implementation limit, not an engineering rule)"
+                ),
+            });
         }
     }
     Ok(())
@@ -563,34 +986,104 @@ pub fn run(req: &Request, entered_by: &str) -> JobOutput {
         return err_output(req, b, &rq, e);
     }
     match req.clone() {
-        Request::CylinderShell { r_dev, length } => single(req, entered_by, "shell", develop::cylinder_shell(r_dev, length).map(|p| {
-            let c = verify::verify_cylinder(&p, r_dev, length);
-            (p, c)
-        })),
-        Request::ConeFrustum { r1, r2, h } => single(req, entered_by, "reducer", develop::cone_frustum(r1, r2, h).map(|p| {
-            let c = verify::verify_cone(&p, r1, r2, h);
-            (p, c)
-        })),
-        Request::EccentricReducer { r1, r2, h, e } => single(req, entered_by, "reducer", develop::eccentric_reducer(r1, r2, h, e).map(|p| {
-            let c = verify::verify_eccentric(&p, r1, r2, h, e);
-            (p, c)
-        })),
-        Request::BranchStub { header_radius, branch_radius, branch_dev_radius, beta_deg, delta, s_end } => single(req, entered_by, "branch", develop::branch_stub(header_radius, branch_radius, branch_dev_radius, beta_deg, delta, s_end).map(|p| {
-            let b = Branch { big_r: header_radius, r: branch_radius, beta: beta_deg.to_radians(), delta };
-            let c = verify::verify_branch(&p, &b, branch_dev_radius, s_end);
-            (p, c)
-        })),
-        Request::HeaderWithBranch { header_radius, header_dev_radius, header_length, branch_station, branch_radius, branch_dev_radius, beta_deg, delta, s_end, surface_reference } => {
-            header_with_branch(req, entered_by, header_radius, header_dev_radius, header_length, branch_station, branch_radius, branch_dev_radius, beta_deg, delta, s_end, &surface_reference)
-        }
+        Request::CylinderShell { r_dev, length } => single(
+            req,
+            entered_by,
+            "shell",
+            develop::cylinder_shell(r_dev, length).map(|p| {
+                let c = verify::verify_cylinder(&p, r_dev, length);
+                (p, c)
+            }),
+        ),
+        Request::ConeFrustum { r1, r2, h } => single(
+            req,
+            entered_by,
+            "reducer",
+            develop::cone_frustum(r1, r2, h).map(|p| {
+                let c = verify::verify_cone(&p, r1, r2, h);
+                (p, c)
+            }),
+        ),
+        Request::EccentricReducer { r1, r2, h, e } => single(
+            req,
+            entered_by,
+            "reducer",
+            develop::eccentric_reducer(r1, r2, h, e).map(|p| {
+                let c = verify::verify_eccentric(&p, r1, r2, h, e);
+                (p, c)
+            }),
+        ),
+        Request::BranchStub {
+            header_radius,
+            branch_radius,
+            branch_dev_radius,
+            beta_deg,
+            delta,
+            s_end,
+        } => single(
+            req,
+            entered_by,
+            "branch",
+            develop::branch_stub(
+                header_radius,
+                branch_radius,
+                branch_dev_radius,
+                beta_deg,
+                delta,
+                s_end,
+            )
+            .map(|p| {
+                let b = Branch {
+                    big_r: header_radius,
+                    r: branch_radius,
+                    beta: beta_deg.to_radians(),
+                    delta,
+                };
+                let c = verify::verify_branch(&p, &b, branch_dev_radius, s_end);
+                (p, c)
+            }),
+        ),
+        Request::HeaderWithBranch {
+            header_radius,
+            header_dev_radius,
+            header_length,
+            branch_station,
+            branch_radius,
+            branch_dev_radius,
+            beta_deg,
+            delta,
+            s_end,
+            surface_reference,
+        } => header_with_branch(
+            req,
+            entered_by,
+            header_radius,
+            header_dev_radius,
+            header_length,
+            branch_station,
+            branch_radius,
+            branch_dev_radius,
+            beta_deg,
+            delta,
+            s_end,
+            &surface_reference,
+        ),
     }
 }
 
 /// Recompute from the request alone and compare closure hash and record ids.
-pub fn replay_matches(req: &Request, entered_by: &str, expected_closure_hash: &str, expected_ids: &[String]) -> (bool, String) {
+pub fn replay_matches(
+    req: &Request,
+    entered_by: &str,
+    expected_closure_hash: &str,
+    expected_ids: &[String],
+) -> (bool, String) {
     let again = run(req, entered_by);
     let ids: Vec<String> = again.records.iter().map(|r| r.id.clone()).collect();
-    (again.closure_hash == expected_closure_hash && ids == expected_ids, again.closure_hash)
+    (
+        again.closure_hash == expected_closure_hash && ids == expected_ids,
+        again.closure_hash,
+    )
 }
 
 #[cfg(test)]
@@ -598,15 +1091,45 @@ mod tests {
     use super::*;
 
     pub(crate) fn assembly() -> Request {
-        Request::HeaderWithBranch { header_radius: 150.0, header_dev_radius: 150.0, header_length: 1200.0, branch_station: 600.0, branch_radius: 100.0, branch_dev_radius: 100.0, beta_deg: 60.0, delta: 0.0, s_end: 400.0, surface_reference: "outside".into() }
+        Request::HeaderWithBranch {
+            header_radius: 150.0,
+            header_dev_radius: 150.0,
+            header_length: 1200.0,
+            branch_station: 600.0,
+            branch_radius: 100.0,
+            branch_dev_radius: 100.0,
+            beta_deg: 60.0,
+            delta: 0.0,
+            s_end: 400.0,
+            surface_reference: "outside".into(),
+        }
     }
 
     fn reqs() -> Vec<Request> {
         vec![
-            Request::CylinderShell { r_dev: 100.0, length: 250.0 },
-            Request::ConeFrustum { r1: 200.0, r2: 100.0, h: 300.0 },
-            Request::EccentricReducer { r1: 200.0, r2: 100.0, h: 300.0, e: 100.0 },
-            Request::BranchStub { header_radius: 150.0, branch_radius: 100.0, branch_dev_radius: 100.0, beta_deg: 60.0, delta: 0.0, s_end: 400.0 },
+            Request::CylinderShell {
+                r_dev: 100.0,
+                length: 250.0,
+            },
+            Request::ConeFrustum {
+                r1: 200.0,
+                r2: 100.0,
+                h: 300.0,
+            },
+            Request::EccentricReducer {
+                r1: 200.0,
+                r2: 100.0,
+                h: 300.0,
+                e: 100.0,
+            },
+            Request::BranchStub {
+                header_radius: 150.0,
+                branch_radius: 100.0,
+                branch_dev_radius: 100.0,
+                beta_deg: 60.0,
+                delta: 0.0,
+                s_end: 400.0,
+            },
             assembly(),
         ]
     }
@@ -615,12 +1138,27 @@ mod tests {
     fn jobs_run_verify_and_never_approve() {
         for r in reqs() {
             let o = run(&r, "tester");
-            assert!(!o.patterns.is_empty() && o.dxf.len() == o.patterns.len(), "{r:?}");
+            assert!(
+                !o.patterns.is_empty() && o.dxf.len() == o.patterns.len(),
+                "{r:?}"
+            );
             assert!(o.checks.iter().all(|c| c.verdict == "PASS"), "{r:?}");
-            assert_eq!(o.state, ReleaseState::ReviewRequired, "this build must never reach APPROVED");
-            assert!(o.gates.iter().any(|g| g.id == "G16" && g.result == GateResult::NotImplemented));
+            assert_eq!(
+                o.state,
+                ReleaseState::ReviewRequired,
+                "this build must never reach APPROVED"
+            );
+            assert!(
+                o.gates
+                    .iter()
+                    .any(|g| g.id == "G16" && g.result == GateResult::NotImplemented)
+            );
             assert!(o.records.iter().all(|x| x.verify_id()));
-            let pass = |id: &str| o.gates.iter().any(|g| g.id == id && g.result == GateResult::Pass);
+            let pass = |id: &str| {
+                o.gates
+                    .iter()
+                    .any(|g| g.id == id && g.result == GateResult::Pass)
+            };
             assert!(pass("G10") && pass("G11") && pass("G15"), "{r:?}");
         }
     }
@@ -628,9 +1166,18 @@ mod tests {
     #[test]
     fn assembly_has_two_parts_interface_evidence_and_opening() {
         let o = run(&assembly(), "t");
-        assert_eq!(o.patterns.iter().map(|p| p.part.as_str()).collect::<Vec<_>>(), ["header", "branch"]);
+        assert_eq!(
+            o.patterns
+                .iter()
+                .map(|p| p.part.as_str())
+                .collect::<Vec<_>>(),
+            ["header", "branch"]
+        );
         assert_eq!(o.patterns[0].holes.len(), 1);
-        assert_eq!(o.checks.iter().filter(|c| c.scope == "interface").count(), 2);
+        assert_eq!(
+            o.checks.iter().filter(|c| c.scope == "interface").count(),
+            2
+        );
         assert!(o.dxf[0].1.contains("CUT_INNER"));
         assert!(o.gates.iter().any(|g| g.id == "G02"));
         let unknown = run(&assembly().with_param("delta", 0.0).unwrap(), "t");
@@ -642,24 +1189,57 @@ mod tests {
         for r in reqs() {
             let a = run(&r, "tester");
             let ids: Vec<String> = a.records.iter().map(|x| x.id.clone()).collect();
-            assert!(replay_matches(&r, "tester", &a.closure_hash, &ids).0, "{r:?}");
+            assert!(
+                replay_matches(&r, "tester", &a.closure_hash, &ids).0,
+                "{r:?}"
+            );
             assert_eq!(a.dxf, run(&r, "tester").dxf);
         }
         let a = run(&reqs()[1], "tester");
-        assert_ne!(a.closure_hash, run(&Request::ConeFrustum { r1: 200.0, r2: 100.0, h: 300.5 }, "tester").closure_hash);
-        assert_ne!(a.closure_hash, run(&reqs()[1], "someone else").closure_hash, "who entered the request is part of the record");
+        assert_ne!(
+            a.closure_hash,
+            run(
+                &Request::ConeFrustum {
+                    r1: 200.0,
+                    r2: 100.0,
+                    h: 300.5
+                },
+                "tester"
+            )
+            .closure_hash
+        );
+        assert_ne!(
+            a.closure_hash,
+            run(&reqs()[1], "someone else").closure_hash,
+            "who entered the request is part of the record"
+        );
     }
 
     #[test]
     fn unsupported_and_degenerate_inputs_give_no_dxf() {
-        let o = run(&Request::ConeFrustum { r1: 200.0, r2: 199.99, h: 300.0 }, "t");
+        let o = run(
+            &Request::ConeFrustum {
+                r1: 200.0,
+                r2: 199.99,
+                h: 300.0,
+            },
+            "t",
+        );
         assert!(o.dxf.is_empty() && o.patterns.is_empty());
         // BE-003: this used to expect REVIEW_REQUIRED. A refusal is not a result under review.
         assert_eq!(o.state, ReleaseState::Refused);
         assert!(o.records.iter().any(|r| r.family == Family::Finding));
-        assert!(run(&assembly().with_param("branch_station", 10.0).unwrap(), "t").dxf.is_empty(), "opening outside the shell");
+        assert!(
+            run(&assembly().with_param("branch_station", 10.0).unwrap(), "t")
+                .dxf
+                .is_empty(),
+            "opening outside the shell"
+        );
         let mut bad = assembly();
-        if let Request::HeaderWithBranch { surface_reference, .. } = &mut bad {
+        if let Request::HeaderWithBranch {
+            surface_reference, ..
+        } = &mut bad
+        {
             *surface_reference = "whatever".into();
         }
         assert!(run(&bad, "t").dxf.is_empty());
@@ -669,14 +1249,47 @@ mod tests {
     fn failed_verification_rejects() {
         let p = develop::cone_frustum(206.0, 100.0, 300.0).unwrap();
         let checks = verify::verify_cone(&p, 200.0, 100.0, 300.0);
-        assert_eq!(crate::release_state(&evaluate_gates(&checks, Some(true), Some(true), false, None)), ReleaseState::Rejected);
-        let good = verify::verify_cone(&develop::cone_frustum(200.0, 100.0, 300.0).unwrap(), 200.0, 100.0, 300.0);
-        assert_eq!(crate::release_state(&evaluate_gates(&good, Some(true), Some(false), false, None)), ReleaseState::Rejected, "failed re-import must reject");
-        assert_eq!(crate::release_state(&evaluate_gates(&good, Some(false), Some(true), false, None)), ReleaseState::Rejected, "invalid profile must reject");
+        assert_eq!(
+            crate::release_state(&evaluate_gates(
+                &checks,
+                Some(true),
+                Some(true),
+                false,
+                None
+            )),
+            ReleaseState::Rejected
+        );
+        let good = verify::verify_cone(
+            &develop::cone_frustum(200.0, 100.0, 300.0).unwrap(),
+            200.0,
+            100.0,
+            300.0,
+        );
+        assert_eq!(
+            crate::release_state(&evaluate_gates(&good, Some(true), Some(false), false, None)),
+            ReleaseState::Rejected,
+            "failed re-import must reject"
+        );
+        assert_eq!(
+            crate::release_state(&evaluate_gates(&good, Some(false), Some(true), false, None)),
+            ReleaseState::Rejected,
+            "invalid profile must reject"
+        );
     }
 
     fn with_radii(sref: &str, hr: f64, hdev: f64, br: f64, bdev: f64) -> Request {
-        Request::HeaderWithBranch { header_radius: hr, header_dev_radius: hdev, header_length: 1200.0, branch_station: 600.0, branch_radius: br, branch_dev_radius: bdev, beta_deg: 60.0, delta: 0.0, s_end: 400.0, surface_reference: sref.into() }
+        Request::HeaderWithBranch {
+            header_radius: hr,
+            header_dev_radius: hdev,
+            header_length: 1200.0,
+            branch_station: 600.0,
+            branch_radius: br,
+            branch_dev_radius: bdev,
+            beta_deg: 60.0,
+            delta: 0.0,
+            s_end: 400.0,
+            surface_reference: sref.into(),
+        }
     }
 
     /// BE-001: a declared surface that the radii contradict is refused; nothing is drawn.
@@ -687,22 +1300,62 @@ mod tests {
             assert_eq!(o.state, ReleaseState::Refused, "{r:?}");
             assert!(o.patterns.is_empty() && o.dxf.is_empty(), "{r:?}");
             assert_eq!(o.refused_field.as_deref(), Some(field), "{r:?}");
-            assert!(o.outcome.as_deref().is_some_and(|m| m.contains(word) && m.contains("Spec 02") || m.contains("reference surface itself")), "{:?}", o.outcome);
+            assert!(
+                o.outcome
+                    .as_deref()
+                    .is_some_and(|m| m.contains(word) && m.contains("Spec 02")
+                        || m.contains("reference surface itself")),
+                "{:?}",
+                o.outcome
+            );
         };
         // the audit's case: outside 150 with development 160 (negative wall thickness)
-        refused(with_radii("outside", 150.0, 160.0, 100.0, 110.0), "header_dev_radius", "negative wall thickness");
-        refused(with_radii("outside", 150.0, 146.0, 100.0, 100.5), "branch_dev_radius", "negative wall thickness");
-        refused(with_radii("inside", 146.0, 142.0, 96.0, 100.0), "header_dev_radius", "negative wall thickness");
-        refused(with_radii("inside", 142.0, 146.0, 100.0, 96.0), "branch_dev_radius", "negative wall thickness");
-        refused(with_radii("neutral", 150.0, 150.5, 100.0, 100.0), "header_dev_radius", "reference surface itself");
-        refused(with_radii("neutral", 150.0, 150.0, 100.0, 99.0), "branch_dev_radius", "reference surface itself");
+        refused(
+            with_radii("outside", 150.0, 160.0, 100.0, 110.0),
+            "header_dev_radius",
+            "negative wall thickness",
+        );
+        refused(
+            with_radii("outside", 150.0, 146.0, 100.0, 100.5),
+            "branch_dev_radius",
+            "negative wall thickness",
+        );
+        refused(
+            with_radii("inside", 146.0, 142.0, 96.0, 100.0),
+            "header_dev_radius",
+            "negative wall thickness",
+        );
+        refused(
+            with_radii("inside", 142.0, 146.0, 100.0, 96.0),
+            "branch_dev_radius",
+            "negative wall thickness",
+        );
+        refused(
+            with_radii("neutral", 150.0, 150.5, 100.0, 100.0),
+            "header_dev_radius",
+            "reference surface itself",
+        );
+        refused(
+            with_radii("neutral", 150.0, 150.0, 100.0, 99.0),
+            "branch_dev_radius",
+            "reference surface itself",
+        );
         // the unit rule itself
         assert!(radius_consistency("outside", "c", 150.0, "d", 160.0).is_err());
         assert!(radius_consistency("inside", "c", 150.0, "d", 140.0).is_err());
         assert!(radius_consistency("neutral", "c", 150.0, "d", 150.0 + 1e-6).is_err());
-        assert_eq!(radius_consistency("outside", "c", 150.0, "d", 146.0), Ok(None));
-        assert_eq!(radius_consistency("inside", "c", 142.0, "d", 146.0), Ok(None));
-        assert_eq!(radius_consistency("neutral", "c", 150.0, "d", 150.0), Ok(None));
+        assert_eq!(
+            radius_consistency("outside", "c", 150.0, "d", 146.0),
+            Ok(None)
+        );
+        assert_eq!(
+            radius_consistency("inside", "c", 142.0, "d", 146.0),
+            Ok(None)
+        );
+        assert_eq!(
+            radius_consistency("neutral", "c", 150.0, "d", 150.0),
+            Ok(None)
+        );
     }
 
     /// BE-001: consistent declarations still compute; what cannot be decided is raised for scrutiny, not guessed.
@@ -713,7 +1366,11 @@ mod tests {
             assert_eq!(o.state, ReleaseState::ReviewRequired, "{r:?}");
             assert_eq!(o.patterns.len(), 2);
             let g = o.gates.iter().find(|g| g.id == "G02").expect("G02").clone();
-            assert_eq!(g.result, GateResult::Inconclusive, "the declaration is never a PASS");
+            assert_eq!(
+                g.result,
+                GateResult::Inconclusive,
+                "the declaration is never a PASS"
+            );
             g.detail
         };
         assert!(!g02(with_radii("outside", 150.0, 146.0, 100.0, 96.0)).contains("zero thickness"));
@@ -721,15 +1378,34 @@ mod tests {
         assert!(!g02(with_radii("neutral", 150.0, 150.0, 100.0, 100.0)).contains("zero thickness"));
         // equality under outside / inside: zero wall thickness is not forbidden by the specification, so it is flagged, not refused
         let d = g02(with_radii("outside", 150.0, 150.0, 100.0, 100.0));
-        assert!(d.contains("header_dev_radius = 150") && d.contains("branch_dev_radius = 100") && d.matches("zero thickness").count() == 2, "{d}");
-        assert!(g02(with_radii("inside", 150.0, 150.0, 100.0, 104.0)).matches("zero thickness").count() == 1);
-        assert!(g02(with_radii("unknown", 150.0, 160.0, 100.0, 90.0)).contains("could not be checked"));
+        assert!(
+            d.contains("header_dev_radius = 150")
+                && d.contains("branch_dev_radius = 100")
+                && d.matches("zero thickness").count() == 2,
+            "{d}"
+        );
+        assert!(
+            g02(with_radii("inside", 150.0, 150.0, 100.0, 104.0))
+                .matches("zero thickness")
+                .count()
+                == 1
+        );
+        assert!(
+            g02(with_radii("unknown", 150.0, 160.0, 100.0, 90.0)).contains("could not be checked")
+        );
         // the single branch stub cannot declare a surface: open ambiguity, stated
         let stub = run(&reqs()[3], "t");
-        assert!(stub.gates.iter().any(|g| g.id == "G02" && g.result == GateResult::Inconclusive && g.detail.contains("NOT checked")));
+        assert!(stub.gates.iter().any(|g| g.id == "G02"
+            && g.result == GateResult::Inconclusive
+            && g.detail.contains("NOT checked")));
         // a negative radius is still reported as a negative radius, not as an inconsistency
         let neg = run(&with_radii("outside", -150.0, 150.0, 100.0, 100.0), "t");
-        assert_eq!(neg.refused_field.as_deref(), Some("header_radius"), "{:?}", neg.outcome);
+        assert_eq!(
+            neg.refused_field.as_deref(),
+            Some("header_radius"),
+            "{:?}",
+            neg.outcome
+        );
     }
 
     /// BE-003: every refusal has the explicit REFUSED state, a reason, and nothing that looks like a result.
@@ -739,42 +1415,117 @@ mod tests {
             with_radii("outside", -150.0, 150.0, 100.0, 100.0),
             with_radii("outside", 150.0, 150.0, 400.0, 400.0),
             with_radii("whatever", 150.0, 150.0, 100.0, 100.0),
-            Request::ConeFrustum { r1: 200.0, r2: 199.99, h: 300.0 },
-            Request::ConeFrustum { r1: f64::NAN, r2: 1.0, h: 1.0 },
-            Request::EccentricReducer { r1: 100.0, r2: 100.0, h: 300.0, e: 50.0 },
+            Request::ConeFrustum {
+                r1: 200.0,
+                r2: 199.99,
+                h: 300.0,
+            },
+            Request::ConeFrustum {
+                r1: f64::NAN,
+                r2: 1.0,
+                h: 1.0,
+            },
+            Request::EccentricReducer {
+                r1: 100.0,
+                r2: 100.0,
+                h: 300.0,
+                e: 50.0,
+            },
         ];
         for r in cases {
             let o = run(&r, "t");
             assert_eq!(o.state, ReleaseState::Refused, "{r:?}");
-            assert!(o.outcome.is_some() && o.patterns.is_empty() && o.checks.is_empty() && o.dxf.is_empty(), "{r:?}");
-            assert!(o.records.iter().any(|x| x.kind == "gate_evaluation" && x.payload["state"] == "REFUSED"));
+            assert!(
+                o.outcome.is_some()
+                    && o.patterns.is_empty()
+                    && o.checks.is_empty()
+                    && o.dxf.is_empty(),
+                "{r:?}"
+            );
+            assert!(
+                o.records
+                    .iter()
+                    .any(|x| x.kind == "gate_evaluation" && x.payload["state"] == "REFUSED")
+            );
             assert!(o.records.iter().all(|x| x.verify_id()));
         }
         for r in reqs() {
             let o = run(&r, "t");
-            assert!(o.outcome.is_none() && o.refused_field.is_none() && o.state == ReleaseState::ReviewRequired);
+            assert!(
+                o.outcome.is_none()
+                    && o.refused_field.is_none()
+                    && o.state == ReleaseState::ReviewRequired
+            );
         }
     }
 
     /// BE-015: absurd magnitudes are refused instead of producing 301-digit coordinates.
     #[test]
     fn be015_magnitudes_outside_the_exercised_range_are_refused() {
-        for r in [Request::CylinderShell { r_dev: 1e300, length: 1e300 }, Request::CylinderShell { r_dev: 1e-300, length: 10.0 }, Request::CylinderShell { r_dev: 100.0, length: 1e9 }, Request::ConeFrustum { r1: 200.0, r2: 1e-7, h: 300.0 }] {
+        for r in [
+            Request::CylinderShell {
+                r_dev: 1e300,
+                length: 1e300,
+            },
+            Request::CylinderShell {
+                r_dev: 1e-300,
+                length: 10.0,
+            },
+            Request::CylinderShell {
+                r_dev: 100.0,
+                length: 1e9,
+            },
+            Request::ConeFrustum {
+                r1: 200.0,
+                r2: 1e-7,
+                h: 300.0,
+            },
+        ] {
             let o = run(&r, "t");
             assert_eq!(o.state, ReleaseState::Refused, "{r:?}");
-            assert!(o.outcome.as_deref().is_some_and(|m| m.contains("implementation limit")), "{:?}", o.outcome);
+            assert!(
+                o.outcome
+                    .as_deref()
+                    .is_some_and(|m| m.contains("implementation limit")),
+                "{:?}",
+                o.outcome
+            );
             assert!(o.refused_field.is_some());
         }
-        assert_eq!(run(&Request::CylinderShell { r_dev: 1e5, length: 1e-2 }, "t").state, ReleaseState::ReviewRequired);
+        assert_eq!(
+            run(
+                &Request::CylinderShell {
+                    r_dev: 1e5,
+                    length: 1e-2
+                },
+                "t"
+            )
+            .state,
+            ReleaseState::ReviewRequired
+        );
     }
 
     /// BE-016: an unknown field is refused by name, never dropped.
     #[test]
     fn be016_unknown_fields_are_refused() {
         let e = Request::parse_strict(&json!({ "family": "cylinder_shell", "r_dev": 100, "length": 250, "thickness": 12, "surface_reference": "outside" })).unwrap_err();
-        assert!(e.contains("thickness") && e.contains("surface_reference") && e.contains("unknown field"), "{e}");
-        assert_eq!(Request::parse_strict(&json!({ "family": "cylinder_shell", "r_dev": 100, "length": 250 })).unwrap(), reqs()[0]);
-        assert_eq!(Request::parse_strict(&serde_json::to_value(assembly()).unwrap()).unwrap(), assembly());
+        assert!(
+            e.contains("thickness")
+                && e.contains("surface_reference")
+                && e.contains("unknown field"),
+            "{e}"
+        );
+        assert_eq!(
+            Request::parse_strict(
+                &json!({ "family": "cylinder_shell", "r_dev": 100, "length": 250 })
+            )
+            .unwrap(),
+            reqs()[0]
+        );
+        assert_eq!(
+            Request::parse_strict(&serde_json::to_value(assembly()).unwrap()).unwrap(),
+            assembly()
+        );
         assert!(Request::parse_strict(&json!({ "family": "teapot" })).is_err());
     }
 
@@ -787,11 +1538,28 @@ mod tests {
                 let (all, unknown) = nf_dxf::read(text).unwrap();
                 assert!(unknown.is_empty());
                 assert!(all.iter().any(|e| matches!(e, Entity::Text { layer, text, .. } if layer == nf_dxf::MARK_LAYER && text == nf_dxf::MARK_TEXT)), "{part}");
-                assert!(all.iter().filter(|e| !e.is_annotation()).all(|e| nf_dxf::is_cut_layer(e.layer())), "{part}: only cut geometry on cut layers");
-                assert!(all.iter().filter(|e| e.is_annotation()).all(|e| !nf_dxf::is_cut_layer(e.layer())), "{part}");
+                assert!(
+                    all.iter()
+                        .filter(|e| !e.is_annotation())
+                        .all(|e| nf_dxf::is_cut_layer(e.layer())),
+                    "{part}: only cut geometry on cut layers"
+                );
+                assert!(
+                    all.iter()
+                        .filter(|e| e.is_annotation())
+                        .all(|e| !nf_dxf::is_cut_layer(e.layer())),
+                    "{part}"
+                );
                 assert!(text.contains("$LUNITS") && text.contains(nf_dxf::UNITS_TEXT));
             }
-            assert!(o.records.iter().filter(|x| x.kind == "reimport_report").all(|x| x.payload["not_released_marking"] == true && x.payload["units_declared"] == true && x.payload["pass"] == true));
+            assert!(
+                o.records
+                    .iter()
+                    .filter(|x| x.kind == "reimport_report")
+                    .all(|x| x.payload["not_released_marking"] == true
+                        && x.payload["units_declared"] == true
+                        && x.payload["pass"] == true)
+            );
         }
     }
 }
