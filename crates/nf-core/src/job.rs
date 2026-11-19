@@ -49,6 +49,20 @@ impl Request {
         let v = serde_json::to_value(self).unwrap_or(Value::Null);
         v.as_object().map(|o| o.iter().filter_map(|(k, x)| x.as_f64().map(|f| (k.clone(), f))).collect()).unwrap_or_default()
     }
+    /// Parse a request and refuse fields this build does not know (BE-016):
+    /// a silently ignored "thickness" would let an engineer believe it was applied.
+    pub fn parse_strict(v: &Value) -> Result<Request, String> {
+        let req: Request = serde_json::from_value(v.clone()).map_err(|e| format!("invalid request: {e}"))?;
+        let known = serde_json::to_value(&req).map_err(|e| e.to_string())?;
+        let unknown: Vec<&str> = v.as_object().map(|o| o.keys().filter(|k| known.get(k.as_str()).is_none()).map(|k| k.as_str()).collect()).unwrap_or_default();
+        if !unknown.is_empty() {
+            return Err(format!("invalid request: unknown field(s) {} for family '{}'. Nothing is ignored silently; remove them or use a family that has them", unknown.join(", "), known["family"].as_str().unwrap_or("")));
+        }
+        Ok(req)
+    }
+    pub fn family(&self) -> String {
+        serde_json::to_value(self).ok().and_then(|v| v.get("family").and_then(|f| f.as_str().map(String::from))).unwrap_or_default()
+    }
     pub fn with_param(&self, name: &str, value: f64) -> Option<Request> {
         let mut v = serde_json::to_value(self).ok()?;
         let o = v.as_object_mut()?;
@@ -101,7 +115,11 @@ pub struct JobOutput {
     pub engine: String,
     pub request: Request,
     pub state: ReleaseState,
+    /// Set exactly when the engine refused the request (state REFUSED, no pattern).
     pub outcome: Option<String>,
+    /// The parameter the refusal is about, where the engine names one.
+    #[serde(default)]
+    pub refused_field: Option<String>,
     pub gates: Vec<Gate>,
     pub patterns: Vec<PatternView>,
     pub checks: Vec<CheckView>,
@@ -254,7 +272,7 @@ impl Builder {
         let dxf_id = self.push(Record::new(
             Family::Claim,
             "dxf_output",
-            json!({ "part": part, "sha256": dxf_sha, "bytes": text.len(), "entities": entities.len(), "format": "DXF AC1009 subset", "units": "mm (comment only)" }),
+            json!({ "part": part, "sha256": dxf_sha, "bytes": text.len(), "entities": entities.len(), "format": "DXF AC1009 subset", "units": "mm: $LUNITS=2 (decimal), $AUNITS=0, $ANGDIR=0 in the header; the unit is stated in a comment and a TEXT annotation (R12 has no unit-of-measure variable)", "marking": { "layer": nf_dxf::MARK_LAYER, "text": nf_dxf::MARK_TEXT } }),
             vec![rel("rendered_from", &pattern_id)],
             Some(a_dxf),
         ));
@@ -264,7 +282,7 @@ impl Builder {
         let re_id = self.push(Record::new(
             Family::Assessment,
             "reimport_report",
-            json!({ "part": part, "pass": re.pass, "entities_written": re.entities_written, "entities_read": re.entities_read, "unknown_entities": re.unknown_entities, "max_point_deviation": re.max_point_deviation, "max_length_deviation": re.max_length_deviation, "layers_match": re.layers_match }),
+            json!({ "part": part, "pass": re.pass, "entities_written": re.entities_written, "entities_read": re.entities_read, "unknown_entities": re.unknown_entities, "max_point_deviation": re.max_point_deviation, "max_length_deviation": re.max_length_deviation, "layers_match": re.layers_match, "annotations_read": re.annotations_read, "not_released_marking": re.not_released_marking, "units_declared": re.units_declared }),
             vec![rel("verifies", &dxf_id)],
             Some(a_re),
         ));
@@ -275,8 +293,14 @@ impl Builder {
         (pattern_id, dxf_id)
     }
 
-    fn finish(mut self, req: &Request, mut gates: Vec<Gate>, outcome: Option<String>) -> JobOutput {
-        let state = crate::release_state(&gates);
+    /// `refusal` = (reason, parameter) when the engine refused the request.
+    fn finish(mut self, req: &Request, mut gates: Vec<Gate>, refusal: Option<(String, Option<String>)>) -> JobOutput {
+        let (outcome, refused_field) = match refusal {
+            Some((why, field)) => (Some(why), field),
+            None => (None, None),
+        };
+        // A refusal is not a result under review: it has its own state, end to end (BE-003).
+        let state = if outcome.is_some() || self.patterns.is_empty() { ReleaseState::Refused } else { crate::release_state(&gates) };
         // gate ids are stable; keep the table in a fixed order
         gates.sort_by_key(|g| g.id.clone());
         let rels: Vec<crate::Rel> = self.evaluated.iter().map(|e| rel("evaluates", e)).collect();
@@ -286,7 +310,7 @@ impl Builder {
         let map: BTreeMap<String, Record> = self.recs.iter().map(|r| (r.id.clone(), r.clone())).collect();
         let (ids, missing) = closure(&map, &[root]);
         debug_assert!(missing.is_empty());
-        JobOutput { engine: ENGINE_VERSION.into(), request: req.clone(), state, outcome, gates, patterns: self.patterns, checks: self.checks, closure_hash: closure_hash(&ids), closure_size: ids.len(), work_units: self.wu, records: self.recs, dxf: self.dxf }
+        JobOutput { engine: ENGINE_VERSION.into(), request: req.clone(), state, outcome, refused_field, gates, patterns: self.patterns, checks: self.checks, closure_hash: closure_hash(&ids), closure_size: ids.len(), work_units: self.wu, records: self.recs, dxf: self.dxf }
     }
 }
 
@@ -342,7 +366,11 @@ fn err_output(req: &Request, mut b: Builder, about: &str, e: UemError) -> JobOut
     b.dxf.clear();
     b.checks.clear();
     let gates = vec![gate("G05", "class_assigned", true, if critical { GateResult::Fail } else { GateResult::Inconclusive }, &format!("No pattern produced: {e}"))];
-    b.finish(req, gates, Some(e.to_string()))
+    let field = match &e {
+        UemError::OutOfRange { param, .. } => Some(param.to_string()),
+        _ => None,
+    };
+    b.finish(req, gates, Some((e.to_string(), field)))
 }
 
 fn request_claim(req: &Request, entered_by: &str) -> Record {
@@ -356,7 +384,12 @@ fn single(req: &Request, entered_by: &str, part: &str, r: Result<(Pattern, Vec<C
         Err(e) => err_output(req, b, &rq, e),
         Ok((p, checks)) => {
             b.part(part, &p, vec![rel("developed_from", &rq)], checks);
-            let gates = evaluate_gates(&b.all_checks, Some(b.topo_ok), Some(b.reimport_ok), b.has_polyline, None);
+            let mut gates = evaluate_gates(&b.all_checks, Some(b.topo_ok), Some(b.reimport_ok), b.has_polyline, None);
+            if matches!(req, Request::BranchStub { .. }) {
+                // BE-001: this family has contact radii and a development radius but no declared surface
+                // reference, so their relation cannot be checked. That is an open ambiguity, said so.
+                gates.push(gate("G02", "no_open_ambiguity", true, GateResult::Inconclusive, "No surface reference (inside / outside / neutral) can be declared for a single branch stub in this build. The relation between the entered contact radii and the development radius was therefore NOT checked (Spec 02 §6.1); an engineer must establish it before use."));
+            }
             b.finish(req, gates, None)
         }
     }
@@ -368,6 +401,19 @@ fn header_with_branch(req: &Request, entered_by: &str, hr: f64, hdev: f64, hlen:
     let rq = b.push(request_claim(req, entered_by));
     if !SURFACE_REFERENCES.contains(&sref) {
         return err_output(req, b, &rq, UemError::OutOfRange { param: "surface_reference", reason: format!("must be one of {SURFACE_REFERENCES:?}") });
+    }
+    // BE-001: the declared surface of the contact radii must be geometrically possible for the entered
+    // development radii. Checked only for radii the engine would accept at all (finite and > 0), so that
+    // a negative radius is still reported as what it is.
+    let mut scrutiny: Vec<String> = Vec::new();
+    for (contact_name, contact, dev_name, dev) in [("header_radius", hr, "header_dev_radius", hdev), ("branch_radius", br, "branch_dev_radius", bdev)] {
+        if contact.is_finite() && contact > 0.0 && dev.is_finite() && dev > 0.0 {
+            match radius_consistency(sref, contact_name, contact, dev_name, dev) {
+                Err(reason) => return err_output(req, b, &rq, UemError::OutOfRange { param: dev_name, reason }),
+                Ok(Some(note)) => scrutiny.push(note),
+                Ok(None) => {}
+            }
+        }
     }
     // One claim per parameter, so that a change to one of them can be traced.
     let conv = b.push(Record::new(Family::Claim, "convention", json!({ "name": "surface_reference", "value": sref, "scope": "all radii of this request", "axes": { "provenance": "human_entered", "authority": "assumed" } }), vec![rel("declared_in", &rq)], None));
@@ -431,12 +477,91 @@ fn header_with_branch(req: &Request, entered_by: &str, hr: f64, hdev: f64, hlen:
     b.all_checks.extend(ic);
     b.evaluated.extend([ev, interface]);
 
-    let gates = evaluate_gates(&b.all_checks, Some(b.topo_ok), Some(b.reimport_ok), b.has_polyline, Some(sref));
+    let mut gates = evaluate_gates(&b.all_checks, Some(b.topo_ok), Some(b.reimport_ok), b.has_polyline, Some(sref));
+    if let Some(g) = gates.iter_mut().find(|g| g.id == "G02") {
+        g.detail.push_str(" Contact and development radii were checked against the declared surface (Spec 02 §6.1): the direction is possible; no wall thickness is modelled, so its size is not checked.");
+        for note in &scrutiny {
+            g.detail.push(' ');
+            g.detail.push_str(note);
+        }
+    }
     b.finish(req, gates, None)
+}
+
+/// Relative difference below which two entered radii count as the same number
+/// (binary64 noise only; this is not an engineering tolerance).
+const SAME_RADIUS_REL: f64 = 1e-12;
+
+/// BE-001. Geometric consistency of a contact radius, the wall surface it is
+/// declared to lie on, and the development (reference-surface) radius.
+///
+/// Rule applied, and nothing more: Spec 02 §6.1 places the reference surface
+/// inside the wall, r_dev = r_i + k·t with 0 < k <= 0.5 and thickness t >= 0,
+/// and the outside radius is r_o = r_i + t. Hence r_i <= r_dev <= r_o, with
+/// equality only for t = 0. Therefore:
+///
+///   * contact radius declared OUTSIDE: r_dev > r_contact is impossible (negative thickness) -> refused;
+///   * contact radius declared INSIDE:  r_dev < r_contact is impossible -> refused;
+///   * contact radius declared NEUTRAL: it IS the reference surface, so r_dev != r_contact is a contradiction -> refused;
+///   * UNKNOWN: nothing can be checked -> scrutiny note (G02 stays INCONCLUSIVE).
+///
+/// Equality under OUTSIDE or INSIDE means zero wall thickness. The
+/// specification does not forbid an idealised zero-thickness surface, so it is
+/// accepted with a scrutiny note, not refused. No thickness, k-factor or
+/// plausible thickness range is assumed anywhere: the specification gives none
+/// (MATH-16), so the size of the difference is not judged.
+///
+/// Ok(None) = consistent; Ok(Some(note)) = accepted, engineer must look; Err = refused.
+pub fn radius_consistency(sref: &str, contact_name: &str, contact: f64, dev_name: &str, dev: f64) -> Result<Option<String>, String> {
+    let same = (dev - contact).abs() <= SAME_RADIUS_REL * dev.abs().max(contact.abs());
+    let zero_t = |side: &str| Some(format!("{dev_name} = {dev} equals the {side} contact radius {contact_name} = {contact}: that is a wall of zero thickness (an idealised surface). Thickness is not modelled; an engineer must confirm the radii before use."));
+    match sref {
+        "outside" if same => Ok(zero_t("outside")),
+        "outside" if dev > contact => Err(format!("inconsistent with surface_reference 'outside': {dev_name} = {dev} is larger than the outside contact radius {contact_name} = {contact}. The development (reference) surface lies inside the wall (Spec 02 §6.1: r_dev = r_i + k·t, 0 < k <= 0.5), so it cannot be larger than the outside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface")),
+        "outside" => Ok(None),
+        "inside" if same => Ok(zero_t("inside")),
+        "inside" if dev < contact => Err(format!("inconsistent with surface_reference 'inside': {dev_name} = {dev} is smaller than the inside contact radius {contact_name} = {contact}. The development (reference) surface lies inside the wall (Spec 02 §6.1: r_dev = r_i + k·t, 0 < k <= 0.5), so it cannot be smaller than the inside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface")),
+        "inside" => Ok(None),
+        "neutral" if same => Ok(None),
+        "neutral" => Err(format!("inconsistent with surface_reference 'neutral': the contact radius {contact_name} = {contact} is declared to be on the reference surface itself, so {dev_name} must equal it, but it is {dev}. Correct the radii or the declared surface")),
+        _ => Ok(Some(format!("The relation between {contact_name} = {contact} and {dev_name} = {dev} could not be checked because the surface reference is unknown."))),
+    }
+}
+
+/// Largest magnitude (mm) and smallest positive dimension (mm) this build
+/// accepts. These are implementation limits, not engineering rules: they are
+/// the range the stress campaign exercises (crates/nf-core/tests/stress.rs),
+/// and Spec 02 §9 requires `OutOfRange` outside the range that was shown.
+pub const MAX_MAGNITUDE_MM: f64 = 1e8;
+pub const MIN_DIMENSION_MM: f64 = 1e-6;
+const LENGTH_PARAMS: [&str; 14] = ["r_dev", "length", "r1", "r2", "h", "e", "header_radius", "header_dev_radius", "header_length", "branch_station", "branch_radius", "branch_dev_radius", "delta", "s_end"];
+/// Parameters that may legitimately be zero or negative (offsets and positions).
+const SIGNED_PARAMS: [&str; 3] = ["e", "branch_station", "delta"];
+
+/// BE-015: refuse magnitudes outside the range this build has been exercised in.
+fn magnitude_check(req: &Request) -> Result<(), UemError> {
+    let v = serde_json::to_value(req).unwrap_or(Value::Null);
+    for name in LENGTH_PARAMS {
+        let Some(raw) = v.get(name) else { continue };
+        // a non-finite number serialises as null; the engine reports those itself
+        let Some(x) = raw.as_f64() else { continue };
+        if x.abs() > MAX_MAGNITUDE_MM {
+            return Err(UemError::OutOfRange { param: name, reason: format!("magnitude {x:e} mm exceeds {MAX_MAGNITUDE_MM:e} mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)") });
+        }
+        if x > 0.0 && x < MIN_DIMENSION_MM && !SIGNED_PARAMS.contains(&name) {
+            return Err(UemError::OutOfRange { param: name, reason: format!("{x:e} mm is below {MIN_DIMENSION_MM:e} mm, the smallest dimension this build has been exercised with (implementation limit, not an engineering rule)") });
+        }
+    }
+    Ok(())
 }
 
 /// Run a job. `entered_by` is recorded as human input data on the request.
 pub fn run(req: &Request, entered_by: &str) -> JobOutput {
+    if let Err(e) = magnitude_check(req) {
+        let mut b = Builder::new();
+        let rq = b.push(request_claim(req, entered_by));
+        return err_output(req, b, &rq, e);
+    }
     match req.clone() {
         Request::CylinderShell { r_dev, length } => single(req, entered_by, "shell", develop::cylinder_shell(r_dev, length).map(|p| {
             let c = verify::verify_cylinder(&p, r_dev, length);
@@ -529,7 +654,8 @@ mod tests {
     fn unsupported_and_degenerate_inputs_give_no_dxf() {
         let o = run(&Request::ConeFrustum { r1: 200.0, r2: 199.99, h: 300.0 }, "t");
         assert!(o.dxf.is_empty() && o.patterns.is_empty());
-        assert_eq!(o.state, ReleaseState::ReviewRequired);
+        // BE-003: this used to expect REVIEW_REQUIRED. A refusal is not a result under review.
+        assert_eq!(o.state, ReleaseState::Refused);
         assert!(o.records.iter().any(|r| r.family == Family::Finding));
         assert!(run(&assembly().with_param("branch_station", 10.0).unwrap(), "t").dxf.is_empty(), "opening outside the shell");
         let mut bad = assembly();
@@ -547,5 +673,125 @@ mod tests {
         let good = verify::verify_cone(&develop::cone_frustum(200.0, 100.0, 300.0).unwrap(), 200.0, 100.0, 300.0);
         assert_eq!(crate::release_state(&evaluate_gates(&good, Some(true), Some(false), false, None)), ReleaseState::Rejected, "failed re-import must reject");
         assert_eq!(crate::release_state(&evaluate_gates(&good, Some(false), Some(true), false, None)), ReleaseState::Rejected, "invalid profile must reject");
+    }
+
+    fn with_radii(sref: &str, hr: f64, hdev: f64, br: f64, bdev: f64) -> Request {
+        Request::HeaderWithBranch { header_radius: hr, header_dev_radius: hdev, header_length: 1200.0, branch_station: 600.0, branch_radius: br, branch_dev_radius: bdev, beta_deg: 60.0, delta: 0.0, s_end: 400.0, surface_reference: sref.into() }
+    }
+
+    /// BE-001: a declared surface that the radii contradict is refused; nothing is drawn.
+    #[test]
+    fn be001_radii_inconsistent_with_declared_surface_are_refused() {
+        let refused = |r: Request, field: &str, word: &str| {
+            let o = run(&r, "t");
+            assert_eq!(o.state, ReleaseState::Refused, "{r:?}");
+            assert!(o.patterns.is_empty() && o.dxf.is_empty(), "{r:?}");
+            assert_eq!(o.refused_field.as_deref(), Some(field), "{r:?}");
+            assert!(o.outcome.as_deref().is_some_and(|m| m.contains(word) && m.contains("Spec 02") || m.contains("reference surface itself")), "{:?}", o.outcome);
+        };
+        // the audit's case: outside 150 with development 160 (negative wall thickness)
+        refused(with_radii("outside", 150.0, 160.0, 100.0, 110.0), "header_dev_radius", "negative wall thickness");
+        refused(with_radii("outside", 150.0, 146.0, 100.0, 100.5), "branch_dev_radius", "negative wall thickness");
+        refused(with_radii("inside", 146.0, 142.0, 96.0, 100.0), "header_dev_radius", "negative wall thickness");
+        refused(with_radii("inside", 142.0, 146.0, 100.0, 96.0), "branch_dev_radius", "negative wall thickness");
+        refused(with_radii("neutral", 150.0, 150.5, 100.0, 100.0), "header_dev_radius", "reference surface itself");
+        refused(with_radii("neutral", 150.0, 150.0, 100.0, 99.0), "branch_dev_radius", "reference surface itself");
+        // the unit rule itself
+        assert!(radius_consistency("outside", "c", 150.0, "d", 160.0).is_err());
+        assert!(radius_consistency("inside", "c", 150.0, "d", 140.0).is_err());
+        assert!(radius_consistency("neutral", "c", 150.0, "d", 150.0 + 1e-6).is_err());
+        assert_eq!(radius_consistency("outside", "c", 150.0, "d", 146.0), Ok(None));
+        assert_eq!(radius_consistency("inside", "c", 142.0, "d", 146.0), Ok(None));
+        assert_eq!(radius_consistency("neutral", "c", 150.0, "d", 150.0), Ok(None));
+    }
+
+    /// BE-001: consistent declarations still compute; what cannot be decided is raised for scrutiny, not guessed.
+    #[test]
+    fn be001_consistent_radii_compute_and_undecidable_cases_raise_scrutiny() {
+        let g02 = |r: Request| {
+            let o = run(&r, "t");
+            assert_eq!(o.state, ReleaseState::ReviewRequired, "{r:?}");
+            assert_eq!(o.patterns.len(), 2);
+            let g = o.gates.iter().find(|g| g.id == "G02").expect("G02").clone();
+            assert_eq!(g.result, GateResult::Inconclusive, "the declaration is never a PASS");
+            g.detail
+        };
+        assert!(!g02(with_radii("outside", 150.0, 146.0, 100.0, 96.0)).contains("zero thickness"));
+        assert!(!g02(with_radii("inside", 142.0, 146.0, 92.0, 96.0)).contains("zero thickness"));
+        assert!(!g02(with_radii("neutral", 150.0, 150.0, 100.0, 100.0)).contains("zero thickness"));
+        // equality under outside / inside: zero wall thickness is not forbidden by the specification, so it is flagged, not refused
+        let d = g02(with_radii("outside", 150.0, 150.0, 100.0, 100.0));
+        assert!(d.contains("header_dev_radius = 150") && d.contains("branch_dev_radius = 100") && d.matches("zero thickness").count() == 2, "{d}");
+        assert!(g02(with_radii("inside", 150.0, 150.0, 100.0, 104.0)).matches("zero thickness").count() == 1);
+        assert!(g02(with_radii("unknown", 150.0, 160.0, 100.0, 90.0)).contains("could not be checked"));
+        // the single branch stub cannot declare a surface: open ambiguity, stated
+        let stub = run(&reqs()[3], "t");
+        assert!(stub.gates.iter().any(|g| g.id == "G02" && g.result == GateResult::Inconclusive && g.detail.contains("NOT checked")));
+        // a negative radius is still reported as a negative radius, not as an inconsistency
+        let neg = run(&with_radii("outside", -150.0, 150.0, 100.0, 100.0), "t");
+        assert_eq!(neg.refused_field.as_deref(), Some("header_radius"), "{:?}", neg.outcome);
+    }
+
+    /// BE-003: every refusal has the explicit REFUSED state, a reason, and nothing that looks like a result.
+    #[test]
+    fn be003_refusals_have_their_own_state() {
+        let cases = [
+            with_radii("outside", -150.0, 150.0, 100.0, 100.0),
+            with_radii("outside", 150.0, 150.0, 400.0, 400.0),
+            with_radii("whatever", 150.0, 150.0, 100.0, 100.0),
+            Request::ConeFrustum { r1: 200.0, r2: 199.99, h: 300.0 },
+            Request::ConeFrustum { r1: f64::NAN, r2: 1.0, h: 1.0 },
+            Request::EccentricReducer { r1: 100.0, r2: 100.0, h: 300.0, e: 50.0 },
+        ];
+        for r in cases {
+            let o = run(&r, "t");
+            assert_eq!(o.state, ReleaseState::Refused, "{r:?}");
+            assert!(o.outcome.is_some() && o.patterns.is_empty() && o.checks.is_empty() && o.dxf.is_empty(), "{r:?}");
+            assert!(o.records.iter().any(|x| x.kind == "gate_evaluation" && x.payload["state"] == "REFUSED"));
+            assert!(o.records.iter().all(|x| x.verify_id()));
+        }
+        for r in reqs() {
+            let o = run(&r, "t");
+            assert!(o.outcome.is_none() && o.refused_field.is_none() && o.state == ReleaseState::ReviewRequired);
+        }
+    }
+
+    /// BE-015: absurd magnitudes are refused instead of producing 301-digit coordinates.
+    #[test]
+    fn be015_magnitudes_outside_the_exercised_range_are_refused() {
+        for r in [Request::CylinderShell { r_dev: 1e300, length: 1e300 }, Request::CylinderShell { r_dev: 1e-300, length: 10.0 }, Request::CylinderShell { r_dev: 100.0, length: 1e9 }, Request::ConeFrustum { r1: 200.0, r2: 1e-7, h: 300.0 }] {
+            let o = run(&r, "t");
+            assert_eq!(o.state, ReleaseState::Refused, "{r:?}");
+            assert!(o.outcome.as_deref().is_some_and(|m| m.contains("implementation limit")), "{:?}", o.outcome);
+            assert!(o.refused_field.is_some());
+        }
+        assert_eq!(run(&Request::CylinderShell { r_dev: 1e5, length: 1e-2 }, "t").state, ReleaseState::ReviewRequired);
+    }
+
+    /// BE-016: an unknown field is refused by name, never dropped.
+    #[test]
+    fn be016_unknown_fields_are_refused() {
+        let e = Request::parse_strict(&json!({ "family": "cylinder_shell", "r_dev": 100, "length": 250, "thickness": 12, "surface_reference": "outside" })).unwrap_err();
+        assert!(e.contains("thickness") && e.contains("surface_reference") && e.contains("unknown field"), "{e}");
+        assert_eq!(Request::parse_strict(&json!({ "family": "cylinder_shell", "r_dev": 100, "length": 250 })).unwrap(), reqs()[0]);
+        assert_eq!(Request::parse_strict(&serde_json::to_value(assembly()).unwrap()).unwrap(), assembly());
+        assert!(Request::parse_strict(&json!({ "family": "teapot" })).is_err());
+    }
+
+    /// DXF: every generated file carries the NOT RELEASED marking on a non-cutting layer and declares its units.
+    #[test]
+    fn every_dxf_is_marked_not_released_and_declares_units() {
+        for r in reqs() {
+            let o = run(&r, "t");
+            for (part, text) in &o.dxf {
+                let (all, unknown) = nf_dxf::read(text).unwrap();
+                assert!(unknown.is_empty());
+                assert!(all.iter().any(|e| matches!(e, Entity::Text { layer, text, .. } if layer == nf_dxf::MARK_LAYER && text == nf_dxf::MARK_TEXT)), "{part}");
+                assert!(all.iter().filter(|e| !e.is_annotation()).all(|e| nf_dxf::is_cut_layer(e.layer())), "{part}: only cut geometry on cut layers");
+                assert!(all.iter().filter(|e| e.is_annotation()).all(|e| !nf_dxf::is_cut_layer(e.layer())), "{part}");
+                assert!(text.contains("$LUNITS") && text.contains(nf_dxf::UNITS_TEXT));
+            }
+            assert!(o.records.iter().filter(|x| x.kind == "reimport_report").all(|x| x.payload["not_released_marking"] == true && x.payload["units_declared"] == true && x.payload["pass"] == true));
+        }
     }
 }

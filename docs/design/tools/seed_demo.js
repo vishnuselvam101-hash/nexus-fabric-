@@ -11,12 +11,14 @@ async function call(path, json, extra) {
   const sc = r.headers.getSetCookie ? r.headers.getSetCookie() : [];
   if (sc.length) cookie = sc.map((c) => c.split(';')[0]).join('; ');
   let d = null; try { d = await r.json(); } catch { /* none */ }
+  if (r.status === 422 && d && d.state === 'REFUSED' && d.id) return d; // a refused request is kept as a job without a result
   if (!r.ok) throw new Error(`${path}: ${r.status} ${d && d.error}`);
   return d;
 }
 (async () => {
   const cred = { username: 'admin', password: 'correct-horse-9' };
-  await call('/api/setup', cred); await call('/api/login', cred);
+  // first-run setup needs the installation's one-time setup token: start the server with NF_SETUP_TOKEN and pass the same value here
+  await call('/api/setup', { ...cred, setup_token: process.env.NF_SETUP_TOKEN || '' }); await call('/api/login', cred);
   const p1 = (await call('/api/projects', { name: 'Header H-204 spool study', description: 'Steam header with set-on branch, reducers' })).id;
   const p2 = (await call('/api/projects', { name: 'Reducer family check', description: 'Concentric and eccentric reducers' })).id;
   await call(`/api/projects/${p1}/documents`, undefined, { body: '%PDF-1.7\ndemonstration file, not a drawing\n', headers: { 'X-Filename': 'H-204-general-arrangement.pdf' } });
@@ -28,7 +30,7 @@ async function call(path, json, extra) {
   await run(p2, { family: 'cone_frustum', r1: 200, r2: 199.99, h: 300 }); // unsupported input: no pattern
   const hb = { family: 'header_with_branch', header_radius: 150, header_dev_radius: 150, header_length: 1200, branch_station: 600, branch_radius: 100, branch_dev_radius: 100, beta_deg: 60, delta: 0, s_end: 400, surface_reference: 'outside' };
   const a1 = await run(p1, hb);
-  const cr = await call(`/api/calculations/${a1}/corrections`, { parameter: 'header_radius', new_value: 142, reason: 'drawing dimension is the inside diameter' });
+  const cr = await call(`/api/calculations/${a1}/corrections`, { parameter: 'header_radius', new_value: 158, reason: 'drawing dimension is the outside diameter of the thicker pipe' });
   const a2 = cr.new_calculation;
   const open = (await call(`/api/calculations/${a2}`)).obligations.filter((o) => o.state === 'open');
   await call(`/api/obligations/${open[0].id}/resolve`, { decision: 'confirmed', reason: 'checked against the drawing: outside' });

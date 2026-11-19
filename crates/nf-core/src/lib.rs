@@ -9,12 +9,16 @@
 //!   re-import → gates) whose every step is a recorded Activity with logical
 //!   work units;
 //! - release-state evaluation. `APPROVED` is not reachable in this build:
-//!   engineer approval, obligation propagation and independent-instance replay
-//!   are not implemented, and the gate evaluation says so explicitly.
+//!   `release_state` cannot return it, whatever the gate table says, because
+//!   engineer approval (G16) is not implemented;
+//! - typed dependency edges, propagation of a change along them and scrutiny
+//!   obligations for everything affected (`deps`, provisional rule table);
+//! - an engine identifier derived from the engine sources at build time and
+//!   recorded with every result.
 //!
 //! Not implemented (see docs/IMPLEMENTATION_STATUS.md): scheduler/rounds,
-//! exploration, investigations, dependency obligations, coverage ledger,
-//! lanes/overlays, quarantine.
+//! exploration, investigations, coverage ledger, lanes/overlays, quarantine,
+//! engineer approval.
 
 pub mod deps;
 pub mod job;
@@ -24,7 +28,29 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
-pub const ENGINE_VERSION: &str = "nf-core 0.1.0 / uem 0.1.0";
+/// Identifier of the engine that computes results: a release number that is
+/// raised by hand with every change of algorithm or output, plus a fingerprint
+/// of the uem, nf-dxf and nf-core sources taken at build time (build.rs), so
+/// that a result of one build can never be mistaken for a result of another.
+/// It is recorded in every result and in every activity record.
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.2.0+src.", env!("NF_ENGINE_SRC_HASH"));
+
+/// Engine identifiers known to have produced wrong or unidentifiable results.
+/// Stored results carrying one of these (or any identifier other than the
+/// running engine's) are not trusted: they must be recomputed.
+pub const SUPERSEDED_ENGINES: [(&str, &str); 1] = [(
+    "nf-core 0.1.0 / uem 0.1.0",
+    "This identifier was used unchanged by every build up to 2026-11-19, including builds before the header-outline fix (docs/LEARNING_AND_STRESS_TESTING.md, Defect 002: header plate outline and branch opening in different frames). A result carrying it cannot be told apart from one computed with that defect.",
+)];
+
+pub fn superseded_engine_reason(engine: &str) -> Option<&'static str> {
+    SUPERSEDED_ENGINES.iter().find(|(id, _)| *id == engine).map(|(_, why)| *why)
+}
+
+/// Only results computed by exactly the running engine are current.
+pub fn engine_is_current(engine: &str) -> bool {
+    engine == ENGINE_VERSION && superseded_engine_reason(engine).is_none()
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -139,21 +165,45 @@ pub struct Gate {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ReleaseState {
+    /// Defined by Spec 02 §10.3 and kept so that the name stays reserved.
+    /// NOT REACHABLE in this build: no function produces it.
     Approved,
     ReviewRequired,
     Rejected,
+    /// The engine refused the request and computed nothing. Not a result:
+    /// there is nothing to review, correct, replay or download.
+    Refused,
 }
+
+/// Gates every computed result must carry. A stored gate table that lacks one
+/// of them is incomplete, and an incomplete table is a failed one.
+pub const REQUIRED_GATES: [&str; 11] = ["G01", "G05", "G06", "G08", "G10", "G11", "G14", "G15", "G16", "G18", "G19"];
 
 /// Release state from gate results (Spec 02 §10.3). A model confidence score
 /// is not an input to this function, and cannot be.
+///
+/// Fail closed: an empty gate table is REJECTED (no evidence is not good
+/// evidence), and so is any critical FAIL. Spec 02 §10.3 would give APPROVED
+/// when every gate passes; engineer approval is not implemented in this
+/// build, so that case is REVIEW_REQUIRED here and APPROVED cannot be returned.
 pub fn release_state(gates: &[Gate]) -> ReleaseState {
-    if gates.iter().any(|g| g.critical && g.result == GateResult::Fail) {
+    if gates.is_empty() || gates.iter().any(|g| g.critical && g.result == GateResult::Fail) {
         ReleaseState::Rejected
-    } else if gates.iter().all(|g| matches!(g.result, GateResult::Pass | GateResult::NotApplicable)) {
-        ReleaseState::Approved
     } else {
         ReleaseState::ReviewRequired
     }
+}
+
+/// Complete a gate table against `REQUIRED_GATES`: every required gate that is
+/// absent is added as a critical FAIL. Used wherever a table comes from
+/// storage rather than from the computation that produced it.
+pub fn with_required_gates(mut gates: Vec<Gate>) -> Vec<Gate> {
+    for id in REQUIRED_GATES {
+        if !gates.iter().any(|g| g.id == id) {
+            gates.push(Gate { id: id.into(), name: "missing_gate".into(), critical: true, result: GateResult::Fail, detail: format!("Gate {id} is missing from the stored result. An incomplete gate table is treated as failed (integrity).") });
+        }
+    }
+    gates
 }
 
 #[cfg(test)]
@@ -183,14 +233,14 @@ mod tests {
         for r in [&a, &b, &c, &unrelated] {
             m.insert(r.id.clone(), r.clone());
         }
-        let (ids, missing) = closure(&m, &[c.id.clone()]);
+        let (ids, missing) = closure(&m, std::slice::from_ref(&c.id));
         assert!(ids.contains(&a.id) && ids.contains(&b.id) && !ids.contains(&unrelated.id));
         assert_eq!(missing, vec!["deadbeef".to_string()]);
         // unrelated additions do not change the closure hash
         let h1 = closure_hash(&ids);
         let more = Record::new(Family::Claim, "v", json!(5), vec![], None);
         m.insert(more.id.clone(), more);
-        assert_eq!(closure_hash(&closure(&m, &[c.id.clone()]).0), h1);
+        assert_eq!(closure_hash(&closure(&m, std::slice::from_ref(&c.id)).0), h1);
     }
 
     #[test]
@@ -200,7 +250,35 @@ mod tests {
         assert_eq!(release_state(&[g(true, GateResult::Pass), g(false, GateResult::Fail)]), ReleaseState::ReviewRequired);
         assert_eq!(release_state(&[g(true, GateResult::Pass), g(true, GateResult::NotImplemented)]), ReleaseState::ReviewRequired);
         assert_eq!(release_state(&[g(true, GateResult::Pass), g(true, GateResult::Inconclusive)]), ReleaseState::ReviewRequired);
-        assert_eq!(release_state(&[g(true, GateResult::Pass)]), ReleaseState::Approved);
+        // BE-002: this assertion used to expect APPROVED. APPROVED must be unreachable in this build
+        // (G16, engineer approval, is not implemented), and "no gates" must fail closed.
+        assert_eq!(release_state(&[g(true, GateResult::Pass)]), ReleaseState::ReviewRequired);
+        assert_eq!(release_state(&[]), ReleaseState::Rejected, "an empty gate table is no evidence");
+    }
+
+    /// BE-002: no gate table, however favourable or malformed, yields APPROVED.
+    #[test]
+    fn approved_is_unreachable_for_every_gate_table() {
+        use GateResult::*;
+        let all = [Pass, Fail, Inconclusive, NotImplemented, NotRun, NotApplicable];
+        let g = |id: &str, critical, result| Gate { id: id.into(), name: "n".into(), critical, result, detail: String::new() };
+        let mut tables: Vec<Vec<Gate>> = vec![vec![], REQUIRED_GATES.iter().map(|id| g(id, true, Pass)).collect(), REQUIRED_GATES.iter().map(|id| g(id, false, NotApplicable)).collect()];
+        for a in all {
+            for b in all {
+                for critical in [true, false] {
+                    tables.push(vec![g("G10", critical, a), g("G16", critical, b)]);
+                }
+            }
+        }
+        for t in &tables {
+            assert_ne!(release_state(t), ReleaseState::Approved, "{t:?}");
+            assert_ne!(release_state(&with_required_gates(t.clone())), ReleaseState::Approved);
+        }
+        // a table that lacks required gates is rejected once completed
+        assert_eq!(release_state(&with_required_gates(vec![g("G20", true, Pass)])), ReleaseState::Rejected);
+        assert_eq!(release_state(&with_required_gates(vec![])), ReleaseState::Rejected);
+        let full: Vec<Gate> = REQUIRED_GATES.iter().map(|id| g(id, true, Pass)).collect();
+        assert_eq!(with_required_gates(full.clone()), full, "a complete table is left as it is");
     }
 }
 

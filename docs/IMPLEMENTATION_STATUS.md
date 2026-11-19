@@ -14,7 +14,11 @@ Four different things are tracked separately and must not be confused:
 
 ## Summary
 
-A launchable single-binary application exists: sign in, create projects, upload documents (stored encrypted, not interpreted), enter geometry parameters for four part families, obtain a flat pattern with independent verification checks, a DXF, a gate evaluation and a replay audit — every result ends in REVIEW REQUIRED or REJECTED. `APPROVED` cannot be reached.
+A launchable single-binary application exists: sign in, create projects, upload documents (stored encrypted, not interpreted), enter geometry parameters for five request families (cylinder shell, cone frustum, eccentric reducer, branch stub, header with one branch opening), obtain a flat pattern with independent verification checks, a DXF, a gate evaluation and a replay audit — every result ends in REVIEW REQUIRED or REJECTED, and a request the engine refuses ends in REFUSED (no result). `APPROVED` cannot be reached: the release-state rule cannot return it, and the server computes every state from a gate table built against a required set, failing closed on missing or unreadable stored data (fixed 19 November 2026; before that, corrupt stored data could read as APPROVED, see BE-002 in [the defect register](backend/DEFECT_REGISTER.md)).
+
+## Fix pass of 19 November 2026 (backend, security and recovery defects)
+
+All Critical and High entries of the backend defect register (BE-001 … BE-011), the High security findings V-33 … V-36 with V-25, and the stress findings S-2, S-3, S-4 were fixed, each with a regression test; details and what is still open are in [backend/DEFECT_REGISTER.md](backend/DEFECT_REGISTER.md) and [security/VULNERABILITY_REGISTER.md](security/VULNERABILITY_REGISTER.md). In short: radii that contradict the declared surface are refused (rule from Spec 02 §6.1, no thickness model assumed); refusals have their own state and HTTP 422; corrections that cannot be computed change nothing; writes are transactional; stored files are written atomically and restored when damaged; a replay that cannot run is not an integrity verdict; lists, dashboard and detail view use one state function; the engine identifier is derived from the engine sources and results of other engine builds are flagged "computed by a superseded engine version — recompute"; every DXF carries a NOT RELEASED annotation on a non-cutting layer and declares its units; first-run setup needs a one-time token; start-up refuses a missing key or a lost database beside existing data. These fixes are EV-1 like everything else: tested by the suites in this repository, not independently reviewed.
 
 ## Added in session 4 (stress testing and learning from mistakes)
 
@@ -30,7 +34,7 @@ A launchable single-binary application exists: sign in, create projects, upload 
 - **Anti-forgery header and same-origin check**, security response headers with a restrictive content security policy.
 - **Sign-in throttling, password change with session revocation, account deactivation.**
 - **Hash-chained audit log** with a verification endpoint; storage key location configurable outside the data directory.
-- **Tamper detection exercised by test:** altered audit entries, engineering records and stored files are detected; a job with altered records becomes REJECTED and its files are withheld.
+- **Tamper detection exercised by test:** altered audit entries, engineering records and stored files are detected; a job with altered records becomes REJECTED and its files are withheld once a replay audit has run (reads do not re-hash every record). Since 19 November 2026 every read does check the stored result against its gate-evaluation record and closure hash, so an unreadable, incomplete or altered gate table is REJECTED on read (gate G22).
 - **Interface:** keyboard focus and skip link, labelled inputs, inline decisions instead of browser dialogs, account page, project members, running security configuration.
 - Documents: [security set](security/SECURITY_AUDIT.md), [UI/UX audit](design/UI_UX_AUDIT.md), [design system](design/DESIGN_SYSTEM.md).
 
@@ -80,7 +84,7 @@ The dependency **rule table is provisional** (EV-1; 0 of 56 statements reviewed)
 | Membrane admission (content-based type, size limit) | INTEGRATED | No sandboxed parsing yet — nothing is parsed |
 | Activities with logical work units | INTEGRATED | Costs are fixed declarations, not calibrated |
 | Release closure and closure hash | INTEGRATED | Unrelated additions do not change the hash (tested) |
-| Gate evaluation and release state | INTEGRATED | G01, G02 (assemblies), G05, G06, G08, G10, G11, G14, G15, G16, G18, G19; G18/G19 evaluated at read time; unevaluable gates never PASS |
+| Gate evaluation and release state | INTEGRATED | Computed with the job: G01, G02 (assemblies and branch stubs), G05, G06, G08, G10, G11, G14, G15. Evaluated by the server at every read, never taken from storage: G16 (always NOT_IMPLEMENTED), G18, G19, G20 (known mistakes), and, only when they fail, G00 (superseded), G21 (superseded engine version), G22 (stored-result integrity). A required gate missing from storage counts as FAIL. Unevaluable gates never PASS; APPROVED cannot be returned |
 | Replay audit | INTEGRATED (separate process, same machine and build) | Separate build or machine NOT STARTED |
 | Round scheduler, signals, budgets | NOT STARTED | Jobs run synchronously in one pass |
 | Exploration probes, hypothesis-driven investigation | NOT STARTED | |
@@ -108,7 +112,9 @@ The dependency **rule table is provisional** (EV-1; 0 of 56 statements reviewed)
 | Independent DXF reader and re-import comparison | INTEGRATED | |
 | Entity-to-source traceability | IN DEVELOPMENT | Pattern → DXF record relation exists; per-entity map NOT STARTED |
 | 3D visualisation | NOT STARTED | 2D pattern preview only |
-| Bend lines, marking layers, inner profiles, kerf | NOT STARTED | |
+| Inner profiles (openings) | INTEGRATED | Layer `CUT_INNER`: the header's branch opening is a closed clockwise inner profile, checked by G11 and present in the DXF. One opening per plate only |
+| NOT RELEASED marking and unit declaration in the DXF | INTEGRATED | TEXT annotation on the non-cutting layer `NF_NOT_RELEASED`; `$LUNITS`/`$AUNITS`/`$ANGDIR` in the header (R12 has no unit-of-measure variable; millimetres are stated in a comment and in the annotation); checked by the re-import |
+| Bend lines, marking layers for fabrication (bend, scribe), kerf | NOT STARTED | |
 | Plate division, seam planning, nesting | NOT STARTED | |
 | STEP export | NOT STARTED | No kernel selected |
 

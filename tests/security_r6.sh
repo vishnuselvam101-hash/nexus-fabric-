@@ -113,7 +113,7 @@ PL='<img src=x onerror=alert(1)><svg onload=alert(2)>'
 as alice -o /dev/null -H "$CT" -d "{\"name\":\"$PL\",\"description\":\"$PL\"}" "$BASE/api/projects"
 as alice -o /dev/null -H "$CT" -d "{\"family\":\"header_with_branch\",\"header_radius\":150,\"header_dev_radius\":150,\"header_length\":1200,\"branch_station\":600,\"branch_radius\":100,\"branch_dev_radius\":100,\"beta_deg\":60,\"delta\":0,\"s_end\":400,\"surface_reference\":\"$PL\"}" "$BASE/api/projects/$PRJ/calculations"
 HW=$(as alice -H "$CT" -d '{"family":"header_with_branch","header_radius":150,"header_dev_radius":150,"header_length":1200,"branch_station":600,"branch_radius":100,"branch_dev_radius":100,"beta_deg":60,"delta":0,"s_end":400,"surface_reference":"outside"}' "$BASE/api/projects/$PRJ/calculations" | j 'd["id"]')
-NEWJ=$(as alice -H "$CT" -d "{\"parameter\":\"header_radius\",\"new_value\":142,\"reason\":\"$PL\"}" "$BASE/api/calculations/$HW/corrections" | j 'd["new_calculation"]')
+NEWJ=$(as alice -H "$CT" -d "{\"parameter\":\"header_radius\",\"new_value\":158,\"reason\":\"$PL\"}" "$BASE/api/calculations/$HW/corrections" | j 'd["new_calculation"]')
 OBL=$(as alice "$BASE/api/obligations" | j '[o["id"] for o in d if o["state"]=="open"][0]')
 as alice -o /dev/null -H "$CT" -d "{\"decision\":\"waived\",\"reason\":\"$PL\"}" "$BASE/api/obligations/$OBL/resolve"
 as alice -o /dev/null -H "X-Filename: %3Cimg%20src%3Dx%20onerror%3Dalert(3)%3E.pdf" --data-binary $'%PDF-1.7\nx' "$BASE/api/projects/$PRJ/documents"

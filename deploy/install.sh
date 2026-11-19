@@ -56,8 +56,9 @@ if [ ! -f /etc/nexus-fabric/master.key ]; then
   echo "created /etc/nexus-fabric/master.key (back it up; it is not shown here)"
 fi
 
-# Unit: the shipped file with only the listen address changed; sandboxing is untouched.
-sed "s|^Environment=NF_LISTEN=.*|Environment=NF_LISTEN=127.0.0.1:${NF_PORT}|" deploy/nf-server.service > /etc/systemd/system/nf-server.service.new
+# Unit: the shipped file with the listen address and the public host name filled in; sandboxing is untouched.
+# NF_ALLOWED_HOSTS: the server answers only to this name (and loopback); DOMAIN was validated above.
+sed -e "s|^Environment=NF_LISTEN=.*|Environment=NF_LISTEN=127.0.0.1:${NF_PORT}|" -e "s|^Environment=NF_ALLOWED_HOSTS=.*|Environment=NF_ALLOWED_HOSTS=${DOMAIN}|" deploy/nf-server.service > /etc/systemd/system/nf-server.service.new
 mv -f /etc/systemd/system/nf-server.service.new /etc/systemd/system/nf-server.service
 systemctl daemon-reload
 systemctl enable nf-server
@@ -75,6 +76,19 @@ if [ "$ok" != 1 ]; then
   exit 1
 fi
 echo "nf-server answers on 127.0.0.1:${NF_PORT}"
+
+# First administrator BEFORE the site is reachable from outside (V-36). Creating it needs the one-time setup token
+# the server wrote to its data directory at first start (readable by root and the service user only). Either pass
+#   NF_ADMIN_USER=<name> NF_ADMIN_PASSWORD='<at least 10 characters>'
+# to this script, or create the account afterwards from this machine with the command printed at the end.
+TOKEN_FILE=/var/lib/nexus-fabric/setup-token
+if [ -f "$TOKEN_FILE" ] && [ -n "${NF_ADMIN_USER:-}" ] && [ -n "${NF_ADMIN_PASSWORD:-}" ]; then
+  case "$NF_ADMIN_USER" in *[!A-Za-z0-9._-]*) die "NF_ADMIN_USER may contain letters, digits, . _ - only" ;; esac
+  case "$NF_ADMIN_PASSWORD" in *[\"\\]*) die "NF_ADMIN_PASSWORD must not contain a double quote or a backslash when given to this script; create the account by hand instead" ;; esac
+  code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X POST "http://127.0.0.1:${NF_PORT}/api/setup" -H 'Content-Type: application/json' -H 'X-NF-Request: 1' -H "X-NF-Setup-Token: $(cat "$TOKEN_FILE")" -d "{\"username\":\"${NF_ADMIN_USER}\",\"password\":\"${NF_ADMIN_PASSWORD}\"}")"
+  [ "$code" = 200 ] || die "creating the first administrator failed (HTTP $code); the site has not been exposed. Fix the cause and run the script again"
+  echo "first administrator '${NF_ADMIN_USER}' created"
+fi
 
 # Caddy: automatic HTTPS in front of the service.
 if ! command -v caddy >/dev/null; then
@@ -103,4 +117,9 @@ case "$fw" in
 esac
 
 echo "NEXUS FABRIC answers on 127.0.0.1:${NF_PORT}; public address https://${DOMAIN} once DNS points here."
-echo "Create the first administrator: see docs/BUILD_AND_TEST_GUIDE.md. Back up /var/lib/nexus-fabric together with /etc/nexus-fabric/master.key (see deploy/README.md)."
+if [ -f "$TOKEN_FILE" ]; then
+  echo "NO ADMINISTRATOR EXISTS YET. Create it now, from this machine. It needs the one-time setup token in $TOKEN_FILE:"
+  echo "  curl -sS -X POST http://127.0.0.1:${NF_PORT}/api/setup -H 'Content-Type: application/json' -H 'X-NF-Request: 1' -H \"X-NF-Setup-Token: \$(sudo cat $TOKEN_FILE)\" -d '{\"username\":\"<name>\",\"password\":\"<at least 10 characters>\"}'"
+  echo "Nobody without that token can create the administrator, also not through https://${DOMAIN}."
+fi
+echo "Back up /var/lib/nexus-fabric together with /etc/nexus-fabric/master.key (see deploy/README.md and docs/BUILD_AND_TEST_GUIDE.md)."

@@ -123,8 +123,8 @@ const extent = (p) => { let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -
 
 // ---------------------------------------------------------------- job facts and effective state
 // The job list API carries neither the engine outcome nor the parts, so list pages read each job once
-// (cached until the next state-changing request). A request the engine refused is stored by the server as
-// REVIEW_REQUIRED with an outcome and no pattern; the client shows it as NO RESULT everywhere.
+// (cached until the next state-changing request). A request the engine refused is stored by the server in
+// state REFUSED with an outcome and no pattern; the client shows it as NO RESULT everywhere.
 const factsCache = new Map();
 const summarise = (c) => ({
   id: c.id, outcome: c.outcome, noResult: !c.patterns.length, superseded_by: c.superseded_by, supersedes: c.supersedes, state: c.state,
@@ -162,6 +162,15 @@ function validateRequest(fam, v) {
   if (has('beta_deg') && (v.beta_deg < 10 || v.beta_deg > 170)) errors.push(['beta_deg', 'Angle between axes must be within 10° to 170° in this build.']);
   if (has('header_radius', 'branch_radius', 'delta') && !bad('header_radius') && !bad('branch_radius') && Math.abs(v.delta) + v.branch_radius >= v.header_radius) errors.push(['branch_radius', `|axis offset| + branch radius (${fmt(Math.abs(v.delta) + v.branch_radius)}) must be smaller than the header radius (${fmt(v.header_radius)}): tangent, partial and equal-diameter intersections are not implemented.`]);
   if (has('branch_station', 'header_length') && !bad('header_length') && (v.branch_station <= 0 || v.branch_station >= v.header_length)) errors.push(['branch_station', 'Branch position must lie inside the header length.']);
+  // Same rule as the engine (Spec 02 §6.1: the development surface lies inside the wall), so that a declared
+  // surface the radii contradict is stopped at the field. The engine refuses it in any case.
+  for (const [c, d] of [['header_radius', 'header_dev_radius'], ['branch_radius', 'branch_dev_radius']]) {
+    if (!v.surface_reference || !has(c, d) || bad(c) || bad(d)) continue;
+    const same = Math.abs(v[d] - v[c]) <= 1e-12 * Math.max(Math.abs(v[d]), Math.abs(v[c]));
+    if (v.surface_reference === 'outside' && !same && v[d] > v[c]) errors.push([d, `${lab(d)} (${fmt(v[d])}) cannot be larger than ${lab(c)} (${fmt(v[c])}) when the contact radii are declared as outside: that would be a negative wall thickness.`]);
+    if (v.surface_reference === 'inside' && !same && v[d] < v[c]) errors.push([d, `${lab(d)} (${fmt(v[d])}) cannot be smaller than ${lab(c)} (${fmt(v[c])}) when the contact radii are declared as inside: that would be a negative wall thickness.`]);
+    if (v.surface_reference === 'neutral' && !same) errors.push([d, `${lab(d)} (${fmt(v[d])}) must equal ${lab(c)} (${fmt(v[c])}) when the contact radii are declared as neutral.`]);
+  }
   return { errors, warnings };
 }
 
@@ -265,6 +274,9 @@ async function api(path, opts = {}) {
   let data = null;
   try { data = await res.json(); } catch { /* non-JSON */ }
   if (res.status === 401 && path !== '/api/login') { const was = me; me = null; renderLogin(false, was ? 'Your session has ended. Sign in again.' : ''); throw new Error('Please sign in.'); }
+  // A request the engine refused is answered 422 and kept by the server as job `id` in state REFUSED (no result).
+  // The caller gets it back like any other job answer and shows it as NO RESULT.
+  if (res.status === 422 && data && data.state === 'REFUSED' && Number.isInteger(data.id)) { factsCache.clear(); return data; }
   if (!res.ok) throw new Error((data && data.error) || `Request failed (${res.status})`);
   if (init.method !== 'GET') factsCache.clear();
   return data;
@@ -400,6 +412,7 @@ function renderLogin(setup, message, kind = 'bad', username = '') {
     ${message ? `<div class="note ${kind}" role="alert" id="loginmsg">${ic(kind === 'info' ? 'info' : 'warn')}<div>${esc(message)}</div></div>` : ''}
     <form id="f" novalidate><div class="field"><label for="lu">Username</label><input id="lu" name="u" autocomplete="username" value="${esc(username)}"></div>
     <div class="field"><label for="lp">Password${setup ? ' (at least 10 characters)' : ''}</label><input id="lp" name="p" type="password" autocomplete="${setup ? 'new-password' : 'current-password'}"></div>
+    ${setup ? `<div class="field"><label for="lt">Setup token</label><input id="lt" name="t" autocomplete="off" spellcheck="false"><p class="sub">Shown to the person who installed this server (file <span class="mono">setup-token</span> in the data directory, or the value of NF_SETUP_TOKEN). It can be used once.</p></div>` : ''}
     <button class="pri">${setup ? 'Create administrator' : 'Sign in'}</button></form>
     <p class="legal">Runs entirely on this server. No external network resources are loaded.</p></div></main>`;
   const f = $('#f'); (username ? f.p : f.u).focus();
@@ -408,10 +421,11 @@ function renderLogin(setup, message, kind = 'bad', username = '') {
     if (!f.u.value.trim()) { fieldError(f.u, 'Enter your username.'); return; }
     if (!f.p.value) { fieldError(f.p, 'Enter your password.'); return; }
     if (setup && f.p.value.length < 10) { fieldError(f.p, 'Use at least 10 characters.'); return; }
+    if (setup && !f.t.value.trim()) { fieldError(f.t, 'Enter the setup token of this installation.'); return; }
     const body = { username: f.u.value, password: f.p.value };
     try {
       await withBusy($('button', f), setup ? 'Creating…' : 'Signing in…', async () => {
-        if (setup) await api('/api/setup', { method: 'POST', json: body });
+        if (setup) await api('/api/setup', { method: 'POST', json: { ...body, setup_token: f.t.value.trim() } });
         await api('/api/login', { method: 'POST', json: body });
         me = await api('/api/me');
       });

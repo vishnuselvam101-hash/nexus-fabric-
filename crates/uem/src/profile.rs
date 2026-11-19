@@ -40,7 +40,7 @@ pub fn flatten(outline: &[Curve], arc_segments: usize) -> Vec<P2> {
             Geom::Polyline { pts, .. } => pts.clone(),
         };
         for p in seg {
-            if pts.last().map_or(true, |q| q.dist(p) > 1e-9) {
+            if pts.last().is_none_or(|q| q.dist(p) > 1e-9) {
                 pts.push(p);
             }
         }

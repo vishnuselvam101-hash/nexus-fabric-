@@ -41,7 +41,7 @@ Each run that changes the Caddyfile leaves a dated backup next to it. Remove old
 
 ## After installing
 
-1. Create the first administrator as described in `docs/BUILD_AND_TEST_GUIDE.md` (it needs the header `X-NF-Request: 1`), then change that password immediately.
+1. Create the first administrator. This needs the **one-time setup token** that the server writes to `/var/lib/nexus-fabric/setup-token` (root and the service user only) at its first start. Either pass `NF_ADMIN_USER` and `NF_ADMIN_PASSWORD` to `install.sh`, which then creates the account over loopback before Caddy is configured, or run the `curl` command the script prints at the end (also in `docs/BUILD_AND_TEST_GUIDE.md`). Without the token nobody can create the administrator, also not through the public address; the token file is deleted once the account exists.
 2. Check the public address once DNS points here: `https://$DOMAIN`.
 3. Set up backups (below).
 
@@ -81,3 +81,11 @@ sudo systemctl daemon-reload && sudo systemctl enable --now nf-backup.timer
 Archives go to `/root/backups/nexus-fabric` (set `NF_BACKUP_DIR` in the unit to change this). The script has no offsite copy; section 7 of the script is a commented hook to add one, encrypted.
 
 To restore: stop the service, put the database and blobs back in `/var/lib/nexus-fabric` (owned by `nexusfabric`), put the key back at `/etc/nexus-fabric/master.key` (`root:nexusfabric`, mode 0440), then start the service.
+
+## Settings that matter behind the proxy (since 19 November 2026)
+
+- `NF_ALLOWED_HOSTS` (unit file; `install.sh` sets it to `DOMAIN`): the server answers only to this host name and to loopback names; any other `Host` gets 421. **When upgrading an installation whose unit file predates this setting, add `Environment=NF_ALLOWED_HOSTS=<your domain>` before restarting, or every request through Caddy is refused.** Several names: comma-separated.
+- `NF_TRUSTED_PROXY=127.0.0.1` (unit file): client addresses are taken from Caddy's `X-Forwarded-For`, so sign-in throttling is per client. Without it every visitor shares Caddy's address and one flood can throttle sign-in for all.
+- The service refuses to start, and says why in `journalctl -u nf-server`, when the key file is missing, world-readable or not the key the data was created with, or when the database is missing, empty or damaged while the data directory holds an installation. It never creates a new key or falls back to first-run setup beside existing data: restore from the backup.
+- On `systemctl stop` / `restart` the server stops accepting connections, lets requests in flight finish (20 s by default) and folds its write-ahead log into the database file.
+- New unit directives (`UMask`, `ProtectProc`, `ProtectKernelLogs`, `RestrictSUIDSGID`, `SystemCallArchitectures`, `IPAddressDeny=any` with `IPAddressAllow=localhost`) have not been run on a server yet; if the service fails to start after an upgrade, `journalctl -u nf-server` names the directive.

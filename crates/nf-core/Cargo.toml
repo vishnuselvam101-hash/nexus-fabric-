@@ -2,6 +2,7 @@
 name = "nf-core"
 version = "0.1.0"
 edition = "2024"
+build = "build.rs"
 
 [dependencies]
 hex = "0.4.3"
@@ -10,3 +11,6 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
 sha2 = "0.11.1"
 uem = { version = "0.1.0", path = "../uem" }
+
+[build-dependencies]
+sha2 = "0.11.1"
