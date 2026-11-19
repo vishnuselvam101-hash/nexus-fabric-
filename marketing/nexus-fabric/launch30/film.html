@@ -1,113 +1,317 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>NEXUS FABRIC launch film 30 s</title>
 <style>
-html,body{margin:0;background:#000;overflow:hidden}
-#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:#000;color:#fff;font-family:-apple-system,"Helvetica Neue","Liberation Sans",Arial,"IPAPGothic","IPAGothic",sans-serif}
-.bg{position:absolute;inset:0;opacity:0}
-#b1{background:radial-gradient(120% 90% at 50% 0%,#1b2330,#05070a 70%)}
-#b2{background:radial-gradient(120% 100% at 30% 10%,#2f6fd6,#0b2a6b 55%,#040d24)}
-#b3{background:radial-gradient(120% 100% at 70% 10%,#19a08f,#0a4a4f 55%,#03181c)}
-#b4{background:radial-gradient(120% 100% at 40% 10%,#e08a2c,#8a3d12 55%,#200c04)}
-#island{position:absolute;left:50%;top:26px;background:#000;border-radius:22px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.45)}
-.pane{position:absolute;left:50%;top:0;width:1180px;height:580px;margin-left:-590px;opacity:0}
-.pane svg{position:absolute;inset:0;width:100%;height:100%}
-#shot{position:absolute;inset:14px;border-radius:12px;background:url(../drafts/source/app-amoeba.png) center top/cover}
-.ln{fill:none;stroke:#e8eef5;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
-.dimn{fill:none;stroke:#8fa1b3;stroke-width:1.4}
-.tx{fill:#c9d4df;font-size:22px;font-weight:500}.am{fill:#f3b85f}
-#cap{position:absolute;left:0;right:0;top:700px;text-align:center;font-size:58px;font-weight:600;line-height:1.22;letter-spacing:-.01em;padding:0 240px;text-wrap:balance}
-#cap.ja{font-size:52px;letter-spacing:.03em;line-height:1.4;word-break:keep-all;overflow-wrap:anywhere}
-#cap em{font-style:normal}
-#tag{position:absolute;left:0;right:0;bottom:58px;text-align:center;font-size:20px;letter-spacing:.08em;color:rgba(255,255,255,.72)}
-#end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0}
-#end .wm{font-size:112px;font-weight:700;letter-spacing:.22em;margin-left:.22em}
-#end .l1{font-size:34px;color:#c3cfdb;margin-top:26px}
-#end .l2{font-size:26px;color:#7fbdf8;margin-top:34px;letter-spacing:.16em}
-#end .l3{font-size:30px;margin-top:30px;font-weight:600}
-#end .l4{font-size:19px;color:#f3b85f;margin-top:44px}
+:root{--g0:#0E1116;--g1:#171B21;--line:#2A313A;--t1:#8E969F;--t2:#C9CED4;--w:#F5F7FA;--blue:#2F7DF6;--amber:#E8A33D}
+html,body{margin:0;background:var(--g0);overflow:hidden}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--g0);color:var(--w);font-family:"Liberation Sans","Helvetica Neue",Helvetica,Arial,sans-serif}
+#stage.ja{font-family:"IPAPGothic","IPAGothic","Liberation Sans",sans-serif}
+#stage>*{position:absolute}
+#shot{overflow:hidden;background:var(--g1);opacity:0}
+#shot img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;object-position:left top;opacity:0}
+canvas{left:0;top:0}
+.lat{font-family:"Liberation Sans","Helvetica Neue",Helvetica,Arial,sans-serif}
+.mono{font-family:"Liberation Mono","DejaVu Sans Mono",monospace}
+#wm{left:96px;top:52px;height:20px;display:flex;align-items:center;gap:14px;font-size:14px;font-weight:700;letter-spacing:.3em;color:var(--t2)}
+#idx{right:96px;top:54px;font-size:14px;letter-spacing:.12em;color:var(--t1)}
+#head{left:0;right:0;top:108px;text-align:center;font-size:54px;line-height:64px;letter-spacing:-.022em;color:var(--w);white-space:nowrap}
+.ja #head{font-size:46px;letter-spacing:.08em}
+.st{top:1004px;height:22px;display:flex;align-items:center;gap:12px;font-size:14px;letter-spacing:.14em;text-transform:uppercase;color:var(--t2);white-space:nowrap}
+.ja .st{font-size:16px;letter-spacing:.1em}
+#stl{left:96px}#str{right:96px}
+.mk{display:inline-block;width:9px;height:9px;box-sizing:border-box;flex:none}
+.mk.c{border:1.5px solid var(--t1)}.mk.i{background:var(--blue)}.mk.p{background:var(--amber)}
+.amb{color:var(--amber)}
+#eq{left:96px;top:452px;width:470px;opacity:0}
+#vals{left:1470px;top:452px;width:354px;opacity:0}
+.kick{display:flex;align-items:center;gap:12px;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--t2);margin-bottom:22px}
+.ja .kick{font-size:15px;letter-spacing:.1em}
+.math{font-family:"Liberation Serif","DejaVu Serif",serif;font-style:italic;font-size:25px;color:var(--w);display:flex;align-items:center;gap:9px;white-space:nowrap}
+.math .up{font-style:normal}
+.frac{display:inline-flex;flex-direction:column;align-items:center}
+.frac .n{padding:0 6px 7px}.frac .d{border-top:1px solid var(--t2);align-self:stretch;text-align:center;padding-top:5px}
+.rad{border-top:1px solid var(--t2);padding:3px 2px 0 3px;margin-left:-2px}
+sup{font-size:.6em;font-style:normal;line-height:0}
+.note{margin-top:20px;font-size:13px;letter-spacing:.06em;color:var(--t1);line-height:21px}
+.row{display:flex;justify-content:space-between;align-items:center;height:38px;border-bottom:1px solid var(--line);font-size:15px;color:var(--t1)}
+.row b{font-weight:400;color:var(--w)}
+.row.live b{color:var(--blue)}
+#checks{left:1199px;top:300px;width:427px}
+#checks .it{display:flex;align-items:center;gap:12px;height:39px;border-bottom:1px solid var(--line);font-size:16px;letter-spacing:.01em;color:var(--w);opacity:0;white-space:nowrap}
+.ja #checks .it{font-size:17px;letter-spacing:.05em}
+#checks .kick{margin-bottom:8px;opacity:0}
+#brand{left:0;right:0;top:0;height:1080px;text-align:center}
+#brand>*{position:absolute;left:0;right:0;opacity:0;white-space:nowrap}
+#bw{top:392px;font-size:104px;line-height:110px;font-weight:400;letter-spacing:.2em;text-indent:.2em;color:var(--w)}
+#bt{top:560px;font-size:40px;line-height:48px;letter-spacing:-.012em;color:var(--t2)}
+.ja #bt{font-size:36px;letter-spacing:.14em;text-indent:.14em}
+#bh{top:646px;font-size:19px;line-height:24px;letter-spacing:.04em;color:var(--t1)}
+.ja #bh{font-size:19px;letter-spacing:.16em}
+#bs{top:752px;font-size:17px;line-height:22px;letter-spacing:.34em;text-indent:.34em;color:var(--w)}
+.ja #bs{font-size:19px;letter-spacing:.3em}
+#bs span{opacity:0;display:inline-block;margin:0 .55em}
 </style></head><body><div id="stage">
-<div class="bg" id="b1"></div><div class="bg" id="b2"></div><div class="bg" id="b3"></div><div class="bg" id="b4"></div>
-<div id="island">
- <div class="pane" id="p1"><svg viewBox="0 0 1180 580" id="s1"></svg></div>
- <div class="pane" id="p2"><div id="shot"></div></div>
- <div class="pane" id="p3"><svg viewBox="0 0 1180 580" id="s3"></svg></div>
- <div class="pane" id="p4"><svg viewBox="0 0 1180 580" id="s4"></svg></div>
-</div>
-<div id="cap"></div><div id="tag"></div>
-<div id="end"><div class="wm">NEXUS FABRIC</div><div class="l1"></div><div class="l3"></div><div class="l2"></div><div class="l4"></div></div>
+<div id="shot"><img id="i1" src="assets/app-amoeba.png"><img id="i2" src="assets/app-verification.png"></div>
+<canvas id="c" width="1920" height="1080"></canvas>
+<div id="wm" class="lat"><svg id="glyph" width="34" height="16" viewBox="0 0 34 16"></svg><span>NEXUS FABRIC</span></div>
+<div id="idx" class="mono"></div>
+<div id="head"></div>
+<div id="eq"><div class="kick"><i class="mk i"></i><span id="eqk"></span></div>
+ <div class="math"><span>s<span class="up">(</span>φ<span class="up">)</span></span><span class="up">=</span><span class="frac"><span class="n"><span class="up">√</span><span class="rad">R<sup>2</sup> <span class="up">−</span> <span class="up">(</span>r <span class="up">cos</span> φ<span class="up">)</span><sup>2</sup></span> <span class="up">−</span> r <span class="up">sin</span> φ <span class="up">cos</span> β</span><span class="d"><span class="up">sin</span> β</span></span></div>
+ <div class="note mono" id="eqn"></div></div>
+<div id="vals" class="mono"></div>
+<div id="checks"></div>
+<div class="st" id="stl"></div><div class="st" id="str"></div>
+<div id="brand"><div id="bw" class="lat">NEXUS FABRIC</div><div id="bt"></div><div id="bh"></div><div id="bs"></div></div>
 </div>
 <script>
+'use strict';
 const Q = new URLSearchParams(location.search), lang = Q.get('lang') === 'ja' ? 'ja' : 'en';
-const L = { en: {
-  cap: ['Complex engineering drawings. Difficult geometry. <em>Hours of engineering work.</em>', 'Meet NEXUS FABRIC, an <em>AMOEBA-native engineering platform.</em>', 'Understand complex drawings. <em>Reconstruct 3D geometry.</em>', 'Calculate plate developments. <em>Generate traceable CAD deliverables.</em>', ''],
-  tag: ['Fictional drawing made for this film', 'Actual software · development build', 'Concept · drawing reading and 3D reconstruction are planned', 'Patterns computed from the product’s equations · DXF written, re-read and compared', ''],
-  l1: 'From engineering drawings to manufacturing intelligence.', l3: 'Rethink engineering.', l2: 'UNDERSTAND. RECONSTRUCT. VERIFY. MANUFACTURE.', l4: 'Product concept. Capabilities in development. Not validated for manufacturing.' },
- ja: {
-  cap: ['複雑な製作図面。難しい形状。<em>膨大な設計・計算時間。</em>', 'NEXUS FABRIC。AMOEBAを中核にした<em>エンジニアリングプラットフォーム。</em>', '複雑な図面を理解し、<em>3D形状を再構築。</em>', '板材展開を計算し、<em>CADデータを生成。</em>', ''],
-  tag: ['この映像のために作成した架空の図面', '実際のソフトウェア画面 · 開発版', 'コンセプト · 図面読取と3D再構築は計画中', '製品の計算式による展開形状 · DXFを出力し、再読込して照合', ''],
-  l1: '図面から、製造の未来へ。', l3: 'エンジニアリングを再定義する。', l2: '理解する。再構築する。検証する。製造する。', l4: '製品コンセプト映像です。機能は開発中であり、製造用途の検証は完了していません。' } }[lang];
-const SEG = [[0, 5], [5, 11], [11, 18], [18, 25], [25, 30]], TINT = ['#9fb4cc', '#a9cbff', '#8fe6d6', '#ffd09a', '#fff'];
-const $ = (id) => document.getElementById(id), cl = (x) => Math.min(1, Math.max(0, x)), sm = (a, b, t) => { const x = cl((t - a) / (b - a)); return x * x * (3 - 2 * x); };
-const spring = (x) => x <= 0 ? 0 : 1 - Math.exp(-8 * x) * (Math.cos(6 * x) + (8 / 6) * Math.sin(6 * x));   // soft open, slight overshoot
-const NS = 'http://www.w3.org/2000/svg';
-const el = (svg, tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text) e.textContent = text; svg.appendChild(e); return e; };
-const path = (pts, close) => 'M' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L') + (close ? 'Z' : '');
+const $ = (id) => document.getElementById(id);
+const C = { g0: '#0E1116', g1: '#171B21', line: '#2A313A', t1: '#8E969F', t2: '#C9CED4', w: '#F5F7FA', blue: '#2F7DF6', amber: '#E8A33D' };
+// strings written for the picture only (everything else comes from script/narration.json)
+const X = { en: { concept: 'Concept', redrawn: 'redrawn for this film', c1: 'Pattern mathematics', c2: 'Independent verification checks', c3: 'Interface check between parts', unit: 'units: mm', ref: 'reference surface · zero offset' },
+            ja: { concept: 'コンセプト', redrawn: '本映像用に再描画', c1: '展開形状の計算', c2: '独立した検証チェック', c3: '部品間の接合照合', unit: '単位：mm', ref: '基準面・オフセット 0' } }[lang];
+const FALLBACK = { headline: ['Hours of engineering work', 'Meet NEXUS FABRIC', 'Understand. Reconstruct. Calculate.', 'Traceable CAD deliverables', 'Drawings to manufacturing intelligence'],
+  labels: { fictional: 'Fictional drawing made for this film', actual: 'Actual software · development build', planned_concept: 'Planned capability · concept', demonstrated: 'Demonstrated · computed by the product\'s mathematics engine', implemented: 'Implemented', planned: 'Planned', disclaimer: 'Product concept. Capabilities in development. Not validated for manufacturing.', planned_reading: 'Drawing reading and 3D reconstruction: planned', planned_constraints: 'Manufacturing-constraint evaluation: planned', dxf_checked: 'DXF written, re-read and compared' },
+  slogan: 'UNDERSTAND. RECONSTRUCT. VERIFY. MANUFACTURE.', brand: 'NEXUS FABRIC — Engineering, Reimagined.' };
+let L = FALLBACK;
 
-// geometry of the product's reference assembly: header R150, branch r100 at 60 degrees (units of 100 mm)
-const R = 1.5, r = 1.0, BETA = Math.PI / 3, S_END = 4.0, HLEN = 12, sb = Math.sin(BETA), cb = Math.cos(BETA);
-const sOf = (phi) => (Math.sqrt(R * R - (r * Math.cos(phi)) ** 2) - r * Math.sin(phi) * cb) / sb;       // Spec 02 eq. (4.3)
-// side elevation: x along header, z up; 58 px per 100 mm
-const K = 58, OX = 590, OY = 400, E = (x, z) => [OX + x * K, OY - z * K];
-const ax = (s, o) => E(s * cb - o * sb, s * sb + o * cb);
-const hdr = [E(-6, -R), E(6, -R), E(6, R), E(-6, R)], br = [ax(sOf(Math.PI / 2), 1), ax(S_END, 1), ax(S_END, -1), ax(sOf(-Math.PI / 2), -1)];
-const draw = [];   // [element, start, end] stroke draw-on, in scene-local seconds
-function elevation(svg, t0) {
-  const add = (d, cls, a, b) => draw.push([el(svg, 'path', { d, class: cls, pathLength: 1, 'stroke-dasharray': 1, 'stroke-dashoffset': 1 }), a, b, svg.id]);
-  add(path(hdr, true), 'ln', t0, t0 + 1.2); add(path(br), 'ln', t0 + 0.6, t0 + 1.6);
-  add(path([E(-6.6, 0), E(6.6, 0)]), 'dimn', t0 + 1.0, t0 + 1.6); add(path([ax(-0.5, 0), ax(S_END + 0.6, 0)]), 'dimn', t0 + 1.0, t0 + 1.6);
+// ---------- easing (every value is a pure function of film time)
+const cl = (x) => Math.min(1, Math.max(0, x)), mix = (a, b, k) => a + (b - a) * k;
+const sm = (a, b, t) => { const x = cl((t - a) / (b - a)); return x * x * x * (x * (x * 6 - 15) + 10); };      // smootherstep
+const out = (a, b, t) => { const x = cl((t - a) / (b - a)); return 1 - Math.pow(1 - x, 4); };                    // decelerating settle
+const win = (a, b, c, d, t) => sm(a, b, t) * (1 - sm(c, d, t));
+
+// ---------- geometry of the product's reference assembly (1 unit = 100 mm): header R150, branch r100 at 60 degrees, zero offset
+const R = 1.5, r = 1.0, BETA = Math.PI / 3, S_END = 4.0, HLEN = 12, PI = Math.PI, MM = 100;
+const sb = Math.sin(BETA), cb = Math.cos(BETA);
+const sOf = (phi) => (Math.sqrt(R * R - (r * Math.cos(phi)) ** 2) - r * Math.sin(phi) * cb) / sb;                // branch stub length along its axis
+const opX = (phi) => sOf(phi) * cb - r * Math.sin(phi) * sb, opU = (phi) => R * Math.asin(r * Math.cos(phi) / R);   // opening edge on the header flat plate
+const polyLen = (f, n = 20000) => { let s = 0, p = f(0); for (let i = 1; i <= n; i++) { const q = f(2 * PI * i / n); s += Math.hypot(q[0] - p[0], q[1] - p[1]); p = q; } return s; };
+const LEN = { c_r: 2 * PI * r * MM, c_R: 2 * PI * R * MM, hl: HLEN * MM, open: polyLen((p) => [opX(p), opU(p)]) * MM, saddle: polyLen((p) => [r * p, sOf(p)]) * MM };
+const mm = (v, d = 3) => v.toFixed(d);
+const A0 = [cb, 0, sb], E2 = [-sb, 0, cb];                                                                        // branch axis; in-plane normal to it
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sc = (a, k) => [a[0] * k, a[1] * k, a[2] * k], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+// header shell, unrolled isometrically about its top generator: k = 0 cylinder, k = 1 flat plate in the plane z = R
+function hdrPt(x, u, k) { const c = (1 - k) / R; if (c < 1e-7) return [x, u, R]; const a = u * c; return [x, Math.sin(a) / c, R - (1 - Math.cos(a)) / c]; }
+function hdrN(u, k) { const a = u * (1 - k) / R; return [0, Math.sin(a), Math.cos(a)]; }
+// branch frame (T tangent, A axis, N normal at the generator opposite the seam; seam at phi = 0 as in the product)
+const qFromM = (m) => { const [a, b, c, d, e, f, g, h, i] = m, tr = a + e + i; let q; if (tr > 0) { const s = Math.sqrt(tr + 1) * 2; q = [s / 4, (h - f) / s, (c - g) / s, (d - b) / s]; } else if (a > e && a > i) { const s = Math.sqrt(1 + a - e - i) * 2; q = [(h - f) / s, s / 4, (b + d) / s, (c + g) / s]; } else if (e > i) { const s = Math.sqrt(1 + e - a - i) * 2; q = [(c - g) / s, (b + d) / s, s / 4, (f + h) / s]; } else { const s = Math.sqrt(1 + i - a - e) * 2; q = [(d - b) / s, (c + g) / s, (f + h) / s, s / 4]; } return q; };
+const mFromQ = ([w, x, y, z]) => [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w), 2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w), 2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)];
+const slerp = (p, q, k) => { let d = p[0] * q[0] + p[1] * q[1] + p[2] * q[2] + p[3] * q[3]; if (d < 0) { q = q.map((v) => -v); d = -d; } if (d > 0.9995) return p.map((v, i) => mix(v, q[i], k)); const th = Math.acos(d), s = Math.sin(th), a = Math.sin((1 - k) * th) / s, b = Math.sin(k * th) / s; return p.map((v, i) => a * v + b * q[i]); };
+const T0 = sc(E2, -1), N0 = [0, -1, 0];
+const Q0 = qFromM([T0[0], A0[0], N0[0], T0[1], A0[1], N0[1], T0[2], A0[2], N0[2]]), Q1 = [0, 0, 0, 1];           // columns T, A, N
+const GAP = 1.3, O1 = [HLEN / 2 + GAP + PI * r, S_END - PI * R, R - r];                                            // where the branch pattern lies on the sheet
+function brFrame(e, lift) { const m = mFromQ(slerp(Q0, Q1, e)); return { T: [m[0], m[3], m[6]], A: [m[1], m[4], m[7]], N: [m[2], m[5], m[8]], O: add(sc(sc(A0, lift), 1 - e), sc(O1, e)) }; }
+function brPt(F, w, s, k) { const c = (1 - k) / r; let a, b; if (c < 1e-7) { a = w; b = r; } else { a = Math.sin(w * c) / c; b = r - (1 - Math.cos(w * c)) / c; } return [F.O[0] + s * F.A[0] + a * F.T[0] + b * F.N[0], F.O[1] + s * F.A[1] + a * F.T[1] + b * F.N[1], F.O[2] + s * F.A[2] + a * F.T[2] + b * F.N[2]]; }
+function brN(F, w, k) { const a = w * (1 - k) / r, s = Math.sin(a), c = Math.cos(a); return [s * F.T[0] + c * F.N[0], s * F.T[1] + c * F.N[1], s * F.T[2] + c * F.N[2]]; }
+const wOf = (phi) => r * (phi - PI);                                                                               // flat abscissa u = r*phi, measured from the fixed generator
+
+// header mesh in pattern coordinates (x, u): regular cells outside a box round the opening, a ring mesh inside it (so the opening edge is exact)
+const HM = (() => {
+  const NO = 120, op = []; let x0 = 1e9, x1 = -1e9, u1 = 0, cx = 0;
+  for (let i = 0; i < NO; i++) { const p = 2 * PI * i / NO; op.push([opX(p), opU(p)]); x0 = Math.min(x0, opX(p)); x1 = Math.max(x1, opX(p)); u1 = Math.max(u1, opU(p)); }
+  cx = (x0 + x1) / 2; const bx0 = x0 - 0.3, bx1 = x1 + 0.3, bu = u1 + 0.3;
+  const xs = [-6, bx0, bx1, 6], us = [-bu, bu]; for (let i = 1; i < 24; i++) xs.push(-6 + i * 0.5); for (let i = 0; i <= 96; i++) us.push(-PI * R + 2 * PI * R * i / 96);
+  const uniq = (a) => a.sort((p, q) => p - q).filter((v, i) => i === 0 || v - a[i - 1] > 1e-6); const X_ = uniq(xs), U_ = uniq(us), quads = [];
+  for (let i = 0; i < X_.length - 1; i++) for (let j = 0; j < U_.length - 1; j++) { const xm = (X_[i] + X_[i + 1]) / 2, um = (U_[j] + U_[j + 1]) / 2; if (xm > bx0 && xm < bx1 && Math.abs(um) < bu) continue; quads.push([[X_[i], U_[j]], [X_[i + 1], U_[j]], [X_[i + 1], U_[j + 1]], [X_[i], U_[j + 1]]]); }
+  const cast = ([px, pu]) => { const dx = px - cx, du = pu, k = Math.min(dx > 0 ? (bx1 - cx) / dx : dx < 0 ? (bx0 - cx) / dx : 1e9, du !== 0 ? bu / Math.abs(du) : 1e9); return [cx + dx * k, du * k]; };
+  const ob = op.map(cast), M = 4, L2 = (a, b, k) => [mix(a[0], b[0], k), mix(a[1], b[1], k)];
+  for (let i = 0; i < NO; i++) { const j = (i + 1) % NO; for (let m = 0; m < M; m++) quads.push([L2(op[i], ob[i], m / M), L2(op[j], ob[j], m / M), L2(op[j], ob[j], (m + 1) / M), L2(op[i], ob[i], (m + 1) / M)]);
+    const ex = Math.abs(Math.abs(ob[i][1]) - bu) < 1e-9, fx = Math.abs(Math.abs(ob[j][1]) - bu) < 1e-9; if (ex !== fx) { const a = ex ? ob[i] : ob[j], b = ex ? ob[j] : ob[i]; quads.push([ob[i], ob[j], [b[0], a[1]]]); } }
+  return quads;
+})();
+const BM = (() => { const q = [], NP = 120, NS = 5; for (let i = 0; i < NP; i++) { const p0 = 2 * PI * i / NP, p1 = 2 * PI * (i + 1) / NP, a0 = sOf(p0), a1 = sOf(p1); for (let j = 0; j < NS; j++) q.push([[wOf(p0), mix(a0, S_END, j / NS)], [wOf(p1), mix(a1, S_END, j / NS)], [wOf(p1), mix(a1, S_END, (j + 1) / NS)], [wOf(p0), mix(a0, S_END, (j + 1) / NS)]]); } return q; })();
+const ring = (f, n = 240) => { const a = []; for (let i = 0; i <= n; i++) a.push(f(2 * PI * i / n)); return a; };
+const OPEN = ring((p) => [opX(p), opU(p)]), SADDLE = ring((p) => [wOf(p), sOf(p)]);
+
+// ---------- canvas helpers
+const cv = $('c'), g = cv.getContext('2d'), off = document.createElement('canvas'); off.width = 1920; off.height = 1080; const go = off.getContext('2d');
+const SANS = '"Liberation Sans","Helvetica Neue",Arial,sans-serif', MONO = '"Liberation Mono","DejaVu Sans Mono",monospace', JAF = '"IPAPGothic","IPAGothic",sans-serif';
+function poly(c, pts, frac = 1, close = false) {   // stroke a polyline up to a fraction of its length (draw-on)
+  if (frac <= 0) return; const P = close ? pts.concat([pts[0]]) : pts; let tot = 0; const ls = []; for (let i = 1; i < P.length; i++) { const l = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); ls.push(l); tot += l; }
+  let rem = tot * Math.min(frac, 1); c.beginPath(); c.moveTo(P[0][0], P[0][1]);
+  for (let i = 1; i < P.length; i++) { const l = ls[i - 1]; if (rem >= l) { c.lineTo(P[i][0], P[i][1]); rem -= l; } else { const k = l ? rem / l : 0; c.lineTo(mix(P[i - 1][0], P[i][0], k), mix(P[i - 1][1], P[i][1], k)); break; } } c.stroke();
 }
-{ const s = $('s1'); elevation(s, 0.5);
-  const dl = (a, b) => draw.push([el(s, 'path', { d: path([a, b]), class: 'dimn', pathLength: 1, 'stroke-dasharray': 1, 'stroke-dashoffset': 1 }), 1.6, 2.2, 's1']);
-  dl(E(-6, -2.3), E(6, -2.3)); dl(E(6.7, -R), E(6.7, R)); dl(ax(S_END + 0.35, -1), ax(S_END + 0.35, 1));
-  const tx = (x, y, s_, c = 'tx') => el(s, 'text', { x, y, class: c, 'text-anchor': 'middle', opacity: 0, 'data-a': 2.0 }, s_);
-  tx(...E(0, -2.85), '1200'); tx(E(7.5, 0)[0], E(7.5, 0.1)[1], '⌀300'); tx(E(7.6, 0)[0], E(7.6, -0.5)[1], '(⌀284)', 'tx am'); tx(...ax(S_END + 0.9, 0), '⌀200'); tx(...E(2.2, 1.85), '60°'); tx(...E(-4.6, 1.9), 't = ?', 'tx am'); }
-{ const s = $('s3'), defs = el(s, 'defs', {});
-  const grad = (id, x1, y1, x2, y2) => { const g = el(defs, 'linearGradient', { id, gradientUnits: 'userSpaceOnUse', x1, y1, x2, y2 }); for (const [o, c] of [[0, '#5d6873'], [0.22, '#e3e9ee'], [0.45, '#aab4bd'], [0.8, '#4a535d'], [1, '#2a3038']]) el(g, 'stop', { offset: o, 'stop-color': c }); };
-  grad('gh', 0, E(0, R)[1], 0, E(0, -R)[1]); const a = ax(2, 1), b = ax(2, -1); grad('gb', a[0], a[1], b[0], b[1]);
-  const solid = el(s, 'g', { id: 'solid', opacity: 0 });
-  el(solid, 'path', { d: path(br, true), fill: 'url(#gb)' }); el(solid, 'path', { d: path(hdr, true), fill: 'url(#gh)' });
-  const c0 = ax(S_END, 0); el(solid, 'ellipse', { cx: c0[0], cy: c0[1], rx: K, ry: K * 0.28, transform: `rotate(${-30} ${c0[0]} ${c0[1]})`, fill: '#1c2128', stroke: '#dfe6ec', 'stroke-width': 3 });
-  const w = []; for (let i = 0; i <= 60; i++) { const phi = -Math.PI / 2 + Math.PI * i / 60; const sv = sOf(phi); w.push(E(sv * cb - r * Math.sin(phi) * sb, sv * sb + r * Math.sin(phi) * cb)); }   // visible half of the true intersection curve, in elevation
-  el(solid, 'path', { d: path(w), fill: 'none', stroke: '#f3b85f', 'stroke-width': 4, 'stroke-linecap': 'round' });
-  elevation(s, 0.3); }
-{ const s = $('s4'), k = 40, add = (d, col, a, b, w = 3) => draw.push([el(s, 'path', { d, fill: 'none', stroke: col, 'stroke-width': w, 'stroke-linejoin': 'round', pathLength: 1, 'stroke-dasharray': 1, 'stroke-dashoffset': 1 }), a, b, 's4']);
-  const bx = 250, by = 420, bp = []; for (let i = 0; i <= 200; i++) { const phi = -Math.PI / 2 + 2 * Math.PI * i / 200; bp.push([bx + r * (phi - Math.PI / 2) * k, by - sOf(phi) * k]); }
-  const top = by - S_END * k; el(s, 'path', { id: 'f1', d: path([...bp, [bp[200][0], top], [bp[0][0], top]], true), fill: '#aab4bd', opacity: 0 });
-  add(path([...bp, [bp[200][0], top], [bp[0][0], top]], true), '#7fbdf8', 0.6, 2.2);
-  const hx = 760, hy = 290, W = Math.PI * R * k, H = HLEN / 2 * k, rect = [[hx - H, hy - W], [hx + H, hy - W], [hx + H, hy + W], [hx - H, hy + W]];
-  const op = []; for (let i = 0; i <= 200; i++) { const phi = 2 * Math.PI * i / 200, sv = sOf(phi); op.push([hx + (sv * cb - r * Math.sin(phi) * sb) * k, hy - R * Math.asin(r * Math.cos(phi) / R) * k]); }
-  el(s, 'path', { id: 'f2', d: path(rect, true) + path(op, true), fill: '#aab4bd', 'fill-rule': 'evenodd', opacity: 0 });
-  add(path(rect, true), '#7fbdf8', 1.2, 2.8); add(path(op, true), '#f3b85f', 2.4, 3.6);
-  el(s, 'text', { x: 1090, y: 545, class: 'tx', 'text-anchor': 'end', opacity: 0, 'data-a': 4.0, style: 'font-size:26px;font-weight:700;fill:#fff;letter-spacing:.12em' }, 'DXF'); }
+function text(c, s, x, y, o = {}) { c.save(); c.globalAlpha *= o.a === undefined ? 1 : o.a; c.font = o.font || `15px ${MONO}`; c.fillStyle = o.col || C.t2; c.textAlign = o.al || 'center'; c.textBaseline = o.base || 'middle'; if (o.rot) { c.translate(x, y); c.rotate(o.rot); x = 0; y = 0; } if (o.bg) { const w = c.measureText(s).width + 16; c.fillStyle = o.bg; c.fillRect(x - (c.textAlign === 'center' ? w / 2 : c.textAlign === 'right' ? w - 8 : 8), y - 11, w, 22); c.fillStyle = o.col || C.t2; } c.fillText(s, x, y); c.restore(); }
+function dim(c, a, b, label, f, o = {}) {       // dimension line with oblique ticks; f = draw-on fraction
+  if (f <= 0) return; c.save(); c.strokeStyle = o.col || C.t1; c.lineWidth = 1; const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], k = out(0, 1, f);
+  const p = [mix(m[0], a[0], k), mix(m[1], a[1], k)], q = [mix(m[0], b[0], k), mix(m[1], b[1], k)]; poly(c, [p, q]);
+  for (const e of [p, q]) poly(c, [[e[0] - 5, e[1] + 5], [e[0] + 5, e[1] - 5]]);
+  const vert = Math.abs(a[0] - b[0]) < 1; text(c, label, m[0], m[1], { a: sm(0.4, 1, f), rot: vert ? -PI / 2 : 0, bg: C.g0, col: o.tcol || C.t2, font: o.font }); c.restore();
+}
 
-$('cap').className = lang; for (const k of ['l1', 'l2', 'l3', 'l4']) $('end').querySelector('.' + k).textContent = L[k];
+// ---------- scene 1-2: the drawing sheet, which becomes the application frame, which collapses into the header axis
+const FC = [960, 590];
+function frameRect(t) { const w = 1248 * (0.965 + 0.035 * cl(t / 5)) + 96 * out(5.0, 5.9, t), h = w * 9 / 16 * (1 - sm(10.55, 11.1, t)); return { x: FC[0] - w / 2, y: FC[1] - h / 2, w, h, s: w / 1248 }; }
+function drawSheet(t) {
+  const F = frameRect(t), s = F.s, a1 = 1 - sm(4.65, 5.15, t);
+  g.save(); g.lineWidth = 1; g.strokeStyle = C.line;
+  if (F.h > 1.5) poly(g, [[F.x, F.y], [F.x + F.w, F.y], [F.x + F.w, F.y + F.h], [F.x, F.y + F.h]].map(([x, y]) => [Math.round(x) + 0.5, Math.round(y) + 0.5]), sm(0.15, 1.1, t), true);
+  g.restore(); if (a1 <= 0) return;
+  // sheet coordinates: 1248 x 702, scaled with the frame (slow push-in)
+  g.save(); g.translate(F.x, F.y); g.scale(s, s); g.globalAlpha = a1; g.lineJoin = 'round'; g.lineCap = 'round';
+  const K = 50, EO = [452, 392], E = (x, z) => [EO[0] + x * K, EO[1] - z * K], ax = (sv, o) => E(sv * cb - o * sb, sv * sb + o * cb);
+  // inner border and title block
+  g.strokeStyle = C.line; g.lineWidth = 1; poly(g, [[20, 20], [1228, 20], [1228, 682], [20, 682]], sm(0.3, 1.3, t), true);
+  const tb = sm(0.9, 1.7, t); poly(g, [[868, 682], [868, 598], [1228, 598]], tb); poly(g, [[868, 640], [1228, 640]], tb); poly(g, [[1108, 640], [1108, 682]], tb);
+  text(g, L.labels.fictional, 884, 619, { al: 'left', a: sm(1.3, 1.9, t), font: lang === 'ja' ? `15px ${JAF}` : `13px ${SANS}`, col: C.t2 });
+  text(g, `R${R * MM} / r${r * MM} / ${Math.round(BETA * 180 / PI)}°`, 884, 661, { al: 'left', a: sm(1.4, 2.0, t), font: `13px ${MONO}`, col: C.t1 });
+  text(g, 'NF-00', 1124, 661, { al: 'left', a: sm(1.4, 2.0, t), font: `13px ${MONO}`, col: C.t1 });
+  // centrelines
+  g.strokeStyle = C.t1; g.lineWidth = 0.8; g.setLineDash([22, 5, 3, 5]); const cf = sm(0.4, 1.3, t);
+  poly(g, [E(-6.7, 0), E(6.7, 0)], cf); poly(g, [ax(-0.9, 0), ax(S_END + 0.7, 0)], sm(0.9, 1.7, t));
+  const VO = [1010, 392], Vw = (y, z) => [VO[0] + y * K, VO[1] - z * K]; poly(g, [Vw(-2.1, 0), Vw(2.1, 0)], sm(1.2, 1.9, t)); poly(g, [Vw(0, -2.1), Vw(0, S_END * sb + 1.1)], sm(1.2, 1.9, t)); g.setLineDash([]);
+  // elevation
+  g.strokeStyle = C.w; g.lineWidth = 1.5;
+  poly(g, [E(-6, -R), E(6, -R), E(6, R), E(-6, R)], sm(0.5, 1.7, t), true);
+  poly(g, [ax(sOf(PI / 2), 1), ax(S_END, 1), ax(S_END, -1), ax(sOf(-PI / 2), -1)], sm(1.0, 2.0, t));
+  // end view: header circle, branch strip and its end, all projected along the header axis
+  const circ = []; for (let i = 0; i <= 180; i++) { const a = 2 * PI * i / 180 + Math.asin(r / R); circ.push(Vw(R * Math.sin(a), R * Math.cos(a))); } poly(g, circ, sm(1.3, 2.3, t));
+  const zt = (y) => Math.sqrt(R * R - y * y), fe = sm(1.7, 2.5, t); const endE = []; for (let i = 0; i <= 120; i++) { const p = 2 * PI * i / 120; endE.push(Vw(r * Math.cos(p), S_END * sb + r * Math.sin(p) * cb)); }
+  poly(g, [Vw(-r, zt(r)), Vw(-r, S_END * sb)], fe); poly(g, [Vw(r, zt(r)), Vw(r, S_END * sb)], fe); poly(g, endE, fe);
+  // dimensions (inputs of the reference assembly)
+  g.lineWidth = 1; const df = (a) => cl((t - a) / 0.8);
+  g.strokeStyle = C.line; for (const [p, q] of [[E(-6, -R - 0.15), E(-6, -R - 1.35)], [E(6, -R - 0.15), E(6, -R - 1.35)], [E(-6.15, R), E(-7.25, R)], [E(-6.15, -R), E(-7.25, -R)]]) poly(g, [p, q], sm(1.9, 2.5, t));
+  dim(g, E(-6, -R - 1.1), E(6, -R - 1.1), String(HLEN * MM), df(2.0)); dim(g, E(-7, -R), E(-7, R), '⌀' + 2 * R * MM, df(2.15));
+  dim(g, ax(S_END + 0.45, -1), ax(S_END + 0.45, 1), '⌀' + 2 * r * MM, df(2.3)); dim(g, Vw(-R, -R - 1.1), Vw(R, -R - 1.1), '⌀' + 2 * R * MM, df(2.45));
+  const arc = []; for (let i = 0; i <= 40; i++) { const a = BETA * i / 40; arc.push(E(2.6 * Math.cos(a), 2.6 * Math.sin(a))); } g.strokeStyle = C.t1; poly(g, arc, sm(2.3, 3.0, t));
+  text(g, Math.round(BETA * 180 / PI) + '°', ...E(3.25 * Math.cos(0.2), 3.25 * Math.sin(0.2)), { a: sm(2.6, 3.1, t) });
+  // the one line the drawing does not give: the true intersection, and its development
+  const w = []; for (let i = 0; i <= 80; i++) { const p = -PI / 2 + PI * i / 80, sv = sOf(p); w.push(E(sv * cb - r * Math.sin(p) * sb, sv * sb + r * Math.sin(p) * cb)); }
+  g.strokeStyle = C.blue; g.lineWidth = 2; poly(g, w, sm(3.0, 3.9, t));
+  const mid = w[18], cf2 = sm(3.6, 4.2, t); g.lineWidth = 1; poly(g, [[mid[0] - 5, mid[1] + 6], [mid[0] - 34, mid[1] + 40], [mid[0] - 200, mid[1] + 40]], cf2);
+  text(g, 's(φ) = ?', mid[0] - 150, mid[1] + 24, { a: sm(3.9, 4.4, t), col: C.blue, font: `italic 19px "Liberation Serif",serif` });
+  g.restore();
+}
+
+// ---------- scenes 3-4: orthographic camera, painter-sorted shells
+function camera(t) {
+  const o = sm(12.2, 15.4, t), d = cl((t - 12.2) / 5.8), top = sm(18.6, 21.5, t);
+  const az = mix(mix(0, 0.5, o) + 0.1 * d, 0, sm(18.3, 20.2, t)), el = mix(0.5 * o, PI / 2, top);
+  return { az, el, K: mix(mix(70, 66, o), 68, top), cx: 960, cy: mix(mix(590, 575, o), 606, top), tg: [mix(mix(0, 0.5, o), HLEN / 2 + (GAP + 2 * PI * r) / 2 - HLEN / 2, top), 0, mix(mix(0, 1.0, o), R, top)] };
+}
+function projector(c) { const ca = Math.cos(c.az), sa = Math.sin(c.az), ce = Math.cos(c.el), se = Math.sin(c.el), rt = [ca, sa, 0], up = [-sa * se, ca * se, ce], f = [-sa * ce, ca * ce, -se];
+  const P = (p) => { const d = [p[0] - c.tg[0], p[1] - c.tg[1], p[2] - c.tg[2]]; return [c.cx + c.K * dot(rt, d), c.cy - c.K * dot(up, d), dot(f, d)]; }; P.f = f; return P; }
+const LIGHT = (() => { const v = [-0.38, -0.62, 0.68], n = Math.hypot(...v); return v.map((x) => x / n); })();
+function shade(n, f) { const front = dot(n, f) < 0, nn = front ? n : sc(n, -1), l = Math.pow(dot(nn, LIGHT) * 0.5 + 0.5, 1.6), k = front ? 0.2 + 0.72 * l : 0.07 + 0.2 * l;
+  return `rgb(${Math.round(201 * k + 6)},${Math.round(206 * k + 7)},${Math.round(212 * k + 9)})`; }
+function draw3D(t) {
+  const P = projector(camera(t)), f = P.f;
+  const kH = sm(19.0, 21.6, t), kB = sm(19.8, 21.6, t), F = brFrame(sm(18.6, 20.7, t), 1.25 * sm(18.0, 19.0, t));
+  const sa = sm(12.35, 13.5, t), flat = sm(21.5, 22.3, t), gone = sm(24.5, 25.1, t);
+  const HP = (x, u) => P(hdrPt(x, u, kH)), BP = (w, s) => P(brPt(F, w, s, kB));
+  // header axis: the collapsed application frame becomes the centreline
+  const Lh = mix(672 / 70, 6.7, sm(11.05, 11.8, t)), axA = 1 - sm(12.7, 13.7, t);
+  if (axA > 0) { g.save(); g.lineWidth = 1; const a = P([-Lh, 0, 0]), b = P([Lh, 0, 0]), k = sm(11.2, 11.9, t); g.globalAlpha = axA * (1 - k); g.strokeStyle = C.line; poly(g, [a, b]); g.globalAlpha = axA * k; g.strokeStyle = C.t1; g.setLineDash([22, 5, 3, 5]); poly(g, [a, b]);
+    poly(g, [P(sc(A0, -1)), P(sc(A0, S_END + 0.8))], sm(11.5, 12.3, t)); g.restore(); }
+  // elevation linework (the drawing view is the front projection of the solid)
+  const la = 1 - sm(12.35, 13.2, t);
+  if (la > 0) { g.save(); g.globalAlpha = la; g.strokeStyle = C.w; g.lineWidth = 1.5; g.lineJoin = 'round'; const W = (x, z) => P([x, 0, z]), ax = (s, o) => P(add(sc(A0, s), sc(E2, o)));
+    poly(g, [W(-6, -R), W(6, -R), W(6, R), W(-6, R)], sm(11.2, 12.1, t), true); poly(g, [ax(sOf(PI / 2), 1), ax(S_END, 1), ax(S_END, -1), ax(sOf(-PI / 2), -1)], sm(11.5, 12.3, t));
+    const w = []; for (let i = 0; i <= 80; i++) { const p = -PI / 2 + PI * i / 80; w.push(ax(sOf(p), Math.sin(p))); } g.strokeStyle = C.blue; g.lineWidth = 2; poly(g, w, sm(11.9, 12.5, t)); g.restore(); }
+  if (sa > 0 && gone < 1) {
+    const prims = [], quad = (pts, n) => { const q = pts.map((p) => p); let d = 0; for (const p of q) d += p[2]; prims.push({ d: d / q.length, q, col: shade(n, f) }); };
+    for (const c of HM) { let um = 0; for (const p of c) um += p[1]; quad(c.map(([x, u]) => HP(x, u)), hdrN(um / c.length, kH)); }
+    for (const c of BM) quad(c.map(([w, s]) => BP(w, s)), brN(F, (c[0][0] + c[1][0]) / 2, kB));
+    const BIAS = 0.22, line = (pts, col, w) => { for (let i = 1; i < pts.length; i++) prims.push({ d: (pts[i][2] + pts[i - 1][2]) / 2 - BIAS, a: pts[i - 1], b: pts[i], col, w }); };
+    const edge = 'rgba(245,247,250,.85)', US = []; for (let i = 0; i <= 192; i++) US.push(-PI * R + 2 * PI * R * i / 192);
+    line(US.map((u) => HP(-6, u)), edge, 1.25); line(US.map((u) => HP(6, u)), edge, 1.25);
+    const XS = []; for (let i = 0; i <= 24; i++) XS.push(-6 + i * 0.5); line(XS.map((x) => HP(x, -PI * R)), edge, 1.25); if (kH > 0) line(XS.map((x) => HP(x, PI * R)), edge, 1.25);
+    line(OPEN.map(([x, u]) => HP(x, u)), C.blue, 2);
+    line(SADDLE.map(([w, s]) => BP(w, s)), C.blue, 2); line(SADDLE.map(([w]) => BP(w, S_END)), edge, 1.25);
+    line([BP(-PI * r, sOf(0)), BP(-PI * r, S_END)], edge, 1.25); if (kB > 0) line([BP(PI * r, sOf(0)), BP(PI * r, S_END)], edge, 1.25);
+    // travelling generator: phi sweeps the joint and s(phi) is read out
+    const ma = win(15.0, 15.4, 17.6, 18.0, t); let dotP = null;
+    if (ma > 0) { const phi = PHI(t), a = BP(wOf(phi), sOf(phi)), b = BP(wOf(phi), S_END); prims.push({ d: (a[2] + b[2]) / 2 - BIAS * 1.5, a, b, col: `rgba(47,125,246,${ma})`, w: 2 }); dotP = { d: a[2] - BIAS * 2, dot: a, al: ma }; prims.push(dotP); }
+    prims.sort((p, q) => q.d - p.d);
+    go.clearRect(0, 0, 1920, 1080); go.lineJoin = 'round'; go.lineCap = 'round';
+    for (const p of prims) {
+      if (p.q) { go.beginPath(); go.moveTo(p.q[0][0], p.q[0][1]); for (let i = 1; i < p.q.length; i++) go.lineTo(p.q[i][0], p.q[i][1]); go.closePath(); go.fillStyle = go.strokeStyle = p.col; go.lineWidth = 0.9; go.fill(); go.stroke(); }
+      else if (p.dot) { go.globalAlpha = p.al; go.beginPath(); go.arc(p.dot[0], p.dot[1], 5, 0, 2 * PI); go.fillStyle = C.g0; go.fill(); go.lineWidth = 2; go.strokeStyle = C.blue; go.stroke(); go.globalAlpha = 1; }
+      else { go.beginPath(); go.moveTo(p.a[0], p.a[1]); go.lineTo(p.b[0], p.b[1]); go.strokeStyle = p.col; go.lineWidth = p.w; go.stroke(); }
+    }
+    g.save(); g.globalAlpha = sa * mix(1, 0.2, flat) * (1 - gone); g.drawImage(off, 0, 0); g.restore();
+  }
+  // flat patterns as line work: outer cut, inner cut, dimensions (top view, exact)
+  if (flat > 0 && gone < 1) {
+    g.save(); g.globalAlpha = flat * (1 - gone); g.lineJoin = 'round';
+    const H = (x, u) => HP(x, u), hr = [H(-6, PI * R), H(6, PI * R), H(6, -PI * R), H(-6, -PI * R)], bo = SADDLE.map(([w, s]) => BP(w, s)).concat([BP(PI * r, S_END), BP(-PI * r, S_END)]);
+    g.strokeStyle = C.w; g.lineWidth = 1.5; poly(g, hr, 1, true); poly(g, bo, 1, true); g.strokeStyle = C.blue; g.lineWidth = 2; poly(g, OPEN.map(([x, u]) => H(x, u)), 1, true);
+    const df = (a) => cl((t - a) / 0.9), x0 = hr[0][0], x1 = hr[1][0], y0 = hr[0][1], y1 = hr[2][1], b0 = BP(PI * r, S_END)[0], b1 = BP(-PI * r, S_END)[0];
+    g.lineWidth = 1; g.strokeStyle = C.line; const ex = sm(21.9, 22.5, t);
+    for (const [p, q] of [[[x0, y0 - 8], [x0, y0 - 44]], [[x1, y0 - 8], [x1, y0 - 44]], [[x0 - 8, y0], [x0 - 44, y0]], [[x0 - 8, y1], [x0 - 44, y1]], [[b0, y1 + 8], [b0, y1 + 44]], [[b1, y1 + 8], [b1, y1 + 44]]]) poly(g, [p, q], ex);
+    dim(g, [x0, y0 - 32], [x1, y0 - 32], `${mm(LEN.hl, 0)}`, df(22.0)); dim(g, [x0 - 32, y0], [x0 - 32, y1], `2πR = ${mm(LEN.c_R)}`, df(22.2)); dim(g, [b0, y1 + 32], [b1, y1 + 32], `2πr = ${mm(LEN.c_r)}`, df(22.4));
+    const la2 = sm(22.6, 23.2, t), oc = H((Math.min(...OPEN.map((p) => p[0])) + Math.max(...OPEN.map((p) => p[0]))) / 2, 0), ob = Math.max(...OPEN.map(([x, u]) => H(x, u)[1]));
+    text(g, 'CUT_INNER', oc[0], ob + 26, { a: la2, col: C.blue, font: `13px ${MONO}` }); text(g, mm(LEN.open), oc[0], ob + 46, { a: la2, col: C.t2, font: `13px ${MONO}` });
+    text(g, 'CUT_OUTER', x0 + 18, y1 - 22, { a: la2, al: 'left', col: C.t1, font: `13px ${MONO}` });
+    text(g, 'CUT_OUTER', b0 + 18, y1 - 42, { a: la2, al: 'left', col: C.t1, font: `13px ${MONO}` }); text(g, mm(LEN.saddle), b0 + 18, y1 - 22, { a: la2, al: 'left', col: C.t2, font: `13px ${MONO}` });
+    text(g, X.unit, x1, y1 + 32, { a: la2, al: 'right', col: C.t1, font: lang === 'ja' ? `14px ${JAF}` : `13px ${MONO}` });
+    g.restore();
+  }
+}
+const PHI = (t) => 2 * PI * cl((t - 15.1) / 2.6);
+
+// ---------- brand rule: the edge of the plate travels on to underline the name
+function drawRule(t) {
+  const k = sm(24.7, 25.9, t); if (k <= 0) return; const P = projector(camera(t)), a = P([-6, -PI * R, R]), b = P([6, -PI * R, R]), y = mix(a[1], 536.5, k), h = mix((b[0] - a[0]) / 2, 28, k), x = mix((a[0] + b[0]) / 2, 960, k);
+  g.save(); g.lineWidth = mix(1.5, 2, k); g.strokeStyle = C.w; g.globalAlpha = 1 - k; poly(g, [[x - h, y], [x + h, y]]); g.strokeStyle = C.blue; g.globalAlpha = k; poly(g, [[x - h, y], [x + h, y]]); g.restore();
+}
+
+// ---------- text layers
+const SEG = [[0, 5], [5, 11], [11, 18], [18, 25], [25, 30]];
+const lbl = (cls, s, amber) => `<i class="mk ${cls}"></i><span${amber ? ' class="amb"' : ''}>${s}</span>`;
+const strip = (s) => s.split(/[:：]/)[0].trim();
+let HEADS = [], STL = [], STR = [];
+function build() {
+  const lb = L.labels;
+  HEADS = L.headline;
+  STL = [lbl('c', `${X.concept} · ${lb.fictional}`), lbl('i', `${lb.implemented} · ${lb.actual}`), lbl('p', lb.planned_concept, 1), lbl('i', `${lb.demonstrated} · ${X.redrawn}`), lbl('p', lb.disclaimer)];
+  STR = ['', '', lbl('p', lb.planned_reading, 1), lbl('p', lb.planned_constraints, 1), ''];
+  $('eqk').textContent = `${lb.implemented} · ${X.c1}`; $('eqn').innerHTML = `R = ${R * MM} &nbsp; r = ${r * MM} &nbsp; β = ${Math.round(BETA * 180 / PI)}°<br>${X.ref}`; if (lang === 'ja') $('eqn').style.fontFamily = JAF;
+  $('checks').innerHTML = `<div class="kick"><i class="mk i"></i><span>${lb.implemented}</span></div>` + [X.c1, X.c2, X.c3, lb.dxf_checked].map((s) => `<div class="it"><i class="mk i"></i><span>${s}</span></div>`).join('');
+  const [, tagline] = L.brand.split(/\s*[—–]\s*/); $('bt').textContent = tagline || ''; $('bh').textContent = L.headline[4];
+  $('bs').innerHTML = L.slogan.split(/(?<=[.。])\s*/).filter(Boolean).map((s) => `<span>${s}</span>`).join('');
+  // brand glyph: one period of the real developed cut curve
+  const pts = []; for (let i = 0; i <= 60; i++) { const p = 2 * PI * i / 60; pts.push(`${(1 + 32 * i / 60).toFixed(2)} ${(1.5 + 13 * (sOf(p) - sOf(PI / 2)) / (sOf(-PI / 2) - sOf(PI / 2))).toFixed(2)}`); }
+  $('glyph').innerHTML = `<path d="M${pts.join('L')}" fill="none" stroke="${C.blue}" stroke-width="1.6" stroke-linecap="round"/>`;
+}
+const set = (e, a, y = 0) => { e.style.opacity = a.toFixed(4); e.style.transform = y ? `translateY(${y.toFixed(2)}px)` : ''; };
 window.seek = (t) => {
-  const n = Math.max(0, SEG.findIndex(([a, b]) => t >= a && t < b)), [a, b] = SEG[n], lt = t - a;
-  for (let i = 0; i < 4; i++) $('b' + (i + 1)).style.opacity = sm(SEG[i][0] - 0.25, SEG[i][0] + 0.25, t) * (1 - sm(SEG[i][1] - 0.25, SEG[i][1] + 0.25, t)) || (i === 0 && t < 0.25 ? 1 : 0);
-  // island: motion is computed from the start of the film, so it never jumps between scenes
-  let o = 0; for (let i = 0; i < 4; i++) o = Math.max(o, spring(t - SEG[i][0] - 0.2) * (1 - sm(SEG[i][1] - 0.5, SEG[i][1] - 0.12, t)));
-  const oh = Math.min(o, 1), wI = 230 + (1180 - 230) * o, hI = 40 + (580 - 40) * oh;
-  const isl = $('island'); isl.style.width = wI + 'px'; isl.style.height = hI + 'px'; isl.style.marginLeft = -wI / 2 + 'px'; isl.style.borderRadius = 22 + 14 * oh + 'px';
-  for (let i = 0; i < 4; i++) $('p' + (i + 1)).style.opacity = i === n ? cl((o - 0.7) / 0.3) : 0;
-  for (const [e, s0, s1, id] of draw) if (id === 's' + (n + 1)) e.setAttribute('stroke-dashoffset', 1 - sm(s0, s1, lt));
-  document.querySelectorAll('#s' + (n + 1) + ' [data-a]').forEach((e) => e.setAttribute('opacity', sm(+e.dataset.a, +e.dataset.a + 0.5, lt)));
-  if (n === 2) $('solid').setAttribute('opacity', sm(2.4, 4.2, lt));
-  if (n === 3) { $('f1').setAttribute('opacity', 0.9 * sm(2.2, 3.0, lt)); $('f2').setAttribute('opacity', 0.9 * sm(3.4, 4.2, lt)); }
-  if (n === 1) $('shot').style.backgroundPositionY = -40 * sm(0.5, 6, lt) + 'px';
-  const cv = sm(0.35, 0.9, lt) * (1 - sm(b - a - 0.45, b - a - 0.1, lt));
-  $('cap').innerHTML = L.cap[n]; $('cap').style.opacity = cv; $('cap').style.transform = `translateY(${18 * (1 - sm(0.35, 0.9, lt))}px)`; const em = $('cap').querySelector('em'); if (em) em.style.color = TINT[n];
-  $('tag').textContent = L.tag[n]; $('tag').style.opacity = cv;
-  $('end').style.opacity = sm(25.3, 26.2, t); $('end').style.transform = `scale(${0.97 + 0.03 * sm(25.3, 27, t)})`;
+  t = Math.min(Math.max(+t || 0, 0), 30); g.clearRect(0, 0, 1920, 1080);
+  // application frame and captures (real screenshots, slow push)
+  const F = frameRect(t), sh = $('shot'), ia = win(5.05, 5.6, 10.3, 10.75, t); sh.style.left = F.x + 'px'; sh.style.top = F.y + 'px'; sh.style.width = F.w + 'px'; sh.style.height = F.h + 'px'; sh.style.opacity = ia;
+  const x2 = sm(7.9, 8.5, t); $('i1').style.opacity = 1; $('i2').style.opacity = x2;
+  $('i1').style.transform = `scale(${1 + 0.035 * cl((t - 5) / 3.5)})`; $('i1').style.transformOrigin = '50% 40%';
+  $('i2').style.transform = `scale(${1.2 + 0.05 * cl((t - 7.9) / 3.1)})`; $('i2').style.transformOrigin = '56% 62%';
+  if (t < 11.1) drawSheet(t);
+  if (t >= 11.05 && t < 25.2) draw3D(t);
+  drawRule(t);
+  // headline, status labels, index
+  const n = Math.min(4, SEG.findIndex(([a, b]) => t >= a && t < b) < 0 ? 4 : SEG.findIndex(([a, b]) => t >= a && t < b)), [a, b] = SEG[n];
+  const hv = n === 4 ? 0 : sm(a + 0.3, a + 0.95, t) * (1 - sm(b - 0.5, b - 0.12, t)); $('head').textContent = HEADS[n]; set($('head'), hv, 10 * (1 - out(a + 0.3, a + 1.2, t)));
+  const sv = n === 4 ? sm(26.3, 27.0, t) : sm(a + 0.5, a + 1.1, t) * (1 - sm(b - 0.45, b - 0.1, t));
+  if ($('stl').dataset.n !== String(n)) { $('stl').innerHTML = STL[n]; $('str').innerHTML = STR[n]; $('stl').dataset.n = n; }
+  set($('stl'), sv); set($('str'), n === 2 ? win(12.6, 13.2, 17.55, 17.9, t) : sv);
+  $('stl').style.left = n === 4 ? '0' : '96px'; $('stl').style.right = n === 4 ? '0' : 'auto'; $('stl').style.justifyContent = n === 4 ? 'center' : 'flex-start';
+  $('idx').textContent = `0${n + 1} / 05`; set($('idx'), 1 - sm(24.7, 25.2, t)); set($('wm'), sm(0.1, 0.8, t) * (1 - sm(24.7, 25.2, t)));
+  // scene 3: governing equation and live values
+  set($('eq'), win(14.0, 14.7, 17.5, 17.9, t), 8 * (1 - out(14.0, 14.9, t)));
+  const va = win(14.5, 15.2, 17.5, 17.9, t); set($('vals'), va);
+  if (va > 0) { const phi = PHI(t); $('vals').innerHTML = [['R', mm(R * MM, 0) + ' mm'], ['r', mm(r * MM, 0) + ' mm'], ['β', (BETA * 180 / PI).toFixed(0) + '°']].map(([k, v]) => `<div class="row"><span>${k}</span><b>${v}</b></div>`).join('') +
+    `<div class="row live"><span>φ</span><b>${(phi * 180 / PI).toFixed(1).padStart(5, ' ')}°</b></div><div class="row live"><span>s(φ)</span><b>${mm(sOf(phi) * MM, 2)} mm</b></div>`; }
+  // scene 4: what is implemented
+  const ck = $('checks').children; for (let i = 0; i < ck.length; i++) { const s0 = 22.3 + i * 0.18; set(ck[i], sm(s0, s0 + 0.5, t) * (1 - sm(24.5, 24.9, t)), 6 * (1 - out(s0, s0 + 0.7, t))); }
+  // scene 5: brand
+  set($('bw'), sm(25.3, 26.3, t), 0); $('bw').style.letterSpacing = $('bw').style.textIndent = mix(0.23, 0.2, out(25.3, 28.5, t)).toFixed(4) + 'em';
+  set($('bt'), sm(26.0, 26.8, t), 8 * (1 - out(26.0, 27.0, t))); set($('bh'), sm(26.5, 27.2, t));
+  const ss = $('bs').children; set($('bs'), 1); for (let i = 0; i < ss.length; i++) ss[i].style.opacity = sm(27.0 + i * 0.3, 27.5 + i * 0.3, t).toFixed(4);
 };
-window.seek(Number(Q.get('t') || 0)); window.READY = true;
+(async () => {
+  try { const j = await (await fetch('script/narration.json')).json(); if (j && j[lang] && j[lang].headline) L = j[lang]; } catch (e) { /* offline fallback: built-in English strings */ }
+  $('stage').className = lang; build();
+  await Promise.all([...document.images].map((i) => i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; })));
+  if (document.fonts && document.fonts.ready) await document.fonts.ready;
+  window.LENGTHS = LEN; window.seek(Number(Q.get('t') || 0)); window.READY = true;
+})();
 </script></body></html>
