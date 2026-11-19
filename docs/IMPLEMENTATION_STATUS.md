@@ -1,6 +1,6 @@
 # Implementation Status
 
-Updated 18 November 2026 · implementation session 3 · engine `nf-core 0.1.0 / uem 0.1.0`
+Updated 18 November 2026 · implementation session 4 · engine `nf-core 0.1.0 / uem 0.1.0`
 
 Four different things are tracked separately and must not be confused:
 
@@ -15,6 +15,14 @@ Four different things are tracked separately and must not be confused:
 ## Summary
 
 A launchable single-binary application exists: sign in, create projects, upload documents (stored encrypted, not interpreted), enter geometry parameters for four part families, obtain a flat pattern with independent verification checks, a DXF, a gate evaluation and a replay audit — every result ends in REVIEW REQUIRED or REJECTED. `APPROVED` cannot be reached.
+
+## Added in session 4 (stress testing and learning from mistakes)
+
+- **Stress campaign** over hard and extreme parts: 6,848 cases at scale 6, each verified or explicitly refused, 0 defects after one fix. **Mutation campaign:** 2,682 wrong-parameter patterns, all caught by the verifiers.
+- **Defect found and fixed:** DXF numbers were rounded to nine decimals, breaking large-radius arcs; now exact.
+- **Regression corpus** that runs with every test.
+- **Lessons:** corrections, verification rejections and integrity failures are recorded per project; later jobs that repeat them get an advisory and stay in REVIEW REQUIRED (gate G20) until an engineer acknowledges with a reason.
+- Details and limits: [Stress Testing and Learning from Mistakes](LEARNING_AND_STRESS_TESTING.md). Zero errors is a target on tested cases, not a guarantee.
 
 ## Added in session 3 (security hardening and interface quality)
 
@@ -147,8 +155,9 @@ The dependency **rule table is provisional** (EV-1; 0 of 56 statements reviewed)
 | `cargo test -p nf-dxf` | 2 | Round trip; corruption, truncation, foreign entity, layer change |
 | `cargo test -p nf-core` | 12 | Record identity and storage round trip; closure; release-state rules; job determinism; assembly structure; propagation reach, locality and determinism; discharge rules |
 | `cargo test -p nf-server` | 3 | Encryption, password hashing, membrane |
-| `tests/e2e_smoke.sh` | 61 checks | Fresh server: setup, auth, roles, upload admission and encryption, five job families, reference values through the API, DXF export, separate-process replay, correction → supersession → obligations → resolution, withheld files, audit |
-| `tests/security_smoke.sh` | 52 checks | Forgery, headers, cross-project access, traversal, hostile input, plaintext search, key handling, tampering with audit/records/blobs, password and session handling, throttling |
+| `cargo test --release -p nf-core --test stress` | 5 campaigns | Hard and extreme geometry, mutation of inputs, regression corpus |
+| `tests/e2e_smoke.sh` | 71 checks | Fresh server: setup, auth, roles, upload admission and encryption, five job families, reference values through the API, DXF export, separate-process replay, correction → supersession → obligations → resolution, withheld files, audit |
+| `tests/security_smoke.sh` | 54 checks | Forgery, headers, cross-project access, traversal, hostile input, plaintext search, key handling, tampering with audit/records/blobs, password and session handling, throttling |
 | `cargo audit` | 104 crates | No known advisories (advisory database of 18 November 2026) |
 | `tests/ui_smoke.js` | 1 flow | Real browser: setup, single-part job, assembly job, correction, resolving an obligation, superseded job, all areas, no script errors, no overflow at tablet width |
 

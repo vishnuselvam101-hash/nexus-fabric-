@@ -88,6 +88,14 @@ Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, 
 | D-53 | Advertising campaign: every film under 60 seconds; narration, slogan and structure as briefed; approval required before final rendering; pricing shown only after management approval | Accepted — at workflow step 6 (awaiting approval of draft) | [Campaign](../../marketing/nexus-fabric/README.md) |
 | D-54 | Script version for the three beats describing unimplemented capabilities (A as briefed with on-screen concept labels, or B adjusted) | **Open — owner decision** | [Flagship script](../../marketing/nexus-fabric/scripts/FLAGSHIP_SCRIPT.md) |
 
+### Seventh round (19 November 2026)
+
+| ID | Subject | Status | Record |
+|---|---|---|---|
+| D-55 | The engine is exercised with hard and extreme cases; target is zero defects on tested cases, stated as a target and never as a guarantee | Accepted | [Stress Testing and Learning](../LEARNING_AND_STRESS_TESTING.md) |
+| D-56 | Learning from mistakes is implemented as recorded lessons and a regression corpus: lessons raise advisories for an engineer, never change values, never self-modify algorithms, and stay within one project | Accepted; consistent with ADR-016 interim rule (propose-only, scoped) | same |
+| D-57 | Third-party skills (cook, unlazy, motion-graphics set, frontend-design) and Agent Reach are used as working tools; skills are vetted before installation | Accepted | `.claude/skills/` |
+
 Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded on them.
 
 ## 2. Designs produced in this refinement (all Proposed — awaiting review)
