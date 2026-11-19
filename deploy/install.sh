@@ -1,61 +1,106 @@
 #!/usr/bin/env bash
-# Run as root from the repository root:
+# Run as root:
 #   sudo DOMAIN=app.example.com [NF_PORT=8787] bash deploy/install.sh
-# Safe on a server that already runs other sites: it never overwrites an existing Caddyfile
-# (it backs it up and appends one site block), refuses a port that is in use, and fails if the service does not come up.
+# Re-runnable: an existing install is upgraded in place (binary, unit, restart); user, data and key are kept.
+# Safe next to other sites: an existing Caddyfile is never overwritten (see deploy/caddy-site.sh), a port in
+# use is refused, the firewall is never enabled here, and the script fails unless the service answers.
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
+# shellcheck source=caddy-site.sh
+. "$SCRIPT_DIR/caddy-site.sh"
+
+die() { echo "install: $*" >&2; exit 1; }
+warn() { echo "install: WARNING: $*" >&2; }
+
+[ "$(id -u)" = 0 ] || die "run as root"
 : "${DOMAIN:?set DOMAIN=your.domain}"
+case "$DOMAIN" in ''|*[!A-Za-z0-9.-]*|.*|*.) die "DOMAIN must be a host name such as app.example.com" ;; esac
 NF_PORT="${NF_PORT:-8787}"
-[ "$(id -u)" = 0 ] || { echo "run as root" >&2; exit 1; }
+case "$NF_PORT" in ''|*[!0-9]*) die "NF_PORT must be a number" ;; esac
+[ "$NF_PORT" -ge 1024 ] && [ "$NF_PORT" -le 65535 ] || die "NF_PORT must be between 1024 and 65535"
+
 . /etc/os-release 2>/dev/null || true
 case "${ID:-}:${VERSION_ID:-}" in
-  ubuntu:22.04|ubuntu:24.04|ubuntu:26.04|debian:12) ;;   # 26.04: installed manually once, script path itself untested there
-  *) [ "${NF_FORCE_OS:-0}" = 1 ] || { echo "unsupported OS '${PRETTY_NAME:-unknown}'. Supported: Ubuntu 22.04/24.04/26.04, Debian 12. Set NF_FORCE_OS=1 to try anyway." >&2; exit 1; } ;;
+  ubuntu:22.04|ubuntu:24.04|debian:12) ;;
+  ubuntu:26.04) echo "note: Ubuntu 26.04 was verified by a manual install; this script has not been run end to end there." ;;
+  *) warn "untested OS '${PRETTY_NAME:-unknown}'. Verified for: Ubuntu 22.04/24.04/26.04, Debian 12. Continuing." ;;
 esac
-case "$NF_PORT" in ''|*[!0-9]*) echo "NF_PORT must be a number" >&2; exit 1;; esac
-upgrade=0; systemctl is-active --quiet nf-server 2>/dev/null && upgrade=1
-if [ "$upgrade" = 0 ] && ss -ltnH "sport = :$NF_PORT" | grep -q .; then
-  echo "port $NF_PORT is already in use; choose another with NF_PORT=<port>" >&2; exit 1
+
+# Port: refuse one that is already in use, unless it is this service's own current port.
+existing_port="$(sed -n 's/^Environment=NF_LISTEN=.*:\([0-9][0-9]*\)$/\1/p' /etc/systemd/system/nf-server.service 2>/dev/null | head -1 || true)"
+own=0
+if systemctl is-active --quiet nf-server 2>/dev/null && [ "$existing_port" = "$NF_PORT" ]; then own=1; fi
+if [ "$own" = 0 ] && ss -ltnH "sport = :$NF_PORT" | grep -q .; then
+  ss -ltnp "sport = :$NF_PORT" >&2 || true
+  die "port $NF_PORT is already in use (listeners above); choose a free port with NF_PORT=<port>"
 fi
 
 apt-get update && apt-get install -y build-essential curl ufw iproute2
-command -v cargo >/dev/null || { curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal; . "$HOME/.cargo/env"; }
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+if ! command -v cargo >/dev/null; then
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+  . "$HOME/.cargo/env"
+fi
 cargo build --release -p nf-server
-install -m 0755 target/release/nf-server /usr/local/bin/nf-server
+install -m 0755 target/release/nf-server /usr/local/bin/nf-server.new
+mv -f /usr/local/bin/nf-server.new /usr/local/bin/nf-server
+
 id nexusfabric >/dev/null 2>&1 || useradd --system --home /var/lib/nexus-fabric --shell /usr/sbin/nologin nexusfabric
 install -d -o nexusfabric -g nexusfabric -m 0700 /var/lib/nexus-fabric
 install -d -o root -g nexusfabric -m 0750 /etc/nexus-fabric
-[ -f /etc/nexus-fabric/master.key ] || { head -c 32 /dev/urandom > /etc/nexus-fabric/master.key; chown root:nexusfabric /etc/nexus-fabric/master.key; chmod 0440 /etc/nexus-fabric/master.key; }
-sed "s/^Environment=NF_LISTEN=.*/Environment=NF_LISTEN=127.0.0.1:${NF_PORT}/" deploy/nf-server.service > /etc/systemd/system/nf-server.service
-systemctl daemon-reload && systemctl enable nf-server && systemctl restart nf-server
-# 'systemctl enable --now' succeeds even when the bind fails, so check that the server really answers
-ok=0; for _ in $(seq 1 20); do
-  if systemctl is-active --quiet nf-server && curl -fsS -o /dev/null "http://127.0.0.1:${NF_PORT}/"; then ok=1; break; fi; sleep 0.5
-done
-[ "$ok" = 1 ] || { echo "nf-server did not come up on 127.0.0.1:${NF_PORT}:" >&2; journalctl -u nf-server -n 30 --no-pager >&2; exit 1; }
+if [ ! -f /etc/nexus-fabric/master.key ]; then
+  ( umask 077; head -c 32 /dev/urandom > /etc/nexus-fabric/master.key )
+  chown root:nexusfabric /etc/nexus-fabric/master.key
+  chmod 0440 /etc/nexus-fabric/master.key
+  echo "created /etc/nexus-fabric/master.key (back it up; it is not shown here)"
+fi
 
-# Caddy: automatic HTTPS. An existing configuration is kept: backed up, then one site block appended.
+# Unit: the shipped file with only the listen address changed; sandboxing is untouched.
+sed "s|^Environment=NF_LISTEN=.*|Environment=NF_LISTEN=127.0.0.1:${NF_PORT}|" deploy/nf-server.service > /etc/systemd/system/nf-server.service.new
+mv -f /etc/systemd/system/nf-server.service.new /etc/systemd/system/nf-server.service
+systemctl daemon-reload
+systemctl enable nf-server
+systemctl restart nf-server
+
+# 'enable' succeeds even when the bind fails, so check that the server really answers.
+ok=0
+for _ in $(seq 1 30); do
+  if curl -fsS -o /dev/null --max-time 2 "http://127.0.0.1:${NF_PORT}/api/health"; then ok=1; break; fi
+  sleep 0.5
+done
+if [ "$ok" != 1 ]; then
+  echo "nf-server did not answer on http://127.0.0.1:${NF_PORT}/api/health; last log lines:" >&2
+  journalctl -u nf-server -n 30 --no-pager >&2 || true
+  exit 1
+fi
+echo "nf-server answers on 127.0.0.1:${NF_PORT}"
+
+# Caddy: automatic HTTPS in front of the service.
 if ! command -v caddy >/dev/null; then
   apt-get install -y debian-keyring debian-archive-keyring apt-transport-https gpg
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' > /etc/apt/sources.list.d/caddy-stable.list
   apt-get update && apt-get install -y caddy
 fi
-CF=/etc/caddy/Caddyfile
-block="$(sed -e "s/app.example.com/${DOMAIN}/" -e "s/127.0.0.1:8787/127.0.0.1:${NF_PORT}/" -e '/^#/d' deploy/Caddyfile)"
-if [ -f "$CF" ] && grep -qF "$DOMAIN" "$CF"; then
-  echo "Caddyfile already mentions ${DOMAIN}; left unchanged. Check that it proxies to 127.0.0.1:${NF_PORT}."
-else
-  [ -f "$CF" ] && cp -p "$CF" "$CF.bak.$(date +%Y%m%d%H%M%S)"
-  printf '\n%s\n' "$block" >> "$CF"
-  if ! caddy validate --config "$CF" --adapter caddyfile >/dev/null 2>&1; then
-    echo "new Caddyfile does not validate; restoring the previous one" >&2
-    latest="$(ls -t "$CF".bak.* 2>/dev/null | head -1)"; [ -n "$latest" ] && cp -p "$latest" "$CF"; exit 1
-  fi
-  systemctl reload caddy || systemctl restart caddy
+install -d -m 0755 /var/log/caddy
+if id caddy >/dev/null 2>&1; then chown caddy:caddy /var/log/caddy; fi
+CADDY_CHANGED=0
+caddy_apply_site /etc/caddy/Caddyfile "$DOMAIN" "$NF_PORT" "$SCRIPT_DIR/Caddyfile" \
+  || die "Caddy configuration was not applied; the previous Caddyfile is restored"
+if [ "$CADDY_CHANGED" = 1 ]; then
+  systemctl reload caddy 2>/dev/null || systemctl restart caddy || die "Caddy did not reload; see journalctl -u caddy"
 fi
-# firewall: add rules only; enable only if it was not already managed
-ufw allow OpenSSH >/dev/null; ufw allow 80/tcp >/dev/null; ufw allow 443/tcp >/dev/null
-ufw status | grep -q "Status: active" || ufw --force enable
+
+# Firewall: add the rules only. Enabling ufw on a server with other services can lock them out, so it is left to the operator.
+ufw allow OpenSSH >/dev/null
+ufw allow 80/tcp >/dev/null
+ufw allow 443/tcp >/dev/null
+fw="$(ufw status 2>/dev/null || true)"
+case "$fw" in
+  *"Status: active"*) echo "ufw is active: SSH, 80 and 443 allowed." ;;
+  *) warn "ufw is inactive, so it was not enabled. Rules for SSH, 80 and 443 are stored. Before enabling, check the ports of your other services: ufw allow <port>/tcp, then ufw enable." ;;
+esac
+
 echo "NEXUS FABRIC answers on 127.0.0.1:${NF_PORT}; public address https://${DOMAIN} once DNS points here."
-echo "Create the first administrator: see docs/BUILD_AND_TEST_GUIDE.md. Back up /var/lib/nexus-fabric together with /etc/nexus-fabric/master.key."
+echo "Create the first administrator: see docs/BUILD_AND_TEST_GUIDE.md. Back up /var/lib/nexus-fabric together with /etc/nexus-fabric/master.key (see deploy/README.md)."

@@ -1,0 +1,10 @@
+[Unit]
+Description=NEXUS FABRIC daily backup (online, service keeps running)
+After=nf-server.service
+Wants=nf-server.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/nf-backup
+Nice=10
+IOSchedulingClass=idle
