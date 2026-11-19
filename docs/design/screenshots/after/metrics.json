@@ -1,23 +1,23 @@
 {
  "assets_bytes": {
   "/": 666,
-  "/app.js": 99061,
-  "/viewer.js": 15177,
-  "/styles.css": 33004,
-  "total": 147908
+  "/app.js": 133306,
+  "/viewer.js": 16143,
+  "/styles.css": 37981,
+  "total": 188096
  },
  "perf": {
   "dashboard": {
-   "domContentLoaded_ms": 45.9,
-   "first_view_rendered_ms": 116.6,
-   "dom_nodes": 355
+   "domContentLoaded_ms": 45.6,
+   "first_view_rendered_ms": 137.8,
+   "dom_nodes": 349
   },
   "job": {
-   "domContentLoaded_ms": 42.4,
-   "first_view_rendered_ms": 124.3,
-   "dom_nodes": 1402
+   "domContentLoaded_ms": 47.7,
+   "first_view_rendered_ms": 151.8,
+   "dom_nodes": 1631
   }
  },
  "console_errors": [],
- "screenshots": 72
+ "screenshots": 82
 }

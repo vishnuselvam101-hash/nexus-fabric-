@@ -89,3 +89,13 @@ The client is three times larger and 10–25 ms slower to first view. That is th
 ## 7. Known limits of the frontend (honest list)
 
 Touch gestures (pinch zoom) are not implemented in the viewer · curve hit-testing is pointer-based; the keyboard path to a curve is the curve table · measurement is planar distance in the development plane only — no arc-length-along-curve, angle or area tools · job lists are whatever the API returns (capped at 200 by the server), filtered client-side, no paging · the dependency graph uses a simple layered layout without crossing minimisation beyond one barycentre pass · Japanese interface still missing (U-14) · no client unit tests (browser test only) · static assets are sent uncompressed with `no-store`.
+
+## 8. Round 2 (after the independent UI critic, `UI_CRITIC_REPORT_R1.md`)
+
+No change to the stack decision and no server change. Added in the client: one effective-state rule (superseded > no result > server state) used by every list, count, banner and watermark; input checks that mirror the engine's documented limits; a to-scale parameter schematic per family; units and one display precision; a difference view and canvas overlay for corrections; a correction dialog; per-part manufacturing and per-job verification tables; dependency layers that fit the side panel.
+
+Cost: the job list API returns neither the engine `outcome` nor the parts of a job, so list pages read each listed job once (`jobFacts`, cached in memory until the next state-changing request). With the 200-job cap of the list API this is up to 200 small parallel requests on a cold page. **Recommended server change (not made here):** add `outcome` (or a `no_result` flag), the part names and the replay result to the rows of `/api/calculations` and `/api/dashboard`, and count superseded and no-result jobs in `/api/dashboard`; the client would then drop `jobFacts`.
+
+Findings that need the server or the engine and were therefore only reported: a request the engine refuses is stored as a job in state `REVIEW_REQUIRED` (the client relabels it NO RESULT); `/api/dashboard` counts superseded and refused jobs as `review_required`; the DXF has no in-drawing NOT-RELEASED text, no layer colours and units only in a comment; there is no archive endpoint, so "all parts" is one download per part.
+
+Browser test: 101 named checks.

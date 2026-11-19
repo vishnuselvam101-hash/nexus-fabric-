@@ -22,9 +22,15 @@ const SCREENS = [['dashboard', '#/dashboard'], ['projects', '#/projects'], ['pro
       const vpos = (ci, vi) => p.evaluate(([c, v]) => { const pl = document.querySelector(`.pv .hit[data-ci="${c}"]`), q = pl.points[v], m = pl.getScreenCTM(); return [q.x * m.a + q.y * m.c + m.e, q.x * m.b + q.y * m.d + m.f]; }, [ci, vi]);
       let [x, y] = await vpos(4, 100); await p.mouse.click(x, y); await p.mouse.move(x, y); await p.click('#tab-ws-scrutiny'); await p.mouse.move(x + 1, y); await p.waitForTimeout(200); await shot('x-workspace-curve-selected-scrutiny');
       await p.click('#t-measure'); [x, y] = await vpos(0, 0); await p.mouse.click(x, y); [x, y] = await vpos(4, 300); await p.mouse.move(x, y); await p.mouse.click(x, y); await p.click('#tab-ws-checks'); await p.mouse.move(x + 1, y); await p.waitForTimeout(200); await shot('x-workspace-measure-checks');
-      await p.click('#t-select'); await p.keyboard.press('2'); await p.click('#tab-ws-graph'); await p.locator('#tp-ws-graph .dg .n').nth(3).click(); await p.waitForTimeout(200); await shot('x-workspace-branch-dependency-graph');
+      await p.click('#t-select'); await p.keyboard.press('2'); await p.click('#tab-ws-graph'); await p.locator('#tp-ws-graph .dgl .node').nth(3).click(); await p.waitForTimeout(200); await shot('x-workspace-branch-dependency-graph');
       await p.click('#tab-ws-history'); [x, y] = await vpos(2, 400); await p.mouse.move(x, y); await p.mouse.wheel(0, -500); await p.waitForTimeout(250); await shot('x-workspace-zoomed-history');
       await p.click('#tab-ws-records'); await p.locator('#tp-ws-records .rec').first().click(); await p.waitForTimeout(200); await shot('x-workspace-records-provenance');
+      await p.click('#tab-ws-changes'); await p.click('#v-prev'); await p.waitForTimeout(200); await shot('x-workspace-changes-overlay'); await p.click('#v-prev');
+      await p.click('#corr-open'); await p.waitForTimeout(200); await shot('x-workspace-correction-dialog'); await p.keyboard.press('Escape');
+      await p.goto(B + '/#/math/1'); await p.waitForSelector('#calc'); await p.selectOption('#f_fam', 'header_with_branch'); await p.focus('#f_beta_deg'); await p.waitForTimeout(200); await shot('x-new-calculation-schematic');
+      await p.fill('#f_branch_radius', '400'); await p.click('#run'); await p.waitForTimeout(200); await shot('x-new-calculation-refused-inline');
+      await p.selectOption('#f_fam', 'eccentric_reducer'); await p.waitForTimeout(200); await shot('x-new-calculation-eccentric');
+      await p.goto(B + '/#/calc/7'); await p.waitForSelector('.pv');
       await p.keyboard.press('?'); await p.waitForTimeout(250); await shot('x-help-overlay'); await p.keyboard.press('Escape');
       await p.click('#bell'); await p.waitForTimeout(150); await shot('x-notifications'); await p.keyboard.press('Escape');
       for (const t of ['activities', 'obligations', 'lessons', 'dependencies/7', 'mechanisms']) { await p.goto(B + '/#/amoeba/' + t); await p.waitForSelector('h1'); await p.waitForTimeout(250); await shot('x-amoeba-' + t.replace('/7', '')); }
