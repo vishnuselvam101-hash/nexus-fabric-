@@ -1,0 +1,19 @@
+[
+ {"t": 0.3, "kind": "sweep", "note": "hello written in one line, 0.3-2.05 s"},
+ {"t": 3.2, "kind": "scene_start", "scene": 2, "note": "notch opens into the drawing"},
+ {"t": 3.6, "kind": "draw_on", "note": "elevation and end view, ticks at 3.6, 4.1, 4.6 s"},
+ {"t": 5.6, "kind": "reveal", "note": "intersection curve in blue"},
+ {"t": 6.05, "kind": "reveal", "note": "callout s(phi) = ?"},
+ {"t": 7.0, "kind": "scene_start", "scene": 3, "note": "notch opens into the real application"},
+ {"t": 8.8, "kind": "transition", "note": "widget narrows onto the pattern canvas"},
+ {"t": 10.8, "kind": "scene_start", "scene": 4, "note": "notch opens into the equation"},
+ {"t": 11.5, "kind": "sweep", "note": "phi sweeps along the intersection curve, 11.5-14.2 s"},
+ {"t": 14.6, "kind": "scene_start", "scene": 5, "note": "notch opens into the flat patterns"},
+ {"t": 15.1, "kind": "draw_on", "note": "outlines trace, ticks at 15.1, 15.6, 16.0 s"},
+ {"t": 16.6, "kind": "reveal", "note": "plates fill, lengths appear"},
+ {"t": 18.4, "kind": "scene_start", "scene": 6, "note": "notch opens into the checks"},
+ {"t": 19.4, "kind": "draw_on", "note": "check marks, six steps 0.09 s apart"},
+ {"t": 21.7, "kind": "scene_start", "scene": 7, "note": "notch opens into the DXF"},
+ {"t": 22.65, "kind": "reveal", "note": "written, re-read, compared at 22.65, 23.07, 23.49 s"},
+ {"t": 25.0, "kind": "brand_reveal", "note": "notch returns to rest; mark draws, wordmark arrives"}
+]
