@@ -11,6 +11,20 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmt = (n) => (typeof n === 'number' ? (n === 0 ? '0' : Math.abs(n) >= 1e-3 && Math.abs(n) < 1e9 ? Number(n.toPrecision(12)).toString() : n.toExponential(3)) : esc(n));
+// A dimension is accepted only as plain digits with an optional sign, one decimal point and an optional exponent.
+// Anything else (decimal comma, thousands separator, full-width digits, hex, spaces inside the number) is refused
+// instead of being interpreted: the value computed must be exactly the value typed. (A browser number field silently
+// drops such characters: "1,5" became 15. These fields are therefore text fields read by this parser.)
+const DIM = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+const parseDim = (s) => { const v = String(s ?? '').trim(); return DIM.test(v) ? Number(v) : NaN; };
+const dimAttrs = 'type="text" inputmode="decimal" autocomplete="off" autocapitalize="off" spellcheck="false" data-dim';
+// ArrowUp / ArrowDown step a dimension field by one unit, as a number field would, keeping its decimals.
+document.addEventListener('keydown', (e) => {
+  const el = e.target; if (!(el instanceof HTMLInputElement) || !el.hasAttribute('data-dim') || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+  const v = parseDim(el.value); if (!Number.isFinite(v)) return;
+  const dec = (/\.(\d+)$/.exec(el.value.trim()) || [, ''])[1].length;
+  e.preventDefault(); el.value = (v + (e.key === 'ArrowUp' ? 1 : -1)).toFixed(dec); el.dispatchEvent(new Event('input', { bubbles: true }));
+});
 const pad2 = (n) => String(n).padStart(2, '0');
 // ISO 8601 date and time in the browser's time zone, in every language
 const when = (ts) => { if (!ts) return '—'; const d = new Date(ts * 1000); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
@@ -787,7 +801,7 @@ const views = {
       if (me.role === 'viewer') return { title, nav: 'workspace', crumbs, html: `<div class="page">${ph(esc(title), '')}${empty('shield', t('math.viewer.t'), esc(t('math.viewer.p')), `<a class="btn" href="#/workspace">${esc(t('math.viewer.go'))}</a>`)}</div>` };
       const pid = projectId || ctxProject || ps[0].id;
       const fam0 = from && F[from.family] ? from.family : 'cylinder_shell';
-      const fields = (k) => F[k].f.map(([n, v, u]) => `<div class="field prop"><label for="f_${n}">${esc(plabel(k, n))}<span class="mono key">${n}</span></label><div class="inp"><input id="f_${n}" name="${n}" type="number" step="any" inputmode="decimal" value="${from && from.family === k && typeof from[n] === 'number' ? from[n] : v}"><span class="unit" aria-hidden="true">${esc(unitText(u))}</span></div></div>`).join('')
+      const fields = (k) => F[k].f.map(([n, v, u]) => `<div class="field prop"><label for="f_${n}">${esc(plabel(k, n))}<span class="mono key">${n}</span></label><div class="inp"><input id="f_${n}" name="${n}" ${dimAttrs} value="${from && from.family === k && typeof from[n] === 'number' ? from[n] : v}"><span class="unit" aria-hidden="true">${esc(unitText(u))}</span></div></div>`).join('')
         + (F[k].sref ? `<div class="field"><label for="f_sref">${esc(t('math.sref.label'))}<span class="mono key">surface_reference</span></label><select id="f_sref" name="surface_reference">${['unknown', 'outside', 'inside', 'neutral'].map((o) => `<option value="${o}"${from && from.surface_reference === o ? ' selected' : ''}>${esc(t(`sref.${o}`))}</option>`).join('')}</select></div>` : '')
         + (F[k].ext ? extFields(from) : '');
       const lis = (prefix, n) => `<ul>${Array.from({ length: n }, (_, i) => `<li>${h(`${prefix}.${i + 1}`)}</li>`).join('')}</ul>`;
@@ -815,7 +829,7 @@ const views = {
         wire(root) {
           wireSplits(root);
           const form = $('#calc'), canvas = $('#sk-canvas'), cap = $('#sk-cap'); let hot = null, confirmed = '';
-          const read = () => { const fam = form.fam.value, req = { family: fam }; for (const [n] of F[fam].f) { const el = form.elements.namedItem(n); req[n] = !el || el.value.trim() === '' ? NaN : Number(el.value); } if (F[fam].sref) req.surface_reference = form.surface_reference.value; if (F[fam].ext) for (const n of ['header_surface_reference', 'branch_surface_reference', 'joint']) { const el = form.elements.namedItem(n); if (el && el.value) req[n] = el.value; } return req; };
+          const read = () => { const fam = form.fam.value, req = { family: fam }; for (const [n] of F[fam].f) { const el = form.elements.namedItem(n); req[n] = el ? parseDim(el.value) : NaN; } if (F[fam].sref) req.surface_reference = form.surface_reference.value; if (F[fam].ext) for (const n of ['header_surface_reference', 'branch_surface_reference', 'joint']) { const el = form.elements.namedItem(n); if (el && el.value) req[n] = el.value; } return req; };
           const draw = () => {
             const fam = form.fam.value, r = sketch(fam, read(), Math.max(320, canvas.clientWidth), Math.max(240, canvas.clientHeight));
             cap.innerHTML = r.cap; canvas.innerHTML = r.svg;
@@ -995,7 +1009,7 @@ const views = {
           <form id="corr" novalidate><div class="dlg-b one">
             <p class="hint lead">${esc(t('corr.p'))}</p>
             <div class="field"><label for="corrp">${esc(t('corr.param'))}</label><select id="corrp" name="p">${c.correctable_parameters.map(([k, v]) => `<option value="${esc(k)}">${esc(t('corr.opt', { label: plabel(fam, k), key: k, v: `${fmt(v)}${punit(k) ? ` ${punit(k)}` : ''}` }))}</option>`).join('')}</select></div>
-            <div class="field"><label for="corrv">${esc(t('corr.value'))}</label><input id="corrv" name="v" type="number" step="any" inputmode="decimal"></div>
+            <div class="field"><label for="corrv">${esc(t('corr.value'))}</label><input id="corrv" name="v" ${dimAttrs}></div>
             <div class="field"><label for="corrr">${esc(t('corr.reason'))}</label><input id="corrr" name="r" placeholder="${esc(t('corr.reason.ph'))}"></div>
             <div id="corrmsg"></div></div>
             <div class="dlg-f row"><span class="grow"></span><button type="button" id="corr-cancel">${esc(t('cancel'))}</button><button class="pri" id="corr-go">${esc(t('corr.go'))}</button></div></form></dialog>` : ''}</div>`;
@@ -1017,7 +1031,7 @@ const views = {
           $$('[data-correct]', root).forEach((b) => { b.onclick = () => open(b.dataset.correct); });
           f.onsubmit = async (e) => {
             e.preventDefault(); clearFieldErrors(f);
-            const k = f.p.value, nv = Number(f.v.value), now = c.request[k];
+            const k = f.p.value, nv = parseDim(f.v.value), now = c.request[k];
             if (f.v.value.trim() === '' || !Number.isFinite(nv)) { fieldError(f.v, t('corr.e.num')); return; }
             if (nv === now) { fieldError(f.v, t('corr.e.same', { v: fmt(now) })); return; }
             const trial = validateRequest(fam, { ...c.request, [k]: nv });

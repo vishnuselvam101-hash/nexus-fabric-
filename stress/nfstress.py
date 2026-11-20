@@ -315,7 +315,7 @@ def integrity_check(data_dir, srv_port=None, client=None, replay_sample=60):
         seen_ids.append(i)
         try:
             j = json.loads(rj)
-            if not ch or j.get("closure_hash") != ch or state not in ("REVIEW_REQUIRED", "REJECTED", "APPROVED", "REVIEW_REQUIRED "):
+            if not ch or j.get("closure_hash") != ch or state not in ("REVIEW_REQUIRED", "REJECTED", "REFUSED", "APPROVED", "REVIEW_REQUIRED "):  # REFUSED: input refused, nothing computed (a valid recorded outcome)
                 bad_calc += 1
         except Exception:
             bad_calc += 1
@@ -362,13 +362,28 @@ def replay_sample(client, n=40, maxid=None):
     st, d = client.req("GET", "/api/calculations")
     ids = [c["id"] for c in d] if st == 200 and d else []
     random.shuffle(ids)
-    bad = 0; checked = 0; errs = []
+    bad = 0; checked = 0; refused = 0; errs = []
     for cid in ids[:n]:
-        st, r = client.req("POST", f"/api/calculations/{cid}/replay", label="replay")
+        v = replay_verdict(client, cid, label="replay")
+        if v == "refused":
+            refused += 1; continue
         checked += 1
-        if st != 200 or not r or not r.get("matches") or r.get("stored_records_failing_identity_check", 0):
-            bad += 1; errs.append((cid, st, str(r)[:200]))
-    return {"checked": checked, "bad": bad, "errs": errs[:5]}
+        if v != "ok":
+            bad += 1; errs.append((cid, v))
+    return {"checked": checked, "bad": bad, "refused_nothing_to_replay": refused, "errs": errs[:5]}
+
+
+def replay_verdict(client, cid, label=None):
+    """'ok' if the server's replay matches; 'refused' if the job was a refused request (nothing was computed, so there is
+    nothing to replay: the server answers 409 and the job's state is REFUSED); otherwise a description of the failure."""
+    st, r = client.req("POST", f"/api/calculations/{cid}/replay", label=label)
+    if st == 200 and r and r.get("matches") and not r.get("stored_records_failing_identity_check", 0):
+        return "ok"
+    if st == 409:
+        s2, job = client.req("GET", f"/api/calculations/{cid}")
+        if s2 == 200 and job and job.get("state") == "REFUSED":
+            return "refused"
+    return f"{st} {str(r)[:200]}"
 
 
 def machine():

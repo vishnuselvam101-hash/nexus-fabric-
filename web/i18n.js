@@ -218,7 +218,7 @@ const EN = {
   'math.plaus.t': 'Unusual size — check the unit (mm).', 'math.plaus.p': 'Press the button again to run with these values.',
   'math.toast.none': 'Job #{id} recorded with NO RESULT — the engine refused the input: {why}', 'math.toast.ok': 'Job #{id} computed; its checks ran. State: {state}.',
   'math.why.default': 'no pattern produced', 'math.state.default': 'see gates',
-  'v.number': '{label}: enter a number.', 'v.positive': '{label} must be greater than 0.', 'v.big': '{label} = {v} mm is more than 20 m.', 'v.small': '{label} = {v} mm is less than 1 mm.',
+  'v.number': '{label}: enter a number using digits and a decimal point, for example 1.5. A comma is not accepted.', 'v.positive': '{label} must be greater than 0.', 'v.big': '{label} = {v} mm is more than 20 m.', 'v.small': '{label} = {v} mm is less than 1 mm.',
   'v.r1r2': 'Large-end radius must be greater than the small-end radius (large end first).', 'v.e': 'Offset of small end must be 0 or greater.',
   'v.beta': 'Angle between axes must be within 10° to 170° in this build.',
   'v.tangent': '|axis offset| + branch radius ({sum}) must be smaller than the header radius ({R}): tangent, partial and equal-diameter intersections are not implemented.',
@@ -336,7 +336,7 @@ const EN = {
   'corr.p': 'A correction never edits this job. It creates a new job, marks this one superseded, and raises an obligation for every record that depends on the corrected value, mates with something affected, or was entered under the same convention.',
   'corr.param': 'Parameter', 'corr.opt': '{label} — {key} (now {v})', 'corr.value': 'Corrected value', 'corr.reason': 'Reason (required, recorded with your name)', 'corr.reason.ph': 'e.g. drawing dimension is inside diameter',
   'corr.go': 'Record correction and propagate', 'corr.busy': 'Propagating…',
-  'corr.e.num': 'Enter the corrected value as a number.', 'corr.e.same': 'That is the current value ({v}). A correction must change it.', 'corr.e.reason': 'Give the reason (at least 5 characters); it is recorded with your name.',
+  'corr.e.num': 'Enter the corrected value using digits and a decimal point, for example 1.5. A comma is not accepted.', 'corr.e.same': 'That is the current value ({v}). A correction must change it.', 'corr.e.reason': 'Give the reason (at least 5 characters); it is recorded with your name.',
   'corr.toast': 'Correction recorded: {label} {a} → {b}. New job #{id}; {n} obligations raised, {open} need an engineer.',
 
   // manufacturing
@@ -563,7 +563,7 @@ const JA = {
   'math.plaus.t': '通常と異なる寸法です。単位（mm）を確認してください。', 'math.plaus.p': 'この値のまま実行するには、もう一度ボタンを押してください。',
   'math.toast.none': 'ジョブ #{id} は「結果なし」として記録されました。エンジンが入力を受け付けませんでした：{why}', 'math.toast.ok': 'ジョブ #{id} を計算し、検算を実施しました。状態：{state}。',
   'math.why.default': '展開図は生成されませんでした', 'math.state.default': 'ゲートを参照',
-  'v.number': '{label}：数値を入力してください。', 'v.positive': '{label}は0より大きい値にしてください。', 'v.big': '{label} = {v} mm は20 mを超えています。', 'v.small': '{label} = {v} mm は1 mm未満です。',
+  'v.number': '{label}：半角数字と小数点で入力してください（例：1.5）。カンマは使えません。', 'v.positive': '{label}は0より大きい値にしてください。', 'v.big': '{label} = {v} mm は20 mを超えています。', 'v.small': '{label} = {v} mm は1 mm未満です。',
   'v.r1r2': '大径側半径は、小径側半径より大きくしてください（大径側を先に入力）。', 'v.e': '小径側の偏心量は0以上にしてください。',
   'v.beta': 'このビルドでは、両軸のなす角は10°から170°の範囲にしてください。',
   'v.tangent': '｜軸オフセット｜＋枝管半径（{sum}）は、母管半径（{R}）より小さくしてください。接する場合、部分的な相貫、同径の相貫は未実装です。',
@@ -671,7 +671,7 @@ const JA = {
   'corr.p': '訂正によって、このジョブが書き換えられることはありません。新しいジョブを作成し、このジョブを旧版とします。さらに、訂正した値に依存する記録、影響を受けるものと取り合う記録、同じ規約で入力された記録のそれぞれに、要精査項目を発生させます。',
   'corr.param': 'パラメータ', 'corr.opt': '{label} — {key}（現在 {v}）', 'corr.value': '訂正後の値', 'corr.reason': '理由（必須。あなたの名前とともに記録されます）', 'corr.reason.ph': '例：図面寸法は内径だった',
   'corr.go': '訂正を記録して影響を伝播', 'corr.busy': '伝播中…',
-  'corr.e.num': '訂正後の値を数値で入力してください。', 'corr.e.same': 'それは現在の値（{v}）です。訂正では値を変える必要があります。', 'corr.e.reason': '理由を入力してください（5文字以上）。あなたの名前とともに記録されます。',
+  'corr.e.num': '訂正後の値を、半角数字と小数点で入力してください（例：1.5）。カンマは使えません。', 'corr.e.same': 'それは現在の値（{v}）です。訂正では値を変える必要があります。', 'corr.e.reason': '理由を入力してください（5文字以上）。あなたの名前とともに記録されます。',
   'corr.toast': '訂正を記録しました：{label} {a} → {b}。新しいジョブ #{id}。要精査項目{n}件が発生し、うち{open}件は技術者の判断が必要です。',
 
   'mfg.sub': 'エンジンが出力したすべてのDXFファイルを、部材ごとに1行で表示します。リリース済みのものはありません。',

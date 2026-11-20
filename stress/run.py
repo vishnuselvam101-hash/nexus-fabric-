@@ -12,6 +12,11 @@ RESULTS = os.path.join(HERE, "results")
 STOP = threading.Event()
 
 
+def hostb(port):
+    """Host header value the server accepts for a loopback listener (the host allow-list refuses anything else with 421)."""
+    return f"127.0.0.1:{port}".encode()
+
+
 def parallel(n, fn, *a):
     ths = [threading.Thread(target=fn, args=(i,) + a, daemon=True) for i in range(n)]
     [t.start() for t in ths]
@@ -172,7 +177,7 @@ def raw_http(port, data, timeout=15, read=65536):
 def big_post(port, path, size, cookie, extra=b"", prefix=b"%PDF-1.7\n", ctype=b"application/octet-stream"):
     """Send a large body over a raw socket; report the status line even if the server closes early."""
     s = socket.create_connection(("127.0.0.1", port), timeout=60); t = time.time()
-    hdr = b"POST " + path.encode() + b" HTTP/1.1\r\nHost: x\r\nX-NF-Request: 1\r\nCookie: " + cookie.encode() + b"\r\nContent-Type: " + ctype + b"\r\n" + extra + b"Content-Length: " + str(size).encode() + b"\r\n\r\n"
+    hdr = b"POST " + path.encode() + b" HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-NF-Request: 1\r\nCookie: " + cookie.encode() + b"\r\nContent-Type: " + ctype + b"\r\n" + extra + b"Content-Length: " + str(size).encode() + b"\r\n\r\n"
     sent = 0; err = None
     try:
         s.sendall(hdr); chunk = prefix + b"a" * (1 << 20)
@@ -307,11 +312,11 @@ def level3(ctx):
     out["health_latency_during_49MB_upload_ms"] = {"n": len(lat), "p50": round(pct(lat, 50), 1), "max": round(max(lat), 1)}
     # raw protocol limits
     raw = {}
-    raw["header_8KB"] = raw_http(port, b"GET /api/health HTTP/1.1\r\nHost: x\r\nX-A: " + b"a" * 8000 + b"\r\n\r\n")
-    raw["header_64KB"] = raw_http(port, b"GET /api/health HTTP/1.1\r\nHost: x\r\nX-A: " + b"a" * 65000 + b"\r\n\r\n")
-    raw["header_1MB"] = raw_http(port, b"GET /api/health HTTP/1.1\r\nHost: x\r\nX-A: " + b"a" * 1000000 + b"\r\n\r\n")
-    raw["header_5000_headers"] = raw_http(port, b"GET /api/health HTTP/1.1\r\nHost: x\r\n" + b"".join(b"X-%d: v\r\n" % i for i in range(5000)) + b"\r\n")
-    raw["cookie_100KB"] = raw_http(port, b"GET /api/me HTTP/1.1\r\nHost: x\r\nCookie: nf_session=" + b"a" * 100000 + b"\r\n\r\n")
+    raw["header_8KB"] = raw_http(port, b"GET /api/health HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-A: " + b"a" * 8000 + b"\r\n\r\n")
+    raw["header_64KB"] = raw_http(port, b"GET /api/health HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-A: " + b"a" * 65000 + b"\r\n\r\n")
+    raw["header_1MB"] = raw_http(port, b"GET /api/health HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-A: " + b"a" * 1000000 + b"\r\n\r\n")
+    raw["header_5000_headers"] = raw_http(port, b"GET /api/health HTTP/1.1\r\nHost: " + hostb(port) + b"\r\n" + b"".join(b"X-%d: v\r\n" % i for i in range(5000)) + b"\r\n")
+    raw["cookie_100KB"] = raw_http(port, b"GET /api/me HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nCookie: nf_session=" + b"a" * 100000 + b"\r\n\r\n")
     out["raw_protocol"] = raw
     out["total_jobs_in_db"] = cnt[0]
     return out
@@ -461,7 +466,8 @@ def post_integrity(ctx, out):
     ic = integrity_check(srv.data)
     srv.start(); c = Client(srv.port); c.login()
     ic["replay_sample"] = replay_sample(c, n=ctx.get("replay_n", 60))
-    ic["suspect_replay"] = {"calcs": len(ic.get("suspect_owner_calcs", [])), "bad": sum(1 for cid in ic.get("suspect_owner_calcs", [])[:300] if not (lambda s_r: s_r[0] == 200 and s_r[1].get("matches") and not s_r[1].get("stored_records_failing_identity_check"))(c.req("POST", f"/api/calculations/{cid}/replay"))) }
+    _sv = [replay_verdict(c, cid) for cid in ic.get("suspect_owner_calcs", [])[:300]]
+    ic["suspect_replay"] = {"calcs": len(ic.get("suspect_owner_calcs", [])), "ok": _sv.count("ok"), "refused_nothing_to_replay": _sv.count("refused"), "bad": sum(1 for v in _sv if v not in ("ok", "refused"))}
     ic["suspect_ids"] = ic["suspect_ids"][:3]; ic.pop("suspect_owner_calcs", None)
     ic["audit_verify_api"] = c.req("GET", "/api/audit/verify")[1]
     ic["live_calc_listing_count"] = len(c.req("GET", "/api/calculations")[1])
@@ -506,7 +512,7 @@ def writer_storm(port, cookie, pid, stop, acked, errs, nthreads=6, seed=0):
         while not stop.is_set():
             k += 1; r = rng.random()
             if r < 0.5:
-                fam = rng.choice(list(FAMILIES)); st, d = c.req("POST", f"/api/projects/{pid}/calculations", FAMILIES[fam](k))
+                fam = rng.choice(list(FAMILIES)); st, d = c.req("POST", f"/api/projects/{pid}/calculations", FAMILIES[fam](k % 40))
                 if st == 200:
                     acked.append(("calc", d["id"], fam))
                     if fam == "header_with_branch": hdr.append(d["id"])
@@ -629,7 +635,7 @@ def level6(ctx):
     # consistency: calcs with no audit entry / corrections without obligations / orphan records
     import sqlite3
     db = sqlite3.connect(f"file:{os.path.join(srv.data, 'nexus-fabric.sqlite')}?mode=ro", uri=True)
-    no_audit = db.execute("SELECT COUNT(*) FROM calculations c WHERE c.supersedes IS NULL AND NOT EXISTS (SELECT 1 FROM audit a WHERE a.action='calculation' AND a.detail LIKE '#'||c.id||' %')").fetchone()[0]
+    no_audit = db.execute("SELECT COUNT(*) FROM calculations c WHERE c.supersedes IS NULL AND NOT EXISTS (SELECT 1 FROM audit a WHERE a.action IN ('calculation','calculation_refused') AND a.detail LIKE '#'||c.id||' %')").fetchone()[0]
     corr_no_obl = db.execute("SELECT COUNT(*) FROM calculations c WHERE c.supersedes IS NOT NULL AND NOT EXISTS (SELECT 1 FROM obligations o WHERE o.target_calc=c.id)").fetchone()[0]
     corr_no_audit = db.execute("SELECT COUNT(*) FROM calculations c WHERE c.supersedes IS NOT NULL AND NOT EXISTS (SELECT 1 FROM audit a WHERE a.action='correction' AND a.detail LIKE '%'||c.id||'%')").fetchone()[0]
     orphan_docs = db.execute("SELECT COUNT(*) FROM documents d WHERE NOT EXISTS (SELECT 1 FROM records r WHERE r.id=d.record_id)").fetchone()[0]
@@ -687,7 +693,7 @@ def consistency(data):
     import sqlite3
     db = sqlite3.connect(f"file:{os.path.join(data, 'nexus-fabric.sqlite')}?mode=ro", uri=True)
     q = lambda s: db.execute(s).fetchone()[0]
-    o = {"calc_rows_without_audit_entry": q("SELECT COUNT(*) FROM calculations c WHERE c.supersedes IS NULL AND NOT EXISTS (SELECT 1 FROM audit a WHERE a.action='calculation' AND a.detail LIKE '#'||c.id||' %')"),
+    o = {"calc_rows_without_audit_entry": q("SELECT COUNT(*) FROM calculations c WHERE c.supersedes IS NULL AND NOT EXISTS (SELECT 1 FROM audit a WHERE a.action IN ('calculation','calculation_refused') AND a.detail LIKE '#'||c.id||' %')"),
          "correction_jobs_without_obligations": q("SELECT COUNT(*) FROM calculations c WHERE c.supersedes IS NOT NULL AND NOT EXISTS (SELECT 1 FROM obligations o WHERE o.target_calc=c.id)"),
          "documents_without_blob": sum(1 for (s,) in db.execute("SELECT sha256 FROM documents") if not os.path.exists(os.path.join(data, "blobs", s + ".bin"))),
          "calcs_with_missing_dxf_blob": 0}
@@ -774,7 +780,7 @@ def level6b(ctx):
     """malformed HTTP + fuzz (run as part of level 6 via --level 6; separate instance)"""
     srv, rec, adm = ctx["srv"], ctx["rec"], ctx["admin"]; port = srv.port; out = {}
     st, d = adm.req("POST", "/api/projects", {"name": "fuzz"}); pid = d["id"]
-    hx = lambda path, body=b"", extra=b"", ct=b"application/json", cookie=True: (b"POST " + path + b" HTTP/1.1\r\nHost: x\r\nX-NF-Request: 1\r\n" + (b"Cookie: " + adm.cookie.encode() + b"\r\n" if cookie else b"") +
+    hx = lambda path, body=b"", extra=b"", ct=b"application/json", cookie=True: (b"POST " + path + b" HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-NF-Request: 1\r\n" + (b"Cookie: " + adm.cookie.encode() + b"\r\n" if cookie else b"") +
                                                                              (b"Content-Type: " + ct + b"\r\n" if ct else b"") + extra + b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body)
     m = {}
     m["invalid_json"] = raw_http(port, hx(b"/api/projects", b"{not json"))
@@ -782,16 +788,16 @@ def level6b(ctx):
     m["wrong_content_type_text"] = raw_http(port, hx(b"/api/projects", b'{"name":"x"}', ct=b"text/plain"))
     m["no_content_type"] = raw_http(port, hx(b"/api/projects", b'{"name":"x"}', ct=None))
     m["invalid_utf8"] = raw_http(port, hx(b"/api/projects", b'{"name":"\xff\xfe"}'))
-    m["content_length_mismatch_short"] = raw_http(port, b"POST /api/projects HTTP/1.1\r\nHost: x\r\nX-NF-Request: 1\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{\"name\":\"x\"}", timeout=6)
-    m["cl_and_te_conflict"] = raw_http(port, b"POST /api/projects HTTP/1.1\r\nHost: x\r\nX-NF-Request: 1\r\nContent-Type: application/json\r\nContent-Length: 12\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n")
-    m["negative_content_length"] = raw_http(port, b"POST /api/projects HTTP/1.1\r\nHost: x\r\nX-NF-Request: 1\r\nContent-Length: -1\r\n\r\n")
+    m["content_length_mismatch_short"] = raw_http(port, b"POST /api/projects HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-NF-Request: 1\r\nContent-Type: application/json\r\nContent-Length: 100\r\n\r\n{\"name\":\"x\"}", timeout=6)
+    m["cl_and_te_conflict"] = raw_http(port, b"POST /api/projects HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-NF-Request: 1\r\nContent-Type: application/json\r\nContent-Length: 12\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\n")
+    m["negative_content_length"] = raw_http(port, b"POST /api/projects HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-NF-Request: 1\r\nContent-Length: -1\r\n\r\n")
     m["http10"] = raw_http(port, b"GET /api/health HTTP/1.0\r\n\r\n")
-    m["bad_method"] = raw_http(port, b"BREW /api/health HTTP/1.1\r\nHost: x\r\n\r\n")
+    m["bad_method"] = raw_http(port, b"BREW /api/health HTTP/1.1\r\nHost: " + hostb(port) + b"\r\n\r\n")
     m["garbage_bytes"] = raw_http(port, os.urandom(2000) + b"\r\n\r\n")
     m["no_host"] = raw_http(port, b"GET /api/health HTTP/1.1\r\n\r\n")
-    m["chunked_huge_chunk_size"] = raw_http(port, b"POST /api/projects HTTP/1.1\r\nHost: x\r\nX-NF-Request: 1\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\nFFFFFFFFFFFF\r\n", timeout=6)
-    m["chunked_valid"] = raw_http(port, b"POST /api/projects HTTP/1.1\r\nHost: x\r\nX-NF-Request: 1\r\nContent-Type: application/json\r\nCookie: " + adm.cookie.encode() + b"\r\nTransfer-Encoding: chunked\r\n\r\n10\r\n{\"name\":\"chunk\"}\r\n0\r\n\r\n")
-    m["chunked_over_limit_300KB"] = raw_http(port, b"POST /api/projects HTTP/1.1\r\nHost: x\r\nX-NF-Request: 1\r\nContent-Type: application/json\r\nCookie: " + adm.cookie.encode() + b"\r\nTransfer-Encoding: chunked\r\n\r\n" + hex(300000)[2:].encode() + b"\r\n" + b"a" * 300000 + b"\r\n0\r\n\r\n")
+    m["chunked_huge_chunk_size"] = raw_http(port, b"POST /api/projects HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-NF-Request: 1\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\nFFFFFFFFFFFF\r\n", timeout=6)
+    m["chunked_valid"] = raw_http(port, b"POST /api/projects HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-NF-Request: 1\r\nContent-Type: application/json\r\nCookie: " + adm.cookie.encode() + b"\r\nTransfer-Encoding: chunked\r\n\r\n10\r\n{\"name\":\"chunk\"}\r\n0\r\n\r\n")
+    m["chunked_over_limit_300KB"] = raw_http(port, b"POST /api/projects HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-NF-Request: 1\r\nContent-Type: application/json\r\nCookie: " + adm.cookie.encode() + b"\r\nTransfer-Encoding: chunked\r\n\r\n" + hex(300000)[2:].encode() + b"\r\n" + b"a" * 300000 + b"\r\n0\r\n\r\n")
     m["origin_mismatch"] = raw_http(port, hx(b"/api/projects", b'{"name":"x"}', extra=b"Origin: http://evil\r\n"))
     out["malformed_http"] = m
     # health after the garbage
@@ -802,7 +808,7 @@ def level6b(ctx):
     for i in range(N):
         try:
             s = socket.create_connection(("127.0.0.1", port), timeout=5)
-            s.sendall(b"POST /api/projects HTTP/1.1\r\nHost: x\r\nX-NF-Request: 1\r\nContent-Type: application/json\r\nCookie: " + adm.cookie.encode() + b"\r\nContent-Length: 1000\r\n\r\n{")
+            s.sendall(b"POST /api/projects HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-NF-Request: 1\r\nContent-Type: application/json\r\nCookie: " + adm.cookie.encode() + b"\r\nContent-Length: 1000\r\n\r\n{")
             socks.append(s)
         except OSError:
             break
@@ -826,7 +832,7 @@ def level6b(ctx):
     time.sleep(1); out["fds_after_close"] = fds()
     # slow headers (never finish)
     socks = [socket.create_connection(("127.0.0.1", port)) for _ in range(100)]
-    for s in socks: s.sendall(b"GET /api/health HTTP/1.1\r\nHost: x\r\nX-A: ")
+    for s in socks: s.sendall(b"GET /api/health HTTP/1.1\r\nHost: " + hostb(port) + b"\r\nX-A: ")
     time.sleep(15); op = 0
     for s in socks:
         try:
