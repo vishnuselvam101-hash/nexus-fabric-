@@ -837,6 +837,21 @@ async fn me(State(app): Ctx, headers: HeaderMap) -> Api {
     ok(json!({ "id": u.id, "username": u.username, "role": u.role }))
 }
 
+/// `GET /api/session`: the client's start-up probe (BH-008). It answers 200 for a visitor who is not signed in
+/// too, with `signed_in: false`, so the sign-in screen makes no failed request and the browser logs no error.
+/// Any other failure is passed on. `/api/me` keeps its 401 for a visitor who is not signed in.
+async fn session(State(app): Ctx, headers: HeaderMap) -> Api {
+    match auth(&app, &headers) {
+        Ok(u) => {
+            ok(json!({ "signed_in": true, "id": u.id, "username": u.username, "role": u.role }))
+        }
+        Err(ApiError::Resp(r)) if r.status() == StatusCode::UNAUTHORIZED => {
+            ok(json!({ "signed_in": false }))
+        }
+        Err(e) => Err(e),
+    }
+}
+
 async fn list_users(State(app): Ctx, headers: HeaderMap) -> Api {
     let db = app.db();
     let u = auth_db(&db, &app, &headers)?;
@@ -1216,10 +1231,14 @@ async fn add_project(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value
     let u = auth_db(&db, &app, &headers)?;
     require(&u, &["admin", "engineer"])?;
     let name = s(&body, "name").trim().to_string();
-    if name.is_empty() || name.len() > 200 {
+    if name.is_empty() {
+        return Err(fail(StatusCode::BAD_REQUEST, "project name is required"));
+    }
+    // Counted in characters, as the name field's maxlength of 200 and the message say.
+    if name.chars().count() > 200 {
         return Err(fail(
             StatusCode::BAD_REQUEST,
-            "project name is required (max 200 characters)",
+            "project name is too long (max 200 characters)",
         ));
     }
     let description = text_field(&body, "description")?;
@@ -2154,13 +2173,14 @@ fn obligation_rows(
     arg: Option<i64>,
 ) -> rusqlite::Result<Vec<Value>> {
     let sql = format!(
-        "SELECT id, origin_calc, target_calc, kind, label, direction, via, required_check, state, note, resolved_by, resolved_at, created_at FROM obligations {where_sql} ORDER BY id DESC LIMIT 500"
+        "SELECT id, origin_calc, target_calc, kind, label, direction, via, required_check, state, note, resolved_by, resolved_at, created_at, EXISTS (SELECT 1 FROM calculations n WHERE n.supersedes = obligations.target_calc) FROM obligations {where_sql} ORDER BY id DESC LIMIT 500"
     );
     let map = |r: &rusqlite::Row<'_>| {
         Ok(
             json!({ "id": r.get::<_, i64>(0)?, "origin_calc": r.get::<_, i64>(1)?, "target_calc": r.get::<_, i64>(2)?, "kind": r.get::<_, String>(3)?, "label": r.get::<_, String>(4)?,
                    "direction": r.get::<_, String>(5)?, "via": r.get::<_, String>(6)?, "required_check": r.get::<_, String>(7)?, "state": r.get::<_, String>(8)?, "note": r.get::<_, String>(9)?,
-                   "resolved_by": r.get::<_, Option<String>>(10)?, "resolved_at": r.get::<_, Option<i64>>(11)?, "created_at": r.get::<_, i64>(12)? }),
+                   "resolved_by": r.get::<_, Option<String>>(10)?, "resolved_at": r.get::<_, Option<i64>>(11)?, "created_at": r.get::<_, i64>(12)?,
+                   "target_superseded": r.get::<_, bool>(13)? }),
         )
     };
     match arg {
@@ -3017,7 +3037,8 @@ async fn dashboard(State(app): Ctx, headers: HeaderMap) -> Api {
         "superseded": n(format!("{calcs} AND NOT {current}"))?,
         "refused": n(format!("{calcs} AND state = 'REFUSED'"))?,
         "approved": 0,
-        "open_obligations": n(format!("SELECT COUNT(*) FROM obligations WHERE state = 'open' AND target_calc IN (SELECT id FROM calculations WHERE {sc})"))?,
+        "open_obligations": n(format!("SELECT COUNT(*) FROM obligations WHERE state = 'open' AND target_calc IN (SELECT id FROM calculations WHERE {sc} AND {current})"))?,
+        "open_obligations_on_superseded": n(format!("SELECT COUNT(*) FROM obligations WHERE state = 'open' AND target_calc IN (SELECT id FROM calculations WHERE {sc} AND NOT {current})"))?,
         "records": n(format!("SELECT COUNT(*) FROM records WHERE {sc}"))?,
         "recent": recent,
         "uptime_seconds": now().saturating_sub(app.started),
@@ -3068,12 +3089,24 @@ async fn amoeba_summary(State(app): Ctx, headers: HeaderMap) -> Api {
         |r| Ok(json!({ "project_id": r.get::<_, i64>(0)?, "snapshot": r.get::<_, String>(1)? })),
     )?;
     let in_scope = format!("target_calc IN (SELECT id FROM calculations WHERE {sc})");
+    // BH-002: an obligation on a superseded result stays open (history is append-only) but is counted apart from
+    // the open work of the current results.
+    let current_target = format!(
+        "target_calc IN (SELECT id FROM calculations WHERE {sc} AND NOT EXISTS (SELECT 1 FROM calculations n WHERE n.supersedes = calculations.id))"
+    );
+    let superseded_target = format!(
+        "target_calc IN (SELECT id FROM calculations WHERE {sc} AND EXISTS (SELECT 1 FROM calculations n WHERE n.supersedes = calculations.id))"
+    );
     ok(json!({
         "records_by_kind": kinds,
         "activities": work.into_iter().map(|(k, (n, wu))| json!({ "type": k, "distinct_activities": n, "declared_work_units": wu })).collect::<Vec<_>>(),
         "recent_snapshots": snaps,
         "implemented": ["content-addressed append-only records", "project snapshots with predecessor links", "typed dependency edges (derivation, interface, common cause)", "dependency propagation with scrutiny obligations (provisional rule table)", "interface constraint verification between parts", "lessons from corrections and failures, matched against every later job in the project", "corrections as attestations with supersession", "release closure hash", "gate evaluation with obligation and replay state", "replay audit in a separate process", "membrane admission checks"],
-        "obligations": { "open": q_count(&db, &format!("SELECT COUNT(*) FROM obligations WHERE state = 'open' AND {in_scope}"), [])?, "total": q_count(&db, &format!("SELECT COUNT(*) FROM obligations WHERE {in_scope}"), [])? },
+        "obligations": {
+            "open": q_count(&db, &format!("SELECT COUNT(*) FROM obligations WHERE state = 'open' AND {current_target}"), [])?,
+            "open_on_superseded": q_count(&db, &format!("SELECT COUNT(*) FROM obligations WHERE state = 'open' AND {superseded_target}"), [])?,
+            "total": q_count(&db, &format!("SELECT COUNT(*) FROM obligations WHERE {in_scope}"), [])?
+        },
         "not_implemented": ["round scheduler and budgets", "exploration probes", "hypothesis-driven investigation", "coverage ledger", "lanes and overlays", "quarantine", "strategy switching", "self-consistency audits A1-A4", "replay on a separate machine or build", "engineer approval"],
     }))
 }
@@ -3266,6 +3299,7 @@ pub(crate) fn router(app: Arc<App>) -> Router {
         .route("/api/login", post(login))
         .route("/api/logout", post(logout))
         .route("/api/me", get(me))
+        .route("/api/session", get(session))
         .route("/api/users", get(list_users).post(add_user))
         .route("/api/users/{id}/active", post(set_user_active))
         .route("/api/password", post(change_password))
@@ -3637,20 +3671,134 @@ fn housekeeping(app: &App) -> rusqlite::Result<usize> {
     )
 }
 
+/// What the program does, decided from its command-line arguments (the arguments after the program name).
+#[derive(Debug, PartialEq, Eq)]
+enum Invocation {
+    /// No arguments: the server, configured by the `NF_*` environment variables.
+    Serve,
+    /// `--desktop`: desktop mode. Its own options are read by `desktop::parse_args`.
+    Desktop,
+    /// `--help` or `-h`: print the usage and exit 0.
+    Help,
+    /// `--version`: print the version and exit 0.
+    Version,
+}
+
+/// Decides what the arguments ask for. Nothing is created and no port is opened here: help and
+/// version never touch the data folder, and an argument that is not understood is an error (exit 2).
+fn invocation(args: &[String]) -> Result<Invocation, String> {
+    let (mut help, mut version, mut desktop) = (false, false, false);
+    // The first option that only desktop mode accepts; server mode refuses it.
+    let mut desktop_only: Option<&str> = None;
+    let mut it = args.iter();
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--help" | "-h" => help = true,
+            "--version" => version = true,
+            "--desktop" => desktop = true,
+            "--no-browser" => desktop_only = desktop_only.or(Some("--no-browser")),
+            "--port" => {
+                // the value is checked by desktop::parse_args when desktop mode runs
+                it.next();
+                desktop_only = desktop_only.or(Some("--port"));
+            }
+            other if other.starts_with("--port=") => {
+                desktop_only = desktop_only.or(Some("--port"));
+            }
+            other => {
+                return Err(format!(
+                    "unknown argument '{other}'; run nf-server --help for the usage"
+                ));
+            }
+        }
+    }
+    if help {
+        return Ok(Invocation::Help);
+    }
+    if version {
+        return Ok(Invocation::Version);
+    }
+    if desktop {
+        return Ok(Invocation::Desktop);
+    }
+    if let Some(flag) = desktop_only {
+        return Err(format!(
+            "{flag} is a desktop option and needs --desktop; server mode takes its settings from the NF_* environment variables (run nf-server --help)"
+        ));
+    }
+    Ok(Invocation::Serve)
+}
+
+fn version_text() -> String {
+    format!(
+        "nf-server {} ({})\nNEXUS FABRIC development build. Not validated: no output may be used for manufacturing.",
+        env!("CARGO_PKG_VERSION"),
+        nf_core::ENGINE_VERSION
+    )
+}
+
+fn help_text() -> String {
+    format!(
+        "NEXUS FABRIC server. Development build. Not validated: no output may be used for manufacturing.
+
+usage:
+  nf-server                    start the server, configured by the environment variables below
+  nf-server --desktop          run desktop mode: one person, on this computer only
+  nf-server --help, -h         show this help and exit (writes nothing, opens no port)
+  nf-server --version          show the version and exit (writes nothing, opens no port)
+Any other argument is an error: the program prints it and exits with status 2.
+
+{desktop}
+
+environment variables (server mode; desktop mode keeps its data in the per-user data folder):
+  NF_LISTEN                 address and port to listen on (default 127.0.0.1:8787)
+  NF_DATA_DIR               data folder (default: data, in the working directory)
+  NF_KEY_FILE               storage key file (default: storage.key inside the data folder).
+                            Keep it outside the data folder.
+  NF_SETUP_TOKEN            one-time setup token for the first administrator, at least 16 characters.
+                            Without it, a token is written to setup-token in the data folder.
+  NF_ALLOWED_HOSTS          more host names the server answers to, comma-separated
+  NF_TRUSTED_PROXY          addresses of reverse proxies whose X-Forwarded-For is used, comma-separated
+  NF_COOKIE_SECURE          1 = session cookies are marked Secure (use behind HTTPS)
+  NF_REQUEST_TIMEOUT_SECS   time limit for a whole request, 1 to 3600 (default 120)
+  NF_HEADER_TIMEOUT_SECS    time limit for a request head, 1 to 600 (default 15)
+  NF_MAX_CONNECTIONS        open connections, 1 to 100000 (default 512)
+  NF_SHUTDOWN_GRACE_SECS    seconds requests in flight get when the server stops, 0 to 600 (default 20)",
+        desktop = desktop::USAGE
+    )
+}
+
 #[tokio::main]
 async fn main() {
     if std::env::args().nth(1).as_deref() == Some("replay-check") {
         replay_child();
         return;
     }
-    // Desktop mode is strictly opt-in: only an explicit --desktop argument selects it.
+    // Read before anything is created: help, version and an unknown argument never create the
+    // data folder, a key or a setup token, and never open a port.
     let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.iter().any(|a| a == "--desktop") {
-        if let Err(e) = desktop::run(&args).await {
-            eprintln!("nf-server: cannot start desktop mode: {e}");
-            std::process::exit(2);
+    let mode = invocation(&args).unwrap_or_else(|e| {
+        eprintln!("nf-server: {e}");
+        std::process::exit(2);
+    });
+    match mode {
+        Invocation::Help => {
+            println!("{}", help_text());
+            return;
         }
-        return;
+        Invocation::Version => {
+            println!("{}", version_text());
+            return;
+        }
+        Invocation::Desktop => {
+            // Desktop mode is strictly opt-in: only an explicit --desktop argument selects it.
+            if let Err(e) = desktop::run(&args).await {
+                eprintln!("nf-server: cannot start desktop mode: {e}");
+                std::process::exit(2);
+            }
+            return;
+        }
+        Invocation::Serve => {}
     }
     let stop = |msg: String| -> ! {
         eprintln!("nf-server: cannot start: {msg}");
@@ -3703,5 +3851,85 @@ async fn main() {
     // flush: fold the write-ahead log into the database file before the process ends
     if let Err(e) = app.db().execute_batch("PRAGMA wal_checkpoint(TRUNCATE)") {
         eprintln!("nf-server: could not checkpoint the database at shutdown: {e}");
+    }
+}
+
+#[cfg(test)]
+mod invocation_tests {
+    use super::*;
+
+    fn args(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn flags_select_their_mode() {
+        assert_eq!(invocation(&args(&[])), Ok(Invocation::Serve));
+        assert_eq!(invocation(&args(&["--help"])), Ok(Invocation::Help));
+        assert_eq!(invocation(&args(&["-h"])), Ok(Invocation::Help));
+        assert_eq!(invocation(&args(&["--version"])), Ok(Invocation::Version));
+        assert_eq!(invocation(&args(&["--desktop"])), Ok(Invocation::Desktop));
+        assert_eq!(
+            invocation(&args(&["--desktop", "--port", "8861", "--no-browser"])),
+            Ok(Invocation::Desktop)
+        );
+        assert_eq!(
+            invocation(&args(&["--desktop", "--help"])),
+            Ok(Invocation::Help)
+        );
+        assert_eq!(
+            invocation(&args(&["--help", "--version"])),
+            Ok(Invocation::Help)
+        );
+    }
+
+    #[test]
+    fn unknown_arguments_are_errors_even_next_to_help() {
+        let e = invocation(&args(&["--open-everywhere"])).unwrap_err();
+        assert!(e.contains("unknown argument '--open-everywhere'"), "{e}");
+        assert!(invocation(&args(&["--help", "--bogus"])).is_err());
+        assert!(invocation(&args(&["extra"])).is_err());
+        assert!(invocation(&args(&[""])).is_err());
+    }
+
+    #[test]
+    fn desktop_options_need_desktop_in_server_mode() {
+        assert!(
+            invocation(&args(&["--port", "8861"]))
+                .unwrap_err()
+                .contains("--port")
+        );
+        assert!(invocation(&args(&["--port=8861"])).is_err());
+        assert!(
+            invocation(&args(&["--no-browser"]))
+                .unwrap_err()
+                .contains("--no-browser")
+        );
+    }
+
+    #[test]
+    fn help_text_lists_the_environment_and_the_desktop_options() {
+        let help = help_text();
+        for name in [
+            "NF_LISTEN",
+            "NF_DATA_DIR",
+            "NF_KEY_FILE",
+            "NF_SETUP_TOKEN",
+            "NF_ALLOWED_HOSTS",
+            "NF_TRUSTED_PROXY",
+            "NF_COOKIE_SECURE",
+            "NF_REQUEST_TIMEOUT_SECS",
+            "NF_HEADER_TIMEOUT_SECS",
+            "NF_MAX_CONNECTIONS",
+            "NF_SHUTDOWN_GRACE_SECS",
+            "--desktop",
+            "--no-browser",
+            "--port N",
+        ] {
+            assert!(help.contains(name), "help does not mention {name}");
+        }
+        assert!(help.contains("Development build. Not validated"));
+        assert!(version_text().starts_with("nf-server "));
+        assert!(version_text().contains("Not validated"));
     }
 }

@@ -26,6 +26,12 @@ fn unknown_surface() -> String {
     "unknown".into()
 }
 
+/// A `surface_reference` that is present must be a string (null is refused, as it always was); an absent one
+/// is `None` through `#[serde(default)]`, which this function is not called for.
+fn present_string<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    String::deserialize(d).map(Some)
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "family", rename_all = "snake_case")]
 pub enum Request {
@@ -69,8 +75,15 @@ pub enum Request {
         s_end: f64,
         /// Which wall surface the entered contact radii refer to — a declared
         /// drawing-level convention, recorded and never inferred. Used for each
-        /// part that does not declare its own surface below.
-        surface_reference: String,
+        /// part that does not declare its own surface below. It may be left out
+        /// only when both part surfaces are given (BH-015), because then nothing
+        /// needs it; `parse_strict` enforces that.
+        #[serde(
+            default,
+            deserialize_with = "present_string",
+            skip_serializing_if = "Option::is_none"
+        )]
+        surface_reference: Option<String>,
         /// Optional (review RB-001): the wall surface the HEADER contact radius refers to.
         /// Absent: `surface_reference`.
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -106,6 +119,20 @@ impl Request {
     pub fn parse_strict(v: &Value) -> Result<Request, String> {
         let req: Request =
             serde_json::from_value(v.clone()).map_err(|e| format!("invalid request: {e}"))?;
+        // BH-015: the shared surface_reference is an absent-means-fallback only. It may be left out when both
+        // part surfaces are given; otherwise a part would have no surface, and the request is refused as before.
+        let shared_missing_without_both_parts = matches!(
+            &req,
+            Request::HeaderWithBranch {
+                surface_reference: None,
+                header_surface_reference,
+                branch_surface_reference,
+                ..
+            } if header_surface_reference.is_none() || branch_surface_reference.is_none()
+        );
+        if shared_missing_without_both_parts {
+            return Err("invalid request: missing field `surface_reference`".into());
+        }
         let known = serde_json::to_value(&req).map_err(|e| e.to_string())?;
         let unknown: Vec<&str> = v
             .as_object()
@@ -1349,13 +1376,17 @@ pub fn run(req: &Request, entered_by: &str) -> JobOutput {
                 delta,
                 s_end,
             ],
+            // A part without its own surface takes the shared one. Both absent is refused by `parse_strict`; a
+            // request built in code with both absent is read as "unknown", which never claims a surface.
             (
                 header_surface_reference
                     .as_deref()
-                    .unwrap_or(&surface_reference),
+                    .or(surface_reference.as_deref())
+                    .unwrap_or("unknown"),
                 branch_surface_reference
                     .as_deref()
-                    .unwrap_or(&surface_reference),
+                    .or(surface_reference.as_deref())
+                    .unwrap_or("unknown"),
             ),
             joint.as_deref(),
         ),
@@ -1392,7 +1423,7 @@ mod tests {
             beta_deg: 60.0,
             delta: 0.0,
             s_end: 400.0,
-            surface_reference: "outside".into(),
+            surface_reference: Some("outside".into()),
             header_surface_reference: None,
             branch_surface_reference: None,
             joint: None,
@@ -1536,7 +1567,7 @@ mod tests {
             surface_reference, ..
         } = &mut bad
         {
-            *surface_reference = "whatever".into();
+            *surface_reference = Some("whatever".into());
         }
         assert!(run(&bad, "t").dxf.is_empty());
     }
@@ -1584,7 +1615,7 @@ mod tests {
             beta_deg: 60.0,
             delta: 0.0,
             s_end: 400.0,
-            surface_reference: sref.into(),
+            surface_reference: Some(sref.into()),
             header_surface_reference: None,
             branch_surface_reference: None,
             joint: None,
@@ -1829,6 +1860,87 @@ mod tests {
         assert!(Request::parse_strict(&json!({ "family": "teapot" })).is_err());
     }
 
+    /// BH-015: the shared `surface_reference` may be left out when both part surfaces are given. Then the
+    /// engine computes what it computes with the shared value given as well (the shared value is not used),
+    /// and it is still required, with the same message as before, when a part surface is missing.
+    #[test]
+    fn bh015_part_surfaces_are_enough_and_the_shared_one_is_needed_only_when_a_part_is_missing() {
+        let parts = json!({
+            "family": "header_with_branch", "header_radius": 150.0, "header_dev_radius": 150.0,
+            "header_length": 1200.0, "branch_station": 600.0, "branch_radius": 100.0, "branch_dev_radius": 100.0,
+            "beta_deg": 60.0, "delta": 0.0, "s_end": 400.0,
+            "header_surface_reference": "outside", "branch_surface_reference": "inside", "joint": "set_on"
+        });
+        let without = Request::parse_strict(&parts).expect("both part surfaces are given");
+        let mut shared = parts.clone();
+        shared["surface_reference"] = json!("outside");
+        let with = Request::parse_strict(&shared).unwrap();
+        let (a, b) = (run(&without, "t"), run(&with, "t"));
+        assert_eq!(a.state, b.state);
+        assert_eq!(a.outcome, b.outcome);
+        assert_eq!(a.patterns.len(), 2, "both parts are computed");
+        assert_eq!(
+            serde_json::to_value(&a.patterns).unwrap(),
+            serde_json::to_value(&b.patterns).unwrap()
+        );
+        assert_eq!(a.dxf, b.dxf);
+        // the convention record names the part surfaces in both cases
+        let conv = |o: &JobOutput| {
+            o.records
+                .iter()
+                .find(|r| r.payload["name"] == "surface_reference")
+                .map(|r| r.payload["value"].clone())
+        };
+        assert_eq!(
+            conv(&a),
+            Some(json!({ "header": "outside", "branch": "inside" }))
+        );
+        assert_eq!(conv(&a), conv(&b));
+        // stored without the shared value, the request is read back as it was entered
+        let stored = serde_json::to_value(&without).unwrap();
+        assert!(stored.get("surface_reference").is_none());
+        assert_eq!(serde_json::from_value::<Request>(stored).unwrap(), without);
+
+        // a missing part surface is still refused, with the message the API has always given
+        let refused = "invalid request: missing field `surface_reference`";
+        let mut one_part = parts.clone();
+        one_part
+            .as_object_mut()
+            .unwrap()
+            .remove("branch_surface_reference");
+        assert_eq!(Request::parse_strict(&one_part).unwrap_err(), refused);
+        let mut no_parts = parts.clone();
+        no_parts
+            .as_object_mut()
+            .unwrap()
+            .remove("header_surface_reference");
+        no_parts
+            .as_object_mut()
+            .unwrap()
+            .remove("branch_surface_reference");
+        assert_eq!(Request::parse_strict(&no_parts).unwrap_err(), refused);
+        // an explicit null is refused as it always was
+        let mut null = parts.clone();
+        null["surface_reference"] = Value::Null;
+        assert!(
+            Request::parse_strict(&null)
+                .unwrap_err()
+                .contains("invalid type")
+        );
+        // a missing required number is still reported first, by name
+        let mut no_radius = parts.clone();
+        no_radius.as_object_mut().unwrap().remove("header_radius");
+        no_radius
+            .as_object_mut()
+            .unwrap()
+            .remove("surface_reference");
+        assert!(
+            Request::parse_strict(&no_radius)
+                .unwrap_err()
+                .contains("header_radius")
+        );
+    }
+
     /// DXF: every generated file carries the NOT RELEASED marking on a non-cutting layer and declares its units.
     #[test]
     fn every_dxf_is_marked_not_released_and_declares_units() {
@@ -1874,7 +1986,7 @@ mod tests {
             beta_deg: 60.0,
             delta: 20.0,
             s_end: 400.0,
-            surface_reference: "outside".into(),
+            surface_reference: Some("outside".into()),
             header_surface_reference: None,
             branch_surface_reference: None,
             joint: None,
@@ -2152,7 +2264,7 @@ mod tests {
             beta_deg,
             delta,
             s_end: 400.0,
-            surface_reference: "outside".into(),
+            surface_reference: Some("outside".into()),
             header_surface_reference: hsref.map(String::from),
             branch_surface_reference: bsref.map(String::from),
             joint: joint.map(String::from),
@@ -2308,7 +2420,7 @@ mod tests {
             beta_deg: 90.0,
             delta: 0.0,
             s_end: 400.0,
-            surface_reference: "outside".into(),
+            surface_reference: Some("outside".into()),
             header_surface_reference: None,
             branch_surface_reference: None,
             joint: None,

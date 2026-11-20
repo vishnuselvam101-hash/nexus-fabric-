@@ -378,6 +378,54 @@ let unseen = 0, busy = 0, online = true;
 class ApiError extends Error { constructor(message, o = {}) { super(message); Object.assign(this, o); } }
 const errHtml = (err) => (err && err.key ? esc(t(err.key, err.params)) : err && err.server ? srv(err.message) : esc(String((err && err.message) || err)));
 
+// ---------------------------------------------------------------- kept input (bug hunt round 7)
+let calcKeep = null; // what the new-calculation form shows after an unsent request (BH-003)
+// The values of the new-calculation form as a request: the submit, the checks and the redraw after a switch read them alike.
+function readCalcForm(form) {
+  const fam = form.fam.value, req = { family: fam };
+  for (const [n] of F[fam].f) { const el = form.elements.namedItem(n); req[n] = el ? parseDim(el.value) : NaN; }
+  if (F[fam].sref) req.surface_reference = form.surface_reference.value;
+  if (F[fam].ext) for (const n of ['header_surface_reference', 'branch_surface_reference', 'joint']) { const el = form.elements.namedItem(n); if (el && el.value) req[n] = el.value; }
+  return req;
+}
+// After a language switch the form shows its errors again. The checks run again on the values now on the screen, and an
+// engine refusal is drawn from the answer kept for it. Nothing is sent.
+function reapplyCalc(keep) {
+  const form = $('#calc'); if (!form) return;
+  const { errors } = validateRequest(form.fam.value, readCalcForm(form));
+  clearFieldErrors(form);
+  if (!errors.length) { calcKeep = null; return; }
+  errors.slice().reverse().forEach(([k, msg]) => fieldError(form.elements.namedItem(k), msg, false));
+  $('#cmsg').innerHTML = `<div class="note bad" role="alert"><div>${h('math.notsent', { n: errors.length })}</div></div>`;
+  calcKeep = keep;
+}
+// When the session ends while a form is open, its values are kept for the next sign-in (BH-010). Only the values of
+// the visible form are kept, never a password or a token, and only in this tab's sessionStorage. If storage is not
+// available, nothing is kept and the sign-in works as before.
+function keepDraft() {
+  try {
+    const hash = location.hash;
+    if (!/^#\/[a-z0-9_\/-]*$/i.test(hash)) return;
+    const fields = [];
+    $$('#view input, #view select, #view textarea').forEach((el) => {
+      if (!el.id || el.type === 'password' || el.type === 'file' || el.dataset.nosnap !== undefined || /pass|token|setup/i.test(`${el.id} ${el.name}`)) return;
+      fields.push([el.id, el.value]);
+    });
+    if (fields.length) sessionStorage.setItem('nf-draft', JSON.stringify({ hash, fields }));
+  } catch { /* storage unavailable: nothing is kept */ }
+}
+// The kept values for the page now shown, taken once: they are put back when that page is drawn.
+function takeDraft() {
+  try {
+    const raw = sessionStorage.getItem('nf-draft'); if (!raw) return null;
+    sessionStorage.removeItem('nf-draft');
+    const d = JSON.parse(raw);
+    return d && d.hash === location.hash && Array.isArray(d.fields) ? d : null;
+  } catch { return null; }
+}
+// A change of AMOEBA or administration tab is a step in the history: Back and Forward step through the tabs (BH-012).
+function pushTab(url) { try { if (new URL(url, location.href).href !== location.href) history.pushState(null, '', url); } catch { /* address untouched */ } }
+
 async function api(path, opts = {}) {
   const init = { method: opts.method || 'GET', headers: { 'X-NF-Request': '1' }, credentials: 'same-origin' }; // anti-forgery header required by the server
   if (opts.json !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(opts.json); }
@@ -388,7 +436,7 @@ async function api(path, opts = {}) {
   setOnline(true);
   let data = null;
   try { data = await res.json(); } catch { /* non-JSON */ }
-  if (res.status === 401 && path !== '/api/login') { const was = me; me = null; renderLogin({ setup: false, key: was ? 'login.ended' : null }); throw new ApiError('', { key: 'api.signin', status: 401 }); }
+  if (res.status === 401 && path !== '/api/login') { const was = me; me = null; keepDraft(); renderLogin({ setup: false, key: was ? 'login.ended' : null }); throw new ApiError('', { key: 'api.signin', status: 401 }); }
   // A request the engine refused is answered 422 and kept by the server as job `id` in state REFUSED (no result).
   // The caller gets it back like any other job answer and shows it as NO RESULT.
   if (res.status === 422 && data && data.state === 'REFUSED' && Number.isInteger(data.id)) { factsCache.clear(); return data; }
@@ -414,11 +462,11 @@ function toast(msg, kind = 'info') {
 const toastErr = (err) => toast(() => errHtml(err), 'err');
 const clearFieldErrors = (form) => { $$('.field-err', form).forEach((m) => m.remove()); $$('[aria-invalid]', form).forEach((i) => i.removeAttribute('aria-invalid')); };
 function paintBell() { const d = $('#belldot'); if (d) d.hidden = unseen === 0; const b = $('#bell'); if (b) b.setAttribute('aria-label', unseen ? t('shell.bell.new', { n: unseen }) : t('shell.bell')); }
-function fieldError(input, msg) {
+function fieldError(input, msg, focus = true) {
   input.setAttribute('aria-invalid', 'true');
   const field = input.closest('.field'); let m = (field || input.parentElement).querySelector('.field-err');
   if (!m) { m = document.createElement('div'); m.className = 'field-err'; m.setAttribute('role', 'alert'); if (field) field.append(m); else input.after(m); }
-  m.textContent = msg; input.focus();
+  m.textContent = msg; if (focus) input.focus();
   input.addEventListener('input', () => { input.removeAttribute('aria-invalid'); m.remove(); }, { once: true });
 }
 const formError = (sel, err) => { const m = $(sel); if (m) m.innerHTML = `<div class="note bad" role="alert"><div>${errHtml(err)}</div></div>`; };
@@ -453,7 +501,7 @@ function restoreUI(s) {
 }
 function switchLang(l) {
   if (!LANGS.includes(l) || l === lang()) return;
-  const snap = snapUI();
+  const snap = snapUI(), keepCalcState = calcKeep;
   setLang(l); prefs.set('nf-lang', l);
   // a ?lang= in the address would win again on the next load: keep it in step with the choice
   try { const u = new URL(location.href); if (u.searchParams.has('lang')) { u.searchParams.set('lang', l); history.replaceState(null, '', u); } } catch { /* address untouched */ }
@@ -462,6 +510,7 @@ function switchLang(l) {
   mountShell(true);
   if (current) paint(current, { keep: true, files: snap.files }); else route();
   restoreUI(snap);
+  if (keepCalcState) reapplyCalc(keepCalcState);
 }
 document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-lang]'); if (b) switchLang(b.dataset.lang); });
 
@@ -829,14 +878,14 @@ const views = {
         wire(root) {
           wireSplits(root);
           const form = $('#calc'), canvas = $('#sk-canvas'), cap = $('#sk-cap'); let hot = null, confirmed = '';
-          const read = () => { const fam = form.fam.value, req = { family: fam }; for (const [n] of F[fam].f) { const el = form.elements.namedItem(n); req[n] = el ? parseDim(el.value) : NaN; } if (F[fam].sref) req.surface_reference = form.surface_reference.value; if (F[fam].ext) for (const n of ['header_surface_reference', 'branch_surface_reference', 'joint']) { const el = form.elements.namedItem(n); if (el && el.value) req[n] = el.value; } return req; };
+          const read = () => readCalcForm(form);
           const draw = () => {
             const fam = form.fam.value, r = sketch(fam, read(), Math.max(320, canvas.clientWidth), Math.max(240, canvas.clientHeight));
             cap.innerHTML = r.cap; canvas.innerHTML = r.svg;
             if (hot) $$(`[data-dim="${hot}"]`, $('#sketch')).forEach((g) => g.classList.add('hot'));
             $('#conv').hidden = !/branch/.test(fam);
           };
-          const clearMsg = () => { $('#cmsg').innerHTML = ''; $('#run').textContent = t('math.run'); };
+          const clearMsg = () => { calcKeep = null; $('#cmsg').innerHTML = ''; $('#run').textContent = t('math.run'); };
           form.fam.onchange = () => { $('#fields').innerHTML = fields(form.fam.value); clearMsg(); hot = null; draw(); };
           $('#fields').addEventListener('input', () => { clearMsg(); draw(); });
           $('#fields').addEventListener('focusin', (e) => { hot = e.target.name || null; draw(); });
@@ -846,9 +895,9 @@ const views = {
           let last = `${canvas.clientWidth}x${canvas.clientHeight}`;
           const ro = new ResizeObserver(() => { const now = `${canvas.clientWidth}x${canvas.clientHeight}`; if (now !== last && canvas.isConnected) { last = now; draw(); } }); ro.observe(canvas);
           form.onsubmit = async (e) => {
-            e.preventDefault(); const req = read(), fam = req.family, { errors, warnings } = validateRequest(fam, req);
+            e.preventDefault(); calcKeep = null; const req = read(), fam = req.family, { errors, warnings } = validateRequest(fam, req);
             clearFieldErrors(form);
-            if (errors.length) { errors.slice().reverse().forEach(([k, msg]) => fieldError(form.elements.namedItem(k), msg)); $('#cmsg').innerHTML = `<div class="note bad" role="alert"><div>${h('math.notsent', { n: errors.length })}</div></div>`; return; }
+            if (errors.length) { calcKeep = { kind: 'client' }; errors.slice().reverse().forEach(([k, msg]) => fieldError(form.elements.namedItem(k), msg)); $('#cmsg').innerHTML = `<div class="note bad" role="alert"><div>${h('math.notsent', { n: errors.length })}</div></div>`; return; }
             const key = JSON.stringify(req);
             if (warnings.length && confirmed !== key) { confirmed = key; $('#cmsg').innerHTML = `<div class="note" role="alert" id="plaus"><div><b>${esc(t('math.plaus.t'))}</b><ul>${warnings.map(([, m]) => `<li>${esc(m)}</li>`).join('')}</ul>${esc(t('math.plaus.p'))}</div></div>`; $('#run').textContent = t('math.run.unusual'); return; }
             try {
@@ -964,7 +1013,7 @@ const views = {
       const refKey = noResult && c.outcome ? (/^out of range \(([^)]+)\)/.exec(c.outcome) || [])[1] : null;
       // the interface record of a header with branch: what the result itself says about the joint
       const ifc = c.records.find((r) => r.kind === 'interface'), jp = ifc ? ifc.payload : null;
-      const jointHtml = jp ? `<p class="txt">${eng(jp.joint)}</p><dl class="kv"><dt>${esc(plabel(fam, 'joint'))}<small class="mono">joint</small></dt><dd class="txt">${jp.declared === 'set_on' ? named('joint', 'set_on') : esc(t('joint.none.v'))}</dd><dt>${esc(plabel(fam, 'header_surface_reference'))}<small class="mono">header_surface_reference</small></dt><dd class="txt">${named('sref', jp.header_surface)}</dd><dt>${esc(plabel(fam, 'branch_surface_reference'))}<small class="mono">branch_surface_reference</small></dt><dd class="txt">${named('sref', jp.branch_surface)}</dd></dl>` : '';
+      const jointHtml = jp ? `<p class="txt">${eng(jp.joint)}</p><dl class="kv"><dt title="joint">${esc(plabel(fam, 'joint'))}</dt><dd class="txt">${jp.declared === 'set_on' ? named('joint', 'set_on') : esc(t('joint.none.v'))}</dd><dt title="header_surface_reference">${esc(plabel(fam, 'header_surface_reference'))}</dt><dd class="txt">${named('sref', jp.header_surface)}</dd><dt title="branch_surface_reference">${esc(plabel(fam, 'branch_surface_reference'))}</dt><dd class="txt">${named('sref', jp.branch_surface)}</dd></dl>` : '';
       const wm = t(state === 'SUPERSEDED' ? 'wm.sup' : state === 'REJECTED' ? 'wm.rej' : 'wm.review');
       const banner = state === 'SUPERSEDED' ? h('ban.sup', { job: jobLink(c.superseded_by, true) }) : state === 'NO_RESULT' ? h('ban.none', { why: c.outcome ? eng(c.outcome) : esc(t('ban.none.default')) }) : state === 'REJECTED' ? h('ban.rej') : h('ban.review');
       // one primary action at most: the successor when superseded, else the correction, else the new calculation from this job
@@ -1148,12 +1197,13 @@ const views = {
     async load() { const [cs, obs, lessons] = await Promise.all([api('/api/calculations'), api('/api/obligations'), api('/api/lessons'), loadProjects()]); await withFacts(cs); return { cs, obs, lessons }; },
     render({ cs, obs, lessons }) {
       const open = obs.filter((o) => o.state === 'open');
+      const openNow = open.filter((o) => !o.target_superseded), openOld = open.filter((o) => o.target_superseded); // BH-002
       const live = cs.filter((c) => effState(c) !== 'SUPERSEDED');
       return {
         title: t('nav.verification'), crumbs: [[t('nav.verification')]],
         html: `<div class="page">${ph(esc(t('nav.verification')), esc(t('ver.sub')))}
-          ${panel(esc(t('ver.open')), open.length ? `<div class="tbl"><table><thead><tr><th>#</th><th>${esc(t('th.job'))}</th><th>${esc(t('th.affected'))}</th><th>${esc(t('th.required'))}</th><th>${esc(t('th.raised'))}</th></tr></thead><tbody>${open.map((o) => `<tr><td>${o.id}</td><td class="nw">${jobLink(o.target_calc)}<br><span class="sub">${esc(t('ver.corrects', { id: o.origin_calc }))}</span></td><td>${oblSubject(o)}</td><td>${eng(o.required_check)}</td><td class="nw">${when(o.created_at)}</td></tr>`).join('')}</tbody></table></div>` : empty('shield', t('ver.open.none.t'), esc(t('ver.open.none.p'))),
-            { id: 'p-open', flush: true, count: open.length, foot: h('ver.open.foot', { n: obs.length, ledger: `<a href="#/amoeba/obligations">${esc(t('ver.ledger'))}</a>` }) })}
+          ${panel(esc(t('ver.open')), open.length ? `<div class="tbl"><table><thead><tr><th>#</th><th>${esc(t('th.job'))}</th><th>${esc(t('th.affected'))}</th><th>${esc(t('th.required'))}</th><th>${esc(t('th.raised'))}</th></tr></thead><tbody>${[...openNow, ...openOld].map((o) => `<tr><td>${o.id}</td><td class="nw">${jobLink(o.target_calc)}<br><span class="sub">${esc(t('ver.corrects', { id: o.origin_calc }))}</span>${o.target_superseded ? `<br>${tag('na', t('obl.onsup'))}` : ''}</td><td>${oblSubject(o)}</td><td>${eng(o.required_check)}</td><td class="nw">${when(o.created_at)}</td></tr>`).join('')}</tbody></table></div>` : empty('shield', t('ver.open.none.t'), esc(t('ver.open.none.p'))),
+            { id: 'p-open', flush: true, count: openNow.length, foot: h('ver.open.foot', { n: obs.length, ledger: `<a href="#/amoeba/obligations">${esc(t('ver.ledger'))}</a>` }) + (openOld.length ? ` ${esc(t('obl.onsup.note', { n: openOld.length }))}` : '') })}
           ${panel(esc(t('ver.status')), live.length ? `<div class="tbl"><table id="jobs-ver"><thead><tr><th>${esc(t('th.job'))}</th><th>${esc(t('th.project'))}</th><th>${esc(t('th.state.short'))}</th><th>${esc(t('th.gates'))}</th><th class="num">${esc(t('th.checks'))}</th><th class="num">${esc(t('th.oblopen'))}</th><th class="num">${esc(t('th.advopen'))}</th><th>${esc(t('th.replay'))}</th></tr></thead><tbody>${live.map((c) => `<tr><td class="nw">${jobLink(c.id)}<br><span class="sub">${famShort(c.family)}</span></td><td>${plink(c.project_id)}</td><td class="nw">${stateTag(effState(c))}</td><td class="gcell">${c.facts ? gateCounts(c.facts.gates) : '—'}</td><td class="num">${c.facts ? (c.facts.checks[1] ? esc(t('ver.checks', { a: c.facts.checks[0], b: c.facts.checks[1] })) : esc(t('ver.checks.none'))) : '—'}</td><td class="num">${c.open_obligations}</td><td class="num">${c.facts ? c.facts.advOpen : '—'}</td><td class="nw">${replayTag(c.facts ? c.facts.replay : null)}</td></tr>`).join('')}</tbody></table></div>` : noJobs(),
             { flush: true, count: live.length, tools: live.length ? filterBox('jobs-ver', t('jobs.filter')) : '', foot: jaHtml(t('ver.status.foot', { n: cs.length - live.length })) })}
           ${panel(esc(t('ver.lessons')), lessonsTable(lessons), { id: 'p-lessons', flush: true, count: lessons.length, foot: esc(t('ver.lessons.foot')) })}
@@ -1168,13 +1218,15 @@ const views = {
       const withEdges = cs.filter((c) => c.state !== 'REJECTED' || c.superseded);
       const depId = arg || (withEdges[0] && withEdges[0].id);
       let dep = null, depErr = null;
-      if (depId) { try { dep = await api(`/api/calculations/${depId}/dependencies`); } catch (err) { depErr = err; } }
+      // BH-011: a job id that is not a whole number is 'not found', as an unknown id is; no request is sent for it
+      if (depId && !/^\d+$/.test(String(depId))) depErr = new ApiError('not found', { server: true, status: 404 });
+      else if (depId) { try { dep = await api(`/api/calculations/${depId}/dependencies`); } catch (err) { depErr = err; } }
       return { a, obs, lessons, withEdges, depId, dep, depErr };
     },
     render({ a, obs, lessons, withEdges, depId, dep, depErr }, tab) {
       const graph = dep && dep.edges.length ? depGraph(dep.edges) : null;
       const li = (xs) => `<ul>${xs.map((x) => `<li>${eng(x)}</li>`).join('')}</ul>`;
-      const tabs = [['records', t('am.t.records'), a.records_by_kind.reduce((s, r) => s + r.count, 0)], ['activities', t('am.t.activities'), a.activities.length], ['obligations', t('am.t.obligations'), a.obligations.open, a.obligations.open > 0], ['lessons', t('am.t.lessons'), lessons.length], ['dependencies', t('am.t.dependencies')], ['mechanisms', t('am.t.mechanisms')]];
+      const tabs = [['records', t('am.t.records'), a.records_by_kind.reduce((s, r) => s + r.count, 0)], ['activities', t('am.t.activities'), a.activities.reduce((s, r) => s + r.distinct_activities, 0)], ['obligations', t('am.t.obligations'), a.obligations.open, a.obligations.open > 0], ['lessons', t('am.t.lessons'), lessons.length], ['dependencies', t('am.t.dependencies')], ['mechanisms', t('am.t.mechanisms')]];
       const active = tabs.some((x) => x[0] === tab) ? tab : 'records';
       const kindCell = (k) => (ja() && idLabel('rkind', k) ? `${esc(idLabel('rkind', k))}<br>${mono(k)}` : mono(k));
       const dirs = (d) => (['downstream', 'lateral', 'common_cause'].includes(d) ? t(`dirs.${d}`) : String(d).replaceAll('_', ' '));
@@ -1185,14 +1237,14 @@ const views = {
           ${tabPanel('am', 'records', active, `<div class="cols">${panel(esc(t('am.rec.h')), a.records_by_kind.length ? `<div class="tbl"><table id="tbl-rec"><thead><tr><th>${esc(t('th.rfamily'))}</th><th>${esc(t('th.kind'))}</th><th class="num">${esc(t('th.count'))}</th></tr></thead><tbody>${a.records_by_kind.map((r) => `<tr><td>${named('rfamily', r.family)}</td><td>${kindCell(r.kind)}</td><td class="num">${r.count}</td></tr>`).join('')}</tbody></table></div>` : empty('nodes', t('am.rec.none.t'), esc(t('am.rec.none.p'))), { flush: true, tools: a.records_by_kind.length ? filterBox('tbl-rec', t('am.rec.filter')) : '', foot: esc(t('am.rec.foot')) })}
             ${panel(esc(t('am.snap.h')), a.recent_snapshots.length ? `<div class="tbl"><table><thead><tr><th>${esc(t('th.project'))}</th><th>${esc(t('th.snapshot'))}</th></tr></thead><tbody>${a.recent_snapshots.map((s) => `<tr><td class="nw">${plink(s.project_id)}</td><td><span class="hash">${esc(s.snapshot)}</span></td></tr>`).join('')}</tbody></table></div>` : empty('folder', t('am.snap.none.t'), esc(t('am.snap.none.p'))), { flush: true })}</div>`)}
           ${tabPanel('am', 'activities', active, panel(esc(t('am.act.h')), a.activities.length ? `<div class="tbl"><table><thead><tr><th>${esc(t('th.acttype'))}</th><th class="num">${esc(t('th.distinct'))}</th><th class="num">${esc(t('th.wu'))}</th></tr></thead><tbody>${a.activities.map((r) => `<tr><td>${kindCell(r.type)}</td><td class="num">${r.distinct_activities}</td><td class="num">${r.declared_work_units}</td></tr>`).join('')}</tbody></table></div>` : empty('clock', t('am.act.none.t'), esc(t('am.act.none.p'))), { flush: true, foot: esc(t('am.act.foot')) }))}
-          ${tabPanel('am', 'obligations', active, panel(esc(t('am.obl.h')), obs.length ? `<div class="tbl"><table id="tbl-obl"><thead><tr><th>#</th><th>${esc(t('th.job'))}</th><th>${esc(t('th.direction'))}</th><th>${esc(t('th.affected'))}</th><th>${esc(t('th.required'))}</th><th>${esc(t('th.state.short'))}</th><th>${esc(t('th.evidence'))}</th></tr></thead><tbody>${obs.map((o) => `<tr><td>${o.id}</td><td class="nw">${jobLink(o.target_calc)}</td><td>${esc(dirs(o.direction))}<br><span class="sub mono">${esc(o.via)}</span></td><td>${oblSubject(o)}</td><td>${eng(o.required_check)}</td><td>${oblTag(o.state)}</td><td>${oblNote(o)}${o.resolved_by ? `<br><span class="sub">${ud(o.resolved_by)} · ${when(o.resolved_at)}</span>` : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('shield', t('am.obl.none.t'), esc(t('am.obl.none.p'))),
-            { flush: true, count: esc(t('am.obl.count', { a: a.obligations.open, b: a.obligations.total })), tools: obs.length ? filterBox('tbl-obl', t('am.obl.filter')) : '', foot: esc(t('am.obl.foot')) }))}
+          ${tabPanel('am', 'obligations', active, panel(esc(t('am.obl.h')), obs.length ? `<div class="tbl"><table id="tbl-obl"><thead><tr><th>#</th><th>${esc(t('th.job'))}</th><th>${esc(t('th.direction'))}</th><th>${esc(t('th.affected'))}</th><th>${esc(t('th.required'))}</th><th>${esc(t('th.state.short'))}</th><th>${esc(t('th.evidence'))}</th></tr></thead><tbody>${obs.map((o) => `<tr><td>${o.id}</td><td class="nw">${jobLink(o.target_calc)}</td><td>${esc(dirs(o.direction))}<br><span class="sub mono">${esc(o.via)}</span></td><td>${oblSubject(o)}</td><td>${eng(o.required_check)}</td><td>${oblTag(o.state)}${o.target_superseded ? ` ${tag('na', t('obl.onsup'))}` : ''}</td><td>${oblNote(o)}${o.resolved_by ? `<br><span class="sub">${ud(o.resolved_by)} · ${when(o.resolved_at)}</span>` : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('shield', t('am.obl.none.t'), esc(t('am.obl.none.p'))),
+            { flush: true, count: esc(t('am.obl.count', { a: a.obligations.open, b: a.obligations.total })), tools: obs.length ? filterBox('tbl-obl', t('am.obl.filter')) : '', foot: esc(t('am.obl.foot')) + (a.obligations.open_on_superseded ? ` ${esc(t('obl.onsup.note', { n: a.obligations.open_on_superseded }))}` : '') }))}
           ${tabPanel('am', 'lessons', active, panel(esc(t('am.les.h')), lessonsTable(lessons), { flush: true, count: lessons.length, foot: jaHtml(t('am.les.foot')) }))}
           ${tabPanel('am', 'dependencies', active, panel(esc(t('am.dep.h')), `${withEdges.length ? `<div class="field narrow"><label for="depjob">${esc(t('th.job'))}</label><select id="depjob">${withEdges.map((c) => `<option value="${c.id}"${String(c.id) === String(depId) ? ' selected' : ''}>${esc(t(c.superseded ? 'am.dep.opt.sup' : 'am.dep.opt', { id: c.id, fam: idText('family', c.family) }))}</option>`).join('')}</select></div>` : ''}
             ${graph ? `${graph.html}${edgeTable(dep.edges)}<p class="hint">${h('am.dep.rule', { rule: mono(dep.rule_table) })}</p>` : empty('nodes', t(depErr ? 'am.dep.err' : 'gr.none.t'), depErr ? errHtml(depErr) : esc(t('am.dep.none.p')))}`))}
           ${tabPanel('am', 'mechanisms', active, `<div class="cols2">${panel(esc(t('am.mech.impl')), li(a.implemented), { count: a.implemented.length })}<section class="panel"><header class="panel-h"><h2>${esc(t('am.mech.not'))}</h2>${tag('planned', t('am.mech.tag'), 'planned')}<span class="cnt">${a.not_implemented.length}</span></header><div class="panel-b">${li(a.not_implemented)}</div></section></div>`)}</div>`,
         wire(root) {
-          wireTabs(root, 'am', (k) => history.replaceState(null, '', `${location.pathname}${location.search}#/amoeba/${k}${k === 'dependencies' && depId ? `/${depId}` : ''}`));
+          wireTabs(root, 'am', (k) => pushTab(`${location.pathname}${location.search}#/amoeba/${k}${k === 'dependencies' && depId ? `/${depId}` : ''}`));
           if (graph) graph.wire(root);
           const s = $('#depjob'); if (s) s.onchange = () => { location.hash = `#/amoeba/dependencies/${s.value}`; };
         },
@@ -1269,7 +1321,7 @@ const views = {
             { flush: true, count: audit.length, tools: `${filterBox('tbl-audit', t('adm.audit.filter'))}<button id="verify">${ic('shield')}${esc(t('adm.verify'))}</button>`, foot: `<span id="chain">${chainHtml(chain)}</span> ${eng(chain.limitation)}` }))}
           ${tabPanel('ad', 'planned', active, planned(t('nav.admin'), Array.from({ length: 5 }, (_, i) => t(`adm.planned.${i + 1}`))))}</div>`,
         wire(root) {
-          wireTabs(root, 'ad', (k) => history.replaceState(null, '', `${location.pathname}${location.search}#/admin/${k}`));
+          wireTabs(root, 'ad', (k) => pushTab(`${location.pathname}${location.search}#/admin/${k}`));
           const f = $('#nu'); f.onsubmit = async (e) => {
             e.preventDefault(); clearFieldErrors(f);
             if (!f.u.value.trim()) { fieldError(f.u, t('adm.e.user')); return; }
@@ -1362,6 +1414,8 @@ async function route(keep = false) {
   clearTimeout(slow);
   if (seq !== renderSeq || !me) return;
   current = cur; paint(cur);
+  const draft = takeDraft();
+  if (draft) restoreUI({ fields: draft.fields, details: [], scroll: [0], focus: null, dialogs: [], notes: false, viewer: null, files: [] });
   const main = $('#view');
   if (scroll) { main.scrollTop = scroll[0]; $$('.pane-scroll', main).forEach((p, i) => { p.scrollTop = scroll[i + 1] || 0; }); }
   else { main.scrollTop = 0; main.focus({ preventScroll: true }); }
@@ -1410,6 +1464,12 @@ function renderBootError(err) {
   try {
     const health = await api('/api/health');
     if (health.setup_required) return renderLogin({ setup: true });
-    try { me = await api('/api/me'); route(); } catch { /* sign-in shown by api() */ }
+    // The start-up probe answers 200 with signed_in false for a visitor who is not signed in (BH-008: a 401 here was
+    // logged by the browser as an error on every sign-in screen load).
+    try {
+      const session = await api('/api/session');
+      if (!session.signed_in) { me = null; renderLogin({ setup: false, key: null }); return; }
+      me = { id: session.id, username: session.username, role: session.role }; route();
+    } catch { /* an error is shown by api() */ }
   } catch (err) { renderBootError(err); }
 })();

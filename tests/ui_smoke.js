@@ -539,6 +539,124 @@ const controlProbe = () => {
     check('dimension: the value stored with the job is exactly the value typed (301.25)', stored === 301.25, { stored });
   }
 
+  // ---- 14d. bug hunt round 7 (docs/qa/BUG_HUNT_R7.md, browser part). Each check reproduces its defect before the fix.
+  {
+    // BH-008: the sign-in screen loads with no failed request and no console error
+    const sctx = await browser.newContext({ viewport: { width: 1366, height: 768 } }); const sp = await sctx.newPage();
+    const signInProblems = [];
+    sp.on('console', (m) => { if (m.type() === 'error') signInProblems.push(`console: ${m.text()}`); });
+    sp.on('pageerror', (e) => signInProblems.push(`pageerror: ${e.message}`));
+    sp.on('response', (r) => { if (r.status() >= 400) signInProblems.push(`response ${r.status()} ${new URL(r.url()).pathname}`); });
+    await sp.goto(`${B}/#/dashboard`); await sp.waitForSelector('input[name=u]'); await sp.waitForTimeout(600);
+    check('BH-008: the sign-in screen loads with no failed request and no console error', signInProblems.length === 0, signInProblems.slice(0, 5));
+    await sctx.close();
+
+    // BH-003: a language switch keeps the field error and the note, in the new language
+    await p.goto(`${B}/?lang=en#/math/1`); await p.waitForSelector('#calc'); await p.selectOption('select[name=fam]', 'header_with_branch');
+    await p.fill('#f_branch_radius', '200'); await p.click('#run'); await p.waitForSelector('#calc .field-err');
+    const enNote = await p.textContent('#cmsg');
+    await p.click('#lang-ja'); await p.waitForTimeout(400);
+    const jaNote = (await p.textContent('#cmsg').catch(() => '')) || '';
+    check('BH-003: after the language switch the field error still marks the field, and the note is in Japanese', (await p.locator('#calc .field-err').count()) === 1 && (await p.locator('#calc [aria-invalid=true]').count()) === 1 && /[぀-ヿ一-龯]/.test(jaNote) && !/Not sent/.test(jaNote) && /Not sent/.test(enNote), { enNote, jaNote });
+    await p.click('#lang-en'); await p.waitForTimeout(300);
+
+    // BH-006: the status card of a job: no value runs into the next cell (English dark, English light, Japanese)
+    const reviewJob = (await apiGet('/api/calculations')).find((j) => j.state === 'REVIEW_REQUIRED' && !j.superseded);
+    const cardOverlaps = () => p.evaluate(() => {
+      const bad = [];
+      document.querySelectorAll('#tblock .tb').forEach((cell, i) => {
+        const c = cell.getBoundingClientRect();
+        cell.querySelectorAll('*').forEach((el) => { const r = el.getBoundingClientRect(); if (r.width && (r.right > c.right + 1 || r.left < c.left - 1)) bad.push(`cell ${i}: ${el.textContent.trim().slice(0, 30)}`); });
+      });
+      return bad.slice(0, 4);
+    });
+    await go(`calc/${reviewJob.id}`, '#tblock');
+    const cardEn = await cardOverlaps();
+    await p.click('#theme'); await p.waitForTimeout(200); const cardLight = await cardOverlaps(); await p.click('#theme'); await p.waitForTimeout(200);
+    await p.click('#lang-ja'); await p.waitForTimeout(300); const cardJa = await cardOverlaps(); await p.click('#lang-en'); await p.waitForTimeout(200);
+    check('BH-006: the status card keeps each value inside its cell (English dark, English light, Japanese)', cardEn.length === 0 && cardLight.length === 0 && cardJa.length === 0, { cardEn, cardLight, cardJa });
+
+    // BH-013: no horizontal page scroll at 360 px wide
+    await p.setViewportSize({ width: 360, height: 780 });
+    const wide = {};
+    for (const h of [`calc/${reviewJob.id}`, 'amoeba', 'math/1', 'verification', 'manufacturing']) { await go(h); wide[h] = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth); }
+    await p.setViewportSize({ width: 1366, height: 768 });
+    check('BH-013: no horizontal page scroll at 360 px wide on the five main screens', Object.values(wide).every((w) => w <= 1), wide);
+
+    // BH-018: a splitter that has keyboard focus shows a visible focus indicator
+    await go('math/1', '#calc'); await p.focus('select[name=fam]');
+    let splitFocus = null;
+    for (let i = 0; i < 14 && !splitFocus; i++) { await p.keyboard.press('Tab'); if (await p.evaluate(() => document.activeElement.classList.contains('split'))) splitFocus = await p.evaluate(() => { const cs = getComputedStyle(document.activeElement); return { outline: cs.outlineStyle, width: parseFloat(cs.outlineWidth), shadow: cs.boxShadow }; }); }
+    check('BH-018: a focused workspace splitter shows an outline or a box-shadow', !!splitFocus && ((splitFocus.outline !== 'none' && splitFocus.width >= 2) || splitFocus.shadow !== 'none'), splitFocus);
+
+    // BH-007: the Activities badge counts activities: the sum of the table's distinct-activity column
+    await go('amoeba');
+    const act = await p.evaluate(() => {
+      const tab = [...document.querySelectorAll('[role=tab]')].find((b) => b.dataset.tab === 'activities');
+      const sum = [...document.querySelectorAll('#tp-am-activities tbody tr')].reduce((s, r) => s + Number(r.children[1].textContent.replace(/[,\s]/g, '')), 0);
+      return { badge: Number(tab.querySelector('.cnt').textContent.trim()), sum };
+    });
+    check('BH-007: the Activities badge equals the number of activities in its table', act.badge === act.sum && act.sum > 0, act);
+
+    // BH-011: a malformed job id in the dependency graph gives the readable not-found message, not an HTTP status
+    await go('amoeba/dependencies/abc');
+    const depText = await p.evaluate(() => document.querySelector('#tp-am-dependencies').innerText.replace(/\s+/g, ' '));
+    check('BH-011: a malformed job id shows the not-found message, not an HTTP status', /not found/i.test(depText) && !/400|Request failed/.test(depText), depText.slice(0, 160));
+
+    // BH-012: browser Back and Forward step through the AMOEBA tabs
+    await go('verification'); await go('amoeba');
+    await p.click('[role=tab][data-tab=lessons]'); await p.click('[role=tab][data-tab=mechanisms]');
+    await p.goBack(); await p.waitForTimeout(300);
+    const back1 = await p.evaluate(() => ({ hash: location.hash, tab: (document.querySelector('[role=tab][aria-selected=true]') || { dataset: {} }).dataset.tab || null }));
+    await p.goForward(); await p.waitForTimeout(300);
+    const fwd1 = await p.evaluate(() => ({ hash: location.hash, tab: (document.querySelector('[role=tab][aria-selected=true]') || { dataset: {} }).dataset.tab || null }));
+    check('BH-012: browser Back returns to the previous AMOEBA tab and Forward returns to the next', back1.tab === 'lessons' && back1.hash.startsWith('#/amoeba/lessons') && fwd1.tab === 'mechanisms', { back1, fwd1 });
+
+    // BH-016: the joint row reads as a sentence, without the parameter key
+    const asmJobs = (await apiGet('/api/calculations')).filter((j) => j.family === 'header_with_branch' && j.state !== 'REFUSED' && !j.superseded);
+    const details = await Promise.all(asmJobs.slice(0, 8).map((j) => apiGet(`/api/calculations/${j.id}`)));
+    const plainJoint = details.find((d) => d.request && d.request.joint === undefined);
+    if (plainJoint) await go(`calc/${plainJoint.id}`, '#joint');
+    const jointView = await p.evaluate(() => { const j = document.querySelector('#joint'); return j ? { dt: j.querySelector('dt') ? j.querySelector('dt').innerText.replace(/\s+/g, ' ').trim() : null, text: j.innerText.replace(/\s+/g, ' ') } : null; });
+    check('BH-016: the joint row shows its label without the key, and no sentence prints a key next to a value', !!jointView && jointView.dt === 'Joint type' && !/\bjoint (not declared|Set-on)\b/i.test(jointView.text) && !/wall surface (header|branch)_surface_reference/.test(jointView.text), jointView);
+
+    // BH-010: the values of an open form survive a forced sign-in
+    await go('math/1', '#calc');
+    await p.selectOption('select[name=fam]', 'cone_frustum'); await p.fill('#f_h', '333');
+    await ctx.clearCookies(); allow401 = true; // the refused request this provokes is expected
+    await p.click('#run'); await p.waitForSelector('input[name=u]');
+    await p.fill('input[name=u]', ADMIN.username); await p.fill('input[name=p]', NEW_PW); await p.click('#f button'); await p.waitForTimeout(1200);
+    allow401 = false;
+    const restored = await p.evaluate(() => ({ hash: location.hash, fam: (document.querySelector('select[name=fam]') || {}).value || null, h: (document.querySelector('#f_h') || {}).value || null }));
+    check('BH-010: after a forced sign-in the form comes back with its family and values', restored.fam === 'cone_frustum' && restored.h === '333', restored);
+
+    // BH-014: the engine stays the judge of a square end inside the saddle (its limit is sampled, so the client cannot state
+    // it exactly). Its refusal is recorded as a job, and that job names the field and the engine's reason.
+    await go('math/1', '#calc');
+    await p.selectOption('select[name=fam]', 'header_with_branch'); await p.fill('#f_s_end', '150');
+    allow422 = true; await p.click('#run'); await p.waitForURL(/#\/calc\/\d+$/); await p.waitForSelector('.ws-banner'); allow422 = false;
+    const refusal = (await p.textContent('.ws-banner')).replace(/\s+/g, ' ');
+    check('BH-014: the engine refusal of a square end names the s_end field and the reason on the refused job', /s_end/.test(refusal) && /saddle/.test(refusal), refusal.slice(0, 200));
+
+    // BH-002: obligations on a superseded result are counted apart from current work, and none is lost.
+    // A job created by a correction has open obligations; correcting that job again supersedes it and leaves them open.
+    const asmCurrent = (await apiGet('/api/calculations')).find((j) => j.family === 'header_with_branch' && j.state === 'REVIEW_REQUIRED' && !j.superseded);
+    const hr = (await apiGet(`/api/calculations/${asmCurrent.id}`)).request.header_radius;
+    const corrOn = (id, v) => p.evaluate(async ([i, val]) => { const r = await fetch(`/api/calculations/${i}/corrections`, { method: 'POST', headers: { 'X-NF-Request': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ parameter: 'header_radius', new_value: val, reason: 'bug hunt round 7 check' }) }); return { status: r.status, body: await r.json().catch(() => null) }; }, [id, v]);
+    const c1 = await corrOn(asmCurrent.id, hr + 1);
+    const c2 = c1.status === 200 ? await corrOn(c1.body.new_calculation, hr + 2) : { status: 0 };
+    check('BH-002 setup: two corrections in a row are accepted (the second supersedes the job the first one created)', c1.status === 200 && c2.status === 200, { c1: c1.status, c2: c2.status });
+    const sum = await apiGet('/api/amoeba/summary');
+    const allObl = await apiGet('/api/obligations');
+    const openAll = allObl.filter((o) => o.state === 'open').length;
+    const supIds = new Set((await apiGet('/api/calculations')).filter((c) => c.superseded).map((c) => c.id));
+    const onSup = allObl.filter((o) => o.state === 'open' && supIds.has(o.target_calc)).length;
+    check('BH-002: open obligations are split into current work and superseded results, and the split adds up', onSup >= 1 && sum.obligations.open + sum.obligations.open_on_superseded === openAll && sum.obligations.open_on_superseded === onSup, { open: sum.obligations.open, onSuperseded: sum.obligations.open_on_superseded, openAll, onSup });
+    await go('amoeba');
+    const badgeObl = await p.evaluate(() => [...document.querySelectorAll('[role=tab]')].find((b) => b.dataset.tab === 'obligations').querySelector('.cnt').textContent.trim());
+    check('BH-002: the obligations badge counts current work only', Number(badgeObl) === openAll - onSup, { badgeObl, currentWork: openAll - onSup });
+  }
+
   // ---- 15. global assertions
   const xss = await p.evaluate(() => window.__xss || 0);
   check('security: injected markup never executed, no blocking dialog used', xss === 0 && dialogs === 0, { xss, dialogs });

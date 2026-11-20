@@ -2555,3 +2555,200 @@ async fn be033_housekeeping_removes_expired_sessions_and_old_failures() {
         "the live session is kept"
     );
 }
+
+// ---------------------------------------------------------------- BH-009
+
+#[tokio::test]
+async fn bh009_project_name_refusals_say_what_is_wrong_and_count_characters() {
+    let t = boot();
+    // a name of only spaces is missing
+    let (st, v) = t
+        .call(
+            "POST",
+            "/api/projects",
+            Some(json!({ "name": "   ", "description": "d" })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["error"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("project name is required")),
+        "{v}"
+    );
+    // a name that is present but too long is not 'required': the message says it is too long
+    let (st, v) = t
+        .call(
+            "POST",
+            "/api/projects",
+            Some(json!({ "name": "A".repeat(10_000), "description": "d" })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["error"].as_str()),
+        (
+            StatusCode::BAD_REQUEST,
+            Some("project name is too long (max 200 characters)")
+        ),
+        "{v}"
+    );
+    // the limit is counted in characters, as the name field (maxlength 200) and the message say:
+    // 200 Japanese characters are 600 bytes and are accepted; 201 characters are refused
+    let (st, v) = t
+        .call(
+            "POST",
+            "/api/projects",
+            Some(json!({ "name": "あ".repeat(200), "description": "d" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "POST",
+            "/api/projects",
+            Some(json!({ "name": "B".repeat(200), "description": "d" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "POST",
+            "/api/projects",
+            Some(json!({ "name": "C".repeat(201), "description": "d" })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["error"].as_str()),
+        (
+            StatusCode::BAD_REQUEST,
+            Some("project name is too long (max 200 characters)")
+        ),
+        "{v}"
+    );
+}
+
+// ---------------------------------------------------------------- BH-015
+
+#[tokio::test]
+async fn bh015_header_with_branch_accepts_the_part_surfaces_without_the_shared_one() {
+    let t = boot();
+    let parts = json!({
+        "family": "header_with_branch", "header_radius": 150, "header_dev_radius": 150, "header_length": 1200,
+        "branch_station": 600, "branch_radius": 100, "branch_dev_radius": 100, "beta_deg": 60, "delta": 0, "s_end": 400,
+        "header_surface_reference": "outside", "branch_surface_reference": "inside", "joint": "set_on"
+    });
+    let (st, v) = t.calc(parts.clone()).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(v["state"], "REVIEW_REQUIRED", "{v}");
+    // the same request with the shared value is accepted too, and gives the same state
+    let mut shared = parts.clone();
+    shared["surface_reference"] = json!("outside");
+    let (st, v2) = t.calc(shared).await;
+    assert_eq!((st, &v2["state"]), (StatusCode::OK, &v["state"]), "{v2}");
+    // one part surface missing: refused as before, and nothing is stored
+    let before = t.count("SELECT COUNT(*) FROM calculations");
+    let mut one = parts.clone();
+    one.as_object_mut()
+        .unwrap()
+        .remove("branch_surface_reference");
+    let (st, v3) = t.calc(one).await;
+    assert_eq!(
+        (st, v3["error"].as_str()),
+        (
+            StatusCode::BAD_REQUEST,
+            Some("invalid request: missing field `surface_reference`")
+        ),
+        "{v3}"
+    );
+    assert_eq!(t.count("SELECT COUNT(*) FROM calculations"), before);
+    // the stored job reads back, and the record keeps the part surfaces
+    let id = v["id"].as_i64().unwrap();
+    let got = t.get(&format!("/api/calculations/{id}")).await;
+    assert_eq!(got["state"], "REVIEW_REQUIRED", "{got}");
+}
+
+// ---------------------------------------------------------------- BH-008
+
+#[tokio::test]
+async fn bh008_the_start_up_probe_answers_200_for_a_visitor_who_is_not_signed_in() {
+    let t = boot();
+    // a visitor with no session, and one with a forged cookie: 200 and signed_in false (no failed request)
+    for cookie in ["x=1", "nf_session=00"] {
+        let (st, _, bytes) = t
+            .send("GET", "/api/session", None, &[("cookie", cookie)])
+            .await;
+        let v: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            (st, &v),
+            (StatusCode::OK, &json!({ "signed_in": false })),
+            "{cookie}"
+        );
+    }
+    // the signed-in administrator: 200 with the identity and role
+    let v = t.get("/api/session").await;
+    assert_eq!(v["signed_in"], true);
+    assert_eq!(
+        (v["username"].as_str(), v["role"].as_str()),
+        (Some("admin"), Some("admin"))
+    );
+    // the other endpoints keep their answers: /api/me still refuses a visitor who is not signed in
+    let (st, _, _) = t.send("GET", "/api/me", None, &[("cookie", "x=1")]).await;
+    assert_eq!(st, StatusCode::UNAUTHORIZED);
+}
+
+// ---------------------------------------------------------------- BH-002
+
+#[tokio::test]
+async fn bh002_obligations_on_a_superseded_result_are_counted_apart_and_stay_open() {
+    let t = boot();
+    let id = t.job(good_assembly()).await;
+    // a correction creates a job with open obligations; correcting that job again supersedes it
+    let (st, first) = t
+        .call("POST", &format!("/api/calculations/{id}/corrections"), Some(json!({ "parameter": "header_radius", "new_value": 151.0, "reason": "first correction" })))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{first}");
+    let second = first["new_calculation"].as_i64().unwrap();
+    let (st, v) = t
+        .call("POST", &format!("/api/calculations/{second}/corrections"), Some(json!({ "parameter": "header_radius", "new_value": 152.0, "reason": "second correction" })))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    // every open obligation is counted once: on current work, or on a superseded result. None is closed.
+    let open_total = t.count("SELECT COUNT(*) FROM obligations WHERE state = 'open'");
+    let summary = t.get("/api/amoeba/summary").await;
+    let open_now = summary["obligations"]["open"].as_i64().unwrap();
+    let open_old = summary["obligations"]["open_on_superseded"]
+        .as_i64()
+        .unwrap();
+    assert_eq!(open_now + open_old, open_total, "{summary}");
+    assert!(
+        open_old >= 1,
+        "an obligation on the superseded result stays open: {summary}"
+    );
+    // the job that the second correction superseded still has its open obligations
+    assert!(
+        t.count(&format!(
+            "SELECT COUNT(*) FROM obligations WHERE state = 'open' AND target_calc = {second}"
+        )) >= 1
+    );
+    // the dashboard gives the same split
+    let dash = t.get("/api/dashboard").await;
+    assert_eq!(dash["open_obligations"].as_i64(), Some(open_now));
+    assert_eq!(
+        dash["open_obligations_on_superseded"].as_i64(),
+        Some(open_old)
+    );
+    // each obligation row says whether its result is superseded; the flagged rows are exactly the open ones on it
+    let rows = t.get("/api/obligations").await;
+    let flagged = rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| r["state"] == "open" && r["target_superseded"] == true)
+        .count() as i64;
+    assert_eq!(flagged, open_old);
+    // the records are not rewritten: the obligations of the superseded result are still open rows
+    assert!(
+        rows.as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["target_calc"] == json!(second) && r["state"] == "open")
+    );
+}
