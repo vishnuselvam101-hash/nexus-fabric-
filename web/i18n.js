@@ -168,7 +168,7 @@ const EN = {
   'th.file': 'File', 'th.dtype': 'Detected type', 'th.size': 'Size (bytes)', 'th.sha': 'SHA-256', 'th.uploaded': 'Uploaded',
   'doc.mismatch': 'extension ≠ content', 'docs.none.t': 'No documents stored', 'docs.none.p': 'Stored files are hashed and encrypted. They are kept as evidence; their content is not read.',
   'doc.file.aria': 'File to store', 'doc.choose': 'Choose file…', 'doc.nofile': 'No file chosen', 'doc.store': 'Store file', 'doc.e.nofile': 'Choose a file first.',
-  'doc.accepted': 'Accepted by content: PDF, PNG, JPEG, TIFF, DXF, STEP (max 50 MB). Files are hashed and stored encrypted. **No drawing content is read** — reading drawings is planned, not implemented.',
+  'doc.accepted': 'Accepted by content: PDF, PNG, JPEG, TIFF, DXF, STEP (max 50 MB). Files are hashed and stored encrypted. **No drawing content is read.**',
   'doc.snapshot': 'Current project snapshot: {id}', 'doc.snapshot.none': 'none', 'doc.stored': 'Stored ({type}). {interp}',
   'member.remove': 'Remove', 'member.remove.aria': 'Remove {user} from the project', 'member.confirm': 'Confirm: remove {user}', 'members.none': 'No members.',
   'members.hint': 'Administrators see every project; other users only the projects they are members of.',
@@ -177,10 +177,6 @@ const EN = {
 
   // job browser
   'ws.sub': 'Open a job to inspect its flat pattern, verification, gates and provenance — or compute a new one.', 'ws.all': 'All engineering jobs',
-  'ws.planned.t': 'Drawing intelligence', 'ws.planned.lead': 'Until this exists, geometry parameters are entered manually and every result is marked as not linked to a source drawing (gate G01).',
-  'ws.planned.1': 'PDF and image viewer with measurement against the source drawing', 'ws.planned.2': 'Page classification, OCR (Japanese / English), dimension and symbol recognition',
-  'ws.planned.3': 'View and projection identification, scale and unit interpretation', 'ws.planned.4': 'Geometry reconstruction from drawings; 2D/3D comparison with the source',
-  'ws.planned.5': 'Human confirmation workflow for readings',
 
   // new calculation
   'math.noproj.t': 'Create a project first', 'math.noproj.p': 'Each calculation is recorded in a project. Create a project first, then return to this form.', 'math.noproj.go': 'Go to projects',
@@ -204,7 +200,7 @@ const EN = {
   'math.result.3': 'Release gates. Every job stays in **REVIEW REQUIRED** or **REJECTED**: engineer approval is not implemented.', 'math.result.4': 'DXF files named `NOT-RELEASED`.',
   'math.result.5': 'If the engine refuses the values, the job is recorded with **NO RESULT** and its reason; nothing is computed.',
   'math.planned.h': 'Planned', 'math.planned.tag': 'not implemented',
-  'math.planned.1': 'Constraint solving from drawing dimensions', 'math.planned.2': 'Assemblies other than one header with one branch; several branches; flanges and supports',
+  'math.planned.1': 'Constraint solving from entered dimensions', 'math.planned.2': 'Assemblies other than one header with one branch; several branches; flanges and supports',
   'math.planned.3': 'Rectangular-to-round and irregular transitions; equal-diameter and partial branch intersections; oblique cylinders; near-cylindrical cones',
   'math.planned.4': 'Thickness / neutral-surface treatment, bend and roll allowances from calibrated process data', 'math.planned.5': 'Uncertainty and tolerance analysis; interval-certified error bounds',
   'math.planned.6': 'Plate division and seam optimisation',
@@ -251,7 +247,7 @@ const EN = {
   'ban.review': '**REVIEW REQUIRED** — this result cannot be released for manufacturing. The Gates tab gives every reason.',
   'ban.none.default': 'no pattern was produced',
   'pane.props.aria': 'Inputs and properties', 'pane.props.h': 'Properties', 'pane.results.aria': 'Results, verification and gates', 'split.props': 'Resize properties panel', 'split.results': 'Resize results panel',
-  'req.h': 'Request', 'req.tag': 'entered manually', 'req.correct': 'Correct', 'req.correct.aria': 'Correct {label}', 'req.hint': 'Not linked to a source drawing: drawing interpretation is planned, not implemented.',
+  'req.h': 'Request', 'req.tag': 'entered manually', 'req.correct': 'Correct', 'req.correct.aria': 'Correct {label}', 'req.hint': 'Not linked to a source drawing.',
   'sel.h': 'Selection', 'curves.h': 'Curves', 'quant.h': 'Pattern quantities', 'assume.h': 'Assumptions',
   'tabs.aria': 'Results', 'tab.changes': 'Changes', 'tab.gates': 'Gates', 'tab.checks': 'Checks', 'tab.scrutiny': 'Scrutiny', 'tab.graph': 'Graph', 'tab.history': 'History', 'tab.records': 'Records',
 
@@ -409,7 +405,7 @@ const EN = {
   'adm.chain': 'Chain check: {state}', 'adm.chain.ok': 'INTACT', 'adm.chain.bad': 'BROKEN at entry {n}', 'adm.chain.over': 'over {n} entries.',
   'adm.chain.t.ok': 'Audit chain intact over {n} entries.', 'adm.chain.t.bad': 'Audit chain BROKEN at entry {n}.',
   'adm.planned.1': 'Multi-factor authentication, single sign-on', 'adm.planned.2': 'Built-in TLS, database encryption at rest, key rotation', 'adm.planned.3': 'Backup and restore tooling, retention policies',
-  'adm.planned.4': 'AI/model configuration, engineering standards and factory rule management', 'adm.planned.5': 'Separate tenants (isolation is per project within one installation)',
+  'adm.planned.4': 'Engineering standards and factory rule management', 'adm.planned.5': 'Separate tenants (isolation is per project within one installation)',
 };
 
 // ---------------------------------------------------------------- 日本語
@@ -517,7 +513,7 @@ const JA = {
   'th.file': 'ファイル', 'th.dtype': '判定した形式', 'th.size': 'サイズ（バイト）', 'th.sha': 'SHA-256', 'th.uploaded': 'アップロード',
   'doc.mismatch': '拡張子と内容が不一致', 'docs.none.t': '保存された文書はありません', 'docs.none.p': '保存したファイルはハッシュ化し、暗号化します。証拠として保管するだけで、内容は読み取りません。',
   'doc.file.aria': '保存するファイル', 'doc.choose': 'ファイルを選択…', 'doc.nofile': 'ファイル未選択', 'doc.store': 'ファイルを保存', 'doc.e.nofile': '先にファイルを選択してください。',
-  'doc.accepted': '内容で判定して受け付ける形式：PDF、PNG、JPEG、TIFF、DXF、STEP（最大50 MB）。ファイルはハッシュ化し、暗号化して保存します。**図面の内容は読み取りません。** 図面の読み取りは計画中で、未実装です。',
+  'doc.accepted': '内容で判定して受け付ける形式：PDF、PNG、JPEG、TIFF、DXF、STEP（最大50 MB）。ファイルはハッシュ化し、暗号化して保存します。**図面の内容は読み取りません。**',
   'doc.snapshot': '現在のプロジェクトスナップショット：{id}', 'doc.snapshot.none': 'なし', 'doc.stored': '保存しました（{type}）。{interp}',
   'member.remove': '削除', 'member.remove.aria': '{user} をプロジェクトから削除', 'member.confirm': '確認：{user} を削除', 'members.none': 'メンバーはいません。',
   'members.hint': '管理者はすべてのプロジェクトを参照できます。その他のユーザーが参照できるのは、メンバーになっているプロジェクトだけです。',
@@ -525,10 +521,6 @@ const JA = {
   'member.added': '{user} をプロジェクトに追加しました。', 'member.removed': '{user} をプロジェクトから削除しました。',
 
   'ws.sub': 'ジョブを開くと、展開図・検証・ゲート・来歴を確認できます。新しい計算も実行できます。', 'ws.all': 'すべてのジョブ',
-  'ws.planned.t': '図面の読み取り', 'ws.planned.lead': 'この機能が実装されるまで、形状パラメータは手入力となり、すべての結果に「元図面と未連携」と表示されます（ゲート`G01`）。',
-  'ws.planned.1': '元図面と照らして計測できるPDF・画像ビューア', 'ws.planned.2': 'ページ分類、`OCR`（日本語／英語）、寸法・記号の認識',
-  'ws.planned.3': '図の種類と投影法の識別、尺度・単位の解釈', 'ws.planned.4': '図面からの形状の再構築、元図面との2D／3D比較',
-  'ws.planned.5': '読み取り結果を人が確認するワークフロー',
 
   'math.noproj.t': '先にプロジェクトを作成してください', 'math.noproj.p': '計算はプロジェクトに記録されます。先にプロジェクトを作成し、このフォームに戻ってください。', 'math.noproj.go': 'プロジェクトへ',
   'math.viewer.t': 'この権限では、結果の閲覧はできますが、計算は実行できません', 'math.viewer.p': '管理者に「技術者」の権限を依頼してください。', 'math.viewer.go': 'ジョブを見る',
@@ -551,7 +543,7 @@ const JA = {
   'math.result.3': 'リリースゲート。技術者承認が未実装のため、すべてのジョブは**要レビュー**または**却下**のままです。', 'math.result.4': 'ファイル名に `NOT-RELEASED` が付くDXFファイル。',
   'math.result.5': 'エンジンが値を受け付けない場合、ジョブは理由とともに**結果なし**として記録され、何も計算されません。',
   'math.planned.h': '計画中', 'math.planned.tag': '未実装',
-  'math.planned.1': '図面寸法からの拘束求解', 'math.planned.2': '母管1本＋枝管1本以外の組立、複数の枝管、フランジやサポート',
+  'math.planned.1': '入力した寸法からの拘束求解', 'math.planned.2': '母管1本＋枝管1本以外の組立、複数の枝管、フランジやサポート',
   'math.planned.3': '角丸などの変形管、同径および部分的な枝管の相貫、斜円筒、円筒に近い円錐',
   'math.planned.4': '板厚・中立面の扱い、校正済みの工程データに基づく曲げ・ロール加工の伸び代', 'math.planned.5': '不確かさと公差の解析、区間演算で保証された誤差限界',
   'math.planned.6': '板割りと継目位置の最適化',
@@ -596,7 +588,7 @@ const JA = {
   'ban.review': '**要レビュー：** この結果を製造用にリリースすることはできません。理由はすべて「ゲート」タブに表示されています。',
   'ban.none.default': '展開図は生成されませんでした',
   'pane.props.aria': '入力値とプロパティ', 'pane.props.h': 'プロパティ', 'pane.results.aria': '結果・検証・ゲート', 'split.props': 'プロパティパネルの幅を変更', 'split.results': '結果パネルの幅を変更',
-  'req.h': '入力値', 'req.tag': '手入力', 'req.correct': '訂正', 'req.correct.aria': '{label}を訂正', 'req.hint': '元図面とは連携していません。図面の解釈は計画中で、未実装です。',
+  'req.h': '入力値', 'req.tag': '手入力', 'req.correct': '訂正', 'req.correct.aria': '{label}を訂正', 'req.hint': '元図面とは連携していません。',
   'sel.h': '選択', 'curves.h': '曲線', 'quant.h': '展開図の諸元', 'assume.h': '前提条件',
   'tabs.aria': '結果', 'tab.changes': '変更点', 'tab.gates': 'ゲート', 'tab.checks': '検証項目', 'tab.scrutiny': '精査', 'tab.graph': '依存関係', 'tab.history': '履歴', 'tab.records': '記録',
 
@@ -740,7 +732,7 @@ const JA = {
   'adm.chain': 'チェーンの検証：{state}', 'adm.chain.ok': '改ざんなし', 'adm.chain.bad': 'エントリー{n}で破損', 'adm.chain.over': '（{n}件）',
   'adm.chain.t.ok': '監査チェーンに改ざんはありません（{n}件）。', 'adm.chain.t.bad': '監査チェーンが、エントリー{n}で破損しています。',
   'adm.planned.1': '多要素認証、シングルサインオン', 'adm.planned.2': '`TLS`の内蔵、データベースの保存時暗号化、鍵のローテーション', 'adm.planned.3': 'バックアップと復元のツール、保存期間のポリシー',
-  'adm.planned.4': 'AI・モデルの設定、技術基準と工場ルールの管理', 'adm.planned.5': 'テナントの分離（現在の分離は、1つのインストール内のプロジェクト単位です）',
+  'adm.planned.4': '技術基準と工場ルールの管理', 'adm.planned.5': 'テナントの分離（現在の分離は、1つのインストール内のプロジェクト単位です）',
 };
 
 const MSG = { en: EN, ja: JA };
@@ -912,6 +904,17 @@ const ID = {
     opening_closed_simple_inside_shell: [null, '開口が閉じた単純な輪郭で、胴板の内側にあること'], parts_declare_the_same_marking_side: [null, '両部材のけがき面の宣言が同じ'],
     branch_cut_lies_on_header_opening: [null, '枝管の切断線が母管の開口線上にあること'], header_opening_lies_on_branch_cut: [null, '母管の開口線が枝管の切断線上にあること'],
     opening_on_intersection_of_branch_geometry: [null, '開口が、枝管の形状の交線上にあること'], saddle_on_intersection_of_header_geometry: [null, '相貫切断線が、母管の形状の交線上にあること'],
+    // pending native fabrication-engineer review (C7)
+    opening_centre_on_the_declared_delta_side: [null, '開口の中心が、宣言したデルタ側にあること'],
+    opening_matches_3d_intersection: [null, '開口が、3Dの交線と一致すること'],
+    opening_developed_length_equals_3d_arc_length: [null, '開口の展開長＝3Dの円弧長'],
+    opening_area_equals_surface_area: [null, '開口の面積＝表面積'],
+    header_circle_3d_arc_length: [null, '母管の円の3D円弧長'],
+    saddle_matches_3d_intersection: [null, '相貫切断線が、3Dの交線と一致すること'],
+    saddle_on_the_declared_delta_side: [null, '相貫切断線が、宣言したデルタ側にあること'],
+    saddle_developed_length_equals_3d_arc_length: [null, '相貫切断線の展開長＝3Dの円弧長'],
+    pattern_area_equals_surface_area: [null, '展開図の面積＝表面積'],
+    square_end_3d_arc_length: [null, '直切り端の3D円弧長'],
   },
   rfamily: { source: [null, '原資料'], claim: [null, '主張'], relation: [null, '関係'], activity: [null, 'アクティビティ'], finding: [null, '所見'], assessment: [null, '評価'], attestation: [null, '証明'] },
   rkind: {

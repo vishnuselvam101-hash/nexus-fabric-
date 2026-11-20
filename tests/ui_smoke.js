@@ -467,6 +467,21 @@ const controlProbe = () => {
   await jaScreen('dashboard');
   for (const fam of ['cylinder_shell', 'cone_frustum', 'eccentric_reducer', 'header_with_branch', 'branch_stub']) { await go('math/1', '#calc'); await p.selectOption('select[name=fam]', fam); await jaScreen(`new calculation, ${fam}`); }
   // engine sentences shown without their Japanese text (the class .eng.raw is set by the client for an untranslated text)
+  // C7: in Japanese every gate and check shows a label. A label that is missing, or equal to the identifier, fails here
+  // (the client then shows the raw identifier in place of the label). Counts the rows it saw: zero rows is a failure too.
+  const rawLabelsJa = async (where) => {
+    const r = await p.evaluate(() => {
+      const bad = []; let n = 0;
+      for (const row of document.querySelectorAll('#gates li[data-gate] .l1, #checks li > .l1')) {
+        const b = row.querySelector(':scope > b'); if (!b) continue; n++;
+        const idk = b.querySelector('.idk'); const ident = idk ? idk.textContent.trim() : row.querySelector(':scope > .id').textContent.trim();
+        const label = [...b.childNodes].filter((c) => !(c.nodeType === 1 && c.classList.contains('idk'))).map((c) => c.textContent).join('').trim();
+        if (!label || label === ident) bad.push(ident);
+      }
+      return { n, bad };
+    });
+    check(`ja: ${where}: every gate and check has a Japanese label, none shown as its raw identifier`, r.n > 0 && r.bad.length === 0, r);
+  };
   const rawEng = () => p.evaluate(() => [...document.querySelectorAll('#joint .eng.raw, #assume .eng.raw, #gates li[data-gate="G02"] .eng.raw')].map((e) => e.textContent.trim().slice(0, 160)));
   // the joint in Japanese: the refused pairing, the declared set-on job and the undeclared one (assumptions opened)
   await go('math/1', '#calc'); await p.selectOption('select[name=fam]', 'header_with_branch'); await p.selectOption('select[name=joint]', 'set_on'); await p.click('#run'); await p.waitForSelector('#f_joint[aria-invalid="true"]');
@@ -478,13 +493,14 @@ const controlProbe = () => {
   check('ja: the declared set-on joint is shown in Japanese, with both surfaces', /セットオン/.test(soJa) && /外面/.test(soJa) && /内面/.test(soJa), soJa.slice(0, 120));
   check('ja: no engine sentence of the declared set-on job is untranslated (joint, assumptions, gate G02)', (await rawEng()).length === 0, await rawEng());
   await jaScreen('job view, declared set-on joint');
+  await rawLabelsJa('job view, declared set-on joint, gates and checks');
   await go(`calc/${A}`, '.pv'); await p.waitForSelector('#joint'); await p.evaluate(() => { document.querySelector('#assume').parentElement.open = true; });
   const undJa = await p.textContent('#view');
   check('ja: the undeclared job does not say that set-on is assumed, and says the joint type is not declared', !/セットオン継手を前提/.test(undJa) && /未宣言/.test(await p.textContent('#joint')));
   check('ja: no engine sentence of the undeclared job is untranslated (joint, assumptions, gate G02)', (await rawEng()).length === 0, await rawEng());
   await jaScreen('job view, undeclared joint');
   await go(`calc/${J}`, '.pv'); await p.waitForSelector('.pv .c', { state: 'attached' }); await jaScreen('job view, pattern');
-  for (const k of ['gates', 'checks', 'scrutiny', 'graph', 'history', 'records']) { await p.click(`#tab-ws-${k}`); await jaScreen(`job view, ${k} tab`); }
+  for (const k of ['gates', 'checks', 'scrutiny', 'graph', 'history', 'records']) { await p.click(`#tab-ws-${k}`); await jaScreen(`job view, ${k} tab`); if (k === 'gates' || k === 'checks') await rawLabelsJa(`job view, ${k} tab`); }
   await go(`calc/${N}`, '.pv'); await p.waitForSelector('.pv .c', { state: 'attached' }); await p.click('#tab-ws-changes'); await jaScreen('job view, changes tab');
   await p.click('#tab-ws-records'); await p.click('#tp-ws-records .rec >> nth=0'); await p.waitForSelector('#tp-ws-records .rec[open] pre'); await jaScreen('job view, a record opened');
   await p.click('#corr-open'); await p.waitForSelector('#corrdlg[open]'); await jaScreen('correction dialog'); await p.keyboard.press('Escape');

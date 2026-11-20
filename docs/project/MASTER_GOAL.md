@@ -39,7 +39,7 @@ Readiness is stated per classification, never as one label: see `READINESS.md`.
 | Engineering workstation interface | Implemented; first independent review below bar | Fixes in progress |
 | File upload and document storage | Implemented: documents are uploaded, stored encrypted and never parsed | Corrected 20 Nov 2026: an earlier version of this table said "not implemented" |
 | DXF or drawing import (reading a drawing) | Not implemented | Standing rule: no parser is merged without an isolated, network-less, resource-limited process and fuzz tests |
-| Drawing reading, 3D reconstruction, any AI component | Not implemented | "AI-native" is positioning, not a present capability. AI may never be the final authority for geometry |
+| Drawing reading, 3D reconstruction, any AI component | Not implemented | No AI in the software (owner decision, 20 Nov). AI may never be the final authority for geometry |
 | Plate division, seams, nesting, manufacturing-constraint evaluation, CNC or CAM hand-off | Not implemented | No CNC-readiness claim |
 | Structural frames, trusses, structural analysis, code checks, STEP, IFC | Not implemented, not planned in the specifications | Would be a new product area needing its own specification and independent validation |
 | Engineer approval | Not implemented | `APPROVED` stays unreachable by design |
@@ -53,4 +53,4 @@ In progress: backend audit; independent computational validation with benchmark 
 
 Queued, in priority order: (1) one fix pass on critical and high defects from the four audits, each with a regression test; (2) DXF quality gate inside the product: an error-detection pass (open contours, duplicates, overlaps, self-intersections, wrong layer or units) and an INVALID state that blocks download; tolerance and precision specification; (3) property-based tests of geometric invariants; (4) error and integrity monitoring with an "Engineering integrity" page in the application showing real results only; (5) two independent reviewers (system architecture, computational engineering); (6) evidence-based release report and updated status documents.
 
-Needs an owner decision before any work: DXF import; any AI component; structural engineering; STEP or IFC. Each is new product scope, and the first two are bound by standing safety rules.
+Needs an owner decision before any work: DXF import; structural engineering; STEP or IFC. Each is new product scope, and DXF import is bound by standing safety rules. (No AI component: the software contains none — owner decision, 20 Nov; see above.)
