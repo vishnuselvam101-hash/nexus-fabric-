@@ -36,6 +36,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Cause (observed): Chromium's number input drops the comma and the letter, so the form's validation and the request only ever see `15` and `010`.
 - Mitigation and rating: the altered value is visible in the field, and every such job is REVIEW REQUIRED and NOT RELEASED. Rated Critical because a dimension ten times too large is computed and written to the record without any warning. The owner may lower it to High if the visible field value is judged enough.
 - Evidence: API responses above; scripts `comma_repro.js`, `second_repro.js`. No screenshot taken.
+**Status:** already fixed before this pass (the dimension fields are text fields read by `parseDim`). Kept by section 14c of `tests/ui_smoke.js`.
 
 ### BH-002: Medium: open obligations of superseded jobs stay open and inflate the count
 
@@ -45,6 +46,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Actual: they stay open. `GET /api/amoeba/summary` gives `obligations.open = 17`; 9 of those 17 target superseded jobs (ids 20, 22, 31, 33, 54, 55, 64, 65, 66). The status bar ("17 open scrutiny obligations"), the Verification panel (17 rows, badge 17) and the summary agree with each other, and all three count these.
 - Reproduces: 2 of 2 (188 to 189, 189 to 190). Also seen earlier on 59 to 60 and 60 to 61.
 - Evidence: API JSON above; `stale_repro.js`, `counts.js`. No screenshot taken.
+**Status:** fixed. Open obligations on current results are the open count everywhere (AMOEBA summary `obligations.open`, dashboard `open_obligations`, status bar, Verification badge). Obligations on superseded results stay open (no record was changed) and are counted apart (`obligations.open_on_superseded`, dashboard `open_obligations_on_superseded`), listed with the label "on a superseded result". Tests: Rust `bh002_obligations_on_a_superseded_result_are_counted_apart_and_stay_open` (`crates/nf-server/src/tests.rs`); `tests/ui_smoke.js` section 14d, "BH-002: open obligations are split..." and "BH-002: the obligations badge counts current work only".
 
 ### BH-003: Medium: language switch removes field validation feedback
 
@@ -54,6 +56,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Actual: before the switch there is one `.field-err` and the note "Not sent. 1 value cannot be computed; see the marked field." After the switch there are zero field errors, the note is empty, and `aria-invalid` is removed. The values (200 and 150) are kept, so the form looks valid while it is not.
 - Reproduces: 2 of 2 (en-US, switch to 日本語 each time).
 - Evidence: DOM readings from `lang_err.js`. No screenshot taken.
+**Status:** fixed. After a language switch the field error and the note are drawn again in the new language, from the values on the screen; the checks run again and nothing is sent. Test: `tests/ui_smoke.js` section 14d, "BH-003: after the language switch...".
 
 ### BH-004: Medium: a declared joint changes no output and does not appear in the DXF
 
@@ -65,6 +68,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Reproduces: 2 of 2 radius sets.
 - Note for the owner: whether identical geometry is right for these inputs is an engineering question, because the zero-thickness model uses the same contact radii in both cases. The defect as reported: the joint declaration and the surfaces that define the opening are not visible in the file a shop receives, and the stored sentence and the file are not linked.
 - Evidence: `seton.js` output; `dxf/job9-header.dxf`, `dxf/job16-header.dxf`.
+**Status:** not changed. Whether identical geometry is right for these inputs, and what the DXF must state about the joint, is an engineering decision for the owner.
 
 ### BH-005: Medium: DXF units are not declared machine-readably
 
@@ -74,6 +78,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Actual: none of the 8 files contains `$INSUNITS`. Units appear only in a group-999 comment ("units: millimetres") and a TEXT entity ("UNITS: MILLIMETRES"). The HEADER has `$LUNITS` (format only). A CAD program that reads `$INSUNITS` does not know the scale.
 - Reproduces: 8 of 8 files (jobs 1, 2, 3, 4, 9 header and branch, 16 header and branch).
 - Evidence: `dxf/job4-shell.dxf` (opened, full text read); grep of all 8 files for `INSUNITS` gives 0.
+**Status:** not changed. The units declaration in the DXF header is a file-format decision for the owner.
 
 ### BH-006: Low: status card text collision
 
@@ -83,6 +88,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Actual: `0.4.0+src.be53b63158593bf7` wraps and its last characters run into the Marking side value (`outside`, or `外面` in Japanese); in light theme "outside" sits on the hash line.
 - Reproduces: 3 of 3 (English dark, English light, Japanese).
 - Evidence: `shots/motion-fit-job9.png` and `shots/corr1-job.png` (opened, overlap visible); `shots/card-light-job9.png` and `shots/card-ja-job60.png` (opened).
+**Status:** fixed. A long value in the title block (the engine id) wraps inside its cell (`overflow-wrap: anywhere` on `.tblock .v`, `web/styles.css`). Test: `tests/ui_smoke.js` section 14d, "BH-006: the status card keeps each value inside its cell" (English dark, English light, Japanese).
 
 ### BH-007: Low: AMOEBA "Activities" badge counts activity types, not activities
 
@@ -90,6 +96,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Expected: the badge shows the number of activities, or its label says what it counts.
 - Actual: the badge shows 8. The table below lists 8 activity types whose distinct-activity counts add up to 67 (`GET /api/amoeba/summary`). The Records badge (207) counts rows, which is consistent with its own table.
 - Reproduces: 2 of 2 (the badge reads "Activities 8" in `shots/amoeba-activities-en-dark.png` and `shots/graph-job8-en-dark.png`, both opened).
+**Status:** fixed. The Activities badge counts activities: the sum of the table's distinct-activity column, the same rule the Records badge uses. Test: `tests/ui_smoke.js` section 14d, "BH-007: the Activities badge equals the number of activities in its table".
 
 ### BH-008: Low: console error on every sign-in screen load
 
@@ -97,12 +104,14 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Actual: console "Failed to load resource: the server responded with a status of 401 (Unauthorized)" for `GET /api/me`, the session probe. Under brief item I this is a console error on the sign-in screen.
 - Expected: no console error on any screen.
 - Reproduces every time (every page load in every run, more than 20 times).
+**Status:** fixed. The start-up probe is now `GET /api/session`, which answers 200 with `signed_in: false` for a visitor who is not signed in; the sign-in screen makes no failed request. `/api/me` keeps its 401, which the security checks rely on. Tests: Rust `bh008_the_start_up_probe_answers_200_for_a_visitor_who_is_not_signed_in`; `tests/ui_smoke.js` section 14d, "BH-008: the sign-in screen loads with no failed request and no console error". Not covered: a request that gets a 401 because a session ended while the user was working is still logged by the browser (the suite allows that case).
 
 ### BH-009: Low: misleading API message for an over-long project name
 
 - Steps: `POST /api/projects` with a 10,000-character name and a valid description, as admin.
 - Actual: `400 {"error":"project name is required (max 200 characters)"}`. The name is present, so "required" is wrong. The UI is not affected: the name input has `maxlength="200"`, so the browser caps the text and the project is created.
 - Reproduces: 2 of 2 (name of `A` x 10000 and of `B` x 10000 / `C` x 10000).
+**Status:** fixed. An empty name is "project name is required"; a name longer than 200 characters is "project name is too long (max 200 characters)". The limit is now counted in characters, as the field's maxlength is. Before, the server counted bytes, so a name of more than 66 Japanese characters was refused although the field allowed 200: that is a behaviour change beyond the message. Tests: Rust `bh009_project_name_refusals_say_what_is_wrong_and_count_characters`; the Japanese texts are in the `SERVER` table of `web/i18n.js`.
 
 ### BH-010: Low: unsent draft lost when the session expires
 
@@ -110,6 +119,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Expected: the draft comes back, or at least the chosen family and values remain.
 - Actual: the banner "Your session has ended. Sign in again." is correct, but after sign-in the form is back at the default family (cylinder_shell) and the typed values are gone.
 - Reproduces: 3 of 3.
+**Status:** fixed. When the session ends while a form is open, the visible form's values are kept in this tab's `sessionStorage` (inside try/catch; never a password or a token) and restored after the sign-in. Test: `tests/ui_smoke.js` section 14d, "BH-010: after a forced sign-in the form comes back...".
 
 ### BH-011: Low: raw HTTP status shown for a malformed job id in AMOEBA
 
@@ -117,6 +127,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Actual: "Could not load the graph" followed by "Request failed (400)". The unknown id `#/amoeba/dependencies/999` shows the clearer "not found".
 - Expected: a readable message, as for the unknown id.
 - Reproduces: 3 of 3.
+**Status:** fixed. A job id that is not a whole number gets the same "not found" message as an unknown id, and no request is sent for it. Test: `tests/ui_smoke.js` section 14d, "BH-011: a malformed job id shows the not-found message..." The request is no longer sent, so the suite's console check sees no 400 response.
 
 ### BH-012: Low: browser Back does not step through AMOEBA tabs
 
@@ -124,6 +135,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Expected: Back returns to Lessons.
 - Actual: Back returns to `#/verification`. The tab code calls `history.replaceState` (web/app.js, wireTabs and the AMOEBA wire function), so tab changes never enter the history.
 - Reproduces: 2 of 2 in the final run (and once earlier).
+**Status:** fixed. A tab change in AMOEBA and in administration adds a history entry, so Back and Forward step through the tabs. Test: `tests/ui_smoke.js` section 14d, "BH-012: browser Back returns to the previous AMOEBA tab and Forward returns to the next".
 
 ### BH-013: Low: 40 px horizontal page scroll at 360 px width
 
@@ -131,6 +143,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Expected: no horizontal page scroll. The brief's requested widths (768 to 1920) are fine; 360 is outside them, so this is Low.
 - Actual: `document.documentElement.scrollWidth` is 40 px wider than the viewport on all five screens. No overflow at 768, 1024, 1280 or 1920 px.
 - Reproduces: 2 of 2 runs, 5 of 5 screens.
+**Status:** fixed. Below 600 px the top bar wraps onto a second line (`web/styles.css`), so nothing runs past the right edge and the build notice stays whole. The rule is recorded in the breakpoint table of `docs/design/DESIGN_SYSTEM.md`. Test: `tests/ui_smoke.js` section 14d, "BH-013: no horizontal page scroll at 360 px wide on the five main screens".
 
 ### BH-014: Low: the form accepts values the engine then refuses
 
@@ -141,6 +154,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
   - `branch_station` 1199.9 with `header_length` 1200: engine: opening spans x = 1171.032 to 1401.973, outside the shell.
 - Expected: the field stops these, as it does for the tangent limit, so no REFUSED job is created.
 - Reproduces: the engine refusals for beta 10 and 170 and for station 1199.9 were seen in two separate runs. The form-side result came from the extracted validator in one comparison run covering all four surface values.
+**Status:** partly fixed. The client has no new rule: the engine's square-end limit and its opening-inside-shell limit come from sampled geometry, so they cannot be stated exactly in the client (the brief allows no invented rule). The engine stays the judge. Its refusal names the field (`s_end`, `branch_station`) on the refused job, and the form still accepts such values, so a REFUSED job is still recorded (records are append-only). Test: `tests/ui_smoke.js` section 14d, "BH-014: the engine refusal of a square end names the s_end field...".
 
 ### BH-015: Low: API requires `surface_reference` even when both part references are given
 
@@ -148,6 +162,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Actual: `400 {"error":"invalid request: missing field `surface_reference`"}`. With `surface_reference: "unknown"` added the same request gives 200 REVIEW_REQUIRED.
 - Expected: per docs/backend/UI_CHANGES_NEEDED.md item 1, per-part references are optional and "absent = surface_reference". Per-part references should be enough.
 - Reproduces: 2 of 2 (all 50 combinations without the shared field in the matrix, and the repeat).
+**Status:** fixed. `surface_reference` may be left out when both `header_surface_reference` and `branch_surface_reference` are given; when a part surface is missing the request is still refused with the same message. Requests that carried the shared field are unchanged (it is written back as before). Tests: Rust `bh015_part_surfaces_are_enough_and_the_shared_one_is_needed_only_when_a_part_is_missing` (`crates/nf-core/src/job.rs`) and `bh015_header_with_branch_accepts_the_part_surfaces_without_the_shared_one` (`crates/nf-server/src/tests.rs`).
 
 ### BH-016: Low: joint text prints the parameter key inside a sentence
 
@@ -155,6 +170,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Actual: "Joint type joint not declared" and "Joint type joint Set-on". Japanese shows "取合いの形式 joint 未宣言" with the Latin key.
 - Expected: a sentence without the repeated word.
 - Reproduces: 2 of 2 jobs.
+**Status:** fixed. The joint row and the two surface rows show their label as a phrase; the parameter key moved into the tooltip (`title`) and is no longer printed in the sentence. Test: `tests/ui_smoke.js` section 14d, "BH-016: the joint row shows its label without the key...".
 
 ### BH-017: Low: desktop mode keeps the storage key next to the encrypted data
 
@@ -162,6 +178,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Actual: the folder (mode 700) holds `nexus-fabric.sqlite`, `-wal`, `-shm`, `blobs/` and `storage.key` (32 bytes, mode 600). The server guide says `NF_KEY_FILE` should be outside the data folder; desktop mode gives no option to do that.
 - Expected: the key is kept apart from the data, or the guide and the desktop behaviour say so.
 - Reproduces: the same listing at first start and after setup (2 of 2). Rated Low because the key is readable only by the same local user.
+**Status:** not changed. Where the storage key sits in desktop mode, and what the guide says about it, is the owner's decision.
 
 ### BH-018: Low: keyboard focus on the workspace splitters has no visible indicator
 
@@ -169,6 +186,16 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Actual: after the Run button, two `div.split[tabindex=0]` elements (workspace resize handles) receive focus with no outline or box-shadow.
 - Expected: a visible focus indicator on every focusable element.
 - Reproduces: 2 of 2 runs.
+**Status:** fixed. The workspace splitters take the global 2 px focus outline (the rule that switched the outline off was removed). Test: `tests/ui_smoke.js` section 14d, "BH-018: a focused workspace splitter shows an outline or a box-shadow".
+
+
+### NEW (found in the tester's incident): `nf-server --help` and unknown arguments start a server
+
+- Where: `crates/nf-server/src/main.rs` (`main`, `invocation`, `help_text`, `version_text`).
+- Steps: run `nf-server --help` (or any unknown argument).
+- Expected: the usage prints (the environment variables and the `--desktop` options) and the program exits 0; no data folder, key, setup token or port is created.
+- Actual (before this pass): a server started with the default data folder `./data` and listened on 127.0.0.1:8787.
+- **Status:** fixed. `--help` and `-h` print the usage and exit 0; `--version` prints the version and exit 0; an unknown argument prints an error and exits 2. Nothing is created and no port is opened for these. Tests: `crates/nf-server/tests/cli.rs` (8 integration tests that run the binary) and `invocation_tests` in `crates/nf-server/src/main.rs` (4 unit tests).
 
 ## 4. Environment incident (not a product defect; needs the owner)
 
@@ -178,6 +205,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - I tried once to stop PID 5857 with `kill -TERM`. The command was denied by the permission classifier, and I did not try any other way to stop it.
 - Action needed from the owner: stop PID 5857 (for example `kill 5857`), then decide what to do with `/home/user/nexus-fabric-/data` (in particular the one-time `setup-token`). I changed nothing else in the repository.
 - My own servers on 8881 (PID 8374) and 8882 (PID 32602) were stopped with SIGTERM and confirmed gone. The desktop copy on 8883 stopped at its timeout.
+- **Status (fix pass, not a product defect):** on checking, PID 5857 was no longer running and nothing listened on 127.0.0.1:8787. This pass did not stop or signal it, and the cause of its exit is not established here. `/home/user/nexus-fabric-/data/setup-token` (33 bytes, mode 600) is still in that folder; what happens to that folder is the owner's decision.
 
 ## 5. Tested and worked
 
@@ -237,3 +265,9 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - DXF files: `dxf/job1-reducer.dxf`, `dxf/job2-reducer.dxf`, `dxf/job3-branch.dxf`, `dxf/job4-shell.dxf`, `dxf/job9-header.dxf`, `dxf/job9-branch.dxf`, `dxf/job16-header.dxf`, `dxf/job16-branch.dxf`.
 - Scripts: `scripts/` (for example `joint_matrix.js`, `seton.js`, `edge_cmp2.js`, `validator_client.js`, `comma_repro.js`, `second_repro.js`, `stale_repro.js`, `counts.js`, `dxfcheck.js`, `lang_err.js`).
 - Server logs: `run1/server.log` and `run1/server2.log` (port 8881); `desk/run1.log` (desktop run).
+
+## 8. Fix pass: status and checks
+
+Each defect has a status line in its section (section 3). Fixed: BH-002, BH-003, BH-006, BH-007, BH-008, BH-009, BH-010, BH-011, BH-012, BH-013, BH-015, BH-016, BH-018, the new command-line defect, and BH-001 (fixed before the pass). Partly: BH-014. Not changed: BH-004, BH-005, BH-017, and the environment incident (section 4) for the owner.
+
+Checks at the end of the pass, on the release build: `cargo test --workspace` 157 passed, 0 failed (140 before the pass); `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo fmt --all -- --check` clean; `bash tests/e2e_smoke.sh` 89 passed, 0 failed; `bash tests/security_smoke.sh` 66 passed, 0 failed; `tests/ui_smoke.js` on a fresh server 183 passed, 0 failed (169 before the pass, plus the section 14d checks); `node tests/desktop_smoke.js target/release/nf-server 8868` 18 passed, 0 failed; `bash tests/offline_check.sh` passed (its API, browser and desktop suites passed inside a network namespace with no route out); `node docs/design/tools/i18n_check.mjs` no problem (815 keys in each language).

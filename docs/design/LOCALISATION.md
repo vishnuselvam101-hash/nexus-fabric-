@@ -7,7 +7,7 @@ Round 3. The client has two languages: English (the reference) and Japanese. Eve
 
 ## How the catalogue works
 
-- `web/i18n.js` holds two dictionaries, `EN` and `JA`, with the same 812 keys. A key missing in Japanese falls back to
+- `web/i18n.js` holds two dictionaries, `EN` and `JA`, with the same 815 keys. A key missing in Japanese falls back to
   English and is recorded by `missing()`; the test fails if anything is recorded.
 - `t(key, params)` returns plain text, for `textContent` and attributes. `h(key, params)` returns HTML: the text is
   escaped, `**bold**` becomes `<b>` and a backquoted span becomes monospace. Values from users or the server are escaped
@@ -15,7 +15,7 @@ Round 3. The client has two languages: English (the reference) and Japanese. Eve
 - Placeholders are `{name}`. A plural is `[singular, plural]`. The placeholders of each key are the same in both languages.
 - A message is a whole sentence with placeholders; no sentence is built from fragments, so Japanese word order is free.
 - Engine and server text arrives in English. It is translated only by exact match against four template tables:
-  `SENT` (84 sentences), `WHOLE` (66 texts), `REASON` (15) and `SERVER` (53), plus 224 identifier labels in 21 kinds.
+  `SENT` (84 sentences), `WHOLE` (66 texts), `REASON` (15) and `SERVER` (54), plus 224 identifier labels in 21 kinds.
   If any sentence matches no template, the whole text is shown in English and tagged "engine output" or "server
   message". Numbers and identifiers in a matched template pass through unchanged. In a Japanese template, an identifier
   written in backquotes is shown in monospace.

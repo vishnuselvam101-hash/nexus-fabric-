@@ -427,7 +427,7 @@ mod roundtrip_tests {
             beta_deg: 60.0,
             delta: 12.5,
             s_end: 400.0,
-            surface_reference: "outside".into(),
+            surface_reference: Some("outside".into()),
             header_surface_reference: None,
             branch_surface_reference: None,
             joint: None,

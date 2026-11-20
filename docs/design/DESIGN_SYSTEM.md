@@ -112,8 +112,9 @@ Desktop-first. Fixed viewport grid: top bar · rail + main · status bar; `main`
 | < 1180 | Breadcrumb hidden; stat strip 4 × 2 |
 | < 1100 | Workspace: canvas on top (≥ 360 px high), properties and results side by side below, page scrolls; short build notice in the top bar (full text stays in the status bar) |
 | < 820 | Single column; role label and secondary status items hidden |
+| < 600 | Top bar wraps onto a second line, so the build notice and the account chip stay whole and nothing runs past the right edge (BH-013) |
 
-Verified by the browser test at 1366, 1024 and 768 px: no horizontal overflow, every visible control named and reachable.
+Verified by the browser test at 1366, 1024 and 768 px: no horizontal overflow, every visible control named and reachable. At 360 px the browser test checks the five main screens for horizontal scroll.
 
 ## Keyboard
 
