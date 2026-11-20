@@ -844,8 +844,7 @@ const views = {
       return {
         title: t('nav.workspace'), crumbs: [[t('nav.workspace')]],
         html: `<div class="page">${ph(esc(t('nav.workspace')), esc(t('ws.sub')), newCalcBtn())}
-          ${panel(esc(t('ws.all')), jobsTable(cs, 'jobs-all', { project: true, replay: true }), { flush: true, count: cs.length, tools: cs.length ? filterBox('jobs-all', t('jobs.filter')) : '' })}
-          ${plannedKeys('ws.planned', 5, 'ws.planned.lead')}</div>`,
+          ${panel(esc(t('ws.all')), jobsTable(cs, 'jobs-all', { project: true, replay: true }), { flush: true, count: cs.length, tools: cs.length ? filterBox('jobs-all', t('jobs.filter')) : '' })}</div>`,
       };
     },
   },
