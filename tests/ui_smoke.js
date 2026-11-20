@@ -380,6 +380,94 @@ const controlProbe = () => {
   await p.click('#logout'); await p.waitForSelector('#f');
   check('logout: returns to sign-in and the session is invalid', (await ctx.request.get(`${B}/api/projects`, { headers: { 'X-NF-Request': '1' } })).status() === 401);
 
+  // ---- 14b. routing and Japanese: the switch, its persistence, the URL override, every main screen walked for
+  // English words, layout at three widths in both languages, and errors in both languages.
+  // The walk accepts only English that is English by design. Before it reads any text it skips:
+  //   .mono .idk .hash code kbd pre  identifiers, hashes, file and key names (monospace in the client)
+  //   .u bdi                         text a person typed (project, user, file and reason names), shown as written
+  //   .u-select option               project and user names listed in a select
+  //   [lang=en]                      engine or server text the catalogue deliberately leaves in English (engineJa)
+  // and it accepts these words wherever they are: the product name and its AMOEBA module, the file formats (DXF, PDF,
+  // PNG, JPEG, TIFF, STEP), the hash algorithm name SHA, and the unit rad.
+  const JA_ALLOW = ['NEXUS', 'FABRIC', 'AMOEBA', 'DXF', 'PDF', 'PNG', 'JPEG', 'TIFF', 'STEP', 'SHA', 'rad'];
+  const jaWalk = (allow) => {
+    const skip = '.mono,.idk,.hash,.u,bdi,code,kbd,pre,[lang=en],.u-select option,script,style,noscript';
+    const out = [], w = document.createTreeWalker(document.getElementById('app'), NodeFilter.SHOW_TEXT); let n;
+    while ((n = w.nextNode())) {
+      const el = n.parentElement; if (!el || el.closest(skip) || !el.getClientRects().length) continue;
+      const bad = (n.textContent.match(/[A-Za-z]{3,}/g) || []).filter((x) => !allow.includes(x));
+      if (bad.length) out.push(`<${el.tagName.toLowerCase()}> "${n.textContent.trim().slice(0, 50)}" [${bad.join(' ')}]`);
+    }
+    return out;
+  };
+  const JA_TEXT = /[぀-ヿ一-鿿]/;
+  const jaScreen = async (label) => { const found = await p.evaluate(jaWalk, JA_ALLOW); check(`ja: ${label}: no English word of three or more letters outside the allow-list`, found.length === 0, found.slice(0, 6)); };
+  const errsBeforeJa = errs.length;
+
+  // the language switch on the sign-in screen: Japanese at once, the same document (no reload)
+  // the page is still on the sign-in screen that the logout above left (a reload would probe the session: a 401)
+  await p.waitForSelector('#f');
+  await p.evaluate(() => { window.__nfSameDocument = 'yes'; });
+  await p.click('#lang-ja');
+  check('language: the switch on the sign-in screen shows Japanese without a page reload and sets <html lang>', (await p.evaluate(() => window.__nfSameDocument)) === 'yes' && (await p.getAttribute('html', 'lang')) === 'ja' && JA_TEXT.test(await p.textContent('.login-card h1')), await p.getAttribute('html', 'lang'));
+  await jaScreen('sign-in');
+  await p.fill('input[name=u]', ADMIN.username); await p.fill('input[name=p]', NEW_PW); await p.click('#f button'); await p.waitForSelector('#view h1');
+
+  // routing: the empty route opens the dashboard (it used to say that the page does not exist)
+  await p.goto(`${B}/#/`); await p.waitForSelector('.stats');
+  check('routing: the empty route #/ opens the dashboard', (await p.getAttribute('#view', 'data-hash')) === '#/' && (await p.locator('.stats').count()) === 1 && !/does not exist/i.test(await p.textContent('#view')));
+
+  // the choice is kept: after a reload the page is still Japanese, and the switch works in place
+  await p.goto(`${B}/#/dashboard`); await p.waitForSelector('.stats');
+  await p.evaluate(() => { window.__nfSameDocument = 'yes'; });
+  await p.click('#lang-en');
+  check('language: a switch on a signed-in screen re-renders in place (no reload) and sets <html lang="en">', (await p.evaluate(() => window.__nfSameDocument)) === 'yes' && (await p.getAttribute('html', 'lang')) === 'en' && (await p.textContent('#view h1')).trim() === 'Dashboard');
+  await p.click('#lang-ja');
+  await p.reload(); await p.waitForSelector('.stats');
+  check('language: the Japanese choice survives a reload', (await p.getAttribute('html', 'lang')) === 'ja' && JA_TEXT.test(await p.textContent('#view h1')));
+
+  // the URL decides for one page load: ?lang=en and ?lang=ja both work
+  await p.goto(`${B}/?lang=en#/dashboard`); await p.waitForSelector('.stats');
+  check('language: ?lang=en opens the page in English', (await p.getAttribute('html', 'lang')) === 'en' && (await p.textContent('#view h1')).trim() === 'Dashboard');
+  await p.goto(`${B}/?lang=ja#/dashboard`); await p.waitForSelector('.stats');
+  check('language: ?lang=ja opens the page in Japanese', (await p.getAttribute('html', 'lang')) === 'ja' && JA_TEXT.test(await p.textContent('#view h1')));
+
+  // every main screen, in Japanese
+  await jaScreen('dashboard');
+  for (const fam of ['cylinder_shell', 'cone_frustum', 'eccentric_reducer', 'header_with_branch', 'branch_stub']) { await go('math/1', '#calc'); await p.selectOption('select[name=fam]', fam); await jaScreen(`new calculation, ${fam}`); }
+  await go(`calc/${J}`, '.pv'); await p.waitForSelector('.pv .c', { state: 'attached' }); await jaScreen('job view, pattern');
+  for (const k of ['gates', 'checks', 'scrutiny', 'graph', 'history', 'records']) { await p.click(`#tab-ws-${k}`); await jaScreen(`job view, ${k} tab`); }
+  await go(`calc/${N}`, '.pv'); await p.waitForSelector('.pv .c', { state: 'attached' }); await p.click('#tab-ws-changes'); await jaScreen('job view, changes tab');
+  await p.click('#tab-ws-records'); await p.click('#tp-ws-records .rec >> nth=0'); await p.waitForSelector('#tp-ws-records .rec[open] pre'); await jaScreen('job view, a record opened');
+  await p.click('#corr-open'); await p.waitForSelector('#corrdlg[open]'); await jaScreen('correction dialog'); await p.keyboard.press('Escape');
+  await p.locator('#view').focus(); await p.keyboard.press('?'); await p.waitForSelector('dialog#help[open]'); await jaScreen('keyboard help'); await p.keyboard.press('Escape');
+  await go('projects', '#np'); await jaScreen('projects');
+  await go('project/1', '#up'); await jaScreen('project');
+  await go('amoeba/records', '#tp-am-records:not([hidden])'); await jaScreen('AMOEBA records');
+  await go('amoeba/obligations', '#tbl-obl'); await jaScreen('AMOEBA obligations');
+  await go('amoeba/lessons', '#tp-am-lessons:not([hidden])'); await jaScreen('AMOEBA lessons');
+  await go(`amoeba/dependencies/${N}`, '#tp-am-dependencies .dg'); await jaScreen('AMOEBA dependencies');
+  await go('amoeba/mechanisms', '#tp-am-mechanisms:not([hidden])'); await jaScreen('AMOEBA mechanisms');
+  await go('workspace', '#jobs-all'); await jaScreen('job list');
+  await go('manufacturing', '#tbl-dxf'); await jaScreen('manufacturing');
+  await go('verification', '#jobs-ver'); await jaScreen('verification');
+  await go('admin', '#nu'); await jaScreen('administration, users');
+  await p.click('#tab-ad-security'); await jaScreen('administration, security');
+  await p.click('#tab-ad-audit'); await jaScreen('administration, audit');
+  await go('account', '#pw'); await jaScreen('account');
+  const missingJa = await p.evaluate(() => window.__nfI18nMissing());
+  check('ja: no message is missing from the Japanese catalogue on the screens walked', missingJa.length === 0, missingJa.slice(0, 8));
+
+  // layout in Japanese: the same probe as the English screens, at the three widths the client must survive
+  for (const [w, h] of [[1366, 768], [1024, 768], [768, 1024]]) {
+    await p.setViewportSize({ width: w, height: h });
+    const over = {};
+    for (const r of ['dashboard', 'math/1', `calc/${J}`]) { await go(r); if (r.startsWith('calc/')) await p.waitForSelector('.pv', { state: 'attached' }); await p.waitForTimeout(120); const o = await p.evaluate(overflowProbe); if (o.length) over[r] = o; }
+    check(`layout ja ${w}x${h}: no horizontal overflow on the dashboard, the new-calculation form or the job view`, Object.keys(over).length === 0, over);
+  }
+  await p.setViewportSize({ width: 1366, height: 768 });
+  check('ja: zero script errors and zero console errors in Japanese', errs.length === errsBeforeJa, errs.slice(errsBeforeJa, errsBeforeJa + 5));
+
   // ---- 15. global assertions
   const xss = await p.evaluate(() => window.__xss || 0);
   check('security: injected markup never executed, no blocking dialog used', xss === 0 && dialogs === 0, { xss, dialogs });

@@ -79,12 +79,14 @@ const labelled = (kind, id) => { const l = idLabel(kind, id); return l ? esc(l) 
 // Prose the engine or the server wrote. English: as received. Japanese: the reviewed translation when the whole
 // text is made of known templates (numbers and identifiers pass through unchanged), with the original kept in the
 // page for the status-bar switch; otherwise the original, marked as engine output in English.
+// Japanese text with identifiers marked by backquotes in the catalogue: the identifiers are shown in monospace.
+const jaHtml = (s) => esc(s).replace(/`([^`]+)`/g, '<span class="mono">$1</span>');
 const engTag = (key = 'eng.tag') => `<span class="tag t-eng">${esc(t(key))}</span>`;
 function eng(text, o = {}) {
   const s = String(text ?? ''); if (!s) return '';
   if (!ja()) return esc(s);
   const j = engineJa(s);
-  if (j) return `<span class="eng"><span class="e-ja">${esc(j)}</span><span class="e-en" lang="en">${esc(s)}</span></span>`;
+  if (j) return `<span class="eng"><span class="e-ja">${jaHtml(j)}</span><span class="e-en" lang="en">${esc(s)}</span></span>`;
   return `<span class="eng raw">${o.tag === false ? '' : `${engTag(o.key)} `}<span lang="en">${esc(s)}</span></span>`;
 }
 const srv = (text) => eng(text, { key: 'srv.tag' });
@@ -94,7 +96,7 @@ const nodeName = (kind, name) => (ja() ? (kind === 'parameter' || kind === 'conv
 const nodeLabel = (l) => { const [k, n] = nodeParts(l); if (!ja()) return esc(l); const jn = nodeName(k, n); return `${k ? `${labelled('rkind', k)} · ` : ''}${jn ? `${esc(jn)} ` : ''}${mono(n)}`; };
 
 // ---------------------------------------------------------------- shared fragments
-const tag = (kind, text, icon) => `<span class="tag t-${kind}">${icon ? ic(icon, 10) : ''}${esc(text)}</span>`;
+const tag = (kind, text) => `<span class="tag t-${kind}">${esc(text)}</span>`;
 const TAGS = { ok: 'check', warn: 'warn', bad: 'close', na: 'dash', planned: 'planned' };
 const STATE_KIND = { APPROVED: 'ok', REJECTED: 'bad', SUPERSEDED: 'na', NO_RESULT: 'bad' };
 const stateText = (s) => (['APPROVED', 'REJECTED', 'SUPERSEDED', 'NO_RESULT', 'REVIEW_REQUIRED', 'REFUSED'].includes(s) ? t(`state.${s}`) : String(s).replaceAll('_', ' '));
@@ -103,14 +105,14 @@ const RESULT_KIND = { PASS: 'ok', FAIL: 'bad', INCONCLUSIVE: 'warn' };
 const resultText = (r) => (['PASS', 'FAIL', 'INCONCLUSIVE', 'NOT_IMPLEMENTED', 'NOT_RUN'].includes(r) ? t(`result.${r}`) : String(r).replaceAll('_', ' '));
 const resultTag = (r) => { const k = RESULT_KIND[r] || 'na'; return tag(k, resultText(r), TAGS[k]); };
 const oblText = (s) => (['open', 'discharged', 'discharged_by_decision', 'waived'].includes(s) ? t(`obl.${s}`) : String(s).replaceAll('_', ' '));
-const oblTag = (s) => { const k = s === 'open' ? 'bad' : s === 'waived' ? 'warn' : 'ok'; return tag(k, oblText(s), s === 'open' ? 'warn' : TAGS[k]); };
+const oblTag = (s) => tag(s === 'open' || s === 'waived' ? 'warn' : 'ok', oblText(s));
 const roleText = (r) => (['admin', 'engineer', 'viewer'].includes(r) ? t(`role.${r}`) : String(r));
 const ph = (title, sub, actions = '') => `<div class="ph"><div><h1>${title}</h1>${sub ? `<p class="sub">${sub}</p>` : ''}</div><div class="ph-actions">${actions}</div></div>`;
 const panel = (title, body, o = {}) => `<section class="panel"${o.id ? ` id="${o.id}"` : ''}><header class="panel-h"><h2>${title}</h2>${o.count !== undefined ? `<span class="cnt">${o.count}</span>` : ''}${o.tools ? `<div class="panel-tools">${o.tools}</div>` : ''}</header><div class="panel-b${o.flush ? ' flush' : ''}">${body}</div>${o.foot ? `<div class="panel-f">${o.foot}</div>` : ''}</section>`;
-const empty = (icon, title, text, actions = '', cls = '') => `<div class="empty ${cls}">${ic(icon, 28)}<b>${esc(title)}</b><p>${text}</p>${actions ? `<div class="row">${actions}</div>` : ''}</div>`;
-const planned = (title, items, lead = '') => `<aside class="planned" aria-label="${esc(t('planned.aria', { title }))}"><header>${tag('planned', t('planned.tag'), 'planned')}<b>${esc(title)}</b><span class="sub">${esc(t('planned.sub'))}</span></header>${lead ? `<p>${esc(lead)}</p>` : ''}<ul>${items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></aside>`;
+const empty = (icon, title, text, actions = '', cls = '') => `<div class="empty ${cls}"><b>${esc(title)}</b><p>${text}</p>${actions ? `<div class="row">${actions}</div>` : ''}</div>`;
+const planned = (title, items, lead = '') => `<aside class="planned" aria-label="${esc(t('planned.aria', { title }))}"><header>${tag('planned', t('planned.tag'), 'planned')}<b>${esc(title)}</b><span class="sub">${esc(t('planned.sub'))}</span></header>${lead ? `<p>${jaHtml(lead)}</p>` : ''}<ul>${items.map((i) => `<li>${jaHtml(i)}</li>`).join('')}</ul></aside>`;
 const plannedKeys = (prefix, n, lead) => planned(t(`${prefix}.t`), Array.from({ length: n }, (_, i) => t(`${prefix}.${i + 1}`)), lead ? t(lead) : '');
-const note = (html, kind = '') => `<div class="note ${kind}">${ic(kind === 'info' ? 'info' : 'warn')}<div>${html}</div></div>`;
+const note = (html, kind = '') => `<div class="note ${kind}"><div>${html}</div></div>`;
 const filterBox = (target, label) => `<div class="filter">${ic('search', 14)}<label class="vh" for="flt-${target}">${esc(label)}</label><input id="flt-${target}" type="search" placeholder="${esc(label)}" data-filter="${target}" autocomplete="off"></div>`;
 const tabsHtml = (id, label, items, active) => `<div class="tabs" role="tablist" aria-label="${esc(label)}" data-tabs="${id}">${items.map(([k, l, n, attn]) => `<button role="tab" id="tab-${id}-${k}" data-tab="${k}" aria-controls="tp-${id}-${k}" aria-selected="${k === active}" tabindex="${k === active ? 0 : -1}">${esc(l)}${n !== undefined && n !== null ? `<span class="cnt${attn ? ' attn' : ''}">${n}</span>` : ''}</button>`).join('')}</div>`;
 const tabPanel = (id, k, active, html, cls = '') => `<div role="tabpanel" id="tp-${id}-${k}" aria-labelledby="tab-${id}-${k}" class="${cls}" tabindex="0"${k === active ? '' : ' hidden'}>${html}</div>`;
@@ -155,12 +157,12 @@ const sideText = (s) => idLabel('side', s) || String(s);
 // element's title (hover) and what the API returned. Digits and separators are the same in both languages.
 const nf3 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 const n3 = (v) => (v === 0 ? '0.000' : Math.abs(v) < 1e-3 || Math.abs(v) >= 1e12 ? v.toExponential(2) : nf3.format(Math.abs(v) < 5e-4 ? 0 : v));
-const num = (v, unit = '') => (typeof v === 'number' ? `<span title="${fmt(v)}${unit ? ` ${unit}` : ''}">${n3(v)}</span>${unit ? ` <span class="sub">${unit}</span>` : ''}` : esc(v));
-const signed = (v, unit = '') => `<span title="${fmt(v)}">${v > 0 ? '+' : ''}${n3(v)}</span>${unit ? ` <span class="sub">${unit}</span>` : ''}`;
+const num = (v, unit = '') => (typeof v === 'number' ? (unit ? `<span class="q"><span class="qv" title="${fmt(v)} ${unit}">${n3(v)}</span> <span class="qu">${unit}</span></span>` : `<span class="qv" title="${fmt(v)}">${n3(v)}</span>`) : esc(v));
+const signed = (v, unit = '') => `<span class="q"><span class="qv" title="${fmt(v)}">${v > 0 ? '+' : ''}${n3(v)}</span>${unit ? ` <span class="qu">${unit}</span>` : ''}</span>`;
 // [label html, value html] for an engine quantity. Angles arrive in radians and are shown in degrees with the radian value beside.
 const quantity = (k, v) => {
   const l = idLabel('quantity', k), unit = quantityUnit(k);
-  const label = `${l ? esc(l) : ja() ? '' : words(k)}<small>${esc(k)}</small>`;
+  const label = `${l ? esc(l) : ja() ? '' : words(k)}<small class="mono">${esc(k)}</small>`;
   if (typeof v !== 'number') return [label, esc(v)];
   if (unit === 'rad') return [label, `${num(v * 180 / Math.PI, '°')} <span class="sub">(${n3(v)} rad)</span>`];
   return [label, unit ? num(v, unit) : `${num(v)} <span class="sub" title="${esc(t('q.nounit.tip'))}">${esc(t('q.nounit'))}</span>`];
@@ -237,7 +239,8 @@ function sketch(fam, v, W, H) {
   const view = (title, axis) => { cur = { title, axis, b: [Infinity, -Infinity] }; views.push(cur); };
   const L = [], D = [], T = [];
   const line = (pts, cls = '') => { L.push({ pts, cls }); for (const [x] of pts) { if (x < cur.b[0]) cur.b[0] = x; if (x > cur.b[1]) cur.b[1] = x; } };
-  const dim = (a, b, off, sym, key) => D.push({ a, b, off, text: `${sym} ${fmt(v[key])}`, key });
+  // a dimension symbol is either a parameter identifier (monospace, ident) or a word from the catalogue; `plain` is the same text for the aria label
+  const dim = (a, b, off, sym, key, ident = false) => D.push({ a, b, off, text: `${ident ? `<tspan class="mono">${esc(sym)}</tspan>` : esc(sym)} ${esc(fmt(v[key]))}`, plain: `${sym} ${fmt(v[key])}`, key });
   const circle = (cx, cy, r, cls) => line(Array.from({ length: 73 }, (_, i) => [cx + r * Math.cos(i * Math.PI / 36), cy + r * Math.sin(i * Math.PI / 36)]), cls);
   let delta = '';
   if (fam === 'cylinder_shell') {
@@ -245,12 +248,12 @@ function sketch(fam, v, W, H) {
     view(t('sk.v.sidev')); line([[0, -r], [len, -r], [len, r], [0, r], [0, -r]]); line([[-0.08 * len, 0], [len * 1.08, 0]], 'axis');
     dim([0, -r], [len, -r], 26, t('sk.d.length'), 'length');
     view(t('sk.v.endv')); circle(cx, 0, r); line([[cx - 1.15 * r, 0], [cx + 1.15 * r, 0]], 'axis'); line([[cx, -1.15 * r], [cx, 1.15 * r]], 'axis');
-    dim([cx, 0], [cx + r * Math.SQRT1_2, r * Math.SQRT1_2], 0, 'r_dev', 'r_dev');
+    dim([cx, 0], [cx + r * Math.SQRT1_2, r * Math.SQRT1_2], 0, 'r_dev', 'r_dev', true);
   } else if (fam === 'cone_frustum' || fam === 'eccentric_reducer') {
     const e = fam === 'eccentric_reducer' ? v.e : 0;
     view(t('sk.v.cone')); line([[-v.r1, 0], [v.r1, 0], [e + v.r2, v.h], [e - v.r2, v.h], [-v.r1, 0]]); line([[0, -0.1 * v.h], [0, v.h * 1.1]], 'axis'); if (e) line([[e, v.h * 0.55], [e, v.h * 1.1]], 'axis');
-    dim([0, 0], [v.r1, 0], 26, 'r1', 'r1'); dim([e, v.h], [e + v.r2, v.h], -24, 'r2', 'r2'); dim([Math.max(v.r1, e + v.r2), 0], [Math.max(v.r1, e + v.r2), v.h], 30, 'h', 'h');
-    if (fam === 'eccentric_reducer') dim([0, v.h], [e, v.h], -52, 'e', 'e');
+    dim([0, 0], [v.r1, 0], 26, 'r1', 'r1', true); dim([e, v.h], [e + v.r2, v.h], -24, 'r2', 'r2', true); dim([Math.max(v.r1, e + v.r2), 0], [Math.max(v.r1, e + v.r2), v.h], 30, 'h', 'h', true);
+    if (fam === 'eccentric_reducer') dim([0, v.h], [e, v.h], -52, 'e', 'e', true);
   } else {
     const hw = fam === 'header_with_branch', R = v.header_radius, r = v.branch_radius, b = v.beta_deg * Math.PI / 180, u = [Math.cos(b), Math.sin(b)], n = [-u[1], u[0]];
     const st = hw ? v.branch_station : 0, xa = hw ? 0 : -Math.max(2 * R, 2.5 * r), xb = hw ? v.header_length : Math.max(2 * R, 2.5 * r);
@@ -261,9 +264,9 @@ function sketch(fam, v, W, H) {
     line([P(0, 1), P(v.s_end, 1), P(v.s_end, -1), P(0, -1)]); line([P(0, 0), P(v.s_end * 1.08, 0)], 'axis');
     const ar = Math.min(0.42 * v.s_end, 0.9 * R);
     T.push({ arc: Array.from({ length: 25 }, (_, i) => [st + ar * Math.cos(b * i / 24), ar * Math.sin(b * i / 24)]), at: [st + ar * 1.18 * Math.cos(b / 2), ar * 1.18 * Math.sin(b / 2)], text: `β ${fmt(v.beta_deg)}°`, key: 'beta_deg' });
-    dim([xa, 0], [xa, R], -24, 'R', 'header_radius');
+    dim([xa, 0], [xa, R], -24, 'R', 'header_radius', true);
     if (hw) { dim([xa, -R], [xb, -R], 50, t('sk.d.hlen'), 'header_length'); dim([xa, -R], [st, -R], 24, t('sk.d.station'), 'branch_station'); }
-    dim(P(0, -1), P(v.s_end, -1), b > Math.PI / 2 ? -22 : 22, 's_end', 's_end'); dim(P(v.s_end, 0), P(v.s_end, 1), -16, 'r', 'branch_radius');
+    dim(P(0, -1), P(v.s_end, -1), b > Math.PI / 2 ? -22 : 22, 's_end', 's_end', true); dim(P(v.s_end, 0), P(v.s_end, 1), -16, 'r', 'branch_radius', true);
     // end view, seen from the +x end looking back: y to the right, z up, +x toward the viewer (third-angle placement)
     const cx = xb + 0.16 * (xb - xa) + 1.6 * R, top = Math.max(v.s_end * u[1], 1.25 * R);
     view(t(hw ? 'sk.v.end' : 'sk.v.end.part'), { away: false });
@@ -285,7 +288,7 @@ function sketch(fam, v, W, H) {
     const anchor = Math.abs(nx) < 0.5 ? 'middle' : nx * sg > 0 ? 'start' : 'end';
     const head = (q, dir) => `M${f1(q)}l${(dir * ux * 7 + nx * 2.4).toFixed(1)} ${(dir * uy * 7 + ny * 2.4).toFixed(1)}l${(-nx * 4.8).toFixed(1)} ${(-ny * 4.8).toFixed(1)}z`;
     const ext = d.off ? `M${f1([A[0] + nx * sg * 3, A[1] + ny * sg * 3])}L${f1([A2[0] + nx * sg * 5, A2[1] + ny * sg * 5])}M${f1([B[0] + nx * sg * 3, B[1] + ny * sg * 3])}L${f1([B2[0] + nx * sg * 5, B2[1] + ny * sg * 5])}` : '';
-    out.push(`<g class="dimg" data-dim="${d.key}"><path d="${ext}M${f1(A2)}L${f1(B2)}"/><path class="head" d="${len > 22 ? head(A2, 1) + head(B2, -1) : ''}"/><text x="${tx.toFixed(1)}" y="${(ty + 4).toFixed(1)}" text-anchor="${anchor}">${esc(d.text)}</text></g>`);
+    out.push(`<g class="dimg" data-dim="${d.key}"><path d="${ext}M${f1(A2)}L${f1(B2)}"/><path class="head" d="${len > 22 ? head(A2, 1) + head(B2, -1) : ''}"/><text x="${tx.toFixed(1)}" y="${(ty + 4).toFixed(1)}" text-anchor="${anchor}">${d.text}</text></g>`);
   }
   for (const a of T) { const q = map(a.at); out.push(`<g class="dimg" data-dim="${a.key}">${a.arc ? `<path d="M${a.arc.map((p) => f1(map(p))).join('L')}"/>` : ''}<text x="${q[0].toFixed(1)}" y="${q[1].toFixed(1)}" text-anchor="middle">${esc(a.text)}</text></g>`); }
   // view titles, and for the branch families the direction of the axis that points at or away from the viewer
@@ -299,7 +302,7 @@ function sketch(fam, v, W, H) {
   }
   const dev = F[fam].f.filter(([k]) => /dev_radius/.test(k) && fam !== 'cylinder_shell').map(([k]) => `<span data-dim="${k}">${esc(t('sk.dev', { label: plabel(fam, k), v: fmt(v[k]), w: n3(2 * Math.PI * v[k]) }))}</span>`).join(' · ');
   return {
-    svg: `<svg class="sk" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('sk.aria', { fam: idLabel('familyLong', fam) || fam, dims: D.map((d) => d.text).join(', ') }))}">${out.join('')}</svg>`,
+    svg: `<svg class="sk" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('sk.aria', { fam: idLabel('familyLong', fam) || fam, dims: D.map((d) => d.plain).join(', ') }))}">${out.join('')}</svg>`,
     cap: `${esc(t('sk.cap'))}${delta ? `<br><span data-dim="delta">${esc(delta)}</span>` : ''}${dev ? `<br>${h('sk.notdrawn', { items: dev })}` : ''}`,
   };
 }
@@ -311,7 +314,7 @@ function diffHtml(c, prev) {
   let same = 0; const differs = (a, b) => (typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) > 1e-9 * Math.max(1, Math.abs(a), Math.abs(b)) : a !== b);
   head(esc(t('diff.entered')));
   const keys = [...new Set([...(F[fam] ? F[fam].f.map((x) => x[0]) : []), ...Object.keys(c.request)])].filter((k) => k !== 'family');
-  for (const k of keys) { const m = paramMeta(fam, k); if (differs(prev.request[k], c.request[k])) row(`${m ? esc(m[1]) : labelled('param', k)}<small>${esc(k)}</small>`, prev.request[k], c.request[k], m ? unitText(m[3]) : '', `param:${k}`); else same++; }
+  for (const k of keys) { const m = paramMeta(fam, k); if (differs(prev.request[k], c.request[k])) row(`${m ? esc(m[1]) : labelled('param', k)}<small class="mono">${esc(k)}</small>`, prev.request[k], c.request[k], m ? unitText(m[3]) : '', `param:${k}`); else same++; }
   for (const p of c.patterns) {
     const q = prev.patterns.find((x) => x.part === p.part); head(h('diff.pattern', { part: partName(p.part) }));
     if (!q) { rows.push(`<tr><td colspan="4">${esc(t('diff.newpart'))}</td></tr>`); continue; }
@@ -384,7 +387,7 @@ function fieldError(input, msg) {
   m.textContent = msg; input.focus();
   input.addEventListener('input', () => { input.removeAttribute('aria-invalid'); m.remove(); }, { once: true });
 }
-const formError = (sel, err) => { const m = $(sel); if (m) m.innerHTML = `<div class="note bad" role="alert">${ic('warn')}<div>${errHtml(err)}</div></div>`; };
+const formError = (sel, err) => { const m = $(sel); if (m) m.innerHTML = `<div class="note bad" role="alert"><div>${errHtml(err)}</div></div>`; };
 async function withBusy(btn, label, fn) { const old = btn.innerHTML; btn.disabled = true; btn.classList.add('busy'); if (label) btn.textContent = label; try { return await fn(); } finally { if (btn.isConnected) { btn.disabled = false; btn.classList.remove('busy'); btn.innerHTML = old; } } }
 
 function setTheme(th) { document.documentElement.dataset.theme = th === 'light' ? 'light' : 'dark'; prefs.set('nf-theme', document.documentElement.dataset.theme); }
@@ -449,7 +452,7 @@ function mountShell(force) {
       <button class="ib" id="railtoggle" aria-label="${esc(t('shell.rail.toggle'))}" aria-controls="rail" data-tip="${esc(t('shell.rail.tip'))}" data-tip-pos="start">${ic('rail')}</button>
       <a class="brand" href="#/dashboard" aria-label="${esc(t('shell.brand.aria'))}">${ic('mark', 18)}<span lang="en">NEXUS FABRIC</span></a>
       <nav class="crumbs" id="crumbs" aria-label="${esc(t('shell.crumbs'))}"></nav>
-      <div class="devnote" role="note">${ic('warn', 12)}<span>${esc(t('build.short'))}<span class="long">${esc(t('build.long'))}</span></span></div>
+      <div class="devnote" role="note"><span>${esc(t('build.short'))}<span class="long">${esc(t('build.long'))}</span></span></div>
       <div class="tools">
         ${langSwitch()}
         <span class="bellwrap"><button class="ib" id="bell" aria-label="${esc(t('shell.bell'))}" aria-expanded="false" data-tip="${esc(t('shell.bell'))}" data-tip-pos="end">${ic('bell')}</button><span class="dot" id="belldot" hidden></span></span>
@@ -492,7 +495,7 @@ function toggleNotes(force) {
   const p = $('#notes'); if (!p) return; const open = force !== undefined ? force : p.hidden;
   if (open) {
     unseen = 0; paintBell();
-    const kind = (k) => (k === 'err' ? ['bad', 'err'] : k === 'ok' ? ['ok', 'ok'] : k === 'warn' ? ['warn', 'warn'] : ['info', 'info']);
+    const kind = (k) => (k === 'err' ? ['bad', 'err'] : k === 'ok' ? ['na', 'ok'] : k === 'warn' ? ['warn', 'warn'] : ['info', 'info']);
     p.innerHTML = `<header><h2>${esc(t('notes.title'))}</h2><button class="ib" id="notes-x" aria-label="${esc(t('notes.close'))}">${ic('close', 12)}</button></header>
       ${notes.length ? `<ul>${notes.map((n) => `<li>${tag(kind(n.kind)[0], t(`notes.k.${kind(n.kind)[1]}`))} ${n.render()}<time>${when(n.at / 1000)}</time></li>`).join('')}</ul>` : empty('bell', t('notes.empty.t'), esc(t('notes.empty.p')))}
       <div class="panel-f">${esc(t('notes.foot'))}</div>`;
@@ -568,7 +571,7 @@ function renderLogin(st) {
 }
 
 // ---------------------------------------------------------------- tables shared by several views
-const stateCell = (c) => `${stateTag(effState(c))}${c.open_obligations && !c.superseded ? ` ${tag('bad', t('obl.open.n', { n: c.open_obligations }), 'warn')}` : ''}`;
+const stateCell = (c) => `${stateTag(effState(c))}${c.open_obligations && !c.superseded ? ` ${tag('warn', t('obl.open.n', { n: c.open_obligations }))}` : ''}`;
 const partsCell = (c) => (!c.facts ? '<span class="sub">—</span>' : c.facts.noResult ? `<span class="sub">${esc(t('parts.none'))}</span>` : c.facts.parts.map((p) => partName(p.part)).join(', '));
 const newCalcBtn = (pid) => (me.role === 'viewer' ? '' : `<a class="btn pri" href="#/math${pid ? `/${pid}` : ''}">${ic('plus')}${esc(t('new.calc'))}</a>`);
 const noJobs = () => empty('pattern', t('jobs.none.t'), esc(t('jobs.none.p')), newCalcBtn());
@@ -657,14 +660,14 @@ const views = {
       return {
         title: t('nav.dashboard'), crumbs: [[t('nav.dashboard')]],
         html: `<div class="page">${ph(esc(t('nav.dashboard')), h('dash.sub', { engine: mono(d.engine), min: Math.round(d.uptime_seconds / 60) }), newCalcBtn())}
-          <div class="stats" role="group" aria-label="${esc(t('dash.totals'))}">${stat(d.projects, 'dash.s.projects')}${stat(d.calculations, 'dash.s.jobs')}${stat(n.review, 'dash.s.review', { id: 'st-review', attn: true, cls: 'g2' })}${stat(d.open_obligations, 'dash.s.obl', { attn: true })}${stat(n.sup, 'dash.s.sup', { id: 'st-sup', cls: 'g3' })}${stat(n.none, 'dash.s.none', { id: 'st-none' })}${stat(n.rej, 'dash.s.rej')}${stat(d.records, 'dash.s.records', { cls: 'g4' })}</div>
+          <div class="stats" role="group" aria-label="${esc(t('dash.totals'))}">${stat(d.projects, 'dash.s.projects')}${stat(d.calculations, 'dash.s.jobs')}${stat(n.review, 'dash.s.review', { id: 'st-review', attn: true, cls: 'g2' })}${stat(d.open_obligations, 'dash.s.obl', { attn: true })}${stat(n.sup, 'dash.s.sup', { id: 'st-sup', cls: 'g3' })}${stat(n.none, 'dash.s.none', { id: 'st-none', cls: 'bad' })}${stat(n.rej, 'dash.s.rej')}${stat(d.records, 'dash.s.records', { cls: 'g4' })}</div>
           <div class="cols"><div>
             ${panel(esc(t('dash.recent')), jobsTable(cs.slice(0, 8), 'jobs-recent', { project: true }), { flush: true, count: Math.min(8, cs.length), tools: `<a href="#/workspace">${esc(t('jobs.all'))}</a>` })}
           </div><div>
             ${panel(esc(t('dash.needs')), open.length ? `<ul class="il">${open.map((o) => `<li><div class="l1"><span class="id">#${o.id}</span><b>${oblSubject(o)}</b>${oblTag(o.state)}</div><p>${eng(o.required_check)}</p><p class="sub"><a href="#/calc/${o.target_calc}">${esc(t('dash.needs.open', { id: o.target_calc }))}</a> · ${esc(t('dash.needs.raised', { when: when(o.created_at) }))}</p></li>`).join('')}</ul>` : empty('shield', t('dash.needs.none.t'), esc(t('dash.needs.none.p'))), { count: open.length })}
             ${panel(esc(t('dash.state')), `<div class="bar" role="img" aria-label="${esc(t('dash.bar.aria', n))}"><i class="b-warn" style="flex:${n.review}"></i><i class="b-na" style="flex:${n.sup}"></i><i class="b-bad" style="flex:${n.none + n.rej}"></i><i class="b-ok" style="flex:${n.ok}"></i></div>
               <div class="legend" id="legend"><span><i class="b-warn"></i>${esc(t('dash.l.review', { n: n.review }))}</span><span><i class="b-na"></i>${esc(t('dash.l.sup', { n: n.sup }))}</span><span><i class="b-bad"></i>${esc(t('dash.l.none', { n: n.none, m: n.rej }))}</span><span><i class="b-ok"></i>${esc(t('dash.l.ok', { n: n.ok }))}</span></div>`,
-              { foot: `${esc(t('dash.state.foot'))}${d.calculations > cs.length ? ` ${esc(t('dash.partial', { n: cs.length, total: d.calculations }))}` : ''}` })}
+              { foot: `${jaHtml(t('dash.state.foot'))}${d.calculations > cs.length ? ` ${esc(t('dash.partial', { n: cs.length, total: d.calculations }))}` : ''}` })}
           </div></div>
           ${plannedKeys('dash.planned', 2)}</div>`,
       };
@@ -698,7 +701,7 @@ const views = {
       const fname = (d) => { try { return decodeURIComponent(d.filename); } catch { return d.filename; } };
       const candidates = users.filter((u) => u.active && !p.members.includes(u.username));
       return {
-        title: p.name, nav: 'projects', crumbs: [[t('proj.crumb'), '#/projects'], [p.name]],
+        title: p.name, nav: 'projects', crumbs: [[t('proj.crumb'), '#/projects'], [ud(p.name), null, true]],
         html: `<div class="page">${ph(ud(p.name), `${p.description ? `${ud(p.description)} · ` : ''}${h('project.meta', { id: p.id, by: ud(p.created_by), when: when(p.created_at) })}`, newCalcBtn(p.id))}
           ${panel(esc(t('project.jobs')), jobsTable(p.calculations, 'jobs-project', { replay: true }), { flush: true, count: p.calculations.length, tools: p.calculations.length ? filterBox('jobs-project', t('jobs.filter')) : '' })}
           <div class="cols"><div>
@@ -760,13 +763,13 @@ const views = {
       return {
         title, nav: 'workspace', ws: true, crumbs,
         html: `<div class="ws"><div class="ws-head"><h1>${esc(title)}</h1><div class="ws-meta">${esc(t('math.meta'))}</div></div>
-          <div class="ws-banner">${ic('warn', 14)}<span>${h('math.banner')}</span></div>
+          <div class="ws-banner"><span>${h('math.banner')}</span></div>
           <div class="ws-body ws-new">
             <aside class="pane" aria-label="${esc(t('math.inputs.aria'))}"><form id="calc" class="pane-form" novalidate><div class="pane-h"><h2>${esc(t('math.pane.h'))}</h2></div><div class="pane-scroll">
               <details class="sec" open><summary>${esc(t('math.sec.job'))}</summary><div class="sec-b">
                 <div class="field"><label for="f_project">${esc(t('math.f.project'))}</label><select id="f_project" name="project">${ps.map((p) => `<option value="${p.id}" ${String(p.id) === String(pid) ? 'selected' : ''}>#${p.id} ${esc(p.name)}</option>`).join('')}</select></div>
                 <div class="field"><label for="f_fam">${esc(t('math.f.family'))}</label><select id="f_fam" name="fam">${Object.keys(F).map((k) => `<option value="${k}"${k === fam0 ? ' selected' : ''}>${famLabel(k)}</option>`).join('')}</select></div></div></details>
-              <details class="sec" open><summary>${esc(t('math.sec.params'))} ${from ? tag('info', t('math.tag.from', { id: fromId })) : tag('warn', t('math.tag.example'))}</summary><div class="sec-b"><div id="fields">${fields(fam0)}</div>
+              <details class="sec" open><summary>${esc(t('math.sec.params'))} ${from ? tag('info', t('math.tag.from', { id: fromId })) : tag('na', t('math.tag.example'))}</summary><div class="sec-b"><div id="fields">${fields(fam0)}</div>
                 <p class="hint">${esc(t(from ? 'math.hint.from' : 'math.hint.example'))}</p></div></details>
             </div><div class="pane-foot"><div id="cmsg"></div><button class="pri" id="run">${esc(t('math.run'))}</button></div></form></aside>
             <div class="split" role="separator" aria-orientation="vertical" aria-label="${esc(t('math.split.l'))}" tabindex="0" data-split="l"></div>
@@ -774,7 +777,7 @@ const views = {
             <div class="split" role="separator" aria-orientation="vertical" aria-label="${esc(t('math.split.r'))}" tabindex="0" data-split="r"></div>
             <aside class="pane" aria-label="${esc(t('math.limits.aria'))}"><div class="pane-h"><h2>${esc(t('math.limits.h'))}</h2></div><div class="pane-scroll">
               <details class="sec" open><summary>${esc(t('math.result.h'))}</summary><div class="sec-b">${lis('math.result', 5)}</div></details>
-              <details class="sec" open id="conv"><summary>${esc(t('math.conv.h'))} ${tag('warn', t('math.conv.tag'))}</summary><div class="sec-b"><p class="hint lead">${esc(t('math.conv.lead'))}</p>${lis('math.conv', 4)}</div></details>
+              <details class="sec" open id="conv"><summary>${esc(t('math.conv.h'))} ${tag('na', t('math.conv.tag'))}</summary><div class="sec-b"><p class="hint lead">${esc(t('math.conv.lead'))}</p>${lis('math.conv', 4)}</div></details>
               <details class="sec" open><summary>${esc(t('math.planned.h'))} ${tag('planned', t('math.planned.tag'), 'planned')}</summary><div class="sec-b">${lis('math.planned', 6)}</div></details>
             </div></aside>
           </div></div>`,
@@ -800,9 +803,9 @@ const views = {
           form.onsubmit = async (e) => {
             e.preventDefault(); const req = read(), fam = req.family, { errors, warnings } = validateRequest(fam, req);
             clearFieldErrors(form);
-            if (errors.length) { errors.slice().reverse().forEach(([k, msg]) => fieldError(form.elements.namedItem(k), msg)); $('#cmsg').innerHTML = `<div class="note bad" role="alert">${ic('warn')}<div>${h('math.notsent', { n: errors.length })}</div></div>`; return; }
+            if (errors.length) { errors.slice().reverse().forEach(([k, msg]) => fieldError(form.elements.namedItem(k), msg)); $('#cmsg').innerHTML = `<div class="note bad" role="alert"><div>${h('math.notsent', { n: errors.length })}</div></div>`; return; }
             const key = JSON.stringify(req);
-            if (warnings.length && confirmed !== key) { confirmed = key; $('#cmsg').innerHTML = `<div class="note" role="alert" id="plaus">${ic('warn')}<div><b>${esc(t('math.plaus.t'))}</b><ul>${warnings.map(([, m]) => `<li>${esc(m)}</li>`).join('')}</ul>${esc(t('math.plaus.p'))}</div></div>`; $('#run').textContent = t('math.run.unusual'); return; }
+            if (warnings.length && confirmed !== key) { confirmed = key; $('#cmsg').innerHTML = `<div class="note" role="alert" id="plaus"><div><b>${esc(t('math.plaus.t'))}</b><ul>${warnings.map(([, m]) => `<li>${esc(m)}</li>`).join('')}</ul>${esc(t('math.plaus.p'))}</div></div>`; $('#run').textContent = t('math.run.unusual'); return; }
             try {
               const r = await withBusy($('#run'), t('math.busy'), () => api(`/api/projects/${form.project.value}/calculations`, { method: 'POST', json: req }));
               const facts = await jobFacts(r.id);
@@ -864,7 +867,7 @@ const views = {
       const gcount = (r) => c.gates.filter((g) => g.result === r).length;
       const gateItem = (g) => {
         const segs = engineSentences(g.detail), allJa = ja() && segs.length > 0 && segs.every((s) => s.ja);
-        const sent = (s) => (allJa ? `<span class="eng"><span class="e-ja">${esc(s.ja)}</span><span class="e-en" lang="en">${esc(s.en)}</span></span>` : ja() ? `<span lang="en">${esc(s.en)}</span>` : esc(s.en));
+        const sent = (s) => (allJa ? `<span class="eng"><span class="e-ja">${jaHtml(s.ja)}</span><span class="e-en" lang="en">${esc(s.en)}</span></span>` : ja() ? `<span lang="en">${esc(s.en)}</span>` : esc(s.en));
         const raw = ja() && !allJa ? `${engTag()} ` : '';
         const topics = [...new Set(segs.map((s) => s.topic).filter(Boolean))];
         const why = topics.length > 1 ? esc(t('g.points', { n: topics.length, topics: topics.map((k) => t(`g.topic.${k}`)).join(' · ') })) : segs.length ? `${raw}${sent(segs[0])}` : '';
@@ -878,7 +881,7 @@ const views = {
       const gatesHtml = `<div class="summary-line"><span class="chips" role="group" aria-label="${esc(t('g.filter.aria'))}">${gchip('all')}${gchip('FAIL', 'bad', 'close', 'g.n.fail')}${gchip('INCONCLUSIVE', 'warn', 'warn', 'g.n.inc')}${gchip('NOT_IMPLEMENTED', 'na', 'dash', 'g.n.ni')}${gchip('NOT_RUN', 'na', 'dash', 'g.n.nr')}${gchip('PASS', 'ok', 'check', 'g.n.pass')}</span><span class="grow"></span><button class="ghost mini" id="g-all" data-open="0">${esc(t('g.expand'))}</button></div>
         ${noResult ? note(esc(t('g.noresult')), 'bad') : ''}
         <ul class="il gates" id="gates">${c.gates.map(gateItem).join('')}</ul>
-        <p class="hint">${esc(t('g.foot'))}</p>`;
+        <p class="hint">${jaHtml(t('g.foot'))}</p>`;
 
       // ---- checks
       const scopes = [...new Set(c.checks.map((k) => k.scope))], passN = c.checks.filter((k) => k.verdict === 'PASS').length;
@@ -892,7 +895,7 @@ const views = {
 
       // ---- scrutiny: advisories from recorded lessons, obligations from a correction
       const scrutinyHtml = (c.advisories.length ? `<h3>${esc(t('s.known.h'))}</h3><p class="hint">${esc(t('s.known.p'))}</p>
-          <ul class="il">${c.advisories.map((a) => `<li><div class="l1"><span class="id">A${a.id}</span><b>${esc(t('s.adv'))}</b>${tag(a.state === 'open' ? 'bad' : 'ok', advText(a.state), a.state === 'open' ? 'warn' : 'check')}</div><p>${eng(a.message)}</p>${a.note ? `<p class="sub">${ud(a.resolved_by)} · ${when(a.resolved_at)}: ${ud(a.note)}</p>` : ''}
+          <ul class="il">${c.advisories.map((a) => `<li><div class="l1"><span class="id">A${a.id}</span><b>${esc(t('s.adv'))}</b>${tag(a.state === 'open' ? 'warn' : 'na', advText(a.state))}</div><p>${eng(a.message)}</p>${a.note ? `<p class="sub">${ud(a.resolved_by)} · ${when(a.resolved_at)}: ${ud(a.note)}</p>` : ''}
             ${a.state === 'open' && canEdit && !blocked ? `<div class="act"><label class="vh" for="adv${a.id}">${esc(t('s.adv.aria', { id: a.id }))}</label><input id="adv${a.id}" data-advreason="${a.id}" placeholder="${esc(t('s.adv.ph'))}"><div class="row"><button data-ack="${a.id}">${esc(t('s.adv.ack'))}</button></div></div>` : ''}</li>`).join('')}</ul>` : '')
         + (c.obligations.length ? `<h3${c.advisories.length ? ' class="gap"' : ''}>${esc(t('s.obl.h'))}</h3><p class="hint">${h('s.obl.p', { rule: mono(dep.rule_table) })}</p>
           <ul class="il" id="obls">${c.obligations.slice().sort((a, b) => (a.state === 'open' ? 0 : 1) - (b.state === 'open' ? 0 : 1) || a.id - b.id).map((o) => `<li data-obl="${o.id}"><div class="l1"><span class="id">#${o.id}</span><b>${oblSubject(o)}</b>${oblTag(o.state)}</div>
@@ -903,7 +906,7 @@ const views = {
       const graphHtml = graph ? `${graph.html}<p class="hint"><a href="#/amoeba/dependencies/${c.id}">${esc(t('gr.open'))}</a></p>${edgeTable(dep.edges)}` : empty('nodes', t('gr.none.t'), esc(t('gr.none.p')));
       const historyHtml = `<ol class="tl">${ev.map((e) => `<li class="k-${e.k || ''}"><b>${e.h}</b><time>${e.t ? when(e.t) : ''}</time>${e.d}</li>`).join('')}</ol><p class="hint">${esc(t('history.foot'))}</p>`;
       const subject = (r) => { const p = r.payload || {}; const s = p.name !== undefined ? `${p.name}${p.value !== undefined ? ` = ${typeof p.value === 'number' ? fmt(p.value) : p.value}${p.unit ? ` ${p.unit}` : ''}` : ''}` : p.part !== undefined ? p.part : Array.isArray(p.between) ? p.between.join(' × ') : p.outcome !== undefined ? p.message || p.outcome : ''; return s ? ` · <span class="mono"${ja() ? ' lang="en"' : ''}>${esc(s)}</span>` : ''; };
-      const recKind = (r) => (ja() ? `${labelled('rkind', r.kind)} ${mono(r.kind)}` : esc(r.kind));
+      const recKind = (r) => (ja() ? `${labelled('rkind', r.kind)} ${mono(r.kind)}` : mono(r.kind));
       const recordsHtml = `<dl class="kv"><dt>${esc(t('r.closure'))}</dt><dd class="txt"><span class="hash">${esc(c.closure_hash)}</span></dd><dt>${esc(t('r.n'))}</dt><dd>${c.closure_size}</dd><dt>${esc(t('r.wu'))}</dt><dd>${c.work_units}</dd><dt>${esc(t('r.engine'))}</dt><dd class="txt">${mono(c.engine)}</dd>
           <dt>${esc(t('r.replay'))}</dt><dd class="txt" id="replay-state">${rp ? `${replayTag(rp.matches)} ${when(rp.at)} · ${ud(rp.run_by)}` : esc(t('replay.none'))}</dd></dl>
         ${rp ? `<p class="hint">${esc(t('r.checked', { n: rp.stored_records_checked, f: rp.stored_records_failing_identity_check }))} ${eng(rp.limitation)}</p>` : `<p class="hint">${esc(t('r.replay.hint'))}</p>`}
@@ -911,17 +914,20 @@ const views = {
         ${c.records.map((r, i) => `<details class="sec rec" data-rec="${i}"><summary><span class="rec-t">${recKind(r)}${subject(r)}</span><span class="hash">${esc(r.id.slice(0, 8))}…</span></summary><div class="sec-b"></div></details>`).join('')}`;
 
       const reqKeys = [...new Set([...(F[fam] ? F[fam].f.map((x) => x[0]) : []), ...Object.keys(c.request)])].filter((k) => k !== 'family' && k in c.request);
-      const reqValue = (k, v, m) => (typeof v === 'number' ? `${fmt(v)}${m ? ` <span class="sub">${esc(unitText(m[3]))}</span>` : ''}` : k === 'surface_reference' ? named('sref', v) : esc(v));
+      const reqValue = (k, v, m) => (typeof v === 'number' ? (m ? `<span class="q"><span class="qv">${fmt(v)}</span> <span class="qu">${esc(unitText(m[3]))}</span></span>` : fmt(v)) : k === 'surface_reference' ? named('sref', v) : esc(v));
       const wm = t(state === 'SUPERSEDED' ? 'wm.sup' : state === 'REJECTED' ? 'wm.rej' : 'wm.review');
       const banner = state === 'SUPERSEDED' ? h('ban.sup', { job: jobLink(c.superseded_by, true) }) : state === 'NO_RESULT' ? h('ban.none', { why: c.outcome ? eng(c.outcome) : esc(t('ban.none.default')) }) : state === 'REJECTED' ? h('ban.rej') : h('ban.review');
+      // one primary action at most: the successor when superseded, else the correction, else the new calculation from this job
+      const primary = c.superseded_by ? 'successor' : canCorrect ? 'corr' : canEdit ? 'clone' : '';
+      const jobActions = [c.superseded_by ? `<a class="btn${primary === 'successor' ? ' pri' : ''}" id="successor" href="#/calc/${c.superseded_by}">${esc(t('job.successor', { id: c.superseded_by }))}</a>` : '', canCorrect ? `<button id="corr-open"${primary === 'corr' ? ' class="pri"' : ''}>${esc(t('job.correct'))}</button>` : '', canEdit && !blocked ? `<button id="replay" data-tip="${esc(t('job.replay.tip'))}" data-tip-pos="end">${esc(t('job.replay'))}</button>` : '', canEdit ? `<a class="btn${primary === 'clone' ? ' pri' : ''}" href="#/math/${c.project_id}/${c.id}" data-tip="${esc(t('job.clone.tip'))}" data-tip-pos="end">${esc(t('job.clone'))}</a>` : ''].join('');
       const html = `<div class="ws">
-        <div class="ws-head"><h1>${esc(t('job.n', { id: c.id }))} ${stateTag(state)}${c.supersedes ? ` <a class="tag t-info" href="#/calc/${c.supersedes}" id="corrects">${esc(t('job.corrects', { id: c.supersedes }))}</a>` : ''}</h1>
-          <div class="ws-meta">${famLabel(fam)}${ja() ? ` ${mono(fam)}` : ''} · ${plink(c.project_id)} · ${h('job.enteredby', { by: ud(c.created_by) })}${meta ? ` · ${when(meta.created_at)}` : ''}</div>
-          <div class="ph-actions">${c.superseded_by ? `<a class="btn pri" id="successor" href="#/calc/${c.superseded_by}">${esc(t('job.successor', { id: c.superseded_by }))}</a>` : ''}${canCorrect ? `<button id="corr-open">${ic('sliders')}${esc(t('job.correct'))}</button>` : ''}${canEdit && !blocked ? `<button id="replay" data-tip="${esc(t('job.replay.tip'))}" data-tip-pos="end">${ic('replay')}${esc(t('job.replay'))}</button>` : ''}${canEdit ? `<a class="btn" href="#/math/${c.project_id}/${c.id}" data-tip="${esc(t('job.clone.tip'))}" data-tip-pos="end">${ic('plus')}${esc(t('job.clone'))}</a>` : ''}</div></div>
-        <div class="ws-banner${blocked ? ' bad' : ''}" role="status">${ic('warn', 14)}<span>${banner}</span></div>
+        <div class="ws-head"><div class="ws-title"><h1>${esc(t('job.n', { id: c.id }))} ${stateTag(state)}${c.supersedes ? ` <a class="tag t-info" href="#/calc/${c.supersedes}" id="corrects">${esc(t('job.corrects', { id: c.supersedes }))}</a>` : ''}</h1>
+          <div class="ws-meta"><span>${famLabel(fam)}${ja() ? ` ${mono(fam)}` : ''}</span><span>${plink(c.project_id)}</span><span>${h('job.enteredby', { by: ud(c.created_by) })}</span>${meta ? `<span>${when(meta.created_at)}</span>` : ''}</div></div>
+          <div class="ws-actions">${jobActions}</div></div>
+        <div class="ws-banner${blocked ? ' bad' : ''}${state === 'SUPERSEDED' ? ' neutral' : ''}" role="status"><span>${banner}</span></div>
         <div class="ws-body">
           <aside class="pane" aria-label="${esc(t('pane.props.aria'))}"><div class="pane-h"><h2>${esc(t('pane.props.h'))}</h2></div><div class="pane-scroll">
-            <details class="sec" open><summary>${esc(t('req.h'))} ${tag('warn', t('req.tag'))}</summary><div class="sec-b"><dl class="kv req">${reqKeys.map((k) => { const v = c.request[k], m = paramMeta(fam, k), ok = canCorrect && c.correctable_parameters.some((x) => x[0] === k); return `<dt>${m ? esc(m[1]) : labelled('param', k)}<small>${esc(k)}</small></dt><dd${typeof v === 'number' ? '' : ' class="txt"'}>${reqValue(k, v, m)}${ok ? `<button class="ghost mini" data-correct="${esc(k)}" aria-label="${esc(t('req.correct.aria', { label: m ? m[1] : k }))}">${esc(t('req.correct'))}</button>` : ''}</dd>`; }).join('')}</dl>
+            <details class="sec" open><summary>${esc(t('req.h'))} ${tag('na', t('req.tag'))}</summary><div class="sec-b"><dl class="kv req">${reqKeys.map((k) => { const v = c.request[k], m = paramMeta(fam, k), ok = canCorrect && c.correctable_parameters.some((x) => x[0] === k); return `<dt>${m ? esc(m[1]) : labelled('param', k)}<small class="mono">${esc(k)}</small></dt><dd${typeof v === 'number' ? '' : ' class="txt"'}>${reqValue(k, v, m)}${ok ? `<button class="ghost mini" data-correct="${esc(k)}" aria-label="${esc(t('req.correct.aria', { label: m ? m[1] : k }))}">${esc(t('req.correct'))}</button>` : ''}</dd>`; }).join('')}</dl>
               <p class="hint">${esc(t('req.hint'))}</p></div></details>
             ${c.patterns.length ? `<details class="sec" open><summary>${esc(t('sel.h'))}</summary><div class="sec-b"><div id="sel" aria-live="polite"></div><div id="meas" aria-live="polite"></div></div></details>
             <details class="sec" open><summary>${esc(t('curves.h'))} <span class="sub" id="curves-part"></span></summary><div class="sec-b flush" id="curves"></div></details>
@@ -931,13 +937,13 @@ const views = {
           <div class="split" role="separator" aria-orientation="vertical" aria-label="${esc(t('split.props'))}" tabindex="0" data-split="l"></div>
           <section class="stage${blocked ? ' dead' : ''}" aria-label="${esc(t('stage.aria'))}">
             ${c.patterns.length ? `<div class="stage-bar">
-              <div class="parts" role="tablist" aria-label="${esc(t('parts.aria'))}" id="parts">${c.patterns.map((p, i) => `<button role="tab" data-part="${i}" aria-selected="${i === wsState.part}" tabindex="${i === wsState.part ? 0 : -1}">${partName(p.part)} <small>${esc(p.class)}</small></button>`).join('')}</div>
+              <div class="parts" role="tablist" aria-label="${esc(t('parts.aria'))}" id="parts">${c.patterns.map((p, i) => `<button role="tab" data-part="${i}" aria-selected="${i === wsState.part}" tabindex="${i === wsState.part ? 0 : -1}">${partName(p.part)} <small class="mono">${esc(p.class)}</small></button>`).join('')}</div>
               <span class="grow"></span>
               <div class="seg" role="group" aria-label="${esc(t('tool.aria'))}"><button class="ib" id="t-select" aria-pressed="true" aria-label="${esc(t('tool.select'))}" data-tip="${esc(t('tool.select.tip'))}">${ic('pointer')}</button><button class="ib" id="t-measure" aria-pressed="false" aria-label="${esc(t('tool.measure'))}" data-tip="${esc(t('tool.measure.tip'))}">${ic('ruler')}</button></div>
               <div class="seg" role="group" aria-label="${esc(t('view.aria'))}"><button class="ib" id="z-out" aria-label="${esc(t('zoom.out'))}" data-tip="${esc(t('zoom.out.tip'))}">${ic('minus')}</button><span class="zoomv" id="zoomv" aria-live="off">100%</span><button class="ib" id="z-in" aria-label="${esc(t('zoom.in'))}" data-tip="${esc(t('zoom.in.tip'))}">${ic('plus')}</button><button class="ib" id="z-fit" aria-label="${esc(t('zoom.fit'))}" data-tip="${esc(t('zoom.fit.tip'))}">${ic('fit')}</button></div>
               <div class="seg" role="group" aria-label="${esc(t('disp.aria'))}"><button class="ib" id="v-grid" aria-pressed="true" aria-label="${esc(t('disp.grid'))}" data-tip="${esc(t('disp.grid'))}">${ic('grid')}</button><button class="ib" id="v-dims" aria-pressed="true" aria-label="${esc(t('disp.dims'))}" data-tip="${esc(t('disp.dims.tip'))}">${ic('dims')}</button><button class="ib" id="v-names" aria-pressed="true" aria-label="${esc(t('disp.labels'))}" data-tip="${esc(t('disp.labels.tip'))}" data-tip-pos="end">${ic('names')}</button>${prev && prev.patterns.length ? `<button class="ib" id="v-prev" aria-pressed="false" aria-label="${esc(t('disp.prev', { id: prev.id }))}" data-tip="${esc(t('disp.prev.tip', { id: prev.id }))}" data-tip-pos="end">${ic('layers')}</button>` : ''}</div>
               <div class="seg" id="dxfseg"></div></div>
-            <div class="pv-host" id="pv"><span class="stage-wm${blocked ? ' bad' : ''}" id="wm">${esc(wm)}</span></div>
+            <div class="pv-host" id="pv"><span class="stage-wm${state === 'SUPERSEDED' ? ' grey' : blocked ? ' bad' : ''}" id="wm">${esc(wm)}</span><div class="tblock" id="tblock"></div></div>
             <div class="stage-notes" id="cnotes" role="note" aria-label="${esc(t('cn.aria'))}"></div>
             <div class="readout" aria-hidden="true"><span><b>X</b><span id="ro-x">—</span></span><span><b>Y</b><span id="ro-y">—</span></span><span class="ro-info" id="ro-info"></span></div>`
             : `<div class="pv-host">${empty('warn', t('nopat.t'), c.outcome ? eng(c.outcome) : esc(t('nopat.default')), canEdit ? `<a class="btn pri" href="#/math/${c.project_id}/${c.id}">${esc(t('nopat.go'))}</a>` : '', 'err')}</div>`}
@@ -1030,22 +1036,23 @@ const views = {
           wsState.part = i; const p = c.patterns[i]; const all = [...p.curves, ...p.holes];
           $$('#parts [role=tab]').forEach((b, j) => { b.setAttribute('aria-selected', j === i); b.tabIndex = j === i ? 0 : -1; });
           $('#curves-part').innerHTML = h('cv.part', { part: partName(p.part) });
-          $('#curves').innerHTML = `<div class="tbl"><table class="curves"><thead><tr><th>${esc(t('cv.curve'))}</th><th>${esc(t('cv.entity'))}</th><th class="num">${esc(t('cv.length'))}</th></tr></thead><tbody>${all.map((k, j) => { const gloss = idLabel('curve', k.name); return `<tr data-ci="${j}" aria-selected="false"><td><span class="sw${k.layer === 'CUT_INNER' ? ' inner' : ''}"></span><button data-ci="${j}" aria-label="${esc(t('cv.select', { name: k.name }))}">${esc(k.name)}</button>${gloss ? `<small>${esc(gloss)}</small>` : ''}</td><td>${esc(kindText(k.kind))}</td><td class="num">${num(k.length)}</td></tr>`; }).join('')}</tbody></table></div>
-            <p class="hint legend"><span><span class="sw"></span>${esc(t('cv.outer'))}</span>${p.holes.length ? `<span><span class="sw inner"></span>${esc(t('cv.inner'))}</span>` : ''}</p>`;
+          $('#curves').innerHTML = `<div class="tbl"><table class="curves"><thead><tr><th>${esc(t('cv.curve'))}</th><th>${esc(t('cv.entity'))}</th><th class="num">${esc(t('cv.length'))}</th></tr></thead><tbody>${all.map((k, j) => { const gloss = idLabel('curve', k.name); return `<tr data-ci="${j}" aria-selected="false"><td><span class="sw${k.layer === 'CUT_INNER' ? ' inner' : ''}"></span><button class="mono" data-ci="${j}" aria-label="${esc(t('cv.select', { name: k.name }))}">${esc(k.name)}</button>${gloss ? `<small>${esc(gloss)}</small>` : ''}</td><td>${esc(kindText(k.kind))}</td><td class="num">${num(k.length)}</td></tr>`; }).join('')}</tbody></table></div>
+            <p class="hint legend"><span><span class="sw"></span>${mono('CUT_OUTER')} ${esc(t('cv.outer'))}</span>${p.holes.length ? `<span><span class="sw inner"></span>${mono('CUT_INNER')} ${esc(t('cv.inner'))}</span>` : ''}</p>`;
           const e = extent(p), cls = idLabel('devclass', p.class);
           // where the opening sits across the plate: the only place the sign of the axis offset shows in the pattern
           const hole = p.holes.length === 1 ? extent({ curves: [], holes: p.holes }) : null;
-          $('#quant').innerHTML = `<dl class="kv"><dt>${esc(t('q.part'))}</dt><dd class="txt">${partName(p.part)} · ${named('family', p.family)}</dd><dt>${esc(t('q.class'))}</dt><dd class="txt">${mono(p.class)} <span class="sub">${esc(t('q.class.note'))}</span>${cls ? `<small>${esc(cls)}</small>` : ''}</dd>
+          $('#quant').innerHTML = `<dl class="kv"><dt>${esc(t('q.part'))}</dt><dd class="txt">${partName(p.part)}<small>${named('family', p.family)}</small></dd><dt>${esc(t('q.class'))}</dt><dd class="txt">${mono(p.class)} <span class="sub">${esc(t('q.class.note'))}</span>${cls ? `<small>${esc(cls)}</small>` : ''}</dd>
             <dt class="wide">${esc(t('q.mside'))}<small>${esc(t('q.mside.note'))}</small></dt><dd class="txt wide" id="mside">${p.marking_side ? h('q.mside.v', { side: esc(sideText(p.marking_side)) }) : esc(t('q.mside.none'))}</dd>
-            <dt>${esc(t('q.extent'))}<small>${esc(t('q.extent.note'))}</small></dt><dd>${n3(e.w)} × ${n3(e.h)} <span class="sub">mm</span></dd>${Object.entries(p.quantities).map(([k, v]) => { const [l, val] = quantity(k, v); return `<dt>${l}</dt><dd>${val}</dd>`; }).join('')}
+            <dt>${esc(t('q.extent'))}<small>${esc(t('q.extent.note'))}</small></dt><dd><span class="q"><span class="qv">${n3(e.w)} × ${n3(e.h)}</span> <span class="qu">mm</span></span></dd>${Object.entries(p.quantities).map(([k, v]) => { const [l, val] = quantity(k, v); return `<dt>${l}</dt><dd>${val}</dd>`; }).join('')}
             ${hole ? `<dt>${esc(t('q.opening'))}<small>${esc(t('q.opening.note'))}</small></dt><dd>${signed((hole.y0 + hole.y1) / 2 - (e.y0 + e.y1) / 2, 'mm')}</dd>` : ''}
             <dt>${esc(t('q.epsnum'))}<small>${esc(t('q.eps.note'))}</small></dt><dd>${num(p.eps_num, 'mm')}</dd><dt>${esc(t('q.epsrep'))}<small>${esc(t('q.eps.note'))}</small></dt><dd>${num(p.eps_rep, 'mm')}</dd><dt>${esc(t('q.sha'))}</dt><dd class="txt">${short(p.dxf_sha256)}</dd></dl>
             <p class="hint">${esc(t('q.hint'))}</p>`;
           $('#assume').innerHTML = `<ul>${p.assumptions.map((a) => `<li>${eng(a)}</li>`).join('')}</ul>`;
           const seams = all.filter(isSeam).map((k) => k.name);
-          $('#cnotes').innerHTML = `<span class="cn" id="pv-side">${ic('face', 14)}<span>${p.marking_side ? h('cn.side', { side: esc(sideText(p.marking_side)) }) : esc(t('cn.side.none'))}</span></span><span class="cn">${ic('none', 14)}<span>${esc(t('cn.not'))}</span></span>${seams.length ? `<span class="cn" title="${esc(t('cn.seams.tip'))}">${ic('seam', 14)}<span>${h('cn.seams', { names: seams.map(mono).join(', ') })}</span></span>` : ''}`;
-          $('#dxfseg').innerHTML = blocked ? tag('bad', t('dxf.withheld'), 'close') : `<a class="btn" id="dxf" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}" download aria-label="${esc(t('dxf.aria', { part: partText(p.part) }))}" data-tip="${esc(t('dxf.tip', { part: partText(p.part) }))}" data-tip-pos="end">${ic('download')}${esc(t('dxf.btn'))}</a>${c.patterns.length > 1 ? `<button id="dxf-all" aria-label="${esc(t('dxf.all.aria', { n: c.patterns.length }))}" data-tip="${esc(t('dxf.all.tip'))}" data-tip-pos="end">${esc(t('dxf.all', { n: c.patterns.length }))}</button>` : ''}`;
+          $('#cnotes').innerHTML = `<span class="cn" id="pv-side"><span>${p.marking_side ? h('cn.side', { side: esc(sideText(p.marking_side)) }) : esc(t('cn.side.none'))}</span></span><span class="cn"><span>${esc(t('cn.not'))}</span></span>${seams.length ? `<span class="cn" title="${esc(t('cn.seams.tip'))}"><span>${h('cn.seams', { names: seams.map(mono).join(', ') })}</span></span>` : ''}`;
+          $('#dxfseg').innerHTML = blocked ? tag('na', t('dxf.withheld')) : `<a class="btn" id="dxf" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}" download aria-label="${esc(t('dxf.aria', { part: partText(p.part) }))}" data-tip="${esc(t('dxf.tip', { part: partText(p.part) }))}" data-tip-pos="end">${ic('download')}${esc(t('dxf.btn'))}</a>${c.patterns.length > 1 ? `<button id="dxf-all" aria-label="${esc(t('dxf.all.aria', { n: c.patterns.length }))}" data-tip="${esc(t('dxf.all.tip'))}" data-tip-pos="end">${esc(t('dxf.all', { n: c.patterns.length }))}</button>` : ''}`;
           const all2 = $('#dxf-all'); if (all2) all2.onclick = async () => { for (const q of c.patterns) { const a = document.createElement('a'); a.href = `/api/calculations/${c.id}/dxf/${encodeURIComponent(q.part)}`; a.download = ''; document.body.append(a); a.click(); a.remove(); await new Promise((res) => setTimeout(res, 350)); } toast(() => esc(t('dxf.all.toast', { n: c.patterns.length })), 'warn'); };
+          $('#tblock').innerHTML = [[t('tb.part'), partName(p.part)], [t('tb.job'), `<span class="mono">#${c.id}</span>`], [t('tb.engine'), `<span class="mono">${esc(c.engine)}</span>`], [t('tb.side'), p.marking_side ? esc(sideText(p.marking_side)) : esc(t('tb.side.none'))], [t('tb.status'), `<span class="tag t-warn">${esc(t('tb.nr'))}</span>${stateTag(state)}`]].map(([k, v]) => `<span class="tb"><span class="k">${esc(k)}</span><span class="v">${v}</span></span>`).join('');
           viewer.setPattern(p); showSel(null);
           viewer.setGhost(wsState.ghost && prev ? prev.patterns.find((x) => x.part === p.part) || null : null);
         };
@@ -1062,7 +1069,7 @@ const views = {
         viewer.syncToggles = () => { $('#v-grid').setAttribute('aria-pressed', viewer.showGrid); $('#v-dims').setAttribute('aria-pressed', viewer.showDims); $('#v-names').setAttribute('aria-pressed', viewer.showLabels); };
         showPart(wsState.part);
       };
-      return { title: t('job.n', { id: c.id }), nav: 'workspace', ws: true, crumbs: [[t('nav.workspace'), '#/workspace'], [pname(c.project_id) ?? t('project.n', { id: c.project_id }), `#/project/${c.project_id}`], [t('job.n', { id: c.id })]], html, wire };
+      return { title: t('job.n', { id: c.id }), nav: 'workspace', ws: true, crumbs: [[t('nav.workspace'), '#/workspace'], [pnameHtml(c.project_id), `#/project/${c.project_id}`, true], [t('job.n', { id: c.id })]], html, wire };
     },
   },
 
@@ -1079,7 +1086,7 @@ const views = {
           ${note(h('mfg.note'))}
           ${panel(esc(t('mfg.panel')), rows.length ? `<div class="tbl"><table id="tbl-dxf"><thead><tr><th>${esc(t('th.job'))}</th><th>${esc(t('th.project'))}</th><th>${esc(t('th.part'))}</th><th class="num">${esc(t('th.extent'))}</th><th class="num">${esc(t('th.curves'))}</th><th>${esc(t('th.dxfsha'))}</th><th>${esc(t('th.jobstate'))}</th><th>${esc(t('th.file'))}</th></tr></thead><tbody>${rows.map((r) => `<tr${effState(r.c) === 'SUPERSEDED' ? ' class="dim"' : ''}><td class="nw">${jobLink(r.c.id)}</td><td>${plink(r.c.project_id)}</td><td>${partName(r.p.part)} <span class="sub mono">${esc(r.p.cls)}</span><br><span class="sub">${famShort(r.c.family)}</span></td><td class="num">${n3(r.p.w)} × ${n3(r.p.h)}</td><td class="num">${r.p.curves}${r.p.holes ? ` ${esc(t('mfg.opening', { n: r.p.holes }))}` : ''}</td><td>${short(r.p.sha)}</td><td class="nw">${stateTag(effState(r.c))}</td><td class="nw">${dxfCell(r)}</td></tr>`).join('')}</tbody></table></div>`
             : empty('layers', t('mfg.none.t'), esc(t('mfg.none.p'))),
-            { flush: true, count: rows.length, tools: rows.length ? filterBox('tbl-dxf', t('mfg.filter')) : '', foot: `${esc(t('mfg.foot'))}${refused ? ` ${esc(t('mfg.foot.refused', { n: refused }))}` : ''}` })}
+            { flush: true, count: rows.length, tools: rows.length ? filterBox('tbl-dxf', t('mfg.filter')) : '', foot: `${jaHtml(t('mfg.foot'))}${refused ? ` ${esc(t('mfg.foot.refused', { n: refused }))}` : ''}` })}
           ${plannedKeys('mfg.planned', 7)}</div>`,
       };
     },
@@ -1097,7 +1104,7 @@ const views = {
           ${panel(esc(t('ver.open')), open.length ? `<div class="tbl"><table><thead><tr><th>#</th><th>${esc(t('th.job'))}</th><th>${esc(t('th.affected'))}</th><th>${esc(t('th.required'))}</th><th>${esc(t('th.raised'))}</th></tr></thead><tbody>${open.map((o) => `<tr><td>${o.id}</td><td class="nw">${jobLink(o.target_calc)}<br><span class="sub">${esc(t('ver.corrects', { id: o.origin_calc }))}</span></td><td>${oblSubject(o)}</td><td>${eng(o.required_check)}</td><td class="nw">${when(o.created_at)}</td></tr>`).join('')}</tbody></table></div>` : empty('shield', t('ver.open.none.t'), esc(t('ver.open.none.p'))),
             { id: 'p-open', flush: true, count: open.length, foot: h('ver.open.foot', { n: obs.length, ledger: `<a href="#/amoeba/obligations">${esc(t('ver.ledger'))}</a>` }) })}
           ${panel(esc(t('ver.status')), live.length ? `<div class="tbl"><table id="jobs-ver"><thead><tr><th>${esc(t('th.job'))}</th><th>${esc(t('th.project'))}</th><th>${esc(t('th.state.short'))}</th><th>${esc(t('th.gates'))}</th><th class="num">${esc(t('th.checks'))}</th><th class="num">${esc(t('th.oblopen'))}</th><th class="num">${esc(t('th.advopen'))}</th><th>${esc(t('th.replay'))}</th></tr></thead><tbody>${live.map((c) => `<tr><td class="nw">${jobLink(c.id)}<br><span class="sub">${famShort(c.family)}</span></td><td>${plink(c.project_id)}</td><td class="nw">${stateTag(effState(c))}</td><td class="gcell">${c.facts ? gateCounts(c.facts.gates) : '—'}</td><td class="num">${c.facts ? (c.facts.checks[1] ? esc(t('ver.checks', { a: c.facts.checks[0], b: c.facts.checks[1] })) : esc(t('ver.checks.none'))) : '—'}</td><td class="num">${c.open_obligations}</td><td class="num">${c.facts ? c.facts.advOpen : '—'}</td><td class="nw">${replayTag(c.facts ? c.facts.replay : null)}</td></tr>`).join('')}</tbody></table></div>` : noJobs(),
-            { flush: true, count: live.length, tools: live.length ? filterBox('jobs-ver', t('jobs.filter')) : '', foot: esc(t('ver.status.foot', { n: cs.length - live.length })) })}
+            { flush: true, count: live.length, tools: live.length ? filterBox('jobs-ver', t('jobs.filter')) : '', foot: jaHtml(t('ver.status.foot', { n: cs.length - live.length })) })}
           ${panel(esc(t('ver.lessons')), lessonsTable(lessons), { id: 'p-lessons', flush: true, count: lessons.length, foot: esc(t('ver.lessons.foot')) })}
           ${plannedKeys('ver.planned', 4)}</div>`,
       };
@@ -1129,7 +1136,7 @@ const views = {
           ${tabPanel('am', 'activities', active, panel(esc(t('am.act.h')), a.activities.length ? `<div class="tbl"><table><thead><tr><th>${esc(t('th.acttype'))}</th><th class="num">${esc(t('th.distinct'))}</th><th class="num">${esc(t('th.wu'))}</th></tr></thead><tbody>${a.activities.map((r) => `<tr><td>${kindCell(r.type)}</td><td class="num">${r.distinct_activities}</td><td class="num">${r.declared_work_units}</td></tr>`).join('')}</tbody></table></div>` : empty('clock', t('am.act.none.t'), esc(t('am.act.none.p'))), { flush: true, foot: esc(t('am.act.foot')) }))}
           ${tabPanel('am', 'obligations', active, panel(esc(t('am.obl.h')), obs.length ? `<div class="tbl"><table id="tbl-obl"><thead><tr><th>#</th><th>${esc(t('th.job'))}</th><th>${esc(t('th.direction'))}</th><th>${esc(t('th.affected'))}</th><th>${esc(t('th.required'))}</th><th>${esc(t('th.state.short'))}</th><th>${esc(t('th.evidence'))}</th></tr></thead><tbody>${obs.map((o) => `<tr><td>${o.id}</td><td class="nw">${jobLink(o.target_calc)}</td><td>${esc(dirs(o.direction))}<br><span class="sub mono">${esc(o.via)}</span></td><td>${oblSubject(o)}</td><td>${eng(o.required_check)}</td><td>${oblTag(o.state)}</td><td>${oblNote(o)}${o.resolved_by ? `<br><span class="sub">${ud(o.resolved_by)} · ${when(o.resolved_at)}</span>` : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('shield', t('am.obl.none.t'), esc(t('am.obl.none.p'))),
             { flush: true, count: esc(t('am.obl.count', { a: a.obligations.open, b: a.obligations.total })), tools: obs.length ? filterBox('tbl-obl', t('am.obl.filter')) : '', foot: esc(t('am.obl.foot')) }))}
-          ${tabPanel('am', 'lessons', active, panel(esc(t('am.les.h')), lessonsTable(lessons), { flush: true, count: lessons.length, foot: esc(t('am.les.foot')) }))}
+          ${tabPanel('am', 'lessons', active, panel(esc(t('am.les.h')), lessonsTable(lessons), { flush: true, count: lessons.length, foot: jaHtml(t('am.les.foot')) }))}
           ${tabPanel('am', 'dependencies', active, panel(esc(t('am.dep.h')), `${withEdges.length ? `<div class="field narrow"><label for="depjob">${esc(t('th.job'))}</label><select id="depjob">${withEdges.map((c) => `<option value="${c.id}"${String(c.id) === String(depId) ? ' selected' : ''}>${esc(t(c.superseded ? 'am.dep.opt.sup' : 'am.dep.opt', { id: c.id, fam: idText('family', c.family) }))}</option>`).join('')}</select></div>` : ''}
             ${graph ? `${graph.html}${edgeTable(dep.edges)}<p class="hint">${h('am.dep.rule', { rule: mono(dep.rule_table) })}</p>` : empty('nodes', t(depErr ? 'am.dep.err' : 'gr.none.t'), depErr ? errHtml(depErr) : esc(t('am.dep.none.p')))}`))}
           ${tabPanel('am', 'mechanisms', active, `<div class="cols2">${panel(esc(t('am.mech.impl')), li(a.implemented), { count: a.implemented.length })}<section class="panel"><header class="panel-h"><h2>${esc(t('am.mech.not'))}</h2>${tag('planned', t('am.mech.tag'), 'planned')}<span class="cnt">${a.not_implemented.length}</span></header><div class="panel-b">${li(a.not_implemented)}</div></section></div>`)}</div>`,
@@ -1195,7 +1202,7 @@ const views = {
       // what the server states about itself is shown as it wrote it; in Japanese the column says so once
       const srvText = (v) => (ja() ? `<span lang="en">${esc(v)}</span>` : esc(v));
       const srvHead = (key) => `${esc(t(key))}${ja() ? ` ${engTag('srv.tag')}` : ''}`;
-      const val = (v) => (v === true ? tag('ok', t('yes'), 'check') : v === false ? tag('bad', t('no'), 'close') : typeof v === 'number' ? `<span class="mono">${v}</span>` : srvText(Array.isArray(v) ? v.join(', ') : v));
+      const val = (v) => (v === true ? tag('na', t('yes')) : v === false ? tag('na', t('no')) : typeof v === 'number' ? `<span class="mono">${v}</span>` : srvText(Array.isArray(v) ? v.join(', ') : v));
       const chainHtml = (ch) => h('adm.chain', { state: `${ch.intact ? tag('ok', t('adm.chain.ok'), 'check') : tag('bad', t('adm.chain.bad', { n: ch.first_broken_entry }), 'close')} ${esc(t('adm.chain.over', { n: ch.entries }))}` });
       const tabs = [['users', t('adm.t.users'), users.length], ['security', t('adm.t.security')], ['audit', t('adm.t.audit'), audit.length], ['planned', t('adm.t.planned')]];
       const active = tabs.some((x) => x[0] === tab) ? tab : 'users';
@@ -1203,10 +1210,10 @@ const views = {
         title: t('nav.admin'), crumbs: [[t('nav.admin')]],
         html: `<div class="page">${ph(esc(t('nav.admin')), esc(t('adm.sub')))}
           ${tabsHtml('ad', t('adm.tabs.aria'), tabs, active)}
-          ${tabPanel('ad', 'users', active, `${panel(esc(t('adm.t.users')), `<div class="tbl"><table id="tbl-users"><thead><tr><th>#</th><th>${esc(t('th.username'))}</th><th>${esc(t('th.role'))}</th><th>${esc(t('th.status'))}</th><th>${esc(t('th.created'))}</th><th><span class="vh">${esc(t('th.actions'))}</span></th></tr></thead><tbody>${users.map((u) => `<tr><td>${u.id}</td><td class="u">${esc(u.username)}${u.id === me.id ? ` <span class="sub">${esc(t('adm.you'))}</span>` : ''}</td><td>${esc(roleText(u.role))}</td><td>${u.active ? tag('ok', t('adm.active'), 'check') : tag('na', t('adm.inactive'), 'dash')}</td><td class="nw">${when(u.created_at)}</td>
+          ${tabPanel('ad', 'users', active, `${panel(esc(t('adm.t.users')), `<div class="tbl"><table id="tbl-users"><thead><tr><th>#</th><th>${esc(t('th.username'))}</th><th>${esc(t('th.role'))}</th><th>${esc(t('th.status'))}</th><th>${esc(t('th.created'))}</th><th><span class="vh">${esc(t('th.actions'))}</span></th></tr></thead><tbody>${users.map((u) => `<tr><td>${u.id}</td><td class="u">${esc(u.username)}${u.id === me.id ? ` <span class="sub">${esc(t('adm.you'))}</span>` : ''}</td><td>${esc(roleText(u.role))}</td><td>${u.active ? tag('na', t('adm.active')) : tag('na', t('adm.inactive'))}</td><td class="nw">${when(u.created_at)}</td>
               <td class="nw">${u.id === me.id ? '' : `<button class="${u.active ? 'danger' : ''}" data-user="${u.id}" data-name="${esc(u.username)}" data-to="${u.active ? 0 : 1}">${esc(t(u.active ? 'adm.deactivate' : 'adm.reactivate'))}</button>`}</td></tr>`).join('')}</tbody></table></div>`, { flush: true, count: users.length, foot: esc(t('adm.users.foot')) })}
             ${panel(esc(t('adm.add.h')), `<form id="nu" novalidate><div class="fgrid"><div class="field"><label for="nuu">${esc(t('th.username'))}</label><input id="nuu" name="u" autocomplete="off" autocapitalize="none" spellcheck="false"></div><div class="field"><label for="nup">${esc(t('adm.add.pass'))}</label><input id="nup" name="p" type="password" autocomplete="new-password"></div><div class="field"><label for="nur">${esc(t('th.role'))}</label><select id="nur" name="r">${['engineer', 'viewer', 'admin'].map((r) => `<option value="${r}">${esc(roleText(r))}</option>`).join('')}</select></div></div><div id="umsg"></div><button class="pri">${esc(t('adm.add.go'))}</button></form>`)}`)}
-          ${tabPanel('ad', 'security', active, panel(esc(t('adm.sec.h')), `<div class="tbl"><table><thead><tr><th>${esc(t('th.setting'))}</th><th>${srvHead('th.value')}</th></tr></thead><tbody>${Object.entries(sec).map(([k, v]) => `<tr><td>${ja() && idLabel('security', k) ? `${esc(idLabel('security', k))}<br>${mono(k)}` : ja() ? mono(k) : words(k)}</td><td>${val(v)}</td></tr>`).join('')}</tbody></table></div>`, { flush: true, foot: esc(t('adm.sec.foot')) }))}
+          ${tabPanel('ad', 'security', active, panel(esc(t('adm.sec.h')), `<div class="tbl"><table><thead><tr><th>${esc(t('th.setting'))}</th><th>${srvHead('th.value')}</th></tr></thead><tbody>${Object.entries(sec).map(([k, v]) => `<tr><td>${ja() && idLabel('security', k) ? `${jaHtml(idLabel('security', k))}<br>${mono(k)}` : ja() ? mono(k) : words(k)}</td><td>${val(v)}</td></tr>`).join('')}</tbody></table></div>`, { flush: true, foot: esc(t('adm.sec.foot')) }))}
           ${tabPanel('ad', 'audit', active, panel(esc(t('adm.t.audit')), `<div class="tbl"><table id="tbl-audit"><thead><tr><th>${esc(t('th.when'))}</th><th>${esc(t('th.user'))}</th><th>${esc(t('th.action'))}</th><th>${srvHead('th.detail')}</th></tr></thead><tbody>${audit.map((x) => `<tr><td class="nw">${when(x.at)}</td><td>${ud(x.username)}</td><td>${ja() && idLabel('audit', x.action) ? `${esc(idLabel('audit', x.action))}<br>` : ''}${mono(x.action)}</td><td>${srvText(x.detail)}</td></tr>`).join('')}</tbody></table></div>`,
             { flush: true, count: audit.length, tools: `${filterBox('tbl-audit', t('adm.audit.filter'))}<button id="verify">${ic('shield')}${esc(t('adm.verify'))}</button>`, foot: `<span id="chain">${chainHtml(chain)}</span> ${eng(chain.limitation)}` }))}
           ${tabPanel('ad', 'planned', active, planned(t('nav.admin'), Array.from({ length: 5 }, (_, i) => t(`adm.planned.${i + 1}`))))}</div>`,
@@ -1277,7 +1284,8 @@ function paint(cur, o = {}) {
   const main = $('#view'), nav = out.nav !== undefined ? out.nav : cur.name;
   document.title = `${out.title} — NEXUS FABRIC`;
   $$('.rail a').forEach((a) => { if (a.dataset.nav === nav) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
-  $('#crumbs').innerHTML = (out.crumbs || []).map(([l, href], i, all) => (href ? `<a href="${href}">${esc(l)}</a>` : `<span${i === all.length - 1 ? ' aria-current="page"' : ''}>${esc(l)}</span>`)).join(ic('chevron', 10));
+  // a crumb is [label, href]; a label that holds a name a person typed is already escaped and wrapped (raw = true)
+  $('#crumbs').innerHTML = (out.crumbs || []).map(([l, href, raw], i, all) => { const s = raw ? l : esc(l); return href ? `<a href="${href}">${s}</a>` : `<span${i === all.length - 1 ? ' aria-current="page"' : ''}>${s}</span>`; }).join('<span class="sep" aria-hidden="true">›</span>');
   main.style.overflow = out.ws ? '' : 'auto';
   main.innerHTML = out.html; main.dataset.hash = location.hash;
   // a file the user had chosen cannot be set again by a script: the element itself is carried over
@@ -1288,7 +1296,9 @@ const refresh = () => route(true);
 async function route(keep = false) {
   if (!me) return;
   const seq = ++renderSeq; // a slower, older navigation must never overwrite a newer one
-  const [, rawName = 'dashboard', arg, arg2] = location.hash.split('/');
+  // "#/" and an empty hash are the dashboard; a default in a destructuring pattern does not apply to an empty segment
+  const parts = location.hash.split('/'), arg = parts[2], arg2 = parts[3];
+  const rawName = parts[1] || 'dashboard';
   const name = views[rawName] ? rawName : 'notfound';
   mountShell(); toggleNotes(false);
   if (!keep) $$('#toasts .toast').forEach((x) => { if (Date.now() - Number(x.dataset.at) > 1500) x.remove(); });
