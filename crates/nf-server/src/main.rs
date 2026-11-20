@@ -3243,6 +3243,15 @@ pub(crate) fn router(app: Arc<App>) -> Router {
             }),
         )
         .route(
+            "/i18n.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/i18n.js"),
+                )
+            }),
+        )
+        .route(
             "/styles.css",
             get(|| async {
                 asset(
