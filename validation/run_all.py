@@ -167,7 +167,12 @@ def check_relation(case, job, issues, findings, info):
         if j2.refused:
             issues.append('stub refused')
             return
-        if job.parts['branch'].dxf_text != j2.parts['branch'].dxf_text:
+        # the cut geometry (ENTITIES up to the first TEXT annotation); the annotation of an assembly part also states the joint (engine 0.4.1)
+        def cut(t):
+            i = t.index('  2\nENTITIES\n')
+            k = t.find('  0\nTEXT\n', i)
+            return t[i:k if k >= 0 else len(t)]
+        if cut(job.parts['branch'].dxf_text) != cut(j2.parts['branch'].dxf_text):
             issues.append('branch_stub DXF differs from the branch part of the assembly')
     elif t == 'equivalent_outline':
         j2 = submit(rel['other'])
@@ -223,6 +228,12 @@ def run_case(case):
             return out
         if job.accepted and not finite_job(job):
             out['findings'].append({'code': 'NON_FINITE_OUTPUT', 'detail': 'accepted job contains non-finite numbers in geometry, quantities or error estimates'})
+        if case.get('g11'):
+            g11 = next((g['result'] for g in job.result.get('gates', []) if g['id'] == 'G11'), None)
+            if g11 != case['g11']:
+                out['issues'].append(f'profile gate G11 is {g11}, expected {case["g11"]} (seam gap against its resolution)')
+            if job.state == 'APPROVED':
+                out['issues'].append('state APPROVED is unreachable')
         exp = case['expect']
         if exp == 'refuse':
             if job.accepted:

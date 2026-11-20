@@ -45,6 +45,12 @@ def case(id, group, title, request, derivation, expect='accept', **kw):
     return c
 
 
+def refuse(id, title, request, mentions, derivation, kind='engineering', raw_body=None):
+    c = case(id, 'refusal', title, request, derivation, expect='refuse', refusal={'kind': kind, 'mentions': mentions})
+    if raw_body is not None:
+        c['raw_body'] = raw_body
+
+
 def q(v, tol=None, rel=1e-11):
     v = f(v)
     return [v, tol if tol is not None else max(abs(v) * rel, 1e-12)]
@@ -144,6 +150,138 @@ for k, (R, r, beta, delta, tab) in enumerate([
          'phi=90 is the ruling in the plane of the two axis directions on the heel side: s = (sqrt(R^2 - delta^2) - r cos(beta))/sin(beta).',
          quantities={'branch': {'s_at_0': q(tab[0], rel=1e-12), 's_at_90': q(tab[90], rel=1e-12), 'developed_width': q(2 * pi * r)}},
          measures={'branch': {'len_seam_a': q(400 - tab[0], rel=1e-12), 'len_seam_b': q(400 - tab[0], rel=1e-12), 'bbox_w': q(2 * pi * r)}})
+# B2-005 (engine 0.4.2): shallow angles and slender / flat cones, formerly refused by implementation limits, are exact and accepted
+for beta in (5, 175):
+    sbr, cbr = math.sin(math.radians(beta)), math.cos(math.radians(beta))
+    t0 = math.sqrt(150 ** 2 - 100 ** 2) / sbr
+    t90 = (150 - 100 * cbr) / sbr
+    case(f'A-BR-GRAZE-{beta}', 'closed_form', f'Branch stub R=150 r=100 beta={beta} (shallow angle, accepted since 0.4.2)', stub(150, 100, beta, 0, 4000),
+         'The saddle is exact for every 0 < beta < 180: phi=0: s = sqrt(R^2 - r^2)/sin(beta); phi=90: s = (R - r cos(beta))/sin(beta). Developed size s_max = (R + |r cos(beta)|)/sin(beta) = 2864 mm, far below 1e8 mm.',
+         quantities={'branch': {'s_at_0': q(t0, rel=1e-12), 's_at_90': q(t90, rel=1e-12), 'developed_width': q(200 * pi)}},
+         measures={'branch': {'len_seam_a': q(4000 - t0, rel=1e-12), 'bbox_w': q(200 * pi)}})
+h_slender = hp.right_cone(200, 199.9, 300)
+case('A-CONE-SLENDER', 'closed_form', 'CONE-02: right cone with sin(alpha) = 3.3e-4 (near-cylindrical, accepted since 0.4.2)', {'family': 'cone_frustum', 'r1': 200, 'r2': 199.9, 'h': 300},
+     'Closed forms are exact for any sin(alpha) > 0 (r1 - r2 = 0.1 is exact): apex radius L1 = r1/sin(alpha) = 6e5 mm, sector angle 2 pi sin(alpha), area pi (r1 + r2) s (values from the mpmath tier).',
+     quantities={'reducer': {k: q(f(h_slender[k]), rel=1e-11) for k in ('slant_length', 'sin_half_angle', 'apex_radius_large', 'apex_radius_small', 'sector_angle', 'area', 'chord_large_arc')}})
+h_flat = hp.right_cone(300, 50, 0.01)
+case('A-CONE-FLAT-0.01', 'closed_form', 'Nearly flat cone r1=300 r2=50 h=0.01: sector 99.9999 % of a turn (accepted since 0.4.2)', {'family': 'cone_frustum', 'r1': 300, 'r2': 50, 'h': 0.01},
+     'A cone sector is always below a full turn; here the seam gap l2 (2 pi - Phi) = 50 * 2 pi * 8e-10 = 2.5e-7 mm is above the 1e-9 mm closure resolution, so the pattern is accepted (values from the mpmath tier).',
+     quantities={'reducer': {k: q(f(h_flat[k]), rel=1e-11) for k in ('slant_length', 'sin_half_angle', 'apex_radius_large', 'apex_radius_small', 'area')}})
+# B2-005 boundary corpus (engine 0.4.2): for every loosened rule, a case just INSIDE (accepted, values from the 50-digit tier) and a case just
+# OUTSIDE (refused), 1 % to 7 % either side of the limit; the limit itself is an 'edge' for the oracle (either outcome, a result must be right).
+def _h_for_cone_gap(g, r1=300, r2=50):
+    """h of the cone (r1, r2, h) whose seam gap l2 (2 pi - Phi) = l2 * 2 pi * (1 - sin alpha) equals g (mpmath, 40 digits)."""
+    with mp.workdps(40):
+        g = mp.mpf(g)
+        d, l2 = mp.mpf(r1 - r2), mp.mpf(r2)
+        for _ in range(6):
+            l2 = r2 / (1 - g / (2 * mp.pi * l2))
+        u = g / (2 * mp.pi * l2)
+        return float(d * mp.sqrt(2 * u - u * u) / (1 - u))
+
+
+def _seam_gap(r1, r2, h):
+    with mp.workdps(40):
+        d, hh = mp.mpf(r1 - r2), mp.mpf(h)
+        hyp = mp.sqrt(hh * hh + d * d)
+        return float((r2 * hyp / d) * 2 * mp.pi * (hh * hh / (hyp * (hyp + d))))
+
+
+# seam gap l2 (2 pi - Phi) at the small end against the 1e-9 mm closure resolution (cone and eccentric reducer with e = 0, same sector)
+for tag, g in (('below', 0.95e-9), ('above', 1.05e-9)):
+    hg = _h_for_cone_gap(g)
+    gg = _seam_gap(300, 50, hg)
+    for fam, extra in (('cone_frustum', {}), ('eccentric_reducer', {'e': 0})):
+        req = dict({'family': fam, 'r1': 300, 'r2': 50, 'h': hg}, **extra)
+        ttl = f'{fam} r1=300 r2=50 h={hg!r}: seam gap {gg:.4g} mm, {tag} the 1e-9 mm closure resolution'
+        der = f'The seam gap at the small end is l2 (2 pi - Phi) = {gg:.4g} mm (mpmath, 40 digits), {"below" if tag == "below" else "above"} the 1e-9 mm closure resolution of the profile check (5 % {"under" if tag == "below" else "over"} the limit).'
+        if tag == 'below':
+            refuse(f'E-{fam}-seam-gap-{tag}', ttl, req, ['seam', 'closure'], der)
+        elif fam == 'cone_frustum':
+            hc = hp.right_cone(300, 50, hg)
+            case(f'B-{fam}-seam-gap-{tag}', 'closed_form', ttl, req, der,
+                 quantities={'reducer': {k: q(f(hc[k]), rel=1e-11) for k in ('slant_length', 'sin_half_angle', 'apex_radius_large', 'apex_radius_small', 'area')}})
+        else:
+            case(f'B-{fam}-seam-gap-{tag}', 'closed_form', ttl, req, der)
+# Q2(b): the profile gate cannot say PASS when the seam gap is below twice the representation error of the adjoining polylines (eccentric reducer,
+# e = 0: a polyline sector of 720 segments, eps_rep about 2.9e-3 mm); the validator measures the seam clearance and the chord error itself.
+for tag, g in (('inconclusive', 3e-3), ('pass', 5e-2)):
+    hg = _h_for_cone_gap(g)
+    gg = _seam_gap(300, 50, hg)
+    case(f'B-eccentric_reducer-seam-vs-eps-rep-{tag}', 'closed_form', f'eccentric reducer r1=300 r2=50 h={hg!r} e=0: seam gap {gg:.4g} mm ({"below 2 eps_rep: the profile gate is INCONCLUSIVE" if tag == "inconclusive" else "above 2 x 0.01 mm: the profile gate passes"})',
+         {'family': 'eccentric_reducer', 'r1': 300, 'r2': 50, 'h': hg, 'e': 0},
+         f'Seam gap {gg:.4g} mm (mpmath). The polyline sector has eps_rep at most the 0.01 mm chord limit and (for 720 segments of the 300 mm arc) about 2.9e-3 mm: a gap of {gg:.3g} mm is {"smaller" if tag == "inconclusive" else "larger"} than twice that, so the seam {"cannot" if tag == "inconclusive" else "can"} be told from a closed one at the representation error.')
+# Q2(b) must-fix 2 (engine 0.4.2 review): the cone seam resolution is max(1e-9 mm, 2 eps_num), not the bare 1e-9 mm. At a large size the numerical
+# error of the written vertices (eps_num ~ 7e-8 mm for an apex radius of 1e7 mm) puts the floor at ~1.5e-7 mm. A seam gap between 1e-9 mm and
+# that floor must NOT get G11 PASS (INCONCLUSIVE; the DXF cannot represent the seam and G15 may reject the job, so either outcome is allowed but
+# the state must never be APPROVED and the gate must be INCONCLUSIVE); a gap about twice the floor is accepted with G11 PASS.
+for tag, g in (('in-band', 1e-7), ('above-band', 3e-7)):
+    hg = _h_for_cone_gap(g, 1e7, 9e6)
+    gg = _seam_gap(1e7, 9e6, hg)
+    req = {'family': 'cone_frustum', 'r1': 1e7, 'r2': 9e6, 'h': hg}
+    der = (f'Seam gap l2 (2 pi - Phi) = {gg:.4g} mm (mpmath, 40 digits) for a cone of apex radius about 1e7 mm. The numerical error of its written vertices is about 7e-8 mm, '
+           f'so the seam cannot be told from a closed one below about 1.5e-7 mm (twice that error): the gap is {"inside that band, so G11 is INCONCLUSIVE, never PASS" if tag == "in-band" else "above that band, so G11 passes"}.')
+    if tag == 'in-band':
+        c = case(f'B-cone-seam-vs-eps-num-{tag}', 'closed_form', f'cone r1=1e7 r2=9e6 h={hg!r}: seam gap {gg:.4g} mm, between 1e-9 mm and 2 eps_num (G11 INCONCLUSIVE)', req, der, expect='either')
+        c['g11'] = 'INCONCLUSIVE'
+    else:
+        hc = hp.right_cone(1e7, 9e6, hg)
+        c = case(f'B-cone-seam-vs-eps-num-{tag}', 'closed_form', f'cone r1=1e7 r2=9e6 h={hg!r}: seam gap {gg:.4g} mm, above 2 eps_num (G11 PASS)', req, der,
+                 quantities={'reducer': {k: q(f(hc[k]), rel=1e-11) for k in ('slant_length', 'sin_half_angle', 'apex_radius_large', 'apex_radius_small', 'area')}})
+        c['g11'] = 'PASS'
+# apex radius against the 1e8 mm developed-size limit (cone, r1 = 1e5, r2 = 99999: l1 = r1 hypot(h, 1))
+for tag, hyp_t in (('below', 999.0), ('above', 1001.0)):
+    hh = math.sqrt(hyp_t ** 2 - 1)
+    req = {'family': 'cone_frustum', 'r1': 100000, 'r2': 99999, 'h': hh}
+    l1 = 1e5 * hyp_t
+    if tag == 'below':
+        hc = hp.right_cone(100000, 99999, hh)
+        case('B-cone-apex-below-1e8', 'closed_form', f'cone r1=1e5 r2=99999 h={hh!r}: apex radius {l1:.4g} mm, 1 % below the 1e8 mm limit', req,
+             f'Apex radius L1 = r1 hypot(h, r1 - r2)/(r1 - r2) = {l1:.6g} mm (1 % below the 1e8 mm developed-size limit); closed forms from the mpmath tier.',
+             quantities={'reducer': {k: q(f(hc[k]), rel=1e-11) for k in ('slant_length', 'sin_half_angle', 'apex_radius_large', 'apex_radius_small', 'sector_angle', 'area')}})
+    else:
+        refuse('E-cone-apex-above-1e8', f'cone r1=1e5 r2=99999 h={hh!r}: apex radius {l1:.4g} mm, 1 % above the 1e8 mm limit', req, ['apex', 'radius'],
+               f'Apex radius L1 = {l1:.6g} mm, 1 % above the 1e8 mm developed-size limit.')
+# developed branch length: refused above 1e8 mm (1 % above the limit, and its mirror: beta -> 180 - beta gives the same developed saddle);
+# accepted just inside the range the product's own independent verification covers (beta 0.003 deg and 179.997 deg, s_max = 4.8e6 mm).
+# Between that and 1e8 mm the geometry is correct (measured 4.2e-8 mm against a 31-digit reference at beta = 1.4e-4 deg, within eps_num)
+# but the verifier's own conditioning (1 / sin beta) makes it REJECT the result (G10); that range is therefore not in the corpus.
+for tag, bd, size in (('below', 0.003, 4.775e6), ('above', 0.000141821, 1.01e8)):
+    for name, b in ((f'beta-{bd}', bd), (f'beta-180-{bd}', 180 - bd)):
+        if tag == 'below':
+            req = stub(150, 100, b, 0, 5.2e6)
+            sb, cb = math.sin(math.radians(b)), math.cos(math.radians(b))
+            case(f'B-br-verified-floor-{name}', 'closed_form', f'Branch stub R=150 r=100 beta={b!r}: developed length {size:.3g} mm, the shallowest angle the verification covers', req,
+                 f'Developed size max(s_max, s_max - s_min) = {size:.4g} mm (dense evaluation of the closed form): accepted and verified. phi=0: s = sqrt(R^2 - r^2)/sin(beta); phi=90: s = (R - r cos(beta))/sin(beta).',
+                 quantities={'branch': {'s_at_0': q(math.sqrt(150 ** 2 - 100 ** 2) / sb, rel=1e-9), 's_at_90': q((150 - 100 * cb) / sb, rel=1e-9), 'developed_width': q(200 * pi)}})
+        else:
+            req = stub(150, 100, b, 0, 0.995e8)
+            refuse(f'E-br-size-above-{name}', f'Branch stub R=150 r=100 beta={b!r}: developed length {size:.3g} mm, 1 % above the 1e8 mm limit', req, ['beta', '1e8'],
+                   f'Developed size {size:.3g} mm, 1 % above the 1e8 mm limit: refused.')
+# the nearest representable angles to the excluded ends: nextafter(0, 1) and nextafter(180, 0) make a developed branch of 1e17 mm and more
+for nm, b in (('nextafter-0', 5e-324), ('nextafter-180', 179.99999999999997)):
+    refuse(f'E-br-beta-{nm}', f'branch: beta = {b!r} deg (the representable value next to the excluded end of (0, 180))', stub(150, 100, b, 0, 0.995e8), ['beta', '1e8'],
+           'The open interval (0, 180) is the whole angle condition, but the developed branch of the nearest representable angle is longer than 1e8 mm (limit of the build).')
+# chord-error cap: the saddle of a branch (beta 90, delta 0, R = 150 K, r = 100 K) and the large end of an eccentric reducer (200, 100, 300, 100) K are
+# drawn with at most 46 080 segments; the largest chord error grows linearly with K and reaches 0.01 mm at K = 48 100 (branch) and 38 800 (eccentric)
+for tag, K in (('inside', 45000), ('outside', 51000)):
+    R_, r_ = 150 * K, 100 * K
+    if tag == 'inside':
+        case('B-br-chord-cap-inside', 'closed_form', f'Branch stub R={R_} r={r_} beta=90: chord error 9.4e-3 mm with 46 080 segments (just inside the 0.01 mm cap)', stub(R_, r_, 90, 0, 7e6),
+             f'The chord error of the saddle with 46 080 uniform segments is 2.0787e-7 K = {2.0787e-7 * K:.3g} mm (reference polyline, 6.5 % under the 0.01 mm limit): accepted.',
+             quantities={'branch': {'s_at_0': q(math.sqrt(R_ ** 2 - r_ ** 2), rel=1e-11), 's_at_90': q(R_, rel=1e-11), 'developed_width': q(2 * pi * r_)}})
+    else:
+        refuse('E-br-chord-cap-outside', f'Branch stub R={R_} r={r_} beta=90: chord error {2.0787e-7 * K:.3g} mm with 46 080 segments (just outside the 0.01 mm cap)', stub(R_, r_, 90, 0, 8e6), ['chord'],
+               f'The chord error of the saddle with 46 080 uniform segments is {2.0787e-7 * K:.3g} mm (6 % over the 0.01 mm limit): refused (B2-005 point e, the cap is kept).')
+for tag, K in (('inside', 36000), ('outside', 41000)):
+    req = {'family': 'eccentric_reducer', 'r1': 200 * K, 'r2': 100 * K, 'h': 300 * K, 'e': 100 * K}
+    sag = 2.5783e-7 * K
+    if tag == 'inside':
+        case('B-ecc-chord-cap-inside', 'closed_form', f'Eccentric reducer (200, 100, 300, 100) x {K}: chord error {sag:.3g} mm with 46 080 segments (just inside the 0.01 mm cap)', req,
+             f'The chord error of the large end with 46 080 uniform segments is 2.5783e-7 K = {sag:.3g} mm (reference polyline, 7 % under the 0.01 mm limit): accepted.')
+    else:
+        refuse('E-ecc-chord-cap-outside', f'Eccentric reducer (200, 100, 300, 100) x {K}: chord error {sag:.3g} mm with 46 080 segments (just outside the 0.01 mm cap)', req, ['chord'],
+               f'The chord error of the large end with 46 080 uniform segments is {sag:.3g} mm (5.7 % over the 0.01 mm limit): refused.')
 # small branch: opening tends to an ellipse with semi-axes r/sin(beta) (axial) and r (circumferential)
 for k, beta in enumerate((90, 45)):
     R, r = 1000, 1
@@ -262,12 +400,6 @@ for name, b in bases.items():
              'identical to rounding; otherwise agreement to ~1e-12 relative.', relation={'type': 'scale', 'k': kk})
 
 # =========================================================== (e) refusals
-def refuse(id, title, request, mentions, derivation, kind='engineering', raw_body=None):
-    c = case(id, 'refusal', title, request, derivation, expect='refuse', refusal={'kind': kind, 'mentions': mentions})
-    if raw_body is not None:
-        c['raw_body'] = raw_body
-
-
 valid = {'cylinder_shell': ({'family': 'cylinder_shell', 'r_dev': 500, 'length': 1000}, ['r_dev', 'length']),
          'cone_frustum': (base_cone, ['r1', 'r2', 'h']),
          'eccentric_reducer': ({'family': 'eccentric_reducer', 'r1': 200, 'r2': 100, 'h': 300, 'e': 100}, ['r1', 'r2', 'h']),
@@ -290,18 +422,23 @@ for fam, (base, pos) in valid.items():
 refuse('E-family-unknown', 'unknown family', {'family': 'teapot'}, [], 'Unknown part family.', kind='malformed')
 refuse('E-cone-r1-eq-r2', 'cone: r1 = r2', dict(base_cone, r2=200), ['r1', 'r2', 'cylinder'], 'Equal radii is a cylinder, not a cone (apex at infinity).')
 refuse('E-cone-r1-lt-r2', 'cone: r1 < r2', dict(base_cone, r1=100, r2=200), ['r1', 'r2'], 'The family is defined with the large end first (Spec 02 4.2: r1 > r2).')
-refuse('E-cone-near-cyl', 'cone: near-cylindrical (CONE-02)', {'family': 'cone_frustum', 'r1': 200, 'r2': 199.9, 'h': 300}, ['cylind'], 'sin(alpha) = 3.3e-4: declared unsupported (apex-free method not implemented).')
+# B2-005 (engine 0.4.2): CONE-02 (200, 199.9, 300) has sin(alpha) = 3.3e-4 and an apex radius of 6e5 mm; it is ACCEPTED (case A-CONE-SLENDER below).
+# A cone is refused only by its apex radius r1/sin(alpha) > 1e8 mm, or by a seam gap l2 (2 pi - Phi) <= 1e-9 mm at the small end.
+refuse('E-cone-near-cyl', 'cone: near-cylindrical, apex radius above 1e8 mm (CONE-02 scaled)', {'family': 'cone_frustum', 'r1': 1e6, 'r2': 1e6 - 1, 'h': 1e6}, ['apex', 'radius'], 'sin(alpha) = 1e-6, apex radius r1/sin(alpha) = 1e12 mm exceeds the 1e8 mm developed-size limit of the build.')
+refuse('E-cone-seam-gap', 'cone: seam gap below the closure resolution', {'family': 'cone_frustum', 'r1': 300, 'r2': 50, 'h': 1e-5}, ['seam', 'closure'], '1 - sin(alpha) = h^2 / (2 * 250^2) = 8e-16: the seam gap l2 (2 pi - Phi) = 50 * 2 pi * 8e-16 = 2.5e-13 mm is below the 1e-9 mm closure resolution of the profile check.')
 refuse('E-ecc-r1-eq-r2', 'eccentric: r1 = r2 (oblique cylinder)', {'family': 'eccentric_reducer', 'r1': 100, 'r2': 100, 'h': 100, 'e': 100}, ['r1', 'r2', 'cylinder'], 'OBLCYL-01 geometry: declared not implemented.')
 refuse('E-ecc-e-negative', 'eccentric: e < 0', {'family': 'eccentric_reducer', 'r1': 200, 'r2': 100, 'h': 300, 'e': -100}, ['e', 'offset'], 'The offset is a magnitude; its direction is fixed by the seam datum.')
-refuse('E-ecc-near-cyl', 'eccentric: near-cylindrical', {'family': 'eccentric_reducer', 'r1': 200, 'r2': 199.9, 'h': 300, 'e': 50}, ['cylind'], 'Declared unsupported.')
+refuse('E-ecc-near-cyl', 'eccentric: apex radius above 1e8 mm', {'family': 'eccentric_reducer', 'r1': 1e6, 'r2': 1e6 - 1, 'h': 1e6, 'e': 50}, ['apex', 'radius'], 'The apex lies about 1e12 mm from the large end: above the 1e8 mm developed-size limit of the build.')
+refuse('E-ecc-seam-gap', 'eccentric: seam gap below the closure resolution', {'family': 'eccentric_reducer', 'r1': 300, 'r2': 50, 'h': 1e-5, 'e': 0}, ['seam', 'closure'], 'Nearly flat: the angle defect 2 pi - Psi is about 5e-15, so the seam gap at the small end is far below the 1e-9 mm closure resolution.')
 st = stub(150, 100, 60, 0, 400)
 refuse('E-br-equal-tee', 'branch: r = R (BR-05 equal tee)', dict(st, branch_radius=150, branch_dev_radius=150, beta_deg=90), ['delta', 'tangent', 'equal'], 'Equal-diameter tee: cornered saddle, declared not implemented.')
 refuse('E-br-r-gt-R', 'branch: r > R', dict(st, branch_radius=200, branch_dev_radius=200), ['delta', 'radius'], 'Branch larger than the header: no full saddle exists.')
 refuse('E-br-partial', 'branch: |delta| + r > R (BR-02)', stub(150, 100, 90, 60, 400), ['delta'], 'Partial intersection: different topology.')
 refuse('E-br-partial-neg', 'branch: |delta| + r > R, delta negative', stub(150, 100, 90, -60, 400), ['delta'], 'Partial intersection on the other side.')
 refuse('E-br-tangent', 'branch: |delta| + r = R exactly', stub(150, 100, 90, 50, 400), ['delta', 'tangent'], 'Tangent rulings: declared not implemented.')
-for b in (0, 180, -30, 200, 360, 5, 175, 540 + 60):
-    refuse(f'E-br-beta-{b}', f'branch: beta = {b} deg', dict(st, beta_deg=b), ['beta', 'angle'], 'Angle between axes outside (0, 180) or grazing (declared limit about 10..170 deg). 600 deg is not an angle between two lines.')
+for b in (0, 180, -30, 200, 360, 540 + 60):
+    refuse(f'E-br-beta-{b}', f'branch: beta = {b} deg', dict(st, beta_deg=b), ['beta', 'angle'], 'Angle between axes outside the open interval (0, 180) degrees (B2-005: the former 10..170 deg limit is gone, 5 and 175 deg are accepted, see A-BR-GRAZE-*). 600 deg is not an angle between two lines.')
+refuse('E-br-beta-size', 'branch: developed branch longer than 1e8 mm', dict(st, beta_deg=1e-6, s_end=1e8), ['beta', 'angle', '1e8'], 'beta = 1e-6 deg: s_max = (R + r cos(beta))/sin(beta) = 1.4e10 mm exceeds the 1e8 mm developed-size limit.')
 refuse('E-br-s_end-inside', 'branch: square end inside the saddle', dict(st, s_end=100), ['s_end', 'saddle'], 's_end below the highest saddle point: the stub would have no closed square end.')
 refuse('E-asm-off-start', 'assembly: opening off the plate at station 0 end', dict(asm, branch_station=20), ['station', 'opening', 'shell'], 'Station 20: the opening (centre at station + R/tan(beta) = 106.6, reaching 30 mm before it) would cross the plate end x = 0.')
 refuse('E-asm-off-end', 'assembly: opening off the plate at the far end', dict(asm, branch_station=1150), ['station', 'opening', 'shell'], 'The opening would cross the plate end x = L.')

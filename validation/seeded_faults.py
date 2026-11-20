@@ -15,7 +15,7 @@ import numpy as np
 import shapely
 from checks.client import Client, USER, PASSWORD
 from checks.product import Job, Part
-from checks.compare import cmp_header, cmp_branch, compare_job, dxf_roundtrip, declared_side, compare_scaled, scale_request, rel_tol
+from checks.compare import cmp_header, cmp_branch, compare_job, seam_resolution_check, dxf_roundtrip, declared_side, compare_scaled, scale_request, rel_tol
 from reference import families as RF
 from stability import _asm
 
@@ -127,7 +127,65 @@ def run(cl):
         ok &= bool(issues)
         lines.append(('ok  ' if issues else 'MISS') + f' DXF: {name}: ' + (issues[0][:150] if issues else 'not detected'))
     ok2, lines2 = near_tangent_and_scale(cl)
-    return ok and ok2, lines + lines2
+    ok3, lines3 = seam_faults(cl)
+    return ok and ok2 and ok3, lines + lines2 + lines3
+
+
+def seam_faults(cl):
+    """Engine 0.4.2 Q2(b): plant faults in the seam-resolution quantities and the G11 verdict of a correct result and require
+    checks.compare.seam_resolution_check to report them (it had never been shown to fire).
+      reducer, e = 0, seam gap 3e-3 mm (below 2 eps_rep): the engine says G11 INCONCLUSIVE; plant G11 PASS (an unresolved seam passed);
+      the same reducer with the reported seam_gap scaled x100 (a gap above the resolution that the DXF does not have);
+      right cone, seam gap 2.5e-7 mm: plant the pre-fix state of a large cone (eps_num of a 1e7 mm part, resolution left at the bare
+      1e-9 mm) - the derived floor max(1e-9, 2 eps_num) must be demanded of the product."""
+    lines, ok = [], True
+    red = {'family': 'eccentric_reducer', 'r1': 300, 'r2': 50, 'h': 1.0925510388562152, 'e': 0}
+    cone = {'family': 'cone_frustum', 'r1': 300, 'r2': 50, 'h': 0.01}
+
+    def seam_issues(req, plant):
+        j = Job(cl, cl.calculate(req))
+        pre = compare_job(req, j)
+        pr = pre['parts']['reducer']
+        if pre['issues']:
+            return None, pre['issues']
+        plant(j)
+        out = []
+        seam_resolution_check(req['family'], 'reducer', pr, j, out)
+        return True, out
+
+    def g11_pass(j):
+        for g in j.result['gates']:
+            if g['id'] == 'G11':
+                g['result'] = 'PASS'
+
+    def gap_x100(j):
+        for p in j.result['patterns']:
+            p['quantities']['seam_gap'] *= 100
+
+    def cone_old_floor(j):
+        for p in j.result['patterns']:
+            p['eps_num'] = 3.0e-6        # an apex radius near 1e8 mm: 2 eps_num = 6e-6 mm, above the 2.5e-7 mm seam gap
+
+    def cone_old_floor_g11_pass(j):
+        cone_old_floor(j)
+        g11_pass(j)
+    for name, req, plant in (('reducer: seam gap below 2 eps_rep reported with G11 PASS', red, g11_pass),
+                             ('reducer: reported seam_gap 100 x the real one', red, gap_x100),
+                             ('cone: resolution left at the bare 1e-9 mm where 2 eps_num is far above it', cone, cone_old_floor),
+                             ('cone: seam gap below max(1e-9, 2 eps_num) reported with G11 PASS', cone, cone_old_floor_g11_pass)):
+        base, issues = seam_issues(req, lambda j: None)
+        if base is None:
+            ok = False
+            lines.append(f'MISS {name}: unmodified result already has issues: {issues[0][:150]}')
+            continue
+        if issues:
+            ok = False
+            lines.append(f'MISS {name}: unmodified result has a seam issue: {issues[0][:150]}')
+            continue
+        _, issues = seam_issues(req, plant)
+        ok &= bool(issues)
+        lines.append(('ok  ' if issues else 'MISS') + f' seam: {name}: ' + (issues[0][:170] if issues else 'not detected'))
+    return ok, lines
 
 
 def _scale_entities(job, f, kinds=('line', 'arc', 'polyline')):

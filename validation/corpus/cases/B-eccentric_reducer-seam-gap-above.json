@@ -1,0 +1,14 @@
+{
+ "id": "B-eccentric_reducer-seam-gap-above",
+ "group": "closed_form",
+ "title": "eccentric_reducer r1=300 r2=50 h=0.0006463603682288414: seam gap 1.05e-09 mm, above the 1e-9 mm closure resolution",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 300,
+  "r2": 50,
+  "h": 0.0006463603682288414,
+  "e": 0
+ },
+ "expect": "accept",
+ "derivation": "The seam gap at the small end is l2 (2 pi - Phi) = 1.05e-09 mm (mpmath, 40 digits), above the 1e-9 mm closure resolution of the profile check (5 % over the limit)."
+}

@@ -1,20 +1,21 @@
 {
  "id": "E-ecc-near-cyl",
  "group": "refusal",
- "title": "eccentric: near-cylindrical",
+ "title": "eccentric: apex radius above 1e8 mm",
  "request": {
   "family": "eccentric_reducer",
-  "r1": 200,
-  "r2": 199.9,
-  "h": 300,
+  "r1": 1000000.0,
+  "r2": 999999.0,
+  "h": 1000000.0,
   "e": 50
  },
  "expect": "refuse",
- "derivation": "Declared unsupported.",
+ "derivation": "The apex lies about 1e12 mm from the large end: above the 1e8 mm developed-size limit of the build.",
  "refusal": {
   "kind": "engineering",
   "mentions": [
-   "cylind"
+   "apex",
+   "radius"
   ]
  }
 }

@@ -1,0 +1,38 @@
+{
+ "id": "B-cone-seam-vs-eps-num-above-band",
+ "group": "closed_form",
+ "title": "cone r1=1e7 r2=9e6 h=0.10300645387285069: seam gap 3e-07 mm, above 2 eps_num (G11 PASS)",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 10000000.0,
+  "r2": 9000000.0,
+  "h": 0.10300645387285069
+ },
+ "expect": "accept",
+ "derivation": "Seam gap l2 (2 pi - Phi) = 3e-07 mm (mpmath, 40 digits) for a cone of apex radius about 1e7 mm. The numerical error of its written vertices is about 7e-8 mm, so the seam cannot be told from a closed one below about 1.5e-7 mm (twice that error): the gap is above that band, so G11 passes.",
+ "quantities": {
+  "reducer": {
+   "slant_length": [
+    1000000.0000000054,
+    1.0000000000000053e-05
+   ],
+   "sin_half_angle": [
+    0.9999999999999947,
+    9.999999999999946e-12
+   ],
+   "apex_radius_large": [
+    10000000.000000052,
+    0.00010000000000000052
+   ],
+   "apex_radius_small": [
+    9000000.000000048,
+    9.000000000000048e-05
+   ],
+   "area": [
+    59690260418206.39,
+    596.9026041820639
+   ]
+  }
+ },
+ "g11": "PASS"
+}

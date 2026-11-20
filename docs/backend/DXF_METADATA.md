@@ -1,6 +1,6 @@
 # DXF metadata: what a NEXUS FABRIC DXF file states, and how
 
-Engine 0.4.1 (20 Nov 2026). Every DXF the engine writes is an AC1009 (R12) file. It states two kinds of fact: the
+Engine 0.4.2 (20 Nov 2026; this document was written for 0.4.1, and 0.4.2 changed no DXF byte of the cut geometry or of the statements). Every DXF the engine writes is an AC1009 (R12) file. It states two kinds of fact: the
 cut geometry, and a statement about the part (its units, and for a header-with-branch part its joint). The cut
 geometry is unchanged by the statement: the entities on the cutting layers are the same bytes as in 0.4.0.
 
@@ -71,3 +71,10 @@ rules `units_declared`, `joint_statement` and `readable`. The job's records carr
 
 0.4.0 files carry no `NF-UNITS` line and no joint statement. Results of 0.4.0 are REJECTED with gate G21
 ("recompute"), so no 0.4.0 file is offered as current; a recomputed result of 0.4.1 is.
+
+## Changes from 0.4.1
+
+Engine 0.4.2 (B2-005, B2-006) changes only which inputs are refused and two reported quantities (eccentric `area`,
+branch `s_min`/`s_max`). The cut geometry of every previously accepted case is byte-identical. The ORIGIN note of a
+branch stub (a TEXT line after the first TEXT) quotes the exact s_min. Results of 0.4.1 are REJECTED with gate G21
+("recompute").

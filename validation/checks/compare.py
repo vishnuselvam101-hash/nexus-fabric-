@@ -524,6 +524,55 @@ def is_chiral(req, threshold=1e-9):
     return abs(req['delta']) > threshold * R and abs(math.cos(math.radians(req['beta_deg']))) > threshold
 
 
+
+SEAM_RESOLUTION = 1e-9      # mm, closure resolution of the profile check (the same constant as checks/oracle.py)
+CHORD_LIMIT = 0.01          # mm, the chord-error limit every polyline meets (TOLERANCE_POLICY section 5)
+HALF_ULP = 2.0 ** -53       # binary64 unit roundoff, used only for the independent lower bound on the numerical error of a written vertex
+
+
+def seam_resolution_check(fam, name, pr, job, issues):
+    """Engine 0.4.2, Q2(b). Rule from the specification of the profile check, not from the engine: two seam edges whose clearance is
+    smaller than the error of the curves that end on them cannot be told from a closed seam (nor drawn apart in a DXF), so the profile
+    gate (G11) must not say PASS. The floor of that error is stated per family:
+      right cone: its arcs are exact entities and its seam edges straight lines, but every written vertex carries the numerical error
+        eps_num of the product (reported, an a-priori bound that grows with the size of the part): floor = max(1e-9 mm, 2 eps_num). The
+        floor is NOT the bare 1e-9 mm closure resolution: at an apex radius of 1e7 mm, 2 eps_num is about 1.5e-7 mm, and a seam gap
+        between the two cannot be represented in the DXF (G15 then rejects the job).
+      eccentric reducer: its large and small ends are polylines, so twice the true representation error measured here against the
+        reference curve (never above twice the 0.01 mm chord limit), and twice eps_num.
+    The reported eps_num is not taken on trust: it must be at least the rounding of the largest coordinate the DXF carries (extent x 2^-53,
+    computed here from the DXF), otherwise the product understates its own error and the check says so. The clearance is MEASURED here from
+    the product's own seam edges (reported `seam_gap` is the engine's chord between the seam end points; the measured clearance is the
+    distance between the two seam edges; they must agree within 1e-3 relative plus 8 eps_num).
+    Changed validation rule (0.4.2 review must-fix 2): the cone floor was the constant 1e-9 mm; it is now max(1e-9, 2 eps_num) because
+    the constant was wrong where 2 eps_num exceeds it (large cones)."""
+    gap = pr['flat_seam_clearance']
+    pv = next((p for p in job.result.get('patterns', []) if p['part'] == name), {})
+    q = pv.get('quantities', {})
+    eps_num = pv.get('eps_num', 0.0)
+    part = job.parts[name]
+    eps_floor = HALF_ULP * part.extent()
+    if eps_num < eps_floor:
+        issues.append(f'{name}: reported eps_num {eps_num:.3g} mm is below the rounding of the largest written coordinate ({eps_floor:.3g} mm)')
+    chord = pr.get('chord_dev', 0.0) if fam == 'eccentric_reducer' else 0.0
+    thr = max(SEAM_RESOLUTION, 2.0 * chord, 2.0 * eps_num)
+    cap = max(SEAM_RESOLUTION, 2.0 * CHORD_LIMIT, 2.0 * eps_num) if fam == 'eccentric_reducer' else thr
+    g11 = next((g['result'] for g in job.result.get('gates', []) if g['id'] == 'G11'), None)
+    tol = 8 * eps_num + 1e-12
+    if 'seam_gap' not in q or 'seam_gap_resolution' not in q:
+        issues.append(f'{name}: the pattern does not report seam_gap / seam_gap_resolution')
+    else:
+        if abs(q['seam_gap'] - gap) > 1e-3 * gap + tol:
+            issues.append(f'{name}: reported seam_gap {q["seam_gap"]:.6g} mm differs from the measured seam clearance {gap:.6g} mm')
+        want = max(SEAM_RESOLUTION, 2.0 * pv.get('eps_rep', 0.0), 2.0 * eps_num) if fam == 'eccentric_reducer' else max(SEAM_RESOLUTION, 2.0 * eps_num)
+        if abs(q['seam_gap_resolution'] - want) > 1e-12 * want:
+            issues.append(f'{name}: seam_gap_resolution {q["seam_gap_resolution"]:.6g} mm is not the specified {want:.6g} mm')
+    if gap < thr * (1 - 1e-3) and g11 == 'PASS':
+        issues.append(f'{name}: seam clearance {gap:.4g} mm is below the resolution {thr:.4g} mm of its adjoining curves, but the profile gate G11 says PASS')
+    if gap > cap * (1 + 1e-3) and g11 != 'PASS':
+        issues.append(f'{name}: seam clearance {gap:.4g} mm is above any resolution ({cap:.4g} mm) but the profile gate G11 says {g11}')
+
+
 def compare_job(req, job, ndense=6001, dxf=True):
     """Full comparison.  Returns report dict with 'issues' (geometry disagreements) and 'findings' (other defects).
     dxf=False skips the DXF round trip (used only by the seeded-fault tests, which plant geometry, not files)."""
@@ -586,8 +635,10 @@ def compare_job(req, job, ndense=6001, dxf=True):
             if pr['chord_dev'] > part.eps_rep * 1.10 + tol:
                 findings.append({'code': 'EPS_REP_EXCEEDED', 'detail': f"{name}: true curve-representation error {pr['chord_dev']:.4g} mm exceeds stated eps_rep {part.eps_rep:.4g} mm (x{pr['chord_dev'] / part.eps_rep if part.eps_rep else float('inf'):.2f})"})
         d = pr['dxf']
-        if pr.get('turn_fraction', 0.0) >= 0.999:     # a small clearance next to a tiny small end is ordinary geometry; a sector closing the turn is not
+        if pr.get('turn_fraction', 0.0) >= 0.999 and pr.get('flat_seam_clearance', 1.0) <= 1e-9:     # engine 0.4.2 (B2-005): a cone sector never overlaps; its seam edges are a defect only when they cannot be told apart, i.e. at or below the 1e-9 mm closure resolution (was: 99.9 % of a turn)
             findings.append({'code': 'FLAT_SEAM_CLEARANCE', 'detail': f"{name}: the two seam edges of the flat pattern are {pr['flat_seam_clearance']:.3g} mm apart (pattern closes on itself)"})
+        if 'flat_seam_clearance' in pr:
+            seam_resolution_check(fam, name, pr, job, issues)
         if d.get('extents_header_error', 0) > 1e-6 * max(pr.get('scale', 1), 1e-300):
             findings.append({'code': 'DXF_EXTENTS_WRONG', 'detail': f"{name}: $EXTMIN/$EXTMAX differ from the true extents by {d['extents_header_error']:.4g} mm"})
         if d.get('json_arc_sagitta', 0) > 1e-9 * max(pr.get('scale', 1), 1e-300) and not d.get('json_arc_labelled', False):

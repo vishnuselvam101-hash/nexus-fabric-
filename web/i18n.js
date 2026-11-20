@@ -864,6 +864,7 @@ const ID = {
   },
   // third entry: the unit the engine uses for the quantity (it sends none)
   quantity: {
+    seam_gap: ['Seam gap (flat pattern, small end)', '継目の隙間（展開図・小径側）', 'mm'], seam_gap_resolution: ['Seam gap resolution', '継目の隙間の分解能', 'mm'],
     area: ['Area', '面積', 'mm²'], gross_area: ['Gross area, before the opening', '総面積（開口前）', 'mm²'], net_area: ['Net area, after the opening', '正味面積（開口を差し引いた後）', 'mm²'], opening_area: ['Opening area', '開口の面積', 'mm²'], developed_width: ['Developed width', '展開幅', 'mm'], length: ['Length', '長さ', 'mm'], opening_perimeter: ['Opening perimeter', '開口の周長', 'mm'],
     opening_x_min: ['Opening, smallest x', '開口のx最小値', 'mm'], opening_x_max: ['Opening, largest x', '開口のx最大値', 'mm'],
     developed_angle: ['Developed angle', '展開角', 'rad'], sector_angle: ['Sector angle', '扇形の中心角', 'rad'],

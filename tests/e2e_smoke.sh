@@ -45,7 +45,7 @@ C1=$(run '{"family":"cone_frustum","r1":200,"r2":100,"h":300}')
 C2=$(run '{"family":"eccentric_reducer","r1":200,"r2":100,"h":300,"e":100}')
 C3=$(run '{"family":"branch_stub","header_radius":150,"branch_radius":100,"branch_dev_radius":100,"beta_deg":60,"delta":0,"s_end":400}')
 C4=$(run '{"family":"cylinder_shell","r_dev":500,"length":1000}')
-C5=$(run '{"family":"cone_frustum","r1":200,"r2":199.99,"h":300}')
+C5=$(run '{"family":"cone_frustum","r1":200,"r2":199.99999,"h":300}')
 get() { curl -s -H "X-NF-Request: 1" -b "$JAR" "$BASE/api/calculations/$1"; }
 for c in $C1 $C2 $C3 $C4; do
   R=$(get $c)
@@ -57,7 +57,7 @@ check "CONE-01 sector angle matches reference"    '[ "$(get $C1 | j "abs(d[\"pat
 check "ECC-01 developed angle matches reference"  '[ "$(get $C2 | j "abs(d[\"patterns\"][0][\"quantities\"][\"developed_angle\"]-1.861891289225)<1e-10")" = True ]'
 check "unsupported input: no pattern, no DXF"     '[ "$(get $C5 | j "d[\"patterns\"] == []")" = True ]'
 # BE-003: a refused request is REFUSED end to end (it used to be answered 200 and stored as REVIEW_REQUIRED)
-check "refused request: HTTP 422 with state REFUSED and a reason" '[ "$(curl -s -o "$DATA/ref.json" -w "%{http_code}" -H "X-NF-Request: 1" -b $JAR -H "Content-Type: application/json" -d "{\"family\":\"cone_frustum\",\"r1\":200,\"r2\":199.99,\"h\":300}" $BASE/api/projects/1/calculations)" = 422 ] && [ "$(j "d[\"state\"]==\"REFUSED\" and bool(d[\"outcome\"]) and d[\"id\"]>0" < "$DATA/ref.json")" = True ]'
+check "refused request: HTTP 422 with state REFUSED and a reason" '[ "$(curl -s -o "$DATA/ref.json" -w "%{http_code}" -H "X-NF-Request: 1" -b $JAR -H "Content-Type: application/json" -d "{\"family\":\"cone_frustum\",\"r1\":200,\"r2\":199.99999,\"h\":300}" $BASE/api/projects/1/calculations)" = 422 ] && [ "$(j "d[\"state\"]==\"REFUSED\" and bool(d[\"outcome\"]) and d[\"id\"]>0" < "$DATA/ref.json")" = True ]'
 check "refused request: stored state is REFUSED, never REVIEW_REQUIRED" '[ "$(get $C5 | j "d[\"state\"]")" = REFUSED ] && [ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/calculations | j "[c[\"state\"] for c in d if c[\"id\"]==$C5][0]")" = REFUSED ]'
 check "refused request: counted as refused, not as review required" '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/dashboard | j "d[\"refused\"]==2 and d[\"review_required\"]==4 and d[\"approved\"]==0")" = True ]'
 check "refused request: replay refused (409), attempt kept in the audit log" '[ "$(code -b $JAR -X POST $BASE/api/calculations/$C5/replay)" = 409 ] && [ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/audit | j "sum(1 for a in d if a[\"action\"]==\"calculation_refused\")")" = 2 ]'

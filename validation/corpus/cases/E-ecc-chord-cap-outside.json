@@ -1,0 +1,20 @@
+{
+ "id": "E-ecc-chord-cap-outside",
+ "group": "refusal",
+ "title": "Eccentric reducer (200, 100, 300, 100) x 41000: chord error 0.0106 mm with 46 080 segments (just outside the 0.01 mm cap)",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 8200000,
+  "r2": 4100000,
+  "h": 12300000,
+  "e": 4100000
+ },
+ "expect": "refuse",
+ "derivation": "The chord error of the large end with 46 080 uniform segments is 0.0106 mm (5.7 % over the 0.01 mm limit): refused.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "chord"
+  ]
+ }
+}

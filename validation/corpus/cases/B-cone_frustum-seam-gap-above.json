@@ -1,0 +1,37 @@
+{
+ "id": "B-cone_frustum-seam-gap-above",
+ "group": "closed_form",
+ "title": "cone_frustum r1=300 r2=50 h=0.0006463603682288414: seam gap 1.05e-09 mm, above the 1e-9 mm closure resolution",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 300,
+  "r2": 50,
+  "h": 0.0006463603682288414
+ },
+ "expect": "accept",
+ "derivation": "The seam gap at the small end is l2 (2 pi - Phi) = 1.05e-09 mm (mpmath, 40 digits), above the 1e-9 mm closure resolution of the profile check (5 % over the limit).",
+ "quantities": {
+  "reducer": {
+   "slant_length": [
+    250.00000000083557,
+    2.5000000000083554e-09
+   ],
+   "sin_half_angle": [
+    0.9999999999966578,
+    9.999999999966578e-12
+   ],
+   "apex_radius_large": [
+    300.00000000100266,
+    3.0000000000100262e-09
+   ],
+   "apex_radius_small": [
+    50.00000000016711,
+    5.000000000016711e-10
+   ],
+   "area": [
+    274889.3571900257,
+    2.748893571900257e-06
+   ]
+  }
+ }
+}

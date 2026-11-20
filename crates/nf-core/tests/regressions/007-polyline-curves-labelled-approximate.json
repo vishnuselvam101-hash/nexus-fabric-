@@ -1,7 +1,7 @@
 {
  "description": "Review B2 finding B2-002 (20 Nov 2026): every polyline was reported as exact with points_max_deviation 0, while a polyline is a sampled approximation of a curved edge whose chord error is the engine's eps_rep (up to 0.01 mm). The eccentric reducer large_end, the eccentric reducer small_end, the branch saddle_cut and the header branch_opening are such polylines. Lines (seams, square end) are exact with deviation 0. The labelling is display only: patterns, DXF, gates and pass/fail are unchanged; the pattern payload in the records changes, so the content-addressed closure_hash changes for inputs with a polyline.",
  "found": "2026-11-20 (review B2, B2-002)",
- "fixed_in": "nf-core job.rs curve_view: points_exact only for lines; a polyline's points_max_deviation is its own eps_rep (uem Geom::Polyline). ENGINE_VERSION left at 0.4.1 for this change; whether to bump is a founder decision flagged in the report",
+ "fixed_in": "nf-core job.rs curve_view: points_exact only for lines; a polyline's points_max_deviation is its own eps_rep (uem Geom::Polyline). ENGINE_VERSION left at 0.4.1 (bumped to 0.4.2 with B2-005/006) for this change; whether to bump is a founder decision flagged in the report",
  "cases": [
   {
    "request": {

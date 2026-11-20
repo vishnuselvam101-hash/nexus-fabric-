@@ -2480,7 +2480,7 @@ async fn list_sees_a_same_length_alteration_made_by_another_process() {
 async fn d1_results_of_engine_0_2_0_are_flagged_for_recomputation() {
     let t = boot();
     let id = t.job(good_assembly()).await;
-    assert!(nf_core::ENGINE_VERSION.starts_with("nf-engine 0.4.1+src."));
+    assert!(nf_core::ENGINE_VERSION.starts_with("nf-engine 0.4.2+src."));
     t.sql(&format!("UPDATE calculations SET result_json = json_set(result_json, '$.engine', 'nf-engine 0.2.0+src.0123456789abcdef') WHERE id = {id}"));
     let d = t.get(&format!("/api/calculations/{id}")).await;
     assert_eq!(d["state"], "REJECTED");
@@ -2978,7 +2978,7 @@ async fn bh014_every_refusal_answers_with_a_code_fields_and_the_message() {
 }
 
 /// BH-004 (engine 0.4.1): a result stored by 0.4.0 is marked for recomputation (gate G21), is never shown as current and
-/// has no DXF; a result of 0.4.1 is current and its DXF is offered.
+/// has no DXF; a result of the running engine is current and its DXF is offered.
 #[tokio::test]
 async fn bh004_engine_0_4_0_results_are_recomputed_and_0_4_1_results_are_current() {
     let t = boot();
@@ -2999,6 +2999,27 @@ async fn bh004_engine_0_4_0_results_are_recomputed_and_0_4_1_results_are_current
     let now = t.job(good_assembly()).await;
     let d = t.get(&format!("/api/calculations/{now}")).await;
     assert_eq!(d["engine"], nf_core::ENGINE_VERSION);
-    assert_ne!(d["state"], "REJECTED", "a 0.4.1 result is current");
+    assert_ne!(d["state"], "REJECTED", "a 0.4.2 result is current");
     assert_eq!(t.dxf_status(now, "branch").await, StatusCode::OK);
+}
+
+/// B2-005/006 (engine 0.4.2): a result stored by 0.4.1 is marked for recomputation (gate G21), is never shown as
+/// current and has no DXF: quantities and refusal outcomes changed.
+#[tokio::test]
+async fn b2_engine_0_4_1_results_are_recomputed() {
+    let t = boot();
+    let id = t.job(good_assembly()).await;
+    t.sql(&format!(
+        "UPDATE calculations SET result_json = json_set(result_json, '$.engine', 'nf-engine 0.4.1+src.a94274f3449dc907') WHERE id = {id}"
+    ));
+    let d = t.get(&format!("/api/calculations/{id}")).await;
+    assert_eq!(d["state"], "REJECTED");
+    assert!(
+        gate_of(&d, "G21")["detail"].as_str().unwrap().contains(
+            "Computed by a superseded engine version (nf-engine 0.4.1+src.a94274f3449dc907) — recompute"
+        ),
+        "{}",
+        gate_of(&d, "G21")
+    );
+    assert_eq!(t.dxf_status(id, "branch").await, StatusCode::CONFLICT);
 }

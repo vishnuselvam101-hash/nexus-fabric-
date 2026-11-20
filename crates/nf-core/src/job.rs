@@ -355,6 +355,10 @@ pub struct JobOutput {
     pub closure_hash: String,
     pub closure_size: usize,
     pub work_units: u64,
+    /// Engine advisories of this job (for example the B2-001 development-radius advisory): accepted inputs an
+    /// engineer must confirm. Separate from the lesson advisories the server adds. Also stated in G02.
+    #[serde(default)]
+    pub engine_advisories: Vec<String>,
     pub records: Vec<Record>,
     /// (part name, DXF text) — not serialised; stored as encrypted blobs.
     #[serde(skip)]
@@ -536,6 +540,10 @@ struct Builder {
     quality_ok: bool,
     /// The parts whose DXF the quality gate refused, with the rules it failed.
     quality_notes: Vec<String>,
+    /// Advisories (accepted, but an engineer must look): shown on the job itself and in G02.
+    advisories: Vec<String>,
+    /// Parts whose flat-pattern seam gap is below the resolution of the adjoining curves (Q2(b)).
+    seam_unresolved: Vec<String>,
 }
 
 impl Builder {
@@ -554,6 +562,8 @@ impl Builder {
             sides: vec![],
             quality_ok: true,
             quality_notes: vec![],
+            advisories: vec![],
+            seam_unresolved: vec![],
         }
     }
     fn push(&mut self, r: Record) -> String {
@@ -651,6 +661,17 @@ impl Builder {
         let ok =
             outer.closed && outer.self_intersections == 0 && outer.signed_area > 0.0 && holes_ok;
         self.topo_ok &= ok;
+        // Q2(b): a seam gap below the resolution (cone: max(1e-9, 2 eps_num); reducer: max(1e-9, 2 eps_rep, 2 eps_num))
+        // cannot be told from a closed seam, so the profile gate cannot say PASS.
+        if let (Some(gap), Some(res)) = (
+            pattern.quantity("seam_gap"),
+            pattern.quantity("seam_gap_resolution"),
+        ) && gap < res
+        {
+            self.seam_unresolved.push(format!(
+                "{part}: the seam gap at the small end is {gap:e} mm, below {res:e} mm (the larger of 1e-9 mm and twice the representation and numerical errors of the adjoining curves)"
+            ));
+        }
         let prof_id = self.push(Record::new(
             Family::Assessment,
             "profile_report",
@@ -735,6 +756,18 @@ impl Builder {
                 g.detail
             );
         }
+        if !self.seam_unresolved.is_empty()
+            && let Some(g) = gates
+                .iter_mut()
+                .find(|g| g.id == "G11" && g.result == GateResult::Pass)
+        {
+            g.result = GateResult::Inconclusive;
+            g.detail = format!(
+                "The seam cannot be told from a closed one: {}. {}",
+                self.seam_unresolved.join("; "),
+                g.detail
+            );
+        }
         // A refusal is not a result under review: it has its own state, end to end (BE-003).
         let state = if outcome.is_some() || self.patterns.is_empty() {
             ReleaseState::Refused
@@ -773,6 +806,7 @@ impl Builder {
             closure_hash: closure_hash(&ids),
             closure_size: ids.len(),
             work_units: self.wu,
+            engine_advisories: self.advisories,
             records: self.recs,
             dxf: self.dxf,
         }
@@ -1000,7 +1034,10 @@ fn single(
                         radius_error(reason, "branch_dev_radius", "branch_radius"),
                     );
                 }
-                Ok(note) => scrutiny = note,
+                Ok(note) => {
+                    b.advisories.extend(note.iter().cloned());
+                    scrutiny = note;
+                }
             }
         }
     }
@@ -1123,7 +1160,10 @@ fn header_with_branch(
                 Err(reason) => {
                     return err_output(req, b, &rq, radius_error(reason, dev_name, contact_name));
                 }
-                Ok(Some(note)) => scrutiny.push(note),
+                Ok(Some(note)) => {
+                    b.advisories.push(note.clone());
+                    scrutiny.push(note);
+                }
                 Ok(None) => {}
             }
         }
@@ -1749,11 +1789,12 @@ mod tests {
 
     #[test]
     fn unsupported_and_degenerate_inputs_give_no_dxf() {
+        // B2-005: was (200, 199.99, 300), refused by sin(alpha) < 1e-3; refused now by the apex radius (1e8 mm)
         let o = run(
             &Request::ConeFrustum {
-                r1: 200.0,
-                r2: 199.99,
-                h: 300.0,
+                r1: 1e6,
+                r2: 1e6 - 1.0,
+                h: 1e6,
             },
             "t",
         );
@@ -1999,7 +2040,193 @@ mod tests {
                 .detail
                 .clone();
             assert!(d.contains(adv), "{r:?}: {d}");
+            // Q1(i): the advisory is on the job itself (engine_advisories), not only in the G02 text
+            assert!(
+                o.engine_advisories.iter().any(|a| a.contains(adv)),
+                "{r:?}: {:?}",
+                o.engine_advisories
+            );
+            let json = serde_json::to_value(&o).expect("json");
+            assert!(
+                json["engine_advisories"].as_array().is_some_and(|a| a
+                    .iter()
+                    .any(|x| x.as_str().is_some_and(|t| t.contains(adv)))),
+                "the advisory is part of the serialised job"
+            );
         }
+        // a part whose radii carry no advisory has none on the job
+        let plain = run(&with_radii("outside", 150.0, 146.0, 100.0, 96.0), "t");
+        assert!(
+            plain.engine_advisories.is_empty(),
+            "{:?}",
+            plain.engine_advisories
+        );
+    }
+
+    /// B2-005 boundary: a cone 1 % inside the 1e8 mm apex-radius limit is accepted AND its own independent area check passes
+    /// (the area was (phi/2)(l1^2 - l2^2), which lost 3e-3 mm^2 to cancellation at this size and failed the 1e-3 mm^2 check).
+    #[test]
+    fn b2_005_cone_one_percent_inside_the_apex_limit_is_verified() {
+        let h = 998.9994994993741; // r1 = 1e5, r2 = 99999: apex radius 9.99e7 mm
+        let o = run(
+            &Request::ConeFrustum {
+                r1: 100000.0,
+                r2: 99999.0,
+                h,
+            },
+            "t",
+        );
+        assert_eq!(
+            o.state,
+            ReleaseState::ReviewRequired,
+            "{:?}",
+            o.checks
+                .iter()
+                .filter(|c| c.verdict != "PASS")
+                .collect::<Vec<_>>()
+        );
+        assert!(o.checks.iter().all(|c| c.verdict == "PASS"));
+        let area = o.patterns[0].quantities["area"];
+        let s = h.hypot(1.0);
+        let want = std::f64::consts::PI * (1e5 + 99999.0) * s;
+        assert!((area - want).abs() <= 1e-3, "{area} vs {want}");
+        // 1 % outside: refused
+        let out = run(
+            &Request::ConeFrustum {
+                r1: 100000.0,
+                r2: 99999.0,
+                h: 1000.9995,
+            },
+            "t",
+        );
+        assert_eq!(out.state, ReleaseState::Refused);
+    }
+
+    /// Q2(b): every cone and reducer reports its flat-pattern seam gap and the gap below which the profile gate
+    /// cannot say PASS (cone: max(1e-9, 2 eps_num); reducer: max(1e-9, 2 eps_rep, 2 eps_num)); a gap below that
+    /// resolution makes G11 INCONCLUSIVE, never PASS.
+    #[test]
+    fn q2b_seam_gap_is_a_quantity_and_an_unresolved_seam_is_not_a_pass() {
+        let g11 = |o: &JobOutput| o.gates.iter().find(|g| g.id == "G11").expect("G11").clone();
+        // right cone: exact arcs and straight seam lines, gap l2 (2 pi - Phi) to the numerical resolution only
+        let cone = run(
+            &Request::ConeFrustum {
+                r1: 300.0,
+                r2: 50.0,
+                h: 0.01,
+            },
+            "t",
+        );
+        let q = &cone.patterns[0].quantities;
+        // cancellation-free: 1 - sin a = h^2 / (s (s + d)); the engine's own gap carries l2 * 2 pi * u of rounding
+        let (d, hyp) = (250.0f64, 0.01f64.hypot(250.0));
+        let gap = (50.0 * hyp / d) * 2.0 * std::f64::consts::PI * (0.01 * 0.01 / (hyp * (hyp + d)));
+        assert!(
+            (q["seam_gap"] - gap).abs() <= 1e-13,
+            "{} vs {gap}",
+            q["seam_gap"]
+        );
+        // resolution = max(1e-9 mm, 2 eps_num): at this size 2 eps_num is far below the floor
+        let p0 = &cone.patterns[0];
+        assert_eq!(
+            q["seam_gap_resolution"],
+            uem::develop::SEAM_RESOLUTION_MM.max(2.0 * p0.eps_num)
+        );
+        assert_eq!(g11(&cone).result, GateResult::Pass, "{}", g11(&cone).detail);
+        // large cone (apex radius about 1e7 mm): 2 eps_num is about 1.5e-7 mm, far above 1e-9 mm. A seam gap of
+        // 1e-7 mm (between the two) cannot be told from a closed seam: G11 INCONCLUSIVE, never PASS; a gap of
+        // 3e-7 mm (twice 2 eps_num) is above the resolution: G11 PASS. (h from the mpmath tier.)
+        let big = |h: f64| {
+            run(
+                &Request::ConeFrustum {
+                    r1: 1.0e7,
+                    r2: 9.0e6,
+                    h,
+                },
+                "t",
+            )
+        };
+        let (below, above) = (big(0.05947080387175906), big(0.10300645387285069));
+        for (o, want) in [(&below, 1e-7), (&above, 3e-7)] {
+            let p = &o.patterns[0];
+            let res = p.quantities["seam_gap_resolution"];
+            assert_eq!(res, uem::develop::SEAM_RESOLUTION_MM.max(2.0 * p.eps_num));
+            assert!(
+                res > 1e-8,
+                "the floor is derived from eps_num, not 1e-9: {res}"
+            );
+            assert!(
+                (p.quantities["seam_gap"] - want).abs() <= 0.2 * want,
+                "{}",
+                p.quantities["seam_gap"]
+            );
+        }
+        assert!(
+            below.patterns[0].quantities["seam_gap"]
+                < below.patterns[0].quantities["seam_gap_resolution"]
+        );
+        assert_eq!(
+            g11(&below).result,
+            GateResult::Inconclusive,
+            "{}",
+            g11(&below).detail
+        );
+        // the product may reject it on G15 (the DXF cannot represent the seam), never approve it
+        assert!(below.state != ReleaseState::Approved, "{:?}", below.state);
+        assert!(
+            above.patterns[0].quantities["seam_gap"]
+                > above.patterns[0].quantities["seam_gap_resolution"]
+        );
+        assert_eq!(
+            g11(&above).result,
+            GateResult::Pass,
+            "{}",
+            g11(&above).detail
+        );
+        // reducer, e = 0 (the same sector as a polyline): gap 3e-3 mm is below 2 eps_rep (~5.7e-3 mm)
+        let h_small = 1.0925510388562152; // seam gap 3e-3 mm (mpmath)
+        let h_large = 4.460487756959022; // seam gap 5e-2 mm (mpmath)
+        let red = |h: f64| {
+            run(
+                &Request::EccentricReducer {
+                    r1: 300.0,
+                    r2: 50.0,
+                    h,
+                    e: 0.0,
+                },
+                "t",
+            )
+        };
+        let (small, large) = (red(h_small), red(h_large));
+        for (o, want_gap) in [(&small, 3e-3), (&large, 5e-2)] {
+            let p = &o.patterns[0];
+            assert!(
+                (p.quantities["seam_gap"] - want_gap).abs() <= 1e-3 * want_gap,
+                "{} vs {want_gap}",
+                p.quantities["seam_gap"]
+            );
+            assert!(
+                (p.quantities["seam_gap_resolution"]
+                    - (2.0 * p.eps_rep)
+                        .max(2.0 * p.eps_num)
+                        .max(uem::develop::SEAM_RESOLUTION_MM))
+                .abs()
+                    <= 1e-15,
+                "the resolution is the largest of 1e-9, 2 eps_rep, 2 eps_num"
+            );
+        }
+        let gs = g11(&small);
+        assert_eq!(gs.result, GateResult::Inconclusive, "{}", gs.detail);
+        assert!(
+            gs.detail.contains("cannot be told from a closed one"),
+            "{}",
+            gs.detail
+        );
+        assert_eq!(small.state, ReleaseState::ReviewRequired);
+        let gl = g11(&large);
+        assert_eq!(gl.result, GateResult::Pass, "{}", gl.detail);
+        // and the pattern is the same in both: only the verdict of the gate differs, the DXF is still produced
+        assert!(!small.dxf.is_empty() && !large.dxf.is_empty());
     }
 
     /// BE-003: every refusal has the explicit REFUSED state, a reason, and nothing that looks like a result.
@@ -2009,10 +2236,11 @@ mod tests {
             with_radii("outside", -150.0, 150.0, 100.0, 100.0),
             with_radii("outside", 150.0, 150.0, 400.0, 400.0),
             with_radii("whatever", 150.0, 150.0, 100.0, 100.0),
+            // B2-005: was (200, 199.99, 300), refused by sin(alpha) < 1e-3; refused now by the apex radius
             Request::ConeFrustum {
-                r1: 200.0,
-                r2: 199.99,
-                h: 300.0,
+                r1: 1e6,
+                r2: 1e6 - 1.0,
+                h: 1e6,
             },
             Request::ConeFrustum {
                 r1: f64::NAN,
@@ -2451,13 +2679,14 @@ mod tests {
             stated <= 0.01 && (stated - measured).abs() < 1e-9,
             "{stated} {measured}"
         );
-        // huge cone (B2-003 repro): the tolerance needs more chords than the cap, so the cap binds and the
+        // huge cone (B2-003 repro, apex radius 8.9e7 mm): the tolerance needs more chords than the cap, so the cap binds and the
         // stated deviation is the true sagitta of the 4096 chords shown (it was 23 946 mm with 96 chords)
         let o = run(
             &Request::ConeFrustum {
-                r1: 1e8,
-                r2: 5e7,
-                h: 1e8,
+                // B2-005: was (1e8, 5e7, 1e8) = apex radius 2.2e8 mm, now above the 1e8 mm developed-size limit
+                r1: 4e7,
+                r2: 2e7,
+                h: 4e7,
             },
             "t",
         );

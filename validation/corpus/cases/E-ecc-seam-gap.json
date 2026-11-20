@@ -1,0 +1,21 @@
+{
+ "id": "E-ecc-seam-gap",
+ "group": "refusal",
+ "title": "eccentric: seam gap below the closure resolution",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 300,
+  "r2": 50,
+  "h": 1e-05,
+  "e": 0
+ },
+ "expect": "refuse",
+ "derivation": "Nearly flat: the angle defect 2 pi - Psi is about 5e-15, so the seam gap at the small end is far below the 1e-9 mm closure resolution.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "seam",
+   "closure"
+  ]
+ }
+}

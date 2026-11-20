@@ -9,7 +9,7 @@
 
 use crate::{
     Compensated, Curve, DevClass, Geom, Layer, MARKING_SIDE, P2, Pattern, TAU, UemError,
-    finite_pos, gauss, gauss_adaptive,
+    finite_pos, gauss_adaptive,
 };
 use crate::{not_developable, out_of_range, out_of_range_with, refusal};
 use std::f64::consts::PI;
@@ -17,10 +17,31 @@ use std::f64::consts::PI;
 const ASSUME_REF: &str = "Radii are taken as reference-surface (neutral) radii exactly as entered; thickness, neutral-factor, weld gap, shrinkage and kerf are not modelled.";
 const ASSUME_MODEL: &str = "Mathematical model from Specification 02 (provisional; not independently reviewed; evidence level EV-1).";
 
-/// A developed sector at or beyond this fraction of a full turn is refused for every conical family:
-/// its seam edges would touch or overlap. Implementation limit (no seam clearance rule exists in the
-/// specification); it is the value the eccentric reducer always used.
-pub const FULL_TURN_LIMIT: f64 = 0.999;
+/// Largest developed size (apex radius of a cone, branch station of a saddle) this build accepts,
+/// in millimetres. Equal to the magnitude limit of the job input (`MAX_MAGNITUDE_MM`): the largest
+/// size this build has been exercised with (B2-005; implementation limit, not an engineering rule).
+pub const MAX_DEVELOPED_MM: f64 = 1e8;
+
+/// `x <= limit`, false for NaN (a NaN size is never within a limit).
+fn within(x: f64, limit: f64) -> bool {
+    matches!(
+        x.partial_cmp(&limit),
+        Some(std::cmp::Ordering::Less | std::cmp::Ordering::Equal)
+    )
+}
+
+/// `x > limit`, false for NaN.
+fn exceeds(x: f64, limit: f64) -> bool {
+    x.partial_cmp(&limit) == Some(std::cmp::Ordering::Greater)
+}
+
+/// Closure resolution, in millimetres, of the profile check (G11): a sector whose seam gap at the small
+/// end is at or below it is refused (B2-005). It is only the FLOOR of the seam resolution: the gap below
+/// which G11 cannot call the seam open is `max(SEAM_RESOLUTION_MM, 2 * eps_num)` for the right cone (the
+/// written vertices carry the numerical error eps_num, so two seam edges closer than twice that cannot be
+/// told from a closed seam, nor drawn apart in a DXF) and `max(SEAM_RESOLUTION_MM, 2 * eps_rep, 2 * eps_num)`
+/// for the eccentric reducer. Below that value G11 is INCONCLUSIVE, never PASS.
+pub const SEAM_RESOLUTION_MM: f64 = 1e-9;
 
 // ---------------------------------------------------------------- polyline density (review RB-004)
 
@@ -229,19 +250,36 @@ pub fn cone_frustum(r1: f64, r2: f64, h: f64) -> Result<Pattern, UemError> {
     }
     let s = h.hypot(r1 - r2);
     let sin_a = (r1 - r2) / s;
-    if sin_a < 1e-3 {
-        return Err(out_of_range_with(refusal::REDUCER_NEAR_CYLINDRICAL, "r1-r2", vec!["r1", "r2", "h"], "near-cylindrical cone: apex-based formula is ill-conditioned and the apex-free method is not implemented in this build".into(), vec![("limit", 1e-3), ("measured", sin_a)]));
-    }
     let (l1, l2) = (r1 / sin_a, r2 / sin_a);
+    // r1 - r2 is exact (Sterbenz) whenever r2 <= r1 <= 2 r2 and carries one rounding otherwise, so sin a,
+    // l1, l2 and the sector angle are correct to a few ulp for every sin a > 0: only the developed size
+    // grows as the cone approaches a cylinder. It is bounded by the apex radius (B2-005).
+    if !within(l1, MAX_DEVELOPED_MM) {
+        return Err(out_of_range_with(
+            refusal::REDUCER_NEAR_CYLINDRICAL,
+            "r1-r2",
+            vec!["r1", "r2", "h"],
+            format!(
+                "apex radius r1/sin α = {l1:e} exceeds 1e8 mm, the largest size this build is exercised with"
+            ),
+            vec![("limit", MAX_DEVELOPED_MM), ("measured", l1)],
+        ));
+    }
     let phi = TAU * sin_a;
-    // Same rule, same limit and same words as the eccentric reducer: a sector within 0.1 % of a full turn
-    // closes on itself (its seam edges touch), which is not a producible pattern.
-    if phi >= TAU * FULL_TURN_LIMIT {
+    // The developed angle of any cone is strictly below a full turn (right cone: 2π·sin α; oblique cone:
+    // positive angle defect at the apex), so the seam edges never overlap. The sector is refused only when
+    // the seam gap l2·(2π−Φ) at the small end is at or below the 1e-9 mm closure resolution of the profile
+    // check, where the two seam edges cannot be told apart.
+    // Between that refusal and `seam_gap_resolution` = max(1e-9, 2·eps_num) the pattern is returned but G11 is
+    // INCONCLUSIVE (the arc display sagitta plays no part; the written vertices' numerical error does).
+    let gap = l2 * (TAU - phi);
+    if phi.partial_cmp(&TAU) != Some(std::cmp::Ordering::Less) || !exceeds(gap, SEAM_RESOLUTION_MM)
+    {
         return Err(not_developable(
             refusal::DEVELOPED_ANGLE_OVERLAPS,
             vec!["r1", "r2", "h"],
-            format!("developed angle {phi:.6} rad would overlap"),
-            vec![("limit", TAU * FULL_TURN_LIMIT), ("measured", phi)],
+            format!("seam gap {gap:e} mm at the small end is below the 1e-9 mm closure resolution"),
+            vec![("limit", SEAM_RESOLUTION_MM), ("measured", gap)],
         ));
     }
     let c = P2::new(0.0, 0.0);
@@ -309,7 +347,21 @@ pub fn cone_frustum(r1: f64, r2: f64, h: f64) -> Result<Pattern, UemError> {
             ("apex_radius_large", l1),
             ("apex_radius_small", l2),
             ("sector_angle", phi),
-            ("area", 0.5 * phi * (l1 * l1 - l2 * l2)),
+            // Q2(b): the flat-pattern seam gap, the distance between the two seam edges at the small end
+            // (2·l2·sin((2π−Φ)/2), the chord between their end points), and the gap below which the profile
+            // gate cannot call the seam open. The arcs are exact entities and the seam edges straight lines, but
+            // the written vertices carry the numerical error eps_num (about l1*U*(16+8*Phi), growing with the size
+            // of the part), so two seam edges closer than twice eps_num cannot be told from a closed seam and
+            // cannot be represented apart in a DXF: resolution = max(1e-9 mm, 2*eps_num). Derived, not tuned.
+            ("seam_gap", 2.0 * l2 * (0.5 * (TAU - phi)).sin()),
+            (
+                "seam_gap_resolution",
+                SEAM_RESOLUTION_MM.max(2.0 * (l1 * U * (16.0 + 8.0 * phi))),
+            ),
+            // area of the sector annulus, (phi/2)(l1² − l2²) = (phi/2)·s·(l1 + l2) since l1 − l2 = s exactly; the
+            // factored form has no cancellation of the two squares (at an apex radius of 1e8 mm the difference of
+            // the squares lost enough digits for the area check of the verifier to fail)
+            ("area", 0.5 * phi * s * (l1 + l2)),
             ("chord_large_arc", 2.0 * l1 * (phi / 2.0).sin()),
         ],
         assumptions: vec![ASSUME_REF, ASSUME_MODEL],
@@ -396,25 +448,41 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
     if r1 <= r2 {
         return Err(out_of_range(refusal::REDUCER_RADII_ORDER, "r1", vec!["r1", "r2"], "requires r1 > r2; equal radii with offset (oblique cylinder) is not implemented in this build".into()));
     }
-    if (r1 - r2) / h.hypot(r1 - r2) < 1e-3 {
+    let g = ObliqueCone { r1, r2, h, e };
+    // The apex radius bounds the developed size (B2-005; see cone_frustum): rho_max is the largest
+    // distance from the apex to the large end.
+    let (a, hh) = g.apex();
+    let rho_min = (r1 - a).hypot(hh);
+    let rho_max = ((r1 - a) * (r1 - a) + hh * hh + 4.0 * a * r1).sqrt();
+    if !within(rho_max, MAX_DEVELOPED_MM) {
         return Err(out_of_range_with(
             refusal::REDUCER_NEAR_CYLINDRICAL,
             "r1-r2",
             vec!["r1", "r2", "h"],
-            "near-cylindrical: apex-free method not implemented in this build".into(),
-            vec![("limit", 1e-3), ("measured", (r1 - r2) / h.hypot(r1 - r2))],
+            format!(
+                "apex radius {rho_max:e} mm exceeds 1e8 mm, the largest size this build is exercised with"
+            ),
+            vec![("limit", MAX_DEVELOPED_MM), ("measured", rho_max)],
         ));
     }
-    let g = ObliqueCone { r1, r2, h, e };
-    // the overlap test needs only the total developed angle: decide it before any refinement
-    let (coarse, _) = oblique_cone_table(&g, 2 * CONE_SEGMENTS);
+    // The developed angle of an oblique cone is strictly below a full turn (positive angle defect at the
+    // apex), so the seam edges never overlap. The reducer is refused only when the seam gap at the small
+    // end, rho(0)·r2/r1·(2π−Ψ), is at or below the 1e-9 mm closure resolution (decided on the total angle before
+    // any refinement; the quadrature error estimate is added to the angle, which is fail-closed).
+    let (coarse, qerr_coarse) = oblique_cone_table(&g, 2 * CONE_SEGMENTS);
     let psi_coarse = coarse[2 * CONE_SEGMENTS].2;
-    if psi_coarse.partial_cmp(&(TAU * FULL_TURN_LIMIT)) != Some(std::cmp::Ordering::Less) {
+    let seam_gap = |psi: f64, qerr: f64| rho_min * (TAU - psi - qerr) * (r2 / r1);
+    let gap_coarse = seam_gap(psi_coarse, qerr_coarse);
+    if (psi_coarse + qerr_coarse).partial_cmp(&TAU) != Some(std::cmp::Ordering::Less)
+        || !exceeds(gap_coarse, SEAM_RESOLUTION_MM)
+    {
         return Err(not_developable(
             refusal::DEVELOPED_ANGLE_OVERLAPS,
             vec!["r1", "r2", "h", "e"],
-            format!("developed angle {psi_coarse:.6} rad would overlap"),
-            vec![("limit", TAU * FULL_TURN_LIMIT), ("measured", psi_coarse)],
+            format!(
+                "seam gap {gap_coarse:e} mm at the small end is below the 1e-9 mm closure resolution"
+            ),
+            vec![("limit", SEAM_RESOLUTION_MM), ("measured", gap_coarse)],
         ));
     }
     let sample = |n: usize, sub: usize| -> Vec<P2> {
@@ -433,18 +501,39 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
     let (s, qerr) = oblique_cone_table(&g, 2 * n);
     let psi_total = s[2 * n].2;
     let k = r2 / r1;
+    let gap = seam_gap(psi_total, qerr);
+    if (psi_total + qerr).partial_cmp(&TAU) != Some(std::cmp::Ordering::Less)
+        || !exceeds(gap, SEAM_RESOLUTION_MM)
+    {
+        return Err(not_developable(
+            refusal::DEVELOPED_ANGLE_OVERLAPS,
+            vec!["r1", "r2", "h", "e"],
+            format!("seam gap {gap:e} mm at the small end is below the 1e-9 mm closure resolution"),
+            vec![("limit", SEAM_RESOLUTION_MM), ("measured", gap)],
+        ));
+    }
     let outer: Vec<P2> = (0..=n).map(|i| P2::polar(s[2 * i].1, s[2 * i].2)).collect();
     let inner: Vec<P2> = outer
         .iter()
         .rev()
         .map(|p| P2::new(p.x * k, p.y * k))
         .collect(); // traversed back toward theta = 0
-    let (a, hh) = g.apex();
-    let rho_min = (r1 - a).hypot(hh);
-    let rho_max = ((r1 - a) * (r1 - a) + hh * hh + 4.0 * a * r1).sqrt();
+    // B2-006: the area integral uses the same adaptive rule, panel by panel, as the developed angle
+    // (the fixed 720-panel rule was not converged for near-flat cones)
     let area = {
-        let (v, _) = gauss(&|t| 0.5 * g.rho(t).powi(2) * g.dpsi(t), 0.0, TAU, 720);
-        v * (1.0 - k * k)
+        let dth = TAU / (2 * n) as f64;
+        let mut acc = Compensated::default();
+        for i in 0..2 * n {
+            let (v, _) = gauss_adaptive(
+                &|t| 0.5 * g.rho(t).powi(2) * g.dpsi(t),
+                i as f64 * dth,
+                (i + 1) as f64 * dth,
+                1e-13,
+                14,
+            );
+            acc.add(v);
+        }
+        acc.value() * (1.0 - k * k)
     };
     // Rounding of the developed angle (first order): the integrand r1·hypot(H, x)/rho² has an absolute
     // error of at most r1·u·(16·(r1 + a) + 3·H)/rho_min² and a relative one of 11·u; its nodes are off
@@ -503,6 +592,12 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
         eps_rep_basis: EPS_REP_BASIS,
         quantities: vec![
             ("developed_angle", psi_total),
+            // Q2(b): the flat-pattern seam gap (distance between the two seam edges at the small end, the chord
+            // between their end points, the quadrature error subtracted: fail-closed) and the gap below which the
+            // profile gate cannot call the seam open: twice the representation error of the adjoining polylines
+            // and twice the numerical error of the written vertices (never below the 1e-9 mm closure resolution).
+            ("seam_gap", 2.0 * rho_min * k * (0.5 * (TAU - psi_total - qerr)).sin()),
+            ("seam_gap_resolution", SEAM_RESOLUTION_MM.max(2.0 * eps_rep).max(2.0 * eps_num)),
             ("rho_at_0", g.rho(0.0)),
             ("rho_at_180", g.rho(PI)),
             ("area", area),
@@ -563,17 +658,28 @@ impl Branch {
 ///   |ds| <= [ (2u·R² + R·r·(t + u)) / sqrt(R² − (|delta| + r)²) + 1.5u·R + r·(2t + 2u) + (R + r)·(t + 2u) ] / sin beta.
 ///
 /// The first term is the cancellation in R² − y² amplified by the square root; it dominates next to
-/// tangency. Second-order terms are below 1e-9 of the bound inside the accepted range. Measured
+/// tangency. Since 0.4.2 (B2-005, shallow angles are accepted) the bound also carries the rounding of the
+/// angle itself, beta = fl(beta_deg·fl(pi/180)), |d beta| <= 2u·beta, through |ds/d beta| = |r sin phi − s cot beta|
+/// <= r + (R + r)·|cos beta| / sin² beta: negligible above 10 degrees, dominant near 0 and 180 degrees. Second-order
+/// terms are below 1e-9 of the bound inside the accepted range. Measured
 /// against 60-digit arithmetic at 240,000 points next to tangency and elsewhere, the true error never
 /// exceeded 0.57 of this bound. Not an interval evaluation.
 pub fn s_error_bound(b: &Branch) -> f64 {
     let y_max = b.delta.abs() + b.r;
     let root = (b.big_r * b.big_r - y_max * y_max).sqrt();
+    let sb = b.beta.sin().abs();
     ((2.0 * U * b.big_r * b.big_r + b.big_r * b.r * (TRIG + U)) / root
         + 1.5 * U * b.big_r
         + b.r * (2.0 * TRIG + 2.0 * U)
         + (b.big_r + b.r) * (TRIG + 2.0 * U))
-        / b.beta.sin().abs()
+        / sb
+        + ds_dbeta_max(b) * 2.0 * U * b.beta.abs()
+}
+
+/// Upper bound of |ds/d beta| = |r sin phi − s cot beta| over phi (see `s_error_bound`).
+fn ds_dbeta_max(b: &Branch) -> f64 {
+    let sb = b.beta.sin().abs();
+    b.r + (b.big_r + b.r) * b.beta.cos().abs() / (sb * sb)
 }
 
 /// A-priori bound on the distance of a vertex of the developed saddle (r_dev·phi, s) from the exact
@@ -594,7 +700,11 @@ pub fn opening_error_bound(b: &Branch, r_dev_header: f64, station: f64) -> f64 {
     let root = (b.big_r * b.big_r - y_max * y_max).sqrt();
     let s_abs = (b.big_r + b.r) / sb;
     let d_phi = 4.0 * U * TAU;
+    // the rounding of beta moves x = station + s·cos beta − r·sin phi·sin beta by at most
+    // |ds/d beta|·cos beta + s·sin beta + r times 2u·beta
+    let bound_beta = 2.0 * U * b.beta.abs() * (ds_dbeta_max(b) * cb + (b.big_r + b.r) + b.r);
     let bound_x = s_error_bound(b) * cb
+        + bound_beta
         + s_abs * cb * (TRIG + U)
         + b.r * (2.0 * TRIG + 2.0 * U)
         + U * (s_abs * cb + b.r)
@@ -605,6 +715,64 @@ pub fn opening_error_bound(b: &Branch, r_dev_header: f64, station: f64) -> f64 {
     // the constant pi of binary64 is 1.3e-16 below pi; the sum omega + pi and the product add one rounding each
     let bound_v = r_dev_header * (d_omega + 1.3e-16 + 3.0 * U * PI) + r_dev_header * d_phi;
     bound_x + bound_v
+}
+
+/// Extremum of `f` on `[lo, hi]` by golden-section search with a FIXED number of iterations (so that the
+/// result is deterministic). `f` must be unimodal on the bracket, which holds on one sample interval of the
+/// smooth, periodic saddle; the caller combines the result with the sampled value, so it is never worse.
+fn extremum(f: &dyn Fn(f64) -> f64, lo: f64, hi: f64, maximise: bool, iters: usize) -> f64 {
+    let sign = if maximise { -1.0 } else { 1.0 };
+    let g = |x: f64| sign * f(x);
+    let ratio = 0.5 * (5.0_f64.sqrt() - 1.0);
+    let (mut a, mut b) = (lo, hi);
+    let (mut c, mut d) = (b - ratio * (b - a), a + ratio * (b - a));
+    let (mut gc, mut gd) = (g(c), g(d));
+    for _ in 0..iters {
+        if gc < gd {
+            b = d;
+            d = c;
+            gd = gc;
+            c = b - ratio * (b - a);
+            gc = g(c);
+        } else {
+            a = c;
+            c = d;
+            gc = gd;
+            d = a + ratio * (b - a);
+            gd = g(d);
+        }
+    }
+    f(0.5 * (a + b))
+}
+
+/// Largest and smallest value of the saddle s(phi) over a full turn (B2-006). Starts from the
+/// `SUB * SEGMENTS` base samples and refines the best sample of each kind inside its two neighbouring
+/// intervals; the result is never beyond the sampled extremum.
+fn branch_extrema(b: &Branch) -> (f64, f64) {
+    let m = SUB * SEGMENTS;
+    let dphi = TAU / m as f64;
+    let vals: Vec<f64> = (0..=m).map(|i| b.s(i as f64 * dphi)).collect();
+    let (mut imax, mut imin) = (0, 0);
+    for (i, v) in vals.iter().enumerate() {
+        if *v > vals[imax] || vals[imax].is_nan() {
+            imax = i;
+        }
+        if *v < vals[imin] || vals[imin].is_nan() {
+            imin = i;
+        }
+    }
+    let sampled_max = vals.iter().copied().fold(f64::MIN, f64::max);
+    let sampled_min = vals.iter().copied().fold(f64::MAX, f64::min);
+    if vals.iter().any(|v| !v.is_finite()) {
+        return (sampled_max, sampled_min);
+    }
+    let f = |x: f64| b.s(x);
+    let bracket = |i: usize| ((i as f64 - 1.0) * dphi, (i as f64 + 1.0) * dphi);
+    let (lo, hi) = bracket(imax);
+    let refined_max = extremum(&f, lo, hi, true, 80);
+    let (lo, hi) = bracket(imin);
+    let refined_min = extremum(&f, lo, hi, false, 80);
+    (sampled_max.max(refined_max), sampled_min.min(refined_min))
 }
 
 /// Branch stub pattern: square end at distance `s_end` along the branch axis,
@@ -644,8 +812,19 @@ pub fn branch_stub_min(
         ));
     }
     let beta = beta_deg.to_radians();
-    if !(beta.sin() > 0.17 && beta_deg > 0.0 && beta_deg < 180.0) {
-        return Err(out_of_range(if beta_deg.is_finite() { refusal::BRANCH_ANGLE_OUT_OF_RANGE } else { refusal::VALUE_NOT_FINITE }, "beta", vec!["beta_deg"], "angle between axes must be within about 10..170 deg in this build (grazing intersections are ill-conditioned; limit is an implementation choice, not an engineering rule)".into()));
+    // B2-005: the saddle s(phi) is exact for every 0 < beta < pi (its error bound already carries the
+    // factor 1/sin beta); only the developed size grows as beta approaches 0 or pi, and it is bounded below.
+    if !(beta_deg > 0.0 && beta_deg < 180.0) {
+        return Err(out_of_range(
+            if beta_deg.is_finite() {
+                refusal::BRANCH_ANGLE_OUT_OF_RANGE
+            } else {
+                refusal::VALUE_NOT_FINITE
+            },
+            "beta",
+            vec!["beta_deg"],
+            "angle between axes must lie strictly between 0 and 180 deg".into(),
+        ));
     }
     if delta.abs() + r >= big_r * (1.0 - 1e-6) {
         return Err(out_of_range_with(refusal::BRANCH_TANGENT_OR_PARTIAL, "delta+r", vec!["header_radius", "branch_radius", "delta"], "requires |delta| + r < R: tangent and partial intersections (including the equal-diameter tee) are not implemented in this build".into(), vec![("limit", big_r * (1.0 - 1e-6)), ("measured", delta.abs() + r)]));
@@ -656,16 +835,28 @@ pub fn branch_stub_min(
         beta,
         delta,
     };
-    // the square end must lie beyond the saddle: decided on the base sampling, before any refinement
-    let s_peak = (0..=SUB * SEGMENTS)
-        .map(|i| b.s(i as f64 * (TAU / (SUB * SEGMENTS) as f64)))
-        .fold(f64::MIN, f64::max);
-    if s_end.partial_cmp(&s_peak) != Some(std::cmp::Ordering::Greater) {
+    // the square end must lie beyond the saddle: decided on the extrema of s(phi) (B2-006: the largest and
+    // the smallest value refined from the 2 880 base samples by golden-section search, never worse than the
+    // sampled ones), before any refinement of the polyline
+    let (s_max, s_min) = branch_extrema(&b);
+    let size = s_max.max(s_max - s_min);
+    if !(within(s_max, MAX_DEVELOPED_MM) && within(s_max - s_min, MAX_DEVELOPED_MM)) {
+        return Err(out_of_range_with(
+            refusal::BRANCH_ANGLE_OUT_OF_RANGE,
+            "beta",
+            vec!["beta_deg"],
+            format!(
+                "developed branch length {size:e} mm exceeds 1e8 mm, the largest size this build is exercised with"
+            ),
+            vec![("limit", MAX_DEVELOPED_MM), ("measured", size)],
+        ));
+    }
+    if s_end.partial_cmp(&s_max) != Some(std::cmp::Ordering::Greater) {
         return Err(out_of_range(
             refusal::SQUARE_END_TOO_SHORT,
             "s_end",
             vec!["s_end"],
-            format!("square end must lie beyond the saddle: s_end > {s_peak:.6}"),
+            format!("square end must lie beyond the saddle: s_end > {s_max:.6}"),
         ));
     }
     // Spec 02 §4.4: the branch pattern is (r·φ, s). With φ increasing to the right and s upward the pattern
@@ -694,16 +885,6 @@ pub fn branch_stub_min(
         &sample,
     )?;
     let all = sample(n, SUB);
-    let s_max = all.iter().map(|p| p.y).fold(f64::MIN, f64::max);
-    let s_min = all.iter().map(|p| p.y).fold(f64::MAX, f64::min);
-    if s_end.partial_cmp(&s_max) != Some(std::cmp::Ordering::Greater) {
-        return Err(out_of_range(
-            refusal::SQUARE_END_TOO_SHORT,
-            "s_end",
-            vec!["s_end"],
-            format!("square end must lie beyond the saddle: s_end > {s_max:.6}"),
-        ));
-    }
     let w = TAU * r_dev;
     let mut cut: Vec<P2> = (0..=n).map(|i| all[SUB * i]).collect();
     cut[n] = P2::new(w, cut[0].y); // the seam edges are the same ruling: close exactly
@@ -810,24 +991,26 @@ pub fn header_with_opening_min(
             "must be finite".into(),
         ));
     }
-    // (written with partial_cmp so that a NaN angle is refused, exactly as `!(sin > 0.17)` did)
-    if b.beta.sin().partial_cmp(&0.17) != Some(std::cmp::Ordering::Greater)
-        || b.delta.abs() + b.r >= b.big_r * (1.0 - 1e-6)
-    {
+    // B2-005: the angle is refused only outside the open interval (0, 180) deg (a NaN angle is refused too),
+    // in lockstep with the branch stub; the size of the developed branch is bounded there
+    let angle_ok = b.beta.partial_cmp(&0.0) == Some(std::cmp::Ordering::Greater)
+        && b.beta.partial_cmp(&PI) == Some(std::cmp::Ordering::Less)
+        && b.beta.sin() > 0.0;
+    if !angle_ok || b.delta.abs() + b.r >= b.big_r * (1.0 - 1e-6) {
         return Err(out_of_range_with(
-            if b.beta.sin().partial_cmp(&0.17) != Some(std::cmp::Ordering::Greater) {
+            if !angle_ok {
                 refusal::BRANCH_ANGLE_OUT_OF_RANGE
             } else {
                 refusal::BRANCH_TANGENT_OR_PARTIAL
             },
             "branch",
-            if b.beta.sin().partial_cmp(&0.17) != Some(std::cmp::Ordering::Greater) {
+            if !angle_ok {
                 vec!["beta_deg"]
             } else {
                 vec!["header_radius", "branch_radius", "delta"]
             },
             "branch geometry outside the supported range (see branch stub limits)".into(),
-            if b.beta.sin().partial_cmp(&0.17) != Some(std::cmp::Ordering::Greater) {
+            if !angle_ok {
                 vec![]
             } else {
                 vec![
@@ -835,6 +1018,19 @@ pub fn header_with_opening_min(
                     ("measured", b.delta.abs() + b.r),
                 ]
             },
+        ));
+    }
+    let (s_hi, s_lo) = branch_extrema(b);
+    let size = s_hi.max(s_hi - s_lo);
+    if !(within(s_hi, MAX_DEVELOPED_MM) && within(s_hi - s_lo, MAX_DEVELOPED_MM)) {
+        return Err(out_of_range_with(
+            refusal::BRANCH_ANGLE_OUT_OF_RANGE,
+            "beta",
+            vec!["beta_deg"],
+            format!(
+                "developed branch length {size:e} mm exceeds 1e8 mm, the largest size this build is exercised with"
+            ),
+            vec![("limit", MAX_DEVELOPED_MM), ("measured", size)],
         ));
     }
     let mut shell = cylinder_shell(r_dev_header, length)?;
@@ -978,6 +1174,7 @@ pub fn header_with_opening_min(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gauss;
     use std::f64::consts::PI;
 
     fn close(a: f64, b: f64, tol: f64) -> bool {
@@ -1039,10 +1236,19 @@ mod tests {
     #[test]
     fn cone_degenerate_and_conditioning() {
         assert!(cone_frustum(100.0, 100.0, 300.0).is_err());
+        // CONE-02 (sin alpha = 3.3e-4): refused until 0.4.1 by sin alpha < 1e-3; since 0.4.2 (B2-005) only the
+        // apex radius (6e5 mm here, limit 1e8) decides, so it develops with exact closed forms
+        let c = cone_frustum(200.0, 199.9, 300.0).unwrap();
+        assert!(
+            (c.quantity("apex_radius_large").unwrap()
+                - 200.0 / c.quantity("sin_half_angle").unwrap())
+            .abs()
+                < 1e-6
+        );
         assert!(matches!(
-            cone_frustum(200.0, 199.9, 300.0),
+            cone_frustum(200.0, 199.9, 3e9),
             Err(UemError::OutOfRange { .. })
-        )); // CONE-02 refused
+        )); // apex radius 6e11 mm
         assert!(cone_frustum(200.0, 0.0, 300.0).is_err()); // DG-01
         assert!(cone_frustum(200.0, 100.0, 0.0).is_err()); // DG-02
     }
@@ -1142,7 +1348,11 @@ mod tests {
     fn branch_limits() {
         assert!(branch_stub(150.0, 100.0, 100.0, 90.0, 60.0, 400.0).is_err()); // BR-02 partial intersection
         assert!(branch_stub(100.0, 100.0, 100.0, 90.0, 0.0, 400.0).is_err()); // BR-05 equal tee not implemented
-        assert!(branch_stub(150.0, 100.0, 100.0, 5.0, 0.0, 4000.0).is_err()); // grazing
+        // grazing 5 deg: was refused (sin beta <= 0.17), now exact (s_max = 2864.06 = (R + r cos 5 deg)/sin 5 deg, within the 1e8 mm size limit)
+        let g = branch_stub(150.0, 100.0, 100.0, 5.0, 0.0, 4000.0).unwrap();
+        assert!((g.quantity("s_max").unwrap() - 2864.0622).abs() < 1e-3);
+        assert!(branch_stub(150.0, 100.0, 100.0, 0.0, 0.0, 4000.0).is_err());
+        assert!(branch_stub(150.0, 100.0, 100.0, 180.0, 0.0, 4000.0).is_err());
         assert!(branch_stub(150.0, 100.0, 100.0, 90.0, 0.0, 100.0).is_err()); // square end inside saddle
         let p = branch_stub(150.0, 100.0, 100.0, 60.0, 0.0, 400.0).unwrap();
         assert!(close(
@@ -1152,30 +1362,97 @@ mod tests {
         ));
     }
 
-    /// Validation defect D6: both conical families refuse a sector that closes on itself, with the same rule.
+    /// Validation defect D6, as corrected by B2-005: a conical sector never overlaps itself (its angle is
+    /// below a full turn); both families refuse it only when the seam gap at the small end is at or below the
+    /// 1e-9 mm closure resolution, with the same rule and words.
     #[test]
-    fn d6_right_cone_refuses_a_full_turn_like_the_eccentric_reducer() {
-        for h in [0.01, 1e-8] {
+    fn d6_conical_families_refuse_a_seam_gap_below_the_closure_resolution() {
+        // old: h = 0.01 and 1e-8 refused at 99.9 % of a turn; now only the gap decides (h = 0.01 -> 2.5e-7 mm)
+        for h in [1e-4, 1e-8] {
             let e = cone_frustum(300.0, 50.0, h).unwrap_err();
             assert!(
-                matches!(&e, UemError::NotDevelopable { reason: m, .. } if m.contains("would overlap")),
+                matches!(&e, UemError::NotDevelopable { reason: m, .. } if m.contains("seam gap")),
                 "{e:?}"
             );
             let e = eccentric_reducer(300.0, 50.0, h, 0.0).unwrap_err();
             assert!(
-                matches!(&e, UemError::NotDevelopable { reason: m, .. } if m.contains("would overlap")),
+                matches!(&e, UemError::NotDevelopable { reason: m, .. } if m.contains("seam gap")),
                 "{e:?}"
             );
         }
-        // just inside the limit both still develop; just beyond both refuse
+        // h = 0.01 (gap 2.5e-7 mm) and the former 99.95 % turn now develop, and the sector stays below a turn
         let h_at = |turn: f64| 250.0 * (1.0 - turn * turn).sqrt() / turn; // sin(alpha) = turn
+        for h in [0.01, h_at(0.9985), h_at(0.9995)] {
+            let c = cone_frustum(300.0, 50.0, h).unwrap();
+            assert!(c.quantity("sector_angle").unwrap() < TAU);
+            let e = eccentric_reducer(300.0, 50.0, h, 0.0).unwrap();
+            assert!(e.quantity("developed_angle").unwrap() < TAU);
+        }
+    }
+
+    /// B2-005: the cone is refused by its apex radius (1e8 mm), not by sin(alpha).
+    #[test]
+    fn b2_005_cone_refusal_is_the_apex_radius() {
+        // sin(alpha) = 1e-4 (was refused, limit 1e-3): apex radius 1e4*r1 = 3e6 mm, exact closed forms
+        let c = cone_frustum(300.0, 299.9, 1000.0).unwrap();
+        let sin_a = c.quantity("sin_half_angle").unwrap();
         assert!(
-            cone_frustum(300.0, 50.0, h_at(0.9985)).is_ok()
-                && eccentric_reducer(300.0, 50.0, h_at(0.9985), 0.0).is_ok()
+            sin_a < 1e-3 && (c.quantity("apex_radius_large").unwrap() * sin_a - 300.0).abs() < 1e-6
         );
+        let e = cone_frustum(1e6, 1e6 - 1.0, 1e6).unwrap_err();
         assert!(
-            cone_frustum(300.0, 50.0, h_at(0.9995)).is_err()
-                && eccentric_reducer(300.0, 50.0, h_at(0.9995), 0.0).is_err()
+            matches!(
+                &e,
+                UemError::OutOfRange { code, detail, .. }
+                    if *code == refusal::REDUCER_NEAR_CYLINDRICAL
+                        && detail.iter().any(|(k, v)| *k == "limit" && *v == 1e8)
+            ),
+            "{e:?}"
+        );
+    }
+
+    /// B2-006: the area of an eccentric reducer with no offset equals the right cone's, to 1e-12 relative.
+    #[test]
+    fn b2_006_eccentric_area_at_zero_offset_is_the_cone_area() {
+        for (r1, r2, h) in [
+            (300.0, 50.0, 400.0),
+            (13.352847, 6.1638566, 16.244922),
+            (500.0, 100.0, 30.0),
+        ] {
+            let e = eccentric_reducer(r1, r2, h, 0.0).unwrap();
+            let c = cone_frustum(r1, r2, h).unwrap();
+            let (a, b) = (e.quantity("area").unwrap(), c.quantity("area").unwrap());
+            assert!(((a - b) / b).abs() < 1e-12, "{r1} {r2} {h}: {a} vs {b}");
+        }
+    }
+
+    /// B2-006: the review's near-flat case, area pinned against a 50-digit mpmath quadrature (panel by panel
+    /// on 720 intervals): 697.265_936_146_832...
+    #[test]
+    fn b2_006_eccentric_area_of_the_review_case_matches_mpmath() {
+        let e = eccentric_reducer(13.352847, 6.1638566, 0.0136016, 16.244922).unwrap();
+        let area = e.quantity("area").unwrap();
+        assert!(
+            ((area - 697.265_936_146_832) / area).abs() < 1e-12,
+            "{area}"
+        );
+        assert!((e.quantity("developed_angle").unwrap() - 1.833_712_165_623_562_4).abs() < 1e-12);
+    }
+
+    /// B2-006: the saddle extrema are exact: at beta = 90 deg, delta = 0, s(phi) = sqrt(R^2 - r^2 cos^2 phi),
+    /// whose maximum is R (phi = pi/2) and minimum sqrt(R^2 - r^2) (phi = 0).
+    #[test]
+    fn b2_006_branch_extrema_are_exact() {
+        let b = Branch {
+            big_r: 150.0,
+            r: 100.0,
+            beta: PI / 2.0,
+            delta: 0.0,
+        };
+        let (hi, lo) = branch_extrema(&b);
+        assert!(
+            (hi - 150.0).abs() < 1e-12 && (lo - 111.803_398_874_989_48).abs() < 1e-12,
+            "{hi} {lo}"
         );
     }
 
@@ -1422,6 +1699,12 @@ mod tests {
             + 100.0 * (2.0 * t + 2.0 * u)
             + 250.0 * (t + 2.0 * u))
             / b.beta.sin();
+        // 0.4.2 (B2-005): plus the rounding of the angle, 2u·beta·(r + (R + r)·|cos beta| / sin² beta)
+        let want = want
+            + 2.0
+                * u
+                * b.beta
+                * (100.0 + 250.0 * b.beta.cos().abs() / (b.beta.sin() * b.beta.sin()));
         assert!((s_error_bound(&b) - want).abs() <= 1e-12 * want);
         // at the refusal limit the cancellation term dominates: about 3.5e3·u·R / sin(beta)
         let b = Branch {
@@ -1442,6 +1725,21 @@ mod tests {
             "{}",
             h.eps_num
         );
+    }
+
+    /// B2-005: with shallow angles accepted, the stated bound covers the rounding of beta = fl(beta_deg·pi/180),
+    /// which dominates near 0 and 180 degrees (6.2e-11 mm measured at 179 degrees, against 3.3e-11 stated before).
+    #[test]
+    fn b2_005_eps_num_covers_the_rounding_of_the_angle_at_shallow_angles() {
+        // errors measured against 50-digit arithmetic on the exact angle in degrees (validation N-shallow-extreme-*)
+        for (beta, measured) in [(179.0, 6.176e-11), (179.5, 7.834e-11)] {
+            let p = branch_stub(150.0, 100.0, 100.0, beta, 0.0, 1e5).unwrap();
+            assert!(
+                p.eps_num >= measured,
+                "beta {beta}: stated {} measured {measured}",
+                p.eps_num
+            );
+        }
     }
 
     /// The developed angle of an oblique cone whose apex lies close to its rim (validation D4, second

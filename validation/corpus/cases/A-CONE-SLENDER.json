@@ -1,0 +1,45 @@
+{
+ "id": "A-CONE-SLENDER",
+ "group": "closed_form",
+ "title": "CONE-02: right cone with sin(alpha) = 3.3e-4 (near-cylindrical, accepted since 0.4.2)",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 200,
+  "r2": 199.9,
+  "h": 300
+ },
+ "expect": "accept",
+ "derivation": "Closed forms are exact for any sin(alpha) > 0 (r1 - r2 = 0.1 is exact): apex radius L1 = r1/sin(alpha) = 6e5 mm, sector angle 2 pi sin(alpha), area pi (r1 + r2) s (values from the mpmath tier).",
+ "quantities": {
+  "reducer": {
+   "slant_length": [
+    300.0000166666662,
+    3.000000166666662e-09
+   ],
+   "sin_half_angle": [
+    0.0003333333148147974,
+    1e-12
+   ],
+   "apex_radius_large": [
+    600000.0333333665,
+    6.0000003333336645e-06
+   ],
+   "apex_radius_small": [
+    599700.0333166999,
+    5.997000333166999e-06
+   ],
+   "sector_angle": [
+    0.0020943949860378025,
+    1e-12
+   ],
+   "area": [
+    376896.89158988197,
+    3.7689689158988195e-06
+   ],
+   "chord_large_arc": [
+    1256.636831759832,
+    1.2566368317598319e-08
+   ]
+  }
+ }
+}
