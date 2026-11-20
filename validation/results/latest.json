@@ -1,8 +1,8 @@
 {
- "when": "2026-11-20T14:09:57+0000",
- "url": "http://127.0.0.1:8858",
+ "when": "2026-11-20T14:11:00+0000",
+ "url": "http://127.0.0.1:8802",
  "engine": [
-  "nf-engine 0.4.0+src.e3c264333b691c19"
+  "nf-engine 0.4.1+src.6758c7bd472d3a46"
  ],
  "mode": "quick",
  "seeded_faults": [
@@ -31,7 +31,7 @@
   "ok   scale relation: polylines only multiplied by 25.4 x (1 + 1e-6), caught by the exact reference comparison: scaled pattern fails the exact reference comparison: header: no frame mapping reproduces the reference (best: station 0 at bottom (x=0); seam_a=seam start/outside, anchor"
  ],
  "seed": 20261119,
- "elapsed_s": 408.4,
+ "elapsed_s": 349.7,
  "verdict": "PASS",
  "server_restarts_during_run": 0,
  "selftest": [
@@ -429,9 +429,9 @@
    "job_id": 21,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 5.467
+   "seconds": 4.935
   },
   {
    "id": "A-BR-02",
@@ -509,9 +509,9 @@
    "job_id": 22,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 6.95
+   "seconds": 4.434
   },
   {
    "id": "A-BR-03",
@@ -590,9 +590,9 @@
    "job_id": 23,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 5.68
+   "seconds": 4.182
   },
   {
    "id": "A-CONE-01",
@@ -675,9 +675,9 @@
    "job_id": 24,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 1.714
+   "seconds": 1.928
   },
   {
    "id": "A-CONE-345",
@@ -760,9 +760,9 @@
    "job_id": 25,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 2.291
+   "seconds": 2.083
   },
   {
    "id": "A-CONE-HALFDISC",
@@ -845,9 +845,9 @@
    "job_id": 26,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 2.665
+   "seconds": 2.397
   },
   {
    "id": "A-CYL-01",
@@ -919,9 +919,9 @@
    "job_id": 27,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.479
+   "seconds": 0.318
   },
   {
    "id": "A-CYL-02",
@@ -993,9 +993,9 @@
    "job_id": 28,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.69
+   "seconds": 0.358
   },
   {
    "id": "A-SMALL-BRANCH-45",
@@ -1024,6 +1024,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1081,6 +1083,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1145,9 +1149,9 @@
    "job_id": 29,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 1.433
+   "seconds": 1.949
   },
   {
    "id": "A-TEE-90",
@@ -1176,6 +1180,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1233,6 +1239,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1298,9 +1306,9 @@
    "job_id": 30,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 12.829
+   "seconds": 12.655
   },
   {
    "id": "D-ASM-001",
@@ -1329,6 +1337,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1386,6 +1396,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1450,9 +1462,9 @@
    "job_id": 31,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 4.844
+   "seconds": 5.202
   },
   {
    "id": "D-ASM-010",
@@ -1481,6 +1493,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1537,6 +1551,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1601,9 +1617,9 @@
    "job_id": 32,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 17.968
+   "seconds": 18.023
   },
   {
    "id": "D-ASM-019",
@@ -1632,6 +1648,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1689,6 +1707,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1753,9 +1773,9 @@
    "job_id": 33,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 6.533
+   "seconds": 6.1
   },
   {
    "id": "D-ASM-028",
@@ -1784,6 +1804,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1840,6 +1862,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1904,9 +1928,9 @@
    "job_id": 34,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 20.54
+   "seconds": 19.951
   },
   {
    "id": "D-ASM-037",
@@ -1935,6 +1959,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -1992,6 +2018,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2056,9 +2084,9 @@
    "job_id": 35,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 5.783
+   "seconds": 5.473
   },
   {
    "id": "D-ASM-046",
@@ -2087,6 +2115,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2143,6 +2173,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2207,9 +2239,9 @@
    "job_id": 36,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 22.333
+   "seconds": 19.062
   },
   {
    "id": "D-ASM-055",
@@ -2238,6 +2270,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2295,6 +2329,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2359,9 +2395,9 @@
    "job_id": 37,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 7.137
+   "seconds": 6.257
   },
   {
    "id": "D-ASM-064",
@@ -2390,6 +2426,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2446,6 +2484,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2510,9 +2550,9 @@
    "job_id": 38,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 19.434
+   "seconds": 17.582
   },
   {
    "id": "D-ASM-073",
@@ -2541,6 +2581,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2598,6 +2640,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2662,9 +2706,9 @@
    "job_id": 39,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 5.404
+   "seconds": 4.76
   },
   {
    "id": "D-ASM-082",
@@ -2693,6 +2737,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2749,6 +2795,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2813,9 +2861,9 @@
    "job_id": 40,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 14.913
+   "seconds": 15.954
   },
   {
    "id": "D-ASM-091",
@@ -2844,6 +2892,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2901,6 +2951,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -2966,9 +3018,9 @@
    "job_id": 41,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 3.683
+   "seconds": 4.069
   },
   {
    "id": "D-ASM-100",
@@ -2997,6 +3049,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3053,6 +3107,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3118,9 +3174,9 @@
    "job_id": 42,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 11.477
+   "seconds": 14.317
   },
   {
    "id": "D-ASM-109",
@@ -3149,6 +3205,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3206,6 +3264,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3270,9 +3330,9 @@
    "job_id": 43,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 4.059
+   "seconds": 4.642
   },
   {
    "id": "D-ASM-118",
@@ -3301,6 +3361,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3357,6 +3419,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3421,9 +3485,9 @@
    "job_id": 44,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 12.075
+   "seconds": 18.15
   },
   {
    "id": "D-ASM-127",
@@ -3452,6 +3516,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3509,6 +3575,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3573,9 +3641,9 @@
    "job_id": 45,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 4.28
+   "seconds": 6.946
   },
   {
    "id": "D-ASM-136",
@@ -3604,6 +3672,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3660,6 +3730,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3724,9 +3796,9 @@
    "job_id": 46,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 14.378
+   "seconds": 19.56
   },
   {
    "id": "D-ASM-145",
@@ -3755,6 +3827,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3812,6 +3886,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3876,9 +3952,9 @@
    "job_id": 47,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 4.83
+   "seconds": 6.679
   },
   {
    "id": "D-ASM-154",
@@ -3907,6 +3983,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -3963,6 +4041,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -4027,9 +4107,9 @@
    "job_id": 48,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 13.68
+   "seconds": 17.63
   },
   {
    "id": "D-ASM-DEV-1-near_end",
@@ -4058,6 +4138,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -4114,6 +4196,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -4178,9 +4262,9 @@
    "job_id": 49,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 14.804
+   "seconds": 16.767
   },
   {
    "id": "D-ASM-DEV-1-near_start",
@@ -4209,6 +4293,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -4265,6 +4351,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -4329,9 +4417,9 @@
    "job_id": 50,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 13.481
+   "seconds": 13.886
   },
   {
    "id": "D-ASM-DEV-5-near_start",
@@ -4360,6 +4448,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -4416,6 +4506,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -4480,9 +4572,9 @@
    "job_id": 51,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 32.901
+   "seconds": 28.004
   },
   {
    "id": "E-asm-beta-0",
@@ -4509,9 +4601,9 @@
    "job_id": 52,
    "outcome": "out of range (beta): angle between axes must be within about 10..170 deg in this build (grazing intersections are ill-conditioned; limit is an implementation choice, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.024
+   "seconds": 0.008
   },
   {
    "id": "E-asm-sref-inside-145-100",
@@ -4538,7 +4630,7 @@
    "job_id": 53,
    "outcome": "out of range (header_dev_radius): inconsistent with surface_reference 'inside': header_dev_radius = 145 is smaller than the inside contact radius header_radius = 150. The development (reference) surface lies inside the wall (Spec 02 \u00a76.1: r_dev = r_i + k\u00b7t, 0 < k <= 0.5), so it cannot be smaller than the inside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
    "seconds": 0.006
   },
@@ -4567,9 +4659,9 @@
    "job_id": 54,
    "outcome": "out of range (header_dev_radius): inconsistent with surface_reference 'outside': header_dev_radius = 155 is larger than the outside contact radius header_radius = 150. The development (reference) surface lies inside the wall (Spec 02 \u00a76.1: r_dev = r_i + k\u00b7t, 0 < k <= 0.5), so it cannot be larger than the outside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.009
+   "seconds": 0.004
   },
   {
    "id": "E-br-beta-180",
@@ -4592,7 +4684,7 @@
    "job_id": 55,
    "outcome": "out of range (beta): angle between axes must be within about 10..170 deg in this build (grazing intersections are ill-conditioned; limit is an implementation choice, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
    "seconds": 0.004
   },
@@ -4617,7 +4709,7 @@
    "job_id": 56,
    "outcome": "out of range (delta+r): requires |delta| + r < R: tangent and partial intersections (including the equal-diameter tee) are not implemented in this build",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
    "seconds": 0.003
   },
@@ -4632,7 +4724,7 @@
    "info": {},
    "http": 400,
    "job_id": null,
-   "outcome": "Failed to parse the request body as JSON: beta_deg: number out of range at line 1 column 113",
+   "outcome": "the request body is not JSON: number out of range at line 1 column 113",
    "state": null,
    "engine": null,
    "class": "refused_correctly",
@@ -4659,9 +4751,9 @@
    "job_id": 57,
    "outcome": "out of range (branch_dev_radius): magnitude 1e308 mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.006
+   "seconds": 0.004
   },
   {
    "id": "E-branch_stub-branch_dev_radius-negative",
@@ -4684,9 +4776,9 @@
    "job_id": 58,
    "outcome": "out of range (branch_dev_radius): must be finite and > 0, got -100",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.003
   },
   {
    "id": "E-branch_stub-branch_radius-Infinity",
@@ -4699,7 +4791,7 @@
    "info": {},
    "http": 400,
    "job_id": null,
-   "outcome": "Failed to parse the request body as JSON: branch_radius: expected value at line 1 column 66",
+   "outcome": "the request body is not JSON: expected value at line 1 column 66",
    "state": null,
    "engine": null,
    "class": "refused_correctly",
@@ -4757,7 +4849,7 @@
    "info": {},
    "http": 400,
    "job_id": null,
-   "outcome": "Failed to parse the request body as JSON: header_radius: expected value at line 1 column 44",
+   "outcome": "the request body is not JSON: expected value at line 1 column 44",
    "state": null,
    "engine": null,
    "class": "refused_correctly",
@@ -4791,11 +4883,11 @@
    "info": {},
    "http": 400,
    "job_id": null,
-   "outcome": "Failed to parse the request body as JSON: s_end: expected value at line 1 column 135",
+   "outcome": "the request body is not JSON: expected value at line 1 column 135",
    "state": null,
    "engine": null,
    "class": "refused_correctly",
-   "seconds": 0.001
+   "seconds": 0.0
   },
   {
    "id": "E-branch_stub-s_end-zero",
@@ -4818,9 +4910,9 @@
    "job_id": 59,
    "outcome": "out of range (s_end): must be finite and > 0, got 0",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.006
+   "seconds": 0.003
   },
   {
    "id": "E-cone_frustum-h-5e-7",
@@ -4840,9 +4932,9 @@
    "job_id": 60,
    "outcome": "out of range (h): 5e-7 mm is below 1e-6 mm, the smallest dimension this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.012
+   "seconds": 0.003
   },
   {
    "id": "E-cone_frustum-h-null",
@@ -4872,11 +4964,11 @@
    "info": {},
    "http": 400,
    "job_id": null,
-   "outcome": "Failed to parse the request body as JSON: r1: expected value at line 1 column 34",
+   "outcome": "the request body is not JSON: expected value at line 1 column 34",
    "state": null,
    "engine": null,
    "class": "refused_correctly",
-   "seconds": 0.003
+   "seconds": 0.0
   },
   {
    "id": "E-cone_frustum-r1-string",
@@ -4933,9 +5025,9 @@
    "job_id": 61,
    "outcome": "out of range (length): magnitude 1e308 mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.01
+   "seconds": 0.003
   },
   {
    "id": "E-cylinder_shell-length-negative-zero",
@@ -4954,9 +5046,9 @@
    "job_id": 62,
    "outcome": "out of range (length): must be finite and > 0, got -0",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.018
+   "seconds": 0.003
   },
   {
    "id": "E-cylinder_shell-r_dev-1e999",
@@ -4969,11 +5061,11 @@
    "info": {},
    "http": 400,
    "job_id": null,
-   "outcome": "Failed to parse the request body as JSON: r_dev: number out of range at line 1 column 43",
+   "outcome": "the request body is not JSON: number out of range at line 1 column 43",
    "state": null,
    "engine": null,
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.0
   },
   {
    "id": "E-cylinder_shell-r_dev-negative",
@@ -4992,9 +5084,9 @@
    "job_id": 63,
    "outcome": "out of range (r_dev): must be finite and > 0, got -500",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.008
+   "seconds": 0.003
   },
   {
    "id": "E-ecc-r1-eq-r2",
@@ -5015,9 +5107,9 @@
    "job_id": 64,
    "outcome": "out of range (r1): requires r1 > r2; equal radii with offset (oblique cylinder) is not implemented in this build",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.003
   },
   {
    "id": "E-eccentric_reducer-e-null",
@@ -5047,7 +5139,7 @@
    "info": {},
    "http": 400,
    "job_id": null,
-   "outcome": "Failed to parse the request body as JSON: h: expected value at line 1 column 60",
+   "outcome": "the request body is not JSON: expected value at line 1 column 60",
    "state": null,
    "engine": null,
    "class": "refused_correctly",
@@ -5072,9 +5164,9 @@
    "job_id": 65,
    "outcome": "out of range (h): must be finite and > 0, got 0",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.003
   },
   {
    "id": "E-eccentric_reducer-r1-missing",
@@ -5117,9 +5209,9 @@
    "job_id": 66,
    "outcome": "out of range (r2): magnitude 1e308 mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.003
   },
   {
    "id": "E-eccentric_reducer-r2-negative",
@@ -5140,9 +5232,9 @@
    "job_id": 67,
    "outcome": "out of range (r2): must be finite and > 0, got -100",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.003
   },
   {
    "id": "E-header_with_branch-beta_deg-1e999",
@@ -5155,7 +5247,7 @@
    "info": {},
    "http": 400,
    "job_id": null,
-   "outcome": "Failed to parse the request body as JSON: beta_deg: number out of range at line 1 column 192",
+   "outcome": "the request body is not JSON: number out of range at line 1 column 192",
    "state": null,
    "engine": null,
    "class": "refused_correctly",
@@ -5186,7 +5278,7 @@
    "job_id": 68,
    "outcome": "out of range (branch_dev_radius): magnitude 1e308 mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
    "seconds": 0.004
   },
@@ -5215,7 +5307,7 @@
    "job_id": 69,
    "outcome": "out of range (branch_dev_radius): must be finite and > 0, got -100",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
    "seconds": 0.005
   },
@@ -5230,7 +5322,7 @@
    "info": {},
    "http": 400,
    "job_id": null,
-   "outcome": "Failed to parse the request body as JSON: branch_radius: expected value at line 1 column 145",
+   "outcome": "the request body is not JSON: expected value at line 1 column 145",
    "state": null,
    "engine": null,
    "class": "refused_correctly",
@@ -5292,11 +5384,11 @@
    "info": {},
    "http": 400,
    "job_id": null,
-   "outcome": "Failed to parse the request body as JSON: delta: expected value at line 1 column 201",
+   "outcome": "the request body is not JSON: expected value at line 1 column 201",
    "state": null,
    "engine": null,
    "class": "refused_correctly",
-   "seconds": 0.001
+   "seconds": 0.0
   },
   {
    "id": "E-header_with_branch-header_dev_radius-Infinity",
@@ -5309,7 +5401,7 @@
    "info": {},
    "http": 400,
    "job_id": null,
-   "outcome": "Failed to parse the request body as JSON: header_dev_radius: expected value at line 1 column 77",
+   "outcome": "the request body is not JSON: expected value at line 1 column 77",
    "state": null,
    "engine": null,
    "class": "refused_correctly",
@@ -5385,7 +5477,7 @@
    "job_id": 70,
    "outcome": "out of range (header_radius): magnitude 1e308 mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
    "seconds": 0.004
   },
@@ -5414,9 +5506,9 @@
    "job_id": 71,
    "outcome": "out of range (header_radius): must be finite and > 0, got -0",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.004
   },
   {
    "id": "E-header_with_branch-s_end-1e999",
@@ -5429,11 +5521,11 @@
    "info": {},
    "http": 400,
    "job_id": null,
-   "outcome": "Failed to parse the request body as JSON: s_end: number out of range at line 1 column 218",
+   "outcome": "the request body is not JSON: number out of range at line 1 column 218",
    "state": null,
    "engine": null,
    "class": "refused_correctly",
-   "seconds": 0.0
+   "seconds": 0.001
   },
   {
    "id": "E-header_with_branch-s_end-negative",
@@ -5460,9 +5552,9 @@
    "job_id": 72,
    "outcome": "out of range (s_end): must be finite and > 0, got -400",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.004
   },
   {
    "id": "HP-CONE-1",
@@ -5552,9 +5644,9 @@
    "job_id": 73,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 2.0
+   "seconds": 2.05
   },
   {
    "id": "HP-ECC-1",
@@ -5643,9 +5735,9 @@
    "job_id": 74,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 12.543
+   "seconds": 12.153
   },
   {
    "id": "HP-ECC-7",
@@ -5734,9 +5826,9 @@
    "job_id": 75,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 14.223
+   "seconds": 11.309
   },
   {
    "id": "HP-JOINT-4",
@@ -5765,6 +5857,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -5821,6 +5915,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -5897,9 +5993,9 @@
    "job_id": 76,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 16.152
+   "seconds": 15.086
   },
   {
    "id": "HP-JOINT-5",
@@ -5928,6 +6024,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -5984,6 +6082,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -6060,9 +6160,9 @@
    "job_id": 77,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 13.531
+   "seconds": 12.446
   },
   {
    "id": "L-ECC-FLAT-SIDE",
@@ -6144,9 +6244,9 @@
    "job_id": 78,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 2.885
+   "seconds": 1.859
   },
   {
    "id": "L-ECC-TO-CONE-1",
@@ -6232,9 +6332,9 @@
    "job_id": 79,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 2.638
+   "seconds": 1.434
   },
   {
    "id": "L-ECC-TO-CONE-3",
@@ -6317,12 +6417,12 @@
     }
    },
    "http": 200,
-   "job_id": 81,
+   "job_id": 80,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 2.946
+   "seconds": 1.874
   },
   {
    "id": "S-MIRROR-BETA",
@@ -6351,6 +6451,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -6407,6 +6509,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -6472,12 +6576,12 @@
     }
    },
    "http": 200,
-   "job_id": 82,
+   "job_id": 81,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 15.66
+   "seconds": 9.235
   },
   {
    "id": "S-MIRROR-DELTA",
@@ -6506,6 +6610,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -6562,6 +6668,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -6630,9 +6738,9 @@
    "job_id": 83,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 15.227
+   "seconds": 8.221
   },
   {
    "id": "S-SCALE-asm-25.4",
@@ -6661,6 +6769,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -6717,6 +6827,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -6785,9 +6897,9 @@
    "job_id": 85,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 40.721
+   "seconds": 17.969
   },
   {
    "id": "S-SCALE-cyl-0.001",
@@ -6860,12 +6972,12 @@
     "scale_exact_issues": 0
    },
    "http": 200,
-   "job_id": 88,
+   "job_id": 87,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.767
+   "seconds": 0.272
   },
   {
    "id": "S-SCALE-ecc-0.333333",
@@ -6948,12 +7060,12 @@
     "scale_exact_issues": 0
    },
    "http": 200,
-   "job_id": 89,
+   "job_id": 90,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 4.715
+   "seconds": 2.659
   },
   {
    "id": "S-SCALE-stub-0.5",
@@ -7032,12 +7144,12 @@
     "scale_exact_issues": 0
    },
    "http": 200,
-   "job_id": 91,
+   "job_id": 92,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 11.985
+   "seconds": 5.764
   },
   {
    "id": "S-STATION-SHIFT",
@@ -7066,6 +7178,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -7122,6 +7236,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -7190,9 +7306,9 @@
    "job_id": 94,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 16.636
+   "seconds": 6.42
   },
   {
    "id": "R-cylinder_shell-0000",
@@ -7211,9 +7327,9 @@
    "job_id": 96,
    "outcome": "out of range (length): must be finite and > 0, got -862.9377494664441",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.03
+   "seconds": 0.006
   },
   {
    "id": "R-cylinder_shell-0001",
@@ -7285,9 +7401,9 @@
    "job_id": 97,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.32
+   "seconds": 0.15
   },
   {
    "id": "R-cylinder_shell-0002",
@@ -7359,9 +7475,9 @@
    "job_id": 98,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.396
+   "seconds": 0.16
   },
   {
    "id": "R-cylinder_shell-0003",
@@ -7380,9 +7496,9 @@
    "job_id": 99,
    "outcome": "out of range (length): must be finite and > 0, got -0.024327296001606206",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.009
+   "seconds": 0.006
   },
   {
    "id": "R-cylinder_shell-0004",
@@ -7454,9 +7570,9 @@
    "job_id": 100,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.439
+   "seconds": 0.194
   },
   {
    "id": "R-cone_frustum-0005",
@@ -7476,9 +7592,9 @@
    "job_id": 101,
    "outcome": "out of range (r1): requires r1 > r2 (large end first); equal radii is a cylinder",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.009
+   "seconds": 0.006
   },
   {
    "id": "R-cone_frustum-0006",
@@ -7561,9 +7677,9 @@
    "job_id": 102,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 2.597
+   "seconds": 1.063
   },
   {
    "id": "R-cone_frustum-0007",
@@ -7646,9 +7762,9 @@
    "job_id": 103,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 2.267
+   "seconds": 0.817
   },
   {
    "id": "R-cone_frustum-0008",
@@ -7668,9 +7784,9 @@
    "job_id": 104,
    "outcome": "not developable: developed angle 6.277384 rad would overlap",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.005
   },
   {
    "id": "R-cone_frustum-0009",
@@ -7690,9 +7806,9 @@
    "job_id": 105,
    "outcome": "out of range (r1-r2): near-cylindrical cone: apex-based formula is ill-conditioned and the apex-free method is not implemented in this build",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.021
+   "seconds": 0.005
   },
   {
    "id": "R-eccentric_reducer-0010",
@@ -7774,9 +7890,9 @@
    "job_id": 106,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 3.193
+   "seconds": 1.577
   },
   {
    "id": "R-eccentric_reducer-0011",
@@ -7858,9 +7974,9 @@
    "job_id": 108,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 3.66
+   "seconds": 1.443
   },
   {
    "id": "R-eccentric_reducer-0012",
@@ -7942,9 +8058,9 @@
    "job_id": 109,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 4.399
+   "seconds": 1.544
   },
   {
    "id": "R-eccentric_reducer-0013",
@@ -7965,9 +8081,9 @@
    "job_id": 110,
    "outcome": "out of range (e): offset must be finite and >= 0",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.031
+   "seconds": 0.005
   },
   {
    "id": "R-eccentric_reducer-0014",
@@ -8049,9 +8165,9 @@
    "job_id": 111,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 2.56
+   "seconds": 1.157
   },
   {
    "id": "R-branch_stub-0015",
@@ -8129,9 +8245,9 @@
    "job_id": 112,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 6.456
+   "seconds": 2.859
   },
   {
    "id": "R-branch_stub-0016",
@@ -8206,12 +8322,12 @@
     }
    },
    "http": 200,
-   "job_id": 113,
+   "job_id": 115,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 8.421
+   "seconds": 3.852
   },
   {
    "id": "R-branch_stub-0017",
@@ -8231,12 +8347,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 114,
+   "job_id": 113,
    "outcome": "out of range (s_end): square end must lie beyond the saddle: s_end > 6.123496",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.022
+   "seconds": 0.005
   },
   {
    "id": "R-branch_stub-0018",
@@ -8311,12 +8427,12 @@
     }
    },
    "http": 200,
-   "job_id": 115,
+   "job_id": 114,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 8.382
+   "seconds": 3.491
   },
   {
    "id": "R-branch_stub-0019",
@@ -8394,9 +8510,9 @@
    "job_id": 116,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 5.485
+   "seconds": 2.519
   },
   {
    "id": "R-header_with_branch-0020",
@@ -8423,9 +8539,9 @@
    "job_id": 117,
    "outcome": "out of range (delta+r): requires |delta| + r < R: tangent and partial intersections (including the equal-diameter tee) are not implemented in this build",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.013
+   "seconds": 0.009
   },
   {
    "id": "R-header_with_branch-0021",
@@ -8452,9 +8568,9 @@
    "job_id": 118,
    "outcome": "out of range (header_dev_radius): inconsistent with surface_reference 'neutral': the contact radius header_radius = 1119.2072461857115 is declared to be on the reference surface itself, so header_dev_radius must equal it, but it is 1105.6289219709713. Correct the radii or the declared surface",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.006
   },
   {
    "id": "R-header_with_branch-0022",
@@ -8481,9 +8597,9 @@
    "job_id": 119,
    "outcome": "out of range (header_dev_radius): inconsistent with surface_reference 'outside': header_dev_radius = 1538.6758130247435 is larger than the outside contact radius header_radius = 1459.308167154083. The development (reference) surface lies inside the wall (Spec 02 \u00a76.1: r_dev = r_i + k\u00b7t, 0 < k <= 0.5), so it cannot be larger than the outside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.005
   },
   {
    "id": "R-header_with_branch-0023",
@@ -8510,9 +8626,9 @@
    "job_id": 120,
    "outcome": "out of range (header_dev_radius): inconsistent with surface_reference 'outside': header_dev_radius = 374.0257128648689 is larger than the outside contact radius header_radius = 348.37402813212424. The development (reference) surface lies inside the wall (Spec 02 \u00a76.1: r_dev = r_i + k\u00b7t, 0 < k <= 0.5), so it cannot be larger than the outside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.008
   },
   {
    "id": "R-header_with_branch-0024",
@@ -8539,7 +8655,7 @@
    "job_id": 121,
    "outcome": "out of range (delta+r): requires |delta| + r < R: tangent and partial intersections (including the equal-diameter tee) are not implemented in this build",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
    "seconds": 0.005
   },
@@ -8570,6 +8686,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -8627,6 +8745,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -8692,9 +8812,9 @@
    "job_id": 122,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 9.224
+   "seconds": 4.493
   },
   {
    "id": "W-P000002",
@@ -8721,9 +8841,9 @@
    "job_id": 123,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.47
+   "seconds": 0.083
   },
   {
    "id": "W-P000003",
@@ -8742,9 +8862,9 @@
    "job_id": 124,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.019
+   "seconds": 0.013
   },
   {
    "id": "W-P000004",
@@ -8763,9 +8883,9 @@
    "job_id": 125,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.019
+   "seconds": 0.017
   },
   {
    "id": "W-P000005",
@@ -8837,9 +8957,9 @@
    "job_id": 126,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.4
+   "seconds": 0.138
   },
   {
    "id": "W-P000006",
@@ -8859,9 +8979,9 @@
    "job_id": 127,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.049
+   "seconds": 0.014
   },
   {
    "id": "W-P000007",
@@ -8888,9 +9008,9 @@
    "job_id": 128,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.191
+   "seconds": 0.082
   },
   {
    "id": "W-P000008",
@@ -8917,9 +9037,9 @@
    "job_id": 129,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.189
+   "seconds": 0.096
   },
   {
    "id": "W-P000009",
@@ -8991,9 +9111,9 @@
    "job_id": 130,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.345
+   "seconds": 0.205
   },
   {
    "id": "W-P000010",
@@ -9013,9 +9133,9 @@
    "job_id": 131,
    "outcome": "out of range (r1): requires r1 > r2 (large end first); equal radii is a cylinder",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.007
   },
   {
    "id": "W-P000011",
@@ -9042,9 +9162,9 @@
    "job_id": 132,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.239
+   "seconds": 0.122
   },
   {
    "id": "W-P000012",
@@ -9071,9 +9191,9 @@
    "job_id": 133,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.172
+   "seconds": 0.087
   },
   {
    "id": "W-P000013",
@@ -9102,6 +9222,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -9158,6 +9280,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -9219,12 +9343,12 @@
     }
    },
    "http": 200,
-   "job_id": 134,
+   "job_id": 135,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 17.117
+   "seconds": 6.938
   },
   {
    "id": "W-P000014",
@@ -9244,12 +9368,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 135,
+   "job_id": 134,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.218
+   "seconds": 0.043
   },
   {
    "id": "W-P000015",
@@ -9276,9 +9400,9 @@
    "job_id": 136,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.205
+   "seconds": 0.09
   },
   {
    "id": "W-P000016",
@@ -9305,9 +9429,9 @@
    "job_id": 137,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.16
+   "seconds": 0.125
   },
   {
    "id": "W-P000017",
@@ -9336,6 +9460,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -9393,6 +9519,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -9458,9 +9586,9 @@
    "job_id": 138,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 12.511
+   "seconds": 5.88
   },
   {
    "id": "W-P000018",
@@ -9487,9 +9615,9 @@
    "job_id": 139,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.341
+   "seconds": 0.092
   },
   {
    "id": "W-P000019",
@@ -9509,9 +9637,9 @@
    "job_id": 140,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.028
+   "seconds": 0.016
   },
   {
    "id": "W-P000020",
@@ -9534,9 +9662,9 @@
    "job_id": 141,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.07
+   "seconds": 0.039
   },
   {
    "id": "W-P000021",
@@ -9565,6 +9693,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -9621,6 +9751,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -9685,9 +9817,9 @@
    "job_id": 142,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 11.266
+   "seconds": 4.641
   },
   {
    "id": "W-P000022",
@@ -9714,9 +9846,9 @@
    "job_id": 143,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.215
+   "seconds": 0.114
   },
   {
    "id": "W-P000023",
@@ -9743,9 +9875,9 @@
    "job_id": 144,
    "outcome": "out of range (branch_dev_radius): must be finite and > 0, got -603.15",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.01
+   "seconds": 0.007
   },
   {
    "id": "W-P000024",
@@ -9768,9 +9900,9 @@
    "job_id": 145,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.149
+   "seconds": 0.056
   },
   {
    "id": "N-tangent-r-b90-g0.1",
@@ -9799,6 +9931,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -9859,6 +9993,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -9936,9 +10072,9 @@
    "job_id": 146,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 17.412
+   "seconds": 7.42
   },
   {
    "id": "N-tangent-dneg-b90-g0.0001",
@@ -9967,6 +10103,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -10025,6 +10163,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -10102,9 +10242,9 @@
    "job_id": 147,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 27.058
+   "seconds": 11.656
   },
   {
    "id": "N-tangent-d-b90-g2e-06",
@@ -10133,6 +10273,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -10191,6 +10333,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -10268,9 +10412,9 @@
    "job_id": 148,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 33.661
+   "seconds": 17.778
   },
   {
    "id": "N-tangent-r-b45-g1.1e-06",
@@ -10299,6 +10443,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -10356,6 +10502,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -10432,9 +10580,9 @@
    "job_id": 149,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 52.605
+   "seconds": 37.097
   },
   {
    "id": "N-tangent-d-b45-g0.01",
@@ -10463,6 +10611,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -10519,6 +10669,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -10595,9 +10747,9 @@
    "job_id": 150,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 15.823
+   "seconds": 11.251
   },
   {
    "id": "N-shallow-b10-r0.3",
@@ -10626,6 +10778,8 @@
        "dxf": {
         "entities": 5,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -10682,6 +10836,8 @@
        "dxf": {
         "entities": 4,
         "non_cut_entities": [
+         "text@NF_NOT_RELEASED",
+         "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED",
          "text@NF_NOT_RELEASED"
@@ -10758,9 +10914,9 @@
    "job_id": 151,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 14.779
+   "seconds": 10.933
   },
   {
    "id": "N-shallow-b170.3-r0.3",
@@ -10787,9 +10943,9 @@
    "job_id": 152,
    "outcome": "out of range (beta): angle between axes must be within about 10..170 deg in this build (grazing intersections are ill-conditioned; limit is an implementation choice, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.022
+   "seconds": 0.019
   },
   {
    "id": "N-aspect-cone-flat-h0.01",
@@ -10809,9 +10965,9 @@
    "job_id": 153,
    "outcome": "not developable: developed angle 6.283185 rad would overlap",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.006
   },
   {
    "id": "N-aspect-cone-flat-h1e-08",
@@ -10831,9 +10987,9 @@
    "job_id": 154,
    "outcome": "out of range (h): 1e-8 mm is below 1e-6 mm, the smallest dimension this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.012
   },
   {
    "id": "N-aspect-ecc-oblique-e1e+06",
@@ -10922,9 +11078,9 @@
    "job_id": 155,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 13.007
+   "seconds": 9.672
   },
   {
    "id": "N-magnitude-cyl-2^-26",
@@ -10948,9 +11104,9 @@
    "job_id": 156,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.364
+   "seconds": 0.32
   },
   {
    "id": "N-magnitude-cone-2^-1040",
@@ -10972,9 +11128,9 @@
    "job_id": 158,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.03
+   "seconds": 0.041
   },
   {
    "id": "N-magnitude-cone-2^30",
@@ -10996,9 +11152,9 @@
    "job_id": 160,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 0.033
+   "seconds": 0.035
   },
   {
    "id": "N-magnitude-ecc-2^8",
@@ -11024,9 +11180,9 @@
    "job_id": 162,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 10.525
+   "seconds": 8.759
   },
   {
    "id": "N-magnitude-asm-2^-26",
@@ -11058,9 +11214,9 @@
    "job_id": 164,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "engine": "nf-engine 0.4.1+src.6758c7bd472d3a46",
    "class": "agree",
-   "seconds": 2.334
+   "seconds": 2.694
   }
  ]
 }

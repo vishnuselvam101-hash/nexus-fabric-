@@ -163,19 +163,19 @@ Packages: `bash packaging/build_all.sh` → `dist/` (never committed). Release v
 
 ## 6. How to verify (run before every push)
 
-| Command | Expected at commit `cd452de` (engine 0.4.0) |
+| Command | Expected at commit `2894cc5` (engine 0.4.1) |
 |---|---|
 | `cargo build --release` | builds |
-| `cargo test --workspace` | 157 pass |
+| `cargo test --workspace` | 247 pass |
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --all -- --check` | clean |
 | `bash tests/e2e_smoke.sh` | 89 pass |
 | `bash tests/security_smoke.sh` | 66 pass |
-| `node tests/ui_smoke.js` on a fresh server | 183 pass |
+| `node tests/ui_smoke.js` on a fresh server | 191 pass |
 | `node tests/desktop_smoke.js target/release/nf-server 8861` | 18 pass |
 | `bash tests/offline_check.sh` | all ok (the no-network part needs Linux and root) |
 | `node docs/design/tools/i18n_check.mjs` | no problem |
-| `python3 validation/run_all.py --spawn target/release/nf-server --quick` | 155 cases, 4 known disagreements (section 9.2) |
+| `python3 validation/run_all.py --spawn target/release/nf-server --quick` | 155 cases: 93 agree, 62 refused, 0 disagree (exit 0) |
 | `bash tests/security_r6.sh` | 35 pass, 5 fail (section 9.3) |
 
 Fresh server for the browser suite:
@@ -215,7 +215,7 @@ task B3 is done; that is an honest failure, not a broken build.
 
 | Id | Work | Files being changed |
 |---|---|---|
-| A1 | Engine 0.4.1: the DXF states the joint as declared (999 `KEY: value` lines and a TEXT entity, read back by the quality gate); structured refusals (`code`, `fields`, `message`, exact `detail` where the engine computes it); geometry must not change | `crates/nf-core`, `nf-dxf`, `nf-server`, `uem`; `web/app.js`, `web/i18n.js`; `tests/ui_smoke.js`; `docs/backend/DXF_METADATA.md`, `REFUSAL_CODES.md` |
+| A1 | LANDED 20 Nov (commit 2894cc5). Engine 0.4.1: DXF states the joint as declared; structured refusal codes (41 codes, `docs/backend/REFUSAL_CODES.md`); geometry proven unchanged against a 335-request snapshot | `crates/*`, `web/`, `tests/` |
 | A2 | LANDED 20 Nov. Validation tool fix | `validation/` |
 | A3 | LANDED 20 Nov. Second independent mathematical review | `docs/backend/REVIEW_B2_COMPUTATIONAL.md` |
 | A4 | LANDED 20 Nov (merge b96a1de). PDF → DXF converter crate; see `docs/backend/PDF_TO_DXF.md` | `crates/nf-pdf` |
@@ -273,8 +273,11 @@ exact with zero deviation; B2-003 … B2-007 low).
 ### 9.5 Other
 - BH-014 partly: the form accepts some values the engine refuses (the limit comes from sampled geometry); A1 gives
   the refusal a code and the field.
-- Leftover AI wording: interface "planned" lists mentioning drawing reading; the old positioning line in
-  `docs/project/MASTER_GOAL.md`; older films.
+- Leftover AI wording (task D2). In `web/i18n.js`: `adm.planned.4` (AI/model configuration planned); drawing
+  reading announced as planned in `doc.accepted`, `req.hint`, `ws.planned.lead`, `ws.planned.1` … `ws.planned.5`
+  (drawing intelligence, OCR, dimension and symbol recognition) and `math.planned.1`. Keep the statement
+  "EV-1 (AI-generated, not independently reviewed)": it is a disclosure about how the algorithms were written. Also the
+  old positioning line in `docs/project/MASTER_GOAL.md`, and the older films.
 - Packages do not yet ship third-party licence texts (102 libraries, all permissive: MIT, Apache-2.0, BSD, Zlib,
   Unicode, Unlicense, BSL).
 - No licence terms: packages say "All rights reserved. Evaluation use only — terms to be provided by the owner."
