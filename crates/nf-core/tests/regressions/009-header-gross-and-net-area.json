@@ -1,0 +1,23 @@
+{
+ "description": "Review B2 finding B2-004 (20 Nov 2026): the header with an opening reported its gross plate area under the name area, about 7.5 % above the net plate area for the reviewed example. The header now reports gross_area and net_area = gross_area - opening_area (and opening_area); the plain cylinder keeps area. Display and field name only: the DXF and gates are unchanged; patterns_sha256 and closure_hash change for header inputs.",
+ "found": "2026-11-20 (review B2, B2-004)",
+ "fixed_in": "uem develop.rs header_shell_with_opening (gross_area, net_area); web/i18n.js labels. ENGINE_VERSION left at 0.4.1",
+ "cases": [
+  {
+   "request": {
+    "family": "header_with_branch",
+    "header_radius": 100.0,
+    "header_dev_radius": 100.0,
+    "header_length": 215.6,
+    "branch_station": 100.0,
+    "branch_radius": 50.0,
+    "branch_dev_radius": 50.0,
+    "beta_deg": 60.0,
+    "delta": 10.0,
+    "s_end": 200.0,
+    "surface_reference": "outside"
+   },
+   "expect": "verified"
+  }
+ ]
+}

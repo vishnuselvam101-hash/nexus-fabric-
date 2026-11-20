@@ -872,7 +872,7 @@ const ID = {
   },
   // third entry: the unit the engine uses for the quantity (it sends none)
   quantity: {
-    area: ['Area', '面積', 'mm²'], developed_width: ['Developed width', '展開幅', 'mm'], length: ['Length', '長さ', 'mm'], opening_perimeter: ['Opening perimeter', '開口の周長', 'mm'],
+    area: ['Area', '面積', 'mm²'], gross_area: ['Gross area, before the opening', '総面積（開口前）', 'mm²'], net_area: ['Net area, after the opening', '正味面積（開口を差し引いた後）', 'mm²'], opening_area: ['Opening area', '開口の面積', 'mm²'], developed_width: ['Developed width', '展開幅', 'mm'], length: ['Length', '長さ', 'mm'], opening_perimeter: ['Opening perimeter', '開口の周長', 'mm'],
     opening_x_min: ['Opening, smallest x', '開口のx最小値', 'mm'], opening_x_max: ['Opening, largest x', '開口のx最大値', 'mm'],
     developed_angle: ['Developed angle', '展開角', 'rad'], sector_angle: ['Sector angle', '扇形の中心角', 'rad'],
     rho_at_0: ['Slant radius at 0°', '頂点からの母線長（0°）', 'mm'], rho_at_180: ['Slant radius at 180°', '頂点からの母線長（180°）', 'mm'],
@@ -984,7 +984,7 @@ const SENT = [
   ['Radii are used as reference-surface radii exactly as entered; thickness, allowances, weld gap and kerf are not modelled.', '半径は、入力値をそのまま基準面の半径として使用します。板厚、各種の代（しろ）、溶接ギャップ、カーフは考慮していません。'],
   // G08
   ['eps_num and eps_rep are ESTIMATES, not bounds, and not interval-certified.', '`eps_num`と`eps_rep`は推定値であり、上界ではありません。区間演算による保証もありません。'],
-  ['Independent validation measured true errors up to 6 times eps_num near tangency; eps_rep is the largest deviation at three interior samples per polyline segment.', '独立した検証では、接する状態の近くで、`eps_num`の最大6倍の真の誤差が測定されました。`eps_rep`は、ポリラインの各線分の内部3点で測った偏差の最大値です。'],
+  ['Independent validation measured true errors up to 6 times eps_num near tangency; eps_rep is the largest deviation measured at 15 interior points per polyline segment, so a finer sampling can exceed it slightly.', '独立した検証では、接する状態の近くで、`eps_num`の最大6倍の真の誤差が測定されました。`eps_rep`は、ポリラインの各線分の内部15点で測った偏差の最大値であり、より細かい標本化では少しだけ超えることがあります。'],
   ['eps_num is an ESTIMATE, not a bound, and not interval-certified.', '`eps_num`は推定値であり、上界ではありません。区間演算による保証もありません。'],
   // G10
   ['Independent-formulation checks (class I-F), including interface constraints where the job has several parts.', '独立した定式化による検証項目（クラスI-F）です。ジョブに複数の部材がある場合は、取合いの拘束条件を含みます。'],
