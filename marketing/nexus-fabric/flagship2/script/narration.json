@@ -1,0 +1,178 @@
+{
+  "_note": "Flagship 2: every word of the film. 'lines' are the narration ('say' = text given to the synthesiser when it differs; Japanese lines carry a kana 'reading' and the accent notation actually synthesised, 'kana': AquesTalk style, ' after the accent nucleus, / accent-phrase boundary, 、 pause, _ devoiced vowel). 'onscreen' is every word the film itself sets on screen; words inside product screens are the application's own and are not listed here. tools/build_script.py turns this file into script/narration.js for the film page.",
+  "en": {
+    "lines": [
+      {
+        "id": "L1",
+        "text": "Where a branch meets a header, there is one curve. Get it wrong, and nothing fits."
+      },
+      {
+        "id": "L2",
+        "text": "NEXUS FABRIC takes the dimensions of the joint, and calculates both flat patterns.",
+        "say": "Nexus Fabric takes the dimensions of the joint, and calculates both flat patterns."
+      },
+      {
+        "id": "L3",
+        "text": "One equation gives every point on the cut."
+      },
+      {
+        "id": "L4",
+        "text": "Then it checks its own work. Folded back, the two edges must be one curve."
+      },
+      {
+        "id": "L5",
+        "text": "Every step is recorded, and can be replayed."
+      },
+      {
+        "id": "L6",
+        "text": "What it cannot confirm, it shows. The result stays: review required."
+      },
+      {
+        "id": "L7",
+        "text": "The DXF is written, read back, compared — and marked: not released.",
+        "say": "The D X F is written, read back, compared; and marked: not released."
+      },
+      {
+        "id": "L8",
+        "text": "Reading drawings is planned. The calculation, the checks, the record: running today."
+      },
+      {
+        "id": "L9",
+        "text": "NEXUS FABRIC. Engineering, reimagined.",
+        "say": "Nexus Fabric. Engineering, reimagined."
+      }
+    ],
+    "onscreen": {
+      "hook": "One curve.",
+      "cap_form": "The dimensions of the joint",
+      "cap_result": "Both flat patterns, calculated",
+      "cap_eq": "One equation. Every point on the cut.",
+      "cap_fold": "Folded back: one curve",
+      "cap_records": "Every step recorded. Replay matches.",
+      "cap_gates": "What it cannot confirm, it shows",
+      "cap_dxf": "Written. Read back. Compared.",
+      "label_film": "Visualisation made for this film · not a product view",
+      "label_actual": "Actual software · development build",
+      "label_output": "Actual product output · development build",
+      "wrong": "wrong cut",
+      "eq_point": "point on the cut",
+      "check_title": "Interface check",
+      "check_diff": "difference",
+      "check_tol": "tolerance",
+      "unit_mm": "mm",
+      "part_header": "header",
+      "part_branch": "branch",
+      "dxf_reread": "read back from the file",
+      "positioning": "AI-native engineering platform powered by AMOEBA",
+      "planned_ai": "AI drawing interpretation: planned",
+      "today": "Running today",
+      "today_items": [
+        "Calculation",
+        "Checks",
+        "Record"
+      ],
+      "brand": "Engineering, Reimagined.",
+      "cta": "Request a demonstration",
+      "disclaimer": "Product concept. Capabilities in development. Not validated for manufacturing.",
+      "ui_note": "",
+      "bytes": "bytes",
+      "credit": "",
+      "hook2": "Get it wrong, and nothing fits."
+    }
+  },
+  "ja": {
+    "lines": [
+      {
+        "id": "L1",
+        "text": "枝管と母管が交わる、一本の曲線。誤れば、合いません。",
+        "reading": "えだかんと ぼかんが まじわる、いっぽんの きょくせん。あやまれば、あいません。",
+        "kana": "エダカント'/ボカンガ'/マジワ'ル、イ'ッポンノ/キョ_クセン'、アヤマ'レバ、アイマセ'ン"
+      },
+      {
+        "id": "L2",
+        "text": "NEXUS FABRIC。寸法から、二枚の板展開を計算します。",
+        "reading": "ネクサス ファブリック。すんぽうから、にまいの いたてんかいを けいさんします。",
+        "kana": "ネ'_クサス/ファブリ'ック、スンポオカラ'/ニ'マイノ/イタテ'ンカイオ/ケエサン'/シマ'_ス"
+      },
+      {
+        "id": "L3",
+        "text": "切断線は、ひとつの式で決まります。",
+        "reading": "せつだんせんは、ひとつの しきで きまります。",
+        "kana": "セツダンセンワ'、_ヒト'ツノ/_シキ'デ/キマリマ'_ス"
+      },
+      {
+        "id": "L4",
+        "text": "そして、自ら検算。立体に戻し、取合いの一致を確かめます。",
+        "reading": "そして、みずから けんざん。りったいに もどし、とりあいの いっちを たしかめます。",
+        "kana": "ソ_シテ'/ミ'ズカラ/ケンザン'、リッタイニ'/モド'シ、トリアイノ'/イッチオ'/タ_シカメマ'_ス"
+      },
+      {
+        "id": "L5",
+        "text": "すべて記録し、再実行できます。",
+        "reading": "すべて きろくし、さいじっこう できます。",
+        "kana": "ス'ベテ/キロ_クシ'、サイジ'ッコオ/デキマ'_ス"
+      },
+      {
+        "id": "L6",
+        "text": "確認できないことは隠しません。結果は「要レビュー」のまま。",
+        "reading": "かくにん できない ことは かくしません。けっかは、ようレビューの まま。",
+        "kana": "カクニン'/デキ'ナイ/コト'ワ/カ_クシマセ'ン、ケッカワ'/ヨオレ'ビュウノ/ママ'"
+      },
+      {
+        "id": "L7",
+        "text": "DXFは再読込して照合。「未リリース」と明記します。",
+        "reading": "ディーエックスエフは さいよみこみして しょうごう。みリリースと めいきします。",
+        "kana": "ディイエッ_クスエ'フワ/サイヨミコミ_シテ'/ショオゴオ'、ミリリ'イ_スト/メ'エ_キ/シマ'_ス"
+      },
+      {
+        "id": "L8",
+        "text": "図面の読み取りは計画中。計算・検証・記録は、いま動いています。",
+        "reading": "ずめんの よみとりは けいかくちゅう。けいさん、けんしょう、きろくは、いま うごいています。",
+        "kana": "ズメンノ'/ヨミトリワ'/ケエカ_クチュウ'、ケエサン'/ケンショオ'/キロクワ'、イ'マ/ウゴ'イテ/イマ'_ス"
+      },
+      {
+        "id": "L9",
+        "text": "NEXUS FABRIC。設計を、再定義。",
+        "reading": "ネクサス ファブリック。せっけいを、さいていぎ。",
+        "kana": "ネ'_クサス/ファブリ'ック、セッケエオ'、サイテ'エギ"
+      }
+    ],
+    "onscreen": {
+      "hook": "一本の曲線。",
+      "cap_form": "取合いの寸法を入力",
+      "cap_result": "二枚の板展開を計算",
+      "cap_eq": "ひとつの式で、切断線のすべての点。",
+      "cap_fold": "立体に戻すと、一本の曲線",
+      "cap_records": "すべて記録。再実行で一致。",
+      "cap_gates": "確認できないことは、隠さない",
+      "cap_dxf": "出力・再読込・照合",
+      "label_film": "本映像用のビジュアル・製品画面ではありません",
+      "label_actual": "実際のソフトウェア・開発版",
+      "label_output": "製品の実際の出力・開発版",
+      "wrong": "誤った切断",
+      "eq_point": "切断線上の点",
+      "check_title": "部材間の取合い確認",
+      "check_diff": "差",
+      "check_tol": "許容差",
+      "unit_mm": "mm",
+      "part_header": "母管",
+      "part_branch": "枝管",
+      "dxf_reread": "ファイルから再読込",
+      "positioning": "AMOEBAを核とする、AIネイティブの設計基盤",
+      "planned_ai": "AIによる図面解釈：計画中",
+      "today": "稼働中",
+      "today_items": [
+        "計算",
+        "検証",
+        "記録"
+      ],
+      "brand": "設計を、再定義。",
+      "cta": "デモのご依頼",
+      "disclaimer": "製品コンセプトです。機能は開発中であり、製造用途での検証は未実施です。",
+      "ui_note": "画面は英語版インターフェース",
+      "bytes": "バイト",
+      "credit": "音声：VOICEVOX Nemo",
+      "hook2": "誤れば、合いません。"
+    }
+  }
+}

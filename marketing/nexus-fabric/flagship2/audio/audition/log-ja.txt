@@ -1,0 +1,21 @@
+jf_alpha                                 err 0.031 exact 4/9 logp -0.09 rate 8.01 f0 271.2 range 9.02 pesq 3.73 total 43.79
+jf_gongitsune                            err 0.017 exact 6/9 logp -0.14 rate 7.81 f0 235.3 range 9.86 pesq 3.92 total 53.77
+jm_kumo                                  err 0.031 exact 4/9 logp -0.12 rate 7.95 f0 98.2 range 9.14 pesq 3.99 total 47.05
+FAILED VOICEVOX 女声1 / ノーマル (10005) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 女声2 / ノーマル (10007) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 女声3 / ノーマル (10004) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 女声4 / ノーマル (10003) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 女声5 / ノーマル (10008) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 女声6 / ノーマル (10006) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 男声1 / ノーマル (10001) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 男声2 / ノーマル (10000) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 男声3 / ノーマル (10002) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 九州そら / ノーマル (16) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 玄野武宏 / ノーマル (11) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 雀松朱司 / ノーマル (52) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 麒ヶ島宗麟 / ノーマル (53) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 離途 / ノーマル (99) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 離途 / シリアス (101) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 黒沢冴白 / ノーマル (100) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 東北イタコ / ノーマル (109) 'dict' object has no attribute 'vowel_length'
+FAILED VOICEVOX 東北ずん子 / ノーマル (107) 'dict' object has no attribute 'vowel_length'

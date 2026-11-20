@@ -1,0 +1,17 @@
+# Raw captured frames (about 1.1 GB per language). capture/capture.js deletes them after packing.
+capture/frames/
+# Stills, frame dumps and contact sheets made while reviewing
+stills/
+frames/
+# Intermediate audio, rebuilt by audio/make_music.py and audio/make_mix.py.
+# The voice is kept as lossless FLAC; the WAV copies are made from the engines and ignored.
+audio/bed-*.wav
+audio/mix-*.wav
+audio/vo-*.wav
+audio/stem-*.wav
+audio/audition/*.wav
+audio/audition/*.flac
+# Dependencies and caches
+node_modules/
+__pycache__/
+*.pyc

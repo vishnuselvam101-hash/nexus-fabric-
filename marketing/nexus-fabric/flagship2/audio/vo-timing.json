@@ -1,0 +1,775 @@
+{
+ "sample_rate": 48000,
+ "fps": 30,
+ "duration": 50.0,
+ "frames": 1500,
+ "lead": 0.6,
+ "gaps": [
+  0.9,
+  2.0,
+  1.3,
+  0.8,
+  0.55,
+  0.5,
+  0.65,
+  0.5
+ ],
+ "tail": 2.122,
+ "slots": [
+  {
+   "id": "L1",
+   "start": 0.6,
+   "end": 5.972,
+   "en": 4.496,
+   "ja": 5.372
+  },
+  {
+   "id": "L2",
+   "start": 6.872,
+   "end": 11.998,
+   "en": 5.126,
+   "ja": 4.78
+  },
+  {
+   "id": "L3",
+   "start": 13.998,
+   "end": 17.013,
+   "en": 2.623,
+   "ja": 3.015
+  },
+  {
+   "id": "L4",
+   "start": 18.313,
+   "end": 23.703,
+   "en": 4.651,
+   "ja": 5.391
+  },
+  {
+   "id": "L5",
+   "start": 24.503,
+   "end": 27.403,
+   "en": 2.653,
+   "ja": 2.9
+  },
+  {
+   "id": "L6",
+   "start": 27.953,
+   "end": 32.471,
+   "en": 4.428,
+   "ja": 4.517
+  },
+  {
+   "id": "L7",
+   "start": 32.971,
+   "end": 37.731,
+   "en": 4.438,
+   "ja": 4.761
+  },
+  {
+   "id": "L8",
+   "start": 38.381,
+   "end": 44.055,
+   "en": 5.293,
+   "ja": 5.673
+  },
+  {
+   "id": "L9",
+   "start": 44.555,
+   "end": 47.878,
+   "en": 2.893,
+   "ja": 3.323
+  }
+ ],
+ "voice": {
+  "en": {
+   "engine": "kokoro",
+   "voice": "af_heart",
+   "speed": 0.88,
+   "lang": "en-us"
+  },
+  "ja": {
+   "engine": "voicevox",
+   "voice": 10003,
+   "speed": 1.05,
+   "intonation": 1.0,
+   "pitch": 0.0,
+   "pause_scale": 0.62
+  }
+ },
+ "en": {
+  "lines": [
+   {
+    "id": "L1",
+    "text": "Where a branch meets a header, there is one curve. Get it wrong, and nothing fits.",
+    "start": 0.6,
+    "end": 5.096,
+    "duration": 4.496,
+    "speech": 3.896,
+    "units": 16,
+    "rate": 4.11,
+    "pauses": [
+     [
+      1.865,
+      1.99
+     ],
+     [
+      2.98,
+      3.455
+     ]
+    ],
+    "peak_dbfs": -8.13,
+    "f0_median_hz": 202.5,
+    "clipped": 0
+   },
+   {
+    "id": "L2",
+    "text": "NEXUS FABRIC takes the dimensions of the joint, and calculates both flat patterns.",
+    "start": 6.872,
+    "end": 11.998,
+    "duration": 5.126,
+    "speech": 4.616,
+    "units": 13,
+    "rate": 2.82,
+    "pauses": [
+     [
+      7.777,
+      7.882
+     ],
+     [
+      9.522,
+      9.927
+     ]
+    ],
+    "peak_dbfs": -5.6,
+    "f0_median_hz": 195.1,
+    "clipped": 0
+   },
+   {
+    "id": "L3",
+    "text": "One equation gives every point on the cut.",
+    "start": 13.998,
+    "end": 16.621,
+    "duration": 2.623,
+    "speech": 2.473,
+    "units": 8,
+    "rate": 3.23,
+    "pauses": [
+     [
+      14.963,
+      15.113
+     ]
+    ],
+    "peak_dbfs": -3.0,
+    "f0_median_hz": 195.1,
+    "clipped": 0
+   },
+   {
+    "id": "L4",
+    "text": "Then it checks its own work. Folded back, the two edges must be one curve.",
+    "start": 18.313,
+    "end": 22.964,
+    "duration": 4.651,
+    "speech": 4.061,
+    "units": 15,
+    "rate": 3.69,
+    "pauses": [
+     [
+      19.628,
+      20.098
+     ],
+     [
+      20.913,
+      21.033
+     ]
+    ],
+    "peak_dbfs": -4.16,
+    "f0_median_hz": 186.0,
+    "clipped": 0
+   },
+   {
+    "id": "L5",
+    "text": "Every step is recorded, and can be replayed.",
+    "start": 24.503,
+    "end": 27.156,
+    "duration": 2.653,
+    "speech": 2.333,
+    "units": 8,
+    "rate": 3.43,
+    "pauses": [
+     [
+      25.848,
+      26.168
+     ]
+    ],
+    "peak_dbfs": -3.0,
+    "f0_median_hz": 201.3,
+    "clipped": 0
+   },
+   {
+    "id": "L6",
+    "text": "What it cannot confirm, it shows. The result stays: review required.",
+    "start": 27.953,
+    "end": 32.381,
+    "duration": 4.428,
+    "speech": 3.743,
+    "units": 11,
+    "rate": 2.94,
+    "pauses": [
+     [
+      29.683,
+      30.158
+     ],
+     [
+      31.158,
+      31.368
+     ]
+    ],
+    "peak_dbfs": -6.25,
+    "f0_median_hz": 202.5,
+    "clipped": 0
+   },
+   {
+    "id": "L7",
+    "text": "The DXF is written, read back, compared — and marked: not released.",
+    "start": 32.971,
+    "end": 37.409,
+    "duration": 4.438,
+    "speech": 3.878,
+    "units": 11,
+    "rate": 2.84,
+    "pauses": [
+     [
+      34.281,
+      34.481
+     ],
+     [
+      36.236,
+      36.596
+     ]
+    ],
+    "peak_dbfs": -3.0,
+    "f0_median_hz": 195.1,
+    "clipped": 0
+   },
+   {
+    "id": "L8",
+    "text": "Reading drawings is planned. The calculation, the checks, the record: running today.",
+    "start": 38.381,
+    "end": 43.674,
+    "duration": 5.293,
+    "speech": 4.503,
+    "units": 12,
+    "rate": 2.66,
+    "pauses": [
+     [
+      39.941,
+      40.446
+     ],
+     [
+      42.536,
+      42.821
+     ]
+    ],
+    "peak_dbfs": -5.29,
+    "f0_median_hz": 200.0,
+    "clipped": 0
+   },
+   {
+    "id": "L9",
+    "text": "NEXUS FABRIC. Engineering, reimagined.",
+    "start": 44.555,
+    "end": 47.448,
+    "duration": 2.893,
+    "speech": 2.588,
+    "units": 4,
+    "rate": 1.55,
+    "pauses": [
+     [
+      45.58,
+      45.885
+     ]
+    ],
+    "peak_dbfs": -7.3,
+    "f0_median_hz": 205.1,
+    "clipped": 0
+   }
+  ],
+  "cues": [
+   {
+    "start": 0.54,
+    "end": 3.375,
+    "lines": [
+     "Where a branch meets a header,",
+     "there is one curve."
+    ]
+   },
+   {
+    "start": 3.395,
+    "end": 5.496,
+    "lines": [
+     "Get it wrong, and nothing fits."
+    ]
+   },
+   {
+    "start": 6.812,
+    "end": 9.847,
+    "lines": [
+     "NEXUS FABRIC takes the",
+     "dimensions of the joint,"
+    ]
+   },
+   {
+    "start": 9.867,
+    "end": 12.398,
+    "lines": [
+     "and calculates both flat patterns."
+    ]
+   },
+   {
+    "start": 13.938,
+    "end": 17.021,
+    "lines": [
+     "One equation gives every point on the cut."
+    ]
+   },
+   {
+    "start": 18.253,
+    "end": 20.953,
+    "lines": [
+     "Then it checks its own work.",
+     "Folded back,"
+    ]
+   },
+   {
+    "start": 20.973,
+    "end": 23.364,
+    "lines": [
+     "the two edges must be one curve."
+    ]
+   },
+   {
+    "start": 24.443,
+    "end": 27.556,
+    "lines": [
+     "Every step is recorded,",
+     "and can be replayed."
+    ]
+   },
+   {
+    "start": 27.893,
+    "end": 31.288,
+    "lines": [
+     "What it cannot confirm,",
+     "it shows. The result stays:"
+    ]
+   },
+   {
+    "start": 31.308,
+    "end": 32.781,
+    "lines": [
+     "review required."
+    ]
+   },
+   {
+    "start": 32.911,
+    "end": 36.516,
+    "lines": [
+     "The DXF is written,",
+     "read back, compared — and marked:"
+    ]
+   },
+   {
+    "start": 36.536,
+    "end": 37.809,
+    "lines": [
+     "not released."
+    ]
+   },
+   {
+    "start": 38.321,
+    "end": 40.341,
+    "lines": [
+     "Reading drawings is planned."
+    ]
+   },
+   {
+    "start": 40.386,
+    "end": 44.074,
+    "lines": [
+     "The calculation, the checks,",
+     "the record: running today."
+    ]
+   },
+   {
+    "start": 44.495,
+    "end": 47.848,
+    "lines": [
+     "NEXUS FABRIC.",
+     "Engineering, reimagined."
+    ]
+   }
+  ],
+  "speech_total": 36.6,
+  "rate_unit": "words/s",
+  "mean_rate": 3.03
+ },
+ "ja": {
+  "lines": [
+   {
+    "id": "L1",
+    "text": "枝管と母管が交わる、一本の曲線。誤れば、合いません。",
+    "start": 0.6,
+    "end": 5.972,
+    "duration": 5.372,
+    "speech": 4.262,
+    "units": 33,
+    "rate": 7.74,
+    "pauses": [
+     [
+      2.48,
+      2.785
+     ],
+     [
+      2.875,
+      3.05
+     ],
+     [
+      3.925,
+      4.29
+     ],
+     [
+      4.985,
+      5.25
+     ]
+    ],
+    "peak_dbfs": -6.44,
+    "f0_median_hz": 207.8,
+    "clipped": 0
+   },
+   {
+    "id": "L2",
+    "text": "NEXUS FABRIC。寸法から、二枚の板展開を計算します。",
+    "start": 6.872,
+    "end": 11.652,
+    "duration": 4.78,
+    "speech": 4.375,
+    "units": 34,
+    "rate": 7.77,
+    "pauses": [
+     [
+      7.897,
+      8.072
+     ],
+     [
+      8.167,
+      8.397
+     ]
+    ],
+    "peak_dbfs": -7.15,
+    "f0_median_hz": 207.8,
+    "clipped": 0
+   },
+   {
+    "id": "L3",
+    "text": "切断線は、ひとつの式で決まります。",
+    "start": 13.998,
+    "end": 17.013,
+    "duration": 3.015,
+    "speech": 2.775,
+    "units": 19,
+    "rate": 6.85,
+    "pauses": [
+     [
+      15.093,
+      15.333
+     ]
+    ],
+    "peak_dbfs": -8.17,
+    "f0_median_hz": 192.8,
+    "clipped": 0
+   },
+   {
+    "id": "L4",
+    "text": "そして、自ら検算。立体に戻し、取合いの一致を確かめます。",
+    "start": 18.313,
+    "end": 23.704,
+    "duration": 5.391,
+    "speech": 4.401,
+    "units": 34,
+    "rate": 7.73,
+    "pauses": [
+     [
+      19.908,
+      20.208
+     ],
+     [
+      20.318,
+      20.483
+     ],
+     [
+      21.318,
+      21.698
+     ],
+     [
+      22.388,
+      22.533
+     ]
+    ],
+    "peak_dbfs": -6.42,
+    "f0_median_hz": 195.1,
+    "clipped": 0
+   },
+   {
+    "id": "L5",
+    "text": "すべて記録し、再実行できます。",
+    "start": 24.503,
+    "end": 27.403,
+    "duration": 2.9,
+    "speech": 2.38,
+    "units": 17,
+    "rate": 7.14,
+    "pauses": [
+     [
+      25.598,
+      25.958
+     ],
+     [
+      26.398,
+      26.558
+     ]
+    ],
+    "peak_dbfs": -4.9,
+    "f0_median_hz": 188.2,
+    "clipped": 0
+   },
+   {
+    "id": "L6",
+    "text": "確認できないことは隠しません。結果は「要レビュー」のまま。",
+    "start": 27.953,
+    "end": 32.47,
+    "duration": 4.517,
+    "speech": 3.967,
+    "units": 30,
+    "rate": 7.56,
+    "pauses": [
+     [
+      30.328,
+      30.728
+     ],
+     [
+      30.853,
+      31.003
+     ]
+    ],
+    "peak_dbfs": -8.33,
+    "f0_median_hz": 207.8,
+    "clipped": 0
+   },
+   {
+    "id": "L7",
+    "text": "DXFは再読込して照合。「未リリース」と明記します。",
+    "start": 32.971,
+    "end": 37.732,
+    "duration": 4.761,
+    "speech": 4.281,
+    "units": 35,
+    "rate": 8.18,
+    "pauses": [
+     [
+      33.356,
+      33.531
+     ],
+     [
+      35.791,
+      36.096
+     ]
+    ],
+    "peak_dbfs": -7.11,
+    "f0_median_hz": 228.6,
+    "clipped": 0
+   },
+   {
+    "id": "L8",
+    "text": "図面の読み取りは計画中。計算・検証・記録は、いま動いています。",
+    "start": 38.381,
+    "end": 44.054,
+    "duration": 5.673,
+    "speech": 4.988,
+    "units": 38,
+    "rate": 7.62,
+    "pauses": [
+     [
+      40.231,
+      40.346
+     ],
+     [
+      40.581,
+      40.866
+     ],
+     [
+      42.576,
+      42.861
+     ]
+    ],
+    "peak_dbfs": -8.63,
+    "f0_median_hz": 225.4,
+    "clipped": 0
+   },
+   {
+    "id": "L9",
+    "text": "NEXUS FABRIC。設計を、再定義。",
+    "start": 44.555,
+    "end": 47.878,
+    "duration": 3.323,
+    "speech": 2.518,
+    "units": 20,
+    "rate": 7.94,
+    "pauses": [
+     [
+      45.58,
+      45.755
+     ],
+     [
+      45.86,
+      46.085
+     ],
+     [
+      46.255,
+      46.44
+     ],
+     [
+      46.84,
+      47.06
+     ]
+    ],
+    "peak_dbfs": -6.74,
+    "f0_median_hz": 193.9,
+    "clipped": 0
+   }
+  ],
+  "cues": [
+   {
+    "start": 0.54,
+    "end": 4.21,
+    "lines": [
+     "枝管と母管が交わる、",
+     "一本の曲線。"
+    ]
+   },
+   {
+    "start": 4.23,
+    "end": 6.372,
+    "lines": [
+     "誤れば、",
+     "合いません。"
+    ]
+   },
+   {
+    "start": 6.812,
+    "end": 8.317,
+    "lines": [
+     "NEXUS FABRIC。"
+    ]
+   },
+   {
+    "start": 8.337,
+    "end": 12.052,
+    "lines": [
+     "寸法から、二枚の板展開を計算します。"
+    ]
+   },
+   {
+    "start": 13.938,
+    "end": 17.413,
+    "lines": [
+     "切断線は、",
+     "ひとつの式で決まります。"
+    ]
+   },
+   {
+    "start": 18.253,
+    "end": 21.618,
+    "lines": [
+     "そして、自ら検算。",
+     "立体に戻し、"
+    ]
+   },
+   {
+    "start": 21.638,
+    "end": 24.104,
+    "lines": [
+     "取合いの一致を確かめます。"
+    ]
+   },
+   {
+    "start": 24.443,
+    "end": 27.803,
+    "lines": [
+     "すべて記録し、",
+     "再実行できます。"
+    ]
+   },
+   {
+    "start": 27.893,
+    "end": 30.648,
+    "lines": [
+     "確認できないことは隠しません。"
+    ]
+   },
+   {
+    "start": 30.668,
+    "end": 32.87,
+    "lines": [
+     "結果は「要レビュー」のまま。"
+    ]
+   },
+   {
+    "start": 32.911,
+    "end": 36.016,
+    "lines": [
+     "DXFは再読込して照合。"
+    ]
+   },
+   {
+    "start": 36.036,
+    "end": 38.132,
+    "lines": [
+     "「未リリース」と明記します。"
+    ]
+   },
+   {
+    "start": 38.321,
+    "end": 42.781,
+    "lines": [
+     "図面の読み取りは計画中。",
+     "計算・検証・記録は、"
+    ]
+   },
+   {
+    "start": 42.801,
+    "end": 44.454,
+    "lines": [
+     "いま動いています。"
+    ]
+   },
+   {
+    "start": 44.495,
+    "end": 46.98,
+    "lines": [
+     "NEXUS FABRIC。",
+     "設計を、"
+    ]
+   },
+   {
+    "start": 47.0,
+    "end": 48.278,
+    "lines": [
+     "再定義。"
+    ]
+   }
+  ],
+  "speech_total": 39.73,
+  "rate_unit": "kana/s",
+  "mean_rate": 7.61
+ }
+}
