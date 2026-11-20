@@ -130,6 +130,8 @@ Severity follows the validation report: **high** = can produce a wrong part with
 
 ### RB-001 — Contact surfaces: one flag for both parts, one curve for both cuts; the set-on joint cannot be expressed (high)
 
+**Status (20 Nov 2026): partly fixed.** Fixed for the specification's own set-on pairing (Spec 02 §4.4: branch INSIDE surface on header OUTSIDE surface). Each part declares its surface (`header_surface_reference`, `branch_surface_reference`), the joint is declared `joint: "set_on"`, and the opening is the branch bore (opening width 2 × 77.095 mm along the header axis, not the outside diameter). Each part's radii are checked against its own surface; every interface check passes, including the independent 3D point checks of the joint (`verify::verify_joint`). Tests: nf-core `rb001_set_on_joint_is_declared_per_part_computed_and_independently_checked`, `rb001_set_on_is_refused_unless_the_branch_bore_is_the_contact_surface`, `rb001_undeclared_joint_is_one_contact_curve_and_is_not_called_set_on`; regression `004-set-on-joint-bore-on-header-outside.json`; uem `rb001_parts_cut_for_different_surfaces_fail_the_interface_checks`. **Open:** a set-on whose saddle is cut on the branch OUTSIDE surface while the opening is the bore (two curves) cannot be expressed: there is no bore input and no wall thickness. Undeclared joints are computed as one contact curve and labelled as such. The workshop validity of the §4.4 pairing is unreviewed (EV-1).
+
 - **Evidence.** DN300 header (OD 323.9, t 10.31) with a DN150 branch (OD 168.3, t 7.11), β 90°, δ 0.
   - Spec §4.4's set-on example, branch **inside** on header **outside**: `header_radius 161.95, header_dev_radius 156.795, branch_radius 77.095, branch_dev_radius 80.6`. Under `outside` it is REFUSED ("negative wall thickness" on the branch). Under `inside` it is REFUSED (header). Under `neutral` it is REFUSED. Under `unknown` it is accepted, all checks PASS, and the opening is 154.19 mm wide (the bore). So the correct joint is producible only by declaring the surface unknown, which also disables BE-001.
   - Natural input with both ODs, `surface_reference: "outside"`: `branch_radius 84.15, branch_dev_radius 80.6` (everything else as above). Accepted, all checks PASS, G10 and G15 PASS. The opening is **168.30 mm** wide, the branch OD, against a bore of 154.08. A set-on branch has no land and passes through the hole. The branch saddle depth is 23.58 mm instead of 19.50 (4.1 mm misfit at the flanks).
@@ -139,46 +141,66 @@ Severity follows the validation report: **high** = can produce a wrong part with
 
 ### RB-002 — The sign of δ (handedness of the whole assembly) is defined only by an unlabelled sketch (medium)
 
+**Status (20 Nov 2026): open.** The sign of δ is stated in words in the drafted pattern conventions (uem `delta_notes`) and checked by the delta-side checks (uem `rb002_…`). The conventions are not yet written into the DXF or the result, and the projection method is not recorded.
+
 - **Evidence.** asm1 with δ = +25 and with δ = −25 (otherwise identical): both jobs PASS everything. The two header plates are exact mirror images (2.5e-13 mm after v → W − v; 72.5 mm without). The opening centre is +34.61 mm and −34.61 mm from the plate centreline. +δ is +y of Spec §4.4, i.e. *away from the viewer of the side elevation*. The UI shows it only in an "end view along the header axis" without saying from which end. That view is consistent with the product under third-angle reading (view from the +x end) and mirrored under first-angle. Neither the result nor the DXF records the side of the offset relative to the lean.
 - **Correction.** State it in words in the UI, the result and the DXF: "branch leans toward +x (higher station); +δ displaces it away from the viewer of the side elevation; projection: third angle". Record the projection method with the job (Spec 02 §2.1 already requires this, `FR-03-4`).
 
 ### RB-003 — Rolling axis and seam edges are not in the DXF and differ between parts of one job (medium)
+
+**Status (20 Nov 2026): open.** Plate frames still differ between families (header circumference along Y, shell along X). The statement is drafted in the pattern conventions but not yet written into the DXF.
 
 - **Evidence.** The same shell (R 150, L 1200) is 942.48 × 1200 as `cylinder_shell` and 1200 × 942.48 as the header of an assembly. In the assembly, the header DXF has its circumference along Y and the branch DXF along X. The DXF has no seam, axis or end labels; the JSON names are the only record, and the header's x = 0 end is named "bottom". For L ≈ 2πR_dev (e.g. R_dev 150, L 942.48) the plate is square and only those names tell the fabricator how to roll it. Rolled the other way, the opening is turned a quarter turn: Defect 002 recreated in the workshop.
 - **Correction.** Use one plate frame for every shell family. Put seam edges, the rolling axis and the station-0 end on a non-cutting `REFERENCE` layer, or in TEXT ("ROLL ABOUT X; SEAMS = TOP AND BOTTOM EDGES; STATION 0 = LEFT END"). Add a check that each DXF states it.
 
 ### RB-004 — Representation error is uniform-sampled, scale-proportional and not gated (medium)
 
+**Status (20 Nov 2026): partly fixed.** Polyline density refined until the measured chord error is at most 0.01 mm, a stated implementation limit; a part that cannot reach it is refused; both parts of a joint share one segment count, so their vertices coincide (test `rb004_polyline_density_follows_the_stated_maximum_chord_error`). **Open:** vertices are not placed at the tangent parameters; the chord limit is absolute, so the vertex count depends on size (see COMPUTATIONAL_VALIDATION_REPORT §9); no engineering budget.
+
 - **Evidence.** §3: 2.41 mm at R 1000, δ −300, β 15°, gap 1.1e-6; 0.66 mm at gap 1e-4. The estimate is at most 4.7 % below the truth (R 150, gap 1e-5: 0.1960 true against 0.1873 stated). G08 is identical for 0.001 mm and 2.4 mm. TOLERANCE_POLICY §6 quotes only R = 150 (0.1–0.2 mm). Mitigation: the measured fit-up gap between the two parts stays ≤ 0.003 mm.
 - **Correction.** Adaptive sampling with vertices at the tangent parameters and refinement until ε_rep ≤ a declared budget (Spec ALG-07/09). Report ε_rep relative to size. State the scale dependence in TOLERANCE_POLICY.
 
 ### RB-005 — ε_num is still not a bound (low)
+
+**Status (20 Nov 2026): partly fixed.** An a-priori bound on the rounding error of the saddle and the opening is in place (`s_error_bound`, `saddle_error_bound`, `opening_error_bound`; test `rb005_eps_num_of_a_branch_is_an_a_priori_bound`). **Open:** the bound is checked at five measured points, not over the range; the quick validation run did not reach the eps_num check of the near-tangent case N-tangent-d-b90-g2e-06, so D4 was not re-measured.
 
 - **Evidence.** Stub R 150, r 149.99978, β 90°, δ 0, s_end 151: true 2.0e-12 mm against stated 1.07e-12 (×1.88). With r 149.9997 and s_end 160: ×1.27. The estimate scales with s_end, which does not affect the error.
 - **Correction.** Use the a-priori bound in §3, [3u R²/√(R² − y²_max) + 4u(R + r)] / sin β, or interval evaluation. Either one makes the value a true bound at negligible cost.
 
 ### RB-006 — The product's own checks cannot see convention errors, and two of them are described more strongly than they work (medium)
 
+**Status (20 Nov 2026): partly fixed.** Independent 3D formulation in `uem/src/independent.rs`, used by `verify.rs` (tests `rb006_independent_checks_detect_faults_without_the_fold_back`, `rb006_independent_checks_pass_across_the_accepted_range`); G15 text and the `reimport_check` documentation no longer claim independence they do not have. **Open:** the verifier is not owned or written by another person; the DXF-only mating test (roll and fit from the files alone) is not implemented.
+
 - **Evidence.** The interface check gets the same geometry for both parts (RB-001), and its doc comment says otherwise. G15 says "re-imported by the independent reader and compared with the intended geometry", but the reader is in the same crate, by the same author, and the comparison target is the product's own entity list. The fold-backs (`fold_branch`, `fold_header`) are the algebraic inverses of the constructions. A mirrored, transposed or wrongly-sided but self-consistent result passes them all; both earlier defects were found from outside.
 - **Correction.** Add a DXF-only physical mating test (roll each file by its declared side and roll axis, proper rigid fit, no product parameters). Have the verifier owned and written separately. Reword G15 and the doc comment.
 
 ### RB-007 — Angular datum and direction not declared physically (Spec §0.3) (low)
 
+**Status (20 Nov 2026): open.** The angular datum and direction sentences are drafted in the pattern conventions, not yet written into the DXF or the result.
+
 The branch seam is "phi = 0", never described as "the generator on the +δ side, 90° from the crotch–heel plane". The direction of increase as seen from a declared end is stated for no family. Only the marking side fixes it implicitly. **Correction:** one sentence per family in the result and the DXF.
 
 ### RB-008 — DXF: open-flagged closed polylines, no kerf convention, no labels (low)
+
+**Status (20 Nov 2026): partly fixed.** Openings are written as closed polylines (flag 70 = 1) without the repeated vertex (nf-core `to_entities`); the quality gate checks the flag (nf-dxf `rule_open_contour_gaps_missing_edges_and_unflagged_openings`). **Open:** the kerf statement is not yet written into the DXF, and the outer profile is still a chain of separate entities.
 
 The opening POLYLINE has flag 70 = 0 and a repeated first vertex. The outer profile is a chain of separate entities. Kerf ownership is not declared in the file (MATH-18 is a release item in the specification). **Correction:** set the closed flag (70 = 1) without the repeated vertex, optionally write the outer profile as one closed polyline, and add a TEXT "GEOMETRY = FINISHED PART EDGE, KERF NOT APPLIED".
 
 ### RB-009 — Plate origins differ between families and are unstated (low)
 
+**Status (20 Nov 2026): open.** Plate origins are stated in the drafted conventions, not yet in the DXF or the result.
+
 The branch origin sits at the header-axis level (s = 0, off the part); cone and reducer at the apex; shell and header at a corner. This is harmless for CAM nesting, but confusing for manual layout from coordinates. **Correction:** state it, or normalise to the bounding-box corner.
 
 ### RB-010 — `unknown` surface disables every radius check; cone, reducer and shell have no surface attribute at all (low)
 
+**Status (20 Nov 2026): open.** Under `unknown` the radius checks are still switched off; cone, reducer and shell still carry no surface attribute.
+
 R_dev = 10 R is accepted under `unknown` (validation observation 3). Cone, reducer and shell radii are "reference radii as entered", with no declaration of what the user meant by them. **Correction:** require a surface declaration on every family; under `unknown`, at least warn when R_dev / R is outside 0.9…1.1.
 
 ### RB-011 — `validation/` shares the specification's semantics and the product's limits (medium; about the validation, not the product)
+
+**Status (20 Nov 2026): open.** `validation/` is unchanged. Its quick run on this build disagrees on four cases; two are caused by the harness (see COMPUTATIONAL_VALIDATION_REPORT §9). Its shared semantics and limits are not addressed.
 
 See §5. Agreement between product and validation (0 disagreements in 1,362 cases) is strong evidence about numerics and frames as the specification defines them. It is no evidence that the specification's input meaning, seam placement, joint model or limits are right.
 

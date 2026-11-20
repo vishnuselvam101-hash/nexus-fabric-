@@ -19,7 +19,16 @@
 //!
 //! CAM-system acceptance has NOT been tested.
 //!
-//! The reader shares no code with the writer beyond the entity structs.
+//! The reader shares no code with the writer beyond the entity structs. It was
+//! written by the same author and lives in the same crate: "independent" here
+//! means a separate implementation, not a separate owner (review RB-006).
+//!
+//! Quality gate. `quality::quality_gate` is an error-detection pass over a file
+//! as written and re-read: open contours, duplicate or overlapping entities,
+//! zero-length segments, self-intersections, inner profiles outside the outer
+//! one, wrong layer, missing units, wrong extents. It looks only at the file.
+
+pub mod quality;
 
 /// Layer that carries the annotation. Never a cutting layer.
 pub const MARK_LAYER: &str = "NF_NOT_RELEASED";
@@ -47,9 +56,12 @@ pub enum Entity {
         start_deg: f64,
         end_deg: f64,
     },
+    /// `closed`: the polyline is a closed profile; the closing segment runs from
+    /// the last vertex back to the first, which is NOT repeated (DXF flag 70 bit 1).
     Polyline {
         layer: String,
         pts: Vec<(f64, f64)>,
+        closed: bool,
     },
     /// Annotation (single-line text, insertion point at its lower left). Never geometry.
     Text {
@@ -84,14 +96,20 @@ impl Entity {
                 }
                 r * sweep.to_radians()
             }
-            Entity::Polyline { pts, .. } => pts
-                .windows(2)
-                .map(|w| (w[0].0 - w[1].0).hypot(w[0].1 - w[1].1))
-                .sum(),
+            Entity::Polyline { pts, closed, .. } => {
+                let open: f64 = pts
+                    .windows(2)
+                    .map(|w| (w[0].0 - w[1].0).hypot(w[0].1 - w[1].1))
+                    .sum();
+                match (closed, pts.first(), pts.last()) {
+                    (true, Some(a), Some(b)) => open + (a.0 - b.0).hypot(a.1 - b.1),
+                    _ => open,
+                }
+            }
             Entity::Text { .. } => 0.0,
         }
     }
-    fn points(&self) -> Vec<(f64, f64)> {
+    pub(crate) fn points(&self) -> Vec<(f64, f64)> {
         match self {
             Entity::Line { a, b, .. } => vec![*a, *b],
             Entity::Arc {
@@ -125,8 +143,43 @@ pub fn marking(minx: f64, miny: f64, maxx: f64, maxy: f64) -> Vec<Entity> {
     marking_with(minx, miny, maxx, maxy, &[])
 }
 
-/// As `marking`, followed by further annotation lines supplied by the caller
-/// (for example the declared marking side of the pattern).
+/// Longest annotation line written (an R12 text string holds at most 255 characters).
+pub const MAX_NOTE_CHARS: usize = 250;
+
+/// The annotation lines as they are written: control characters replaced, and a
+/// line longer than `MAX_NOTE_CHARS` split at a space into several lines.
+/// Nothing is ever cut off.
+pub fn annotation_lines(extra: &[String]) -> Vec<String> {
+    let mut out = Vec::new();
+    for line in extra {
+        // one line of plain text: a line break would break the group-code structure of the file
+        let clean: String = line
+            .chars()
+            .map(|c| if c.is_control() { ' ' } else { c })
+            .collect::<String>()
+            .trim()
+            .to_string();
+        let mut rest = clean.as_str();
+        while rest.chars().count() > MAX_NOTE_CHARS {
+            let limit = rest
+                .char_indices()
+                .nth(MAX_NOTE_CHARS)
+                .map(|(i, _)| i)
+                .unwrap_or(rest.len());
+            let cut = rest[..limit].rfind(' ').filter(|i| *i > 0).unwrap_or(limit);
+            out.push(rest[..cut].trim().to_string());
+            rest = rest[cut..].trim_start();
+        }
+        out.push(rest.to_string());
+    }
+    out
+}
+
+/// As `marking`, followed by further annotation lines supplied by the caller.
+/// The first of them (the declared marking side of the pattern) is written in
+/// the size of the release marking; the others (what the plate coordinates
+/// mean: axes, seams, datums, kerf) in fine print below it, so that the
+/// annotation block stays small against the part.
 pub fn marking_with(minx: f64, miny: f64, maxx: f64, maxy: f64, extra: &[String]) -> Vec<Entity> {
     let span = (maxx - minx).max(maxy - miny);
     let h = if span.is_finite() && span > 0.0 {
@@ -152,18 +205,22 @@ pub fn marking_with(minx: f64, miny: f64, maxx: f64, maxy: f64, extra: &[String]
             text: UNITS_TEXT.into(),
         },
     ];
-    for (i, line) in extra.iter().enumerate() {
-        notes.push(Entity::Text {
-            layer: MARK_LAYER.into(),
-            at: (x, y - (6.0 + 2.0 * i as f64) * h),
-            height: h,
-            // one line of plain text: a line break would break the group-code structure of the file
-            text: line
-                .chars()
-                .map(|c| if c.is_control() { ' ' } else { c })
-                .collect::<String>()
-                .trim()
-                .to_string(),
+    let fine = h / 10.0;
+    for (i, line) in annotation_lines(extra).into_iter().enumerate() {
+        notes.push(if i == 0 {
+            Entity::Text {
+                layer: MARK_LAYER.into(),
+                at: (x, y - 6.0 * h),
+                height: h,
+                text: line,
+            }
+        } else {
+            Entity::Text {
+                layer: MARK_LAYER.into(),
+                at: (x, y - 6.0 * h - 2.0 * fine * i as f64),
+                height: fine,
+                text: line,
+            }
         });
     }
     notes
@@ -171,7 +228,7 @@ pub fn marking_with(minx: f64, miny: f64, maxx: f64, maxy: f64, extra: &[String]
 
 /// Exact bounding box of a counter-clockwise arc: its end points and every
 /// axis direction (0, 90, 180, 270 degrees) that lies inside its sweep.
-fn arc_box(c: (f64, f64), r: f64, start_deg: f64, end_deg: f64) -> [(f64, f64); 6] {
+pub(crate) fn arc_box(c: (f64, f64), r: f64, start_deg: f64, end_deg: f64) -> [(f64, f64); 6] {
     let at = |deg: f64| {
         (
             c.0 + r * deg.to_radians().cos(),
@@ -403,11 +460,11 @@ pub fn write_annotated(entities: &[Entity], extra_notes: &[String]) -> String {
                 p(50, &num(*start_deg));
                 p(51, &num(*end_deg));
             }
-            Entity::Polyline { layer, pts } => {
+            Entity::Polyline { layer, pts, closed } => {
                 p(0, "POLYLINE");
                 p(8, layer);
                 p(66, "1");
-                p(70, "0");
+                p(70, if *closed { "1" } else { "0" });
                 for q in pts {
                     p(0, "VERTEX");
                     p(8, layer);
@@ -534,6 +591,10 @@ pub fn read(text: &str) -> Result<(Vec<Entity>, Vec<String>), String> {
                 end_deg: f(get(51).ok_or("ARC without 51")?)?,
             }),
             "POLYLINE" => {
+                let flags: i64 = match get(70) {
+                    Some(v) => v.parse().map_err(|_| format!("bad POLYLINE flags '{v}'"))?,
+                    None => 0,
+                };
                 let mut pts = Vec::new();
                 let mut k = j;
                 let mut closed = false;
@@ -561,7 +622,11 @@ pub fn read(text: &str) -> Result<(Vec<Entity>, Vec<String>), String> {
                 if !closed {
                     return Err("POLYLINE without SEQEND".into());
                 }
-                ents.push(Entity::Polyline { layer, pts });
+                ents.push(Entity::Polyline {
+                    layer,
+                    pts,
+                    closed: flags & 1 == 1,
+                });
                 j = k;
             }
             "TEXT" => ents.push(Entity::Text {
@@ -613,8 +678,17 @@ pub struct ReimportReport {
     pub pass: bool,
 }
 
-/// Compare intended geometry with what an independent parse of `text` yields,
-/// and confirm the release marking and unit declarations of the file.
+/// Compare intended geometry with what a separate parse of `text` yields, and
+/// confirm the release marking and unit declarations of the file.
+///
+/// What this proves and what it does not (review RB-006): it proves that the
+/// writer and the reader are faithful to each other, i.e. that the file holds
+/// the entities the writer was given. It says NOTHING about whether those
+/// entities are the right part: the comparison target is the product's own
+/// intended geometry (this is why Defect 002 passed it). Whether the geometry
+/// in the file is right is checked elsewhere, by verifying the geometry READ
+/// BACK from the file against values recomputed from the inputs
+/// (`nf_core::job`), and by `quality::quality_gate`, which looks only at the file.
 pub fn reimport_check(intended: &[Entity], text: &str, tol: f64) -> ReimportReport {
     reimport_check_annotated(intended, text, tol, &[])
 }
@@ -658,6 +732,11 @@ pub fn reimport_check_annotated(
         if a.layer() != b.layer() || std::mem::discriminant(*a) != std::mem::discriminant(b) {
             layers_match = false;
         }
+        if let (Entity::Polyline { closed: ca, .. }, Entity::Polyline { closed: cb, .. }) = (a, b)
+            && ca != cb
+        {
+            layers_match = false; // an open profile is not the closed profile that was intended
+        }
         let (pa, pb) = (a.points(), b.points());
         if pa.len() != pb.len() {
             return fail(got.len(), unknown);
@@ -692,7 +771,9 @@ pub fn reimport_check_annotated(
         && var("$ANGDIR", 70, "0")
         && var("$ANGBASE", 50, "0.0")
         && on_mark(UNITS_TEXT);
-    let required_notes_present = required_notes.iter().all(|want| on_mark(want.trim()));
+    let required_notes_present = annotation_lines(required_notes)
+        .iter()
+        .all(|want| on_mark(want));
     // D5: the header extents against the box of everything read back (geometry and annotation).
     let everything: Vec<Entity> = got.iter().cloned().chain(notes.iter().cloned()).collect();
     let (bx0, by0, bx1, by1, sample_err) = sampled_box(&everything);
@@ -761,6 +842,7 @@ mod tests {
             Entity::Polyline {
                 layer: "CUT_OUTER".into(),
                 pts: vec![(1.0, 2.0), (3.5, -4.25), (1e3, 1e-3)],
+                closed: false,
             },
         ]
     }
@@ -836,6 +918,7 @@ mod tests {
             Entity::Polyline {
                 layer: "CUT_INNER".into(),
                 pts: vec![(1.0, 2.0), (3.5, 4.25), (1.0, 2.0)],
+                closed: false,
             },
         ];
         let t = write(&e);

@@ -198,7 +198,7 @@ const controlProbe = () => {
   check('assembly: header shows its opening, key 2 switches to the branch pattern', headerCurves === 5 && innerCurves === 1 && (await p.locator('.pv .c').count()) === 4 && /branch/.test(await p.getAttribute('#dxf', 'href')));
   await p.click('#tab-ws-checks'); const interfaceChecks = await p.locator('#tp-ws-checks .id:text-is("interface")').count();
   await p.click('#tab-ws-records'); const interfaceRecords = await p.locator('#tp-ws-records .rec-t', { hasText: /^interface ·/ }).count();
-  check('assembly: three interface checks (two in 3D, and since D1 that both parts declare the same marking side) and the interface record', interfaceChecks === 3 && interfaceRecords === 1, { interfaceChecks, interfaceRecords });
+  check('assembly: five interface checks (three fold-back: the two 3D cross-checks and the common marking side; two independent 3D point checks of the joint, review RB-001) and the interface record', interfaceChecks === 5 && interfaceRecords === 1, { interfaceChecks, interfaceRecords });
   await p.click('#tp-ws-records .rec >> nth=0'); await p.waitForSelector('#tp-ws-records .rec[open] pre');
   check('records: a record opens to its stored payload; rows name their subject', /header_with_branch/.test(await p.textContent('#tp-ws-records .rec[open] pre')) && (await p.locator('#tp-ws-records .rec-t', { hasText: 'parameter · header_radius = 150 mm' }).count()) === 1);
   await p.click('#tab-ws-graph'); const nodes = await p.locator('#tp-ws-graph .dgl .node').count(), edges = await p.locator('#tp-ws-graph details tbody tr').count();

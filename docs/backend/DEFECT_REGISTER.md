@@ -76,3 +76,23 @@ Source: [COMPUTATIONAL_VALIDATION_REPORT.md](COMPUTATIONAL_VALIDATION_REPORT.md)
 | BE-042 | D8 | Low | Absolute tolerances make acceptance scale-dependent | **Fixed where it misbehaved inside the accepted range**: agreement threshold is relative (1e-6 of the part) below 1 mm, unchanged (1e-6 mm) from 1 mm upward; policy in [TOLERANCE_POLICY.md](TOLERANCE_POLICY.md) with a before/after reference case. Test `d8_agreement_tolerance_is_relative_below_one_millimetre_and_unchanged_above`. Sizes where the validation saw false rejections (below 1e-10 mm, above 3e9 mm) are refused by the magnitude limits |
 
 Still open after both passes: BE-014 (records per project), BE-021 (logs, metrics, deep health), BE-024 (backup tooling), BE-027 (idempotency keys), the remaining parts of BE-012, BE-018, BE-023, BE-026, BE-030, BE-033, and the open parts named in BE-037 and BE-038. Validation observations 1–3 and 5 (station is the work point; two frames for a plate; unconstrained development radii; `s_min`/`s_max` from samples) were not changed.
+
+## Review B (computational), status after the joint and quality-gate pass of 20 November 2026
+
+Full text, evidence and tests are in [REVIEW_B_COMPUTATIONAL.md](REVIEW_B_COMPUTATIONAL.md) (section 7). Engine `nf-engine 0.4.0`. Only the set-on joint (RB-001) and the DXF quality gate were finished in this pass; the other items are open unless marked otherwise.
+
+| ID | Sev | Status | Evidence / open part |
+|---|---|---|---|
+| RB-001 | High | partly fixed | Set-on pairing of Spec 02 §4.4 declared per part and computed; tests `rb001_*` (nf-core), regression `004-set-on-joint-bore-on-header-outside.json`. Open: set-on with the saddle on the branch outside surface (two curves) is not expressible; no wall thickness. |
+| RB-002 | Medium | open | Sign of δ drafted in conventions; not yet in the DXF or the result. |
+| RB-003 | Medium | open | Plate frames still differ between families; statement drafted, not yet in the DXF. |
+| RB-004 | Medium | partly fixed | Chord-error limit 0.01 mm (implementation limit), refusal when unattainable, shared density per joint (`rb004_…`). Open: no tangent-parameter vertices; absolute limit makes the vertex count size-dependent (validation items 1 of §9). |
+| RB-005 | Medium | partly fixed | A-priori bound (`rb005_…`, `d4_…`). Open: checked at five points; D4 not re-measured in the quick run. |
+| RB-006 | Medium | partly fixed | Independent 3D checks (`rb006_…`); reworded G15 text. Open: verifier not separately owned; DXF-only mating test not implemented. |
+| RB-007 | Low | open | Angular datum drafted in conventions, not yet in the DXF. |
+| RB-008 | Low | partly fixed | Openings closed (flag 70 = 1), no repeated vertex; quality gate checks it. Open: kerf statement not in the DXF; outer profile not one closed polyline. |
+| RB-009 | Low | open | Plate origins drafted in conventions, not yet in the DXF. |
+| RB-010 | Low | open | `unknown` still disables the radius checks; no surface attribute for cone, reducer, shell. |
+| RB-011 | Medium | open | `validation/` unchanged; quick run disagrees on four cases (`COMPUTATIONAL_VALIDATION_REPORT.md` §9). |
+
+**DXF quality gate (review item 5, not an RB item).** Every DXF is checked by `nf_dxf::quality::quality_gate` as written and re-read (rules: readable, units declared, finite numbers, layers, zero-length, duplicate or overlapping, open contour, self-intersection, inner inside outer, orientation, extents, release marking). A file that fails is withheld from the job's DXF list and gate G15 fails, so the state is REJECTED. Tests: `dxf_quality_gate_refuses_a_broken_file_and_withholds_it` (nf-core), `quality::tests::*` (nf-dxf, 12 rules). Not tested against a CAM system.

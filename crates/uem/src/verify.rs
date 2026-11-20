@@ -1,10 +1,22 @@
-//! Independent verification checks (Spec 02 §9). Each check uses a formulation
-//! different from the one in `develop` and consumes only the original inputs
-//! and the primary *result* (ARCH-03 / MATH-40). In this build the checks live
-//! in the same crate as the primary code; a separately owned implementation
-//! (class I-I/I-L) does not exist yet and the evidence says so.
+//! Verification checks (Spec 02 §9). Each check consumes only the original
+//! inputs and the primary *result* (ARCH-03 / MATH-40).
+//!
+//! Two kinds of check live here, and the difference matters (review RB-006):
+//!
+//! * FOLD-BACK checks map pattern points back to 3D with the inverse of the
+//!   chart the pattern was built with and test implicit equations. They catch
+//!   wrong numbers; they cannot catch a wrong chart, because they share it.
+//! * INDEPENDENT-FORMULATION checks compare the pattern with values computed
+//!   from the inputs in `independent`: solids in a tilted frame, sampled in
+//!   3D, intersected by a numerical root search, with lengths from 3D chord
+//!   sums. They share no formula with `develop`.
+//!
+//! In this build both kinds live in the same crate as the primary code and
+//! were written by the same author; a separately owned implementation (class
+//! I-I/I-L) does not exist yet and the evidence says so.
 
-use crate::develop::{Branch, ObliqueCone};
+use crate::develop::{self, Branch, ObliqueCone};
+use crate::independent::{self, Joint3, V3};
 #[cfg(test)]
 use crate::{Curve, Layer};
 use crate::{Geom, P2, Pattern, TAU, ViewSide, gauss, profile};
@@ -113,6 +125,38 @@ fn curve_len(p: &Pattern, name: &str) -> f64 {
         .sum()
 }
 
+/// Independent-formulation checks of a plain shell (review RB-006): the end
+/// circle and the lateral area of the solid, sampled in 3D, against the plate.
+/// Kept apart from `verify_cylinder` so that the thresholds of the original
+/// checks stay exactly as they were (docs/backend/TOLERANCE_POLICY.md).
+pub fn verify_cylinder_solid(p: &Pattern, r_dev: f64, length: f64) -> Vec<Check> {
+    let agree = agree_tol(r_dev.max(length));
+    let (circle, circle_res) = independent::circle_length(r_dev, 1024);
+    vec![
+        cmp(
+            "end_circle_3d_arc_length",
+            "3D chord sums of the end circle of the shell in a tilted frame, taken to the limit (no 2*pi*r)",
+            curve_len(p, "bottom"),
+            circle,
+            agree + circle_res,
+        ),
+        cmp(
+            "end_circles_3d_arc_length_equal",
+            "developed length of the other shell end against the same 3D circle",
+            curve_len(p, "top"),
+            circle,
+            agree + circle_res,
+        ),
+        cmp(
+            "area_equals_sampled_surface_area",
+            "3D circle length (chord sums) times the shell length against the signed area of the plate outline",
+            profile::check(&p.outline, 1e-9).signed_area,
+            circle * length,
+            agree * (r_dev + length) + circle_res * length,
+        ),
+    ]
+}
+
 pub fn verify_cylinder(p: &Pattern, r_dev: f64, length: f64) -> Vec<Check> {
     let agree = agree_tol(r_dev.max(length));
     vec![
@@ -187,6 +231,19 @@ pub fn verify_cone(p: &Pattern, r1: f64, r2: f64, h: f64) -> Vec<Check> {
             agree * s,
         ),
     ];
+    for (name, check, r) in [
+        ("large_end", "large_end_3d_arc_length", r1),
+        ("small_end", "small_end_3d_arc_length", r2),
+    ] {
+        let (circle, res) = independent::circle_length(r, 1024);
+        v.push(cmp(
+            check,
+            "3D chord sums of the end circle in a tilted frame, taken to the limit (no 2*pi*r)",
+            curve_len(p, name),
+            circle,
+            agree + res,
+        ));
+    }
     // Fold-back: every pattern arc radius rho maps to a 3D circle of radius rho*sin(alpha)
     // at axial distance rho*cos(alpha) from the apex; compare with the linear taper of the frustum.
     let (sin_a, cos_a) = ((r1 - r2) / s, h / s);
@@ -373,6 +430,44 @@ fn saddle_points(p: &Pattern) -> Vec<P2> {
         .unwrap_or_default()
 }
 
+/// Length of the polyline through every `stride`-th point.
+fn stride_length(pts: &[P2], stride: usize) -> f64 {
+    pts.iter()
+        .step_by(stride)
+        .collect::<Vec<_>>()
+        .windows(2)
+        .map(|w| w[0].dist(*w[1]))
+        .sum()
+}
+
+/// Limit of a sequence that converges like h²: `a` at step 4h, `b` at 2h, `c` at h.
+/// Returns (limit, resolution): the resolution is the difference between the two
+/// once-extrapolated values, which over-states the error of the limit.
+fn limit_h2(a: f64, b: f64, c: f64) -> (f64, f64) {
+    let (r0, _) = independent::richardson(a, b);
+    let (r1, _) = independent::richardson(b, c);
+    (r1 + (r1 - r0) / 15.0, (r1 - r0).abs())
+}
+
+/// A comparison whose two sides carry their own resolution (Spec 02 ALG-13): PASS needs agreement
+/// within `tol + resolution`, and a resolution coarser than `need` is INCONCLUSIVE, never a pass.
+fn cmp_resolved(
+    name: &'static str,
+    method: &'static str,
+    primary: f64,
+    reference: f64,
+    tol: f64,
+    resolution: f64,
+    need: f64,
+) -> Check {
+    let mut c = cmp(name, method, primary, reference, tol + resolution);
+    if c.verdict == Verdict::Pass && resolution.partial_cmp(&need) != Some(std::cmp::Ordering::Less)
+    {
+        c.verdict = Verdict::Inconclusive;
+    }
+    c
+}
+
 pub fn verify_branch(p: &Pattern, b: &Branch, r_dev: f64, s_end: f64) -> Vec<Check> {
     let agree = agree_tol(b.big_r.max(s_end));
     let cut = saddle_points(p);
@@ -407,6 +502,91 @@ pub fn verify_branch(p: &Pattern, b: &Branch, r_dev: f64, s_end: f64) -> Vec<Che
     let width = TAU * r_dev;
     let handed = height_at(0.75 * width) - height_at(0.25 * width);
     let handed_ref = 2.0 * b.r * cb / sb;
+
+    // ---- independent formulation (review RB-006): the joint as a solid, each ruling intersected numerically.
+    // The rounding bound of the closed form is computed here from the INPUTS (not read from the pattern):
+    // near tangency both methods are equally ill-conditioned, and the threshold may not be below that.
+    let j = Joint3::new(b.big_r, b.r, b.beta, b.delta, 0.0);
+    let bound = develop::saddle_error_bound(b, r_dev);
+    let tol3 = agree + 4.0 * bound;
+    let n = cut.len().saturating_sub(1);
+    let usable = n >= 8 && n.is_multiple_of(4);
+    let mut solid_res: f64 = 0.0;
+    for q in &cut {
+        let (phi, s) = fold_branch(p.marking_side, q, r_dev, s_end);
+        solid_res = match j.s_at(phi) {
+            Some(si) if (s - si).is_finite() => solid_res.max((s - si).abs()),
+            _ => f64::NAN,
+        };
+    }
+    // Side of the offset (review RB-002): the generator at the seam (phi = 0, the positive-delta side) against
+    // the generator half a turn away. A pattern mirrored in delta swaps the two.
+    let delta_side = height_at(0.0) - height_at(0.5 * width);
+    let delta_side_ref = match (j.s_at(0.0), j.s_at(0.5 * TAU)) {
+        (Some(a), Some(c)) => a - c,
+        _ => f64::NAN,
+    };
+    // Developed length of the cut against the 3D arc length of the cut on the development cylinder
+    // (radius r_dev about the branch axis), the latter from the numerical intersection alone.
+    let (len_p, res_p) = if usable {
+        limit_h2(
+            stride_length(&cut, 4),
+            stride_length(&cut, 2),
+            stride_length(&cut, 1),
+        )
+    } else {
+        (f64::NAN, f64::NAN)
+    };
+    let solid_points = |m: usize| -> Option<Vec<V3>> {
+        (0..=m)
+            .map(|i| {
+                let phi = TAU * i as f64 / m as f64;
+                j.s_at(phi).map(|s| j.branch_point(phi, s, r_dev))
+            })
+            .collect()
+    };
+    let (len_v, res_v, area_v, area_res) = match (usable, solid_points(4 * n.max(1))) {
+        (true, Some(fine)) => {
+            let every = |k: usize| -> f64 {
+                let v: Vec<V3> = fine.iter().step_by(k).copied().collect();
+                independent::polyline_length(&v)
+            };
+            let (l, r) = limit_h2(every(4), every(2), every(1));
+            // area of the development between the cut and the square end: r_dev · ∫ (s_end − s) dphi,
+            // periodic trapezoid rule on the numerically intersected heights, at two resolutions
+            let heights = |k: usize| -> f64 {
+                let m = (fine.len() - 1) / k;
+                (0..m)
+                    .map(|i| {
+                        let phi = TAU * (i * k) as f64 / (4 * n) as f64;
+                        s_end - j.s_at(phi).unwrap_or(f64::NAN)
+                    })
+                    .sum::<f64>()
+                    * TAU
+                    / m as f64
+                    * r_dev
+            };
+            let (a2, a1) = (heights(2), heights(1));
+            (l, r, a1, (a1 - a2).abs())
+        }
+        _ => (f64::NAN, f64::NAN, f64::NAN, f64::NAN),
+    };
+    let outline = profile::check(&p.outline, 1e-9);
+    // the polygon area differs from the area under the exact curve by the trapezoid error of its vertices
+    let trap = |stride: usize| -> f64 {
+        cut.iter()
+            .step_by(stride)
+            .collect::<Vec<_>>()
+            .windows(2)
+            .map(|q| 0.5 * (q[0].y + q[1].y) * (q[1].x - q[0].x))
+            .sum()
+    };
+    let area_p_res = if usable {
+        (trap(1) - trap(2)).abs()
+    } else {
+        f64::NAN
+    };
+    let (circle, circle_res) = independent::circle_length(r_dev, 1024);
     let v = vec![
         cmp(
             "cut_points_on_header_surface",
@@ -433,7 +613,7 @@ pub fn verify_branch(p: &Pattern, b: &Branch, r_dev: f64, s_end: f64) -> Vec<Che
         cmp(
             "outline_counter_clockwise",
             "sign of the signed area of the outline: outer profiles are counter-clockwise in the pattern frame (Spec 02 section 0.3)",
-            profile::check(&p.outline, 1e-9).signed_area.signum(),
+            outline.signed_area.signum(),
             1.0,
             0.5,
         ),
@@ -450,6 +630,45 @@ pub fn verify_branch(p: &Pattern, b: &Branch, r_dev: f64, s_end: f64) -> Vec<Che
             curve_len(p, "seam_a"),
             curve_len(p, "seam_b"),
             agree,
+        ),
+        cmp(
+            "saddle_matches_3d_intersection",
+            "independent formulation: each branch ruling of the solid joint (tilted frame) intersected with the header cylinder by a numerical root search on the distance from the header axis",
+            if cut.is_empty() { f64::NAN } else { solid_res },
+            0.0,
+            tol3,
+        ),
+        cmp(
+            "saddle_on_the_declared_delta_side",
+            "height of the cut at the seam (phi = 0, positive-delta side) minus the height half a turn away, against the numerical intersection of the solid joint",
+            delta_side,
+            delta_side_ref,
+            tol3 + 2.0 * p.eps_rep,
+        ),
+        cmp_resolved(
+            "saddle_developed_length_equals_3d_arc_length",
+            "independent formulation: 3D chord sums of the numerically intersected cut on the development cylinder, taken to the limit, against the developed length of the pattern curve taken to the limit",
+            len_p,
+            len_v,
+            agree + 1e-12 * len_v.abs(),
+            res_p + res_v,
+            1e-5 * len_v.abs(),
+        ),
+        cmp_resolved(
+            "pattern_area_equals_surface_area",
+            "independent formulation: area of the development cylinder between the numerically intersected cut and the square end (periodic trapezoid rule) against the signed area of the pattern outline",
+            outline.signed_area,
+            area_v,
+            agree * (width + s_end),
+            area_p_res + area_res,
+            1e-5 * area_v.abs(),
+        ),
+        cmp(
+            "square_end_3d_arc_length",
+            "3D chord sums of the square end circle (radius r_dev) in a tilted frame, taken to the limit",
+            curve_len(p, "square_end"),
+            circle,
+            agree + circle_res,
         ),
     ];
     v
@@ -468,8 +687,17 @@ fn hole_points(p: &Pattern) -> Vec<P2> {
         .unwrap_or_default()
 }
 
+/// Plate point of a header chart value (x, omega) for the side the pattern declares.
+fn header_plate(side: ViewSide, x: f64, omega: f64, r_dev_header: f64) -> P2 {
+    match side {
+        ViewSide::Outside => P2::new(x, r_dev_header * (omega + std::f64::consts::PI)),
+        ViewSide::Inside => P2::new(x, r_dev_header * (std::f64::consts::PI - omega)),
+    }
+}
+
 /// Header shell with opening: fold the opening back onto the header surface
-/// and test it against the *branch* cylinder's implicit equation.
+/// and test it against the *branch* cylinder's implicit equation; and compare
+/// the opening with the numerically intersected solid joint.
 pub fn verify_header_opening(
     p: &Pattern,
     b: &Branch,
@@ -492,6 +720,18 @@ pub fn verify_header_opening(
         ];
         branch_res = branch_res.max(((c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).sqrt() - b.r).abs());
     }
+    // Sign of δ (review RB-002): the opening is centred on the branch axis, i.e. at y = δ of the 3D frame,
+    // which is ABOVE the centreline of the plate for δ > 0 in the outside view. Read from the plate through
+    // the declared side; a plate mirrored across its centreline gives −δ.
+    let centre_y = if pts.is_empty() {
+        f64::NAN
+    } else {
+        let (lo, hi) = pts.iter().fold((f64::MAX, f64::MIN), |(lo, hi), q| {
+            let y = fold_header(p.marking_side, q, b.big_r, r_dev_header, station)[1];
+            (lo.min(y), hi.max(y))
+        });
+        0.5 * (lo + hi)
+    };
     let hole = profile::check(&p.holes, 1e-9);
     let inside = pts
         .iter()
@@ -504,6 +744,101 @@ pub fn verify_header_opening(
             ey = ey.max(a.y).max(b.y);
         }
     }
+
+    // ---- independent formulation (review RB-006): the opening against the numerically intersected solid.
+    // The polyline declares uniform sampling in the branch angle; which way round it runs is not assumed:
+    // both directions are tried and the better one counts (a mirrored opening matches neither).
+    let j = Joint3::new(b.big_r, b.r, b.beta, b.delta, station);
+    let tol3 = agree + 4.0 * develop::opening_error_bound(b, r_dev_header, station);
+    let n = pts.len().saturating_sub(1);
+    let usable = n >= 8 && n.is_multiple_of(4);
+    let plate_at = |phi: f64| -> Option<P2> {
+        j.curve_point(phi).map(|x3| {
+            let (x, omega) = j.header_chart(x3);
+            header_plate(p.marking_side, x, omega, r_dev_header)
+        })
+    };
+    let solid_res = if n == 0 {
+        f64::NAN
+    } else {
+        [1.0f64, -1.0]
+            .iter()
+            .map(|dir| {
+                let mut worst: f64 = 0.0;
+                for (i, q) in pts.iter().enumerate() {
+                    let phi = (dir * TAU * i as f64 / n as f64).rem_euclid(TAU);
+                    worst = match plate_at(phi) {
+                        Some(want) if q.dist(want).is_finite() => worst.max(q.dist(want)),
+                        _ => f64::NAN,
+                    };
+                }
+                worst
+            })
+            .fold(
+                f64::NAN,
+                |best, w| if w < best || best.is_nan() { w } else { best },
+            )
+    };
+    // Developed perimeter of the opening against the 3D arc length of the cut on the development cylinder
+    // of the header (radius R_dev), and its developed area against R_dev · ∮ x d(omega), both from the solid.
+    let (per_p, per_res) = if usable {
+        limit_h2(
+            stride_length(&pts, 4),
+            stride_length(&pts, 2),
+            stride_length(&pts, 1),
+        )
+    } else {
+        (f64::NAN, f64::NAN)
+    };
+    let chart: Option<Vec<(f64, f64)>> = if usable {
+        (0..=4 * n)
+            .map(|i| {
+                j.curve_point(TAU * i as f64 / (4 * n) as f64)
+                    .map(|x3| j.header_chart(x3))
+            })
+            .collect()
+    } else {
+        None
+    };
+    let (per_v, per_v_res, area_v, area_v_res) = match &chart {
+        Some(c) => {
+            let length_of = |k: usize| -> f64 {
+                let v: Vec<V3> = c
+                    .iter()
+                    .step_by(k)
+                    .map(|&(x, om)| j.header_point(x, om, r_dev_header))
+                    .collect();
+                independent::polyline_length(&v)
+            };
+            let (l, r) = limit_h2(length_of(4), length_of(2), length_of(1));
+            let area_of = |k: usize| -> f64 {
+                let v: Vec<&(f64, f64)> = c.iter().step_by(k).collect();
+                (0.5 * r_dev_header
+                    * v.windows(2)
+                        .map(|w| (w[0].0 + w[1].0) * (w[1].1 - w[0].1))
+                        .sum::<f64>())
+                .abs()
+            };
+            // the area of an inscribed polygon converges like h², as chord sums do
+            let (a, ar) = limit_h2(area_of(4), area_of(2), area_of(1));
+            (l, r, a, ar)
+        }
+        None => (f64::NAN, f64::NAN, f64::NAN, f64::NAN),
+    };
+    let shoelace = |stride: usize| -> f64 {
+        let v: Vec<&P2> = pts.iter().step_by(stride).collect();
+        (0.5 * v
+            .windows(2)
+            .map(|w| w[0].x * w[1].y - w[1].x * w[0].y)
+            .sum::<f64>())
+        .abs()
+    };
+    let (area_p, area_p_res) = if usable {
+        limit_h2(shoelace(4), shoelace(2), shoelace(1))
+    } else {
+        (f64::NAN, f64::NAN)
+    };
+    let (circle, circle_res) = independent::circle_length(r_dev_header, 1024);
     vec![
         cmp(
             "outline_extent_along_header_axis",
@@ -558,31 +893,56 @@ pub fn verify_header_opening(
             0.0,
             0.5,
         ),
+        cmp(
+            "opening_centre_on_the_declared_delta_side",
+            "mid-height of the folded-back opening across the header (y of the 3D frame, positive above the plate centreline in the outside view) against the input offset delta",
+            centre_y,
+            b.delta,
+            agree,
+        ),
+        cmp(
+            "opening_matches_3d_intersection",
+            "independent formulation: the solid joint (tilted frame) intersected numerically at the vertex parameters; plate coordinates from the projection on the header axis and atan2 about it",
+            solid_res,
+            0.0,
+            tol3,
+        ),
+        cmp_resolved(
+            "opening_developed_length_equals_3d_arc_length",
+            "independent formulation: 3D chord sums of the numerically intersected cut on the development cylinder of the header, taken to the limit, against the developed perimeter of the pattern opening taken to the limit",
+            per_p,
+            per_v,
+            agree + 1e-12 * per_v.abs(),
+            per_res + per_v_res,
+            1e-5 * per_v.abs(),
+        ),
+        cmp_resolved(
+            "opening_area_equals_surface_area",
+            "independent formulation: area cut out of the development cylinder, R_dev times the loop integral of x d(omega) over the numerically intersected cut, against the area of the pattern opening, both taken to the limit of their polygons",
+            area_p,
+            area_v,
+            agree * (TAU * r_dev_header + length),
+            area_p_res + area_v_res,
+            1e-5 * area_v.abs(),
+        ),
+        cmp(
+            "header_circle_3d_arc_length",
+            "3D chord sums of the header end circle (radius R_dev) in a tilted frame, taken to the limit",
+            curve_len(p, "bottom"),
+            circle,
+            agree + circle_res,
+        ),
     ]
 }
 
-fn seg_dist(p: [f64; 3], a: [f64; 3], b: [f64; 3]) -> f64 {
-    let ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
-    let ap = [p[0] - a[0], p[1] - a[1], p[2] - a[2]];
-    let l2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
-    let t = if l2 > 0.0 {
-        ((ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / l2).clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
-    let c = [
-        a[0] + t * ab[0] - p[0],
-        a[1] + t * ab[1] - p[1],
-        a[2] + t * ab[2] - p[2],
-    ];
-    (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).sqrt()
-}
-
-/// Interface constraint for a set-on branch: the branch end cut and the header
+/// Interface constraint for a branch joint: the branch end cut and the header
 /// opening, each folded back to 3D from its *own* pattern with its own part's
-/// parameters, must be the same curve. `hb` / `bb` are the branch geometries
-/// as used by the header pattern and by the branch pattern respectively — if
-/// the two parts were made from different interpretations, they differ.
+/// geometry, must be the same curve. `hb` is the geometry the header opening
+/// was cut to and `bb` the geometry the branch saddle was cut to: the caller
+/// derives each from the surfaces that meet for the declared joint type, and
+/// they are NOT assumed equal (review RB-001: when one object served both
+/// parts this check could not see a joint whose parts were made for different
+/// surfaces).
 #[allow(clippy::too_many_arguments)] // two parts, each with its geometry and two development inputs
 pub fn verify_interface(
     header: &Pattern,
@@ -608,17 +968,18 @@ pub fn verify_interface(
             bb.point(phi, s)
         })
         .collect();
+    // (linear-time search along the curves; the earlier pairwise search was quadratic in the vertex count)
     let one_way = |from: &[[f64; 3]], to: &[[f64; 3]]| -> f64 {
-        if from.is_empty() || to.len() < 2 {
-            return f64::NAN;
+        independent::one_way_distance(from, to, true)
+    };
+    // the folded vertices lie on one curve but at different parameters when the two parts have different
+    // densities: a vertex of one may then be off the other's chord by that polyline's own chord error
+    let rep = |a: &Pattern, c: &Pattern| -> f64 {
+        if hole_points(header).len() == saddle_points(branch).len() {
+            0.0
+        } else {
+            a.eps_rep.max(c.eps_rep)
         }
-        from.iter()
-            .map(|p| {
-                to.windows(2)
-                    .map(|w| seg_dist(*p, w[0], w[1]))
-                    .fold(f64::MAX, f64::min)
-            })
-            .fold(0.0, f64::max)
     };
     vec![
         cmp(
@@ -633,14 +994,97 @@ pub fn verify_interface(
             "3D distance from each folded-back branch cut point to the folded-back header opening curve",
             one_way(&cut3, &open3),
             0.0,
-            agree,
+            agree + rep(header, branch),
         ),
         cmp(
             "header_opening_lies_on_branch_cut",
             "3D distance from each folded-back opening point to the folded-back branch cut curve",
             one_way(&open3, &cut3),
             0.0,
-            agree,
+            agree + rep(header, branch),
+        ),
+    ]
+}
+
+/// Independent checks of a joint (review RB-001, RB-006), from the two finished
+/// patterns and the two parts' OWN geometries. Unlike `verify_interface`, the
+/// 3D points are not produced by the charts of `develop`: each pattern vertex is
+/// placed on its part's surface in the tilted frame of `independent`, and is
+/// then tested against the numerical intersection curve of the OTHER part's
+/// geometry. Parts made for different surfaces do not pass.
+#[allow(clippy::too_many_arguments)]
+pub fn verify_joint(
+    header: &Pattern,
+    hb: &Branch,
+    r_dev_header: f64,
+    station: f64,
+    branch: &Pattern,
+    bb: &Branch,
+    r_dev_branch: f64,
+    s_end: f64,
+) -> Vec<Check> {
+    let agree = agree_tol(hb.big_r.max(bb.big_r).max(s_end));
+    let frame = independent::Frame::tilted(hb.big_r.max(bb.big_r));
+    let jh = Joint3::in_frame(frame, hb.big_r, hb.r, hb.beta, hb.delta, station);
+    let jb = Joint3::in_frame(frame, bb.big_r, bb.r, bb.beta, bb.delta, station);
+    let tol = agree
+        + 4.0
+            * (develop::opening_error_bound(hb, r_dev_header, station)
+                + develop::saddle_error_bound(bb, r_dev_branch));
+    // opening vertices on the header surface the opening was cut to
+    let open3: Vec<V3> = hole_points(header)
+        .iter()
+        .map(|q| {
+            let omega = match header.marking_side {
+                ViewSide::Outside => q.y / r_dev_header - std::f64::consts::PI,
+                ViewSide::Inside => std::f64::consts::PI - q.y / r_dev_header,
+            };
+            jh.header_point(q.x, omega, hb.big_r)
+        })
+        .collect();
+    // saddle vertices on the branch surface the saddle was cut to
+    let cut3: Vec<V3> = saddle_points(branch)
+        .iter()
+        .map(|q| {
+            let (phi, s) = fold_branch(branch.marking_side, q, r_dev_branch, s_end);
+            jb.branch_point(phi, s, bb.r)
+        })
+        .collect();
+    // each folded vertex against the numerical intersection curve of the other part's geometry,
+    // at the vertex's own branch azimuth (no chord error on either side)
+    let against = |pts: &[V3], other: &Joint3| -> f64 {
+        if pts.is_empty() {
+            return f64::NAN;
+        }
+        let mut worst: f64 = 0.0;
+        for x in pts {
+            worst = match other.curve_point(other.branch_azimuth(*x)) {
+                Some(c) if independent::dist(*x, c).is_finite() => {
+                    worst.max(independent::dist(*x, c))
+                }
+                _ => f64::NAN,
+            };
+        }
+        worst
+    };
+    // The two folded polylines are the same polygon when both parts share one sampling (develop::*_min), so a
+    // comparison of their 3D lengths adds nothing to the two point checks above; and the 3D length of a
+    // near-tangent curve cannot be resolved to the 1e-5 that cmp_resolved requires, so that check was INCONCLUSIVE
+    // for valid near-tangent joints. It is removed (review RB-001; validation run of 20 Nov 2026).
+    vec![
+        cmp(
+            "opening_on_intersection_of_branch_geometry",
+            "independent formulation: each opening vertex, placed on the header surface of the opening's geometry, against the numerical intersection curve of the geometry the BRANCH was cut to",
+            against(&open3, &jb),
+            0.0,
+            tol,
+        ),
+        cmp(
+            "saddle_on_intersection_of_header_geometry",
+            "independent formulation: each saddle vertex, placed on the branch surface of the saddle's geometry, against the numerical intersection curve of the geometry the HEADER OPENING was cut to",
+            against(&cut3, &jh),
+            0.0,
+            tol,
         ),
     ]
 }
@@ -1073,6 +1517,356 @@ mod tests {
             &h, &g, 150.0, 600.0, &m, &g, 100.0, 400.0,
         ));
         assert!(joint.is_empty(), "{joint:?}");
+    }
+
+    // ---- reviews of 19 November 2026: RB-001, RB-002, RB-006
+
+    fn verdict_of(v: &[Check], name: &str) -> Verdict {
+        v.iter()
+            .find(|c| c.name == name)
+            .unwrap_or_else(|| panic!("no check {name}"))
+            .verdict
+    }
+
+    /// RB-001. The reviewer's joint: DN300 header (outside radius 161.95), DN150 branch (bore radius
+    /// 77.095, outside radius 84.15). A set-on branch sits with its bore on the header outside surface.
+    /// The defect: the header opening was cut to the branch OUTSIDE radius while "one geometry for both
+    /// parts" made the interface check blind. With each part's own geometry the check sees it.
+    #[test]
+    fn rb001_parts_cut_for_different_surfaces_fail_the_interface_checks() {
+        let seat = Branch {
+            big_r: 161.95,
+            r: 77.095,
+            beta: 90f64.to_radians(),
+            delta: 0.0,
+        };
+        let outside = Branch { r: 84.15, ..seat };
+        let (hdev, bdev, station, s_end) = (156.795, 80.6, 600.0, 400.0);
+        // correct set-on joint: opening and saddle both where the bore meets the header outside surface
+        let header = header_with_opening(&seat, hdev, 1200.0, station).unwrap();
+        let branch = branch_stub(seat.big_r, seat.r, bdev, 90.0, 0.0, s_end).unwrap();
+        all_pass(&verify_interface(
+            &header, &seat, hdev, station, &branch, &seat, bdev, s_end,
+        ));
+        all_pass(&verify_joint(
+            &header, &seat, hdev, station, &branch, &seat, bdev, s_end,
+        ));
+        // width of the opening across the header: the bore (2 x 77.095 = 154.19), not the outside diameter
+        let width = |h: &Pattern, g: &Branch| -> f64 {
+            let (lo, hi) = hole_points(h)
+                .iter()
+                .fold((f64::MAX, f64::MIN), |(lo, hi), q| {
+                    let y = fold_header(h.marking_side, q, g.big_r, hdev, station)[1];
+                    (lo.min(y), hi.max(y))
+                });
+            hi - lo
+        };
+        assert!((width(&header, &seat) - 154.19).abs() < 1e-9);
+        // the defect: opening cut at the branch outside diameter, saddle for the bore
+        let wrong_header = header_with_opening(&outside, hdev, 1200.0, station).unwrap();
+        assert!(
+            (width(&wrong_header, &outside) - 168.30).abs() < 1e-9,
+            "the branch would drop through"
+        );
+        // 1. as the product called it before the fix (ONE geometry for both parts): everything passes
+        all_pass(&verify_header_opening(
+            &wrong_header,
+            &outside,
+            hdev,
+            1200.0,
+            station,
+        ));
+        let wrong_branch = branch_stub(outside.big_r, outside.r, bdev, 90.0, 0.0, s_end).unwrap();
+        all_pass(&verify_interface(
+            &wrong_header,
+            &outside,
+            hdev,
+            station,
+            &wrong_branch,
+            &outside,
+            bdev,
+            s_end,
+        ));
+        // 2. with each part's own geometry the mismatch is a FAIL, in the fold-back and in the independent check
+        let joint = failed(&verify_interface(
+            &wrong_header,
+            &outside,
+            hdev,
+            station,
+            &branch,
+            &seat,
+            bdev,
+            s_end,
+        ));
+        assert!(
+            joint.contains(&"branch_cut_lies_on_header_opening")
+                && joint.contains(&"header_opening_lies_on_branch_cut"),
+            "{joint:?}"
+        );
+        let solid = failed(&verify_joint(
+            &wrong_header,
+            &outside,
+            hdev,
+            station,
+            &branch,
+            &seat,
+            bdev,
+            s_end,
+        ));
+        assert!(
+            solid.contains(&"opening_on_intersection_of_branch_geometry")
+                && solid.contains(&"saddle_on_intersection_of_header_geometry"),
+            "{solid:?}"
+        );
+        // the mirror case: saddle shaped for the header INSIDE radius, opening for the outside (1.5 mm misfit)
+        let inner = Branch {
+            big_r: 151.64,
+            ..seat
+        };
+        let deep = branch_stub(inner.big_r, inner.r, bdev, 90.0, 0.0, s_end).unwrap();
+        assert!(
+            !failed(&verify_interface(
+                &header, &seat, hdev, station, &deep, &inner, bdev, s_end
+            ))
+            .is_empty()
+        );
+        assert!(
+            !failed(&verify_joint(
+                &header, &seat, hdev, station, &deep, &inner, bdev, s_end
+            ))
+            .is_empty()
+        );
+    }
+
+    /// RB-002. The sign of the offset is tied to the plate: for delta > 0 the opening lies above the
+    /// centreline of the header plate and the seam of the branch is the generator on that side. A part
+    /// made for -delta is the mirror image; verified against +delta it fails the delta-side checks.
+    #[test]
+    fn rb002_a_pattern_made_for_the_other_sign_of_delta_fails_the_delta_side_checks() {
+        let (b, hdev, hlen, station, s_end) = chiral();
+        let minus = Branch {
+            delta: -b.delta,
+            ..b
+        };
+        let header = header_with_opening(&b, hdev, hlen, station).unwrap();
+        let branch = branch_stub(b.big_r, b.r, 100.0, 60.0, b.delta, s_end).unwrap();
+        // delta = +20: opening centred above the plate centreline, by construction of the outside view
+        let pts = hole_points(&header);
+        let (lo, hi) = pts.iter().fold((f64::MAX, f64::MIN), |(lo, hi), q| {
+            (lo.min(q.y), hi.max(q.y))
+        });
+        assert!(
+            0.5 * (lo + hi) > std::f64::consts::PI * hdev + 10.0,
+            "opening on the +delta side of the centreline"
+        );
+        assert_eq!(
+            verdict_of(
+                &verify_header_opening(&header, &b, hdev, hlen, station),
+                "opening_centre_on_the_declared_delta_side"
+            ),
+            Verdict::Pass
+        );
+        assert_eq!(
+            verdict_of(
+                &verify_branch(&branch, &b, 100.0, s_end),
+                "saddle_on_the_declared_delta_side"
+            ),
+            Verdict::Pass
+        );
+        // the parts of the mirror-image assembly, checked against the declared sign
+        let header_m = header_with_opening(&minus, hdev, hlen, station).unwrap();
+        let branch_m = branch_stub(b.big_r, b.r, 100.0, 60.0, -b.delta, s_end).unwrap();
+        let own = failed(&verify_header_opening(&header_m, &b, hdev, hlen, station));
+        assert!(
+            own.contains(&"opening_centre_on_the_declared_delta_side")
+                && own.contains(&"opening_matches_3d_intersection"),
+            "{own:?}"
+        );
+        let own = failed(&verify_branch(&branch_m, &b, 100.0, s_end));
+        assert!(
+            own.contains(&"saddle_on_the_declared_delta_side")
+                && own.contains(&"saddle_matches_3d_intersection"),
+            "{own:?}"
+        );
+        // against its own sign the mirror assembly is of course consistent: the sign itself is an input,
+        // which is why every pattern and every DXF states what positive delta means
+        all_pass(&verify_header_opening(
+            &header_m, &minus, hdev, hlen, station,
+        ));
+        for p in [&header, &branch] {
+            assert!(
+                p.conventions.iter().any(|c| c.starts_with(
+                    "OFFSET DELTA (20 MM HERE): POSITIVE = THE BRANCH AXIS IS DISPLACED TO THE LEFT"
+                )),
+                "{:?}",
+                p.conventions
+            );
+            assert!(
+                p.conventions
+                    .iter()
+                    .any(|c| c.contains("BELOW 90 DEG THE BRANCH LEANS TOWARD INCREASING STATION"))
+            );
+        }
+    }
+
+    /// RB-006. The independent-formulation checks detect faults on their own: each fault below is judged
+    /// by the checks that share nothing with `develop`.
+    #[test]
+    fn rb006_independent_checks_detect_faults_without_the_fold_back() {
+        let (b, hdev, hlen, station, s_end) = chiral();
+        let branch = branch_stub(b.big_r, b.r, 100.0, 60.0, b.delta, s_end).unwrap();
+        let header = header_with_opening(&b, hdev, hlen, station).unwrap();
+        let independent_branch = [
+            "saddle_matches_3d_intersection",
+            "saddle_developed_length_equals_3d_arc_length",
+            "pattern_area_equals_surface_area",
+            "square_end_3d_arc_length",
+        ];
+        let independent_header = [
+            "opening_matches_3d_intersection",
+            "opening_developed_length_equals_3d_arc_length",
+            "opening_area_equals_surface_area",
+            "header_circle_3d_arc_length",
+        ];
+        let good = verify_branch(&branch, &b, 100.0, s_end);
+        for name in independent_branch {
+            assert_eq!(verdict_of(&good, name), Verdict::Pass, "{name}");
+        }
+        let good = verify_header_opening(&header, &b, hdev, hlen, station);
+        for name in independent_header {
+            assert_eq!(verdict_of(&good, name), Verdict::Pass, "{name}");
+        }
+        // saddle heights 0.05 % too large
+        let mut tall = branch.clone();
+        for c in tall.outline.iter_mut() {
+            if c.name == "saddle_cut"
+                && let Geom::Polyline { pts, .. } = &mut c.geom
+            {
+                pts.iter_mut().for_each(|q| q.y *= 1.0005);
+            }
+        }
+        let v = verify_branch(&tall, &b, 100.0, s_end);
+        assert_eq!(
+            verdict_of(&v, "saddle_matches_3d_intersection"),
+            Verdict::Fail
+        );
+        assert_eq!(
+            verdict_of(&v, "pattern_area_equals_surface_area"),
+            Verdict::Fail
+        );
+        // a branch developed with a radius 0.1 % too large: lengths and area disagree with the solid
+        let wide = branch_stub(b.big_r, b.r, 100.1, 60.0, b.delta, s_end).unwrap();
+        let v = verify_branch(&wide, &b, 100.0, s_end);
+        for name in [
+            "saddle_developed_length_equals_3d_arc_length",
+            "pattern_area_equals_surface_area",
+            "square_end_3d_arc_length",
+        ] {
+            assert_eq!(verdict_of(&v, name), Verdict::Fail, "{name}");
+        }
+        // opening shifted 0.05 mm along the header axis; opening scaled 0.1 % about its centre
+        let mut shifted = header.clone();
+        if let Geom::Polyline { pts, .. } = &mut shifted.holes[0].geom {
+            pts.iter_mut().for_each(|q| q.x += 0.05);
+        }
+        assert_eq!(
+            verdict_of(
+                &verify_header_opening(&shifted, &b, hdev, hlen, station),
+                "opening_matches_3d_intersection"
+            ),
+            Verdict::Fail
+        );
+        let mut scaled = header.clone();
+        if let Geom::Polyline { pts, .. } = &mut scaled.holes[0].geom {
+            let c = pts.iter().fold((0.0, 0.0), |a, q| {
+                (a.0 + q.x / pts.len() as f64, a.1 + q.y / pts.len() as f64)
+            });
+            pts.iter_mut()
+                .for_each(|q| *q = P2::new(c.0 + 1.001 * (q.x - c.0), c.1 + 1.001 * (q.y - c.1)));
+        }
+        let v = verify_header_opening(&scaled, &b, hdev, hlen, station);
+        for name in [
+            "opening_matches_3d_intersection",
+            "opening_developed_length_equals_3d_arc_length",
+            "opening_area_equals_surface_area",
+        ] {
+            assert_eq!(verdict_of(&v, name), Verdict::Fail, "{name}");
+        }
+        // plain shell and cone: the sampled solid disagrees with a plate made for another radius
+        all_pass(&verify_cylinder_solid(
+            &cylinder_shell(100.0, 250.0).unwrap(),
+            100.0,
+            250.0,
+        ));
+        let v = verify_cylinder_solid(&cylinder_shell(100.05, 250.0).unwrap(), 100.0, 250.0);
+        assert!(v.iter().all(|c| c.verdict == Verdict::Fail), "{v:?}");
+        let v = verify_cone(
+            &cone_frustum(200.2, 100.0, 300.0).unwrap(),
+            200.0,
+            100.0,
+            300.0,
+        );
+        assert_eq!(verdict_of(&v, "large_end_3d_arc_length"), Verdict::Fail);
+        // a check that cannot resolve its own comparison is INCONCLUSIVE, never a pass (ALG-13)
+        let c = cmp_resolved("x", "m", 1.0, 1.0, 1e-6, 0.5, 1e-3);
+        assert_eq!(c.verdict, Verdict::Inconclusive);
+        assert_eq!(
+            cmp_resolved("x", "m", 1.0, 1.0, 1e-6, 1e-9, 1e-3).verdict,
+            Verdict::Pass
+        );
+    }
+
+    /// The independent checks hold up to the limits of the accepted range: next to tangency, at grazing
+    /// angles, for very small and very large parts, and when the polyline was refined.
+    #[test]
+    fn rb006_independent_checks_pass_across_the_accepted_range() {
+        for (big_r, r, rdev, beta, delta) in [
+            (150.0, 149.99978, 149.99978, 90.0, 0.0),
+            (150.0, 99.9998, 99.9998, 15.0, -50.0),
+            (1000.0, 699.9, 699.9, 15.0, -300.0),
+            (300.0, 60.0, 57.0, 35.0, -90.0),
+            (0.0015, 0.001, 0.001, 120.0, 0.0002),
+            (40_000.0, 25_000.0, 24_990.0, 75.0, 3_000.0),
+            (150.0, 100.0, 100.0, 168.0, 20.0),
+        ] {
+            let b = Branch {
+                big_r,
+                r,
+                beta: f64::to_radians(beta),
+                delta,
+            };
+            let s_end = 12.0 * big_r;
+            let p = branch_stub(big_r, r, rdev, beta, delta, s_end).unwrap();
+            all_pass(&verify_branch(&p, &b, rdev, s_end));
+            let h = header_with_opening(&b, big_r * 0.97, 60.0 * big_r, 30.0 * big_r).unwrap();
+            all_pass(&verify_header_opening(
+                &h,
+                &b,
+                big_r * 0.97,
+                60.0 * big_r,
+                30.0 * big_r,
+            ));
+            all_pass(&verify_interface(
+                &h,
+                &b,
+                big_r * 0.97,
+                30.0 * big_r,
+                &p,
+                &b,
+                rdev,
+                s_end,
+            ));
+            all_pass(&verify_joint(
+                &h,
+                &b,
+                big_r * 0.97,
+                30.0 * big_r,
+                &p,
+                &b,
+                rdev,
+                s_end,
+            ));
+        }
     }
 
     // ---- validation defect D8: tolerance must not approach the size of the part

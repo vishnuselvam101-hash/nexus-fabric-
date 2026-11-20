@@ -38,7 +38,14 @@ use std::collections::{BTreeMap, BTreeSet};
 /// plates (validation defect D1; up to 0.2.0 they were the mirror image), and
 /// every pattern declares its marking side. Results of 0.2.0 and earlier are
 /// results of another engine: REJECTED with gate G21, "recompute".
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.3.0+src.", env!("NF_ENGINE_SRC_HASH"));
+///
+/// 0.4.0 (20 Nov 2026): openings are written as closed profiles (flag 70 = 1, no
+/// repeated vertex); every DXF passes the DXF quality gate or is withheld with G15
+/// FAIL (review B, RB-008 and item 5); header_with_branch takes per-part surface
+/// references and a declared joint type (set-on, review B RB-001), and the
+/// interface of an undeclared joint is no longer called set-on; the joint is also
+/// checked by the independent 3D check. Results of 0.3.0 are REJECTED with G21.
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.0+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the
@@ -421,6 +428,9 @@ mod roundtrip_tests {
             delta: 12.5,
             s_end: 400.0,
             surface_reference: "outside".into(),
+            header_surface_reference: None,
+            branch_surface_reference: None,
+            joint: None,
         };
         let mut all = job::run(
             &job::Request::EccentricReducer {

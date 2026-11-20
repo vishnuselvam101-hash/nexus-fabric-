@@ -220,3 +220,39 @@ A result in one class must never be presented as evidence for another.
 - **Defect 002 itself** was re-created by altering a correct result inside the validator (`seeded_faults.py`, 7 planted faults, all reported); the pre-fix binary was not available to run.
 - **Other layers**: storage, replay, corrections, obligations, permissions and the web client were not examined.
 - **Later builds**: the source tree was being changed during this work; the run must be repeated on the fixed build.
+
+## 9. Quick run on engine `nf-engine 0.4.0` (20 Nov 2026)
+
+Command: `python3 validation/run_all.py --spawn target/release/nf-server --quick --port 8853` (the `--port` option and `TMPDIR` only; no harness change). Result file: `validation/results/latest.json`.
+
+**Result: 155 cases: 89 agree, 4 disagree, 62 refused correctly, 0 wrongly accepted, 0 wrongly refused, 0 defect findings. Exit status 1.** The run is not green. Before this pass the same quick run stopped on D4 alone; in this run the D4 case (`N-tangent-d-b90-g2e-06`) is one of the disagreements below, so its `eps_num` check did not run and **D4 is not re-measured.**
+
+Two intermediate builds of this pass gave false refusals of valid joints (a mating-length check comparing two polylines of different density, and a fold-back check with a chord tolerance that did not cover one part sampled more finely than the other). Both are fixed in the final build: the two parts of a joint now share one segment count, and the mating-length check was removed (the two exact point checks remain).
+
+The four disagreements:
+
+1. **`S-SCALE-asm-25.4` and `N-magnitude-ecc-2^8` (scale invariance).** The harness expects the vertex count to be the same for a scaled part. Since review RB-004 the chord-error limit is absolute (0.01 mm), so a part 25.4 times larger needs more segments (the smallest 720·2^k that meets the limit; the chord error of a segment is proportional to size and to 1/n², so n grows with the square root of size). The geometry is not in question: the frame mapping of these parts agrees. This is a change of the product's contract, and the harness's expectation of exact vertex counts under scaling is out of date. **Open:** the harness check needs a derivation and a written decision on whether the density limit should be relative. Not changed in this pass.
+
+2. **`N-tangent-d-b90-g2e-06` and `N-tangent-r-b45-g1.1e-06` (header frame mapping).** The harness reports vertex deviations of 8.46e-2 mm and 4.69e-1 mm from the exact curve. An independent evaluation of the product's opening vertices gives the opposite: the header opening was evaluated in plate coordinates from Spec 02 eq. (4.3) and the header chart, using 2·10⁶ samples of the exact curve and the two neighbouring chords for each vertex. The largest distance is 2.3e-8 mm (5 760 vertices, first case) and 1.2e-7 mm (11 520 vertices, second case), both below the harness tolerance of 1.9e-6 mm. The harness computes each vertex distance with `validation/reference/ruled.py` `dist_pts_to_param_curve`: the nearest of 2 049 coarse samples, then a golden-section search on the neighbouring interval. Near tangency the curve comes close to itself, so that search can settle on a wrong local minimum. The most likely cause of the 0.08 and 0.47 mm figures is therefore the harness. **Open:** the harness distance routine needs a denser search for these cases, derived and recorded here before it is changed. Not changed in this pass.
+
+3. Both rows above are the same two near-tangent joints that the quick run flagged as D4 in the earlier build, so the D4 status in section 0 stands as written there: `eps_num` is an a-priori bound for the branch and the opening, and the validation's float reference is less accurate than the product near tangency. It has not been re-measured here.
+
+4. The four rows are reported as they are. The quick run exits non-zero until items 1 and 2 are settled.
+
+### 9.1 Lead's exact check of the two near-tangent disagreements (engine 0.4.0)
+
+`validation/exact_onsurface_check.py <nf-server binary>` does not use the harness's nearest-point search. It folds every
+vertex of the header opening back onto the header cylinder and measures its distance to the branch axis, which must equal
+the branch radius. Result on engine 0.4.0, seam angle fixed at exactly −π, same frame for all three cases:
+
+| case | vertices | max abs(distance to branch axis − r), mm |
+|---|---|---|
+| N-tangent-d-b90-g2e-06 (harness: disagree, 8.5e-2 mm) | 5761 | 7.1e-14 |
+| N-tangent-r-b45-g1.1e-06 (harness: disagree, 4.7e-1 mm) | 11521 | 1.4e-13 |
+| N-tangent-d-b45-g0.01 (harness: agree; control) | 721 | 8.5e-14 |
+
+So the product's vertices lie on the true intersection curve in the same frame as an accepted case; the deviation the
+harness reports for the two near-tangent cases comes from the harness's comparison near tangency. This check shows that
+the vertices are on the curve; it does not measure chord error between vertices, and it does not replace the harness.
+Status: the harness has NOT been changed, the quick run still exits non-zero with 4 disagreements (2 vertex-count
+expectations, 2 near-tangent comparisons), and correcting the harness is open work. D4 remains open.
