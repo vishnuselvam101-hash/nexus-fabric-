@@ -11,6 +11,7 @@ use crate::{
     Compensated, Curve, DevClass, Geom, Layer, MARKING_SIDE, P2, Pattern, TAU, UemError,
     finite_pos, gauss, gauss_adaptive,
 };
+use crate::{not_developable, out_of_range, out_of_range_with, refusal};
 use std::f64::consts::PI;
 
 const ASSUME_REF: &str = "Radii are taken as reference-surface (neutral) radii exactly as entered; thickness, neutral-factor, weld gap, shrinkage and kerf are not modelled.";
@@ -79,6 +80,7 @@ pub(crate) fn chord_deviation(all: &[P2], sub: usize) -> f64 {
 fn choose_density(
     base: usize,
     what: &'static str,
+    fields: &[&'static str],
     sample: &dyn Fn(usize, usize) -> Vec<P2>,
 ) -> Result<(usize, f64), UemError> {
     let mut n = base;
@@ -92,12 +94,14 @@ fn choose_density(
             }
         }
         if n >= MAX_SEGMENTS {
-            return Err(UemError::OutOfRange {
-                param: "chord_error",
-                reason: format!(
+            return Err(out_of_range(
+                refusal::CHORD_ERROR_UNREACHABLE,
+                "chord_error",
+                fields.to_vec(),
+                format!(
                     "the {what} cannot be represented within the stated maximum chord error of {MAX_CHORD_ERROR_MM} mm: with {MAX_SEGMENTS} segments, the most this build uses, the polyline is still {measured:.4} mm from the exact curve (implementation limit, not an engineering rule)"
                 ),
-            });
+            ));
         }
         n *= 2;
     }
@@ -216,24 +220,29 @@ pub fn cone_frustum(r1: f64, r2: f64, h: f64) -> Result<Pattern, UemError> {
     finite_pos("r2", r2)?;
     finite_pos("h", h)?;
     if r1 <= r2 {
-        return Err(UemError::OutOfRange {
-            param: "r1",
-            reason: "requires r1 > r2 (large end first); equal radii is a cylinder".into(),
-        });
+        return Err(out_of_range(
+            refusal::REDUCER_RADII_ORDER,
+            "r1",
+            vec!["r1", "r2"],
+            "requires r1 > r2 (large end first); equal radii is a cylinder".into(),
+        ));
     }
     let s = h.hypot(r1 - r2);
     let sin_a = (r1 - r2) / s;
     if sin_a < 1e-3 {
-        return Err(UemError::OutOfRange { param: "r1-r2", reason: "near-cylindrical cone: apex-based formula is ill-conditioned and the apex-free method is not implemented in this build".into() });
+        return Err(out_of_range_with(refusal::REDUCER_NEAR_CYLINDRICAL, "r1-r2", vec!["r1", "r2", "h"], "near-cylindrical cone: apex-based formula is ill-conditioned and the apex-free method is not implemented in this build".into(), vec![("limit", 1e-3), ("measured", sin_a)]));
     }
     let (l1, l2) = (r1 / sin_a, r2 / sin_a);
     let phi = TAU * sin_a;
     // Same rule, same limit and same words as the eccentric reducer: a sector within 0.1 % of a full turn
     // closes on itself (its seam edges touch), which is not a producible pattern.
     if phi >= TAU * FULL_TURN_LIMIT {
-        return Err(UemError::NotDevelopable(format!(
-            "developed angle {phi:.6} rad would overlap"
-        )));
+        return Err(not_developable(
+            refusal::DEVELOPED_ANGLE_OVERLAPS,
+            vec!["r1", "r2", "h"],
+            format!("developed angle {phi:.6} rad would overlap"),
+            vec![("limit", TAU * FULL_TURN_LIMIT), ("measured", phi)],
+        ));
     }
     let c = P2::new(0.0, 0.0);
     let outline = vec![
@@ -373,28 +382,40 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
     finite_pos("r2", r2)?;
     finite_pos("h", h)?;
     if !e.is_finite() || e < 0.0 {
-        return Err(UemError::OutOfRange {
-            param: "e",
-            reason: "offset must be finite and >= 0".into(),
-        });
+        return Err(out_of_range(
+            if e.is_finite() {
+                refusal::OFFSET_NEGATIVE
+            } else {
+                refusal::VALUE_NOT_FINITE
+            },
+            "e",
+            vec!["e"],
+            "offset must be finite and >= 0".into(),
+        ));
     }
     if r1 <= r2 {
-        return Err(UemError::OutOfRange { param: "r1", reason: "requires r1 > r2; equal radii with offset (oblique cylinder) is not implemented in this build".into() });
+        return Err(out_of_range(refusal::REDUCER_RADII_ORDER, "r1", vec!["r1", "r2"], "requires r1 > r2; equal radii with offset (oblique cylinder) is not implemented in this build".into()));
     }
     if (r1 - r2) / h.hypot(r1 - r2) < 1e-3 {
-        return Err(UemError::OutOfRange {
-            param: "r1-r2",
-            reason: "near-cylindrical: apex-free method not implemented in this build".into(),
-        });
+        return Err(out_of_range_with(
+            refusal::REDUCER_NEAR_CYLINDRICAL,
+            "r1-r2",
+            vec!["r1", "r2", "h"],
+            "near-cylindrical: apex-free method not implemented in this build".into(),
+            vec![("limit", 1e-3), ("measured", (r1 - r2) / h.hypot(r1 - r2))],
+        ));
     }
     let g = ObliqueCone { r1, r2, h, e };
     // the overlap test needs only the total developed angle: decide it before any refinement
     let (coarse, _) = oblique_cone_table(&g, 2 * CONE_SEGMENTS);
     let psi_coarse = coarse[2 * CONE_SEGMENTS].2;
     if psi_coarse.partial_cmp(&(TAU * FULL_TURN_LIMIT)) != Some(std::cmp::Ordering::Less) {
-        return Err(UemError::NotDevelopable(format!(
-            "developed angle {psi_coarse:.6} rad would overlap"
-        )));
+        return Err(not_developable(
+            refusal::DEVELOPED_ANGLE_OVERLAPS,
+            vec!["r1", "r2", "h", "e"],
+            format!("developed angle {psi_coarse:.6} rad would overlap"),
+            vec![("limit", TAU * FULL_TURN_LIMIT), ("measured", psi_coarse)],
+        ));
     }
     let sample = |n: usize, sub: usize| -> Vec<P2> {
         oblique_cone_table(&g, sub * n)
@@ -403,7 +424,12 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
             .map(|&(_, rho, psi)| P2::polar(rho, psi))
             .collect()
     };
-    let (n, eps_rep) = choose_density(CONE_SEGMENTS, "large end of the oblique cone", &sample)?;
+    let (n, eps_rep) = choose_density(
+        CONE_SEGMENTS,
+        "large end of the oblique cone",
+        &["r1", "r2", "h", "e"],
+        &sample,
+    )?;
     let (s, qerr) = oblique_cone_table(&g, 2 * n);
     let psi_total = s[2 * n].2;
     let k = r2 / r1;
@@ -610,17 +636,19 @@ pub fn branch_stub_min(
     finite_pos("branch_dev_radius", r_dev)?;
     finite_pos("s_end", s_end)?;
     if !delta.is_finite() {
-        return Err(UemError::OutOfRange {
-            param: "delta",
-            reason: "must be finite".into(),
-        });
+        return Err(out_of_range(
+            refusal::VALUE_NOT_FINITE,
+            "delta",
+            vec!["delta"],
+            "must be finite".into(),
+        ));
     }
     let beta = beta_deg.to_radians();
     if !(beta.sin() > 0.17 && beta_deg > 0.0 && beta_deg < 180.0) {
-        return Err(UemError::OutOfRange { param: "beta", reason: "angle between axes must be within about 10..170 deg in this build (grazing intersections are ill-conditioned; limit is an implementation choice, not an engineering rule)".into() });
+        return Err(out_of_range(if beta_deg.is_finite() { refusal::BRANCH_ANGLE_OUT_OF_RANGE } else { refusal::VALUE_NOT_FINITE }, "beta", vec!["beta_deg"], "angle between axes must be within about 10..170 deg in this build (grazing intersections are ill-conditioned; limit is an implementation choice, not an engineering rule)".into()));
     }
     if delta.abs() + r >= big_r * (1.0 - 1e-6) {
-        return Err(UemError::OutOfRange { param: "delta+r", reason: "requires |delta| + r < R: tangent and partial intersections (including the equal-diameter tee) are not implemented in this build".into() });
+        return Err(out_of_range_with(refusal::BRANCH_TANGENT_OR_PARTIAL, "delta+r", vec!["header_radius", "branch_radius", "delta"], "requires |delta| + r < R: tangent and partial intersections (including the equal-diameter tee) are not implemented in this build".into(), vec![("limit", big_r * (1.0 - 1e-6)), ("measured", delta.abs() + r)]));
     }
     let b = Branch {
         big_r,
@@ -633,10 +661,12 @@ pub fn branch_stub_min(
         .map(|i| b.s(i as f64 * (TAU / (SUB * SEGMENTS) as f64)))
         .fold(f64::MIN, f64::max);
     if s_end.partial_cmp(&s_peak) != Some(std::cmp::Ordering::Greater) {
-        return Err(UemError::OutOfRange {
-            param: "s_end",
-            reason: format!("square end must lie beyond the saddle: s_end > {s_peak:.6}"),
-        });
+        return Err(out_of_range(
+            refusal::SQUARE_END_TOO_SHORT,
+            "s_end",
+            vec!["s_end"],
+            format!("square end must lie beyond the saddle: s_end > {s_peak:.6}"),
+        ));
     }
     // Spec 02 §4.4: the branch pattern is (r·φ, s). With φ increasing to the right and s upward the pattern
     // normal is the outward surface normal: the view from OUTSIDE (MARKING_SIDE). The saddle cut is at the
@@ -654,16 +684,25 @@ pub fn branch_stub_min(
     let (n, eps_rep) = choose_density(
         min_segments.max(SEGMENTS),
         "saddle cut of the branch",
+        &[
+            "header_radius",
+            "branch_radius",
+            "branch_dev_radius",
+            "beta_deg",
+            "delta",
+        ],
         &sample,
     )?;
     let all = sample(n, SUB);
     let s_max = all.iter().map(|p| p.y).fold(f64::MIN, f64::max);
     let s_min = all.iter().map(|p| p.y).fold(f64::MAX, f64::min);
     if s_end.partial_cmp(&s_max) != Some(std::cmp::Ordering::Greater) {
-        return Err(UemError::OutOfRange {
-            param: "s_end",
-            reason: format!("square end must lie beyond the saddle: s_end > {s_max:.6}"),
-        });
+        return Err(out_of_range(
+            refusal::SQUARE_END_TOO_SHORT,
+            "s_end",
+            vec!["s_end"],
+            format!("square end must lie beyond the saddle: s_end > {s_max:.6}"),
+        ));
     }
     let w = TAU * r_dev;
     let mut cut: Vec<P2> = (0..=n).map(|i| all[SUB * i]).collect();
@@ -764,19 +803,39 @@ pub fn header_with_opening_min(
     finite_pos("header_dev_radius", r_dev_header)?;
     finite_pos("header_length", length)?;
     if !station.is_finite() {
-        return Err(UemError::OutOfRange {
-            param: "branch_station",
-            reason: "must be finite".into(),
-        });
+        return Err(out_of_range(
+            refusal::VALUE_NOT_FINITE,
+            "branch_station",
+            vec!["branch_station"],
+            "must be finite".into(),
+        ));
     }
     // (written with partial_cmp so that a NaN angle is refused, exactly as `!(sin > 0.17)` did)
     if b.beta.sin().partial_cmp(&0.17) != Some(std::cmp::Ordering::Greater)
         || b.delta.abs() + b.r >= b.big_r * (1.0 - 1e-6)
     {
-        return Err(UemError::OutOfRange {
-            param: "branch",
-            reason: "branch geometry outside the supported range (see branch stub limits)".into(),
-        });
+        return Err(out_of_range_with(
+            if b.beta.sin().partial_cmp(&0.17) != Some(std::cmp::Ordering::Greater) {
+                refusal::BRANCH_ANGLE_OUT_OF_RANGE
+            } else {
+                refusal::BRANCH_TANGENT_OR_PARTIAL
+            },
+            "branch",
+            if b.beta.sin().partial_cmp(&0.17) != Some(std::cmp::Ordering::Greater) {
+                vec!["beta_deg"]
+            } else {
+                vec!["header_radius", "branch_radius", "delta"]
+            },
+            "branch geometry outside the supported range (see branch stub limits)".into(),
+            if b.beta.sin().partial_cmp(&0.17) != Some(std::cmp::Ordering::Greater) {
+                vec![]
+            } else {
+                vec![
+                    ("limit", b.big_r * (1.0 - 1e-6)),
+                    ("measured", b.delta.abs() + b.r),
+                ]
+            },
+        ));
     }
     let mut shell = cylinder_shell(r_dev_header, length)?;
     // The opening is computed in the frame (x along the header axis, v around it), so the plate outline must be
@@ -821,12 +880,14 @@ pub fn header_with_opening_min(
         if xmin.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater)
             || xmax.partial_cmp(&length) != Some(std::cmp::Ordering::Less)
         {
-            return Err(UemError::OutOfRange {
-                param: "branch_station",
-                reason: format!(
+            return Err(out_of_range(
+                refusal::OPENING_OUTSIDE_SHELL,
+                "branch_station",
+                vec!["branch_station", "header_length"],
+                format!(
                     "opening spans x = {xmin:.3} .. {xmax:.3} and does not lie inside the shell length {length}"
                 ),
-            });
+            ));
         }
         Ok((xmin, xmax))
     };
@@ -834,6 +895,16 @@ pub fn header_with_opening_min(
     let (n, eps_rep) = choose_density(
         min_segments.max(SEGMENTS),
         "branch opening of the header",
+        &[
+            "header_radius",
+            "header_dev_radius",
+            "header_length",
+            "branch_station",
+            "branch_radius",
+            "branch_dev_radius",
+            "beta_deg",
+            "delta",
+        ],
         &sample,
     )?;
     let mut pts = sample(n, 1);
@@ -1077,12 +1148,12 @@ mod tests {
         for h in [0.01, 1e-8] {
             let e = cone_frustum(300.0, 50.0, h).unwrap_err();
             assert!(
-                matches!(&e, UemError::NotDevelopable(m) if m.contains("would overlap")),
+                matches!(&e, UemError::NotDevelopable { reason: m, .. } if m.contains("would overlap")),
                 "{e:?}"
             );
             let e = eccentric_reducer(300.0, 50.0, h, 0.0).unwrap_err();
             assert!(
-                matches!(&e, UemError::NotDevelopable(m) if m.contains("would overlap")),
+                matches!(&e, UemError::NotDevelopable { reason: m, .. } if m.contains("would overlap")),
                 "{e:?}"
             );
         }
@@ -1264,7 +1335,7 @@ mod tests {
         let r = 1e6 * (1.0 - 1.1e-6);
         let e = branch_stub(1e6, r, r, 15.0, 0.0, 1e7).unwrap_err();
         assert!(
-            matches!(&e, UemError::OutOfRange { param: "chord_error", reason } if reason.contains("0.01 mm") && reason.contains("implementation limit")),
+            matches!(&e, UemError::OutOfRange { param: "chord_error", reason, .. } if reason.contains("0.01 mm") && reason.contains("implementation limit")),
             "{e:?}"
         );
         // vertices stay uniform in the angle whatever the density (phi = 0, 90, 180, 270 deg are vertices,

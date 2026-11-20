@@ -4,7 +4,7 @@
 // Every string the client owns comes from the catalogue in i18n.js (English and Japanese); text the engine or
 // the server writes is shown through eng() / srv(), which never translate a statement in part.
 import { PatternViewer, isSeam } from './viewer.js';
-import { t, h, lang, setLang, initialLang, LANGS, LANG_NAME, idLabel, quantityUnit, engineJa, engineSentences, missing } from './i18n.js';
+import { t, h, has, lang, setLang, initialLang, LANGS, LANG_NAME, idLabel, quantityUnit, engineJa, engineSentences, missing } from './i18n.js';
 
 // ---------------------------------------------------------------- utilities
 const $ = (s, r = document) => r.querySelector(s);
@@ -469,6 +469,19 @@ function fieldError(input, msg, focus = true) {
   m.textContent = msg; if (focus) input.focus();
   input.addEventListener('input', () => { input.removeAttribute('aria-invalid'); m.remove(); }, { once: true });
 }
+// BH-014: a refusal is shown by its code, with the values it names; a code without a message shows the server's text
+const numText = (v) => (v === undefined || v === null ? '' : String(v));
+const refusalHtml = (r) => (r && has(`refusal.${r.code}`)
+  ? h(`refusal.${r.code}`, { fields: esc((r.fields || []).join(', ')), limit: esc(numText(r.detail && r.detail.limit)), measured: esc(numText(r.detail && r.detail.measured)) })
+  : eng(r ? r.message : ''));
+// the same marking as fieldError, with a message that is already HTML
+function refusedField(input, html) {
+  input.setAttribute('aria-invalid', 'true');
+  const field = input.closest('.field'); let m = (field || input.parentElement).querySelector('.field-err');
+  if (!m) { m = document.createElement('div'); m.className = 'field-err'; m.setAttribute('role', 'alert'); if (field) field.append(m); else input.after(m); }
+  m.innerHTML = html;
+  input.addEventListener('input', () => { input.removeAttribute('aria-invalid'); m.remove(); }, { once: true });
+}
 const formError = (sel, err) => { const m = $(sel); if (m) m.innerHTML = `<div class="note bad" role="alert"><div>${errHtml(err)}</div></div>`; };
 async function withBusy(btn, label, fn) { const old = btn.innerHTML; btn.disabled = true; btn.classList.add('busy'); if (label) btn.textContent = label; try { return await fn(); } finally { if (btn.isConnected) { btn.disabled = false; btn.classList.remove('busy'); btn.innerHTML = old; } } }
 
@@ -840,11 +853,11 @@ const views = {
   // New calculation, in the workspace layout: inputs left, parameter schematic centre, scope of the build right.
   math: {
     async load(projectId, fromId) {
-      const ps = await loadProjects(); let from = null;
-      if (fromId && me.role !== 'viewer') { try { from = (await api(`/api/calculations/${fromId}`)).request; } catch { from = null; } }
-      return { ps, from };
+      const ps = await loadProjects(); let from = null, refusal = null;
+      if (fromId && me.role !== 'viewer') { try { const job = await api(`/api/calculations/${fromId}`); from = job.request; refusal = job.state === 'REFUSED' ? job.refusal || null : null; } catch { from = null; } }
+      return { ps, from, refusal };
     },
-    render({ ps, from }, projectId, fromId) {
+    render({ ps, from, refusal }, projectId, fromId) {
       const crumbs = [[t('nav.workspace'), '#/workspace'], [t('new.calc')]], title = t('new.calc');
       if (!ps.length) return { title, nav: 'workspace', crumbs, html: `<div class="page">${ph(esc(title), '')}${empty('folder', t('math.noproj.t'), esc(t('math.noproj.p')), `<a class="btn pri" href="#/projects">${esc(t('math.noproj.go'))}</a>`)}</div>` };
       if (me.role === 'viewer') return { title, nav: 'workspace', crumbs, html: `<div class="page">${ph(esc(title), '')}${empty('shield', t('math.viewer.t'), esc(t('math.viewer.p')), `<a class="btn" href="#/workspace">${esc(t('math.viewer.go'))}</a>`)}</div>` };
@@ -894,6 +907,7 @@ const views = {
           // the drawing is laid out in real pixels: draw it again when its box changes (panel resize, caption wrap)
           let last = `${canvas.clientWidth}x${canvas.clientHeight}`;
           const ro = new ResizeObserver(() => { const now = `${canvas.clientWidth}x${canvas.clientHeight}`; if (now !== last && canvas.isConnected) { last = now; draw(); } }); ro.observe(canvas);
+          (refusal && refusal.fields || []).forEach((k) => { const el = form.elements.namedItem(k); if (el) refusedField(el, refusalHtml(refusal)); });
           form.onsubmit = async (e) => {
             e.preventDefault(); calcKeep = null; const req = read(), fam = req.family, { errors, warnings } = validateRequest(fam, req);
             clearFieldErrors(form);
@@ -1010,12 +1024,12 @@ const views = {
       const reqKeys = [...new Set([...(F[fam] ? F[fam].f.map((x) => x[0]) : []), ...Object.keys(c.request)])].filter((k) => k !== 'family' && k in c.request);
       const reqValue = (k, v, m) => (typeof v === 'number' ? (m ? `<span class="q"><span class="qv">${fmt(v)}</span> <span class="qu">${esc(unitText(m[3]))}</span></span>` : fmt(v)) : (k === 'surface_reference' || k === 'header_surface_reference' || k === 'branch_surface_reference') ? named('sref', v) : k === 'joint' ? `<span class="nw">${named('joint', v)}</span>` : esc(v));
       // the engine names the refused parameter in its outcome ("out of range (joint): ..."); that row is marked
-      const refKey = noResult && c.outcome ? (/^out of range \(([^)]+)\)/.exec(c.outcome) || [])[1] : null;
+      const refusalJob = noResult && c.refusal ? c.refusal : null; const refKeys = refusalJob ? refusalJob.fields || [] : [];
       // the interface record of a header with branch: what the result itself says about the joint
       const ifc = c.records.find((r) => r.kind === 'interface'), jp = ifc ? ifc.payload : null;
-      const jointHtml = jp ? `<p class="txt">${eng(jp.joint)}</p><dl class="kv"><dt title="joint">${esc(plabel(fam, 'joint'))}</dt><dd class="txt">${jp.declared === 'set_on' ? named('joint', 'set_on') : esc(t('joint.none.v'))}</dd><dt title="header_surface_reference">${esc(plabel(fam, 'header_surface_reference'))}</dt><dd class="txt">${named('sref', jp.header_surface)}</dd><dt title="branch_surface_reference">${esc(plabel(fam, 'branch_surface_reference'))}</dt><dd class="txt">${named('sref', jp.branch_surface)}</dd></dl>` : '';
+      const jointHtml = jp ? `<p class="txt">${eng(jp.joint)}</p><dl class="kv"><dt title="joint">${esc(plabel(fam, 'joint'))}</dt><dd class="txt">${jp.declared === 'set-on' ? named('joint', 'set_on') : esc(t('joint.none.v'))}</dd><dt title="header_surface_reference">${esc(plabel(fam, 'header_surface_reference'))}</dt><dd class="txt">${named('sref', jp.header_surface)}</dd><dt title="branch_surface_reference">${esc(plabel(fam, 'branch_surface_reference'))}</dt><dd class="txt">${named('sref', jp.branch_surface)}</dd></dl>` : '';
       const wm = t(state === 'SUPERSEDED' ? 'wm.sup' : state === 'REJECTED' ? 'wm.rej' : 'wm.review');
-      const banner = state === 'SUPERSEDED' ? h('ban.sup', { job: jobLink(c.superseded_by, true) }) : state === 'NO_RESULT' ? h('ban.none', { why: c.outcome ? eng(c.outcome) : esc(t('ban.none.default')) }) : state === 'REJECTED' ? h('ban.rej') : h('ban.review');
+      const banner = state === 'SUPERSEDED' ? h('ban.sup', { job: jobLink(c.superseded_by, true) }) : state === 'NO_RESULT' ? h('ban.none', { why: c.refusal ? refusalHtml(c.refusal) : c.outcome ? eng(c.outcome) : esc(t('ban.none.default')) }) : state === 'REJECTED' ? h('ban.rej') : h('ban.review');
       // one primary action at most: the successor when superseded, else the correction, else the new calculation from this job
       const primary = c.superseded_by ? 'successor' : canCorrect ? 'corr' : canEdit ? 'clone' : '';
       const jobActions = [c.superseded_by ? `<a class="btn${primary === 'successor' ? ' pri' : ''}" id="successor" href="#/calc/${c.superseded_by}">${esc(t('job.successor', { id: c.superseded_by }))}</a>` : '', canCorrect ? `<button id="corr-open"${primary === 'corr' ? ' class="pri"' : ''}>${esc(t('job.correct'))}</button>` : '', canEdit && !blocked ? `<button id="replay" data-tip="${esc(t('job.replay.tip'))}" data-tip-pos="end">${esc(t('job.replay'))}</button>` : '', canEdit ? `<a class="btn${primary === 'clone' ? ' pri' : ''}" href="#/math/${c.project_id}/${c.id}" data-tip="${esc(t('job.clone.tip'))}" data-tip-pos="end">${esc(t('job.clone'))}</a>` : ''].join('');
@@ -1026,7 +1040,7 @@ const views = {
         <div class="ws-banner${blocked ? ' bad' : ''}${state === 'SUPERSEDED' ? ' neutral' : ''}" role="status"><span>${banner}</span></div>
         <div class="ws-body">
           <aside class="pane" aria-label="${esc(t('pane.props.aria'))}"><div class="pane-h"><h2>${esc(t('pane.props.h'))}</h2></div><div class="pane-scroll">
-            <details class="sec" open><summary>${esc(t('req.h'))} ${tag('na', t('req.tag'))}</summary><div class="sec-b"><dl class="kv req">${reqKeys.map((k) => { const v = c.request[k], m = paramMeta(fam, k), ok = canCorrect && c.correctable_parameters.some((x) => x[0] === k); return `<dt>${m ? esc(m[1]) : labelled('param', k)}<small class="mono">${esc(k)}</small></dt><dd${typeof v === 'number' ? '' : ' class="txt"'}>${reqValue(k, v, m)}${k === refKey ? ` ${tag('bad', t('req.refused'))}` : ''}${ok ? `<button class="ghost mini" data-correct="${esc(k)}" aria-label="${esc(t('req.correct.aria', { label: m ? m[1] : k }))}">${esc(t('req.correct'))}</button>` : ''}</dd>`; }).join('')}</dl>
+            <details class="sec" open><summary>${esc(t('req.h'))} ${tag('na', t('req.tag'))}</summary><div class="sec-b"><dl class="kv req">${reqKeys.map((k) => { const v = c.request[k], m = paramMeta(fam, k), ok = canCorrect && c.correctable_parameters.some((x) => x[0] === k); return `<dt>${m ? esc(m[1]) : labelled('param', k)}<small class="mono">${esc(k)}</small></dt><dd${typeof v === 'number' ? '' : ' class="txt"'}>${reqValue(k, v, m)}${refKeys.includes(k) ? ` ${tag('bad', t('req.refused'))}<div class="field-err">${refusalHtml(refusalJob)}</div>` : ''}${ok ? `<button class="ghost mini" data-correct="${esc(k)}" aria-label="${esc(t('req.correct.aria', { label: m ? m[1] : k }))}">${esc(t('req.correct'))}</button>` : ''}</dd>`; }).join('')}</dl>
               <p class="hint">${esc(t('req.hint'))}</p></div></details>
             ${c.patterns.length ? `<details class="sec" open><summary>${esc(t('sel.h'))}</summary><div class="sec-b"><div id="sel" aria-live="polite"></div><div id="meas" aria-live="polite"></div></div></details>
             <details class="sec" open><summary>${esc(t('curves.h'))} <span class="sub" id="curves-part"></span></summary><div class="sec-b flush" id="curves"></div></details>
@@ -1046,7 +1060,7 @@ const views = {
             <div class="pv-host" id="pv"><span class="stage-wm${state === 'SUPERSEDED' ? ' grey' : blocked ? ' bad' : ''}" id="wm">${esc(wm)}</span><div class="tblock" id="tblock"></div></div>
             <div class="stage-notes" id="cnotes" role="note" aria-label="${esc(t('cn.aria'))}"></div>
             <div class="readout" aria-hidden="true"><span><b>X</b><span id="ro-x">—</span></span><span><b>Y</b><span id="ro-y">—</span></span><span class="ro-info" id="ro-info"></span></div>`
-            : `<div class="pv-host">${empty('warn', t('nopat.t'), c.outcome ? eng(c.outcome) : esc(t('nopat.default')), canEdit ? `<a class="btn pri" href="#/math/${c.project_id}/${c.id}">${esc(t('nopat.go'))}</a>` : '', 'err')}</div>`}
+            : `<div class="pv-host">${empty('warn', t('nopat.t'), c.refusal ? refusalHtml(c.refusal) : c.outcome ? eng(c.outcome) : esc(t('nopat.default')), canEdit ? `<a class="btn pri" href="#/math/${c.project_id}/${c.id}">${esc(t('nopat.go'))}</a>` : '', 'err')}</div>`}
           </section>
           <div class="split" role="separator" aria-orientation="vertical" aria-label="${esc(t('split.results'))}" tabindex="0" data-split="r"></div>
           <aside class="pane" aria-label="${esc(t('pane.results.aria'))}">

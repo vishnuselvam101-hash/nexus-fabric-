@@ -9,8 +9,8 @@
 //! "what is affected if this parameter changes?".
 
 use crate::{
-    ENGINE_VERSION, Family, Gate, GateResult, Record, ReleaseState, closure, closure_hash, rel,
-    sha256_hex,
+    ENGINE_VERSION, Family, Gate, GateResult, Record, Refusal, ReleaseState, closure, closure_hash,
+    detail_map, rel, sha256_hex,
 };
 use nf_dxf::Entity;
 use serde::{Deserialize, Serialize};
@@ -102,6 +102,93 @@ pub enum Request {
     },
 }
 
+/// A request refusal with its code, the request fields it concerns, and its message.
+fn coded(code: &str, fields: Vec<String>, message: impl Into<String>) -> Refusal {
+    Refusal {
+        code: code.to_string(),
+        fields,
+        message: message.into(),
+        detail: None,
+    }
+}
+
+/// The numeric and text fields of each family, as the request reads them (the same names as the form sends).
+const FAMILY_FIELDS: [(&str, &[&str], &[&str]); 5] = [
+    ("cylinder_shell", &["r_dev", "length"], &[]),
+    ("cone_frustum", &["r1", "r2", "h"], &[]),
+    ("eccentric_reducer", &["r1", "r2", "h", "e"], &[]),
+    (
+        "branch_stub",
+        &[
+            "header_radius",
+            "branch_radius",
+            "branch_dev_radius",
+            "beta_deg",
+            "delta",
+            "s_end",
+        ],
+        &["surface_reference"],
+    ),
+    (
+        "header_with_branch",
+        &[
+            "header_radius",
+            "header_dev_radius",
+            "header_length",
+            "branch_station",
+            "branch_radius",
+            "branch_dev_radius",
+            "beta_deg",
+            "delta",
+            "s_end",
+        ],
+        &[
+            "surface_reference",
+            "header_surface_reference",
+            "branch_surface_reference",
+            "joint",
+        ],
+    ),
+];
+
+/// The code of a request the parser refused, and the fields it names. serde's text names the missing field; a
+/// wrong type is attributed to the fields of the family whose JSON value has the wrong type.
+fn classify_parse_error(v: &Value, msg: &str) -> (&'static str, Vec<String>) {
+    let Some(obj) = v.as_object() else {
+        return (crate::refusal::REQUEST_NOT_OBJECT, vec![]);
+    };
+    let family = obj.get("family").and_then(Value::as_str);
+    if family.is_none() || msg.contains("unknown variant") || msg.contains("missing field `family`")
+    {
+        return (crate::refusal::FAMILY_UNKNOWN, vec!["family".into()]);
+    }
+    if let Some(rest) = msg.split("missing field `").nth(1) {
+        let name = rest.split('`').next().unwrap_or("").to_string();
+        return (crate::refusal::FIELD_MISSING, vec![name]);
+    }
+    if msg.contains("invalid type") {
+        let mut wrong = Vec::new();
+        if let Some((_, nums, texts)) = FAMILY_FIELDS.iter().find(|(f, _, _)| Some(*f) == family) {
+            for f in nums.iter() {
+                if obj.get(*f).is_some_and(|x| !x.is_number()) {
+                    wrong.push(f.to_string());
+                }
+            }
+            for f in texts.iter() {
+                // joint may be null (absent); surface_reference may not
+                if obj
+                    .get(*f)
+                    .is_some_and(|x| !x.is_string() && !(*f == "joint" && x.is_null()))
+                {
+                    wrong.push(f.to_string());
+                }
+            }
+        }
+        return (crate::refusal::FIELD_WRONG_TYPE, wrong);
+    }
+    (crate::refusal::REQUEST_MALFORMED, vec![])
+}
+
 impl Request {
     /// Names of numeric parameters that can be corrected individually.
     pub fn numeric_params(&self) -> Vec<(String, f64)> {
@@ -114,11 +201,22 @@ impl Request {
             })
             .unwrap_or_default()
     }
-    /// Parse a request and refuse fields this build does not know (BE-016):
-    /// a silently ignored "thickness" would let an engineer believe it was applied.
+    /// Parse a request and refuse fields this build does not know (BE-016): a silently ignored "thickness" would
+    /// let an engineer believe it was applied. The message is the text the API has always given; the refusal adds
+    /// the stable code and the fields it concerns (docs/backend/REFUSAL_CODES.md).
     pub fn parse_strict(v: &Value) -> Result<Request, String> {
-        let req: Request =
-            serde_json::from_value(v.clone()).map_err(|e| format!("invalid request: {e}"))?;
+        Request::parse_refusal(v).map_err(|r| r.message)
+    }
+
+    /// As `parse_strict`, with the refusal in machine-readable form.
+    pub fn parse_refusal(v: &Value) -> Result<Request, Refusal> {
+        let req: Request = match serde_json::from_value(v.clone()) {
+            Ok(r) => r,
+            Err(e) => {
+                let (code, fields) = classify_parse_error(v, &e.to_string());
+                return Err(coded(code, fields, format!("invalid request: {e}")));
+            }
+        };
         // BH-015: the shared surface_reference is an absent-means-fallback only. It may be left out when both
         // part surfaces are given; otherwise a part would have no surface, and the request is refused as before.
         let shared_missing_without_both_parts = matches!(
@@ -131,24 +229,34 @@ impl Request {
             } if header_surface_reference.is_none() || branch_surface_reference.is_none()
         );
         if shared_missing_without_both_parts {
-            return Err("invalid request: missing field `surface_reference`".into());
+            return Err(coded(
+                crate::refusal::SURFACE_REFERENCE_REQUIRED,
+                vec![
+                    "surface_reference".into(),
+                    "header_surface_reference".into(),
+                    "branch_surface_reference".into(),
+                ],
+                "invalid request: missing field `surface_reference`",
+            ));
         }
-        let known = serde_json::to_value(&req).map_err(|e| e.to_string())?;
-        let unknown: Vec<&str> = v
+        let known = serde_json::to_value(&req)
+            .map_err(|e| coded(crate::refusal::REQUEST_MALFORMED, vec![], e.to_string()))?;
+        let unknown: Vec<String> = v
             .as_object()
             .map(|o| {
                 o.keys()
                     .filter(|k| known.get(k.as_str()).is_none())
-                    .map(|k| k.as_str())
+                    .cloned()
                     .collect()
             })
             .unwrap_or_default();
         if !unknown.is_empty() {
-            return Err(format!(
+            let message = format!(
                 "invalid request: unknown field(s) {} for family '{}'. Nothing is ignored silently; remove them or use a family that has them",
                 unknown.join(", "),
                 known["family"].as_str().unwrap_or("")
-            ));
+            );
+            return Err(coded(crate::refusal::FIELD_UNKNOWN, unknown, message));
         }
         Ok(req)
     }
@@ -227,9 +335,13 @@ pub struct JobOutput {
     pub state: ReleaseState,
     /// Set exactly when the engine refused the request (state REFUSED, no pattern).
     pub outcome: Option<String>,
-    /// The parameter the refusal is about, where the engine names one.
+    /// The parameter the refusal is about, where the engine names one (kept as it always was).
     #[serde(default)]
     pub refused_field: Option<String>,
+    /// The refusal in machine-readable form: code, request fields, message and the exact limit where the
+    /// engine computes one (docs/backend/REFUSAL_CODES.md). Set exactly when `outcome` is.
+    #[serde(default)]
+    pub refusal: Option<Refusal>,
     pub gates: Vec<Gate>,
     pub patterns: Vec<PatternView>,
     pub checks: Vec<CheckView>,
@@ -447,19 +559,25 @@ impl Builder {
     }
 
     /// Pattern claim, profile report, DXF output and re-import report for one part.
-    /// `deps` are the typed edges from the pattern to what it was developed from.
+    /// `deps` are the typed edges from the pattern to what it was developed from. `joint` is the joint the job
+    /// declares for this part (header-with-branch parts only); the DXF states exactly that, and nothing else.
     fn part(
         &mut self,
         part: &str,
         pattern: &Pattern,
         deps: Vec<crate::Rel>,
         checks: Vec<Check>,
+        joint: Option<&nf_dxf::JointStatement>,
     ) -> (String, String) {
         let inputs: Vec<&str> = deps.iter().map(|d| d.to.as_str()).collect();
         let a_dev = self.act("build.develop", "Z2", &inputs, 1500);
         let entities = to_entities(pattern);
         let notes = vec![marking_side_note(pattern.marking_side)];
-        let text = nf_dxf::write_annotated(&entities, &notes);
+        // the joint lines are drawn at the size of the release marking, below the marking side
+        let mut big = notes.clone();
+        big.extend(joint.map(|j| j.texts()).unwrap_or_default());
+        let comments = joint.map(|j| j.comments()).unwrap_or_default();
+        let text = nf_dxf::write_stated(&entities, &big, &[], &comments);
         let dxf_sha = sha256_hex(text.as_bytes());
         let pv = PatternView {
             part: part.to_string(),
@@ -513,25 +631,25 @@ impl Builder {
         let dxf_id = self.push(Record::new(
             Family::Claim,
             "dxf_output",
-            json!({ "part": part, "sha256": dxf_sha, "bytes": text.len(), "entities": entities.len(), "format": "DXF AC1009 subset", "units": "mm: $LUNITS=2 (decimal), $AUNITS=0, $ANGDIR=0 in the header; the unit is stated in a comment and a TEXT annotation (R12 has no unit-of-measure variable)", "marking": { "layer": nf_dxf::MARK_LAYER, "text": nf_dxf::MARK_TEXT, "marking_side": notes[0] } }),
+            json!({ "part": part, "sha256": dxf_sha, "bytes": text.len(), "entities": entities.len(), "format": "DXF AC1009 subset", "units": "mm: $LUNITS=2 (decimal), $AUNITS=0, $ANGDIR=0 in the header; the unit is stated by the NF-UNITS comment line, the comment block and a TEXT annotation (R12 has no unit-of-measure variable)", "marking": { "layer": nf_dxf::MARK_LAYER, "text": nf_dxf::MARK_TEXT, "marking_side": notes[0] }, "statement": { "comments": std::iter::once((nf_dxf::KEY_UNITS.to_string(), "mm".to_string())).chain(comments.clone()).collect::<Vec<(String, String)>>(), "texts": big[1..].to_vec() } }),
             vec![rel("rendered_from", &pattern_id)],
             Some(a_dxf),
         ));
         let a_re = self.act("verify.reimport", "Z3", &[&dxf_id, &pattern_id], 200);
-        let re = nf_dxf::reimport_check_annotated(&entities, &text, 1e-8, &notes);
+        let re = nf_dxf::reimport_check_stated(&entities, &text, 1e-8, &notes, joint);
         self.sides.push(pattern.marking_side);
         self.reimport_ok &= re.pass;
         let re_id = self.push(Record::new(
             Family::Assessment,
             "reimport_report",
-            json!({ "part": part, "pass": re.pass, "entities_written": re.entities_written, "entities_read": re.entities_read, "unknown_entities": re.unknown_entities, "max_point_deviation": re.max_point_deviation, "max_length_deviation": re.max_length_deviation, "layers_match": re.layers_match, "annotations_read": re.annotations_read, "not_released_marking": re.not_released_marking, "units_declared": re.units_declared, "extents_match": re.extents_match, "marking_side_stated": re.required_notes_present }),
+            json!({ "part": part, "pass": re.pass, "entities_written": re.entities_written, "entities_read": re.entities_read, "unknown_entities": re.unknown_entities, "max_point_deviation": re.max_point_deviation, "max_length_deviation": re.max_length_deviation, "layers_match": re.layers_match, "annotations_read": re.annotations_read, "not_released_marking": re.not_released_marking, "units_declared": re.units_declared, "extents_match": re.extents_match, "marking_side_stated": re.required_notes_present, "joint_statement_matches": re.joint_statement_matches }),
             vec![rel("verifies", &dxf_id)],
             Some(a_re),
         ));
         // DXF quality gate (nf-dxf quality, review item 5): the file as written and re-read must pass it.
         // A file that does not pass is never offered: it is withheld from the job's DXF list and G15 fails.
         let a_q = self.act("verify.dxf_quality", "Z3", &[&dxf_id], 300);
-        let quality = nf_dxf::quality::quality_gate(&text);
+        let quality = nf_dxf::quality::quality_gate_stated(&text, joint);
         let q_id = self.push(Record::new(
             Family::Assessment,
             "dxf_quality_report",
@@ -554,16 +672,16 @@ impl Builder {
         (pattern_id, dxf_id)
     }
 
-    /// `refusal` = (reason, parameter) when the engine refused the request.
+    /// `refusal` = (the refusal, the parameter it is about) when the engine refused the request.
     fn finish(
         mut self,
         req: &Request,
         mut gates: Vec<Gate>,
-        refusal: Option<(String, Option<String>)>,
+        refusal: Option<(Refusal, Option<String>)>,
     ) -> JobOutput {
-        let (outcome, refused_field) = match refusal {
-            Some((why, field)) => (Some(why), field),
-            None => (None, None),
+        let (outcome, refused_field, refusal) = match refusal {
+            Some((r, field)) => (Some(r.message.clone()), field, Some(r)),
+            None => (None, None, None),
         };
         // D1: every part of one job must be drawn from the same, declared side. Anything else fails G02.
         if self.sides.iter().any(|s| *s != uem::MARKING_SIDE)
@@ -616,6 +734,7 @@ impl Builder {
             state,
             outcome,
             refused_field,
+            refusal,
             gates,
             patterns: self.patterns,
             checks: self.checks,
@@ -763,7 +882,7 @@ fn err_output(req: &Request, mut b: Builder, about: &str, e: UemError) -> JobOut
     let f = b.push(Record::new(
         Family::Finding,
         "engineering_outcome",
-        json!({ "outcome": format!("{e:?}"), "message": e.to_string(), "critical": critical }),
+        json!({ "outcome": format!("{e:?}"), "message": e.to_string(), "critical": critical, "code": e.code(), "fields": e.fields(), "detail": detail_map(e.detail()) }),
         vec![rel("about", about)],
         Some(a),
     ));
@@ -786,7 +905,7 @@ fn err_output(req: &Request, mut b: Builder, about: &str, e: UemError) -> JobOut
         UemError::OutOfRange { param, .. } => Some(param.to_string()),
         _ => None,
     };
-    b.finish(req, gates, Some((e.to_string(), field)))
+    b.finish(req, gates, Some((Refusal::from_engine(&e), field)))
 }
 
 fn request_claim(req: &Request, entered_by: &str) -> Record {
@@ -821,10 +940,12 @@ fn single(
                 req,
                 b,
                 &rq,
-                UemError::OutOfRange {
-                    param: "surface_reference",
-                    reason: format!("must be one of {SURFACE_REFERENCES:?}"),
-                },
+                uem::out_of_range(
+                    crate::refusal::SURFACE_REFERENCE_INVALID,
+                    "surface_reference",
+                    vec!["surface_reference"],
+                    format!("must be one of {SURFACE_REFERENCES:?}"),
+                ),
             );
         }
         if branch_radius.is_finite()
@@ -844,10 +965,7 @@ fn single(
                         req,
                         b,
                         &rq,
-                        UemError::OutOfRange {
-                            param: "branch_dev_radius",
-                            reason,
-                        },
+                        radius_error(reason, "branch_dev_radius", "branch_radius"),
                     );
                 }
                 Ok(note) => scrutiny = note,
@@ -857,7 +975,7 @@ fn single(
     match r {
         Err(e) => err_output(req, b, &rq, e),
         Ok((p, checks)) => {
-            b.part(part, &p, vec![rel("developed_from", &rq)], checks);
+            b.part(part, &p, vec![rel("developed_from", &rq)], checks, None);
             let sref = match req {
                 Request::BranchStub {
                     surface_reference, ..
@@ -897,6 +1015,8 @@ fn header_with_branch(
 ) -> JobOutput {
     let [hr, hdev, hlen, station, br, bdev, beta_deg, delta, s_end] = dims;
     let (hsref, bsref) = surfaces;
+    // the joint as the job declares it: the same words in the DXF, the records and the interface (BH-004)
+    let js = nf_dxf::JointStatement::new(joint == Some("set_on"), hsref, bsref);
     let mut b = Builder::new();
     let rq = b.push(request_claim(req, entered_by));
     for (param, value) in [
@@ -908,10 +1028,12 @@ fn header_with_branch(
                 req,
                 b,
                 &rq,
-                UemError::OutOfRange {
+                uem::out_of_range(
+                    crate::refusal::SURFACE_REFERENCE_INVALID,
                     param,
-                    reason: format!("must be one of {SURFACE_REFERENCES:?}"),
-                },
+                    vec![param],
+                    format!("must be one of {SURFACE_REFERENCES:?}"),
+                ),
             );
         }
     }
@@ -927,12 +1049,18 @@ fn header_with_branch(
                     req,
                     b,
                     &rq,
-                    UemError::OutOfRange {
-                        param: "joint",
-                        reason: format!(
+                    uem::out_of_range(
+                        crate::refusal::JOINT_PAIRING_INVALID,
+                        "joint",
+                        vec![
+                            "joint",
+                            "header_surface_reference",
+                            "branch_surface_reference",
+                        ],
+                        format!(
                             "a set-on joint (Spec 02 section 4.4) needs the branch INSIDE surface on the header OUTSIDE surface: branch_surface_reference \"{SET_ON_BRANCH_SURFACE}\" and header_surface_reference \"{SET_ON_HEADER_SURFACE}\". Declared: header \"{hsref}\", branch \"{bsref}\". A branch whose outside surface is the contact would have its opening cut at the outside diameter, so it would pass through the hole; this build has no wall thickness from which the bore could be derived"
                         ),
-                    },
+                    ),
                 );
             }
         }
@@ -941,10 +1069,12 @@ fn header_with_branch(
                 req,
                 b,
                 &rq,
-                UemError::OutOfRange {
-                    param: "joint",
-                    reason: format!("the joint type must be absent or \"set_on\", not \"{other}\""),
-                },
+                uem::out_of_range(
+                    crate::refusal::JOINT_TYPE_UNKNOWN,
+                    "joint",
+                    vec!["joint"],
+                    format!("the joint type must be absent or \"set_on\", not \"{other}\""),
+                ),
             );
         }
     }
@@ -959,15 +1089,7 @@ fn header_with_branch(
         if contact.is_finite() && contact > 0.0 && dev.is_finite() && dev > 0.0 {
             match radius_consistency(sref, contact_name, contact, dev_name, dev) {
                 Err(reason) => {
-                    return err_output(
-                        req,
-                        b,
-                        &rq,
-                        UemError::OutOfRange {
-                            param: dev_name,
-                            reason,
-                        },
-                    );
+                    return err_output(req, b, &rq, radius_error(reason, dev_name, contact_name));
                 }
                 Ok(Some(note)) => scrutiny.push(note),
                 Ok(None) => {}
@@ -975,7 +1097,7 @@ fn header_with_branch(
         }
     }
     // One claim per parameter, so that a change to one of them can be traced.
-    let conv = b.push(Record::new(Family::Claim, "convention", json!({ "name": "surface_reference", "value": { "header": hsref, "branch": bsref }, "scope": "header contact radius and its development radius: header; branch contact radius and its development radius: branch", "joint": joint.unwrap_or("not declared"), "axes": { "provenance": "human_entered", "authority": "assumed" } }), vec![rel("declared_in", &rq)], None));
+    let conv = b.push(Record::new(Family::Claim, "convention", json!({ "name": "surface_reference", "value": { "header": hsref, "branch": bsref }, "scope": "header contact radius and its development radius: header; branch contact radius and its development radius: branch", "joint": js.joint, "axes": { "provenance": "human_entered", "authority": "assumed" } }), vec![rel("declared_in", &rq)], None));
     let param = |b: &mut Builder, name: &str, value: f64, radius: bool| -> String {
         let mut rels = vec![rel("declared_in", &rq)];
         if radius {
@@ -1065,12 +1187,12 @@ fn header_with_branch(
     let joint_label = if joint == Some("set_on") {
         "set-on (Spec 02 section 4.4: branch inside surface on header outside surface; the opening is the branch bore)"
     } else {
-        "single contact curve (joint type not declared): the branch end cut and the header opening are cut on one curve of the entered radii"
+        "not declared (the branch end cut and the header opening are cut on one curve of the entered radii)"
     };
     let interface = b.push(Record::new(
         Family::Claim,
         "interface",
-        json!({ "name": "header-branch joint", "joint": joint_label, "declared": joint.unwrap_or("not declared"), "header_surface": hsref, "branch_surface": bsref, "constraint": "branch end cut and header opening are the same intersection curve" }),
+        json!({ "name": "header-branch joint", "joint": joint_label, "declared": js.joint, "header_surface": hsref, "branch_surface": bsref, "constraint": "branch end cut and header opening are the same intersection curve" }),
         vec![rel("mates_at", &part_h), rel("mates_at", &part_b), rel("interface_feature", &curve), rel("positioned_by", &p_st)],
         None,
     ));
@@ -1087,6 +1209,7 @@ fn header_with_branch(
             rel("pattern_of", &part_h),
         ],
         hc,
+        Some(&js),
     );
     let bc = verify::verify_branch(&branch_pat, &geo, bdev, s_end);
     let (pat_b, _) = b.part(
@@ -1099,6 +1222,7 @@ fn header_with_branch(
             rel("pattern_of", &part_b),
         ],
         bc,
+        Some(&js),
     );
 
     // Interface constraint, evaluated from the two finished patterns: the fold-back check, and the independent
@@ -1162,7 +1286,7 @@ fn header_with_branch(
     if let Some(g) = gates.iter_mut().find(|g| g.id == "G02") {
         g.detail.push_str(" Contact and development radii were checked against the declared surface of each part (Spec 02 §6.1): the direction is possible; no wall thickness is modelled, so its size is not checked.");
         if joint.is_none() {
-            g.detail.push_str(" Joint type not declared: the saddle and the opening are cut on one curve of the entered contact radii, a zero-thickness idealisation that is not called set-on. A set-on branch is cut at its bore: declare joint set_on with header_surface_reference outside and branch_surface_reference inside.");
+            g.detail.push_str(" Joint not declared: the saddle and the opening are cut on one curve of the entered contact radii, a zero-thickness idealisation. A set-on branch is cut at its bore: declare the joint as set-on (request value set_on) with header_surface_reference outside and branch_surface_reference inside.");
         }
         for note in &scrutiny {
             g.detail.push(' ');
@@ -1195,6 +1319,15 @@ const SAME_RADIUS_REL: f64 = 1e-12;
 /// plausible thickness range is assumed anywhere: the specification gives none
 /// (MATH-16), so the size of the difference is not judged.
 ///
+/// A radius that the declared surface contradicts: the rule code, the message, and the exact limit (the contact
+/// radius) and the measured development radius.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RadiusRefusal {
+    pub code: &'static str,
+    pub message: String,
+    pub detail: Vec<(&'static str, f64)>,
+}
+
 /// Ok(None) = consistent; Ok(Some(note)) = accepted, engineer must look; Err = refused.
 pub fn radius_consistency(
     sref: &str,
@@ -1202,32 +1335,58 @@ pub fn radius_consistency(
     contact: f64,
     dev_name: &str,
     dev: f64,
-) -> Result<Option<String>, String> {
+) -> Result<Option<String>, RadiusRefusal> {
     let same = (dev - contact).abs() <= SAME_RADIUS_REL * dev.abs().max(contact.abs());
     let zero_t = |side: &str| {
         Some(format!(
             "{dev_name} = {dev} equals the {side} contact radius {contact_name} = {contact}: that is a wall of zero thickness (an idealised surface). Thickness is not modelled; an engineer must confirm the radii before use."
         ))
     };
+    // the limit of a development radius is the contact radius itself; both are the entered numbers
+    let refuse = |code: &'static str, message: String| RadiusRefusal {
+        code,
+        message,
+        detail: vec![("limit", contact), ("measured", dev)],
+    };
     match sref {
         "outside" if same => Ok(zero_t("outside")),
-        "outside" if dev > contact => Err(format!(
-            "inconsistent with surface_reference 'outside': {dev_name} = {dev} is larger than the outside contact radius {contact_name} = {contact}. The development (reference) surface lies inside the wall (Spec 02 §6.1: r_dev = r_i + k·t, 0 < k <= 0.5), so it cannot be larger than the outside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface"
+        "outside" if dev > contact => Err(refuse(
+            crate::refusal::RADIUS_DEV_EXCEEDS_OUTSIDE,
+            format!(
+                "inconsistent with surface_reference 'outside': {dev_name} = {dev} is larger than the outside contact radius {contact_name} = {contact}. The development (reference) surface lies inside the wall (Spec 02 §6.1: r_dev = r_i + k·t, 0 < k <= 0.5), so it cannot be larger than the outside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface"
+            ),
         )),
         "outside" => Ok(None),
         "inside" if same => Ok(zero_t("inside")),
-        "inside" if dev < contact => Err(format!(
-            "inconsistent with surface_reference 'inside': {dev_name} = {dev} is smaller than the inside contact radius {contact_name} = {contact}. The development (reference) surface lies inside the wall (Spec 02 §6.1: r_dev = r_i + k·t, 0 < k <= 0.5), so it cannot be smaller than the inside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface"
+        "inside" if dev < contact => Err(refuse(
+            crate::refusal::RADIUS_DEV_BELOW_INSIDE,
+            format!(
+                "inconsistent with surface_reference 'inside': {dev_name} = {dev} is smaller than the inside contact radius {contact_name} = {contact}. The development (reference) surface lies inside the wall (Spec 02 §6.1: r_dev = r_i + k·t, 0 < k <= 0.5), so it cannot be smaller than the inside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface"
+            ),
         )),
         "inside" => Ok(None),
         "neutral" if same => Ok(None),
-        "neutral" => Err(format!(
-            "inconsistent with surface_reference 'neutral': the contact radius {contact_name} = {contact} is declared to be on the reference surface itself, so {dev_name} must equal it, but it is {dev}. Correct the radii or the declared surface"
+        "neutral" => Err(refuse(
+            crate::refusal::RADIUS_NEUTRAL_MISMATCH,
+            format!(
+                "inconsistent with surface_reference 'neutral': the contact radius {contact_name} = {contact} is declared to be on the reference surface itself, so {dev_name} must equal it, but it is {dev}. Correct the radii or the declared surface"
+            ),
         )),
         _ => Ok(Some(format!(
             "The relation between {contact_name} = {contact} and {dev_name} = {dev} could not be checked because the surface reference is unknown."
         ))),
     }
+}
+
+/// The engine error of a refused radius: the field of the development radius is named first, the contact radius second.
+fn radius_error(r: RadiusRefusal, dev_name: &'static str, contact_name: &'static str) -> UemError {
+    uem::out_of_range_with(
+        r.code,
+        dev_name,
+        vec![dev_name, contact_name],
+        r.message,
+        r.detail,
+    )
 }
 
 /// Largest magnitude (mm) and smallest positive dimension (mm) this build
@@ -1263,20 +1422,26 @@ fn magnitude_check(req: &Request) -> Result<(), UemError> {
         // a non-finite number serialises as null; the engine reports those itself
         let Some(x) = raw.as_f64() else { continue };
         if x.abs() > MAX_MAGNITUDE_MM {
-            return Err(UemError::OutOfRange {
-                param: name,
-                reason: format!(
+            return Err(uem::out_of_range_with(
+                crate::refusal::MAGNITUDE_ABOVE_LIMIT,
+                name,
+                vec![name],
+                format!(
                     "magnitude {x:e} mm exceeds {MAX_MAGNITUDE_MM:e} mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)"
                 ),
-            });
+                vec![("limit", MAX_MAGNITUDE_MM), ("measured", x.abs())],
+            ));
         }
         if x > 0.0 && x < MIN_DIMENSION_MM && !SIGNED_PARAMS.contains(&name) {
-            return Err(UemError::OutOfRange {
-                param: name,
-                reason: format!(
+            return Err(uem::out_of_range_with(
+                crate::refusal::DIMENSION_BELOW_LIMIT,
+                name,
+                vec![name],
+                format!(
                     "{x:e} mm is below {MIN_DIMENSION_MM:e} mm, the smallest dimension this build has been exercised with (implementation limit, not an engineering rule)"
                 ),
-            });
+                vec![("limit", MIN_DIMENSION_MM), ("measured", x)],
+            ));
         }
     }
     Ok(())
@@ -2088,7 +2253,7 @@ mod tests {
         let p = develop::cylinder_shell(100.0, 250.0).unwrap();
         let rq = b.push(request_claim(&reqs()[0], "t"));
         let checks = verify::verify_cylinder(&p, 100.0, 250.0);
-        b.part("shell", &p, vec![rel("developed_from", &rq)], checks);
+        b.part("shell", &p, vec![rel("developed_from", &rq)], checks, None);
         let gates = evaluate_gates(&b.all_checks, Some(true), Some(true), false, None);
         let o = b.finish(&reqs()[0], gates, None);
         assert_eq!(o.state, ReleaseState::Rejected);
@@ -2430,10 +2595,10 @@ mod tests {
         assert!((opening_width_along_header(&o) - 2.0 * 84.15).abs() < 1e-9);
         let joint = interface_payload(&o)["joint"].as_str().unwrap().to_string();
         assert!(
-            joint.starts_with("single contact curve") && !joint.contains("set-on"),
+            joint.starts_with("not declared") && !joint.contains("set-on"),
             "{joint}"
         );
-        assert!(g02_detail(&o).contains("Joint type not declared"));
+        assert!(g02_detail(&o).contains("Joint not declared"));
         // the same pairing declared per part, without the joint type, is still one contact curve, not set-on
         let o = run(
             &set_on_example(90.0, 0.0, None, Some("outside"), Some("inside")),
@@ -2444,7 +2609,7 @@ mod tests {
             interface_payload(&o)["joint"]
                 .as_str()
                 .unwrap()
-                .starts_with("single contact curve")
+                .starts_with("not declared")
         );
     }
 
@@ -2476,7 +2641,7 @@ mod tests {
             },
         }];
         let mut b = Builder::new();
-        b.part("broken", &pattern, vec![], vec![]);
+        b.part("broken", &pattern, vec![], vec![], None);
         assert!(
             !b.quality_ok && b.reimport_ok,
             "the gate refuses it; the re-import alone would not"

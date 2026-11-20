@@ -1,0 +1,424 @@
+//! Compatibility with the requests engine 0.4.0 accepted and refused.
+//!
+//! The corpus below is a fixed list of request bodies, as a client posts them: hand-written accepted and
+//! refused cases for every rule, and a deterministic random sample across the families. `fixtures/compat_0.4.0.json`
+//! is the snapshot that engine 0.4.0 produced for it. Every later build must reproduce, for every case: the same
+//! parse result (or the same parse error text); the same state, the same refusal text and the same refused field;
+//! and, for an accepted case, the same cut geometry byte for byte (the ENTITIES section up to the first TEXT
+//! annotation) and the same pattern quantities and curves.
+//! What may change is the annotation (TEXT entities and 999 comments), the closure and the records. The
+//! fixture is regenerated only by a deliberate change of the engine, with
+//! `NF_WRITE_COMPAT_FIXTURE=1 cargo test -p nf-core --test compat`, and the report of that change lists it.
+
+use nf_core::job::{Request, run};
+use serde_json::{Value, json};
+
+const FIXTURE: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/compat_0.4.0.json"
+);
+
+/// Deterministic generator (xorshift64), the same construction as the stress campaign.
+struct Rng(u64);
+impl Rng {
+    fn next(&mut self) -> f64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        (self.0 >> 11) as f64 / (1u64 << 53) as f64
+    }
+    fn range(&mut self, lo: f64, hi: f64) -> f64 {
+        lo + (hi - lo) * self.next()
+    }
+    /// Log-uniform: very small and very large sizes occur as often as ordinary ones.
+    fn log(&mut self, lo: f64, hi: f64) -> f64 {
+        (lo.ln() + (hi.ln() - lo.ln()) * self.next()).exp()
+    }
+    fn pick<'a>(&mut self, xs: &[&'a str]) -> &'a str {
+        xs[(self.next() * xs.len() as f64) as usize % xs.len()]
+    }
+    fn chance(&mut self, p: f64) -> bool {
+        self.next() < p
+    }
+}
+
+/// Requests written by hand: accepted cases, and one or more refused case for each rule.
+fn hand_written() -> Vec<Value> {
+    let header = |hr: f64,
+                  hdev: f64,
+                  br: f64,
+                  bdev: f64,
+                  beta: f64,
+                  delta: f64,
+                  station: f64,
+                  s_end: f64| {
+        json!({
+            "family": "header_with_branch", "header_radius": hr, "header_dev_radius": hdev,
+            "header_length": 1200.0, "branch_station": station, "branch_radius": br,
+            "branch_dev_radius": bdev, "beta_deg": beta, "delta": delta, "s_end": s_end
+        })
+    };
+    let with = |mut v: Value, extra: Value| {
+        for (k, x) in extra.as_object().unwrap() {
+            v[k] = x.clone();
+        }
+        v
+    };
+    let set_on_example = |extra: Value| {
+        with(
+            header(161.95, 156.795, 77.095, 80.6, 90.0, 0.0, 600.0, 400.0),
+            extra,
+        )
+    };
+    let stub = |extra: Value| {
+        with(
+            json!({"family": "branch_stub", "header_radius": 150.0, "branch_radius": 100.0,
+                   "branch_dev_radius": 100.0, "beta_deg": 60.0, "delta": 0.0, "s_end": 400.0}),
+            extra,
+        )
+    };
+    vec![
+        // accepted: every family, the forms the client sends
+        json!({"family": "cylinder_shell", "r_dev": 100.0, "length": 250.0}),
+        json!({"family": "cylinder_shell", "r_dev": 500, "length": 1000}),
+        json!({"family": "cylinder_shell", "r_dev": 100000.0, "length": 0.01}),
+        json!({"family": "cone_frustum", "r1": 200.0, "r2": 100.0, "h": 300.0}),
+        json!({"family": "cone_frustum", "r1": 150.0, "r2": 140.0, "h": 50.0}),
+        json!({"family": "eccentric_reducer", "r1": 200.0, "r2": 100.0, "h": 300.0, "e": 100.0}),
+        json!({"family": "eccentric_reducer", "r1": 200.0, "r2": 100.0, "h": 300.0, "e": 0.0}),
+        stub(json!({})),
+        stub(json!({"surface_reference": "outside"})),
+        stub(json!({"surface_reference": "outside", "branch_dev_radius": 96.0})),
+        stub(json!({"surface_reference": "inside", "branch_dev_radius": 104.0})),
+        stub(json!({"surface_reference": "neutral", "branch_dev_radius": 100.0})),
+        stub(json!({"surface_reference": "unknown", "branch_dev_radius": 110.0})),
+        header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 600.0, 400.0)
+            .as_object()
+            .map(|o| {
+                let mut v = Value::Object(o.clone());
+                v["surface_reference"] = json!("outside");
+                v
+            })
+            .unwrap(),
+        with(
+            header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 600.0, 400.0),
+            json!({"surface_reference": "unknown"}),
+        ),
+        with(
+            header(150.0, 150.0, 100.0, 100.0, 60.0, 20.0, 500.0, 400.0),
+            json!({"surface_reference": "outside"}),
+        ),
+        set_on_example(
+            json!({"header_surface_reference": "outside", "branch_surface_reference": "inside", "joint": "set_on"}),
+        ),
+        set_on_example(
+            json!({"surface_reference": "outside", "header_surface_reference": "outside", "branch_surface_reference": "inside", "joint": "set_on"}),
+        ),
+        set_on_example(
+            json!({"header_surface_reference": "outside", "branch_surface_reference": "inside"}),
+        ),
+        with(
+            header(161.95, 156.795, 77.095, 80.6, 60.0, 20.0, 600.0, 400.0),
+            json!({"header_surface_reference": "outside", "branch_surface_reference": "inside", "joint": "set_on"}),
+        ),
+        with(
+            header(161.95, 156.795, 84.15, 80.6, 90.0, 0.0, 600.0, 400.0),
+            json!({"surface_reference": "outside"}),
+        ),
+        // refused: each rule, at its boundary
+        json!({"family": "cylinder_shell", "r_dev": -1.0, "length": 250.0}),
+        json!({"family": "cylinder_shell", "r_dev": 0.0, "length": 250.0}),
+        json!({"family": "cylinder_shell", "r_dev": 1e300, "length": 1e300}),
+        json!({"family": "cylinder_shell", "r_dev": 1e-300, "length": 10.0}),
+        json!({"family": "cylinder_shell", "r_dev": 100.0, "length": 1e9}),
+        json!({"family": "cylinder_shell", "r_dev": 100.0, "length": 1e-7}),
+        json!({"family": "cone_frustum", "r1": 200.0, "r2": 199.99, "h": 300.0}),
+        json!({"family": "cone_frustum", "r1": 100.0, "r2": 200.0, "h": 300.0}),
+        json!({"family": "cone_frustum", "r1": 1000.0, "r2": 1.0, "h": 1.0}),
+        json!({"family": "cone_frustum", "r1": 200.0, "r2": 100.0, "h": -300.0}),
+        json!({"family": "eccentric_reducer", "r1": 100.0, "r2": 100.0, "h": 300.0, "e": 50.0}),
+        json!({"family": "eccentric_reducer", "r1": 200.0, "r2": 100.0, "h": 300.0, "e": -5.0}),
+        json!({"family": "eccentric_reducer", "r1": 200.0, "r2": 199.99, "h": 300.0, "e": 5.0}),
+        stub(json!({"beta_deg": 5.0})),
+        stub(json!({"beta_deg": 175.0})),
+        stub(json!({"beta_deg": 1e9})),
+        stub(json!({"header_radius": 100.0, "branch_radius": 100.0})),
+        stub(json!({"delta": 1e9})),
+        stub(json!({"s_end": 0.5})),
+        stub(json!({"s_end": -3.0})),
+        stub(json!({"surface_reference": "whatever"})),
+        stub(json!({"surface_reference": "outside", "branch_dev_radius": 104.0})),
+        stub(json!({"surface_reference": "inside", "branch_dev_radius": 96.0})),
+        stub(json!({"surface_reference": "neutral", "branch_dev_radius": 100.5})),
+        stub(json!({"header_radius": 0.0})),
+        stub(json!({"branch_radius": 1e-7})),
+        header(150.0, 160.0, 100.0, 110.0, 60.0, 0.0, 600.0, 400.0)
+            .as_object()
+            .map(|o| {
+                let mut v = Value::Object(o.clone());
+                v["surface_reference"] = json!("outside");
+                v
+            })
+            .unwrap(),
+        with(
+            header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 1199.9, 400.0),
+            json!({"surface_reference": "unknown"}),
+        ),
+        with(
+            header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 10.0, 400.0),
+            json!({"surface_reference": "unknown"}),
+        ),
+        with(
+            header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 600.0, 0.5),
+            json!({"surface_reference": "unknown"}),
+        ),
+        with(
+            header(150.0, 150.0, 150.0, 150.0, 60.0, 0.0, 600.0, 400.0),
+            json!({"surface_reference": "unknown"}),
+        ),
+        with(
+            header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 600.0, 400.0),
+            json!({"header_surface_reference": "outside", "branch_surface_reference": "inside", "joint": "set_in"}),
+        ),
+        with(
+            header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 600.0, 400.0),
+            json!({"header_surface_reference": "inside", "branch_surface_reference": "inside", "joint": "set_on"}),
+        ),
+        with(
+            header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 600.0, 400.0),
+            json!({"header_surface_reference": "outside", "branch_surface_reference": "outside", "joint": "set_on"}),
+        ),
+        with(
+            header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 600.0, 400.0),
+            json!({"header_surface_reference": "outside", "branch_surface_reference": "bogus"}),
+        ),
+        with(
+            header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 600.0, 400.0),
+            json!({"surface_reference": "bogus"}),
+        ),
+        set_on_example(
+            json!({"header_surface_reference": "outside", "branch_surface_reference": "inside", "joint": "set_on", "branch_dev_radius": 75.0}),
+        ),
+        with(
+            header(161.95, 156.795, 77.095, 80.6, 90.0, 0.0, 600.0, 400.0),
+            json!({"header_surface_reference": "outside", "branch_surface_reference": "inside", "joint": "set_on", "branch_dev_radius": 75.0}),
+        ),
+        set_on_example(json!({"header_surface_reference": "outside"})),
+        set_on_example(json!({"branch_surface_reference": "inside"})),
+        set_on_example(
+            json!({"header_surface_reference": "neutral", "branch_surface_reference": "inside"}),
+        ),
+        set_on_example(
+            json!({"header_surface_reference": "outside", "branch_surface_reference": "inside", "joint": null}),
+        ),
+        set_on_example(
+            json!({"header_surface_reference": "outside", "branch_surface_reference": "inside", "joint": "set-on"}),
+        ),
+        // refused by the request structure
+        json!({"family": "teapot"}),
+        json!({"r_dev": 100.0, "length": 250.0}),
+        json!({"family": "cylinder_shell", "r_dev": 100.0}),
+        json!({"family": "cylinder_shell", "r_dev": null, "length": 250.0}),
+        json!({"family": "cylinder_shell", "r_dev": "abc", "length": 250.0}),
+        json!({"family": "cylinder_shell", "r_dev": 100.0, "length": 250.0, "thickness": 12.0}),
+        json!({"family": "cylinder_shell", "r_dev": 100.0, "length": 250.0, "surface_reference": "outside"}),
+        json!({"family": "branch_stub", "header_radius": 150.0, "branch_radius": 100.0, "branch_dev_radius": 100.0, "beta_deg": 60.0, "delta": 0.0, "s_end": 400.0, "surface_reference": null}),
+        with(
+            header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 600.0, 400.0),
+            json!({"header_surface_reference": "outside"}),
+        ),
+        header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 600.0, 400.0),
+        with(
+            header(150.0, 150.0, 100.0, 100.0, 60.0, 0.0, 600.0, 400.0),
+            json!({"surface_reference": null, "header_surface_reference": "outside", "branch_surface_reference": "inside"}),
+        ),
+    ]
+}
+
+/// Requests drawn at random across the families, with a share of values that the engine refuses.
+fn random_cases(seed: u64, n: usize) -> Vec<Value> {
+    let mut rng = Rng(seed);
+    let sides = ["outside", "inside", "neutral", "unknown", "bogus"];
+    (0..n)
+        .map(|_| match (rng.next() * 5.0) as usize {
+            0 => json!({"family": "cylinder_shell", "r_dev": rng.log(1e-7, 1e9), "length": rng.log(1e-7, 1e9)}),
+            1 => {
+                let r1 = rng.range(50.0, 500.0);
+                let r2 = r1 * rng.range(0.01, 1.2);
+                json!({"family": "cone_frustum", "r1": r1, "r2": r2, "h": rng.log(1.0, 2000.0)})
+            }
+            2 => {
+                let r1 = rng.range(50.0, 500.0);
+                let r2 = r1 * rng.range(0.01, 1.2);
+                json!({"family": "eccentric_reducer", "r1": r1, "r2": r2, "h": rng.log(1.0, 2000.0), "e": rng.range(-50.0, 300.0)})
+            }
+            3 => {
+                let big = rng.range(50.0, 400.0);
+                let r = big * rng.range(0.05, 1.1);
+                let mut v = json!({"family": "branch_stub", "header_radius": big, "branch_radius": r,
+                    "branch_dev_radius": r * rng.range(0.9, 1.1), "beta_deg": rng.range(0.0, 180.0),
+                    "delta": rng.range(-big, big), "s_end": rng.log(0.5, 2000.0)});
+                if rng.chance(0.7) {
+                    v["surface_reference"] = json!(rng.pick(&sides));
+                }
+                v
+            }
+            _ => {
+                let big = rng.range(50.0, 400.0);
+                let r = big * rng.range(0.05, 1.1);
+                let mut v = json!({"family": "header_with_branch", "header_radius": big,
+                    "header_dev_radius": big * rng.range(0.95, 1.05), "header_length": rng.log(100.0, 3000.0),
+                    "branch_station": rng.range(-100.0, 3100.0), "branch_radius": r,
+                    "branch_dev_radius": r * rng.range(0.95, 1.05), "beta_deg": rng.range(0.0, 180.0),
+                    "delta": rng.range(-big, big), "s_end": rng.log(1.0, 3000.0)});
+                if rng.chance(0.5) {
+                    v["surface_reference"] = json!(rng.pick(&sides));
+                }
+                if rng.chance(0.6) {
+                    v["header_surface_reference"] = json!(rng.pick(&sides));
+                }
+                if rng.chance(0.6) {
+                    v["branch_surface_reference"] = json!(rng.pick(&sides));
+                }
+                if rng.chance(0.4) {
+                    v["joint"] = json!(rng.pick(&["set_on", "set_in", "set_on"]));
+                }
+                if rng.chance(0.05) {
+                    v["thickness"] = json!(rng.range(1.0, 20.0));
+                }
+                v
+            }
+        })
+        .collect()
+}
+
+fn corpus() -> Vec<Value> {
+    let mut all = hand_written();
+    all.extend(random_cases(0x5EED_0411, 260));
+    all
+}
+
+/// The cut geometry of a DXF: the ENTITIES section up to the first annotation (every line, arc and polyline
+/// of the cutting layers, with the exact numbers written).
+fn cut_geometry(text: &str) -> &str {
+    const START: &str = "  2\nENTITIES\n";
+    let start = text.find(START).expect("ENTITIES section") + START.len();
+    let end = match text[start..].find("  0\nTEXT\n") {
+        Some(i) => start + i,
+        None => text.rfind("  0\nENDSEC\n").expect("end of ENTITIES"),
+    };
+    &text[start..end]
+}
+
+fn snapshot(i: usize, body: &Value) -> Value {
+    let req = match Request::parse_strict(body) {
+        Err(e) => return json!({ "i": i, "request": body, "parse_error": e }),
+        Ok(r) => r,
+    };
+    let out = run(&req, "compat");
+    let patterns: Vec<Value> = out
+        .patterns
+        .iter()
+        .map(|p| {
+            let mut v = serde_json::to_value(p).expect("pattern");
+            v.as_object_mut().expect("object").remove("dxf_sha256");
+            v
+        })
+        .collect();
+    let dxf: Vec<Value> = out
+        .dxf
+        .iter()
+        .map(|(part, text)| json!([part, nf_core::sha256_hex(cut_geometry(text).as_bytes())]))
+        .collect();
+    json!({
+        "i": i,
+        "request": body,
+        "parse_error": null,
+        "state": serde_json::to_value(out.state).expect("state"),
+        "outcome": out.outcome,
+        "refused_field": out.refused_field,
+        "patterns_sha256": nf_core::sha256_hex(serde_json::to_string(&patterns).expect("json").as_bytes()),
+        "dxf_cut_geometry": dxf,
+    })
+}
+
+fn snapshots() -> Vec<Value> {
+    corpus()
+        .iter()
+        .enumerate()
+        .map(|(i, b)| snapshot(i, b))
+        .collect()
+}
+
+#[test]
+fn compat_corpus_reproduces_the_0_4_0_snapshot() {
+    let now = snapshots();
+    if std::env::var_os("NF_WRITE_COMPAT_FIXTURE").is_some() {
+        let mut text = String::from("[\n");
+        for (n, s) in now.iter().enumerate() {
+            text.push_str(&serde_json::to_string(s).expect("json"));
+            text.push_str(if n + 1 < now.len() { ",\n" } else { "\n" });
+        }
+        text.push_str("]\n");
+        std::fs::write(FIXTURE, text).expect("write fixture");
+        return;
+    }
+    let stored: Vec<Value> =
+        serde_json::from_str(&std::fs::read_to_string(FIXTURE).expect("fixture"))
+            .expect("fixture json");
+    assert_eq!(stored.len(), now.len(), "corpus size changed");
+    let mut accepted = 0usize;
+    let mut refused = 0usize;
+    let mut parse_errors = 0usize;
+    for (old, new) in stored.iter().zip(&now) {
+        assert_eq!(old, new, "case {} changed", old["i"]);
+        match (old["parse_error"].is_null(), old["state"] == "REFUSED") {
+            (false, _) => parse_errors += 1,
+            (true, true) => refused += 1,
+            (true, false) => accepted += 1,
+        }
+    }
+    // the corpus exercises both sides and the parse layer
+    assert!(
+        accepted >= 40 && refused >= 60 && parse_errors >= 10,
+        "{accepted} {refused} {parse_errors}"
+    );
+}
+
+/// BH-014: every refusal of the corpus, parse refusals included, carries a code of the table, and the refusal's
+/// message is the outcome the job has always stated.
+#[test]
+fn every_refusal_of_the_corpus_carries_a_code_of_the_table() {
+    fn check(r: &nf_core::Refusal) {
+        assert!(
+            nf_core::refusal::ALL.contains(&r.code.as_str()),
+            "{} is not a code of the table",
+            r.code
+        );
+        assert!(!r.message.is_empty(), "{} has no message", r.code);
+    }
+    let mut refused = 0usize;
+    for body in corpus() {
+        match Request::parse_refusal(&body) {
+            Err(r) => {
+                check(&r);
+                refused += 1;
+            }
+            Ok(req) => {
+                let out = run(&req, "compat");
+                match &out.refusal {
+                    Some(r) => {
+                        check(r);
+                        assert_eq!(Some(&r.message), out.outcome.as_ref(), "{body}");
+                        refused += 1;
+                    }
+                    None => assert!(
+                        out.outcome.is_none(),
+                        "{body}: an outcome without a refusal"
+                    ),
+                }
+            }
+        }
+    }
+    assert!(refused >= 100, "{refused} refusals in the corpus");
+}

@@ -7,7 +7,7 @@ Round 3. The client has two languages: English (the reference) and Japanese. Eve
 
 ## How the catalogue works
 
-- `web/i18n.js` holds two dictionaries, `EN` and `JA`, with the same 815 keys. A key missing in Japanese falls back to
+- `web/i18n.js` holds two dictionaries, `EN` and `JA`, with the same 855 keys. A key missing in Japanese falls back to
   English and is recorded by `missing()`; the test fails if anything is recorded.
 - `t(key, params)` returns plain text, for `textContent` and attributes. `h(key, params)` returns HTML: the text is
   escaped, `**bold**` becomes `<b>` and a backquoted span becomes monospace. Values from users or the server are escaped

@@ -8,8 +8,16 @@
 //! written into an AC1009 file). What R12 does allow is written: $LUNITS = 2
 //! (decimal linear units), $AUNITS = 0 (decimal degrees), $ANGBASE = 0 and
 //! $ANGDIR = 0 (angles counter-clockwise from +x; the ARC entities depend on
-//! this). The unit itself, millimetres, is stated in the leading 999 comment
-//! and as a TEXT annotation inside the drawing.
+//! this). The unit itself, millimetres, is stated three ways: the human line
+//! of the leading 999 comment block, the key line `NF-UNITS: mm` in the same
+//! block, and a TEXT annotation inside the drawing.
+//!
+//! Statements. A header-with-branch part also states its joint: the 999
+//! comment lines `NF-JOINT`, `NF-HEADER-SURFACE` and `NF-BRANCH-SURFACE`, and
+//! two TEXT annotations on the annotation layer. The joint is "set-on" or "not
+//! declared", in every output. The key/value form and every key are documented
+//! in docs/backend/DXF_METADATA.md. Other readers may ignore 999 comments; the
+//! TEXT annotations carry the same facts visibly.
 //!
 //! Release marking. Every file carries the annotation `MARK_TEXT` on the
 //! non-cutting layer `MARK_LAYER`, placed below the geometry. This build can
@@ -36,9 +44,74 @@ pub const MARK_TEXT: &str =
     "NOT RELEASED - DEVELOPMENT BUILD - NOT VALIDATED - NOT FOR MANUFACTURING";
 pub const UNITS_TEXT: &str = "UNITS: MILLIMETRES";
 
+/// Key of the units line of the 999 comment block; its value is `mm`.
+pub const KEY_UNITS: &str = "NF-UNITS";
+/// Keys of the joint statement (header-with-branch parts only).
+pub const KEY_JOINT: &str = "NF-JOINT";
+pub const KEY_HEADER_SURFACE: &str = "NF-HEADER-SURFACE";
+pub const KEY_BRANCH_SURFACE: &str = "NF-BRANCH-SURFACE";
+/// The only two joint states that any output may name (DXF, records, interface, docs).
+pub const JOINT_SET_ON: &str = "set-on";
+pub const JOINT_NOT_DECLARED: &str = "not declared";
+/// TEXT annotations that belong to the joint statement. Any other annotation starting with one of these
+/// prefixes is a contradiction and fails the quality gate.
+pub const JOINT_TEXT_PREFIXES: [&str; 2] = ["JOINT:", "HEADER SURFACE:"];
+
 /// True for layers whose entities are cut paths.
 pub fn is_cut_layer(layer: &str) -> bool {
     layer.starts_with("CUT")
+}
+
+/// The joint of a header-with-branch part as the job declares it, and the wall surfaces the opening was
+/// cut for. Built from the request; written to the file; read back and compared by the re-import check and
+/// by the quality gate. A file that states anything else is withheld.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct JointStatement {
+    /// `JOINT_SET_ON` or `JOINT_NOT_DECLARED`.
+    pub joint: &'static str,
+    pub header_surface: String,
+    pub branch_surface: String,
+}
+
+impl JointStatement {
+    /// `set_on`: the job declares the set-on joint (Spec 02 section 4.4). Otherwise the joint is not declared.
+    pub fn new(set_on: bool, header_surface: &str, branch_surface: &str) -> JointStatement {
+        JointStatement {
+            joint: if set_on {
+                JOINT_SET_ON
+            } else {
+                JOINT_NOT_DECLARED
+            },
+            header_surface: header_surface.to_string(),
+            branch_surface: branch_surface.to_string(),
+        }
+    }
+
+    /// The 999 comment lines, as (key, value).
+    pub fn comments(&self) -> Vec<(String, String)> {
+        vec![
+            (KEY_JOINT.to_string(), self.joint.to_string()),
+            (KEY_HEADER_SURFACE.to_string(), self.header_surface.clone()),
+            (KEY_BRANCH_SURFACE.to_string(), self.branch_surface.clone()),
+        ]
+    }
+
+    /// The TEXT annotations, in the order they are drawn. Capitals, as all annotation text of the drawing.
+    pub fn texts(&self) -> Vec<String> {
+        let joint = if self.joint == JOINT_SET_ON {
+            "JOINT: SET-ON (SPEC 02 SECTION 4.4): BRANCH INSIDE SURFACE ON HEADER OUTSIDE SURFACE, OPENING IS THE BRANCH BORE"
+        } else {
+            "JOINT: NOT DECLARED: BRANCH END AND HEADER OPENING ARE CUT ON ONE CURVE OF THE ENTERED RADII"
+        };
+        vec![
+            joint.to_string(),
+            format!(
+                "HEADER SURFACE: {} - BRANCH SURFACE: {}",
+                self.header_surface.to_uppercase(),
+                self.branch_surface.to_uppercase()
+            ),
+        ]
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -181,6 +254,21 @@ pub fn annotation_lines(extra: &[String]) -> Vec<String> {
 /// mean: axes, seams, datums, kerf) in fine print below it, so that the
 /// annotation block stays small against the part.
 pub fn marking_with(minx: f64, miny: f64, maxx: f64, maxy: f64, extra: &[String]) -> Vec<Entity> {
+    let (big, small) = extra.split_at(extra.len().min(1));
+    marking_stated(minx, miny, maxx, maxy, big, small)
+}
+
+/// The annotation block: the release marking and the unit statement, then the `big` lines at the size of
+/// the release marking (one line every two heights, starting below the marking side), then the `small`
+/// lines in fine print below them. With one `big` line the block is exactly the one `marking_with` drew.
+pub fn marking_stated(
+    minx: f64,
+    miny: f64,
+    maxx: f64,
+    maxy: f64,
+    big: &[String],
+    small: &[String],
+) -> Vec<Entity> {
     let span = (maxx - minx).max(maxy - miny);
     let h = if span.is_finite() && span > 0.0 {
         span / 50.0
@@ -205,22 +293,26 @@ pub fn marking_with(minx: f64, miny: f64, maxx: f64, maxy: f64, extra: &[String]
             text: UNITS_TEXT.into(),
         },
     ];
+    let big = annotation_lines(big);
+    for (i, line) in big.iter().enumerate() {
+        notes.push(Entity::Text {
+            layer: MARK_LAYER.into(),
+            at: (x, y - 6.0 * h - 2.0 * h * i as f64),
+            height: h,
+            text: line.clone(),
+        });
+    }
     let fine = h / 10.0;
-    for (i, line) in annotation_lines(extra).into_iter().enumerate() {
-        notes.push(if i == 0 {
-            Entity::Text {
-                layer: MARK_LAYER.into(),
-                at: (x, y - 6.0 * h),
-                height: h,
-                text: line,
-            }
-        } else {
-            Entity::Text {
-                layer: MARK_LAYER.into(),
-                at: (x, y - 6.0 * h - 2.0 * fine * i as f64),
-                height: fine,
-                text: line,
-            }
+    let last_big = big.len().max(1) - 1;
+    for (j, line) in annotation_lines(small).into_iter().enumerate() {
+        notes.push(Entity::Text {
+            layer: MARK_LAYER.into(),
+            at: (
+                x,
+                y - 6.0 * h - 2.0 * h * last_big as f64 - 2.0 * fine * (j + 1) as f64,
+            ),
+            height: fine,
+            text: line,
         });
     }
     notes
@@ -313,8 +405,32 @@ pub fn write(entities: &[Entity]) -> String {
     write_annotated(entities, &[])
 }
 
-/// As `write`, with further annotation lines on the annotation layer.
+/// As `write`, with further annotation lines on the annotation layer (the first at the size of the release
+/// marking, the others in fine print).
 pub fn write_annotated(entities: &[Entity], extra_notes: &[String]) -> String {
+    let (big, small) = extra_notes.split_at(extra_notes.len().min(1));
+    write_stated(entities, big, small, &[])
+}
+
+/// A value written on one line: control characters become spaces and the ends are trimmed.
+fn one_line(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
+/// The file as NEXUS FABRIC writes every DXF: the geometry, the release marking and the units, then the
+/// statement of the part. `big` and `small` are annotation lines (see `marking_stated`); `comments` are the
+/// application-specific 999 lines `key: value` (see docs/backend/DXF_METADATA.md). The cut geometry is written
+/// exactly as before any statement existed.
+pub fn write_stated(
+    entities: &[Entity],
+    big: &[String],
+    small: &[String],
+    comments: &[(String, String)],
+) -> String {
     let geometry: Vec<&Entity> = entities.iter().filter(|e| !e.is_annotation()).collect();
     let mut o = String::new();
     let mut p = |code: i32, val: &str| {
@@ -344,7 +460,7 @@ pub fn write_annotated(entities: &[Entity], extra_notes: &[String]) -> String {
     if geometry.is_empty() {
         (minx, miny, maxx, maxy) = (0.0, 0.0, 0.0, 0.0);
     }
-    let notes = marking_with(minx, miny, maxx, maxy, extra_notes);
+    let notes = marking_stated(minx, miny, maxx, maxy, big, small);
     // drawing extents include the annotation (text width estimated as one height per character)
     let (mut eminx, mut eminy, mut emaxx, mut emaxy) = if geometry.is_empty() {
         (f64::MAX, f64::MAX, f64::MIN, f64::MIN)
@@ -366,6 +482,10 @@ pub fn write_annotated(entities: &[Entity], extra_notes: &[String]) -> String {
         999,
         "NEXUS FABRIC DXF - units: millimetres - NOT RELEASED: development build, not validated, not for manufacturing",
     );
+    p(999, &format!("{KEY_UNITS}: mm"));
+    for (key, value) in comments {
+        p(999, &format!("{key}: {}", one_line(value)));
+    }
     p(0, "SECTION");
     p(2, "HEADER");
     p(9, "$ACADVER");
@@ -492,6 +612,124 @@ pub fn write_annotated(entities: &[Entity], extra_notes: &[String]) -> String {
     p(0, "ENDSEC");
     p(0, "EOF");
     o
+}
+
+/// The group-999 comment lines of a file, in order, trimmed. Human text and application keys alike.
+pub fn comment_lines(text: &str) -> Vec<String> {
+    let lines: Vec<&str> = text.lines().collect();
+    lines
+        .chunks(2)
+        .filter(|ch| ch.len() == 2 && ch[0].trim() == "999")
+        .map(|ch| ch[1].trim().to_string())
+        .collect()
+}
+
+/// The application keys of the file: every comment line that starts with `NF-`, split at its first ": " into
+/// (key, value). A line without ": " has an empty value. Other comment lines are human text and are not listed.
+pub fn statement_keys(text: &str) -> Vec<(String, String)> {
+    comment_lines(text)
+        .into_iter()
+        .filter(|l| l.starts_with("NF-"))
+        .map(|l| match l.split_once(": ") {
+            Some((k, v)) => (k.to_string(), v.to_string()),
+            None => (l, String::new()),
+        })
+        .collect()
+}
+
+/// Application keys this build writes. A file that states any other `NF-` key is not one of its files.
+pub const KNOWN_KEYS: [&str; 4] = [KEY_UNITS, KEY_JOINT, KEY_HEADER_SURFACE, KEY_BRANCH_SURFACE];
+
+/// `NF-` keys that this build does not write.
+pub fn unknown_statement_keys(text: &str) -> Vec<String> {
+    statement_keys(text)
+        .into_iter()
+        .map(|(k, _)| k)
+        .filter(|k| !KNOWN_KEYS.contains(&k.as_str()))
+        .collect()
+}
+
+/// What the file states about the unit, compared with millimetres: `NF-UNITS: mm`, stated once. Empty when right.
+pub fn units_problems(text: &str) -> Vec<String> {
+    let values: Vec<String> = statement_keys(text)
+        .into_iter()
+        .filter(|(k, _)| k == KEY_UNITS)
+        .map(|(_, v)| v)
+        .collect();
+    match values.as_slice() {
+        [v] if v == "mm" => Vec::new(),
+        [] => vec![format!("{KEY_UNITS}: mm is missing")],
+        _ => vec![format!(
+            "{KEY_UNITS} is stated as {} but the unit is mm",
+            values.join(", ")
+        )],
+    }
+}
+
+/// Compare what the file states about its joint with what the job declares. `expect` None: the part is not a
+/// header-with-branch part and must state no joint at all. Returns one entry per difference; empty when the file
+/// states exactly the job's joint: the same three keys (each once, with the same value), and the same two
+/// annotation lines (each once); no other joint line may appear.
+pub fn joint_statement_problems(text: &str, expect: Option<&JointStatement>) -> Vec<String> {
+    let mut out = Vec::new();
+    let file_keys = statement_keys(text);
+    let want_keys = expect.map(JointStatement::comments).unwrap_or_default();
+    for key in [KEY_JOINT, KEY_HEADER_SURFACE, KEY_BRANCH_SURFACE] {
+        let have: Vec<&str> = file_keys
+            .iter()
+            .filter(|(k, _)| k == key)
+            .map(|(_, v)| v.as_str())
+            .collect();
+        let want: Option<&str> = want_keys
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v.as_str());
+        match (want, have.as_slice()) {
+            (None, []) => {}
+            (None, _) => out.push(format!(
+                "{key} is stated as {} but the job declares no joint for this part",
+                have.join(", ")
+            )),
+            (Some(w), []) => out.push(format!("{key}: {w} is missing")),
+            (Some(w), [v]) if *v == w => {}
+            (Some(w), _) => out.push(format!(
+                "{key} is stated as {} but the job declares {w}",
+                have.join(", ")
+            )),
+        }
+    }
+    let entities = match read(text) {
+        Ok((e, _)) => e,
+        Err(e) => {
+            out.push(format!("the file cannot be read: {e}"));
+            return out;
+        }
+    };
+    let texts: Vec<&str> = entities
+        .iter()
+        .filter_map(|e| match e {
+            Entity::Text { layer, text, .. } if layer == MARK_LAYER => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    let want_texts = expect.map(JointStatement::texts).unwrap_or_default();
+    for want in &want_texts {
+        let n = texts.iter().filter(|t| **t == want.as_str()).count();
+        if n != 1 {
+            out.push(format!(
+                "the statement line \"{want}\" is written {n} times; the job declares it once"
+            ));
+        }
+    }
+    for t in &texts {
+        let joint_line = JOINT_TEXT_PREFIXES.iter().any(|p| t.starts_with(p));
+        if joint_line && !want_texts.iter().any(|w| w == t) {
+            out.push(format!(
+                "the annotation \"{t}\" contradicts the joint the job declares"
+            ));
+        }
+    }
+    out
 }
 
 /// Independent header reader: every `$VARIABLE` of the HEADER section with the
@@ -675,6 +913,9 @@ pub struct ReimportReport {
     pub extents_match: bool,
     /// Every annotation line the caller required is present on the annotation layer.
     pub required_notes_present: bool,
+    /// The file states its joint exactly as the job declares it (`joint_statement_problems`), and no other
+    /// application key (`unknown_statement_keys`).
+    pub joint_statement_matches: bool,
     pub pass: bool,
 }
 
@@ -701,6 +942,17 @@ pub fn reimport_check_annotated(
     tol: f64,
     required_notes: &[String],
 ) -> ReimportReport {
+    reimport_check_stated(intended, text, tol, required_notes, None)
+}
+
+/// As `reimport_check_annotated`, and the file must state the joint of `joint` exactly (None: no joint at all).
+pub fn reimport_check_stated(
+    intended: &[Entity],
+    text: &str,
+    tol: f64,
+    required_notes: &[String],
+    joint: Option<&JointStatement>,
+) -> ReimportReport {
     let intended: Vec<&Entity> = intended.iter().filter(|e| !e.is_annotation()).collect();
     let fail = |n: usize, u: Vec<String>| ReimportReport {
         entities_written: intended.len(),
@@ -714,6 +966,7 @@ pub fn reimport_check_annotated(
         units_declared: false,
         extents_match: false,
         required_notes_present: false,
+        joint_statement_matches: false,
         pass: false,
     };
     let (all, unknown) = match read(text) {
@@ -770,10 +1023,13 @@ pub fn reimport_check_annotated(
         && var("$AUNITS", 70, "0")
         && var("$ANGDIR", 70, "0")
         && var("$ANGBASE", 50, "0.0")
-        && on_mark(UNITS_TEXT);
+        && on_mark(UNITS_TEXT)
+        && units_problems(text).is_empty();
     let required_notes_present = annotation_lines(required_notes)
         .iter()
         .all(|want| on_mark(want));
+    let joint_statement_matches =
+        joint_statement_problems(text, joint).is_empty() && unknown_statement_keys(text).is_empty();
     // D5: the header extents against the box of everything read back (geometry and annotation).
     let everything: Vec<Entity> = got.iter().cloned().chain(notes.iter().cloned()).collect();
     let (bx0, by0, bx1, by1, sample_err) = sampled_box(&everything);
@@ -804,7 +1060,8 @@ pub fn reimport_check_annotated(
         && not_released_marking
         && units_declared
         && extents_match
-        && required_notes_present;
+        && required_notes_present
+        && joint_statement_matches;
     ReimportReport {
         entities_written: intended.len(),
         entities_read: got.len(),
@@ -817,6 +1074,7 @@ pub fn reimport_check_annotated(
         units_declared,
         extents_match,
         required_notes_present,
+        joint_statement_matches,
         pass,
     }
 }

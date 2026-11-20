@@ -45,7 +45,14 @@ use std::collections::{BTreeMap, BTreeSet};
 /// references and a declared joint type (set-on, review B RB-001), and the
 /// interface of an undeclared joint is no longer called set-on; the joint is also
 /// checked by the independent 3D check. Results of 0.3.0 are REJECTED with G21.
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.0+src.", env!("NF_ENGINE_SRC_HASH"));
+///
+/// 0.4.1 (20 Nov 2026): every DXF states its units by a key line (`NF-UNITS: mm`), and a
+/// header-with-branch part states its joint ("set-on" or "not declared"), its header and branch surfaces
+/// (`NF-JOINT`, `NF-HEADER-SURFACE`, `NF-BRANCH-SURFACE`, and two TEXT lines); the re-import check and the
+/// quality gate read the statement back and compare it with the job (BH-004, BH-005). Every refusal carries a
+/// stable code, the fields it concerns and, where the engine computes one exactly, the limit (BH-014). The
+/// cut geometry is unchanged. Results of 0.4.0 are REJECTED with G21 "recompute".
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.1+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the
@@ -65,6 +72,125 @@ pub fn superseded_engine_reason(engine: &str) -> Option<&'static str> {
 /// Only results computed by exactly the running engine are current.
 pub fn engine_is_current(engine: &str) -> bool {
     engine == ENGINE_VERSION && superseded_engine_reason(engine).is_none()
+}
+
+/// Machine-readable refusals: one stable code per rule (docs/backend/REFUSAL_CODES.md, which a test checks
+/// against these constants). The engine's codes are re-exported from `uem::refusal`.
+pub mod refusal {
+    pub use uem::refusal::*;
+
+    // the request structure, as the API reads it (400)
+    pub const REQUEST_NOT_OBJECT: &str = "request_not_object";
+    pub const FAMILY_UNKNOWN: &str = "family_unknown";
+    pub const FIELD_MISSING: &str = "field_missing";
+    pub const FIELD_WRONG_TYPE: &str = "field_wrong_type";
+    pub const FIELD_UNKNOWN: &str = "field_unknown";
+    pub const SURFACE_REFERENCE_REQUIRED: &str = "surface_reference_required";
+    pub const REQUEST_MALFORMED: &str = "request_malformed";
+
+    // a correction request (400, 409, 422)
+    pub const REASON_REQUIRED: &str = "reason_required";
+    pub const REASON_TOO_LONG: &str = "reason_too_long";
+    pub const CORRECTION_NOT_FOR_FAMILY: &str = "correction_not_for_family";
+    pub const CORRECTION_UNKNOWN_PARAMETER: &str = "correction_unknown_parameter";
+    pub const CORRECTION_VALUE_UNCHANGED: &str = "correction_value_unchanged";
+    pub const CORRECTION_PARAMETER_NOT_CORRECTABLE: &str = "correction_parameter_not_correctable";
+    pub const CORRECTION_PARAMETER_NOT_RECORDED: &str = "correction_parameter_not_recorded";
+    pub const CORRECTION_ON_SUPERSEDED_JOB: &str = "correction_on_superseded_job";
+    pub const CORRECTION_ON_REFUSED_JOB: &str = "correction_on_refused_job";
+    pub const CORRECTION_NEEDS_RECOMPUTE: &str = "correction_needs_recompute";
+    pub const STORED_RESULT_UNREADABLE: &str = "stored_result_unreadable";
+    pub const STORED_REQUEST_UNREADABLE: &str = "stored_request_unreadable";
+    pub const CORRECTED_RESULT_FAILED_VERIFICATION: &str = "corrected_result_failed_verification";
+
+    // a request that produced no pattern and no stated rule (defensive; not reached by the engine)
+    pub const NO_PATTERN_PRODUCED: &str = "no_pattern_produced";
+
+    /// Every code of this build, in the order of the table in docs/backend/REFUSAL_CODES.md.
+    pub const ALL: [&str; 41] = [
+        REQUEST_NOT_OBJECT,
+        FAMILY_UNKNOWN,
+        FIELD_MISSING,
+        FIELD_WRONG_TYPE,
+        FIELD_UNKNOWN,
+        SURFACE_REFERENCE_REQUIRED,
+        REQUEST_MALFORMED,
+        VALUE_NOT_FINITE,
+        VALUE_NOT_POSITIVE,
+        OFFSET_NEGATIVE,
+        MAGNITUDE_ABOVE_LIMIT,
+        DIMENSION_BELOW_LIMIT,
+        REDUCER_RADII_ORDER,
+        REDUCER_NEAR_CYLINDRICAL,
+        DEVELOPED_ANGLE_OVERLAPS,
+        BRANCH_ANGLE_OUT_OF_RANGE,
+        BRANCH_TANGENT_OR_PARTIAL,
+        SQUARE_END_TOO_SHORT,
+        OPENING_OUTSIDE_SHELL,
+        CHORD_ERROR_UNREACHABLE,
+        RADIUS_DEV_EXCEEDS_OUTSIDE,
+        RADIUS_DEV_BELOW_INSIDE,
+        RADIUS_NEUTRAL_MISMATCH,
+        SURFACE_REFERENCE_INVALID,
+        JOINT_PAIRING_INVALID,
+        JOINT_TYPE_UNKNOWN,
+        BEND_ANGLE_OUT_OF_RANGE,
+        REASON_REQUIRED,
+        REASON_TOO_LONG,
+        CORRECTION_NOT_FOR_FAMILY,
+        CORRECTION_UNKNOWN_PARAMETER,
+        CORRECTION_VALUE_UNCHANGED,
+        CORRECTION_PARAMETER_NOT_CORRECTABLE,
+        CORRECTION_PARAMETER_NOT_RECORDED,
+        CORRECTION_ON_SUPERSEDED_JOB,
+        CORRECTION_ON_REFUSED_JOB,
+        CORRECTION_NEEDS_RECOMPUTE,
+        STORED_RESULT_UNREADABLE,
+        STORED_REQUEST_UNREADABLE,
+        CORRECTED_RESULT_FAILED_VERIFICATION,
+        NO_PATTERN_PRODUCED,
+    ];
+}
+
+/// A refusal of a calculation or a correction request, in machine-readable form. `message` is the text the
+/// engine or the API has always given; `fields` names the request fields the rule concerns; `detail` holds the
+/// limit and the measured value where the engine computes them exactly (absent otherwise).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Refusal {
+    pub code: String,
+    pub fields: Vec<String>,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<BTreeMap<String, f64>>,
+}
+
+impl Refusal {
+    pub fn new(code: &str, fields: &[&str], message: impl Into<String>) -> Refusal {
+        Refusal {
+            code: code.to_string(),
+            fields: fields.iter().map(|f| f.to_string()).collect(),
+            message: message.into(),
+            detail: None,
+        }
+    }
+    /// The refusal of an engine error: its code, fields and detail, and the message as the error displays it.
+    pub fn from_engine(e: &uem::UemError) -> Refusal {
+        Refusal {
+            code: e.code().to_string(),
+            fields: e.fields().iter().map(|f| f.to_string()).collect(),
+            message: e.to_string(),
+            detail: detail_map(e.detail()),
+        }
+    }
+}
+
+/// The detail of a refusal as a JSON object; absent when the rule gives none.
+pub fn detail_map(detail: &[(&str, f64)]) -> Option<BTreeMap<String, f64>> {
+    if detail.is_empty() {
+        None
+    } else {
+        Some(detail.iter().map(|(k, v)| (k.to_string(), *v)).collect())
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
