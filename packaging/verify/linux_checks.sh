@@ -43,7 +43,7 @@ run_linux_checks() {
   timeout 60 "$BIN" --version >"$LOGS/linux-version.log" 2>&1
   rc=$?
   line=$(head -1 "$LOGS/linux-version.log" | tr -d '\r')
-  engine=$(printf '%s' "$line" | grep -oE 'nf-engine [^ ]+' | head -1)
+  engine=$(printf '%s' "$line" | grep -oE 'nf-engine [^ )]+' | head -1)
   LINUX_ENGINE="$engine"
   if [ "$rc" -eq 0 ] && [ "$(agrees "$line" "$VER")" = yes ]; then
     rec linux.version "nexus-fabric --version (Linux binary, nf-server)" "$LINUX_HOW" passed "" "$line" linux-version.log

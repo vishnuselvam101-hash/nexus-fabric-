@@ -74,12 +74,13 @@ graceful_stop() {
 }
 
 # wine_env PREFIX COMMAND...: runs COMMAND with a clean environment and this prefix.
-# A clean environment is required: the inherited CCR_PRELOAD_CLAUDE preload makes wine abort
-# with "free(): invalid pointer" during wineboot.
+# Why the clean environment: the inherited CCR_PRELOAD_CLAUDE preload makes wine abort with
+# "free(): invalid pointer" during wineboot. Why TMPDIR is not passed: wine puts its server socket under
+# $TMPDIR (or /tmp); a long scratchpad path there makes the socket path too long and wine aborts the same way.
 wine_env() {
   local prefix=$1
   shift
-  env -i PATH="$PATH" HOME="$WINE_HOME" TMPDIR="$TMPDIR" LANG=C.UTF-8 \
+  env -i PATH=/usr/local/bin:/usr/bin:/bin HOME="$WINE_HOME" LANG=C.UTF-8 \
     WINEARCH=win64 WINEDEBUG=-all WINEPREFIX="$prefix" WINEDLLOVERRIDES='mscoree,mshtml=d' "$@"
 }
 

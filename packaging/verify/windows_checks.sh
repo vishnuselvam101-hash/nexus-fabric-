@@ -217,7 +217,7 @@ run_windows_checks() {
     rec win.install.registry "Uninstall entry present (HKCU, DisplayVersion)" "$HOW" failed "key not found" "$(printf '%s' "$reg" | tail -1)" win-install.log
   fi
   line=$(wine_env "$P1" timeout 60 wine "$INST/nexus-fabric.exe" --version 2>/dev/null | tr -d '\r' | head -1)
-  WIN_ENGINE=$(printf '%s' "$line" | grep -oE 'nf-engine [^ ]+' | head -1)
+  WIN_ENGINE=$(printf '%s' "$line" | grep -oE 'nf-engine [^ )]+' | head -1)
   if [ "$(agrees "$line" "$VER")" = yes ]; then
     rec win.install.version "Installed exe --version prints $VER" "$HOW" passed "" "$line" win-install.log
   else
@@ -339,6 +339,6 @@ run_windows_checks() {
     rec win.upgrade.version_changed "Version changed by the upgrade" "$HOW" failed "new version line does not show $VER" "$NEW_LINE" ""
   fi
   rec win.upgrade.engine "Engine identifier before and after the upgrade (recorded)" "$HOW" passed "" \
-    "previous: $(printf '%s' "$PREV_LINE" | grep -oE 'nf-engine [^ ]+') ; new: $(printf '%s' "$NEW_LINE" | grep -oE 'nf-engine [^ ]+')" ""
+    "previous: $(printf '%s' "$PREV_LINE" | grep -oE 'nf-engine [^ )]+') ; new: $(printf '%s' "$NEW_LINE" | grep -oE 'nf-engine [^ )]+')" ""
   return 0
 }
