@@ -1,0 +1,14 @@
+af_heart                                 err 0.000 exact 9/9 logp -0.12 rate 3.40 f0 198.8 range 9.45 pesq 3.76 total 37.27
+af_bella                                 err 0.000 exact 9/9 logp -0.17 rate 3.35 f0 202.5 range 7.87 pesq 3.57 total 38.62
+af_nicole                                err 0.006 exact 8/9 logp -0.15 rate 2.83 f0 160.0 range 15.63 pesq 3.01 total 58.87
+af_aoede                                 err 0.000 exact 9/9 logp -0.17 rate 3.31 f0 177.8 range 10.0 pesq 3.59 total 35.77
+af_kore                                  err 0.007 exact 8/9 logp -0.12 rate 3.15 f0 152.4 range 13.78 pesq 3.81 total 36.92
+af_sarah                                 err 0.007 exact 8/9 logp -0.15 rate 3.51 f0 193.9 range 12.32 pesq 4.04 total 36.64
+am_michael                               err 0.000 exact 9/9 logp -0.20 rate 3.09 f0 118.5 range 10.52 pesq 3.87 total 40.68
+am_fenrir                                err 0.007 exact 8/9 logp -0.16 rate 3.22 f0 135.6 range 14.47 pesq 4.02 total 36.69
+am_puck                                  err 0.007 exact 8/9 logp -0.18 rate 3.22 f0 115.1 range 13.86 pesq 3.35 total 35.64
+bf_emma                                  err 0.000 exact 9/9 logp -0.16 rate 3.45 f0 181.8 range 6.52 pesq 3.85 total 35.55
+bf_isabella                              err 0.000 exact 9/9 logp -0.15 rate 3.38 f0 205.1 range 7.76 pesq 3.85 total 36.4
+bm_george                                err 0.000 exact 9/9 logp -0.17 rate 3.03 f0 142.9 range 11.65 pesq 3.32 total 43.02
+bm_fable                                 err 0.000 exact 9/9 logp -0.16 rate 2.75 f0 120.8 range 16.04 pesq 2.94 total 41.08
+bm_lewis                                 err 0.000 exact 9/9 logp -0.16 rate 3.18 f0 113.5 range 11.44 pesq 3.76 total 41.95
