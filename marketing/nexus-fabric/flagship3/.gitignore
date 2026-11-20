@@ -1,0 +1,23 @@
+# Raw captured frames (about 1.1 GB per language). capture/capture.js deletes them after packing.
+capture/frames/
+# Stills, frame dumps, contact sheets and review renders made while checking the film
+stills/
+frames/
+review/
+# Intermediate audio, rebuilt by the audio builder (the voice is kept as FLAC; the WAV copies and the bed are ignored)
+audio/bed-*.wav
+audio/mix-*.wav
+audio/vo-*.wav
+audio/stem-*.wav
+audio/audition/
+# Dependencies and caches
+node_modules/
+__pycache__/
+*.pyc
+# Partial renders
+final/*.tmp.mp4
+# 4K60 masters (about 24 MB each): delivered to the owner directly, not committed
+final/*-4k60.mp4
+
+# The clean variant (labels=0, no disclosure captions) is delivered to the owner directly and is not committed
+final/*-clean*.mp4
