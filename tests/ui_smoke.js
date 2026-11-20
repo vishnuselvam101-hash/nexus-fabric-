@@ -395,7 +395,7 @@ const controlProbe = () => {
   await go(`calc/${A}`, '.pv'); await p.waitForSelector('#joint');
   const undDd = (await jointDd()).map((x) => x.trim());
   const aText = await p.textContent('#view');
-  check('joint: an undeclared job says the joint type is not declared and is not called set-on', /single contact curve \(joint type not declared\)/.test((await p.textContent('#joint p')).trim()) && undDd[0] === 'not declared' && !/set-on joint assumed/i.test(aText) && !/set-on/i.test(await p.textContent('#joint p')), { undDd });
+  check('joint: an undeclared job says the joint type is not declared and is not called set-on', /not declared \(the branch end cut and the header opening are cut on one curve/.test((await p.textContent('#joint p')).trim()) && undDd[0] === 'not declared' && !/set-on joint assumed/i.test(aText) && !/set-on/i.test(await p.textContent('#joint p')), { undDd });
   await go('math/1', '#calc'); await p.selectOption('select[name=fam]', 'header_with_branch');
   const beforeRefusal = await jobCount();
   check('form: the optional joint fields are left at their defaults, so the request is the same as before', (await p.inputValue('#f_joint')) === '' && (await p.inputValue('#f_header_surface_reference')) === '' && (await p.inputValue('#f_branch_surface_reference')) === '' && (await p.locator('#calc [aria-invalid="true"]').count()) === 0);
@@ -655,6 +655,51 @@ const controlProbe = () => {
     await go('amoeba');
     const badgeObl = await p.evaluate(() => [...document.querySelectorAll('[role=tab]')].find((b) => b.dataset.tab === 'obligations').querySelector('.cnt').textContent.trim());
     check('BH-002: the obligations badge counts current work only', Number(badgeObl) === openAll - onSup, { badgeObl, currentWork: openAll - onSup });
+  }
+
+  // ---- 14e. BH-014 refusal codes (docs/backend/REFUSAL_CODES.md). A refused job names its fields with the message for
+  // the code, and "New from these values" marks the same fields; both in English and in Japanese.
+  {
+    // a refused calculation is answered 422 by design: that answer is expected, as in the other refusal checks
+    const post = async (body) => {
+      allow422 = true;
+      const r = await p.evaluate(async (b) => {
+        const res = await fetch('/api/projects/1/calculations', { method: 'POST', headers: { 'content-type': 'application/json', 'x-nf-request': '1' }, body: JSON.stringify(b) });
+        return { st: res.status, v: await res.json() };
+      }, body);
+      await p.waitForTimeout(150); allow422 = false;
+      return r;
+    };
+    // the value of the row whose name is exactly `name` (its label is a small monospace element)
+    const fieldText = (name) => p.evaluate((n) => {
+      const dt = [...document.querySelectorAll('dt')].find((d) => { const s = d.querySelector('small'); return s && s.textContent.trim() === n; });
+      return dt && dt.nextElementSibling ? dt.nextElementSibling.textContent : '';
+    }, name);
+    const sq = await post({ family: 'header_with_branch', header_radius: 150, header_dev_radius: 150, header_length: 1200, branch_station: 600,
+      branch_radius: 100, branch_dev_radius: 100, beta_deg: 60, delta: 0, s_end: 0.5, surface_reference: 'unknown' });
+    check('BH-014: a square end too short is refused with its code and field', sq.st === 422 && sq.v.code === 'square_end_too_short' && sq.v.fields[0] === 's_end', sq.v);
+    await p.goto(`${B}/#/calc/${sq.v.id}`); await p.waitForTimeout(700);
+    const sqEn = await fieldText('s_end');
+    check('BH-014: the refused s_end row shows the English message for square_end_too_short', /does not lie beyond the saddle/.test(sqEn) && /make it longer/.test(sqEn), sqEn.slice(0, 160));
+    await p.goto(`${B}/?lang=ja#/calc/${sq.v.id}`); await p.waitForTimeout(700);
+    const sqJa = await fieldText('s_end');
+    check('BH-014: the refused s_end row shows the Japanese message for square_end_too_short', /相貫線の先まで届いていません/.test(sqJa), sqJa.slice(0, 160));
+
+    const big = await post({ family: 'cylinder_shell', r_dev: 100, length: 1e9 });
+    check('BH-014: a magnitude above the limit is refused with its code, field and exact limit', big.st === 422 && big.v.code === 'magnitude_above_limit' && big.v.detail.limit === 1e8, big.v);
+    await p.goto(`${B}/#/calc/${big.v.id}`); await p.waitForTimeout(700);
+    const bigEn = await fieldText('length');
+    check('BH-014: the refused length row shows the English message with the limit and the value', bigEn.includes('1000000000 mm') && bigEn.includes('100000000 mm'), bigEn.slice(0, 160));
+    await p.goto(`${B}/?lang=ja#/calc/${big.v.id}`); await p.waitForTimeout(700);
+    const bigJa = await fieldText('length');
+    check('BH-014: the refused length row shows the Japanese message with the limit and the value', bigJa.includes('100000000mm') && bigJa.includes('1000000000mm'), bigJa.slice(0, 160));
+    // "New from these values": the same fields are marked with the message, in each language
+    await p.goto(`${B}/#/math/1/${big.v.id}`); await p.waitForTimeout(900);
+    const markedEn = await p.evaluate(() => { const el = document.querySelector('form [name=length]'); const m = el && el.closest('.field') && el.closest('.field').querySelector('.field-err'); return { aria: el && el.getAttribute('aria-invalid'), msg: m ? m.textContent : '' }; });
+    check('BH-014: New from these values marks the length field with the English message', markedEn.aria === 'true' && markedEn.msg.includes('100000000 mm'), markedEn);
+    await p.goto(`${B}/?lang=ja#/math/1/${big.v.id}`); await p.waitForTimeout(900);
+    const markedJa = await p.evaluate(() => { const el = document.querySelector('form [name=length]'); const m = el && el.closest('.field') && el.closest('.field').querySelector('.field-err'); return { aria: el && el.getAttribute('aria-invalid'), msg: m ? m.textContent : '' }; });
+    check('BH-014: New from these values marks the length field with the Japanese message', markedJa.aria === 'true' && markedJa.msg.includes('100000000mm'), markedJa);
   }
 
   // ---- 15. global assertions

@@ -22,6 +22,7 @@ mod storage;
 #[cfg(test)]
 mod tests;
 
+use axum::body::Bytes;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
@@ -152,6 +153,65 @@ fn fail(status: StatusCode, msg: &str) -> ApiError {
 
 fn fail_json(status: StatusCode, body: Value) -> ApiError {
     ApiError::Resp(Box::new((status, Json(body)).into_response()))
+}
+
+/// The body of a calculation or correction request, read as JSON before anything else (as the framework's JSON
+/// extractor did, so the order of the answers is unchanged). A body that is not JSON, or sent with another
+/// content type, is refused with a code; the statuses are those the extractor gave (400, 415).
+fn request_json(headers: &HeaderMap, raw: &[u8]) -> Result<Value, ApiError> {
+    let ct = headers
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let mime = ct
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    if !(mime == "application/json"
+        || (mime.starts_with("application/") && mime.ends_with("+json")))
+    {
+        return Err(fail_code(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            nf_core::refusal::REQUEST_MALFORMED,
+            &[],
+            "the request must be sent with Content-Type: application/json",
+        ));
+    }
+    serde_json::from_slice(raw).map_err(|e| {
+        fail_code(
+            StatusCode::BAD_REQUEST,
+            nf_core::refusal::REQUEST_MALFORMED,
+            &[],
+            &format!("the request body is not JSON: {e}"),
+        )
+    })
+}
+
+/// A refused calculation or correction request: the answer `fail` gives, with the stable code, the request
+/// fields the rule concerns, the message and the exact limit where the engine gives one (REFUSAL_CODES.md).
+/// Adds the detail of a refusal to an answer, and only where the engine computes one (REFUSAL_CODES.md).
+fn with_detail(mut v: Value, r: &nf_core::Refusal) -> Value {
+    if let Some(d) = &r.detail {
+        v["detail"] = json!(d);
+    }
+    v
+}
+
+fn fail_refused(status: StatusCode, r: &nf_core::Refusal) -> ApiError {
+    fail_json(
+        status,
+        with_detail(
+            json!({ "error": r.message, "code": r.code, "fields": r.fields, "message": r.message }),
+            r,
+        ),
+    )
+}
+
+/// `fail_refused` for a rule the API applies itself.
+fn fail_code(status: StatusCode, code: &str, fields: &[&str], msg: &str) -> ApiError {
+    fail_refused(status, &nf_core::Refusal::new(code, fields, msg))
 }
 
 fn ok(v: Value) -> Api {
@@ -2101,12 +2161,8 @@ async fn acknowledge_advisory(
 ///   job `id` in state REFUSED (never REVIEW_REQUIRED) and in the audit log.
 /// - 400: the body is not a request this build understands (unknown family,
 ///   wrong type, unknown field). Nothing is stored.
-async fn calculate(
-    State(app): Ctx,
-    headers: HeaderMap,
-    Path(id): Path<i64>,
-    Json(body): Json<Value>,
-) -> Api {
+async fn calculate(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, raw: Bytes) -> Api {
+    let body = request_json(&headers, &raw)?;
     let u = {
         let db = app.db();
         let u = auth_db(&db, &app, &headers)?;
@@ -2115,7 +2171,8 @@ async fn calculate(
         project_guard(&app, &db, &u, id, "calculate")?;
         u
     };
-    let req = Request::parse_strict(&body).map_err(|e| fail(StatusCode::BAD_REQUEST, &e))?;
+    let req =
+        Request::parse_refusal(&body).map_err(|r| fail_refused(StatusCode::BAD_REQUEST, &r))?;
     let out = job::run(&req, &u.username);
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -2134,9 +2191,19 @@ async fn calculate(
             &format!("#{cid} project #{id}: {outcome}"),
         )?;
         tx.commit()?;
+        let r = out.refusal.clone().unwrap_or_else(|| {
+            nf_core::Refusal::new(
+                nf_core::refusal::NO_PATTERN_PRODUCED,
+                &[],
+                "no pattern was produced",
+            )
+        });
         return Err(fail_json(
             StatusCode::UNPROCESSABLE_ENTITY,
-            json!({ "error": format!("request refused, nothing was computed: {outcome}"), "id": cid, "state": REFUSED, "outcome": outcome, "field": out.refused_field, "advisories": 0 }),
+            with_detail(
+                json!({ "error": format!("request refused, nothing was computed: {outcome}"), "id": cid, "state": REFUSED, "outcome": outcome, "field": out.refused_field, "advisories": 0, "code": r.code, "fields": r.fields, "message": r.message }),
+                &r,
+            ),
         ));
     }
     let advisories = raise_advisories(&tx, id, cid, &req)?;
@@ -2431,8 +2498,10 @@ async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api
             ));
         }
         let Some(result) = stored_result(&db, id)? else {
-            return Err(fail(
+            return Err(fail_code(
                 StatusCode::CONFLICT,
+                nf_core::refusal::STORED_RESULT_UNREADABLE,
+                &[],
                 "the stored result is unreadable",
             ));
         };
@@ -2689,14 +2758,22 @@ async fn get_dxf(
 /// stays current, no lesson is recorded (the old value was not shown to be a
 /// mistake), no obligation is raised; only the audit log keeps the attempt
 /// (BE-004). Otherwise everything is written in one transaction (BE-005).
-async fn correct(
-    State(app): Ctx,
-    headers: HeaderMap,
-    Path(id): Path<i64>,
-    Json(body): Json<Value>,
-) -> Api {
+async fn correct(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, raw: Bytes) -> Api {
+    let body = request_json(&headers, &raw)?;
     let pname = clip(&s(&body, "parameter"), 64);
-    let reason = text_field(&body, "reason")?;
+    // the same rule as text_field (trimmed, counted in characters), with its own code
+    let reason = {
+        let t = s(&body, "reason").trim().to_string();
+        if t.chars().count() > MAX_TEXT {
+            return Err(fail_code(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                nf_core::refusal::REASON_TOO_LONG,
+                &["reason"],
+                &format!("reason is too long (at most {MAX_TEXT} characters)"),
+            ));
+        }
+        t
+    };
     let (u, c, req, records) = {
         let db = app.db();
         let u = auth_db(&db, &app, &headers)?;
@@ -2706,46 +2783,60 @@ async fn correct(
             .and_then(|v| v.as_f64())
             .filter(|v| v.is_finite())
         else {
-            return Err(fail(
+            return Err(fail_code(
                 StatusCode::BAD_REQUEST,
+                nf_core::refusal::VALUE_NOT_FINITE,
+                &["new_value"],
                 "new_value must be a finite number",
             ));
         };
         let _ = new_value;
         if reason.len() < 5 {
-            return Err(fail(
+            return Err(fail_code(
                 StatusCode::BAD_REQUEST,
+                nf_core::refusal::REASON_REQUIRED,
+                &["reason"],
                 "a reason is required for every correction",
             ));
         }
         let (c, e) = calc_guard(&app, &db, &u, id, "correct")?;
         if c.superseded_by.is_some() {
-            return Err(fail(
+            return Err(fail_code(
                 StatusCode::CONFLICT,
+                nf_core::refusal::CORRECTION_ON_SUPERSEDED_JOB,
+                &[],
                 "this result is already superseded; correct the current one",
             ));
         }
         if e.refused() {
-            return Err(fail(
+            return Err(fail_code(
                 StatusCode::CONFLICT,
+                nf_core::refusal::CORRECTION_ON_REFUSED_JOB,
+                &[],
                 "this request was refused and has no result to correct; submit a new calculation",
             ));
         }
         if !e.integrity.is_empty() || !e.engine_current {
-            return Err(fail(
+            return Err(fail_code(
                 StatusCode::CONFLICT,
+                nf_core::refusal::CORRECTION_NEEDS_RECOMPUTE,
+                &[],
                 "this result cannot be corrected: it failed its integrity check or was computed by a superseded engine version — recompute it first",
             ));
         }
         let Some(result) = stored_result(&db, id)? else {
-            return Err(fail(
+            return Err(fail_code(
                 StatusCode::CONFLICT,
+                nf_core::refusal::STORED_RESULT_UNREADABLE,
+                &[],
                 "the stored result is unreadable",
             ));
         };
         let Ok(req) = serde_json::from_value::<Request>(result["request"].clone()) else {
-            return Err(fail(
+            return Err(fail_code(
                 StatusCode::CONFLICT,
+                nf_core::refusal::STORED_REQUEST_UNREADABLE,
+                &[],
                 "the stored request is unreadable",
             ));
         };
@@ -2762,8 +2853,10 @@ async fn correct(
         .and_then(|v| v.as_f64())
         .unwrap_or(f64::NAN);
     if !matches!(req, Request::HeaderWithBranch { .. }) {
-        return Err(fail(
+        return Err(fail_code(
             StatusCode::BAD_REQUEST,
+            nf_core::refusal::CORRECTION_NOT_FOR_FAMILY,
+            &["family"],
             "corrections with dependency propagation are implemented for assembly jobs only",
         ));
     }
@@ -2773,17 +2866,26 @@ async fn correct(
         .find(|(k, _)| *k == pname)
         .map(|(_, v)| v)
     else {
-        return Err(fail(StatusCode::BAD_REQUEST, "unknown parameter"));
+        return Err(fail_code(
+            StatusCode::BAD_REQUEST,
+            nf_core::refusal::CORRECTION_UNKNOWN_PARAMETER,
+            &["parameter"],
+            "unknown parameter",
+        ));
     };
     if old_value == new_value {
-        return Err(fail(
+        return Err(fail_code(
             StatusCode::BAD_REQUEST,
+            nf_core::refusal::CORRECTION_VALUE_UNCHANGED,
+            &["new_value"],
             "new value equals the current value",
         ));
     }
     let Some(new_req) = req.with_param(&pname, new_value) else {
-        return Err(fail(
+        return Err(fail_code(
             StatusCode::BAD_REQUEST,
+            nf_core::refusal::CORRECTION_PARAMETER_NOT_CORRECTABLE,
+            &["parameter"],
             "parameter cannot be corrected",
         ));
     };
@@ -2792,8 +2894,10 @@ async fn correct(
         .find(|r| r.kind == "parameter" && r.payload["name"] == pname.as_str())
         .map(|r| r.id.clone())
     else {
-        return Err(fail(
+        return Err(fail_code(
             StatusCode::CONFLICT,
+            nf_core::refusal::CORRECTION_PARAMETER_NOT_RECORDED,
+            &["parameter"],
             "this job has no record of that parameter, so a correction cannot be propagated",
         ));
     };
@@ -2803,27 +2907,37 @@ async fn correct(
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let refused = match out.state {
         nf_core::ReleaseState::ReviewRequired if !out.patterns.is_empty() => None,
-        nf_core::ReleaseState::Rejected => Some(
-            "the corrected request produced a pattern that failed its own verification".to_string(),
-        ),
-        _ => Some(
-            out.outcome
-                .clone()
-                .unwrap_or_else(|| "the corrected request produced no pattern".into()),
-        ),
+        nf_core::ReleaseState::Rejected => Some(nf_core::Refusal::new(
+            nf_core::refusal::CORRECTED_RESULT_FAILED_VERIFICATION,
+            &[],
+            "the corrected request produced a pattern that failed its own verification",
+        )),
+        _ => Some(out.refusal.clone().unwrap_or_else(|| {
+            nf_core::Refusal::new(
+                nf_core::refusal::NO_PATTERN_PRODUCED,
+                &[],
+                "the corrected request produced no pattern",
+            )
+        })),
     };
-    if let Some(why) = refused {
+    if let Some(r) = refused {
+        let why = r.message.clone();
         app.audit(&tx, &u.username, "correction_refused", &format!("calculation #{id} {pname}: {old_value} -> {new_value} ({reason}); refused: {why}; nothing changed"))?;
         tx.commit()?;
         return Err(fail_json(
             StatusCode::UNPROCESSABLE_ENTITY,
-            json!({ "error": format!("correction refused, nothing was changed: {pname} = {new_value} cannot be computed ({why}). Job #{id} is still the current result."), "outcome": why, "field": out.refused_field.clone().unwrap_or_else(|| pname.clone()), "state": REFUSED }),
+            with_detail(
+                json!({ "error": format!("correction refused, nothing was changed: {pname} = {new_value} cannot be computed ({why}). Job #{id} is still the current result."), "outcome": why, "field": out.refused_field.clone().unwrap_or_else(|| pname.clone()), "state": REFUSED, "code": r.code, "fields": r.fields, "message": why }),
+                &r,
+            ),
         ));
     }
     // 2. the old job must still be the current revision (another correction may have won the race)
     if load_core(&tx, id)?.is_none_or(|now| now.superseded_by.is_some()) {
-        return Err(fail(
+        return Err(fail_code(
             StatusCode::CONFLICT,
+            nf_core::refusal::CORRECTION_ON_SUPERSEDED_JOB,
+            &[],
             "this result is already superseded; correct the current one",
         ));
     }

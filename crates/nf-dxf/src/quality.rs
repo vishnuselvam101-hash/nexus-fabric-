@@ -5,8 +5,9 @@
 //!
 //! | rule | what fails it |
 //! |---|---|
-//! | `readable` | the file does not parse, or holds an entity type this build does not write |
-//! | `units_declared` | header does not declare AC1009, decimal units, degrees counter-clockwise from +x; no millimetre statement |
+//! | `readable` | the file does not parse, holds an entity type this build does not write, or states an `NF-` comment key this build does not write |
+//! | `units_declared` | header does not declare AC1009, decimal units, degrees counter-clockwise from +x; no millimetre statement (`NF-UNITS: mm` and the TEXT) |
+//! | `joint_statement` | the joint the file states (`NF-JOINT`, `NF-HEADER-SURFACE`, `NF-BRANCH-SURFACE` and the two joint TEXT lines) is not exactly the joint the job declares: missing, altered, repeated or contradicting; a part of another family states no joint |
 //! | `finite_numbers` | a coordinate, radius or angle that is not a finite number; a radius that is not positive |
 //! | `wrong_layer` | cut geometry off the CUT_OUTER / CUT_INNER layers, text off the annotation layer, an inner profile on the outer layer |
 //! | `zero_length` | a line, polyline segment or arc of zero length; a polyline with fewer than two vertices |
@@ -22,14 +23,17 @@
 //! stated tolerances, not exact predicates; contacts closer than the tolerance
 //! are not decided rigorously. CAM-system acceptance has not been tested.
 
-use crate::{Entity, MARK_LAYER, MARK_TEXT, UNITS_TEXT, arc_box, read, read_header};
+use crate::{
+    Entity, JointStatement, MARK_LAYER, MARK_TEXT, UNITS_TEXT, arc_box, read, read_header,
+};
 
 pub const OUTER_LAYER: &str = "CUT_OUTER";
 pub const INNER_LAYER: &str = "CUT_INNER";
 
-pub const RULES: [&str; 12] = [
+pub const RULES: [&str; 13] = [
     "readable",
     "units_declared",
+    "joint_statement",
     "finite_numbers",
     "wrong_layer",
     "zero_length",
@@ -310,8 +314,14 @@ struct Contour {
     as_written: Option<bool>,
 }
 
-/// Run the gate on the text of a DXF file.
+/// Run the gate on the text of a DXF file that states no joint (a part of a family without joints).
 pub fn quality_gate(text: &str) -> QualityReport {
+    quality_gate_stated(text, None)
+}
+
+/// Run the gate on the text of a DXF file. `joint` is the joint statement the job declares for this part
+/// (`None`: the part states no joint); the file must state exactly that.
+pub fn quality_gate_stated(text: &str, joint: Option<&JointStatement>) -> QualityReport {
     let mut findings: Vec<QualityFinding> = Vec::new();
     let mut add = |rule: &'static str, detail: String| {
         // a damaged file may fail one rule thousands of times: keep the first few of each
@@ -341,6 +351,12 @@ pub fn quality_gate(text: &str) -> QualityReport {
         add(
             "readable",
             format!("entity type {u} is not one this build writes"),
+        );
+    }
+    for k in crate::unknown_statement_keys(text) {
+        add(
+            "readable",
+            format!("the file states the key {k}, which this build does not write"),
         );
     }
     let (notes, geometry): (Vec<Entity>, Vec<Entity>) =
@@ -377,6 +393,13 @@ pub fn quality_gate(text: &str) -> QualityReport {
             "units_declared",
             format!("the drawing does not state its unit (\"{UNITS_TEXT}\")"),
         );
+    }
+    for p in crate::units_problems(text) {
+        add("units_declared", p);
+    }
+    // ---- joint_statement: what the file says about the joint, compared with what the job declares
+    for p in crate::joint_statement_problems(text, joint) {
+        add("joint_statement", p);
     }
 
     // ---- finite_numbers
@@ -999,7 +1022,8 @@ mod tests {
             }
         }
         assert_eq!(quality_gate(&write(&plate())).inner_contours, 1);
-        assert_eq!(RULES.len(), 12);
+        // 13 rules: joint_statement was added with engine 0.4.1 (was 12)
+        assert_eq!(RULES.len(), 13);
     }
 
     #[test]

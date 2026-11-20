@@ -2480,7 +2480,7 @@ async fn list_sees_a_same_length_alteration_made_by_another_process() {
 async fn d1_results_of_engine_0_2_0_are_flagged_for_recomputation() {
     let t = boot();
     let id = t.job(good_assembly()).await;
-    assert!(nf_core::ENGINE_VERSION.starts_with("nf-engine 0.4.0+src."));
+    assert!(nf_core::ENGINE_VERSION.starts_with("nf-engine 0.4.1+src."));
     t.sql(&format!("UPDATE calculations SET result_json = json_set(result_json, '$.engine', 'nf-engine 0.2.0+src.0123456789abcdef') WHERE id = {id}"));
     let d = t.get(&format!("/api/calculations/{id}")).await;
     assert_eq!(d["state"], "REJECTED");
@@ -2751,4 +2751,254 @@ async fn bh002_obligations_on_a_superseded_result_are_counted_apart_and_stay_ope
             .iter()
             .any(|r| r["target_calc"] == json!(second) && r["state"] == "open")
     );
+}
+
+/// A POST whose body is sent as it is, with its content type (or none): the refusals of the body itself.
+async fn send_raw(t: &T, path: &str, raw: &str, content_type: Option<&str>) -> (StatusCode, Value) {
+    let mut b = HttpRequest::builder()
+        .method("POST")
+        .uri(path)
+        .header("x-nf-request", "1")
+        .header("host", "127.0.0.1:8787")
+        .header("cookie", &t.cookie);
+    if let Some(ct) = content_type {
+        b = b.header("content-type", ct);
+    }
+    let req = b.body(Body::from(raw.to_string())).unwrap();
+    let resp = router(t.app.clone()).oneshot(req).await.unwrap();
+    let (parts, body) = resp.into_parts();
+    let bytes = axum::body::to_bytes(body, 64 * 1024 * 1024)
+        .await
+        .unwrap()
+        .to_vec();
+    (
+        parts.status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+/// BH-014: each refusal of a calculation or a correction answers with its stable code, the fields it concerns and the
+/// message the API has always given; `detail` (the exact limit and measured value) only where the engine computes one.
+#[tokio::test]
+async fn bh014_every_refusal_answers_with_a_code_fields_and_the_message() {
+    let t = boot();
+    // the request structure (400): the code, its field, and the text kept as it was
+    let (st, v) = t.calc(json!({ "family": "teapot" })).await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("family_unknown"))
+    );
+    assert_eq!(v["fields"], json!(["family"]));
+    assert_eq!(
+        v["error"], v["message"],
+        "the text the API has always given is kept"
+    );
+    assert!(
+        v.get("detail").is_none(),
+        "a structural refusal has no detail"
+    );
+    let (st, v) = t
+        .calc(json!({ "family": "cylinder_shell", "r_dev": 100.0, "length": 250.0, "thickness": 12.0 }))
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("field_unknown"))
+    );
+    assert_eq!(v["fields"], json!(["thickness"]));
+    // the body itself: not JSON (400), and not sent as JSON (415), both coded
+    let (st, v) = send_raw(
+        &t,
+        "/api/projects/1/calculations",
+        "{not json",
+        Some("application/json"),
+    )
+    .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("request_malformed"))
+    );
+    let (st, v) = send_raw(&t, "/api/projects/1/calculations", "{}", Some("text/plain")).await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            Some("request_malformed")
+        )
+    );
+    // an engine refusal (422): the job is recorded as REFUSED, with the rule's code, field and exact limit
+    let (st, v) = t
+        .calc(json!({ "family": "cylinder_shell", "r_dev": 100.0, "length": 1e9 }))
+        .await;
+    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(
+        (v["state"].as_str(), v["code"].as_str()),
+        (Some("REFUSED"), Some("magnitude_above_limit"))
+    );
+    assert_eq!(
+        (v["fields"].clone(), v["field"].clone()),
+        (json!(["length"]), json!("length"))
+    );
+    assert_eq!(
+        (
+            v["detail"]["limit"].as_f64(),
+            v["detail"]["measured"].as_f64()
+        ),
+        (Some(1e8), Some(1e9))
+    );
+    let refused_id = v["id"].as_i64().unwrap();
+    assert_eq!(
+        t.get(&format!("/api/calculations/{refused_id}")).await["state"],
+        "REFUSED"
+    );
+    // a zero dimension is refused with no detail
+    let (st, v) = t
+        .calc(json!({ "family": "cylinder_shell", "r_dev": 0.0, "length": 250.0 }))
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("value_not_positive"))
+    );
+    assert!(v.get("detail").is_none());
+    // corrections: the body rules (400, 422), the state rules (409) and the propagation rules (400, 422)
+    let id = t.job(good_assembly()).await;
+    let url = format!("/api/calculations/{id}/corrections");
+    let reason = "a reason of five";
+    let (st, v) = t
+        .call(
+            "POST",
+            &url,
+            Some(json!({ "parameter": "header_radius", "new_value": 150.5, "reason": "abc" })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("reason_required"))
+    );
+    assert_eq!(v["fields"], json!(["reason"]));
+    let long = "x".repeat(2001);
+    let (st, v) = t
+        .call(
+            "POST",
+            &url,
+            Some(json!({ "parameter": "header_radius", "new_value": 150.5, "reason": long })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("reason_too_long"))
+    );
+    assert_eq!(v["fields"], json!(["reason"]));
+    let (st, v) = t
+        .call(
+            "POST",
+            &url,
+            Some(json!({ "parameter": "header_radius", "new_value": "abc", "reason": reason })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("value_not_finite"))
+    );
+    assert_eq!(v["fields"], json!(["new_value"]));
+    let (st, v) = t
+        .call(
+            "POST",
+            &url,
+            Some(json!({ "parameter": "header_radius", "new_value": 150.0, "reason": reason })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("correction_value_unchanged"))
+    );
+    let (st, v) = t
+        .call(
+            "POST",
+            &url,
+            Some(json!({ "parameter": "nonsense", "new_value": 1.0, "reason": reason })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (
+            StatusCode::BAD_REQUEST,
+            Some("correction_unknown_parameter")
+        )
+    );
+    assert_eq!(v["fields"], json!(["parameter"]));
+    let (st, v) = t
+        .call(
+            "POST",
+            &url,
+            Some(json!({ "parameter": "header_radius", "new_value": 1e9, "reason": reason })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Some("magnitude_above_limit")
+        )
+    );
+    assert_eq!(
+        (v["fields"].clone(), v["detail"]["limit"].as_f64()),
+        (json!(["header_radius"]), Some(1e8))
+    );
+    let cone_id = t.job(cone()).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/calculations/{cone_id}/corrections"),
+            Some(json!({ "parameter": "r1", "new_value": 220.0, "reason": reason })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::BAD_REQUEST, Some("correction_not_for_family"))
+    );
+    assert_eq!(v["fields"], json!(["family"]));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/calculations/{refused_id}/corrections"),
+            Some(json!({ "parameter": "length", "new_value": 250.0, "reason": reason })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::CONFLICT, Some("correction_on_refused_job"))
+    );
+    assert_eq!(v["fields"], json!([]));
+    // the stored result of an accepted job: no refusal fields are added to its answer
+    let d = t.get(&format!("/api/calculations/{id}")).await;
+    assert!(
+        d.get("code").is_none() && d.get("detail").is_none(),
+        "an accepted job carries no refusal fields"
+    );
+}
+
+/// BH-004 (engine 0.4.1): a result stored by 0.4.0 is marked for recomputation (gate G21), is never shown as current and
+/// has no DXF; a result of 0.4.1 is current and its DXF is offered.
+#[tokio::test]
+async fn bh004_engine_0_4_0_results_are_recomputed_and_0_4_1_results_are_current() {
+    let t = boot();
+    let id = t.job(good_assembly()).await;
+    t.sql(&format!(
+        "UPDATE calculations SET result_json = json_set(result_json, '$.engine', 'nf-engine 0.4.0+src.be53b63158593bf7') WHERE id = {id}"
+    ));
+    let d = t.get(&format!("/api/calculations/{id}")).await;
+    assert_eq!(d["state"], "REJECTED");
+    assert!(
+        gate_of(&d, "G21")["detail"].as_str().unwrap().contains(
+            "Computed by a superseded engine version (nf-engine 0.4.0+src.be53b63158593bf7) — recompute"
+        ),
+        "{}",
+        gate_of(&d, "G21")
+    );
+    assert_eq!(t.dxf_status(id, "branch").await, StatusCode::CONFLICT);
+    let now = t.job(good_assembly()).await;
+    let d = t.get(&format!("/api/calculations/{now}")).await;
+    assert_eq!(d["engine"], nf_core::ENGINE_VERSION);
+    assert_ne!(d["state"], "REJECTED", "a 0.4.1 result is current");
+    assert_eq!(t.dxf_status(now, "branch").await, StatusCode::OK);
 }

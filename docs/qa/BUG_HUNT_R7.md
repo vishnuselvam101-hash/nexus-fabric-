@@ -68,7 +68,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Reproduces: 2 of 2 radius sets.
 - Note for the owner: whether identical geometry is right for these inputs is an engineering question, because the zero-thickness model uses the same contact radii in both cases. The defect as reported: the joint declaration and the surfaces that define the opening are not visible in the file a shop receives, and the stored sentence and the file are not linked.
 - Evidence: `seton.js` output; `dxf/job9-header.dxf`, `dxf/job16-header.dxf`.
-**Status:** not changed. Whether identical geometry is right for these inputs, and what the DXF must state about the joint, is an engineering decision for the owner.
+**Status:** fixed in engine 0.4.1 (the statement only). Both files now state their joint: `NF-JOINT: set-on` or `NF-JOINT: not declared`, the two surfaces, and two TEXT lines on NF_NOT_RELEASED (docs/backend/DXF_METADATA.md). The cut geometry is unchanged, so the two files still differ only in the statement. Whether identical geometry is right for these inputs remains an engineering decision for the owner. Tests: `crates/nf-core/tests/dxf_statement.rs` (every family and part, both joint states; altered statements fail the gate and the reader), `crates/nf-core/tests/regressions/005-joint-statement-and-units-in-the-dxf.json`.
 
 ### BH-005: Medium: DXF units are not declared machine-readably
 
@@ -78,7 +78,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 - Actual: none of the 8 files contains `$INSUNITS`. Units appear only in a group-999 comment ("units: millimetres") and a TEXT entity ("UNITS: MILLIMETRES"). The HEADER has `$LUNITS` (format only). A CAD program that reads `$INSUNITS` does not know the scale.
 - Reproduces: 8 of 8 files (jobs 1, 2, 3, 4, 9 header and branch, 16 header and branch).
 - Evidence: `dxf/job4-shell.dxf` (opened, full text read); grep of all 8 files for `INSUNITS` gives 0.
-**Status:** not changed. The units declaration in the DXF header is a file-format decision for the owner.
+**Status:** fixed in engine 0.4.1 without `$INSUNITS`: R12 (AC1009) defines no unit-of-measure variable, so the file does not declare one. Every file states its unit in three places: the group-999 line `NF-UNITS: mm`, the existing human 999 line, and the TEXT `UNITS: MILLIMETRES`. Documented in docs/backend/DXF_METADATA.md. Tests: `crates/nf-core/tests/dxf_statement.rs` (`every_family_and_part_states_its_units_and_its_joint_exactly_as_declared`).
 
 ### BH-006: Low: status card text collision
 
@@ -154,7 +154,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
   - `branch_station` 1199.9 with `header_length` 1200: engine: opening spans x = 1171.032 to 1401.973, outside the shell.
 - Expected: the field stops these, as it does for the tangent limit, so no REFUSED job is created.
 - Reproduces: the engine refusals for beta 10 and 170 and for station 1199.9 were seen in two separate runs. The form-side result came from the extracted validator in one comparison run covering all four surface values.
-**Status:** partly fixed. The client has no new rule: the engine's square-end limit and its opening-inside-shell limit come from sampled geometry, so they cannot be stated exactly in the client (the brief allows no invented rule). The engine stays the judge. Its refusal names the field (`s_end`, `branch_station`) on the refused job, and the form still accepts such values, so a REFUSED job is still recorded (records are append-only). Test: `tests/ui_smoke.js` section 14d, "BH-014: the engine refusal of a square end names the s_end field...".
+**Status:** partly fixed. Engine 0.4.1 gives every refusal a stable code, the fields it concerns and, where the engine computes them, the limit and the measured value (docs/backend/REFUSAL_CODES.md). A refused job shows its refusal on the named field, and "New from these values" marks the same fields, in English and Japanese. The client still has no new rule: the engine's square-end limit and its opening-inside-shell limit come from sampled geometry, so they cannot be stated exactly in the client (the brief allows no invented rule). The engine stays the judge. Its refusal names the field (`s_end`, `branch_station`) on the refused job, and the form still accepts such values, so a REFUSED job is still recorded (records are append-only). Test: `tests/ui_smoke.js` section 14d, "BH-014: the engine refusal of a square end names the s_end field...".
 
 ### BH-015: Low: API requires `surface_reference` even when both part references are given
 
@@ -268,6 +268,6 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 
 ## 8. Fix pass: status and checks
 
-Each defect has a status line in its section (section 3). Fixed: BH-002, BH-003, BH-006, BH-007, BH-008, BH-009, BH-010, BH-011, BH-012, BH-013, BH-015, BH-016, BH-018, the new command-line defect, and BH-001 (fixed before the pass). Partly: BH-014. Not changed: BH-004, BH-005, BH-017, and the environment incident (section 4) for the owner.
+Each defect has a status line in its section (section 3). Fixed: BH-002, BH-003, BH-006, BH-007, BH-008, BH-009, BH-010, BH-011, BH-012, BH-013, BH-015, BH-016, BH-018, the new command-line defect, and BH-001 (fixed before the pass). Partly: BH-014. Fixed in engine 0.4.1: BH-004 and BH-005. Not changed: BH-017, and the environment incident (section 4) for the owner.
 
 Checks at the end of the pass, on the release build: `cargo test --workspace` 157 passed, 0 failed (140 before the pass); `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo fmt --all -- --check` clean; `bash tests/e2e_smoke.sh` 89 passed, 0 failed; `bash tests/security_smoke.sh` 66 passed, 0 failed; `tests/ui_smoke.js` on a fresh server 183 passed, 0 failed (169 before the pass, plus the section 14d checks); `node tests/desktop_smoke.js target/release/nf-server 8868` 18 passed, 0 failed; `bash tests/offline_check.sh` passed (its API, browser and desktop suites passed inside a network namespace with no route out); `node docs/design/tools/i18n_check.mjs` no problem (815 keys in each language).

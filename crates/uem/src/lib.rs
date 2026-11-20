@@ -181,35 +181,139 @@ impl Pattern {
     }
 }
 
+/// Stable refusal codes of the engine: one per distinct rule. Each is documented, with its request
+/// fields and whether a detail value is given, in docs/backend/REFUSAL_CODES.md (a test checks that table).
+pub mod refusal {
+    pub const VALUE_NOT_FINITE: &str = "value_not_finite";
+    pub const VALUE_NOT_POSITIVE: &str = "value_not_positive";
+    pub const OFFSET_NEGATIVE: &str = "offset_negative";
+    pub const REDUCER_RADII_ORDER: &str = "reducer_radii_order";
+    pub const REDUCER_NEAR_CYLINDRICAL: &str = "reducer_near_cylindrical";
+    pub const DEVELOPED_ANGLE_OVERLAPS: &str = "developed_angle_overlaps";
+    pub const BRANCH_ANGLE_OUT_OF_RANGE: &str = "branch_angle_out_of_range";
+    pub const BRANCH_TANGENT_OR_PARTIAL: &str = "branch_tangent_or_partial";
+    pub const SQUARE_END_TOO_SHORT: &str = "square_end_too_short";
+    pub const OPENING_OUTSIDE_SHELL: &str = "opening_outside_shell";
+    pub const CHORD_ERROR_UNREACHABLE: &str = "chord_error_unreachable";
+    pub const RADIUS_DEV_EXCEEDS_OUTSIDE: &str = "radius_dev_exceeds_outside";
+    pub const RADIUS_DEV_BELOW_INSIDE: &str = "radius_dev_below_inside";
+    pub const RADIUS_NEUTRAL_MISMATCH: &str = "radius_neutral_mismatch";
+    pub const SURFACE_REFERENCE_INVALID: &str = "surface_reference_invalid";
+    pub const JOINT_PAIRING_INVALID: &str = "joint_pairing_invalid";
+    pub const JOINT_TYPE_UNKNOWN: &str = "joint_type_unknown";
+    pub const MAGNITUDE_ABOVE_LIMIT: &str = "magnitude_above_limit";
+    pub const DIMENSION_BELOW_LIMIT: &str = "dimension_below_limit";
+    pub const BEND_ANGLE_OUT_OF_RANGE: &str = "bend_angle_out_of_range";
+}
+
+/// A refusal of the engine. `code` is the rule (see `refusal`), `fields` the request fields it concerns (the
+/// engine's own label `param` is kept for the existing `refused_field` and may name no request field),
+/// `detail` the limit and measured value where the engine computes them exactly (empty otherwise).
 #[derive(Clone, Debug, PartialEq)]
 pub enum UemError {
     /// Parameters outside the range in which this implementation is valid.
-    OutOfRange { param: &'static str, reason: String },
-    /// Degenerate geometry.
-    Degenerate(String),
+    OutOfRange {
+        code: &'static str,
+        param: &'static str,
+        fields: Vec<&'static str>,
+        reason: String,
+        detail: Vec<(&'static str, f64)>,
+    },
     /// Development would overlap itself or is otherwise not producible.
-    NotDevelopable(String),
+    NotDevelopable {
+        code: &'static str,
+        fields: Vec<&'static str>,
+        reason: String,
+        detail: Vec<(&'static str, f64)>,
+    },
+}
+
+impl UemError {
+    /// The stable code of the rule this refusal applies.
+    pub fn code(&self) -> &'static str {
+        match self {
+            UemError::OutOfRange { code, .. } | UemError::NotDevelopable { code, .. } => code,
+        }
+    }
+    /// The request fields the rule concerns.
+    pub fn fields(&self) -> &[&'static str] {
+        match self {
+            UemError::OutOfRange { fields, .. } | UemError::NotDevelopable { fields, .. } => fields,
+        }
+    }
+    /// The exact limit and measured value, where the engine computes them.
+    pub fn detail(&self) -> &[(&'static str, f64)] {
+        match self {
+            UemError::OutOfRange { detail, .. } | UemError::NotDevelopable { detail, .. } => detail,
+        }
+    }
+}
+
+pub fn out_of_range(
+    code: &'static str,
+    param: &'static str,
+    fields: Vec<&'static str>,
+    reason: String,
+) -> UemError {
+    out_of_range_with(code, param, fields, reason, Vec::new())
+}
+
+pub fn out_of_range_with(
+    code: &'static str,
+    param: &'static str,
+    fields: Vec<&'static str>,
+    reason: String,
+    detail: Vec<(&'static str, f64)>,
+) -> UemError {
+    UemError::OutOfRange {
+        code,
+        param,
+        fields,
+        reason,
+        detail,
+    }
+}
+
+pub fn not_developable(
+    code: &'static str,
+    fields: Vec<&'static str>,
+    reason: String,
+    detail: Vec<(&'static str, f64)>,
+) -> UemError {
+    UemError::NotDevelopable {
+        code,
+        fields,
+        reason,
+        detail,
+    }
 }
 
 impl std::fmt::Display for UemError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UemError::OutOfRange { param, reason } => write!(f, "out of range ({param}): {reason}"),
-            UemError::Degenerate(s) => write!(f, "degenerate geometry: {s}"),
-            UemError::NotDevelopable(s) => write!(f, "not developable: {s}"),
+            UemError::OutOfRange { param, reason, .. } => {
+                write!(f, "out of range ({param}): {reason}")
+            }
+            UemError::NotDevelopable { reason, .. } => write!(f, "not developable: {reason}"),
         }
     }
 }
 
 pub(crate) fn finite_pos(name: &'static str, v: f64) -> Result<(), UemError> {
     if v.is_finite() && v > 0.0 {
-        Ok(())
-    } else {
-        Err(UemError::OutOfRange {
-            param: name,
-            reason: format!("must be finite and > 0, got {v}"),
-        })
+        return Ok(());
     }
+    let code = if v.is_finite() {
+        refusal::VALUE_NOT_POSITIVE
+    } else {
+        refusal::VALUE_NOT_FINITE
+    };
+    Err(out_of_range(
+        code,
+        name,
+        vec![name],
+        format!("must be finite and > 0, got {v}"),
+    ))
 }
 
 /// Composite Gauss–Legendre quadrature on [a,b] with `n` panels.
@@ -305,7 +409,7 @@ pub fn bend_allowance(theta: f64, ri: f64, k: f64, t: f64) -> f64 {
 /// Bend deduction for 0 < theta <= pi/2 (outside dimensions to mould line).
 pub fn bend_deduction(theta: f64, ri: f64, k: f64, t: f64) -> Result<f64, UemError> {
     if !(theta > 0.0 && theta <= PI / 2.0 + 1e-12) {
-        return Err(UemError::OutOfRange { param: "theta", reason: "bend deduction defined here for 0 < theta <= 90 deg; use neutral-arc lengths otherwise".into() });
+        return Err(out_of_range(refusal::BEND_ANGLE_OUT_OF_RANGE, "theta", vec![], "bend deduction defined here for 0 < theta <= 90 deg; use neutral-arc lengths otherwise".into()));
     }
     Ok(2.0 * (ri + t) * (theta / 2.0).tan() - bend_allowance(theta, ri, k, t))
 }
