@@ -17,9 +17,12 @@ win_boot() {
   wine_env "$1" timeout 400 wine wineboot --init >"$2" 2>&1
 }
 
-# win_start PREFIX EXE PORT LOG: desktop mode in the background (wine process); sets WPID.
+# win_start PREFIX EXE PORT LOG: desktop mode in the background; sets WPID to the WINE PROCESS itself.
+# "( exec env ... wine ... )" replaces the subshell with env, and env with wine, so $! is the wine pid and a
+# SIGINT sent to it reaches the program. (A plain function call in the background would give the pid of a subshell.)
 win_start() {
-  wine_env "$1" wine "$2" --desktop --port "$3" --no-browser >"$4" 2>&1 &
+  wine_env_vars "$1"
+  ( exec env -i "${WINE_VARS[@]}" wine "$2" --desktop --port "$3" --no-browser ) >"$4" 2>&1 &
   WPID=$!
   OWNED_PIDS+=("$WPID")
 }
@@ -127,6 +130,21 @@ except Exception: pass')
         else
           rec "win.$TAG.job" "Create a project and a job (calculation) over HTTP" "$HOW" failed "HTTP $(cat "$WORK/$TAG-calc.code")" \
             "$(head -c 200 "$WORK/$TAG-calc.json")" "$(basename "$L")"
+        fi
+        # A refused request is also stored as a job (state REFUSED) but writes no output file. It is the job used
+        # for the upgrade check when the valid job above could not be stored.
+        local RCODE RID RSTATE
+        RCODE=$(curl -s -m 60 -b "$JAR" -o "$WORK/$TAG-refused.json" -w '%{http_code}' -H 'X-NF-Request: 1' -H 'Content-Type: application/json' \
+          -d '{"family":"cone_frustum","r1":200,"r2":199.99,"h":300}' "$BASE/api/projects/$PID_PROJ/calculations")
+        RID=$(json_field "$WORK/$TAG-refused.json" id)
+        RSTATE=$(json_field "$WORK/$TAG-refused.json" state)
+        if [ "$RCODE" = 422 ] && [ "$RSTATE" = REFUSED ] && [ -n "$RID" ]; then
+          rec "win.$TAG.job_refused" "Create a refused job (stored as REFUSED, no output file) over HTTP" "$HOW" passed "" \
+            "HTTP 422; job $RID state $RSTATE" "$(basename "$L")"
+          [ -z "$SESSION_JOB" ] && SESSION_JOB=$RID
+        else
+          rec "win.$TAG.job_refused" "Create a refused job (stored as REFUSED, no output file) over HTTP" "$HOW" failed "HTTP $RCODE state ${RSTATE:-none}" \
+            "$(head -c 200 "$WORK/$TAG-refused.json")" "$(basename "$L")"
         fi
       else
         rec "win.$TAG.job" "Create a project and a job (calculation) over HTTP" "$HOW" failed "project not created" "" "$(basename "$L")"
