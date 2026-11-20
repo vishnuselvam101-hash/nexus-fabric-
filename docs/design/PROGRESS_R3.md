@@ -11,12 +11,12 @@ Order of value agreed with the coordinator: (1) a complete, tested English/Japan
 | Read the design system, architecture audit, critic report R1, master goal, build guide, engine review B (RB-002, RB-003), the engine and server sources for every text they send | done |
 | BEFORE screenshots of every screen and state, English, 1920×1080 and 1366×768 (138 files) with load metrics: `docs/design/screenshots/before-r3/` | done, committed |
 | Capture tool for both languages and every state: `docs/design/tools/capture_r3.js`; PNG reduction with a stated worst error: `docs/design/tools/png_reduce.py` | done, committed |
+| `web/i18n.js`: message catalogue (796 keys, English and Japanese, placeholders checked equal), Japanese labels for 230 identifiers the engine and server send, exact-match templates for engine and server prose (all 98 distinct engine texts of the demonstration data match; numbers pass through unchanged) | written and committed; **not yet embedded or imported**: the client in this commit is still the round-2 client |
 
 Baseline measured on the unchanged client (`before-r3/metrics.json`): assets 190,308 bytes (html 666, app.js 135,518, viewer.js 16,143, css 37,981); DOMContentLoaded 54 ms; first view rendered 138 ms (dashboard) and 138 ms (heaviest job), medians of 9 cold loads on loopback.
 
 ## In hand (not yet committed as part of the client)
 
-- `web/i18n.js`: message catalogue (English and Japanese, about 560 keys), Japanese labels for the identifiers the engine and server send, and exact-match templates for engine prose. Written; being assembled and self-checked.
 - `web/app.js`: rewritten so that every client string goes through the catalogue, views render from loaded data (a language switch re-renders without a request and keeps form input), gates as a verdict list with the full text one click away. In progress.
 - `web/viewer.js`: crisp rulers with ticks and cursor marks, curve names and seam hatching from the engine's curve names, one number format, state save and restore. Written, waits for the new `app.js`.
 
