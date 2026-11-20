@@ -166,16 +166,17 @@ Packages: `bash packaging/build_all.sh` → `dist/` (never committed). Release v
 | Command | Expected at commit `2894cc5` (engine 0.4.1) |
 |---|---|
 | `cargo build --release` | builds |
-| `cargo test --workspace` | 247 pass |
+| `cargo test --workspace` | 263 pass (engine 0.4.2) |
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --all -- --check` | clean |
 | `bash tests/e2e_smoke.sh` | 89 pass |
 | `bash tests/security_smoke.sh` | 66 pass |
-| `node tests/ui_smoke.js` on a fresh server | 191 pass |
+| `node tests/ui_smoke.js` on a fresh server | 194 pass |
 | `node tests/desktop_smoke.js target/release/nf-server 8861` | 18 pass |
 | `bash tests/offline_check.sh` | all ok (the no-network part needs Linux and root) |
 | `node docs/design/tools/i18n_check.mjs` | no problem |
 | `python3 validation/run_all.py --spawn target/release/nf-server --quick` | 155 cases: 93 agree, 62 refused, 0 disagree (exit 0) |
+| `python3 validation/run_all.py --spawn target/release/nf-server` (FULL, ~17 min) | 1392 cases: 973 agree, 419 refused, 0 disagree, 0 wrongly accepted, 0 wrongly refused; 27/27 seeded faults detected; 2 pre-existing near-tangent D4 FAILs (identical on 0.4.1) |
 | `bash tests/security_r6.sh` | 35 pass, 5 fail (section 9.3) |
 
 Fresh server for the browser suite:
