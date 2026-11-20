@@ -149,13 +149,16 @@ publish anything**; the owner decides whether and when to publish.
 `packaging/verify_release.sh` builds the packages for one commit and records what was
 run. It is repeatable and does not change the working tree.
 
-    packaging/verify_release.sh [--previous <older setup.exe>] [--out <dir>] [--compare <older manifest.json>]
+    packaging/verify_release.sh [--previous <older setup.exe>] [--out <dir>]
 
-- It pins `HEAD` at the start. It refuses to run if `crates/`, `web/` or `packaging/` has
-  uncommitted or untracked changes; other changes are reported.
+- It pins `HEAD` at the start. Uncommitted changes in the working tree are reported, not
+  fatal, and are not used: the build never reads the working tree.
 - It builds with `packaging/build_all.sh` in a fresh copy made by `git archive` of that
-  commit, so the working tree cannot leak in. Each build step prints `STEP <name> exit=<rc>`
-  and its exit status is recorded.
+  commit. Each build step prints `STEP <name> exit=<rc>` and its exit status is recorded.
+  Cargo runs offline (`CARGO_NET_OFFLINE`): nothing is downloaded.
+- Reproducibility: the packages are built a second time from a second fresh copy. The
+  SHA-256 values of both builds are recorded and the manifest says whether they are
+  bit-for-bit identical.
 - Dynamic checks, each recorded as passed, failed or not run, with the mode it ran in:
   - **Linux: native.** Unpack, `--version`, desktop mode through the shipped launcher with
     first-run setup in a browser (`tests/release_verify.js`, a copy of `desktop_smoke.js`
@@ -171,8 +174,6 @@ run. It is repeatable and does not change the working tree.
   environment, the resolved dependency list, each check's result and one line of evidence,
   and a fixed "What this does NOT show" section. The artefacts, logs and manifest copies
   go to `--out` (default `dist/verify-<short commit>`, which git ignores).
-- `--compare <older manifest.json>` checks whether artefact SHA-256 values match an
-  earlier run of the same commit, and states whether the build is bit-reproducible.
 - Exit status is 0 only if every build step passed and no check failed.
 
 Rehearsal example (wine and the mingw cross-compiler in the build container):

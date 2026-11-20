@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Release verification for NEXUS FABRIC. For the commit at HEAD (pinned at the start):
-#  1. refuses to run if crates/, web/ or packaging/ has uncommitted or untracked changes (other changes are reported);
-#  2. builds the packages (packaging/build_all.sh) in a fresh copy made with `git archive` of that commit;
+#  1. reports uncommitted changes in the working tree (not fatal: the build never uses the working tree);
+#  2. builds the packages (packaging/build_all.sh) twice, each time in a fresh copy made with `git archive` of that commit;
 #  3. records artefact names, sizes and SHA-256; checks that the versions agree (Cargo.toml, file names,
 #     nf-server --version on Linux, exe --version under wine, engine identifier);
 #  4. runs the dynamic checks, each recorded as passed / failed / not run, with its real output kept in a log:
@@ -10,10 +10,10 @@
 #     over HTTP, graceful stop, portable zip, upgrade if --previous is given, silent uninstall);
 #  5. writes docs/release/manifest-<short commit>.json and MANIFEST-<short commit>.md, and copies the artefacts,
 #     logs and manifests to --out.
-# Usage: packaging/verify_release.sh [--previous <older setup.exe>] [--out <dir>] [--compare <older manifest.json>]
+# Usage: packaging/verify_release.sh [--previous <older setup.exe>] [--out <dir>]
 #   --previous  older Windows installer for the upgrade check; without it the upgrade check is "not run"
 #   --out       output folder (default dist/verify-<short commit>; dist/ is git-ignored)
-#   --compare   manifest of an earlier run on the same commit: its artefact SHA-256 values are compared
+# Cargo runs offline (CARGO_NET_OFFLINE): nothing is downloaded. Reproducibility: the packages are built a second time.
 # Exit status: 0 only if every build step succeeded and no check failed ("not run" is not a failure, but is reported).
 # Only ports 8870-8879 are used. Processes this run started are stopped; the wine prefixes and temporary folders are removed.
 # Development build. Not validated. Outputs must not be used for manufacturing.
@@ -27,13 +27,11 @@ cd "$ROOT" || exit 1
 
 PREVIOUS=""
 OUT=""
-COMPARE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --previous) PREVIOUS=${2:-}; shift 2 ;;
     --out) OUT=${2:-}; shift 2 ;;
-    --compare) COMPARE=${2:-}; shift 2 ;;
-    *) say "usage: $0 [--previous <setup.exe>] [--out <dir>] [--compare <manifest.json>]"; exit 2 ;;
+    *) say "usage: $0 [--previous <setup.exe>] [--out <dir>]"; exit 2 ;;
   esac
 done
 
@@ -41,11 +39,7 @@ done
 COMMIT=$(git rev-parse HEAD) || { say "not a git repository"; exit 1; }
 SHORT=$(git rev-parse --short HEAD)
 CORE=$(git status --porcelain --untracked-files=all -- crates web packaging)
-if [ -n "$CORE" ]; then
-  say "refused: crates/, web/ or packaging/ has uncommitted or untracked changes. Commit them first:"
-  printf '%s\n' "$CORE" >&2
-  exit 3
-fi
+[ -z "$CORE" ] || say "note: the working tree has uncommitted changes in crates/, web/ or packaging/; they are NOT used (the build uses the commit only)"
 OTHER=$(git status --porcelain --untracked-files=all -- . ':(exclude)crates' ':(exclude)web' ':(exclude)packaging' ':(exclude)docs/release' ':(exclude)dist')
 if [ -n "$PREVIOUS" ] && [ ! -f "$PREVIOUS" ]; then say "--previous: file not found: $PREVIOUS"; exit 2; fi
 [ -n "$OUT" ] || OUT="$ROOT/dist/verify-$SHORT"
@@ -64,13 +58,18 @@ mkdir -p "$TMPDIR"
 WINE_HOME="$WORK/home"
 mkdir -p "$WINE_HOME"
 export WINE_HOME
+export CARGO_NET_OFFLINE=true   # no downloads: cargo may use only what is already in the local cache
 
 fact commit "$COMMIT"
 fact short_commit "$SHORT"
 fact commit_date "$(git show -s --format=%cI "$COMMIT")"
 fact subject "$(git show -s --format=%s "$COMMIT")"
 fact tree_sha "$(git rev-parse "$COMMIT^{tree}")"
-fact core_tree "clean: crates/, web/, packaging/ have no uncommitted or untracked changes"
+if [ -n "$CORE" ]; then
+  fact core_tree "working tree NOT clean in crates/, web/, packaging/ ($(printf '%s\n' "$CORE" | wc -l) entries); not used by the build"
+else
+  fact core_tree "working tree clean in crates/, web/, packaging/ (not used by the build either way)"
+fi
 fact other_changes "$(printf '%s' "$OTHER" | tr '\n' ';' | sed 's/;$//')"
 if [ -n "$PREVIOUS" ]; then
   fact previous_installer "$(basename "$PREVIOUS")"
@@ -166,6 +165,36 @@ else
   done
 fi
 
+# 2b. Second build, from a second fresh copy of the commit, to test bit-for-bit reproducibility.
+: >"$LOGS/repro.tsv"
+if [ "$DO_DYNAMIC" = 1 ]; then
+  SRC2="$WORK/src2"
+  mkdir -p "$SRC2"
+  if git archive --format=tar "$COMMIT" | tar -x -C "$SRC2" && ln -s "$CACHE" "$SRC2/target"; then
+    (cd "$SRC2" && timeout 5400 packaging/build_all.sh) >"$LOGS/build-second.log" 2>&1
+    RC2=$?
+  else
+    RC2=1
+  fi
+  if [ "$RC2" -eq 0 ]; then
+    rec build.second "Second build from a second fresh copy of the commit (different folder path)" "build (Linux host)" passed "" "exit 0" build-second.log
+    for f in "$TAR_NAME" "$SETUP_NAME" "$ZIP_NAME"; do
+      printf '%s\t%s\t%s\n' "$f" "$(sha256sum "$OUT/$f" | cut -d' ' -f1)" "$(sha256sum "$SRC2/dist/$f" 2>/dev/null | cut -d' ' -f1)" >>"$LOGS/repro.tsv"
+    done
+    if awk -F'\t' '$2!=$3{bad=1} END{exit bad}' "$LOGS/repro.tsv"; then
+      fact reproducibility "bit-for-bit identical: yes (two builds, three packages)"
+    else
+      fact reproducibility "bit-for-bit identical: NO (both sets of SHA-256 values are recorded)"
+    fi
+  else
+    rec build.second "Second build from a second fresh copy of the commit (different folder path)" "build (Linux host)" failed "exit $RC2" \
+      "$(grep -v '^STEP ' "$LOGS/build-second.log" | tail -1)" build-second.log
+    fact reproducibility "not established: second build exit $RC2"
+  fi
+else
+  fact reproducibility "not run: the first build did not produce the packages"
+fi
+
 if [ "$DO_DYNAMIC" = 1 ]; then
   # 4a. Linux, native.
   run_linux_checks "$SRC" "$OUT" "$WORK" "$VERSION" "$PW_PATH"
@@ -182,8 +211,7 @@ if [ "$DO_DYNAMIC" = 1 ]; then
 fi
 
 # 5. Manifests.
-python3 "$ROOT/packaging/verify/make_manifest.py" --out "$OUT" --docs "$ROOT/docs/release" --short "$SHORT" \
-  ${COMPARE:+--compare "$COMPARE"} >"$LOGS/manifest.log" 2>&1
+python3 "$ROOT/packaging/verify/make_manifest.py" --out "$OUT" --docs "$ROOT/docs/release" --short "$SHORT" >"$LOGS/manifest.log" 2>&1
 MRC=$?
 cat "$LOGS/manifest.log" >&2
 [ "$MRC" -eq 0 ] || { say "manifest generation failed (exit $MRC)"; exit 1; }

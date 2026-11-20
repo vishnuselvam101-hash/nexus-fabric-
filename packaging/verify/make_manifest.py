@@ -52,7 +52,6 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--docs", required=True)
     ap.add_argument("--short", required=True)
-    ap.add_argument("--compare")
     a = ap.parse_args()
     logs = os.path.join(a.out, "logs")
 
@@ -89,24 +88,13 @@ def main():
         {"platform": "macOS", "how": "no package exists", "checks": 0, "passed": 0, "failed": 0, "not run": 0},
     ]
 
-    # Reproducibility against an earlier run of the same commit.
-    repro = {"compared_with": None, "same_commit": None, "bit_reproducible": None, "details": []}
-    if a.compare:
-        with open(a.compare, encoding="utf-8") as f:
-            old = json.load(f)
-        old_map = {x["file"]: x["sha256"] for x in old.get("artefacts", [])}
-        new_map = {x["file"]: x["sha256"] for x in artefacts}
-        repro["compared_with"] = os.path.basename(a.compare)
-        repro["same_commit"] = old.get("source", {}).get("commit") == facts.get("commit")
-        repro["this_run"] = new_map
-        repro["earlier_run"] = old_map
-        same = bool(new_map) and new_map == old_map
-        repro["bit_reproducible"] = same
-        for name in sorted(set(new_map) | set(old_map)):
-            repro["details"].append(
-                {"file": name, "earlier": old_map.get(name, "absent"), "this_run": new_map.get(name, "absent"),
-                 "same": old_map.get(name) == new_map.get(name)}
-            )
+    # Reproducibility: the packages of this run against the second build of the same commit (logs/repro.tsv).
+    repro = {"status": facts.get("reproducibility", "not recorded"), "bit_reproducible": None, "rows": []}
+    for r in tsv(os.path.join(logs, "repro.tsv"), ["file", "this_run", "second_build"]):
+        repro["rows"].append({"file": r["file"], "this_run": r["this_run"], "second_build": r["second_build"],
+                              "same": bool(r["this_run"]) and r["this_run"] == r["second_build"]})
+    if repro["rows"]:
+        repro["bit_reproducible"] = len(repro["rows"]) == 3 and all(x["same"] for x in repro["rows"])
 
     versions_ok = all(v["agrees"] == "yes" for v in versions) and bool(versions)
     failed = [r for r in results if r["status"] == "failed"]
@@ -157,7 +145,7 @@ def main():
     }
     if repro["bit_reproducible"] is False:
         manifest["not_shown"] = NOT_SHOWN + [
-            "The build is NOT bit-reproducible in this run: the artefact SHA-256 values differ from the earlier run of the same commit. Both sets of values are recorded in the reproducibility section."
+            "The build is NOT bit-reproducible: the two builds of the same commit produced different SHA-256 values. Both sets are recorded in the reproducibility section."
         ]
 
     short = a.short
@@ -265,17 +253,18 @@ def markdown(m):
     r = m["reproducibility"]
     o.append("## Reproducibility")
     o.append("")
-    if r["compared_with"] is None:
-        o.append("No earlier manifest was given (`--compare`), so bit-reproducibility was not tested by this run.")
-    else:
-        o.append(f"Compared with `{r['compared_with']}` (same commit: {'yes' if r['same_commit'] else 'NO'}).")
+    o.append(f"Second build: {r['status']}.")
+    if r["rows"]:
         o.append("")
-        o.append(f"Bit-reproducible in this comparison: **{'yes' if r['bit_reproducible'] else 'no'}**")
+        o.append(f"Bit-for-bit identical in the two builds: **{'yes' if r['bit_reproducible'] else 'NO'}**")
         o.append("")
-        o.append("| File | Earlier SHA-256 | This run SHA-256 | Same |")
+        o.append("| File | SHA-256, build 1 (artefacts in this folder) | SHA-256, build 2 | Same |")
         o.append("|---|---|---|---|")
-        for d in r["details"]:
-            o.append(f"| {d['file']} | `{d['earlier']}` | `{d['this_run']}` | {'yes' if d['same'] else 'no'} |")
+        for d in r["rows"]:
+            o.append(f"| {d['file']} | `{d['this_run']}` | `{d['second_build']}` | {'yes' if d['same'] else 'no'} |")
+        if not r["bit_reproducible"]:
+            o.append("")
+            o.append("The builds are NOT bit-identical. Both sets of SHA-256 values are shown above.")
     o.append("")
     o.append("## What this does NOT show")
     o.append("")
