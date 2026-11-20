@@ -319,6 +319,22 @@ fn regression_corpus() {
                 ),
                 other => panic!("unknown expectation {other}"),
             }
+            // optional: assert on the G02 detail text (review B2-001 advisory)
+            if case.get("g02_contains").is_some() || case.get("g02_absent").is_some() {
+                let out = run(&req, "regression");
+                let d = out
+                    .gates
+                    .iter()
+                    .find(|g| g.id == "G02")
+                    .map(|g| g.detail.clone())
+                    .unwrap_or_default();
+                if let Some(s) = case["g02_contains"].as_str() {
+                    assert!(d.contains(s), "{}: G02 lacks {s:?}: {d}", path.display());
+                }
+                if let Some(s) = case["g02_absent"].as_str() {
+                    assert!(!d.contains(s), "{}: G02 has {s:?}: {d}", path.display());
+                }
+            }
             n += 1;
         }
     }

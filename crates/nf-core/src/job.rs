@@ -1284,7 +1284,7 @@ fn header_with_branch(
         Some(surface_note.as_str()),
     );
     if let Some(g) = gates.iter_mut().find(|g| g.id == "G02") {
-        g.detail.push_str(" Contact and development radii were checked against the declared surface of each part (Spec 02 §6.1): the direction is possible; no wall thickness is modelled, so its size is not checked.");
+        g.detail.push_str(" Contact and development radii were checked against the declared surface of each part (Spec 02 §6.1): the direction is possible; no wall thickness is modelled, so its size is not checked beyond the half-radius advisory that may follow.");
         if joint.is_none() {
             g.detail.push_str(" Joint not declared: the saddle and the opening are cut on one curve of the entered contact radii, a zero-thickness idealisation. A set-on branch is cut at its bore: declare the joint as set-on (request value set_on) with header_surface_reference outside and branch_surface_reference inside.");
         }
@@ -1312,12 +1312,16 @@ const SAME_RADIUS_REL: f64 = 1e-12;
 ///   * contact radius declared INSIDE:  r_dev < r_contact is impossible -> refused;
 ///   * contact radius declared NEUTRAL: it IS the reference surface, so r_dev != r_contact is a contradiction -> refused;
 ///   * UNKNOWN: nothing can be checked -> scrutiny note (G02 stays INCONCLUSIVE).
+///   * OUTSIDE with r_dev <= r_contact / 2: accepted with a scrutiny note (advisory, not a refusal).
+///     With k = 0.5 the reference surface sits at (r_i + r_o) / 2 > r_o / 2 for any r_i > 0, so the
+///     pair is consistent only for small k; the inner radius bounds t below (t >= 2·(r_dev − r_i))
+///     but not above, so nothing further is checkable without r_o or t (an open item, section 10 G).
 ///
 /// Equality under OUTSIDE or INSIDE means zero wall thickness. The
 /// specification does not forbid an idealised zero-thickness surface, so it is
 /// accepted with a scrutiny note, not refused. No thickness, k-factor or
 /// plausible thickness range is assumed anywhere: the specification gives none
-/// (MATH-16), so the size of the difference is not judged.
+/// (MATH-16), so the size of the difference is not judged, except the half-radius advisory noted below for an outside development radius at most half the contact radius.
 ///
 /// A radius that the declared surface contradicts: the rule code, the message, and the exact limit (the contact
 /// radius) and the measured development radius.
@@ -1356,6 +1360,10 @@ pub fn radius_consistency(
                 "inconsistent with surface_reference 'outside': {dev_name} = {dev} is larger than the outside contact radius {contact_name} = {contact}. The development (reference) surface lies inside the wall (Spec 02 §6.1: r_dev = r_i + k·t, 0 < k <= 0.5), so it cannot be larger than the outside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface"
             ),
         )),
+        "outside" if 2.0 * dev <= contact => Ok(Some(format!(
+            "{dev_name} = {dev} is at most half the outside contact radius {contact_name} = {contact}: the reference surface r_dev = r_i + k*t, 0 < k <= 0.5 (Spec 02 §6.1) then needs an inner radius below {dev} and a wall thicker than {contact} - {dev}, and a neutral surface at mid-thickness (k = 0.5) is impossible; the radii are consistent only for k <= {k_max}. Thickness is not modelled and no k is assumed; an engineer must confirm the radii before use.",
+            k_max = dev / contact
+        ))),
         "outside" => Ok(None),
         "inside" if same => Ok(zero_t("inside")),
         "inside" if dev < contact => Err(refuse(
@@ -1851,6 +1859,24 @@ mod tests {
             radius_consistency("neutral", "c", 150.0, "d", 150.0),
             Ok(None)
         );
+        // review B2-001: OUTSIDE with development radius at most half the contact radius is an advisory, never a refusal
+        let adv = radius_consistency("outside", "c", 50.0, "d", 0.5)
+            .expect("advisory, not a refusal")
+            .expect("advisory note");
+        assert!(
+            adv.contains("mid-thickness (k = 0.5) is impossible"),
+            "{adv}"
+        );
+        assert!(matches!(
+            radius_consistency("outside", "c", 100.0, "d", 50.0),
+            Ok(Some(_))
+        ));
+        assert_eq!(
+            radius_consistency("outside", "c", 100.0, "d", 50.0 + 1e-6),
+            Ok(None)
+        );
+        // inside: documented as undecidable without r_o or t, so unchanged (no advisory, no refusal)
+        assert_eq!(radius_consistency("inside", "c", 0.5, "d", 50.0), Ok(None));
     }
 
     /// BE-001: consistent declarations still compute; what cannot be decided is raised for scrutiny, not guessed.
@@ -1902,6 +1928,46 @@ mod tests {
             "{:?}",
             neg.outcome
         );
+        // review B2-001 advisory: a normal part does not carry it; the independent reproductions do
+        assert!(!g02(with_radii("outside", 150.0, 146.0, 100.0, 96.0)).contains("mid-thickness"));
+        let adv = "mid-thickness (k = 0.5) is impossible";
+        // built from literal requests, not from with_radii, so the arithmetic is not shared with the rule
+        let repro1 = Request::BranchStub {
+            header_radius: 100.0,
+            branch_radius: 50.0,
+            branch_dev_radius: 0.5,
+            beta_deg: 60.0,
+            delta: 0.0,
+            s_end: 200.0,
+            surface_reference: "outside".into(),
+        };
+        let repro2 = Request::HeaderWithBranch {
+            header_radius: 100.0,
+            header_dev_radius: 0.5,
+            header_length: 400.0,
+            branch_station: 150.0,
+            branch_radius: 50.0,
+            branch_dev_radius: 50.0,
+            beta_deg: 60.0,
+            delta: 10.0,
+            s_end: 200.0,
+            surface_reference: Some("outside".into()),
+            header_surface_reference: None,
+            branch_surface_reference: None,
+            joint: None,
+        };
+        for r in [repro1, repro2] {
+            let o = run(&r, "t");
+            assert_eq!(o.state, ReleaseState::ReviewRequired, "{r:?}");
+            let d = o
+                .gates
+                .iter()
+                .find(|g| g.id == "G02")
+                .expect("G02")
+                .detail
+                .clone();
+            assert!(d.contains(adv), "{r:?}: {d}");
+        }
     }
 
     /// BE-003: every refusal has the explicit REFUSED state, a reason, and nothing that looks like a result.
