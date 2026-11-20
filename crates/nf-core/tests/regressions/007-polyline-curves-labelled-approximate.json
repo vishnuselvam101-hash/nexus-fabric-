@@ -1,0 +1,61 @@
+{
+ "description": "Review B2 finding B2-002 (20 Nov 2026): every polyline was reported as exact with points_max_deviation 0, while a polyline is a sampled approximation of a curved edge whose chord error is the engine's eps_rep (up to 0.01 mm). The eccentric reducer large_end, the eccentric reducer small_end, the branch saddle_cut and the header branch_opening are such polylines. Lines (seams, square end) are exact with deviation 0. The labelling is display only: patterns, DXF, gates and pass/fail are unchanged; the pattern payload in the records changes, so the content-addressed closure_hash changes for inputs with a polyline.",
+ "found": "2026-11-20 (review B2, B2-002)",
+ "fixed_in": "nf-core job.rs curve_view: points_exact only for lines; a polyline's points_max_deviation is its own eps_rep (uem Geom::Polyline). ENGINE_VERSION left at 0.4.1 for this change; whether to bump is a founder decision flagged in the report",
+ "cases": [
+  {
+   "request": {
+    "family": "eccentric_reducer",
+    "r1": 100.0,
+    "r2": 50.0,
+    "h": 150.0,
+    "e": 20.0
+   },
+   "expect": "verified",
+   "curve_checks": [
+    { "name": "large_end", "points_exact": false, "deviation_ratio_to_eps_rep": 1.0 },
+    { "name": "small_end", "points_exact": false, "deviation_ratio_to_eps_rep": 0.5 },
+    { "name": "seam_a", "points_exact": true, "deviation_ratio_to_eps_rep": 0.0 },
+    { "name": "seam_b", "points_exact": true, "deviation_ratio_to_eps_rep": 0.0 }
+   ]
+  },
+  {
+   "request": {
+    "family": "branch_stub",
+    "header_radius": 100.0,
+    "branch_radius": 50.0,
+    "branch_dev_radius": 25.0,
+    "beta_deg": 60.0,
+    "delta": 0.0,
+    "s_end": 200.0,
+    "surface_reference": "outside"
+   },
+   "expect": "verified",
+   "curve_checks": [
+    { "name": "saddle_cut", "points_exact": false, "deviation_ratio_to_eps_rep": 1.0 },
+    { "name": "seam_a", "points_exact": true, "deviation_ratio_to_eps_rep": 0.0 },
+    { "name": "seam_b", "points_exact": true, "deviation_ratio_to_eps_rep": 0.0 },
+    { "name": "square_end", "points_exact": true, "deviation_ratio_to_eps_rep": 0.0 }
+   ]
+  },
+  {
+   "request": {
+    "family": "header_with_branch",
+    "header_radius": 100.0,
+    "header_dev_radius": 100.0,
+    "header_length": 400.0,
+    "branch_station": 150.0,
+    "branch_radius": 50.0,
+    "branch_dev_radius": 50.0,
+    "beta_deg": 60.0,
+    "delta": 10.0,
+    "s_end": 200.0,
+    "surface_reference": "outside"
+   },
+   "expect": "verified",
+   "curve_checks": [
+    { "list": "holes", "name": "branch_opening", "points_exact": false, "deviation_ratio_to_eps_rep": 1.0 }
+   ]
+  }
+ ]
+}

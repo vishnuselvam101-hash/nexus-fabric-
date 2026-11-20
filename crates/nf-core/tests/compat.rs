@@ -9,6 +9,10 @@
 //! What may change is the annotation (TEXT entities and 999 comments), the closure and the records. The
 //! fixture is regenerated only by a deliberate change of the engine, with
 //! `NF_WRITE_COMPAT_FIXTURE=1 cargo test -p nf-core --test compat`, and the report of that change lists it.
+//! Review B2-002 (deliberate, listed in its report): polylines now report `points_exact: false` and their own
+//! representation error. That changed the `patterns_sha256` of the 52 accepted eccentric, branch and header cases
+//! that contain a polyline (old and new values differ only in that field; every cut geometry is byte-identical).
+//! The fixture was regenerated for that change.
 
 use nf_core::job::{Request, run};
 use serde_json::{Value, json};

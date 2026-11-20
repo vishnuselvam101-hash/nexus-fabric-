@@ -282,14 +282,19 @@ pub struct CurveView {
     pub name: String,
     pub layer: String,
     pub kind: String,
-    /// Lines and polylines: the exact vertices that are cut. Arcs: points on
-    /// the arc joined by chords, FOR DISPLAY ONLY (the DXF carries the exact arc).
+    /// Lines and polylines: the exact vertices that are cut (the same vertices
+    /// appear in the DXF; a polyline's chords deviate from the ideal curved
+    /// edge by `eps_rep`). Arcs: points on the curve joined by chords FOR
+    /// DISPLAY ONLY (the DXF carries the exact arc).
     pub points: Vec<[f64; 2]>,
-    /// False for arcs: `points` is then an approximation of the curve.
+    /// True only for straight lines, whose `points` are the exact curve. False
+    /// for arcs and polylines (approximations of a curved edge).
     #[serde(default)]
     pub points_exact: bool,
     /// Largest distance between the chords through `points` and the exact
-    /// curve (mm); 0 when `points_exact`. Exact value for a circular arc.
+    /// curve (mm); 0 for lines. Exact value for a circular arc; for a polyline
+    /// the engine's measured representation error `eps_rep` of that curve
+    /// (an estimate, not a bound).
     #[serde(default)]
     pub points_max_deviation: f64,
     pub length: f64,
@@ -432,13 +437,16 @@ fn curve_view(c: &uem::Curve) -> CurveView {
             .iter()
             .map(|q| [q.x, q.y])
             .collect(),
-        points_exact: !matches!(c.geom, Geom::Arc { .. }),
+        // B2-002: only straight lines are exact; a polyline approximates a curved edge
+        points_exact: matches!(c.geom, Geom::Line { .. }),
         points_max_deviation: match c.geom {
             // sagitta of one chord: r·(1 − cos(sweep / 2n)), exact for a circle (validation defect D7)
             Geom::Arc { r, a0, a1, .. } => {
                 r * (1.0 - ((a1 - a0).abs() / (2.0 * ARC_DISPLAY_CHORDS as f64)).cos())
             }
-            _ => 0.0,
+            // the curve's own measured representation error (develop.rs: per-curve eps_rep)
+            Geom::Polyline { eps_rep, .. } => eps_rep,
+            Geom::Line { .. } => 0.0,
         },
         length: profile::length(c),
     }
@@ -2311,6 +2319,65 @@ mod tests {
         );
     }
 
+    /// B2-002: a polyline is an approximation of a curved edge. It reports `points_exact: false` and the
+    /// curve's own measured `eps_rep` as its deviation; only straight lines are exact with deviation 0.
+    #[test]
+    fn b2_002_polylines_are_labelled_approximate_with_their_eps_rep() {
+        let max_chord = uem::develop::MAX_CHORD_ERROR_MM;
+        // eccentric reducer (r1 = 100, r2 = 50, h = 150, e = 20): the large end and the small end are polylines
+        let o = run(
+            &Request::EccentricReducer {
+                r1: 100.0,
+                r2: 50.0,
+                h: 150.0,
+                e: 20.0,
+            },
+            "t",
+        );
+        let p = &o.patterns[0];
+        let large = p.curves.iter().find(|c| c.name == "large_end").unwrap();
+        let small = p.curves.iter().find(|c| c.name == "small_end").unwrap();
+        for c in [large, small] {
+            assert!(c.kind == "polyline" && !c.points_exact, "{}", c.name);
+            assert!(c.points_max_deviation > 0.0 && c.points_max_deviation <= max_chord);
+        }
+        // large end: the pattern's eps_rep; small end: scaled by the homothety k = r2 / r1 (develop.rs)
+        assert!((large.points_max_deviation - p.eps_rep).abs() < 1e-15);
+        assert!((small.points_max_deviation - 0.5 * p.eps_rep).abs() < 1e-15);
+        for c in p.curves.iter().filter(|c| c.kind == "line") {
+            assert!(
+                c.points_exact && c.points_max_deviation == 0.0,
+                "{}",
+                c.name
+            );
+        }
+
+        // branch stub: saddle_cut is a polyline with the pattern's eps_rep; the three other edges are lines
+        let b = run(&reqs()[3], "t");
+        let bp = &b.patterns[0];
+        let saddle = bp.curves.iter().find(|c| c.name == "saddle_cut").unwrap();
+        assert!(saddle.kind == "polyline" && !saddle.points_exact);
+        assert!(saddle.points_max_deviation > 0.0 && saddle.points_max_deviation <= max_chord);
+        assert!((saddle.points_max_deviation - bp.eps_rep).abs() < 1e-15);
+        assert_eq!(bp.curves.iter().filter(|c| c.kind == "line").count(), 3);
+
+        // header with branch: the branch_opening is a polyline hole with the header's eps_rep
+        let a = run(&assembly(), "t");
+        let hp = a
+            .patterns
+            .iter()
+            .find(|p| p.holes.iter().any(|h| h.name == "branch_opening"))
+            .expect("header pattern with the branch opening");
+        let opening = hp
+            .holes
+            .iter()
+            .find(|h| h.name == "branch_opening")
+            .unwrap();
+        assert!(opening.kind == "polyline" && !opening.points_exact);
+        assert!(opening.points_max_deviation > 0.0 && opening.points_max_deviation <= max_chord);
+        assert!((opening.points_max_deviation - hp.eps_rep).abs() < 1e-15);
+    }
+
     /// D1: a job whose parts are not all drawn from the declared side cannot stay reviewable.
     #[test]
     fn d1_parts_from_different_sides_fail_the_ambiguity_gate() {
@@ -2360,8 +2427,16 @@ mod tests {
         for c in p.curves.iter().filter(|c| c.kind != "arc") {
             assert!(c.points_exact && c.points_max_deviation == 0.0);
         }
+        // B2-002: the branch's saddle_cut is a polyline, so it is an approximation (see b2_002_*);
+        // only its straight seam and square-end edges are exact
         let poly = run(&reqs()[3], "t");
-        assert!(poly.patterns[0].curves.iter().all(|c| c.points_exact));
+        assert!(
+            poly.patterns[0]
+                .curves
+                .iter()
+                .filter(|c| c.kind == "line")
+                .all(|c| c.points_exact && c.points_max_deviation == 0.0)
+        );
         // D3 / D4: nothing calls the estimates bounds
         let g08 = |o: &JobOutput| {
             o.gates
