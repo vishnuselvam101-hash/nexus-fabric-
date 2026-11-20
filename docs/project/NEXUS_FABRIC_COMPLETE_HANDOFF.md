@@ -216,9 +216,9 @@ task B3 is done; that is an honest failure, not a broken build.
 | Id | Work | Files being changed |
 |---|---|---|
 | A1 | Engine 0.4.1: the DXF states the joint as declared (999 `KEY: value` lines and a TEXT entity, read back by the quality gate); structured refusals (`code`, `fields`, `message`, exact `detail` where the engine computes it); geometry must not change | `crates/nf-core`, `nf-dxf`, `nf-server`, `uem`; `web/app.js`, `web/i18n.js`; `tests/ui_smoke.js`; `docs/backend/DXF_METADATA.md`, `REFUSAL_CODES.md` |
-| A2 | Validation tool fix: scaled patterns compared as curves, exact on-surface test for near-tangent joints, planted faults proving it did not get weaker | `validation/` |
-| A3 | Second independent mathematical review of all five families | `docs/backend/REVIEW_B2_COMPUTATIONAL.md` (report only) |
-| A4 | PDF → DXF converter (section 12) | new crate `crates/nf-pdf` on its own branch until merged |
+| A2 | LANDED 20 Nov. Validation tool fix | `validation/` |
+| A3 | LANDED 20 Nov. Second independent mathematical review | `docs/backend/REVIEW_B2_COMPUTATIONAL.md` |
+| A4 | LANDED 20 Nov (merge b96a1de). PDF → DXF converter crate; see `docs/backend/PDF_TO_DXF.md` | `crates/nf-pdf` |
 | A5 | Advertisement film, revision 3 (section 13) | `marketing/nexus-fabric/flagship3` |
 
 The lead verifies each one (all suites) before pushing and will say when each has landed.
@@ -244,13 +244,15 @@ The lead verifies each one (all suites) before pushing and will say when each ha
 | RB-011 | Validation tool | Open: see 9.2 |
 
 ### 9.2 Independent geometry validation
-155 cases: 89 agree, 62 correctly refused, 4 disagree, none wrongly accepted or refused.
-- `S-SCALE-asm-25.4`, `N-magnitude-ecc-2^8`: the tool expects the same vertex count at every scale; the engine now
-  uses more points on larger parts by design.
-- `N-tangent-d-b90-g2e-06`, `N-tangent-r-b45-g1.1e-06`: the tool reports up to 0.47 mm deviation; an exact check
-  (`validation/exact_onsurface_check.py`) shows the product's vertices lie on the true curve to about 1e-13 mm. The
-  fault is in the tool's comparison near tangency. Being corrected (A2).
-- D4 (error bound of the flat oblique reducer) open.
+**Updated 20 Nov, after A2 landed:** the validation tool was corrected (scaled patterns compared as curves; exact
+vertex-to-reference distance and on-surface test for near-tangent joints; coverage check; new planted faults, all
+detected). Quick run on engine 0.4.0: 155 cases, 93 agree, 62 correctly refused, 0 disagree, exit 0 — confirmed by the
+lead on a clean packaged build. Still open: the full corpus has not been re-run; D4 was not reproduced in the quick
+run and is unmeasured on the full corpus; one scale tolerance is now 2e-9 relative (was 1e-11 pointwise) — decide
+whether to tighten; two scaled cases pass at 94 % and 99.6 % of their limit, so watch the GitHub run. The second
+computational review is on the branch: `docs/backend/REVIEW_B2_COMPUTATIONAL.md` (8/10 and 8/10; B2-001 high:
+the radius rule accepts a development radius far smaller than the contact radius; B2-002 medium: polylines labelled
+exact with zero deviation; B2-003 … B2-007 low).
 
 ### 9.3 Security
 - Deeper audit, 5 failing checks: V-45 the content policy allows inline styles; V-47 a request Origin with a non-web

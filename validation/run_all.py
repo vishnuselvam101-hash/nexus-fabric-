@@ -25,12 +25,12 @@ import shapely
 
 from checks.client import Client, SpawnedServer, USER, PASSWORD, SETUP_TOKEN_ENV
 from checks.product import Job
-from checks.compare import compare_job, rel_tol
+from checks.compare import compare_job, compare_scaled, rel_tol, scale_request
 from checks.oracle import classify
 from checks import hpcheck
 
 PARTS = {'cylinder_shell': ['shell'], 'cone_frustum': ['reducer'], 'eccentric_reducer': ['reducer'], 'branch_stub': ['branch'], 'header_with_branch': ['header', 'branch']}
-LENGTH_KEYS = ['r_dev', 'length', 'r1', 'r2', 'h', 'e', 'header_radius', 'header_dev_radius', 'header_length', 'branch_station', 'branch_radius', 'branch_dev_radius', 'delta', 's_end']
+# the length keys of the scale relation are defined once, in checks/compare.py (LENGTH_KEYS)
 # findings that are defects of the product (exit non-zero); the others are observations
 DEFECT_CODES = {'MARKING_SIDE_UNDECLARED', 'JSON_ARC_UNLABELLED', 'FLAT_SEAM_CLEARANCE', 'VIEW_SIDE_CONFLICT', 'EPS_REP_EXCEEDED', 'EPS_NUM_EXCEEDED', 'DXF_EXTENTS_WRONG', 'NON_FINITE_OUTPUT', 'REFUSAL_NOT_CLEAN', 'PRODUCT_CHECK_NOT_PASS', 'SCALE_NOT_INVARIANT', 'REFUSAL_KIND'}
 
@@ -99,7 +99,7 @@ def check_relation(case, job, issues, findings, info):
     t = rel['type']
     if t == 'scale':
         k = rel['k']
-        other = {kk: (v * k if kk in LENGTH_KEYS else v) for kk, v in req.items()}
+        other = scale_request(req, k)
         j2 = submit(other)
         info['scaled_outcome'] = 'refused: ' + j2.refusal_text()[:200] if j2.refused else 'accepted'
         if j2.refused:
@@ -111,23 +111,17 @@ def check_relation(case, job, issues, findings, info):
             return
         bad = [c['name'] for c in j2.checks() if c['verdict'] != 'PASS']
         info['scaled_state'] = j2.state
-        worst = 0.0
-        for name, p in job.parts.items():
-            p2 = j2.parts[name]
-            sc = max(p2.extent(), 1e-300)
-            for e1, e2 in zip(p.ents, p2.ents):
-                if e1.kind != e2.kind or e1.pts.shape != e2.pts.shape:
-                    issues.append(f'scale x{k}: {name}/{e1.name} changes entity type or vertex count')
-                    continue
-                d = float(np.abs(e2.pts - k * e1.pts).max()) / sc
-                if e1.kind == 'arc':
-                    d = max(d, abs(e2.r - k * e1.r) / sc, abs(e2.a0 - e1.a0) * math.pi / 180, abs(e2.a1 - e1.a1) * math.pi / 180)
-                worst = max(worst, d)
-        info['scale_rel_dev'] = worst
-        if worst > 1e-11 and rel.get('refusal_ok'):
-            findings.append({'code': 'SCALE_NOT_INVARIANT', 'detail': f'request scaled by {k:.3g} was accepted but the pattern is not the scaled pattern (relative deviation {worst:.3e}); product state {j2.state}, checks not PASS: {bad}'})
-        elif worst > 1e-11:
-            issues.append(f'scale x{k}: pattern is not the scaled pattern (relative deviation {worst:.3e})')
+        # geometric scale relation (checks/compare.py compare_scaled): entity types must agree; vertex counts may differ;
+        # polylines agree with k times the base within the stated chord-error limits; the scaled pattern itself must
+        # pass the exact reference comparison
+        type_issues, devs, sc_findings, sc_info = compare_scaled(job, j2, k, other)
+        info.update(sc_info)
+        issues.extend(type_issues)
+        if devs and rel.get('refusal_ok'):
+            findings.append({'code': 'SCALE_NOT_INVARIANT', 'detail': f'request scaled by {k:.3g} was accepted but the pattern is not the scaled pattern ({"; ".join(devs[:3])}); product state {j2.state}, checks not PASS: {bad}'})
+        else:
+            issues.extend(devs)
+        findings.extend(sc_findings)
     elif t in ('mirror_delta', 'mirror_beta', 'station_shift'):
         other = dict(req)
         if t == 'mirror_delta':

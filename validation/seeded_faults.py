@@ -15,7 +15,9 @@ import numpy as np
 import shapely
 from checks.client import Client, USER, PASSWORD
 from checks.product import Job, Part
-from checks.compare import cmp_header, cmp_branch, compare_job, dxf_roundtrip, declared_side
+from checks.compare import cmp_header, cmp_branch, compare_job, dxf_roundtrip, declared_side, compare_scaled, scale_request, rel_tol
+from reference import families as RF
+from stability import _asm
 
 REQ = {'family': 'header_with_branch', 'header_radius': 150, 'header_dev_radius': 150, 'header_length': 1200, 'branch_station': 500, 'branch_radius': 100,
        'branch_dev_radius': 100, 'beta_deg': 60, 'delta': 20, 's_end': 400, 'surface_reference': 'outside'}
@@ -124,7 +126,120 @@ def run(cl):
             issues.append(f'reader failed: {ex}')
         ok &= bool(issues)
         lines.append(('ok  ' if issues else 'MISS') + f' DXF: {name}: ' + (issues[0][:150] if issues else 'not detected'))
-    return ok, lines
+    ok2, lines2 = near_tangent_and_scale(cl)
+    return ok and ok2, lines + lines2
+
+
+def _scale_entities(job, f, kinds=('line', 'arc', 'polyline')):
+    """Plant a geometry fault: the entities of the given kinds multiplied by f (drawn points and arc parameters alike)."""
+    for part in job.parts.values():
+        for e in part.ents:
+            if e.kind not in kinds:
+                continue
+            if e.kind == 'arc':
+                e.c = tuple(np.asarray(e.c, float) * f)
+                e.r = e.r * f
+                e.pts = e.arc_points(2)
+            else:
+                e.pts = e.pts * f
+                e._ls = shapely.LineString(e.pts) if len(e.pts) > 1 else None
+
+
+def near_tangent_and_scale(cl):
+    """Seeded faults for the two exact tests: the header opening of a near-tangent joint (N-tangent-d-b90-g2e-06, where
+    the old nearest-point search failed) and the scale relation at k = 25.4 (the scaled pattern is checked exactly).
+    Same line format as run().  Returns (ok, lines)."""
+    out, ok = [], True
+
+    def report(name, caught, msg):
+        nonlocal ok
+        ok &= bool(caught)
+        out.append(('ok  ' if caught else 'MISS') + f' {name}: ' + (msg[:170] if caught else 'not detected'))
+
+    NT = _asm(150.0, 75.0, 90, 75.0 - 2e-6 * 150.0)           # the request of case N-tangent-d-b90-g2e-06
+    wt = 2 * math.pi * NT['header_dev_radius']
+    ctrl = Job(cl, cl.calculate(NT))
+    h = ctrl.parts['header']
+    tol = rel_tol(max(h.extent(), wt, NT['header_length'], NT['header_radius']))      # the scale used by cmp_header
+    issues = []
+    hr, _, ev = cmp_header(NT, h, issues)
+    br, _, _ = cmp_branch(NT, ctrl.parts['branch'], issues)
+    declared_side(ctrl.parts['branch'], br, issues, [], True)
+    declared_side(h, hr, issues, [], True)
+    m = [e for e in ev if e['match'] and e['natural']]
+    ok &= (not issues) and bool(m)
+    out.append(('ok  ' if (not issues and m) else 'FAIL') + ' control: unmodified near-tangent joint has no geometry issue' + ('' if (not issues and m) else ': ' + (issues[0][:170] if issues else 'no frame mapping')))
+    if not m:
+        return ok, out
+    R0, t0 = m[0]['R'], m[0]['t']                          # the frame the comparison finds for the unmodified part
+
+    def opening(j):
+        return j.parts['header'].curve('branch_opening')
+
+    def off_curve(j):
+        c = opening(j)
+        p = c.pts.copy()
+        k = len(p) // 3
+        tv = p[k + 1] - p[k - 1]
+        p[k] = p[k] + 10 * tol * np.array([-tv[1], tv[0]]) / np.linalg.norm(tv)     # one vertex moved normal to the curve
+        setpts(c, p)
+
+    def mirrored(j):
+        c = opening(j)
+        setpts(c, np.stack([c.pts[:, 0], wt - c.pts[:, 1]], 1))
+
+    def shifted(j):
+        c = opening(j)
+        setpts(c, c.pts + [10 * tol, 0.0])
+
+    def last5(j):
+        c = opening(j)
+        p = c.pts
+        s = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(p, axis=0), axis=1))])
+        setpts(c, p[s <= 0.95 * s[-1]])
+
+    def wrong_radius(j):
+        c = opening(j)
+        rw = RF.header_with_opening(NT['header_radius'], NT['header_dev_radius'], NT['header_length'], NT['branch_station'],
+                                    NT['branch_radius'] * (1 - 1e-4), NT['beta_deg'], NT['delta'])     # smaller: the near-tangent branch still meets the header
+        cw = rw.curves['opening']
+        setpts(c, cw.f(np.linspace(cw.t0, cw.t1, len(c.pts))) @ R0.T + t0)      # same vertex count, radius off by 1e-4
+
+    def judge(j):
+        iss = []
+        try:
+            hr2, _, _ = cmp_header(NT, j.parts['header'], iss)
+            declared_side(j.parts['header'], hr2, iss, [], True)
+        except Exception as ex:          # as in compare_job: a comparison that cannot be completed is a failure, never a pass
+            iss.append(f'comparison aborted: {type(ex).__name__}: {ex}')
+        return iss
+
+    for name, plant in (('one opening vertex moved off the curve by 10 x tol', off_curve), ('opening mirrored about the plate centre line', mirrored),
+                        ('opening shifted along the station by 10 x tol', shifted), ('last 5 % of the opening missing', last5),
+                        ('correct vertex count, branch radius 1e-4 relative too small', wrong_radius)):
+        j = Job(cl, cl.calculate(NT))
+        plant(j)
+        iss = judge(j)
+        report(f'near-tangent N-tangent-d-b90-g2e-06: {name}', bool(iss), iss[0] if iss else '')
+
+    K = 25.4
+    other = scale_request(REQ, K)
+    base = Job(cl, cl.calculate(REQ))
+    t_i, devs, _, _ = compare_scaled(base, Job(cl, cl.calculate(other)), K, other, dxf=False)
+    ok &= not (t_i or devs)
+    out.append(('ok  ' if not (t_i or devs) else 'FAIL') + f' control: unmodified pattern at scale {K} passes the scale relation' + ('' if not (t_i or devs) else ': ' + (t_i + devs)[0][:170]))
+    j2 = Job(cl, cl.calculate(other))
+    _scale_entities(j2, 1 + 1e-6)
+    t_i, devs, _, _ = compare_scaled(base, j2, K, other, dxf=False)
+    report(f'scale relation: pattern at scale {K} multiplied by {K} x (1 + 1e-6)', bool(t_i or devs), (t_i + devs)[0] if (t_i or devs) else '')
+    # polylines only (lines and arcs exact): the chord-error test cannot see a relative 1e-6 change of the polylines, so
+    # this fault must be caught by the exact reference comparison of the scaled pattern
+    j3 = Job(cl, cl.calculate(other))
+    _scale_entities(j3, 1 + 1e-6, kinds=('polyline',))
+    t_i, devs, _, _ = compare_scaled(base, j3, K, other, dxf=False)
+    exact_msgs = [s for s in devs if 'exact reference comparison' in s]
+    report(f'scale relation: polylines only multiplied by {K} x (1 + 1e-6), caught by the exact reference comparison', bool(exact_msgs), exact_msgs[0] if exact_msgs else '')
+    return ok, out
 
 
 if __name__ == '__main__':

@@ -254,5 +254,99 @@ the branch radius. Result on engine 0.4.0, seam angle fixed at exactly −π, sa
 So the product's vertices lie on the true intersection curve in the same frame as an accepted case; the deviation the
 harness reports for the two near-tangent cases comes from the harness's comparison near tangency. This check shows that
 the vertices are on the curve; it does not measure chord error between vertices, and it does not replace the harness.
-Status: the harness has NOT been changed, the quick run still exits non-zero with 4 disagreements (2 vertex-count
-expectations, 2 near-tangent comparisons), and correcting the harness is open work. D4 remains open.
+Status (superseded by section 10): the harness was corrected in the pass described in section 10; the quick run on the same engine now exits 0 with no disagreements. The text above is the record of the state before that correction.
+
+## 10. Harness correction on engine `nf-engine 0.4.0` (this pass)
+
+Engine: `nf-engine 0.4.0+src.e3c264333b691c19`, built in a clean worktree of commit a7b440d. The validated product is that committed engine; uncommitted edits present in the main tree (other workers' changes under `crates/`, `web/`, `tests/`, `docs/qa/`, `docs/design/`, and two new files in `docs/backend/`) were neither built nor validated here, and this pass did not touch them. This pass changed only `validation/` and this report.
+
+### 10.1 Diagnoses, confirmed
+
+**A. Scale relation.** `check_relation` required equal entity kinds and equal vertex counts and compared points index by index. The polyline density follows the absolute chord-error limit, so the counts change with size: at k = 25.4 the header opening of `S-SCALE-asm-25.4` grows from 721 to 2881 vertices (the saddle too); at k = 256 the reducer of `N-magnitude-ecc-2^8` grows from 361 to 5761.
+
+**B. Near-tangent header opening.** The harness measured each product vertex to the reference curve with a nearest-point search (2049 uniform samples, then golden-section refinement on the neighbouring interval). Measured instead against the reference sampled until its own chord error is at most tol/10 (tol = max(2e-9 S, 1e-12) = 1.885e-6 mm for both cases):
+
+| case | harness search deviation | exact: product vertices to reference polyline | on-branch residual of folded vertices | reference points at tol/10 |
+|---|---|---|---|---|
+| N-tangent-d-b90-g2e-06 | 8.460e-2 mm | 1.857e-7 mm | 2.3e-13 mm | 58 483 |
+| N-tangent-r-b45-g1.1e-06 | 4.687e-1 mm | 1.874e-7 mm | 4.0e-13 mm | 71 173 |
+
+The 1.9e-7 mm that remains is the reference polyline's own chord error (tol/10), so the product vertices are on the curve within the tolerance; the search was the error. These numbers come from a scratch script on the clean worktree build (port 8857, not in the repository). That run overlapped the disk-full window (13:10 to 13:35 UTC); its server log shows no disk error, and the final run below reproduces the same vertex deviations (1.857e-7 and 1.874e-7 mm).
+
+### 10.2 What changed, and why
+
+- `checks/compare.py`
+  - `evaluate()`: the two pairs that have an exact test (`branch_opening` of the header, `saddle_cut` of the branch) are no longer searched. Product vertices are measured exactly (vertex to segment) to an adaptively sampled reference polyline, and the folded vertices must lie on the other surface. The frame hypotheses, the anchor test, the station origin, the seam, the marking side and the mirroring are unchanged. Every other pair keeps the search.
+  - `cmp_header()`, `cmp_branch()`: the curve-to-polyline coverage is now an issue (threshold 1.10 eps_rep + tol). Before, the same number only fed the EPS_REP_EXCEEDED defect finding, from a uniform sample of 6 001 or 60 001 points.
+  - `compare_scaled()` (new); `scale_request()` and `LENGTH_KEYS` moved here from `run_all.py`.
+  - `compare_job(..., dxf=True)`: the DXF round trip can be skipped; only the seeded tests skip it, because they plant geometry, not files.
+  - `_dist_pts_polyline3d()`: exact candidate search instead of the dense pairwise loop. Same values (checked against the old loop on random data: difference 0), much faster on the near-tangent cases.
+- `run_all.py`: the scale branch of `check_relation()` calls `compare_scaled()`; the old identical-count rule is gone.
+- `seeded_faults.py`: `near_tangent_and_scale()` (new) with the near-tangent faults, the scale faults and their controls; `_scale_entities()`; the near-tangent check counts an aborted comparison as a detection, as `compare_job()` does.
+
+Rules, old and new:
+
+| check | old rule | new rule | tolerance and derivation |
+|---|---|---|---|
+| opening / saddle vertices | nearest-point search to the exact curve, <= tol | exact vertex-to-segment distance to the adaptive reference polyline <= tol; folded vertices on the other surface <= 50 tol / max(sin beta, 1e-3) | tol = rel_tol(S) = max(2e-9 S, 1e-12), S = max(part extent, reference scale) (unchanged). The reference polyline's chord error is <= tol/10, so each distance is exact to +-tol/10. The on-surface tolerance is the existing fold-back tolerance, unchanged |
+| opening / saddle coverage | uniform reference sample; defect finding only | curve-to-polyline distance <= 1.10 eps_rep + tol; now an issue | eps_rep is the product's stated representation error; the 10 % margin is the one used by the existing EPS_REP_EXCEEDED rule |
+| scale: entity kinds | equal | equal, else an issue | none |
+| scale: vertex counts | equal | not required | none; the density follows the absolute chord limit |
+| scale: polylines | pointwise, relative 1e-11 | two-sided vertex-to-segment distance d <= tau = k eps_rep(base) + eps_rep(scaled) + 1e-11 S2 | the two stated eps_rep values; S2 = extent of the scaled part; the term k eps_rep(base) is the base chord error carried to scale k |
+| scale: lines and arcs | pointwise, relative 1e-11 | d <= 1e-11 S2 (arcs: centre, radius and angles) | exact entities, no chord error |
+| scale: exact | none | the scaled pattern passes the exact reference comparison (compare_job) | rel_tol(S2), as for every other case |
+
+### 10.3 Seeded faults (final run)
+
+All 23 lines of the final run are `ok`. Existing faults, unchanged: Defect D1, Defect 002, opening mirrored, opening shifted 0.05 mm, opening from the wrong plate end, opening half a turn, saddle scaled by 1.0005, branch seam a quarter turn, and five DXF tamper faults. Each is detected and its control passes.
+
+New, near-tangent case N-tangent-d-b90-g2e-06 (control passes):
+- one opening vertex moved off the curve by 10 tol: detected (no frame mapping);
+- opening mirrored about the plate centre line: detected (declared side wrong);
+- opening shifted along the station by 10 tol: detected (no frame mapping);
+- last 5 % of the opening removed: detected (curve-to-polyline 1.46e+1 mm against 1.10 eps_rep + tol);
+- correct vertex count, branch radius 1e-4 relative too small: detected (no frame mapping).
+
+New, scaled case (k = 25.4, header_with_branch; control passes):
+- the whole pattern multiplied by k (1 + 1e-6): detected by the line check (3.05e-2 mm against an allowed 3.05e-7 mm);
+- only the polylines multiplied by k (1 + 1e-6): detected only by the exact reference comparison (no frame mapping). The chord-error test cannot see this fault; the fault shows that step 3 of the relation is needed.
+
+The first version of the radius fault used 1 + 1e-4. That makes the near-tangent branch miss the header on one side (NaN), so the fault now uses 1 - 1e-4, which keeps the curve valid.
+
+### 10.4 Run table: `run_all.py --quick` on engine 0.4.0 (final)
+
+Command: `python3 validation/run_all.py --spawn <clean worktree>/target/release/nf-server --quick` (port 8802). Result file: `validation/results/latest.json`. Exit status 0; verdict PASS; 384 s (291 s before this pass).
+
+| group | run | agree | disagree | refused correctly | wrongly accepted | wrongly refused | error | defect findings |
+|---|---|---|---|---|---|---|---|---|
+| closed_form | 9 | 9 | 0 | 0 | 0 | 0 | 0 | 0 |
+| limit | 4 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |
+| assembly | 21 | 21 | 0 | 0 | 0 | 0 | 0 | 0 |
+| refusal | 45 | 0 | 0 | 45 | 0 | 0 | 0 | 0 |
+| high_precision | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 |
+| symmetry | 7 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
+| random_sweep | 25 | 13 | 0 | 12 | 0 | 0 | 0 | 0 |
+| workload | 24 | 22 | 0 | 2 | 0 | 0 | 0 | 0 |
+| stability | 15 | 12 | 0 | 3 | 0 | 0 | 0 | 0 |
+| TOTAL | 155 | 93 | 0 | 62 | 0 | 0 | 0 | 0 |
+
+No findings by code. Before this pass: 89 agree, 4 disagree, 62 refused correctly, exit status 1.
+
+The four former disagreements all agree now:
+- S-SCALE-asm-25.4: worst entity deviation 0.94 of its tau; exact reference check of the scaled pattern: 0 issues.
+- N-magnitude-ecc-2^8: worst entity deviation 0.996 of its tau; exact reference check: 0 issues.
+- N-tangent-d-b90-g2e-06: header vertex deviation 1.857e-7 mm; curve-to-polyline 5.071e-3 mm against 1.10 x 5.069e-3 + tol = 5.58e-3 mm.
+- N-tangent-r-b45-g1.1e-06: header vertex deviation 1.874e-7 mm; curve-to-polyline 4.025e-3 mm against 1.10 x 4.024e-3 + tol = 4.43e-3 mm.
+
+D4 (eps_num exceeded): not reproduced in this run. There is no EPS_NUM_EXCEEDED finding. The 12 high-precision cases of the quick run have true error / eps_num <= 0.35 (largest: N-tangent-dneg-b90-g0.0001). The non-quick corpus was not run in this pass, so D4's status over the full corpus is not re-measured here; section 5 records D4 as open for the earlier engine.
+
+### 10.5 What is still open
+
+1. The scale relation's exact step uses rel_tol (2e-9 S). The old pointwise rule was 1e-11 S, but it applied only where vertex counts matched, and that condition is gone. The product's on-surface error is about 1e-13 mm absolute (section 10.1), about six decades below rel_tol at this size, so a scale defect below 2e-9 relative would pass. The 1e-6 fault is caught. Tightening this needs a reference chord error of about 1e-12 S (roughly three times more reference points); not done.
+2. Step 2 of the scale relation is near its limit for large k (0.94 and 0.996 of tau). It can fail only when the product's true chord error exceeds its stated eps_rep; step 3 carries the detection.
+3. The near-tangent reference curves need 58 000 to 71 000 points at tol/10. The quick run takes 384 s instead of 291 s. Caching the reference polylines across the seeded tests would save time; not done.
+4. Near tangency the two surfaces meet at a small angle, so the on-surface residual barely changes when a vertex slides along the surface. For near-tangent joints the planar curve test carries the 10 tol fault.
+5. The full corpus, including the tangent gaps 1e-6 and 5e-7 and all N-magnitude cases, has not been run in this pass; D4 is therefore not re-measured for the full corpus.
+6. `run_all.py` does not stop its spawned server if an exception escapes the seeded-fault stage. This happened once in this pass: a run that was cut short left its server running after its data directory had been removed, and every job then returned HTTP 500. The server was stopped and the run repeated. Not changed.
+7. `validation/exact_onsurface_check.py` still uses port 8856, which is outside the ports allowed for this work. It was not run in this pass and was not changed.
+8. `validation/README.md` is unchanged: the command-line usage did not change.
