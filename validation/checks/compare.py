@@ -28,6 +28,87 @@ def rel_tol(scale):
     return max(2e-9 * scale, 1e-12)
 
 
+# ------------------------------------------------------------------ polylines (exact measurements, no search)
+# Scale relation: lengths in a request are multiplied by k; angles, family names and flags are not.
+LENGTH_KEYS = ['r_dev', 'length', 'r1', 'r2', 'h', 'e', 'header_radius', 'header_dev_radius', 'header_length',
+               'branch_station', 'branch_radius', 'branch_dev_radius', 'delta', 's_end']
+
+
+def scale_request(req, k):
+    return {kk: (v * k if kk in LENGTH_KEYS else v) for kk, v in req.items()}
+
+
+def _finite(a):
+    a = np.asarray(a, float)
+    if not np.all(np.isfinite(a)):
+        raise RuntimeError('reference curve is not finite where the comparison needs it')
+    return a
+
+
+def adaptive_polyline(f, t0, t1, tc, n0=2049, max_pts=2000000):
+    """Vertices of the exact curve f(t), t in [t0, t1], refined in the parameter until every chord lies within tc of
+    the curve (deviation tested at 1/4, 1/2 and 3/4 of each chord).  The product is then measured against this dense
+    polyline vertex-to-segment, which avoids a nearest-point search over a coarse uniform sample."""
+    t = np.linspace(t0, t1, n0)
+    X = _finite(f(t))
+    # only the segments created by the last split are tested again; accepted segments are kept as they are
+    ta, tb, Xa, Xb = t[:-1], t[1:], X[:-1], X[1:]
+    kept_t, kept_X, n_kept = [], [], 0
+    for _ in range(80):
+        h = tb - ta
+        T = np.stack([ta + 0.25 * h, ta + 0.5 * h, ta + 0.75 * h])
+        Xt = _finite(f(T.ravel())).reshape(3, len(ta), -1)
+        v = Xb - Xa
+        L2 = np.maximum((v * v).sum(1), 1e-300)
+        u = np.clip(((Xt - Xa) * v).sum(-1) / L2, 0.0, 1.0)
+        dev = np.linalg.norm(Xt - (Xa + u[..., None] * v), axis=-1).max(0)
+        ok = dev <= tc
+        kept_t.append(ta[ok])
+        kept_X.append(Xa[ok])
+        n_kept += int(ok.sum())
+        bad = ~ok
+        if not bad.any():
+            break
+        if n_kept + 2 * int(bad.sum()) > max_pts:
+            raise RuntimeError(f'reference curve needs more than {max_pts} points for a chord error of {tc:.3e} mm')
+        tm, Xm = T[1][bad], Xt[1][bad]
+        ta, tb = np.concatenate([ta[bad], tm]), np.concatenate([tm, tb[bad]])
+        Xa, Xb = np.concatenate([Xa[bad], Xm]), np.concatenate([Xm, Xb[bad]])
+    else:
+        raise RuntimeError('reference curve did not reach the chord tolerance')
+    tk = np.concatenate(kept_t + [t[-1:]])
+    Xk = np.concatenate(kept_X + [X[-1:]])
+    return Xk[np.argsort(tk, kind='stable')]
+
+
+def _seg_tree(Q):
+    """Spatial index over the segments of the polyline Q."""
+    Q = np.asarray(Q, float)
+    return shapely.STRtree(shapely.linestrings(np.stack([Q[:-1], Q[1:]], axis=1)))
+
+
+def _dist_to_tree(P, tree):
+    """Exact distance from each point of P to the polyline behind tree (vertex to segment)."""
+    P = np.asarray(P, float)
+    idx, d = tree.query_nearest(shapely.points(P), return_distance=True)
+    out = np.full(len(P), np.inf)
+    out[idx[0]] = d
+    return out
+
+
+def two_sided(P, Q):
+    """Two-sided polyline distance (mm): the largest vertex-to-segment distance from P to Q and from Q to P."""
+    return max(float(_dist_to_tree(P, _seg_tree(Q)).max()), float(_dist_to_tree(Q, _seg_tree(P)).max()))
+
+
+def _exact_pair(ref, curve, tol, onsurf, on_tol):
+    """Exact test for one curve of the reference: its polyline is sampled to a chord error of tol/10 (reference
+    frame); onsurf(points) is the residual of the folded product points to the other surface, which must be <= on_tol."""
+    rc = ref.curves[curve]
+    X = adaptive_polyline(rc.f, rc.t0, rc.t1, tol / 10.0)
+    return (X, _seg_tree(X), onsurf, on_tol)
+
+
 # ------------------------------------------------------------------ 1. DXF round trip
 def dxf_roundtrip(part, issues):
     v = part.view
@@ -167,17 +248,29 @@ class Hyp:
         self.label, self.ref_pts, self.prod_pts, self.pairs, self.natural = label, np.asarray(ref_pts), np.asarray(prod_pts), pairs, natural
 
 
-def evaluate(ref, part, hyps, scale, ndense=6001, tol=None):
-    """Try every labelling hypothesis with and without mirroring.  Returns list of dicts."""
+def evaluate(ref, part, hyps, scale, ndense=6001, tol=None, exact=None):
+    """Try every labelling hypothesis with and without mirroring.  Returns list of dicts.
+    exact: {reference pair name: (polyline, tree, onsurf, on_tol)} for the pairs that have an exact test (header opening,
+    branch saddle).  For those, product vertices are measured to the adaptively sampled reference curve and, folded back,
+    must lie on the other surface within on_tol.  Every other pair keeps the nearest-point search.  The frame hypotheses
+    and the anchor test are the same for all pairs."""
     tol = rel_tol(scale) if tol is None else tol
+    exact = exact or {}
     out = []
     for h in hyps:
         for proper in (True, False):
             R, t, res = fit_rigid(h.ref_pts, h.prod_pts, proper)
-            e = {'label': h.label, 'natural': h.natural, 'view': 'outside' if proper else 'inside', 'anchor_residual': res, 'R': R, 't': t, 'r2p': {}, 'p2r': {}}
+            e = {'label': h.label, 'natural': h.natural, 'view': 'outside' if proper else 'inside', 'anchor_residual': res, 'R': R, 't': t, 'r2p': {}, 'p2r': {}, 'onsurf': {}}
             if res <= 1e-6 * scale:
                 for rn, pn in h.pairs:
                     rc, pc = ref.curves[rn], part.curve(pn)
+                    if pn in exact:
+                        X, tree_ref, onsurf, _ = exact[pn]
+                        pv = pc.vertices()
+                        e['p2r'][pn] = float(_dist_to_tree((pv - t) @ R, tree_ref).max())          # product -> exact curve
+                        e['r2p'][pn] = float(_dist_to_tree(X @ R.T + t, _seg_tree(pv)).max())      # curve -> product polyline
+                        e['onsurf'][pn] = float(onsurf((pv - t) @ R))
+                        continue
                     f = lambda tt, rc=rc: rc.f(tt) @ R.T + t
                     pts = f(np.linspace(rc.t0, rc.t1, ndense))
                     ok = np.all(np.isfinite(pts), axis=1)
@@ -186,7 +279,8 @@ def evaluate(ref, part, hyps, scale, ndense=6001, tol=None):
                     e['p2r'][pn] = float(np.nanmax(d))
                 e['vertex_dev'] = max(e['p2r'].values())
                 e['chord_dev'] = max(e['r2p'].values())
-                e['match'] = bool(res <= tol and e['vertex_dev'] <= tol)
+                on_ok = all(e['onsurf'][pn] <= exact[pn][3] for pn in e['onsurf'])
+                e['match'] = bool(res <= tol and e['vertex_dev'] <= tol and on_ok)
             else:
                 e['match'] = False
             out.append(e)
@@ -306,9 +400,16 @@ def cmp_branch(req, part, issues, ndense=6001):
         pa = [part.corner(s0, 'square_end'), part.corner(s1, 'square_end'), part.corner(s0, 'saddle_cut'), part.corner(s1, 'saddle_cut')]
         hyps.append(Hyp(f'{s0}=phi 0', ra, pa, [('square_end', 'square_end'), ('saddle', 'saddle_cut'), ('seam0', s0), ('seam1', s1)]))
     rep = {'scale': scale}
-    ev = evaluate(ref, part, hyps, scale, ndense)
+    tol = rel_tol(scale)
+    onsurf = lambda pr: np.abs(ref.joint.dist_header_axis(RF.branch_fold(ref, pr)[1]) - ref.joint.R).max()
+    ex = {'saddle_cut': _exact_pair(ref, 'saddle', tol, onsurf, 50 * tol / max(math.sin(math.radians(req['beta_deg'])), 1e-3))}
+    ev = evaluate(ref, part, hyps, scale, ndense, exact=ex)
     e = _summarise(ev, rep, part, scale, issues)
     if e:
+        rep['coverage_saddle'] = e['r2p']['saddle_cut']
+        cov_tol = 1.10 * part.eps_rep + tol
+        if rep['coverage_saddle'] > cov_tol:
+            issues.append(f"{part.name}: the polyline does not cover the reference saddle: the reference curve lies {rep['coverage_saddle']:.3e} mm from the polyline, more than 1.10 eps_rep + tol = {cov_tol:.3e} mm")
         j = ref.joint
         phi, P = RF.branch_fold(ref, _to_ref(e, part.curve('saddle_cut').vertices()))
         rep['fold_cut_on_header'] = float(np.abs(j.dist_header_axis(P) - j.R).max())
@@ -336,9 +437,16 @@ def cmp_header(req, part, issues, ndense=6001):
             hyps.append(Hyp(f'station 0 at {e0} (x={part.curve(e0).pts[:, 0].mean():g}); {s0}=seam start', ra, pa,
                             [('end0', e0), ('end1', e1), ('seam0', s0), ('seam1', s1), ('opening', 'branch_opening')], natural=(e0 == shorts[0])))
     rep = {'scale': scale}
-    ev = evaluate(ref, part, hyps, scale, ndense)
+    tol = rel_tol(scale)
+    onsurf = lambda pr: np.abs(ref.joint.dist_branch_axis(RF.header_fold(ref, pr)[2]) - ref.joint.r).max()
+    ex = {'branch_opening': _exact_pair(ref, 'opening', tol, onsurf, 50 * tol / max(math.sin(math.radians(req['beta_deg'])), 1e-3))}
+    ev = evaluate(ref, part, hyps, scale, ndense, exact=ex)
     e = _summarise(ev, rep, part, scale, issues)
     if e:
+        rep['coverage_opening'] = e['r2p']['branch_opening']
+        cov_tol = 1.10 * part.eps_rep + tol
+        if rep['coverage_opening'] > cov_tol:
+            issues.append(f"{part.name}: the polyline does not cover the reference opening: the reference curve lies {rep['coverage_opening']:.3e} mm from the polyline, more than 1.10 eps_rep + tol = {cov_tol:.3e} mm")
         j = ref.joint
         x, g, P = RF.header_fold(ref, _to_ref(e, part.curve('branch_opening').vertices()))
         rep['fold_opening_on_branch'] = float(np.abs(j.dist_branch_axis(P) - j.r).max())
@@ -354,16 +462,23 @@ def cmp_header(req, part, issues, ndense=6001):
 
 
 def _dist_pts_polyline3d(P, Q):
-    """Distance from each 3D point P[i] to the 3D polyline Q."""
+    """Exact distance from each 3D point P[i] to the 3D polyline Q (minimum over all segments).  The candidates for P[i]
+    are the segments whose midpoint lies within (distance to the nearest vertex + half the longest segment): every
+    segment that could be the nearest one is among them, so this equals a search over all segments, only faster."""
+    from scipy.spatial import cKDTree
+    P, Q = np.asarray(P, float), np.asarray(Q, float)
     a, b = Q[:-1], Q[1:]
     ab = b - a
     L2 = np.maximum((ab * ab).sum(1), 1e-300)
+    half = 0.5 * float(np.sqrt(L2).max())
+    dv, _ = cKDTree(Q).query(P)
+    cand = cKDTree(0.5 * (a + b)).query_ball_point(P, dv + half)
     out = np.empty(len(P))
-    for i0 in range(0, len(P), 256):
-        p = P[i0:i0 + 256, None, :]
-        u = np.clip(((p - a) * ab).sum(-1) / L2, 0, 1)
-        d = np.linalg.norm(p - (a + u[..., None] * ab), axis=-1)
-        out[i0:i0 + 256] = d.min(1)
+    for i, idx in enumerate(cand):
+        idx = np.asarray(idx, dtype=int)
+        p = P[i]
+        u = np.clip(((p - a[idx]) * ab[idx]).sum(1) / L2[idx], 0.0, 1.0)
+        out[i] = np.linalg.norm(p - (a[idx] + u[:, None] * ab[idx]), axis=1).min()
     return out
 
 
@@ -409,12 +524,13 @@ def is_chiral(req, threshold=1e-9):
     return abs(req['delta']) > threshold * R and abs(math.cos(math.radians(req['beta_deg']))) > threshold
 
 
-def compare_job(req, job, ndense=6001):
-    """Full comparison.  Returns report dict with 'issues' (geometry disagreements) and 'findings' (other defects)."""
+def compare_job(req, job, ndense=6001, dxf=True):
+    """Full comparison.  Returns report dict with 'issues' (geometry disagreements) and 'findings' (other defects).
+    dxf=False skips the DXF round trip (used only by the seeded-fault tests, which plant geometry, not files)."""
     issues, findings, rep = [], [], {'parts': {}}
     fam = req['family']
     for name, part in job.parts.items():
-        pr = {'dxf': dxf_roundtrip(part, issues)}
+        pr = {'dxf': dxf_roundtrip(part, issues) if dxf else {}}
         rep['parts'][name] = pr
     for name, st in job.dxf_status.items():
         if st != 200:
@@ -496,3 +612,42 @@ def compare_job(req, job, ndense=6001):
     rep['issues'], rep['findings'] = issues, findings
     rep['agree'] = not issues
     return rep
+
+
+def compare_scaled(job, j2, k, other, dxf=True):
+    """Scale relation: the pattern of the request scaled by k must be k times the pattern of the base request.
+    (1) Entity types and counts agree.  Vertex counts may differ: the product's polyline density follows an absolute
+        chord-error limit, so it changes with size.
+    (2) Every polyline agrees with k times the base polyline: two-sided vertex-to-segment distance d <= tau, with
+        tau = k * eps_rep(base) + eps_rep(scaled) + 1e-11 * extent(scaled): the stated chord-error limits of the two
+        patterns plus the numerical tolerance of the relation.  Lines and arcs carry no chord error: d <= 1e-11 * extent.
+    (3) The scaled pattern must pass the exact reference comparison (compare_job).  Step (2) alone cannot see a deviation
+        below the chord-error budget (for example a relative 1e-6 fault, far below k * eps_rep for these patterns).
+    Returns (type_issues, deviations, findings, info); the caller decides whether deviations are issues or defects."""
+    type_issues, devs, info, worst = [], [], {}, 0.0
+    for name, p1 in job.parts.items():
+        p2 = j2.parts[name]
+        sc2 = max(p2.extent(), 1e-300)
+        num = 1e-11 * sc2
+        if len(p1.ents) != len(p2.ents):
+            type_issues.append(f'scale x{k}: {name} has {len(p2.ents)} cut entities, the base has {len(p1.ents)}')
+            continue
+        for e1, e2 in zip(p1.ents, p2.ents):
+            if e1.kind != e2.kind:
+                type_issues.append(f'scale x{k}: {name}/{e1.name} changes entity type ({e1.kind} -> {e2.kind})')
+                continue
+            if e1.kind == 'arc':
+                dev = max(float(np.abs(e2.pts - k * e1.pts).max()), abs(e2.r - k * e1.r),
+                          sc2 * max(abs(e2.a0 - e1.a0), abs(e2.a1 - e1.a1)) * math.pi / 180)
+                tau = num
+            else:
+                dev = two_sided(k * e1.pts, e2.pts)
+                tau = (k * p1.eps_rep + p2.eps_rep if e1.kind == 'polyline' else 0.0) + num
+            worst = max(worst, dev / tau)
+            if dev > tau:
+                devs.append(f'scale x{k}: {name}/{e1.name} ({e1.kind}) lies {dev:.3e} mm from k times the base entity, allowed {tau:.3e} mm')
+    info['scale_worst_dev_over_tau'] = worst
+    rep = compare_job(other, j2, dxf=dxf)
+    info['scale_exact_issues'] = len(rep['issues'])
+    devs += [f'scaled pattern fails the exact reference comparison: {s}' for s in rep['issues']]
+    return type_issues, devs, list(rep['findings']), info

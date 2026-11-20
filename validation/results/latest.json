@@ -1,8 +1,8 @@
 {
- "when": "2026-11-20T02:05:58+0000",
- "url": "http://127.0.0.1:8802",
+ "when": "2026-11-20T14:09:57+0000",
+ "url": "http://127.0.0.1:8858",
  "engine": [
-  "nf-engine 0.4.0+src.be53b63158593bf7"
+  "nf-engine 0.4.0+src.e3c264333b691c19"
  ],
  "mode": "quick",
  "seeded_faults": [
@@ -11,7 +11,7 @@
   "ok   Defect 002: outline with circumference along x, opening unchanged: header: no frame mapping reproduces the reference (best: station 0 at top (x=942.478); seam_a=seam start/inside, anchor residual 1.821e+02, vertex deviation nan, toleranc",
   "ok   opening mirrored about the plate centre line: header: declared as drawn from the OUTSIDE, but the geometry matches the reference only as seen from the inside",
   "ok   opening shifted 0.05 mm along the axis: header: no frame mapping reproduces the reference (best: station 0 at bottom (x=0); seam_a=seam start/outside, anchor residual 5.361e-14, vertex deviation 5.000e-02, tole",
-  "ok   opening measured from the wrong plate end: header: no frame mapping reproduces the reference (best: station 0 at top (x=1200); seam_a=seam start/inside, anchor residual 1.665e-14, vertex deviation 2.160e-08, toler",
+  "ok   opening measured from the wrong plate end: header: no frame mapping reproduces the reference (best: station 0 at top (x=1200); seam_a=seam start/inside, anchor residual 1.665e-14, vertex deviation 1.960e-07, toler",
   "ok   opening moved half a turn (onto the seam side): header: no frame mapping reproduces the reference (best: station 0 at bottom (x=0); seam_b=seam start/inside, anchor residual 5.361e-14, vertex deviation 4.015e+02, toler",
   "ok   saddle heights scaled by 1.0005: branch: no frame mapping reproduces the reference (best: seam_a=phi 0/outside, anchor residual 1.299e-02, vertex deviation nan, tolerance 1.257e-06)",
   "ok   branch seam moved a quarter turn: branch: no frame mapping reproduces the reference (best: seam_a=phi 0/outside, anchor residual 3.137e+01, vertex deviation nan, tolerance 1.257e-06)",
@@ -19,11 +19,20 @@
   "ok   DXF: extra LINE added on CUT_INNER: header: served DXF does not hash to dxf_sha256 of the result",
   "ok   DXF: extra LINE hidden on the NF_NOT_RELEASED layer: header: served DXF does not hash to dxf_sha256 of the result",
   "ok   DXF: extra LINE on a new layer: header: served DXF does not hash to dxf_sha256 of the result",
-  "ok   DXF: opening moved to the CUT_OUTER layer: header: served DXF does not hash to dxf_sha256 of the result"
+  "ok   DXF: opening moved to the CUT_OUTER layer: header: served DXF does not hash to dxf_sha256 of the result",
+  "ok   control: unmodified near-tangent joint has no geometry issue",
+  "ok   near-tangent N-tangent-d-b90-g2e-06: one opening vertex moved off the curve by 10 x tol: header: no frame mapping reproduces the reference (best: station 0 at bottom (x=0); seam_a=seam start/outside, anchor residual 1.144e-13, vertex deviation 1.893e-05, tole",
+  "ok   near-tangent N-tangent-d-b90-g2e-06: opening mirrored about the plate centre line: header: declared as drawn from the OUTSIDE, but the geometry matches the reference only as seen from the inside",
+  "ok   near-tangent N-tangent-d-b90-g2e-06: opening shifted along the station by 10 x tol: header: no frame mapping reproduces the reference (best: station 0 at top (x=450); seam_a=seam start/inside, anchor residual 1.144e-13, vertex deviation 1.894e-05, tolera",
+  "ok   near-tangent N-tangent-d-b90-g2e-06: last 5 % of the opening missing: header: the polyline does not cover the reference opening: the reference curve lies 1.458e+01 mm from the polyline, more than 1.10 eps_rep + tol = 5.578e-03 mm",
+  "ok   near-tangent N-tangent-d-b90-g2e-06: correct vertex count, branch radius 1e-4 relative too small: header: no frame mapping reproduces the reference (best: station 0 at bottom (x=0); seam_a=seam start/outside, anchor residual 1.144e-13, vertex deviation 8.573e-01, tole",
+  "ok   control: unmodified pattern at scale 25.4 passes the scale relation",
+  "ok   scale relation: pattern at scale 25.4 multiplied by 25.4 x (1 + 1e-6): scale x25.4: header/seam_a (line) lies 3.048e-02 mm from k times the base entity, allowed 3.048e-07 mm",
+  "ok   scale relation: polylines only multiplied by 25.4 x (1 + 1e-6), caught by the exact reference comparison: scaled pattern fails the exact reference comparison: header: no frame mapping reproduces the reference (best: station 0 at bottom (x=0); seam_a=seam start/outside, anchor"
  ],
  "seed": 20261119,
- "elapsed_s": 290.8,
- "verdict": "FAIL",
+ "elapsed_s": 408.4,
+ "verdict": "PASS",
  "server_restarts_during_run": 0,
  "selftest": [
   {
@@ -290,8 +299,8 @@
     "with_defect_findings": 0
    },
    "symmetry": {
-    "agree": 6,
-    "disagree": 1,
+    "agree": 7,
+    "disagree": 0,
     "refused_correctly": 0,
     "wrongly_accepted": 0,
     "wrongly_refused": 0,
@@ -320,8 +329,8 @@
     "with_defect_findings": 0
    },
    "stability": {
-    "agree": 9,
-    "disagree": 3,
+    "agree": 12,
+    "disagree": 0,
     "refused_correctly": 3,
     "wrongly_accepted": 0,
     "wrongly_refused": 0,
@@ -332,8 +341,8 @@
   },
   "total": {
    "run": 155,
-   "agree": 89,
-   "disagree": 4,
+   "agree": 93,
+   "disagree": 0,
    "refused_correctly": 62,
    "wrongly_accepted": 0,
    "wrongly_refused": 0,
@@ -388,23 +397,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 9.376348885101166e-14,
-       "vertex_dev": 1.5721434491158955e-08,
-       "chord_dev": 0.0008500037579928461,
+       "vertex_dev": 1.0761668501927253e-07,
+       "chord_dev": 0.0008512659589052468,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 1.5721434491158955e-08,
+        "saddle_cut": 1.0761668501927253e-07,
         "seam_a": 9.376348885101166e-14,
         "seam_b": 8.526512829121202e-14
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 0.0008500037579928461,
+        "saddle_cut": 0.0008512659589052468,
         "seam_a": 3.90057654584158e-14,
         "seam_b": 0.0
        },
        "eps_num_stated": 7.105311512720288e-13,
        "eps_rep_stated": 0.0008513645741932781,
-       "eps_rep_ratio": 0.998401605796528,
+       "eps_rep_ratio": 0.99988416796867,
+       "coverage_saddle": 0.0008512659589052468,
        "fold_cut_on_header": 2.2737367544323206e-13,
        "seam_gap_3d": 1.0845964142784046e-13,
        "marking_side_declared": "outside",
@@ -416,12 +426,12 @@
     }
    },
    "http": 200,
-   "job_id": 11,
+   "job_id": 21,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.858
+   "seconds": 5.467
   },
   {
    "id": "A-BR-02",
@@ -467,23 +477,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.1368683772161603e-13,
-       "vertex_dev": 1.98200411321461e-08,
-       "chord_dev": 0.0012802912604877577,
+       "vertex_dev": 1.2528744627259675e-07,
+       "chord_dev": 0.0012823423075974617,
        "p2r": {
         "square_end": 1.1368683772161603e-13,
-        "saddle_cut": 1.98200411321461e-08,
+        "saddle_cut": 1.2528744627259675e-07,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.1368683772161603e-13
        },
        "r2p": {
         "square_end": 1.1368683772161603e-13,
-        "saddle_cut": 0.0012802912604877577,
+        "saddle_cut": 0.0012823423075974617,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.1368683772161603e-13
        },
        "eps_num_stated": 7.988676975315223e-13,
        "eps_rep_stated": 0.0012823423801413322,
-       "eps_rep_ratio": 0.9984004898494048,
+       "eps_rep_ratio": 0.999999943428626,
+       "coverage_saddle": 0.0012823423075974617,
        "fold_cut_on_header": 1.7053025658242404e-13,
        "seam_gap_3d": 1.657256204579568e-13,
        "marking_side_declared": "outside",
@@ -495,12 +506,12 @@
     }
    },
    "http": 200,
-   "job_id": 12,
+   "job_id": 22,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.884
+   "seconds": 6.95
   },
   {
    "id": "A-BR-03",
@@ -547,23 +558,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 7.671757367608208e-16,
-       "vertex_dev": 1.3623652871459328e-08,
-       "chord_dev": 0.0010136774868007106,
+       "vertex_dev": 9.787566132120961e-08,
+       "chord_dev": 0.0010153002470584633,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 1.3623652871459328e-08,
+        "saddle_cut": 9.787566132120961e-08,
         "seam_a": 7.671757367608208e-16,
         "seam_b": 0.0
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 0.0010136774868007106,
+        "saddle_cut": 0.0010153002470584633,
         "seam_a": 7.671757367608208e-16,
         "seam_b": 0.0
        },
        "eps_num_stated": 6.151666895266808e-13,
        "eps_rep_stated": 0.0010153002972389364,
-       "eps_rep_ratio": 0.9984016448703512,
+       "eps_rep_ratio": 0.9999999505757329,
+       "coverage_saddle": 0.0010153002470584633,
        "fold_cut_on_header": 5.684341886080802e-14,
        "seam_gap_3d": 5.684341886080802e-14,
        "marking_side_declared": "outside",
@@ -575,12 +587,12 @@
     }
    },
    "http": 200,
-   "job_id": 13,
+   "job_id": 23,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.912
+   "seconds": 5.68
   },
   {
    "id": "A-CONE-01",
@@ -660,12 +672,12 @@
     }
    },
    "http": 200,
-   "job_id": 14,
+   "job_id": 24,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.733
+   "seconds": 1.714
   },
   {
    "id": "A-CONE-345",
@@ -745,12 +757,12 @@
     }
    },
    "http": 200,
-   "job_id": 15,
+   "job_id": 25,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.779
+   "seconds": 2.291
   },
   {
    "id": "A-CONE-HALFDISC",
@@ -830,12 +842,12 @@
     }
    },
    "http": 200,
-   "job_id": 16,
+   "job_id": 26,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 1.05
+   "seconds": 2.665
   },
   {
    "id": "A-CYL-01",
@@ -904,12 +916,12 @@
     }
    },
    "http": 200,
-   "job_id": 17,
+   "job_id": 27,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.128
+   "seconds": 0.479
   },
   {
    "id": "A-CYL-02",
@@ -978,12 +990,12 @@
     }
    },
    "http": 200,
-   "job_id": 18,
+   "job_id": 28,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.12
+   "seconds": 0.69
   },
   {
    "id": "A-SMALL-BRANCH-45",
@@ -1035,25 +1047,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 9.222170920559396e-13,
-       "vertex_dev": 2.0729459844663676e-10,
-       "chord_dev": 1.3450129622800342e-05,
+       "vertex_dev": 1.2297166068520084e-06,
+       "chord_dev": 1.345235466499262e-05,
        "p2r": {
         "bottom": 9.217827915640415e-13,
         "top": 9.222170920559396e-13,
         "seam_a": 9.222170920559396e-13,
         "seam_b": 9.217827915640415e-13,
-        "branch_opening": 2.0729459844663676e-10
+        "branch_opening": 1.2297166068520084e-06
        },
        "r2p": {
         "bottom": 9.217827915640415e-13,
         "top": 9.222170920559396e-13,
         "seam_a": 2.2737367544323206e-13,
         "seam_b": 9.094947017729282e-13,
-        "branch_opening": 1.3450129622800342e-05
+        "branch_opening": 1.345235466499262e-05
        },
        "eps_num_stated": 8.619000619977197e-12,
        "eps_rep_stated": 1.347168417709857e-05,
-       "eps_rep_ratio": 0.9984000104207558,
+       "eps_rep_ratio": 0.9985651747879594,
+       "coverage_opening": 1.345235466499262e-05,
        "fold_opening_on_branch": 5.839773109528323e-13,
        "opening_station_range": [
         1048.585786437627,
@@ -1089,23 +1102,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.273806142312601e-13,
-       "vertex_dev": 2.0725727486425129e-10,
-       "chord_dev": 9.51730981447855e-06,
+       "vertex_dev": 2.929741777693755e-07,
+       "chord_dev": 9.514510374882924e-06,
        "p2r": {
         "square_end": 1.7763568394002505e-15,
-        "saddle_cut": 2.0725727486425129e-10,
+        "saddle_cut": 2.929741777693755e-07,
         "seam_a": 2.2737740176424554e-13,
         "seam_b": 2.273806142312601e-13
        },
        "r2p": {
         "square_end": 1.3322676295501878e-15,
-        "saddle_cut": 9.51730981447855e-06,
+        "saddle_cut": 9.514510374882924e-06,
         "seam_a": 2.2737740176424554e-13,
         "seam_b": 2.273806142312601e-13
        },
        "eps_num_stated": 1.1849518416001275e-12,
        "eps_rep_stated": 9.532559536579575e-06,
-       "eps_rep_ratio": 0.998400248952812,
+       "eps_rep_ratio": 0.9981065776062147,
+       "coverage_saddle": 9.514510374882924e-06,
        "fold_cut_on_header": 3.410605131648481e-13,
        "seam_gap_3d": 0.0,
        "marking_side_declared": "outside",
@@ -1128,12 +1142,12 @@
     }
    },
    "http": 200,
-   "job_id": 19,
+   "job_id": 29,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.584
+   "seconds": 1.433
   },
   {
    "id": "A-TEE-90",
@@ -1185,25 +1199,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 2.7755575615628914e-14,
-       "vertex_dev": 1.1399157696506375e-08,
-       "chord_dev": 0.0008230631896397056,
+       "vertex_dev": 9.715495315878138e-08,
+       "chord_dev": 0.0008242868102748131,
        "p2r": {
         "bottom": 1.5056618631777407e-14,
         "top": 2.7755575615628914e-14,
         "seam_a": 2.7755575615628914e-14,
         "seam_b": 1.5056618631777407e-14,
-        "branch_opening": 1.1399157696506375e-08
+        "branch_opening": 9.715495315878138e-08
        },
        "r2p": {
         "bottom": 1.5056618631777407e-14,
         "top": 2.7755575615628914e-14,
         "seam_a": 2.7755575615628914e-14,
         "seam_b": 1.5056618631777407e-14,
-        "branch_opening": 0.0008230631896397056
+        "branch_opening": 0.0008242868102748131
        },
        "eps_num_stated": 1.0252996225760943e-12,
        "eps_rep_stated": 0.0008243819959954514,
-       "eps_rep_ratio": 0.9984002484744304,
+       "eps_rep_ratio": 0.9998845368759863,
+       "coverage_opening": 0.0008242868102748131,
        "fold_opening_on_branch": 1.1368683772161603e-13,
        "opening_station_range": [
         325.0,
@@ -1240,23 +1255,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 3.4425302366733e-14,
-       "vertex_dev": 1.1399131030408458e-08,
-       "chord_dev": 0.0004115143809321937,
+       "vertex_dev": 8.110039433684845e-08,
+       "chord_dev": 0.00041212563773962495,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 1.1399131030408458e-08,
+        "saddle_cut": 8.110039433684845e-08,
         "seam_a": 3.4425302366733e-14,
         "seam_b": 2.842170943040401e-14
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 0.0004115143809321937,
+        "saddle_cut": 0.00041212563773962495,
         "seam_a": 1.942441443376548e-14,
         "seam_b": 0.0
        },
        "eps_num_stated": 5.560719852226637e-13,
        "eps_rep_stated": 0.0004121733412126073,
-       "eps_rep_ratio": 0.9984012544856128,
+       "eps_rep_ratio": 0.9998842635653193,
+       "coverage_saddle": 0.00041212563773962495,
        "fold_cut_on_header": 8.526512829121202e-14,
        "seam_gap_3d": 8.526512829121202e-14,
        "marking_side_declared": "outside",
@@ -1279,12 +1295,12 @@
     }
    },
    "http": 200,
-   "job_id": 20,
+   "job_id": 30,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.849
+   "seconds": 12.829
   },
   {
    "id": "D-ASM-001",
@@ -1336,25 +1352,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.6328007727947322e-13,
-       "vertex_dev": 5.298352799377768e-09,
-       "chord_dev": 0.00035952276237444713,
+       "vertex_dev": 1.8486679422832467e-07,
+       "chord_dev": 0.0003600573516236731,
        "p2r": {
         "bottom": 1.6328007727947322e-13,
         "top": 1.1415725186791296e-13,
         "seam_a": 1.1415725186791296e-13,
         "seam_b": 1.6328007727947322e-13,
-        "branch_opening": 5.298352799377768e-09
+        "branch_opening": 1.8486679422832467e-07
        },
        "r2p": {
         "bottom": 1.6328007727947322e-13,
         "top": 1.1415725186791296e-13,
         "seam_a": 1.1415725186791296e-13,
         "seam_b": 1.6328007727947322e-13,
-        "branch_opening": 0.00035952276237444713
+        "branch_opening": 0.0003600573516236731
        },
        "eps_num_stated": 3.88181424033294e-12,
        "eps_rep_stated": 0.00036009890862108776,
-       "eps_rep_ratio": 0.9984000333440419,
+       "eps_rep_ratio": 0.9998845956029865,
+       "coverage_opening": 0.0003600573516236731,
        "fold_opening_on_branch": 1.2523315717771766e-13,
        "opening_station_range": [
         45.62150883618705,
@@ -1390,23 +1407,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 7.105427357601002e-15,
-       "vertex_dev": 5.2984620267806636e-09,
-       "chord_dev": 0.00035240387549349296,
+       "vertex_dev": 1.536778816058157e-07,
+       "chord_dev": 0.0003529277653949026,
        "p2r": {
         "square_end": 7.105427357601002e-15,
-        "saddle_cut": 5.2984620267806636e-09,
+        "saddle_cut": 1.536778816058157e-07,
         "seam_a": 7.105427357601002e-15,
         "seam_b": 7.105427357601002e-15
        },
        "r2p": {
         "square_end": 7.105427357601002e-15,
-        "saddle_cut": 0.00035240387549349296,
+        "saddle_cut": 0.0003529277653949026,
         "seam_a": 7.105427357601002e-15,
         "seam_b": 7.105427357601002e-15
        },
        "eps_num_stated": 7.641336617101804e-13,
        "eps_rep_stated": 0.00035296852352546565,
-       "eps_rep_ratio": 0.9984002878604218,
+       "eps_rep_ratio": 0.9998845275772583,
+       "coverage_saddle": 0.0003529277653949026,
        "fold_cut_on_header": 8.526512829121202e-14,
        "seam_gap_3d": 0.0,
        "marking_side_declared": "outside",
@@ -1429,12 +1447,12 @@
     }
    },
    "http": 200,
-   "job_id": 21,
+   "job_id": 31,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.833
+   "seconds": 4.844
   },
   {
    "id": "D-ASM-010",
@@ -1485,25 +1503,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 2.2737367544323206e-13,
-       "vertex_dev": 8.781807898724499e-08,
-       "chord_dev": 0.0065791074542264315,
+       "vertex_dev": 2.174959632343948e-07,
+       "chord_dev": 0.006589628392469598,
        "p2r": {
         "bottom": 2.2737367544323206e-13,
         "top": 2.2737367544323206e-13,
         "seam_a": 2.2737367544323206e-13,
         "seam_b": 2.2737367544323206e-13,
-        "branch_opening": 8.781807898724499e-08
+        "branch_opening": 2.174959632343948e-07
        },
        "r2p": {
         "bottom": 2.2737367544323206e-13,
         "top": 2.2737367544323206e-13,
         "seam_a": 2.2737367544323206e-13,
         "seam_b": 2.2737367544323206e-13,
-        "branch_opening": 0.0065791074542264315
+        "branch_opening": 0.006589628392469598
        },
        "eps_num_stated": 6.26072036604129e-12,
        "eps_rep_stated": 0.00658973738817234,
-       "eps_rep_ratio": 0.9983868956652222,
+       "eps_rep_ratio": 0.9999834597805161,
+       "coverage_opening": 0.006589628392469598,
        "fold_opening_on_branch": 3.694822225952521e-13,
        "opening_station_range": [
         165.21310928114545,
@@ -1539,23 +1558,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.5421149729252077e-13,
-       "vertex_dev": 8.78183683387561e-08,
-       "chord_dev": 0.006543403603636287,
+       "vertex_dev": 2.3261101342399784e-07,
+       "chord_dev": 0.006553869039086361,
        "p2r": {
         "square_end": 1.1368683772161603e-13,
-        "saddle_cut": 8.78183683387561e-08,
+        "saddle_cut": 2.3261101342399784e-07,
         "seam_a": 2.3033395446750727e-13,
         "seam_b": 2.5421149729252077e-13
        },
        "r2p": {
         "square_end": 5.684341886080802e-14,
-        "saddle_cut": 0.006543403603636287,
+        "saddle_cut": 0.006553869039086361,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.1368683772161603e-13
        },
        "eps_num_stated": 2.7618324857495586e-12,
        "eps_rep_stated": 0.006553977615418815,
-       "eps_rep_ratio": 0.9983866268084818,
+       "eps_rep_ratio": 0.999983433521012,
+       "coverage_saddle": 0.006553869039086361,
        "fold_cut_on_header": 2.2737367544323206e-13,
        "seam_gap_3d": 1.3923737144427707e-13,
        "marking_side_declared": "outside",
@@ -1578,12 +1598,12 @@
     }
    },
    "http": 200,
-   "job_id": 22,
+   "job_id": 32,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.668
+   "seconds": 17.968
   },
   {
    "id": "D-ASM-019",
@@ -1635,25 +1655,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 5.972225968008323e-14,
-       "vertex_dev": 2.2044481497787246e-09,
-       "chord_dev": 0.00014872883052398145,
+       "vertex_dev": 1.8345331412134858e-07,
+       "chord_dev": 0.00014894998230518926,
        "p2r": {
         "bottom": 5.684341886080802e-14,
         "top": 5.972225968008323e-14,
         "seam_a": 5.972225968008323e-14,
         "seam_b": 5.684341886080802e-14,
-        "branch_opening": 2.2044481497787246e-09
+        "branch_opening": 1.8345331412134858e-07
        },
        "r2p": {
         "bottom": 5.684341886080802e-14,
         "top": 5.972225968008323e-14,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 5.684341886080802e-14,
-        "branch_opening": 0.00014872883052398145
+        "branch_opening": 0.00014894998230518926
        },
        "eps_num_stated": 1.8547953627236137e-12,
        "eps_rep_stated": 0.00014896717372304093,
-       "eps_rep_ratio": 0.9984000287237602,
+       "eps_rep_ratio": 0.9998845959319625,
+       "coverage_opening": 0.00014894998230518926,
        "fold_opening_on_branch": 8.260059303211165e-14,
        "opening_station_range": [
         135.8076211353317,
@@ -1689,23 +1710,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 5.780364496905504e-14,
-       "vertex_dev": 2.204447151784611e-09,
-       "chord_dev": 0.00013058363287436636,
+       "vertex_dev": 6.488244437227804e-08,
+       "chord_dev": 0.00013077776005093964,
        "p2r": {
         "square_end": 7.105427357601002e-15,
-        "saddle_cut": 2.204447151784611e-09,
+        "saddle_cut": 6.488244437227804e-08,
         "seam_a": 5.780364496905504e-14,
         "seam_b": 5.728578676879116e-14
        },
        "r2p": {
         "square_end": 7.105427357601002e-15,
-        "saddle_cut": 0.00013058363287436636,
+        "saddle_cut": 0.00013077776005093964,
         "seam_a": 5.780364496905504e-14,
         "seam_b": 5.728578676879116e-14
        },
        "eps_num_stated": 3.238572369072588e-13,
        "eps_rep_stated": 0.00013079286337025093,
-       "eps_rep_ratio": 0.998400291189495,
+       "eps_rep_ratio": 0.9998845248974438,
+       "coverage_saddle": 0.00013077776005093964,
        "fold_cut_on_header": 5.684341886080802e-14,
        "seam_gap_3d": 0.0,
        "marking_side_declared": "outside",
@@ -1728,12 +1750,12 @@
     }
    },
    "http": 200,
-   "job_id": 23,
+   "job_id": 33,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.558
+   "seconds": 6.533
   },
   {
    "id": "D-ASM-028",
@@ -1784,25 +1806,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.2710574864626038e-13,
-       "vertex_dev": 3.6010166039261535e-08,
-       "chord_dev": 0.0026223375095241375,
+       "vertex_dev": 1.8290446677048531e-07,
+       "chord_dev": 0.0026265309307675643,
        "p2r": {
         "bottom": 1.2710574864626038e-13,
         "top": 1.1538215453495093e-13,
         "seam_a": 1.2710574864626038e-13,
         "seam_b": 5.678683985581129e-15,
-        "branch_opening": 3.6010166039261535e-08
+        "branch_opening": 1.8290446677048531e-07
        },
        "r2p": {
         "bottom": 1.2710574864626038e-13,
         "top": 1.1538215453495093e-13,
         "seam_a": 1.1538215453495093e-13,
         "seam_b": 5.678683985581129e-15,
-        "branch_opening": 0.0026223375095241375
+        "branch_opening": 0.0026265309307675643
        },
        "eps_num_stated": 2.9874586237968156e-12,
        "eps_rep_stated": 0.0026265850771777007,
-       "eps_rep_ratio": 0.9983828554839247,
+       "eps_rep_ratio": 0.9999793852441305,
+       "coverage_opening": 0.0026265309307675643,
        "fold_opening_on_branch": 2.2737367544323206e-13,
        "opening_station_range": [
         105.31173462983087,
@@ -1838,23 +1861,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 7.361492226954597e-14,
-       "vertex_dev": 3.601006842276285e-08,
-       "chord_dev": 0.002532149369912602,
+       "vertex_dev": 1.034065298298362e-07,
+       "chord_dev": 0.0025361124015775356,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 3.601006842276285e-08,
+        "saddle_cut": 1.034065298298362e-07,
         "seam_a": 7.361492226954597e-14,
         "seam_b": 5.684341886080802e-14
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 0.002532149369912602,
+        "saddle_cut": 0.0025361124015775356,
         "seam_a": 4.677587533083726e-14,
         "seam_b": 0.0
        },
        "eps_num_stated": 1.2217856478160127e-12,
        "eps_rep_stated": 0.0025361766159840552,
-       "eps_rep_ratio": 0.9984120798030894,
+       "eps_rep_ratio": 0.9999746806251131,
+       "coverage_saddle": 0.0025361124015775356,
        "fold_cut_on_header": 1.1368683772161603e-13,
        "seam_gap_3d": 1.3197745560238665e-13,
        "marking_side_declared": "outside",
@@ -1877,12 +1901,12 @@
     }
    },
    "http": 200,
-   "job_id": 24,
+   "job_id": 34,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.598
+   "seconds": 20.54
   },
   {
    "id": "D-ASM-037",
@@ -1934,25 +1958,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.648872717351256e-13,
-       "vertex_dev": 1.559630016872507e-09,
-       "chord_dev": 0.00010436841701669091,
+       "vertex_dev": 1.8797885252808246e-07,
+       "chord_dev": 0.00010452360801701552,
        "p2r": {
         "bottom": 1.648872717351256e-13,
         "top": 1.1508343957193498e-13,
         "seam_a": 1.4210854715202004e-13,
         "seam_b": 1.648872717351256e-13,
-        "branch_opening": 1.559630016872507e-09
+        "branch_opening": 1.8797885252808246e-07
        },
        "r2p": {
         "bottom": 1.648872717351256e-13,
         "top": 1.1508343957193498e-13,
         "seam_a": 1.4210854715202004e-13,
         "seam_b": 1.1368683772161603e-13,
-        "branch_opening": 0.00010436841701669091
+        "branch_opening": 0.00010452360801701552
        },
        "eps_num_stated": 1.3646904461884737e-12,
        "eps_rep_stated": 0.00010453567163607145,
-       "eps_rep_ratio": 0.9984000234870751,
+       "eps_rep_ratio": 0.9998845980623923,
+       "coverage_opening": 0.00010452360801701552,
        "fold_opening_on_branch": 1.4477308241112041e-13,
        "opening_station_range": [
         75.39339828220194,
@@ -1988,23 +2013,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.4210854715202004e-14,
-       "vertex_dev": 1.5596175156631561e-09,
-       "chord_dev": 7.631894203308886e-05,
+       "vertex_dev": 4.9804101698807445e-08,
+       "chord_dev": 7.643239786301229e-05,
        "p2r": {
         "square_end": 1.4210854715202004e-14,
-        "saddle_cut": 1.5596175156631561e-09,
+        "saddle_cut": 4.9804101698807445e-08,
         "seam_a": 1.4210854715202004e-14,
         "seam_b": 1.4210854715202004e-14
        },
        "r2p": {
         "square_end": 1.4210854715202004e-14,
-        "saddle_cut": 7.631894203308886e-05,
+        "saddle_cut": 7.643239786301229e-05,
         "seam_a": 1.4210854715202004e-14,
         "seam_b": 1.4210854715202004e-14
        },
        "eps_num_stated": 2.3206636744700026e-13,
        "eps_rep_stated": 7.644122508493921e-05,
-       "eps_rep_ratio": 0.998400299684961,
+       "eps_rep_ratio": 0.9998845227569664,
+       "coverage_saddle": 7.643239786301229e-05,
        "fold_cut_on_header": 8.526512829121202e-14,
        "seam_gap_3d": 3.4809342861069267e-14,
        "marking_side_declared": "outside",
@@ -2027,12 +2053,12 @@
     }
    },
    "http": 200,
-   "job_id": 25,
+   "job_id": 35,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.585
+   "seconds": 5.783
   },
   {
    "id": "D-ASM-046",
@@ -2083,25 +2109,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 2.294738605734669e-13,
-       "vertex_dev": 2.4877359277587927e-08,
-       "chord_dev": 0.0017392007185999256,
+       "vertex_dev": 1.7944224401632165e-07,
+       "chord_dev": 0.0017419523973020538,
        "p2r": {
         "bottom": 1.7053025658242404e-13,
         "top": 2.294738605734669e-13,
         "seam_a": 2.294738605734669e-13,
         "seam_b": 2.2737367544323206e-13,
-        "branch_opening": 2.4877359277587927e-08
+        "branch_opening": 1.7944224401632165e-07
        },
        "r2p": {
         "bottom": 1.7053025658242404e-13,
         "top": 2.294738605734669e-13,
         "seam_a": 1.7053025658242404e-13,
         "seam_b": 2.2737367544323206e-13,
-        "branch_opening": 0.0017392007185999256
+        "branch_opening": 0.0017419523973020538
        },
        "eps_num_stated": 2.1812897896163062e-12,
        "eps_rep_stated": 0.00174200493409103,
-       "eps_rep_ratio": 0.9983902367690092,
+       "eps_rep_ratio": 0.9999698411939324,
+       "coverage_opening": 0.0017419523973020538,
        "fold_opening_on_branch": 2.4158453015843406e-13,
        "opening_station_range": [
         45.27105126240249,
@@ -2137,23 +2164,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.2710574864626038e-13,
-       "vertex_dev": 2.48773430573435e-08,
-       "chord_dev": 0.0016005333378076212,
+       "vertex_dev": 1.1271755567938114e-07,
+       "chord_dev": 0.0016030694693797947,
        "p2r": {
         "square_end": 1.2710574864626038e-13,
-        "saddle_cut": 2.48773430573435e-08,
+        "saddle_cut": 1.1271755567938114e-07,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.2710574864626038e-13
        },
        "r2p": {
         "square_end": 1.2710574864626038e-13,
-        "saddle_cut": 0.0016005333378076212,
+        "saddle_cut": 0.0016030694693797947,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.1718571004216928e-13
        },
        "eps_num_stated": 9.007095458495739e-13,
        "eps_rep_stated": 0.0016031173442255817,
-       "eps_rep_ratio": 0.9983881364472363,
+       "eps_rep_ratio": 0.9999701364058224,
+       "coverage_saddle": 0.0016030694693797947,
        "fold_cut_on_header": 3.979039320256561e-13,
        "seam_gap_3d": 3.8191258938629427e-13,
        "marking_side_declared": "outside",
@@ -2176,12 +2204,12 @@
     }
    },
    "http": 200,
-   "job_id": 26,
+   "job_id": 36,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.534
+   "seconds": 22.333
   },
   {
    "id": "D-ASM-055",
@@ -2233,25 +2261,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.1377246083789644e-13,
-       "vertex_dev": 1.2737733213910357e-09,
-       "chord_dev": 8.436476761766261e-05,
+       "vertex_dev": 1.6309410909761683e-07,
+       "chord_dev": 8.448528286746024e-05,
        "p2r": {
         "bottom": 1.1368683772161603e-13,
         "top": 1.1377246083789644e-13,
         "seam_a": 1.1377246083789644e-13,
         "seam_b": 1.1368683772161603e-13,
-        "branch_opening": 1.2737733213910357e-09
+        "branch_opening": 1.6309410909761683e-07
        },
        "r2p": {
         "bottom": 1.1368683772161603e-13,
         "top": 1.1377246083789644e-13,
         "seam_a": 1.1377246083789644e-13,
         "seam_b": 8.802613141368719e-14,
-        "branch_opening": 8.436476761766261e-05
+        "branch_opening": 8.448528286746024e-05
        },
        "eps_num_stated": 1.0872772199844273e-12,
        "eps_rep_stated": 8.449996617800276e-05,
-       "eps_rep_ratio": 0.9984000163969847,
+       "eps_rep_ratio": 0.999826232941779,
+       "coverage_opening": 8.448528286746024e-05,
        "fold_opening_on_branch": 1.4566126083082054e-13,
        "opening_station_range": [
         165.9422863405994,
@@ -2287,23 +2316,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.864289338439558e-14,
-       "vertex_dev": 1.2738125861472414e-09,
-       "chord_dev": 4.526838357797953e-05,
+       "vertex_dev": 4.1375134549640256e-08,
+       "chord_dev": 4.5335678464231965e-05,
        "p2r": {
         "square_end": 2.864289338439558e-14,
-        "saddle_cut": 1.2738125861472414e-09,
+        "saddle_cut": 4.1375134549640256e-08,
         "seam_a": 2.864289338439558e-14,
         "seam_b": 2.842170943040401e-14
        },
        "r2p": {
         "square_end": 2.864289338439558e-14,
-        "saddle_cut": 4.526838357797953e-05,
+        "saddle_cut": 4.5335678464231965e-05,
         "seam_a": 2.864289338439558e-14,
         "seam_b": 2.842170943040401e-14
        },
        "eps_num_stated": 1.9140150295277026e-13,
        "eps_rep_stated": 4.534091447982582e-05,
-       "eps_rep_ratio": 0.9984003211519131,
+       "eps_rep_ratio": 0.9998845189680463,
+       "coverage_saddle": 4.5335678464231965e-05,
        "fold_cut_on_header": 8.526512829121202e-14,
        "seam_gap_3d": 3.1776437161565096e-14,
        "marking_side_declared": "outside",
@@ -2326,12 +2356,12 @@
     }
    },
    "http": 200,
-   "job_id": 27,
+   "job_id": 37,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.654
+   "seconds": 7.137
   },
   {
    "id": "D-ASM-064",
@@ -2382,25 +2412,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.1390693793178082e-13,
-       "vertex_dev": 1.9635151550409214e-08,
-       "chord_dev": 0.0014891036572774628,
+       "vertex_dev": 1.7785174818681988e-07,
+       "chord_dev": 0.0014915068762251281,
        "p2r": {
         "bottom": 1.1368683772161603e-13,
         "top": 1.1390693793178082e-13,
         "seam_a": 1.1390693793178082e-13,
         "seam_b": 1.1368683772161603e-13,
-        "branch_opening": 1.9635151550409214e-08
+        "branch_opening": 1.7785174818681988e-07
        },
        "r2p": {
         "bottom": 1.1368683772161603e-13,
         "top": 1.1390693793178082e-13,
         "seam_a": 1.1390693793178082e-13,
         "seam_b": 8.802613141368719e-14,
-        "branch_opening": 0.0014891036572774628
+        "branch_opening": 0.0014915068762251281
        },
        "eps_num_stated": 1.7305247174085579e-12,
        "eps_rep_stated": 0.0014915339186098062,
-       "eps_rep_ratio": 0.998370629523056,
+       "eps_rep_ratio": 0.9999818694135342,
+       "coverage_opening": 0.0014915068762251281,
        "fold_opening_on_branch": 1.9895196601282805e-13,
        "opening_station_range": [
         135.13380177555254,
@@ -2436,23 +2467,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.1781380739221865e-14,
-       "vertex_dev": 1.9635104868185977e-08,
-       "chord_dev": 0.001219147561424261,
+       "vertex_dev": 1.1023241025492728e-07,
+       "chord_dev": 0.001221114697302803,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 1.9635104868185977e-08,
+        "saddle_cut": 1.1023241025492728e-07,
         "seam_a": 2.1781380739221865e-14,
         "seam_b": 0.0
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 0.001219147561424261,
+        "saddle_cut": 0.001221114697302803,
         "seam_a": 2.1781380739221865e-14,
         "seam_b": 0.0
        },
        "eps_num_stated": 7.584675532028681e-13,
        "eps_rep_stated": 0.0012211367923850506,
-       "eps_rep_ratio": 0.9983710007157311,
+       "eps_rep_ratio": 0.9999819061366545,
+       "coverage_saddle": 0.001221114697302803,
        "fold_cut_on_header": 1.7053025658242404e-13,
        "seam_gap_3d": 1.1457157353758233e-13,
        "marking_side_declared": "outside",
@@ -2475,12 +2507,12 @@
     }
    },
    "http": 200,
-   "job_id": 28,
+   "job_id": 38,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.609
+   "seconds": 19.434
   },
   {
    "id": "D-ASM-073",
@@ -2532,25 +2564,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 4.8588324800521844e-14,
-       "vertex_dev": 1.1417083675367955e-09,
-       "chord_dev": 7.474973216964589e-05,
+       "vertex_dev": 1.4451322336309156e-07,
+       "chord_dev": 7.485993762889644e-05,
        "p2r": {
         "bottom": 4.8588324800521844e-14,
         "top": 2.1926904736346842e-14,
         "seam_a": 2.842170943040401e-14,
         "seam_b": 4.8588324800521844e-14,
-        "branch_opening": 1.1417083675367955e-09
+        "branch_opening": 1.4451322336309156e-07
        },
        "r2p": {
         "bottom": 4.8588324800521844e-14,
         "top": 2.1926904736346842e-14,
         "seam_a": 2.1926904736346842e-14,
         "seam_b": 4.8588324800521844e-14,
-        "branch_opening": 7.474973216964589e-05
+        "branch_opening": 7.485993762889644e-05
        },
        "eps_num_stated": 8.805807339863097e-13,
        "eps_rep_stated": 7.486952286175711e-05,
-       "eps_rep_ratio": 0.9984000072722193,
+       "eps_rep_ratio": 0.9998719741692709,
+       "coverage_opening": 7.485993762889644e-05,
        "fold_opening_on_branch": 7.993605777301127e-14,
        "opening_station_range": [
         105.42780751159273,
@@ -2586,23 +2619,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.864289338439558e-14,
-       "vertex_dev": 1.1417877179583272e-09,
-       "chord_dev": 2.2788905639253368e-05,
+       "vertex_dev": 3.842878381757752e-08,
+       "chord_dev": 2.2822781525308176e-05,
        "p2r": {
         "square_end": 2.864289338439558e-14,
-        "saddle_cut": 1.1417877179583272e-09,
+        "saddle_cut": 3.842878381757752e-08,
         "seam_a": 2.864289338439558e-14,
         "seam_b": 2.842170943040401e-14
        },
        "r2p": {
         "square_end": 2.864289338439558e-14,
-        "saddle_cut": 2.2788905639253368e-05,
+        "saddle_cut": 2.2822781525308176e-05,
         "seam_a": 2.864289338439558e-14,
         "seam_b": 2.842170943040401e-14
        },
        "eps_num_stated": 1.7268808634119443e-13,
        "eps_rep_stated": 2.2825417784730455e-05,
-       "eps_rep_ratio": 0.9984003733985753,
+       "eps_rep_ratio": 0.9998845033441603,
+       "coverage_saddle": 2.2822781525308176e-05,
        "fold_cut_on_header": 8.526512829121202e-14,
        "seam_gap_3d": 1.4210854715202004e-14,
        "marking_side_declared": "outside",
@@ -2625,12 +2659,12 @@
     }
    },
    "http": 200,
-   "job_id": 29,
+   "job_id": 39,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.523
+   "seconds": 5.404
   },
   {
    "id": "D-ASM-082",
@@ -2681,25 +2715,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.441735969594237e-13,
-       "vertex_dev": 1.6852303435310456e-08,
-       "chord_dev": 0.0014407711745887414,
+       "vertex_dev": 1.6636172504855225e-07,
+       "chord_dev": 0.0014429829008543167,
        "p2r": {
         "bottom": 1.441735969594237e-13,
         "top": 1.154806947598749e-13,
         "seam_a": 1.4210854715202004e-13,
         "seam_b": 1.441735969594237e-13,
-        "branch_opening": 1.6852303435310456e-08
+        "branch_opening": 1.6636172504855225e-07
        },
        "r2p": {
         "bottom": 1.441735969594237e-13,
         "top": 1.1368683772161603e-13,
         "seam_a": 1.154806947598749e-13,
         "seam_b": 1.441735969594237e-13,
-        "branch_opening": 0.0014407711745887414
+        "branch_opening": 0.0014429829008543167
        },
        "eps_num_stated": 1.3873334087066746e-12,
        "eps_rep_stated": 0.001443064335346632,
-       "eps_rep_ratio": 0.9984109088543585,
+       "eps_rep_ratio": 0.9999435683563646,
+       "coverage_opening": 0.0014429829008543167,
        "fold_opening_on_branch": 2.1316282072803006e-13,
        "opening_station_range": [
         75.04985097990229,
@@ -2735,23 +2770,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.9853871497031126e-14,
-       "vertex_dev": 1.6852312748901263e-08,
-       "chord_dev": 0.0011593846967347722,
+       "vertex_dev": 1.1289099638273975e-07,
+       "chord_dev": 0.0011612253954748847,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 1.6852312748901263e-08,
+        "saddle_cut": 1.1289099638273975e-07,
         "seam_a": 2.9853871497031126e-14,
         "seam_b": 2.842170943040401e-14
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 0.0011593846967347722,
+        "saddle_cut": 0.0011612253954748847,
         "seam_a": 2.9853871497031126e-14,
         "seam_b": 2.842170943040401e-14
        },
        "eps_num_stated": 6.930097261286824e-13,
        "eps_rep_stated": 0.001161239272654096,
-       "eps_rep_ratio": 0.9984029338629884,
+       "eps_rep_ratio": 0.9999880496814584,
+       "coverage_saddle": 0.0011612253954748847,
        "fold_cut_on_header": 1.1368683772161603e-13,
        "seam_gap_3d": 1.0345658394727079e-13,
        "marking_side_declared": "outside",
@@ -2774,12 +2810,12 @@
     }
    },
    "http": 200,
-   "job_id": 30,
+   "job_id": 40,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.729
+   "seconds": 14.913
   },
   {
    "id": "D-ASM-091",
@@ -2831,25 +2867,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.140225294870877e-13,
-       "vertex_dev": 1.1021007861820484e-09,
-       "chord_dev": 7.136962333335958e-05,
+       "vertex_dev": 1.3798105004614238e-07,
+       "chord_dev": 7.147856906106381e-05,
        "p2r": {
         "bottom": 8.526512829121202e-14,
         "top": 1.140225294870877e-13,
         "seam_a": 1.140225294870877e-13,
         "seam_b": 1.1368683772161603e-13,
-        "branch_opening": 1.1021007861820484e-09
+        "branch_opening": 1.3798105004614238e-07
        },
        "r2p": {
         "bottom": 8.526512829121202e-14,
         "top": 1.140225294870877e-13,
         "seam_a": 1.140225294870877e-13,
         "seam_b": 7.576234667678242e-14,
-        "branch_opening": 7.136962333335958e-05
+        "branch_opening": 7.147856906106381e-05
        },
        "eps_num_stated": 8.370884395220716e-13,
        "eps_rep_stated": 7.148399777543882e-05,
-       "eps_rep_ratio": 0.9983999993615559,
+       "eps_rep_ratio": 0.9999240569282085,
+       "coverage_opening": 7.147856906106381e-05,
        "fold_opening_on_branch": 1.305622276959184e-13,
        "opening_station_range": [
         45.49999999999991,
@@ -2886,23 +2923,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 5.492192640451549e-16,
-       "vertex_dev": 1.1021047710841466e-09,
-       "chord_dev": 3.5683319346400573e-06,
+       "vertex_dev": 3.28070074968394e-08,
+       "chord_dev": 3.5724678791300815e-06,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 1.1021047710841466e-09,
+        "saddle_cut": 3.28070074968394e-08,
         "seam_a": 5.492192640451549e-16,
         "seam_b": 0.0
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 3.5683319346400573e-06,
+        "saddle_cut": 3.5724678791300815e-06,
         "seam_a": 5.492192640451549e-16,
         "seam_b": 0.0
        },
        "eps_num_stated": 1.6716042120064233e-13,
        "eps_rep_stated": 3.574046786525424e-06,
-       "eps_rep_ratio": 0.9984010136893249,
+       "eps_rep_ratio": 0.9995582297911446,
+       "coverage_saddle": 3.5724678791300815e-06,
        "fold_cut_on_header": 5.684341886080802e-14,
        "seam_gap_3d": 7.105427357601002e-15,
        "marking_side_declared": "outside",
@@ -2925,12 +2963,12 @@
     }
    },
    "http": 200,
-   "job_id": 31,
+   "job_id": 41,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.578
+   "seconds": 3.683
   },
   {
    "id": "D-ASM-100",
@@ -2981,25 +3019,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.144648014667207e-13,
-       "vertex_dev": 1.5168184250030292e-08,
-       "chord_dev": 0.001425521244678408,
+       "vertex_dev": 1.567223555517941e-07,
+       "chord_dev": 0.0014276391507317837,
        "p2r": {
         "bottom": 8.526512829121202e-14,
         "top": 1.144648014667207e-13,
         "seam_a": 1.144648014667207e-13,
         "seam_b": 1.1368683772161603e-13,
-        "branch_opening": 1.5168184250030292e-08
+        "branch_opening": 1.567223555517941e-07
        },
        "r2p": {
         "bottom": 8.526512829121202e-14,
         "top": 1.144648014667207e-13,
         "seam_a": 1.144648014667207e-13,
         "seam_b": 7.576234667678242e-14,
-        "branch_opening": 0.001425521244678408
+        "branch_opening": 0.0014276391507317837
        },
        "eps_num_stated": 1.106609678615392e-12,
        "eps_rep_stated": 0.0014278043022359042,
-       "eps_rep_ratio": 0.9984010010658176,
+       "eps_rep_ratio": 0.9998843318346485,
+       "coverage_opening": 0.0014276391507317837,
        "fold_opening_on_branch": 2.1316282072803006e-13,
        "opening_station_range": [
         164.99999999999991,
@@ -3036,23 +3075,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.8588249894517963e-14,
-       "vertex_dev": 1.5168142968013055e-08,
-       "chord_dev": 0.0011403785771066674,
+       "vertex_dev": 1.1163739148451945e-07,
+       "chord_dev": 0.001142203970546562,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 1.5168142968013055e-08,
+        "saddle_cut": 1.1163739148451945e-07,
         "seam_a": 2.8588249894517963e-14,
         "seam_b": 2.842170943040401e-14
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 0.0011403785771066674,
+        "saddle_cut": 0.001142203970546562,
         "seam_a": 2.8588249894517963e-14,
         "seam_b": 2.842170943040401e-14
        },
        "eps_num_stated": 6.736744568721616e-13,
        "eps_rep_stated": 0.0011422040257906018,
-       "eps_rep_ratio": 0.9984018190772258,
+       "eps_rep_ratio": 0.9999999516338249,
+       "coverage_saddle": 0.001142203970546562,
        "fold_cut_on_header": 8.526512829121202e-14,
        "seam_gap_3d": 4.263256414560601e-14,
        "marking_side_declared": "outside",
@@ -3075,12 +3115,12 @@
     }
    },
    "http": 200,
-   "job_id": 32,
+   "job_id": 42,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.634
+   "seconds": 11.477
   },
   {
    "id": "D-ASM-109",
@@ -3132,25 +3172,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.1377138760335893e-13,
-       "vertex_dev": 1.1417649204693237e-09,
-       "chord_dev": 7.474973221966757e-05,
+       "vertex_dev": 1.4451318831550914e-07,
+       "chord_dev": 7.485993767855219e-05,
        "p2r": {
         "bottom": 1.1368683772161603e-13,
         "top": 1.1377138760335893e-13,
         "seam_a": 1.1377138760335893e-13,
         "seam_b": 1.1368683772161603e-13,
-        "branch_opening": 1.1417649204693237e-09
+        "branch_opening": 1.4451318831550914e-07
        },
        "r2p": {
         "bottom": 1.1368683772161603e-13,
         "top": 1.1377138760335893e-13,
         "seam_a": 1.1377138760335893e-13,
         "seam_b": 8.802613141368719e-14,
-        "branch_opening": 7.474973221966757e-05
+        "branch_opening": 7.485993767855219e-05
        },
        "eps_num_stated": 8.927931872571864e-13,
        "eps_rep_stated": 7.486952286175711e-05,
-       "eps_rep_ratio": 0.9984000079403375,
+       "eps_rep_ratio": 0.9998719748325013,
+       "coverage_opening": 7.485993767855219e-05,
        "fold_opening_on_branch": 1.9806378759312793e-13,
        "opening_station_range": [
         135.04304978225585,
@@ -3186,23 +3227,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.864289338439558e-14,
-       "vertex_dev": 1.1417774332605025e-09,
-       "chord_dev": 2.278890563924108e-05,
+       "vertex_dev": 3.842878393089899e-08,
+       "chord_dev": 2.2822781525298242e-05,
        "p2r": {
         "square_end": 2.864289338439558e-14,
-        "saddle_cut": 1.1417774332605025e-09,
+        "saddle_cut": 3.842878393089899e-08,
         "seam_a": 2.864289338439558e-14,
         "seam_b": 2.842170943040401e-14
        },
        "r2p": {
         "square_end": 2.864289338439558e-14,
-        "saddle_cut": 2.278890563924108e-05,
+        "saddle_cut": 2.2822781525298242e-05,
         "seam_a": 2.864289338439558e-14,
         "seam_b": 2.842170943040401e-14
        },
        "eps_num_stated": 1.7268808634119443e-13,
        "eps_rep_stated": 2.2825417784730455e-05,
-       "eps_rep_ratio": 0.9984003733980369,
+       "eps_rep_ratio": 0.9998845033437251,
+       "coverage_saddle": 2.2822781525298242e-05,
        "fold_cut_on_header": 8.526512829121202e-14,
        "seam_gap_3d": 0.0,
        "marking_side_declared": "outside",
@@ -3225,12 +3267,12 @@
     }
    },
    "http": 200,
-   "job_id": 33,
+   "job_id": 43,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.718
+   "seconds": 4.059
   },
   {
    "id": "D-ASM-118",
@@ -3281,25 +3323,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.5232216466489546e-13,
-       "vertex_dev": 1.6852303435310456e-08,
-       "chord_dev": 0.0014407711746931746,
+       "vertex_dev": 1.6636170365349828e-07,
+       "chord_dev": 0.001442982900905844,
        "p2r": {
         "bottom": 1.4210854715202004e-13,
         "top": 1.5232216466489546e-13,
         "seam_a": 1.5232216466489546e-13,
         "seam_b": 1.2836426368387093e-13,
-        "branch_opening": 1.6852303435310456e-08
+        "branch_opening": 1.6636170365349828e-07
        },
        "r2p": {
         "bottom": 1.4210854715202004e-13,
         "top": 1.1368683772161603e-13,
         "seam_a": 1.5232216466489546e-13,
         "seam_b": 1.2836426368387093e-13,
-        "branch_opening": 0.0014407711746931746
+        "branch_opening": 0.001442982900905844
        },
        "eps_num_stated": 1.399434839675089e-12,
        "eps_rep_stated": 0.0014430643354031488,
-       "eps_rep_ratio": 0.9984109088876252,
+       "eps_rep_ratio": 0.9999435683529092,
+       "coverage_opening": 0.001442982900905844,
        "fold_opening_on_branch": 2.4158453015843406e-13,
        "opening_station_range": [
         105.3333369516875,
@@ -3335,23 +3378,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.880301772053573e-14,
-       "vertex_dev": 1.6852215281808163e-08,
-       "chord_dev": 0.0011593846967453535,
+       "vertex_dev": 1.1289101420723712e-07,
+       "chord_dev": 0.0011612253954699382,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 1.6852215281808163e-08,
+        "saddle_cut": 1.1289101420723712e-07,
         "seam_a": 2.880301772053573e-14,
         "seam_b": 2.842170943040401e-14
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 0.0011593846967453535,
+        "saddle_cut": 0.0011612253954699382,
         "seam_a": 2.880301772053573e-14,
         "seam_b": 2.842170943040401e-14
        },
        "eps_num_stated": 6.930097261286824e-13,
        "eps_rep_stated": 0.0011612392726401037,
-       "eps_rep_ratio": 0.9984029338841307,
+       "eps_rep_ratio": 0.9999880496892479,
+       "coverage_saddle": 0.0011612253954699382,
        "fold_cut_on_header": 8.526512829121202e-14,
        "seam_gap_3d": 2.842170943040401e-14,
        "marking_side_declared": "outside",
@@ -3374,12 +3418,12 @@
     }
    },
    "http": 200,
-   "job_id": 34,
+   "job_id": 44,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.566
+   "seconds": 12.075
   },
   {
    "id": "D-ASM-127",
@@ -3431,25 +3475,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 5.102749253867659e-14,
-       "vertex_dev": 1.559630016872507e-09,
-       "chord_dev": 0.0001043684170593226,
+       "vertex_dev": 1.8797886768197287e-07,
+       "chord_dev": 0.00010452360801737869,
        "p2r": {
         "bottom": 5.102749253867659e-14,
         "top": 1.787459069646502e-14,
         "seam_a": 2.842170943040401e-14,
         "seam_b": 5.102749253867659e-14,
-        "branch_opening": 1.559630016872507e-09
+        "branch_opening": 1.8797886768197287e-07
        },
        "r2p": {
         "bottom": 5.102749253867659e-14,
         "top": 0.0,
         "seam_a": 1.787459069646502e-14,
         "seam_b": 0.0,
-        "branch_opening": 0.0001043684170593226
+        "branch_opening": 0.00010452360801737869
        },
        "eps_num_stated": 1.3837862822120262e-12,
        "eps_rep_stated": 0.00010453567163607145,
-       "eps_rep_ratio": 0.9984000238948947,
+       "eps_rep_ratio": 0.9998845980658664,
+       "coverage_opening": 0.00010452360801737869,
        "fold_opening_on_branch": 5.773159728050814e-14,
        "opening_station_range": [
         75.39339828220182,
@@ -3485,23 +3530,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.882700029045561e-14,
-       "vertex_dev": 1.559607281662228e-09,
-       "chord_dev": 7.631894207625666e-05,
+       "vertex_dev": 4.980408811999027e-08,
+       "chord_dev": 7.64323979054753e-05,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 1.559607281662228e-09,
+        "saddle_cut": 4.980408811999027e-08,
         "seam_a": 2.882700029045561e-14,
         "seam_b": 2.842170943040401e-14
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 7.631894207625666e-05,
+        "saddle_cut": 7.64323979054753e-05,
         "seam_a": 2.882700029045561e-14,
         "seam_b": 2.842170943040401e-14
        },
        "eps_num_stated": 2.3206636744700026e-13,
        "eps_rep_stated": 7.64412250849309e-05,
-       "eps_rep_ratio": 0.9984003002497882,
+       "eps_rep_ratio": 0.9998845233125738,
+       "coverage_saddle": 7.64323979054753e-05,
        "fold_cut_on_header": 8.526512829121202e-14,
        "seam_gap_3d": 2.842170943040401e-14,
        "marking_side_declared": "outside",
@@ -3524,12 +3570,12 @@
     }
    },
    "http": 200,
-   "job_id": 35,
+   "job_id": 45,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.632
+   "seconds": 4.28
   },
   {
    "id": "D-ASM-136",
@@ -3580,25 +3626,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 2.302188457250405e-13,
-       "vertex_dev": 2.48774703269921e-08,
-       "chord_dev": 0.001739200718592884,
+       "vertex_dev": 1.7944218894319656e-07,
+       "chord_dev": 0.001741952397330539,
        "p2r": {
         "bottom": 1.7503447412798247e-13,
         "top": 2.302188457250405e-13,
         "seam_a": 2.302188457250405e-13,
         "seam_b": 1.7503447412798247e-13,
-        "branch_opening": 2.48774703269921e-08
+        "branch_opening": 1.7944218894319656e-07
        },
        "r2p": {
         "bottom": 1.7503447412798247e-13,
         "top": 2.302188457250405e-13,
         "seam_a": 8.038873388460929e-14,
         "seam_b": 0.0,
-        "branch_opening": 0.001739200718592884
+        "branch_opening": 0.001741952397330539
        },
        "eps_num_stated": 2.2138193242378233e-12,
        "eps_rep_stated": 0.0017420049340981353,
-       "eps_rep_ratio": 0.9983902367608947,
+       "eps_rep_ratio": 0.9999698412062056,
+       "coverage_opening": 0.001741952397330539,
        "fold_opening_on_branch": 2.4158453015843406e-13,
        "opening_station_range": [
         45.83736646114389,
@@ -3634,23 +3681,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 5.684341886080802e-14,
-       "vertex_dev": 2.487748467452608e-08,
-       "chord_dev": 0.0016005333377254773,
+       "vertex_dev": 1.1271753984399415e-07,
+       "chord_dev": 0.0016030694694120862,
        "p2r": {
         "square_end": 5.684341886080802e-14,
-        "saddle_cut": 2.487748467452608e-08,
+        "saddle_cut": 1.1271753984399415e-07,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 5.684341886080802e-14
        },
        "r2p": {
         "square_end": 5.684341886080803e-14,
-        "saddle_cut": 0.0016005333377254773,
+        "saddle_cut": 0.0016030694694120862,
         "seam_a": 2.123427624646301e-14,
         "seam_b": 0.0
        },
        "eps_num_stated": 9.007095458495738e-13,
        "eps_rep_stated": 0.0016031173442255817,
-       "eps_rep_ratio": 0.9983881363959962,
+       "eps_rep_ratio": 0.9999701364259653,
+       "coverage_saddle": 0.0016030694694120862,
        "fold_cut_on_header": 1.7053025658242404e-13,
        "seam_gap_3d": 1.0845964142784046e-13,
        "marking_side_declared": "outside",
@@ -3673,12 +3721,12 @@
     }
    },
    "http": 200,
-   "job_id": 36,
+   "job_id": 46,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.546
+   "seconds": 14.378
   },
   {
    "id": "D-ASM-145",
@@ -3730,25 +3778,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.9494513413473287e-13,
-       "vertex_dev": 5.29860729647309e-09,
-       "chord_dev": 0.0003595227626170086,
+       "vertex_dev": 1.8486673933054994e-07,
+       "chord_dev": 0.00036005735197951205,
        "p2r": {
         "bottom": 1.9494513413473287e-13,
         "top": 1.7053025658242404e-13,
         "seam_a": 1.7053025658242404e-13,
         "seam_b": 1.9494513413473287e-13,
-        "branch_opening": 5.29860729647309e-09
+        "branch_opening": 1.8486673933054994e-07
        },
        "r2p": {
         "bottom": 1.9494513413473287e-13,
         "top": 1.7053025658242404e-13,
         "seam_a": 1.7053025658242404e-13,
         "seam_b": 1.9494513413473287e-13,
-        "branch_opening": 0.0003595227626170086
+        "branch_opening": 0.00036005735197951205
        },
        "eps_num_stated": 3.9132335519298325e-12,
        "eps_rep_stated": 0.0003600989086921248,
-       "eps_rep_ratio": 0.9984000338206834,
+       "eps_rep_ratio": 0.9998845963939084,
+       "coverage_opening": 0.00036005735197951205,
        "fold_opening_on_branch": 1.6697754290362354e-13,
        "opening_station_range": [
         165.2324759926506,
@@ -3784,23 +3833,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.1506624801925828e-13,
-       "vertex_dev": 5.298462580854614e-09,
-       "chord_dev": 0.0003524038755523445,
+       "vertex_dev": 1.5367800084348031e-07,
+       "chord_dev": 0.00035292776545109677,
        "p2r": {
         "square_end": 1.1506624801925828e-13,
-        "saddle_cut": 5.298462580854614e-09,
+        "saddle_cut": 1.5367800084348031e-07,
         "seam_a": 1.1506624801925828e-13,
         "seam_b": 1.1457157353758233e-13
        },
        "r2p": {
         "square_end": 1.1506624801925828e-13,
-        "saddle_cut": 0.0003524038755523445,
+        "saddle_cut": 0.00035292776545109677,
         "seam_a": 1.77635683940025e-14,
         "seam_b": 1.4210854715202004e-14
        },
        "eps_num_stated": 7.641336617101805e-13,
        "eps_rep_stated": 0.0003529685236392027,
-       "eps_rep_ratio": 0.9984002877054403,
+       "eps_rep_ratio": 0.99988452741427,
+       "coverage_saddle": 0.00035292776545109677,
        "fold_cut_on_header": 8.526512829121202e-14,
        "seam_gap_3d": 0.0,
        "marking_side_declared": "outside",
@@ -3823,12 +3873,12 @@
     }
    },
    "http": 200,
-   "job_id": 37,
+   "job_id": 47,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.439
+   "seconds": 4.83
   },
   {
    "id": "D-ASM-154",
@@ -3879,25 +3929,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 2.2737367544323206e-13,
-       "vertex_dev": 8.781806708785903e-08,
-       "chord_dev": 0.0065791074548079715,
+       "vertex_dev": 2.174963407699011e-07,
+       "chord_dev": 0.006589628392967204,
        "p2r": {
         "bottom": 2.2737367544323206e-13,
         "top": 2.2737367544323206e-13,
         "seam_a": 2.2737367544323206e-13,
         "seam_b": 2.2737367544323206e-13,
-        "branch_opening": 8.781806708785903e-08
+        "branch_opening": 2.174963407699011e-07
        },
        "r2p": {
         "bottom": 2.2737367544323206e-13,
         "top": 2.2737367544323206e-13,
         "seam_a": 2.2737367544323206e-13,
         "seam_b": 2.2737367544323206e-13,
-        "branch_opening": 0.0065791074548079715
+        "branch_opening": 0.006589628392967204
        },
        "eps_num_stated": 6.393280995181534e-12,
        "eps_rep_stated": 0.006589737388001852,
-       "eps_rep_ratio": 0.9983868957793015,
+       "eps_rep_ratio": 0.9999834598818996,
+       "coverage_opening": 0.006589628392967204,
        "fold_opening_on_branch": 3.836930773104541e-13,
        "opening_station_range": [
         135.35921115307914,
@@ -3933,23 +3984,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.2737367544323206e-13,
-       "vertex_dev": 8.781791449568146e-08,
-       "chord_dev": 0.0065434036038631155,
+       "vertex_dev": 2.326107385093599e-07,
+       "chord_dev": 0.006553869039313402,
        "p2r": {
         "square_end": 2.2737367544323206e-13,
-        "saddle_cut": 8.781791449568146e-08,
+        "saddle_cut": 2.326107385093599e-07,
         "seam_a": 1.1558053679220454e-13,
         "seam_b": 2.2737367544323206e-13
        },
        "r2p": {
         "square_end": 2.273736754432321e-13,
-        "saddle_cut": 0.0065434036038631155,
+        "saddle_cut": 0.006553869039313402,
         "seam_a": 1.1558053679220454e-13,
         "seam_b": 2.2737367544323206e-13
        },
        "eps_num_stated": 2.7618324857495586e-12,
        "eps_rep_stated": 0.006553977615191332,
-       "eps_rep_ratio": 0.9983866268777442,
+       "eps_rep_ratio": 0.9999834335903622,
+       "coverage_saddle": 0.006553869039313402,
        "fold_cut_on_header": 2.2737367544323206e-13,
        "seam_gap_3d": 1.4210854715202004e-14,
        "marking_side_declared": "outside",
@@ -3972,12 +4024,12 @@
     }
    },
    "http": 200,
-   "job_id": 38,
+   "job_id": 48,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.483
+   "seconds": 13.68
   },
   {
    "id": "D-ASM-DEV-1-near_end",
@@ -4028,25 +4080,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 2.275703082495459e-13,
-       "vertex_dev": 2.1442501974195987e-08,
-       "chord_dev": 0.0015955632656706555,
+       "vertex_dev": 1.7331571472243865e-07,
+       "chord_dev": 0.0015982520130397746,
        "p2r": {
         "bottom": 1.7053025658242404e-13,
         "top": 2.275703082495459e-13,
         "seam_a": 2.275703082495459e-13,
         "seam_b": 2.2737367544323206e-13,
-        "branch_opening": 2.1442501974195987e-08
+        "branch_opening": 1.7331571472243865e-07
        },
        "r2p": {
         "bottom": 1.7053025658242404e-13,
         "top": 2.275703082495459e-13,
         "seam_a": 1.7053025658242404e-13,
         "seam_b": 2.2737367544323206e-13,
-        "branch_opening": 0.0015955632656706555
+        "branch_opening": 0.0015982520130397746
        },
        "eps_num_stated": 1.8126171792220357e-12,
        "eps_rep_stated": 0.0015982882223735798,
-       "eps_rep_ratio": 0.9982950780311216,
+       "eps_rep_ratio": 0.999977344928594,
+       "coverage_opening": 0.0015982520130397746,
        "fold_opening_on_branch": 4.405364961712621e-13,
        "opening_station_range": [
         448.5001796464505,
@@ -4082,23 +4135,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 5.68994338283338e-14,
-       "vertex_dev": 2.1202152345415816e-08,
-       "chord_dev": 0.001340064207400253,
+       "vertex_dev": 1.1369316909992514e-07,
+       "chord_dev": 0.0013422321765365372,
        "p2r": {
         "square_end": 5.684341886080802e-14,
-        "saddle_cut": 2.1202152345415816e-08,
+        "saddle_cut": 1.1369316909992514e-07,
         "seam_a": 5.68994338283338e-14,
         "seam_b": 2.842170943040401e-14
        },
        "r2p": {
         "square_end": 5.684341886080802e-14,
-        "saddle_cut": 0.001340064207400253,
+        "saddle_cut": 0.0013422321765365372,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 0.0
        },
        "eps_num_stated": 8.182876135214973e-13,
        "eps_rep_stated": 0.0013422570831572332,
-       "eps_rep_ratio": 0.9983662773812136,
+       "eps_rep_ratio": 0.9999814442247997,
+       "coverage_saddle": 0.0013422321765365372,
        "fold_cut_on_header": 3.410605131648481e-13,
        "seam_gap_3d": 4.811271599359713e-13,
        "marking_side_declared": "outside",
@@ -4121,12 +4175,12 @@
     }
    },
    "http": 200,
-   "job_id": 39,
+   "job_id": 49,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.624
+   "seconds": 14.804
   },
   {
    "id": "D-ASM-DEV-1-near_start",
@@ -4177,25 +4231,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 2.275703082495459e-13,
-       "vertex_dev": 2.1442577909870834e-08,
-       "chord_dev": 0.0015955632656758886,
+       "vertex_dev": 1.7331549244737623e-07,
+       "chord_dev": 0.0015982520131628682,
        "p2r": {
         "bottom": 1.7053025658242404e-13,
         "top": 2.275703082495459e-13,
         "seam_a": 2.275703082495459e-13,
         "seam_b": 2.2737367544323206e-13,
-        "branch_opening": 2.1442577909870834e-08
+        "branch_opening": 1.7331549244737623e-07
        },
        "r2p": {
         "bottom": 1.7053025658242404e-13,
         "top": 2.275703082495459e-13,
         "seam_a": 1.7053025658242404e-13,
         "seam_b": 2.2737367544323206e-13,
-        "branch_opening": 0.0015955632656758886
+        "branch_opening": 0.0015982520131628682
        },
        "eps_num_stated": 1.7629902100212912e-12,
        "eps_rep_stated": 0.0015982882223735798,
-       "eps_rep_ratio": 0.9982950780343958,
+       "eps_rep_ratio": 0.99997734500561,
+       "coverage_opening": 0.0015982520131628682,
        "fold_opening_on_branch": 2.8421709430404007e-13,
        "opening_station_range": [
         1.5001796464504982,
@@ -4231,23 +4286,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 5.684341886080802e-14,
-       "vertex_dev": 2.1202194791225582e-08,
-       "chord_dev": 0.0013400642073989294,
+       "vertex_dev": 1.1369318327862253e-07,
+       "chord_dev": 0.0013422321765616256,
        "p2r": {
         "square_end": 5.684341886080802e-14,
-        "saddle_cut": 2.1202194791225582e-08,
+        "saddle_cut": 1.1369318327862253e-07,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 0.0
        },
        "r2p": {
         "square_end": 5.684341886080802e-14,
-        "saddle_cut": 0.0013400642073989294,
+        "saddle_cut": 0.0013422321765616256,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 0.0
        },
        "eps_num_stated": 8.182876135214973e-13,
        "eps_rep_stated": 0.0013422570831572332,
-       "eps_rep_ratio": 0.9983662773802275,
+       "eps_rep_ratio": 0.999981444243491,
+       "coverage_saddle": 0.0013422321765616256,
        "fold_cut_on_header": 3.979039320256561e-13,
        "seam_gap_3d": 3.995657961365678e-13,
        "marking_side_declared": "outside",
@@ -4270,12 +4326,12 @@
     }
    },
    "http": 200,
-   "job_id": 40,
+   "job_id": 50,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.641
+   "seconds": 13.481
   },
   {
    "id": "D-ASM-DEV-5-near_start",
@@ -4326,25 +4382,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.4582619995602808e-11,
-       "vertex_dev": 2.170612264914638e-06,
-       "chord_dev": 0.0025765821237389375,
+       "vertex_dev": 1.8741968806147602e-05,
+       "chord_dev": 0.0025806910633318835,
        "p2r": {
         "bottom": 7.275957614183426e-12,
         "top": 1.4582619995602808e-11,
         "seam_a": 1.4582619995602808e-11,
         "seam_b": 1.4551915228366852e-11,
-        "branch_opening": 2.170612264914638e-06
+        "branch_opening": 1.8741968806147602e-05
        },
        "r2p": {
         "bottom": 7.275957614183426e-12,
         "top": 1.4582619995602808e-11,
         "seam_a": 1.4582619995602808e-11,
         "seam_b": 5.069444093335468e-12,
-        "branch_opening": 0.0025765821237389375
+        "branch_opening": 0.0025806910633318835
        },
        "eps_num_stated": 1.7880831272262336e-10,
        "eps_rep_stated": 0.0025807064043471824,
-       "eps_rep_ratio": 0.998401879190404,
+       "eps_rep_ratio": 0.9999940554976448,
+       "coverage_opening": 0.0025806910633318835,
        "fold_opening_on_branch": 1.6370904631912708e-11,
        "opening_station_range": [
         149.99994433571305,
@@ -4380,23 +4437,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 3.637978807091713e-12,
-       "vertex_dev": 2.1706151642714503e-06,
-       "chord_dev": 0.0021059238605995135,
+       "vertex_dev": 1.2554727594239365e-05,
+       "chord_dev": 0.0021092822862932123,
        "p2r": {
         "square_end": 3.637978807091713e-12,
-        "saddle_cut": 2.1706151642714503e-06,
+        "saddle_cut": 1.2554727594239365e-05,
         "seam_a": 3.637978807091713e-12,
         "seam_b": 3.637978807091713e-12
        },
        "r2p": {
         "square_end": 3.637978807091713e-12,
-        "saddle_cut": 0.0021059238605995135,
+        "saddle_cut": 0.0021092822862932123,
         "seam_a": 1.8189916226151804e-12,
         "seam_b": 1.8189894035458565e-12
        },
        "eps_num_stated": 8.23868203118311e-11,
        "eps_rep_stated": 0.002109290718661261,
-       "eps_rep_ratio": 0.9984037961045577,
+       "eps_rep_ratio": 0.9999960022731935,
+       "coverage_saddle": 0.0021092822862932123,
        "fold_cut_on_header": 9.094947017729282e-12,
        "seam_gap_3d": 2.5724394843074972e-12,
        "marking_side_declared": "outside",
@@ -4419,12 +4477,12 @@
     }
    },
    "http": 200,
-   "job_id": 41,
+   "job_id": 51,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 40.033
+   "seconds": 32.901
   },
   {
    "id": "E-asm-beta-0",
@@ -4448,12 +4506,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 42,
+   "job_id": 52,
    "outcome": "out of range (beta): angle between axes must be within about 10..170 deg in this build (grazing intersections are ill-conditioned; limit is an implementation choice, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.006
+   "seconds": 0.024
   },
   {
    "id": "E-asm-sref-inside-145-100",
@@ -4477,12 +4535,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 43,
+   "job_id": 53,
    "outcome": "out of range (header_dev_radius): inconsistent with surface_reference 'inside': header_dev_radius = 145 is smaller than the inside contact radius header_radius = 150. The development (reference) surface lies inside the wall (Spec 02 \u00a76.1: r_dev = r_i + k\u00b7t, 0 < k <= 0.5), so it cannot be smaller than the inside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.016
+   "seconds": 0.006
   },
   {
    "id": "E-asm-sref-outside-155-100",
@@ -4506,12 +4564,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 44,
+   "job_id": 54,
    "outcome": "out of range (header_dev_radius): inconsistent with surface_reference 'outside': header_dev_radius = 155 is larger than the outside contact radius header_radius = 150. The development (reference) surface lies inside the wall (Spec 02 \u00a76.1: r_dev = r_i + k\u00b7t, 0 < k <= 0.5), so it cannot be larger than the outside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.009
   },
   {
    "id": "E-br-beta-180",
@@ -4531,10 +4589,10 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 45,
+   "job_id": 55,
    "outcome": "out of range (beta): angle between axes must be within about 10..170 deg in this build (grazing intersections are ill-conditioned; limit is an implementation choice, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
    "seconds": 0.004
   },
@@ -4556,12 +4614,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 46,
+   "job_id": 56,
    "outcome": "out of range (delta+r): requires |delta| + r < R: tangent and partial intersections (including the equal-diameter tee) are not implemented in this build",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.003
   },
   {
    "id": "E-branch_stub-beta_deg-1e999",
@@ -4598,12 +4656,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 47,
+   "job_id": 57,
    "outcome": "out of range (branch_dev_radius): magnitude 1e308 mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.006
   },
   {
    "id": "E-branch_stub-branch_dev_radius-negative",
@@ -4623,12 +4681,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 48,
+   "job_id": 58,
    "outcome": "out of range (branch_dev_radius): must be finite and > 0, got -100",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.005
   },
   {
    "id": "E-branch_stub-branch_radius-Infinity",
@@ -4703,7 +4761,7 @@
    "state": null,
    "engine": null,
    "class": "refused_correctly",
-   "seconds": 0.001
+   "seconds": 0.0
   },
   {
    "id": "E-branch_stub-header_radius-string",
@@ -4737,7 +4795,7 @@
    "state": null,
    "engine": null,
    "class": "refused_correctly",
-   "seconds": 0.0
+   "seconds": 0.001
   },
   {
    "id": "E-branch_stub-s_end-zero",
@@ -4757,12 +4815,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 49,
+   "job_id": 59,
    "outcome": "out of range (s_end): must be finite and > 0, got 0",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.006
   },
   {
    "id": "E-cone_frustum-h-5e-7",
@@ -4779,12 +4837,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 50,
+   "job_id": 60,
    "outcome": "out of range (h): 5e-7 mm is below 1e-6 mm, the smallest dimension this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.012
   },
   {
    "id": "E-cone_frustum-h-null",
@@ -4818,7 +4876,7 @@
    "state": null,
    "engine": null,
    "class": "refused_correctly",
-   "seconds": 0.001
+   "seconds": 0.003
   },
   {
    "id": "E-cone_frustum-r1-string",
@@ -4872,12 +4930,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 51,
+   "job_id": 61,
    "outcome": "out of range (length): magnitude 1e308 mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.003
+   "seconds": 0.01
   },
   {
    "id": "E-cylinder_shell-length-negative-zero",
@@ -4893,12 +4951,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 52,
+   "job_id": 62,
    "outcome": "out of range (length): must be finite and > 0, got -0",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.018
   },
   {
    "id": "E-cylinder_shell-r_dev-1e999",
@@ -4915,7 +4973,7 @@
    "state": null,
    "engine": null,
    "class": "refused_correctly",
-   "seconds": 0.001
+   "seconds": 0.004
   },
   {
    "id": "E-cylinder_shell-r_dev-negative",
@@ -4931,12 +4989,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 53,
+   "job_id": 63,
    "outcome": "out of range (r_dev): must be finite and > 0, got -500",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.003
+   "seconds": 0.008
   },
   {
    "id": "E-ecc-r1-eq-r2",
@@ -4954,12 +5012,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 54,
+   "job_id": 64,
    "outcome": "out of range (r1): requires r1 > r2; equal radii with offset (oblique cylinder) is not implemented in this build",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.003
+   "seconds": 0.004
   },
   {
    "id": "E-eccentric_reducer-e-null",
@@ -5011,10 +5069,10 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 55,
+   "job_id": 65,
    "outcome": "out of range (h): must be finite and > 0, got 0",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
    "seconds": 0.004
   },
@@ -5056,12 +5114,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 56,
+   "job_id": 66,
    "outcome": "out of range (r2): magnitude 1e308 mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.003
+   "seconds": 0.004
   },
   {
    "id": "E-eccentric_reducer-r2-negative",
@@ -5079,10 +5137,10 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 57,
+   "job_id": 67,
    "outcome": "out of range (r2): must be finite and > 0, got -100",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
    "seconds": 0.004
   },
@@ -5125,12 +5183,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 58,
+   "job_id": 68,
    "outcome": "out of range (branch_dev_radius): magnitude 1e308 mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.004
   },
   {
    "id": "E-header_with_branch-branch_dev_radius-negative",
@@ -5154,10 +5212,10 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 59,
+   "job_id": 69,
    "outcome": "out of range (branch_dev_radius): must be finite and > 0, got -100",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
    "seconds": 0.005
   },
@@ -5255,7 +5313,7 @@
    "state": null,
    "engine": null,
    "class": "refused_correctly",
-   "seconds": 0.001
+   "seconds": 0.0
   },
   {
    "id": "E-header_with_branch-header_dev_radius-string",
@@ -5324,10 +5382,10 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 60,
+   "job_id": 70,
    "outcome": "out of range (header_radius): magnitude 1e308 mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
    "seconds": 0.004
   },
@@ -5353,10 +5411,10 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 61,
+   "job_id": 71,
    "outcome": "out of range (header_radius): must be finite and > 0, got -0",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
    "seconds": 0.005
   },
@@ -5375,7 +5433,7 @@
    "state": null,
    "engine": null,
    "class": "refused_correctly",
-   "seconds": 0.001
+   "seconds": 0.0
   },
   {
    "id": "E-header_with_branch-s_end-negative",
@@ -5399,10 +5457,10 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 62,
+   "job_id": 72,
    "outcome": "out of range (s_end): must be finite and > 0, got -400",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
    "seconds": 0.005
   },
@@ -5491,12 +5549,12 @@
     }
    },
    "http": 200,
-   "job_id": 63,
+   "job_id": 73,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.987
+   "seconds": 2.0
   },
   {
    "id": "HP-ECC-1",
@@ -5582,12 +5640,12 @@
     }
    },
    "http": 200,
-   "job_id": 64,
+   "job_id": 74,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 5.498
+   "seconds": 12.543
   },
   {
    "id": "HP-ECC-7",
@@ -5673,12 +5731,12 @@
     }
    },
    "http": 200,
-   "job_id": 65,
+   "job_id": 75,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 5.536
+   "seconds": 14.223
   },
   {
    "id": "HP-JOINT-4",
@@ -5729,25 +5787,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.1381037303893497e-13,
-       "vertex_dev": 2.1597525687616883e-08,
-       "chord_dev": 0.0016486919866877552,
+       "vertex_dev": 1.7359819697997015e-07,
+       "chord_dev": 0.0016516006652679248,
        "p2r": {
         "bottom": 1.1368683772161603e-13,
         "top": 1.1381037303893497e-13,
         "seam_a": 1.1381037303893497e-13,
         "seam_b": 1.1368683772161603e-13,
-        "branch_opening": 2.1597525687616883e-08
+        "branch_opening": 1.7359819697997015e-07
        },
        "r2p": {
         "bottom": 1.1368683772161603e-13,
         "top": 1.1381037303893497e-13,
         "seam_a": 1.1381037303893497e-13,
         "seam_b": 8.802613141368719e-14,
-        "branch_opening": 0.0016486919866877552
+        "branch_opening": 0.0016516006652679248
        },
        "eps_num_stated": 1.7946846631274965e-12,
        "eps_rep_stated": 0.0016516380830510534,
-       "eps_rep_ratio": 0.998216257911748,
+       "eps_rep_ratio": 0.9999773450470096,
+       "coverage_opening": 0.0016516006652679248,
        "fold_opening_on_branch": 2.1316282072803006e-13,
        "opening_station_range": [
         60.96152864645021,
@@ -5783,23 +5842,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.1368683772161603e-13,
-       "vertex_dev": 2.159752294762982e-08,
-       "chord_dev": 0.0013473233532136095,
+       "vertex_dev": 1.2554732126717437e-07,
+       "chord_dev": 0.0013498999151626784,
        "p2r": {
         "square_end": 1.1368683772161603e-13,
-        "saddle_cut": 2.159752294762982e-08,
+        "saddle_cut": 1.2554732126717437e-07,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.1368683772161603e-13
        },
        "r2p": {
         "square_end": 1.1368683772161603e-13,
-        "saddle_cut": 0.0013473233532136095,
+        "saddle_cut": 0.0013498999151626784,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.1368683772161603e-13
        },
        "eps_num_stated": 8.238682031183111e-13,
        "eps_rep_stated": 0.0013499304608802143,
-       "eps_rep_ratio": 0.9980687096541959,
+       "eps_rep_ratio": 0.9999773723770068,
+       "coverage_saddle": 0.0013498999151626784,
        "fold_cut_on_header": 1.9895196601282805e-13,
        "seam_gap_3d": 1.530555893832145e-13,
        "marking_side_declared": "outside",
@@ -5834,12 +5894,12 @@
     }
    },
    "http": 200,
-   "job_id": 66,
+   "job_id": 76,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 3.292
+   "seconds": 16.152
   },
   {
    "id": "HP-JOINT-5",
@@ -5890,25 +5950,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 7.958078640513122e-13,
-       "vertex_dev": 3.791854356000654e-08,
-       "chord_dev": 0.002510070108708187,
+       "vertex_dev": 6.248350909589427e-07,
+       "chord_dev": 0.002514126546796109,
        "p2r": {
         "bottom": 7.958078640513122e-13,
         "top": 7.958078640513122e-13,
         "seam_a": 7.958078640513122e-13,
         "seam_b": 7.958078640513122e-13,
-        "branch_opening": 3.791854356000654e-08
+        "branch_opening": 6.248350909589427e-07
        },
        "r2p": {
         "bottom": 7.958078640513122e-13,
         "top": 7.958078640513122e-13,
         "seam_a": 6.821210263296962e-13,
         "seam_b": 6.27996679126954e-13,
-        "branch_opening": 0.002510070108708187
+        "branch_opening": 0.002514126546796109
        },
        "eps_num_stated": 6.664081854800533e-12,
        "eps_rep_stated": 0.002514255680031971,
-       "eps_rep_ratio": 0.9983352642465819,
+       "eps_rep_ratio": 0.9999486395767593,
+       "coverage_opening": 0.002514126546796109,
        "fold_opening_on_branch": 7.105427357601002e-13,
        "opening_station_range": [
         200.1971772197625,
@@ -5944,23 +6005,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.3698976632707777e-13,
-       "vertex_dev": 3.791875732342576e-08,
-       "chord_dev": 0.0022529738561077517,
+       "vertex_dev": 2.379573497987471e-07,
+       "chord_dev": 0.002256514170392188,
        "p2r": {
         "square_end": 2.2737367544323206e-13,
-        "saddle_cut": 3.791875732342576e-08,
+        "saddle_cut": 2.379573497987471e-07,
         "seam_a": 2.3698976632707777e-13,
         "seam_b": 2.2737367544323206e-13
        },
        "r2p": {
         "square_end": 2.2737367544323206e-13,
-        "saddle_cut": 0.0022529738561077517,
+        "saddle_cut": 0.002256514170392188,
         "seam_a": 2.3698976632707777e-13,
         "seam_b": 2.2737367544323206e-13
        },
        "eps_num_stated": 1.85835105998603e-12,
        "eps_rep_stated": 0.0022565559895355554,
-       "eps_rep_ratio": 0.9984125661209314,
+       "eps_rep_ratio": 0.9999814677129389,
+       "coverage_saddle": 0.002256514170392188,
        "fold_cut_on_header": 3.410605131648481e-13,
        "seam_gap_3d": 3.2155493553843715e-13,
        "marking_side_declared": "outside",
@@ -5995,12 +6057,12 @@
     }
    },
    "http": 200,
-   "job_id": 67,
+   "job_id": 77,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 3.18
+   "seconds": 13.531
   },
   {
    "id": "L-ECC-FLAT-SIDE",
@@ -6079,12 +6141,12 @@
     }
    },
    "http": 200,
-   "job_id": 68,
+   "job_id": 78,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 1.123
+   "seconds": 2.885
   },
   {
    "id": "L-ECC-TO-CONE-1",
@@ -6167,12 +6229,12 @@
     }
    },
    "http": 200,
-   "job_id": 69,
+   "job_id": 79,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 1.091
+   "seconds": 2.638
   },
   {
    "id": "L-ECC-TO-CONE-3",
@@ -6255,12 +6317,12 @@
     }
    },
    "http": 200,
-   "job_id": 70,
+   "job_id": 81,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 1.196
+   "seconds": 2.946
   },
   {
    "id": "S-MIRROR-BETA",
@@ -6311,25 +6373,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 5.361116729147628e-14,
-       "vertex_dev": 2.1597374906144063e-08,
-       "chord_dev": 0.0016486919866879517,
+       "vertex_dev": 1.9601092998853901e-07,
+       "chord_dev": 0.0016516006652397407,
        "p2r": {
         "bottom": 5.361116729147628e-14,
         "top": 1.6653345369377348e-14,
         "seam_a": 1.6653345369377348e-14,
         "seam_b": 5.361116729147628e-14,
-        "branch_opening": 2.1597374906144063e-08
+        "branch_opening": 1.9601092998853901e-07
        },
        "r2p": {
         "bottom": 5.361116729147628e-14,
         "top": 1.6653345369377348e-14,
         "seam_a": 1.6653345369377348e-14,
         "seam_b": 5.361116729147628e-14,
-        "branch_opening": 0.0016486919866879517
+        "branch_opening": 0.0016516006652397407
        },
        "eps_num_stated": 1.8400927848346654e-12,
        "eps_rep_stated": 0.0016516380829392305,
-       "eps_rep_ratio": 0.9982162579794503,
+       "eps_rep_ratio": 0.999977345097648,
+       "coverage_opening": 0.0016516006652397407,
        "fold_opening_on_branch": 1.4210854715202004e-13,
        "opening_station_range": [
         469.96152864645035,
@@ -6365,23 +6428,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.2710574864626038e-13,
-       "vertex_dev": 2.1597543782088876e-08,
-       "chord_dev": 0.0013473233531899964,
+       "vertex_dev": 1.2554730766691481e-07,
+       "chord_dev": 0.0013498999151388379,
        "p2r": {
         "square_end": 1.2710574864626038e-13,
-        "saddle_cut": 2.1597543782088876e-08,
+        "saddle_cut": 1.2554730766691481e-07,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.2710574864626038e-13
        },
        "r2p": {
         "square_end": 1.2710574864626038e-13,
-        "saddle_cut": 0.0013473233531899964,
+        "saddle_cut": 0.0013498999151388379,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.2710574864626038e-13
        },
        "eps_num_stated": 8.238682031183111e-13,
        "eps_rep_stated": 0.0013499304608802143,
-       "eps_rep_ratio": 0.9980687096367039,
+       "eps_rep_ratio": 0.9999773723593463,
+       "coverage_saddle": 0.0013498999151388379,
        "fold_cut_on_header": 1.7053025658242404e-13,
        "seam_gap_3d": 2.1009127865983883e-13,
        "marking_side_declared": "outside",
@@ -6408,12 +6472,12 @@
     }
    },
    "http": 200,
-   "job_id": 72,
+   "job_id": 82,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.761
+   "seconds": 15.66
   },
   {
    "id": "S-MIRROR-DELTA",
@@ -6464,25 +6528,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 5.361116729147628e-14,
-       "vertex_dev": 2.1597374906144063e-08,
-       "chord_dev": 0.0016486919866879517,
+       "vertex_dev": 1.9601092998853901e-07,
+       "chord_dev": 0.0016516006652397407,
        "p2r": {
         "bottom": 5.361116729147628e-14,
         "top": 1.6653345369377348e-14,
         "seam_a": 1.6653345369377348e-14,
         "seam_b": 5.361116729147628e-14,
-        "branch_opening": 2.1597374906144063e-08
+        "branch_opening": 1.9601092998853901e-07
        },
        "r2p": {
         "bottom": 5.361116729147628e-14,
         "top": 1.6653345369377348e-14,
         "seam_a": 1.6653345369377348e-14,
         "seam_b": 5.361116729147628e-14,
-        "branch_opening": 0.0016486919866879517
+        "branch_opening": 0.0016516006652397407
        },
        "eps_num_stated": 1.8400927848346654e-12,
        "eps_rep_stated": 0.0016516380829392305,
-       "eps_rep_ratio": 0.9982162579794503,
+       "eps_rep_ratio": 0.999977345097648,
+       "coverage_opening": 0.0016516006652397407,
        "fold_opening_on_branch": 1.4210854715202004e-13,
        "opening_station_range": [
         469.96152864645035,
@@ -6518,23 +6583,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.2710574864626038e-13,
-       "vertex_dev": 2.1597543782088876e-08,
-       "chord_dev": 0.0013473233531899964,
+       "vertex_dev": 1.2554730766691481e-07,
+       "chord_dev": 0.0013498999151388379,
        "p2r": {
         "square_end": 1.2710574864626038e-13,
-        "saddle_cut": 2.1597543782088876e-08,
+        "saddle_cut": 1.2554730766691481e-07,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.2710574864626038e-13
        },
        "r2p": {
         "square_end": 1.2710574864626038e-13,
-        "saddle_cut": 0.0013473233531899964,
+        "saddle_cut": 0.0013498999151388379,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.2710574864626038e-13
        },
        "eps_num_stated": 8.238682031183111e-13,
        "eps_rep_stated": 0.0013499304608802143,
-       "eps_rep_ratio": 0.9980687096367039,
+       "eps_rep_ratio": 0.9999773723593463,
+       "coverage_saddle": 0.0013498999151388379,
        "fold_cut_on_header": 1.7053025658242404e-13,
        "seam_gap_3d": 2.1009127865983883e-13,
        "marking_side_declared": "outside",
@@ -6561,12 +6627,12 @@
     }
    },
    "http": 200,
-   "job_id": 74,
+   "job_id": 83,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.83
+   "seconds": 15.227
   },
   {
    "id": "S-SCALE-asm-25.4",
@@ -6586,10 +6652,7 @@
     "surface_reference": "outside"
    },
    "expect": "accept",
-   "issues": [
-    "scale x25.4: header/branch_opening changes entity type or vertex count",
-    "scale x25.4: branch/saddle_cut changes entity type or vertex count"
-   ],
+   "issues": [],
    "findings": [],
    "info": {
     "compare": {
@@ -6620,25 +6683,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 5.361116729147628e-14,
-       "vertex_dev": 2.1597374906144063e-08,
-       "chord_dev": 0.0016486919866879517,
+       "vertex_dev": 1.9601092998853901e-07,
+       "chord_dev": 0.0016516006652397407,
        "p2r": {
         "bottom": 5.361116729147628e-14,
         "top": 1.6653345369377348e-14,
         "seam_a": 1.6653345369377348e-14,
         "seam_b": 5.361116729147628e-14,
-        "branch_opening": 2.1597374906144063e-08
+        "branch_opening": 1.9601092998853901e-07
        },
        "r2p": {
         "bottom": 5.361116729147628e-14,
         "top": 1.6653345369377348e-14,
         "seam_a": 1.6653345369377348e-14,
         "seam_b": 5.361116729147628e-14,
-        "branch_opening": 0.0016486919866879517
+        "branch_opening": 0.0016516006652397407
        },
        "eps_num_stated": 1.8400927848346654e-12,
        "eps_rep_stated": 0.0016516380829392305,
-       "eps_rep_ratio": 0.9982162579794503,
+       "eps_rep_ratio": 0.999977345097648,
+       "coverage_opening": 0.0016516006652397407,
        "fold_opening_on_branch": 1.4210854715202004e-13,
        "opening_station_range": [
         469.96152864645035,
@@ -6674,23 +6738,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.2710574864626038e-13,
-       "vertex_dev": 2.1597543782088876e-08,
-       "chord_dev": 0.0013473233531899964,
+       "vertex_dev": 1.2554730766691481e-07,
+       "chord_dev": 0.0013498999151388379,
        "p2r": {
         "square_end": 1.2710574864626038e-13,
-        "saddle_cut": 2.1597543782088876e-08,
+        "saddle_cut": 1.2554730766691481e-07,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.2710574864626038e-13
        },
        "r2p": {
         "square_end": 1.2710574864626038e-13,
-        "saddle_cut": 0.0013473233531899964,
+        "saddle_cut": 0.0013498999151388379,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.2710574864626038e-13
        },
        "eps_num_stated": 8.238682031183111e-13,
        "eps_rep_stated": 0.0013499304608802143,
-       "eps_rep_ratio": 0.9980687096367039,
+       "eps_rep_ratio": 0.9999773723593463,
+       "coverage_saddle": 0.0013498999151388379,
        "fold_cut_on_header": 1.7053025658242404e-13,
        "seam_gap_3d": 2.1009127865983883e-13,
        "marking_side_declared": "outside",
@@ -6713,15 +6778,16 @@
     },
     "scaled_outcome": "accepted",
     "scaled_state": "REVIEW_REQUIRED",
-    "scale_rel_dev": 1.1935626007518743e-16
+    "scale_worst_dev_over_tau": 0.9411718802924414,
+    "scale_exact_issues": 0
    },
    "http": 200,
-   "job_id": 76,
+   "job_id": 85,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
-   "class": "disagree",
-   "seconds": 3.056
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "class": "agree",
+   "seconds": 40.721
   },
   {
    "id": "S-SCALE-cyl-0.001",
@@ -6790,15 +6856,16 @@
     },
     "scaled_outcome": "accepted",
     "scaled_state": "REVIEW_REQUIRED",
-    "scale_rel_dev": 0.0
+    "scale_worst_dev_over_tau": 0.0,
+    "scale_exact_issues": 0
    },
    "http": 200,
-   "job_id": 78,
+   "job_id": 88,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.136
+   "seconds": 0.767
   },
   {
    "id": "S-SCALE-ecc-0.333333",
@@ -6877,15 +6944,16 @@
     },
     "scaled_outcome": "accepted",
     "scaled_state": "REVIEW_REQUIRED",
-    "scale_rel_dev": 3.9159499908748535e-16
+    "scale_worst_dev_over_tau": 2.0895261915954764e-05,
+    "scale_exact_issues": 0
    },
    "http": 200,
-   "job_id": 80,
+   "job_id": 89,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 1.132
+   "seconds": 4.715
   },
   {
    "id": "S-SCALE-stub-0.5",
@@ -6931,23 +6999,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.1368683772161603e-13,
-       "vertex_dev": 2.159752294762982e-08,
-       "chord_dev": 0.0013473233531947073,
+       "vertex_dev": 1.2554733777918895e-07,
+       "chord_dev": 0.0013498999151963097,
        "p2r": {
         "square_end": 1.1368683772161603e-13,
-        "saddle_cut": 2.159752294762982e-08,
+        "saddle_cut": 1.2554733777918895e-07,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.1368683772161603e-13
        },
        "r2p": {
         "square_end": 1.1368683772161603e-13,
-        "saddle_cut": 0.0013473233531947073,
+        "saddle_cut": 0.0013498999151963097,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.1368683772161603e-13
        },
        "eps_num_stated": 8.238682031183111e-13,
        "eps_rep_stated": 0.0013499304608802143,
-       "eps_rep_ratio": 0.9980687096401936,
+       "eps_rep_ratio": 0.9999773724019201,
+       "coverage_saddle": 0.0013498999151963097,
        "fold_cut_on_header": 1.7053025658242404e-13,
        "seam_gap_3d": 1.657256204579568e-13,
        "marking_side_declared": "outside",
@@ -6959,15 +7028,16 @@
     },
     "scaled_outcome": "accepted",
     "scaled_state": "REVIEW_REQUIRED",
-    "scale_rel_dev": 0.0
+    "scale_worst_dev_over_tau": 0.0,
+    "scale_exact_issues": 0
    },
    "http": 200,
-   "job_id": 82,
+   "job_id": 91,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.993
+   "seconds": 11.985
   },
   {
    "id": "S-STATION-SHIFT",
@@ -7018,25 +7088,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 5.361116729147628e-14,
-       "vertex_dev": 2.1597374906144063e-08,
-       "chord_dev": 0.0016486919866879517,
+       "vertex_dev": 1.9601092998853901e-07,
+       "chord_dev": 0.0016516006652397407,
        "p2r": {
         "bottom": 5.361116729147628e-14,
         "top": 1.6653345369377348e-14,
         "seam_a": 1.6653345369377348e-14,
         "seam_b": 5.361116729147628e-14,
-        "branch_opening": 2.1597374906144063e-08
+        "branch_opening": 1.9601092998853901e-07
        },
        "r2p": {
         "bottom": 5.361116729147628e-14,
         "top": 1.6653345369377348e-14,
         "seam_a": 1.6653345369377348e-14,
         "seam_b": 5.361116729147628e-14,
-        "branch_opening": 0.0016486919866879517
+        "branch_opening": 0.0016516006652397407
        },
        "eps_num_stated": 1.8400927848346654e-12,
        "eps_rep_stated": 0.0016516380829392305,
-       "eps_rep_ratio": 0.9982162579794503,
+       "eps_rep_ratio": 0.999977345097648,
+       "coverage_opening": 0.0016516006652397407,
        "fold_opening_on_branch": 1.4210854715202004e-13,
        "opening_station_range": [
         469.96152864645035,
@@ -7072,23 +7143,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.2710574864626038e-13,
-       "vertex_dev": 2.1597543782088876e-08,
-       "chord_dev": 0.0013473233531899964,
+       "vertex_dev": 1.2554730766691481e-07,
+       "chord_dev": 0.0013498999151388379,
        "p2r": {
         "square_end": 1.2710574864626038e-13,
-        "saddle_cut": 2.1597543782088876e-08,
+        "saddle_cut": 1.2554730766691481e-07,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.2710574864626038e-13
        },
        "r2p": {
         "square_end": 1.2710574864626038e-13,
-        "saddle_cut": 0.0013473233531899964,
+        "saddle_cut": 0.0013498999151388379,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.2710574864626038e-13
        },
        "eps_num_stated": 8.238682031183111e-13,
        "eps_rep_stated": 0.0013499304608802143,
-       "eps_rep_ratio": 0.9980687096367039,
+       "eps_rep_ratio": 0.9999773723593463,
+       "coverage_saddle": 0.0013498999151388379,
        "fold_cut_on_header": 1.7053025658242404e-13,
        "seam_gap_3d": 2.1009127865983883e-13,
        "marking_side_declared": "outside",
@@ -7115,12 +7187,12 @@
     }
    },
    "http": 200,
-   "job_id": 85,
+   "job_id": 94,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.89
+   "seconds": 16.636
   },
   {
    "id": "R-cylinder_shell-0000",
@@ -7136,12 +7208,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 86,
+   "job_id": 96,
    "outcome": "out of range (length): must be finite and > 0, got -862.9377494664441",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.016
+   "seconds": 0.03
   },
   {
    "id": "R-cylinder_shell-0001",
@@ -7210,12 +7282,12 @@
     }
    },
    "http": 200,
-   "job_id": 87,
+   "job_id": 97,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.125
+   "seconds": 0.32
   },
   {
    "id": "R-cylinder_shell-0002",
@@ -7284,12 +7356,12 @@
     }
    },
    "http": 200,
-   "job_id": 88,
+   "job_id": 98,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.119
+   "seconds": 0.396
   },
   {
    "id": "R-cylinder_shell-0003",
@@ -7305,12 +7377,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 89,
+   "job_id": 99,
    "outcome": "out of range (length): must be finite and > 0, got -0.024327296001606206",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.009
   },
   {
    "id": "R-cylinder_shell-0004",
@@ -7379,12 +7451,12 @@
     }
    },
    "http": 200,
-   "job_id": 90,
+   "job_id": 100,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.121
+   "seconds": 0.439
   },
   {
    "id": "R-cone_frustum-0005",
@@ -7401,12 +7473,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 91,
+   "job_id": 101,
    "outcome": "out of range (r1): requires r1 > r2 (large end first); equal radii is a cylinder",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.009
   },
   {
    "id": "R-cone_frustum-0006",
@@ -7486,12 +7558,12 @@
     }
    },
    "http": 200,
-   "job_id": 92,
+   "job_id": 102,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.73
+   "seconds": 2.597
   },
   {
    "id": "R-cone_frustum-0007",
@@ -7571,12 +7643,12 @@
     }
    },
    "http": 200,
-   "job_id": 93,
+   "job_id": 103,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.713
+   "seconds": 2.267
   },
   {
    "id": "R-cone_frustum-0008",
@@ -7593,12 +7665,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 94,
+   "job_id": 104,
    "outcome": "not developable: developed angle 6.277384 rad would overlap",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.012
+   "seconds": 0.004
   },
   {
    "id": "R-cone_frustum-0009",
@@ -7615,12 +7687,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 95,
+   "job_id": 105,
    "outcome": "out of range (r1-r2): near-cylindrical cone: apex-based formula is ill-conditioned and the apex-free method is not implemented in this build",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.021
   },
   {
    "id": "R-eccentric_reducer-0010",
@@ -7699,12 +7771,12 @@
     }
    },
    "http": 200,
-   "job_id": 96,
+   "job_id": 106,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 1.156
+   "seconds": 3.193
   },
   {
    "id": "R-eccentric_reducer-0011",
@@ -7783,12 +7855,12 @@
     }
    },
    "http": 200,
-   "job_id": 98,
+   "job_id": 108,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 1.23
+   "seconds": 3.66
   },
   {
    "id": "R-eccentric_reducer-0012",
@@ -7867,12 +7939,12 @@
     }
    },
    "http": 200,
-   "job_id": 99,
+   "job_id": 109,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 1.328
+   "seconds": 4.399
   },
   {
    "id": "R-eccentric_reducer-0013",
@@ -7890,12 +7962,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 100,
+   "job_id": 110,
    "outcome": "out of range (e): offset must be finite and >= 0",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.031
   },
   {
    "id": "R-eccentric_reducer-0014",
@@ -7974,12 +8046,12 @@
     }
    },
    "http": 200,
-   "job_id": 101,
+   "job_id": 111,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 1.12
+   "seconds": 2.56
   },
   {
    "id": "R-branch_stub-0015",
@@ -8025,23 +8097,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 4.440892098500626e-15,
-       "vertex_dev": 3.149467265793184e-10,
-       "chord_dev": 3.360741233221029e-05,
+       "vertex_dev": 1.5238902655335148e-09,
+       "chord_dev": 3.365924473625033e-05,
        "p2r": {
         "square_end": 4.440892098500626e-15,
-        "saddle_cut": 3.149467265793184e-10,
+        "saddle_cut": 1.5238902655335148e-09,
         "seam_a": 4.440892098500626e-15,
         "seam_b": 4.440892098500626e-15
        },
        "r2p": {
         "square_end": 4.440892098500626e-15,
-        "saddle_cut": 3.360741233221029e-05,
+        "saddle_cut": 3.365924473625033e-05,
         "seam_a": 4.275988505329708e-16,
         "seam_b": 0.0
        },
        "eps_num_stated": 1.1231852123998589e-14,
        "eps_rep_stated": 3.365943831404969e-05,
-       "eps_rep_ratio": 0.9984543419484905,
+       "eps_rep_ratio": 0.9999942489296003,
+       "coverage_saddle": 3.365924473625033e-05,
        "fold_cut_on_header": 7.771561172376096e-15,
        "seam_gap_3d": 8.881784197001252e-16,
        "marking_side_declared": "outside",
@@ -8053,12 +8126,12 @@
     }
    },
    "http": 200,
-   "job_id": 102,
+   "job_id": 112,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.814
+   "seconds": 6.456
   },
   {
    "id": "R-branch_stub-0016",
@@ -8104,23 +8177,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.4999770885397668e-11,
-       "vertex_dev": 2.4840300288217227e-06,
-       "chord_dev": 0.003182383723093087,
+       "vertex_dev": 1.1660697679784149e-05,
+       "chord_dev": 0.0031875087906703364,
        "p2r": {
         "square_end": 1.4999770885397668e-11,
-        "saddle_cut": 2.4840300288217227e-06,
+        "saddle_cut": 1.1660697679784149e-05,
         "seam_a": 1.4999770885397668e-11,
         "seam_b": 1.4999770885397668e-11
        },
        "r2p": {
         "square_end": 1.4999770885397668e-11,
-        "saddle_cut": 0.003182383723093087,
+        "saddle_cut": 0.0031875087906703364,
         "seam_a": 1.4999770885397668e-11,
         "seam_b": 1.4999770885397668e-11
        },
        "eps_num_stated": 7.884176610633428e-11,
        "eps_rep_stated": 0.0031875636061711758,
-       "eps_rep_ratio": 0.9983749710694211,
+       "eps_rep_ratio": 0.9999828033232864,
+       "coverage_saddle": 0.0031875087906703364,
        "fold_cut_on_header": 1.000444171950221e-11,
        "seam_gap_3d": 7.657633486382525e-12,
        "marking_side_declared": "outside",
@@ -8132,12 +8206,12 @@
     }
    },
    "http": 200,
-   "job_id": 103,
+   "job_id": 113,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 4.424
+   "seconds": 8.421
   },
   {
    "id": "R-branch_stub-0017",
@@ -8157,12 +8231,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 104,
+   "job_id": 114,
    "outcome": "out of range (s_end): square end must lie beyond the saddle: s_end > 6.123496",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.011
+   "seconds": 0.022
   },
   {
    "id": "R-branch_stub-0018",
@@ -8208,23 +8282,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.8363077770594925e-13,
-       "vertex_dev": 1.3514160256026686e-07,
-       "chord_dev": 0.004558975093644563,
+       "vertex_dev": 6.946338375744498e-07,
+       "chord_dev": 0.004574033662285505,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 1.3514160256026686e-07,
+        "saddle_cut": 6.946338375744498e-07,
         "seam_a": 1.8363077770594925e-13,
         "seam_b": 3.126388037344441e-13
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 0.004558975093644563,
+        "saddle_cut": 0.004574033662285505,
         "seam_a": 1.8363077770594925e-13,
         "seam_b": 0.0
        },
        "eps_num_stated": 4.78011323592539e-12,
        "eps_rep_stated": 0.00457427781562916,
-       "eps_rep_ratio": 0.9966546146514513,
+       "eps_rep_ratio": 0.9999466247233998,
+       "coverage_saddle": 0.004574033662285505,
        "fold_cut_on_header": 4.547473508864641e-13,
        "seam_gap_3d": 5.796914039811764e-13,
        "marking_side_declared": "outside",
@@ -8236,12 +8311,12 @@
     }
    },
    "http": 200,
-   "job_id": 105,
+   "job_id": 115,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 1.479
+   "seconds": 8.382
   },
   {
    "id": "R-branch_stub-0019",
@@ -8287,23 +8362,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 5.859285502108464e-14,
-       "vertex_dev": 1.3537791979239092e-08,
-       "chord_dev": 0.0010229614584027812,
+       "vertex_dev": 2.8562613701917825e-08,
+       "chord_dev": 0.0010246004773812089,
        "p2r": {
         "square_end": 5.859285502108464e-14,
-        "saddle_cut": 1.3537791979239092e-08,
+        "saddle_cut": 2.8562613701917825e-08,
         "seam_a": 4.796383423139353e-14,
         "seam_b": 5.859285502108464e-14
        },
        "r2p": {
         "square_end": 5.684341886080802e-14,
-        "saddle_cut": 0.0010229614584027812,
+        "saddle_cut": 0.0010246004773812089,
         "seam_a": 2.929642751054232e-14,
         "seam_b": 5.859285502108464e-14
        },
        "eps_num_stated": 3.9966932887776194e-13,
        "eps_rep_stated": 0.0010246005366650387,
-       "eps_rep_ratio": 0.9984002758113006,
+       "eps_rep_ratio": 0.9999999421395679,
+       "coverage_saddle": 0.0010246004773812089,
        "fold_cut_on_header": 3.197442310920451e-14,
        "seam_gap_3d": 3.552713678800501e-15,
        "marking_side_declared": "outside",
@@ -8315,12 +8391,12 @@
     }
    },
    "http": 200,
-   "job_id": 106,
+   "job_id": 116,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.864
+   "seconds": 5.485
   },
   {
    "id": "R-header_with_branch-0020",
@@ -8344,12 +8420,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 107,
+   "job_id": 117,
    "outcome": "out of range (delta+r): requires |delta| + r < R: tangent and partial intersections (including the equal-diameter tee) are not implemented in this build",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.007
+   "seconds": 0.013
   },
   {
    "id": "R-header_with_branch-0021",
@@ -8373,12 +8449,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 108,
+   "job_id": 118,
    "outcome": "out of range (header_dev_radius): inconsistent with surface_reference 'neutral': the contact radius header_radius = 1119.2072461857115 is declared to be on the reference surface itself, so header_dev_radius must equal it, but it is 1105.6289219709713. Correct the radii or the declared surface",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.006
+   "seconds": 0.005
   },
   {
    "id": "R-header_with_branch-0022",
@@ -8402,12 +8478,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 109,
+   "job_id": 119,
    "outcome": "out of range (header_dev_radius): inconsistent with surface_reference 'outside': header_dev_radius = 1538.6758130247435 is larger than the outside contact radius header_radius = 1459.308167154083. The development (reference) surface lies inside the wall (Spec 02 \u00a76.1: r_dev = r_i + k\u00b7t, 0 < k <= 0.5), so it cannot be larger than the outside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.005
+   "seconds": 0.004
   },
   {
    "id": "R-header_with_branch-0023",
@@ -8431,10 +8507,10 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 110,
+   "job_id": 120,
    "outcome": "out of range (header_dev_radius): inconsistent with surface_reference 'outside': header_dev_radius = 374.0257128648689 is larger than the outside contact radius header_radius = 348.37402813212424. The development (reference) surface lies inside the wall (Spec 02 \u00a76.1: r_dev = r_i + k\u00b7t, 0 < k <= 0.5), so it cannot be larger than the outside radius; these values would mean a negative wall thickness. Correct the radii or the declared surface",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
    "seconds": 0.005
   },
@@ -8460,12 +8536,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 111,
+   "job_id": 121,
    "outcome": "out of range (delta+r): requires |delta| + r < R: tangent and partial intersections (including the equal-diameter tee) are not implemented in this build",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.006
+   "seconds": 0.005
   },
   {
    "id": "W-P000001",
@@ -8517,25 +8593,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 5.217029932502546e-13,
-       "vertex_dev": 6.775785955686885e-08,
-       "chord_dev": 0.004992489259036432,
+       "vertex_dev": 2.1419826287848278e-06,
+       "chord_dev": 0.004999910983505746,
        "p2r": {
         "bottom": 5.217029932502546e-13,
         "top": 2.990385716827859e-13,
         "seam_a": 2.990385716827859e-13,
         "seam_b": 5.217029932502546e-13,
-        "branch_opening": 6.775785955686885e-08
+        "branch_opening": 2.1419826287848278e-06
        },
        "r2p": {
         "bottom": 5.217029932502546e-13,
         "top": 2.990385716827859e-13,
         "seam_a": 2.990385716827859e-13,
         "seam_b": 5.217029932502546e-13,
-        "branch_opening": 0.004992489259036432
+        "branch_opening": 0.004999910983505746
        },
        "eps_num_stated": 9.56923429384915e-12,
        "eps_rep_stated": 0.005000488449842585,
-       "eps_rep_ratio": 0.9984003181116428,
+       "eps_rep_ratio": 0.9998845180140639,
+       "coverage_opening": 0.004999910983505746,
        "fold_opening_on_branch": 1.0800249583553523e-12,
        "opening_station_range": [
         4495.7,
@@ -8572,23 +8649,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.3216543771801924e-13,
-       "vertex_dev": 6.894927666435845e-08,
-       "chord_dev": 0.002755366281731874,
+       "vertex_dev": 5.74257633136023e-07,
+       "chord_dev": 0.0027594588132169103,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 6.894927666435845e-08,
+        "saddle_cut": 5.74257633136023e-07,
         "seam_a": 2.3216543771801924e-13,
         "seam_b": 2.2737367544323206e-13
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 0.002755366281731874,
+        "saddle_cut": 0.0027594588132169103,
         "seam_a": 2.3216543771801924e-13,
         "seam_b": 2.2737367544323206e-13
        },
        "eps_num_stated": 3.250420384341179e-12,
        "eps_rep_stated": 0.0027597782722795666,
-       "eps_rep_ratio": 0.998401324268689,
+       "eps_rep_ratio": 0.9998842446634698,
+       "coverage_saddle": 0.0027594588132169103,
        "fold_cut_on_header": 4.547473508864641e-13,
        "seam_gap_3d": 0.0,
        "marking_side_declared": "outside",
@@ -8611,12 +8689,12 @@
     }
    },
    "http": 200,
-   "job_id": 112,
+   "job_id": 122,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.594
+   "seconds": 9.224
   },
   {
    "id": "W-P000002",
@@ -8640,12 +8718,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 113,
+   "job_id": 123,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.083
+   "seconds": 0.47
   },
   {
    "id": "W-P000003",
@@ -8661,12 +8739,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 114,
+   "job_id": 124,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.015
+   "seconds": 0.019
   },
   {
    "id": "W-P000004",
@@ -8682,12 +8760,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 115,
+   "job_id": 125,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.01
+   "seconds": 0.019
   },
   {
    "id": "W-P000005",
@@ -8756,12 +8834,12 @@
     }
    },
    "http": 200,
-   "job_id": 116,
+   "job_id": 126,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.119
+   "seconds": 0.4
   },
   {
    "id": "W-P000006",
@@ -8778,12 +8856,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 117,
+   "job_id": 127,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.014
+   "seconds": 0.049
   },
   {
    "id": "W-P000007",
@@ -8807,12 +8885,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 118,
+   "job_id": 128,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.079
+   "seconds": 0.191
   },
   {
    "id": "W-P000008",
@@ -8836,12 +8914,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 119,
+   "job_id": 129,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.087
+   "seconds": 0.189
   },
   {
    "id": "W-P000009",
@@ -8910,12 +8988,12 @@
     }
    },
    "http": 200,
-   "job_id": 120,
+   "job_id": 130,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.122
+   "seconds": 0.345
   },
   {
    "id": "W-P000010",
@@ -8932,12 +9010,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 121,
+   "job_id": 131,
    "outcome": "out of range (r1): requires r1 > r2 (large end first); equal radii is a cylinder",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.006
+   "seconds": 0.005
   },
   {
    "id": "W-P000011",
@@ -8961,12 +9039,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 122,
+   "job_id": 132,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.087
+   "seconds": 0.239
   },
   {
    "id": "W-P000012",
@@ -8990,12 +9068,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 123,
+   "job_id": 133,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.108
+   "seconds": 0.172
   },
   {
    "id": "W-P000013",
@@ -9046,25 +9124,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 2.3175281596228674e-12,
-       "vertex_dev": 3.502961013634007e-07,
-       "chord_dev": 0.0065483879018535095,
+       "vertex_dev": 5.059030348921264e-06,
+       "chord_dev": 0.006560258334414365,
        "p2r": {
         "bottom": 2.3175281596228674e-12,
         "top": 1.8189894035458565e-12,
         "seam_a": 1.4700463069061698e-12,
         "seam_b": 2.3175281596228674e-12,
-        "branch_opening": 3.502961013634007e-07
+        "branch_opening": 5.059030348921264e-06
        },
        "r2p": {
         "bottom": 1.4360411973313458e-12,
         "top": 1.8189894035458565e-12,
         "seam_a": 1.4700463069061698e-12,
         "seam_b": 2.3175281596228674e-12,
-        "branch_opening": 0.0065483879018535095
+        "branch_opening": 0.006560258334414365
        },
        "eps_num_stated": 2.5386374947799433e-11,
        "eps_rep_stated": 0.006560522912684825,
-       "eps_rep_ratio": 0.9981502982318905,
+       "eps_rep_ratio": 0.9999596711612807,
+       "coverage_opening": 0.006560258334414365,
        "fold_opening_on_branch": 6.139089236967266e-12,
        "opening_station_range": [
         17149.693459748047,
@@ -9100,23 +9179,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.2862197421537486e-12,
-       "vertex_dev": 3.500814598679945e-07,
-       "chord_dev": 0.006445025004979245,
+       "vertex_dev": 9.975134046236673e-07,
+       "chord_dev": 0.0064572276975381725,
        "p2r": {
         "square_end": 1.2862197421537486e-12,
-        "saddle_cut": 3.500814598679945e-07,
+        "saddle_cut": 9.975134046236673e-07,
         "seam_a": 1.016845989170083e-12,
         "seam_b": 1.2862197421537486e-12
        },
        "r2p": {
         "square_end": 1.016845989170083e-12,
-        "saddle_cut": 0.006445025004979245,
+        "saddle_cut": 0.0064572276975381725,
         "seam_a": 1.016845989170083e-12,
         "seam_b": 1.2862197421537486e-12
        },
        "eps_num_stated": 1.0868539925410149e-11,
        "eps_rep_stated": 0.0064574912216958475,
-       "eps_rep_ratio": 0.9980694953676873,
+       "eps_rep_ratio": 0.9999591909383029,
+       "coverage_saddle": 0.0064572276975381725,
        "fold_cut_on_header": 3.637978807091713e-12,
        "seam_gap_3d": 2.5724394843074972e-12,
        "marking_side_declared": "outside",
@@ -9139,12 +9219,12 @@
     }
    },
    "http": 200,
-   "job_id": 124,
+   "job_id": 134,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 5.295
+   "seconds": 17.117
   },
   {
    "id": "W-P000014",
@@ -9164,12 +9244,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 125,
+   "job_id": 135,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.078
+   "seconds": 0.218
   },
   {
    "id": "W-P000015",
@@ -9193,12 +9273,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 126,
+   "job_id": 136,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.1
+   "seconds": 0.205
   },
   {
    "id": "W-P000016",
@@ -9222,12 +9302,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 127,
+   "job_id": 137,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.079
+   "seconds": 0.16
   },
   {
    "id": "W-P000017",
@@ -9279,25 +9359,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 6.471521701917552e-13,
-       "vertex_dev": 9.77472275631806e-08,
-       "chord_dev": 0.00866655739219298,
+       "vertex_dev": 9.63038965002077e-07,
+       "chord_dev": 0.008679433768392739,
        "p2r": {
         "bottom": 6.471521701917552e-13,
         "top": 3.023692407566614e-13,
         "seam_a": 3.023692407566614e-13,
         "seam_b": 6.471521701917552e-13,
-        "branch_opening": 9.77472275631806e-08
+        "branch_opening": 9.63038965002077e-07
        },
        "r2p": {
         "bottom": 6.471521701917552e-13,
         "top": 3.023692407566614e-13,
         "seam_a": 3.023692407566614e-13,
         "seam_b": 6.471521701917552e-13,
-        "branch_opening": 0.00866655739219298
+        "branch_opening": 0.008679433768392739
        },
        "eps_num_stated": 9.675815704213164e-12,
        "eps_rep_stated": 0.008680437729481207,
-       "eps_rep_ratio": 0.9984009634397715,
+       "eps_rep_ratio": 0.9998843421127187,
+       "coverage_opening": 0.008679433768392739,
        "fold_opening_on_branch": 1.3642420526593924e-12,
        "opening_station_range": [
         4923.5,
@@ -9334,23 +9415,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.2737367544323206e-13,
-       "vertex_dev": 9.737728774652696e-08,
-       "chord_dev": 0.006561543061183755,
+       "vertex_dev": 7.130345975626492e-07,
+       "chord_dev": 0.006572045077416244,
        "p2r": {
         "square_end": 2.2737367544323206e-13,
-        "saddle_cut": 9.737728774652696e-08,
+        "saddle_cut": 7.130345975626492e-07,
         "seam_a": 2.2737367544323206e-13,
         "seam_b": 1.1368683772161603e-13
        },
        "r2p": {
         "square_end": 2.2737367544323206e-13,
-        "saddle_cut": 0.006561543061183755,
+        "saddle_cut": 0.006572045077416244,
         "seam_a": 2.2737367544323206e-13,
         "seam_b": 1.1368683772161603e-13
        },
        "eps_num_stated": 4.294817268283828e-12,
        "eps_rep_stated": 0.0065720453887587954,
-       "eps_rep_ratio": 0.9984019697135682,
+       "eps_rep_ratio": 0.9999999526262323,
+       "coverage_saddle": 0.006572045077416244,
        "fold_cut_on_header": 1.0231815394945443e-12,
        "seam_gap_3d": 7.958078640513122e-13,
        "marking_side_declared": "outside",
@@ -9373,12 +9455,12 @@
     }
    },
    "http": 200,
-   "job_id": 128,
+   "job_id": 138,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.725
+   "seconds": 12.511
   },
   {
    "id": "W-P000018",
@@ -9402,12 +9484,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 129,
+   "job_id": 139,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.081
+   "seconds": 0.341
   },
   {
    "id": "W-P000019",
@@ -9424,12 +9506,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 130,
+   "job_id": 140,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.015
+   "seconds": 0.028
   },
   {
    "id": "W-P000020",
@@ -9449,12 +9531,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 131,
+   "job_id": 141,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.037
+   "seconds": 0.07
   },
   {
    "id": "W-P000021",
@@ -9505,25 +9587,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 2.9016627551837727e-13,
-       "vertex_dev": 3.111125917829801e-08,
-       "chord_dev": 0.002099808786081772,
+       "vertex_dev": 1.0065746127242884e-06,
+       "chord_dev": 0.0021031477459771035,
        "p2r": {
         "bottom": 2.9016627551837727e-13,
         "top": 2.0755619445367302e-13,
         "seam_a": 2.0755619445367302e-13,
         "seam_b": 2.9016627551837727e-13,
-        "branch_opening": 3.111125917829801e-08
+        "branch_opening": 1.0065746127242884e-06
        },
        "r2p": {
         "bottom": 2.9016627551837727e-13,
         "top": 2.0755619445367302e-13,
         "seam_a": 2.0755619445367302e-13,
         "seam_b": 2.9016627551837727e-13,
-        "branch_opening": 0.002099808786081772
+        "branch_opening": 0.0021031477459771035
        },
        "eps_num_stated": 6.848796134401339e-12,
        "eps_rep_stated": 0.0021032155169624644,
-       "eps_rep_ratio": 0.998380227393143,
+       "eps_rep_ratio": 0.9999677774413442,
+       "coverage_opening": 0.0021031477459771035,
        "fold_opening_on_branch": 5.400124791776761e-13,
        "opening_station_range": [
         985.8344284310026,
@@ -9559,23 +9642,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.5421149729252077e-13,
-       "vertex_dev": 3.082074851612223e-08,
-       "chord_dev": 0.0016713226183256485,
+       "vertex_dev": 2.934775038966052e-07,
+       "chord_dev": 0.0016740244971415643,
        "p2r": {
         "square_end": 2.5421149729252077e-13,
-        "saddle_cut": 3.082074851612223e-08,
+        "saddle_cut": 2.934775038966052e-07,
         "seam_a": 2.3437142008433856e-13,
         "seam_b": 2.5421149729252077e-13
        },
        "r2p": {
         "square_end": 2.5421149729252077e-13,
-        "saddle_cut": 0.0016713226183256485,
+        "saddle_cut": 0.0016740244971415643,
         "seam_a": 2.3437142008433856e-13,
         "seam_b": 2.5421149729252077e-13
        },
        "eps_num_stated": 1.761353920251332e-12,
        "eps_rep_stated": 0.0016740783393884978,
-       "eps_rep_ratio": 0.9983538876299803,
+       "eps_rep_ratio": 0.9999678376778035,
+       "coverage_saddle": 0.0016740244971415643,
        "fold_cut_on_header": 3.410605131648481e-13,
        "seam_gap_3d": 3.595093471822542e-13,
        "marking_side_declared": "outside",
@@ -9598,12 +9682,12 @@
     }
    },
    "http": 200,
-   "job_id": 132,
+   "job_id": 142,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 2.682
+   "seconds": 11.266
   },
   {
    "id": "W-P000022",
@@ -9627,12 +9711,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 133,
+   "job_id": 143,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.083
+   "seconds": 0.215
   },
   {
    "id": "W-P000023",
@@ -9656,12 +9740,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 134,
+   "job_id": 144,
    "outcome": "out of range (branch_dev_radius): must be finite and > 0, got -603.15",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.016
+   "seconds": 0.01
   },
   {
    "id": "W-P000024",
@@ -9681,12 +9765,12 @@
    "findings": [],
    "info": {},
    "http": 200,
-   "job_id": 135,
+   "job_id": 145,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.041
+   "seconds": 0.149
   },
   {
    "id": "N-tangent-r-b90-g0.1",
@@ -9741,25 +9825,26 @@
        ],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.0418405610718642e-13,
-       "vertex_dev": 2.3300663831714796e-08,
-       "chord_dev": 0.0029474989514490717,
+       "vertex_dev": 1.5057614286041644e-07,
+       "chord_dev": 0.0029476894038802347,
        "p2r": {
         "bottom": 1.0418405610718642e-13,
         "top": 1.582067810090848e-14,
         "seam_a": 5.684341886080802e-14,
         "seam_b": 1.0418405610718642e-13,
-        "branch_opening": 2.3300663831714796e-08
+        "branch_opening": 1.5057614286041644e-07
        },
        "r2p": {
         "bottom": 1.0418405610718642e-13,
         "top": 1.582067810090848e-14,
         "seam_a": 1.582067810090848e-14,
         "seam_b": 1.0418405610718642e-13,
-        "branch_opening": 0.0029474989514490717
+        "branch_opening": 0.0029476894038802347
        },
        "eps_num_stated": 1.3512963849563389e-12,
        "eps_rep_stated": 0.002947689521149381,
-       "eps_rep_ratio": 0.9999353494664408,
+       "eps_rep_ratio": 0.9999999602165881,
+       "coverage_opening": 0.0029476894038802347,
        "fold_opening_on_branch": 1.9895196601282805e-13,
        "opening_station_range": [
         149.99999999999994,
@@ -9796,23 +9881,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 5.684341886080802e-14,
-       "vertex_dev": 2.3300646925729684e-08,
-       "chord_dev": 0.0026526348781220257,
+       "vertex_dev": 1.538667396477554e-07,
+       "chord_dev": 0.002652806834026649,
        "p2r": {
         "square_end": 5.684341886080802e-14,
-        "saddle_cut": 2.3300646925729684e-08,
+        "saddle_cut": 1.538667396477554e-07,
         "seam_a": 2.4029926125250586e-14,
         "seam_b": 7.105427357601002e-14
        },
        "r2p": {
         "square_end": 5.684341886080802e-14,
-        "saddle_cut": 0.0026526348781220257,
+        "saddle_cut": 0.002652806834026649,
         "seam_a": 1.9377537455735226e-14,
         "seam_b": 5.684341886080802e-14
        },
        "eps_num_stated": 9.860735586512042e-13,
        "eps_rep_stated": 0.002652806923080628,
-       "eps_rep_ratio": 0.9999351460684509,
+       "eps_rep_ratio": 0.9999999664302824,
+       "coverage_saddle": 0.002652806834026649,
        "fold_cut_on_header": 8.526512829121202e-14,
        "seam_gap_3d": 1.2710574864626038e-13,
        "marking_side_declared": "outside",
@@ -9847,12 +9933,12 @@
     }
    },
    "http": 200,
-   "job_id": 136,
+   "job_id": 146,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 8.232
+   "seconds": 17.412
   },
   {
    "id": "N-tangent-dneg-b90-g0.0001",
@@ -9905,25 +9991,26 @@
        ],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 1.1437087652298738e-13,
-       "vertex_dev": 1.8870951304131658e-08,
-       "chord_dev": 0.0031251094009194175,
+       "vertex_dev": 1.8512363819161566e-07,
+       "chord_dev": 0.0031297525817716334,
        "p2r": {
         "bottom": 8.526512829121202e-14,
         "top": 1.1437087652298738e-13,
         "seam_a": 1.1437087652298738e-13,
         "seam_b": 1.1368683772161603e-13,
-        "branch_opening": 1.8870951304131658e-08
+        "branch_opening": 1.8512363819161566e-07
        },
        "r2p": {
         "bottom": 8.526512829121202e-14,
         "top": 1.1437087652298738e-13,
         "seam_a": 1.1437087652298738e-13,
         "seam_b": 7.576234667678242e-14,
-        "branch_opening": 0.0031251094009194175
+        "branch_opening": 0.0031297525817716334
        },
        "eps_num_stated": 5.069659824403345e-12,
        "eps_rep_stated": 0.0031297505053355496,
-       "eps_rep_ratio": 0.9985171008333668,
+       "eps_rep_ratio": 1.0000006634509941,
+       "coverage_opening": 0.0031297525817716334,
        "fold_opening_on_branch": 2.1316282072803006e-13,
        "opening_station_range": [
         149.99999999999991,
@@ -9960,23 +10047,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 1.7717818434396166e-14,
-       "vertex_dev": 1.8870940112300927e-08,
-       "chord_dev": 0.0031247918941229797,
+       "vertex_dev": 9.207017681942552e-08,
+       "chord_dev": 0.003129434479755407,
        "p2r": {
         "square_end": 0.0,
-        "saddle_cut": 1.8870940112300927e-08,
+        "saddle_cut": 9.207017681942552e-08,
         "seam_a": 1.7717818434396166e-14,
         "seam_b": 0.0
        },
        "r2p": {
         "square_end": 0.0,
-        "saddle_cut": 0.0031247918941229797,
+        "saddle_cut": 0.003129434479755407,
         "seam_a": 1.7717818434396166e-14,
         "seam_b": 0.0
        },
        "eps_num_stated": 4.6103640364273726e-12,
        "eps_rep_stated": 0.003129432402391279,
-       "eps_rep_ratio": 0.9985171405956067,
+       "eps_rep_ratio": 1.0000006638149865,
+       "coverage_saddle": 0.003129434479755407,
        "fold_cut_on_header": 8.526512829121202e-14,
        "seam_gap_3d": 8.526512829121202e-14,
        "marking_side_declared": "outside",
@@ -10011,12 +10099,12 @@
     }
    },
    "http": 200,
-   "job_id": 137,
+   "job_id": 147,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 27.678
+   "seconds": 27.058
   },
   {
    "id": "N-tangent-d-b90-g2e-06",
@@ -10036,10 +10124,7 @@
     "surface_reference": "outside"
    },
    "expect": "accept",
-   "issues": [
-    "header: no frame mapping reproduces the reference (best: station 0 at bottom (x=0); seam_a=seam start/outside, anchor residual 1.144e-13, vertex deviation 8.460e-02, tolerance 1.885e-06)",
-    "header: declared as drawn from the OUTSIDE, but the geometry matches the reference only as seen from the ?"
-   ],
+   "issues": [],
    "findings": [],
    "info": {
     "compare": {
@@ -10064,29 +10149,41 @@
         "extents_header_error": 0.0
        },
        "scale": 942.4777960769379,
-       "views_matching": [],
-       "other_labellings_matching": [],
-       "best": {
-        "label": "station 0 at bottom (x=0); seam_a=seam start",
-        "view": "outside",
-        "anchor_residual": 1.1437087652298738e-13,
-        "vertex_dev": 0.08459979400529717,
-        "chord_dev": 0.005068306151298813,
-        "p2r": {
-         "bottom": 8.526512829121202e-14,
-         "top": 1.1437087652298738e-13,
-         "seam_a": 1.1437087652298738e-13,
-         "seam_b": 1.1368683772161603e-13,
-         "branch_opening": 0.08459979400529717
-        },
-        "r2p": {
-         "bottom": 8.526512829121202e-14,
-         "top": 1.1437087652298738e-13,
-         "seam_a": 1.1437087652298738e-13,
-         "seam_b": 7.576234667678242e-14,
-         "branch_opening": 0.005068306151298813
-        }
+       "views_matching": [
+        "outside"
+       ],
+       "other_labellings_matching": [
+        "station 0 at top (x=450); seam_a=seam start/inside"
+       ],
+       "mapping": "station 0 at bottom (x=0); seam_a=seam start",
+       "anchor_residual": 1.1437087652298738e-13,
+       "vertex_dev": 1.8571585672294347e-07,
+       "chord_dev": 0.0050707881973563644,
+       "p2r": {
+        "bottom": 8.526512829121202e-14,
+        "top": 1.1437087652298738e-13,
+        "seam_a": 1.1437087652298738e-13,
+        "seam_b": 1.1368683772161603e-13,
+        "branch_opening": 1.8571585672294347e-07
        },
+       "r2p": {
+        "bottom": 8.526512829121202e-14,
+        "top": 1.1437087652298738e-13,
+        "seam_a": 1.1437087652298738e-13,
+        "seam_b": 7.576234667678242e-14,
+        "branch_opening": 0.0050707881973563644
+       },
+       "eps_num_stated": 3.009153415494607e-11,
+       "eps_rep_stated": 0.005069341000765854,
+       "eps_rep_ratio": 1.000285480221254,
+       "coverage_opening": 0.0050707881973563644,
+       "fold_opening_on_branch": 2.2737367544323206e-13,
+       "opening_station_range": [
+        149.9999999999999,
+        299.9999999999999
+       ],
+       "opening_seam_clearance": 235.9194490692222,
+       "seam_gap_3d": 8.038873388460929e-14,
        "marking_side_declared": "outside",
        "marking_side_in_dxf": "outside"
       },
@@ -10116,23 +10213,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 3.1449363163171833e-12,
-       "vertex_dev": 1.9052070339503825e-08,
-       "chord_dev": 0.005068293958312785,
+       "vertex_dev": 9.33246908593128e-08,
+       "chord_dev": 0.005070887914366388,
        "p2r": {
         "square_end": 3.1449363163171833e-12,
-        "saddle_cut": 1.9052070339503825e-08,
+        "saddle_cut": 9.33246908593128e-08,
         "seam_a": 2.07010745437289e-12,
         "seam_b": 3.1449363163171833e-12
        },
        "r2p": {
         "square_end": 3.1449363163171833e-12,
-        "saddle_cut": 0.005068293958312785,
+        "saddle_cut": 0.005070887914366388,
         "seam_a": 3.185974978167272e-13,
         "seam_b": 3.4106051316484814e-13
        },
        "eps_num_stated": 2.963213726044535e-11,
        "eps_rep_stated": 0.005069328750888976,
-       "eps_rep_ratio": 0.9997958718743563,
+       "eps_rep_ratio": 1.0003075680339608,
+       "coverage_saddle": 0.005070887914366388,
        "fold_cut_on_header": 2.7284841053187847e-12,
        "seam_gap_3d": 9.949881925885576e-13,
        "marking_side_declared": "outside",
@@ -10151,7 +10249,7 @@
      "mating_same_side_ok": true,
      "mating_mixed_side_ok": true,
      "mating_on_declared_side": 3.3907706850134996e-12,
-     "agree": false
+     "agree": true
     },
     "true_numeric_error": {
      "header": {
@@ -10167,12 +10265,12 @@
     }
    },
    "http": 200,
-   "job_id": 138,
+   "job_id": 148,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
-   "class": "disagree",
-   "seconds": 77.017
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "class": "agree",
+   "seconds": 33.661
   },
   {
    "id": "N-tangent-r-b45-g1.1e-06",
@@ -10192,10 +10290,7 @@
     "surface_reference": "outside"
    },
    "expect": "accept",
-   "issues": [
-    "header: no frame mapping reproduces the reference (best: station 0 at bottom (x=0); seam_b=seam start/inside, anchor residual 2.274e-13, vertex deviation 4.687e-01, tolerance 1.885e-06)",
-    "header: declared as drawn from the OUTSIDE, but the geometry matches the reference only as seen from the ?"
-   ],
+   "issues": [],
    "findings": [],
    "info": {
     "compare": {
@@ -10220,29 +10315,40 @@
         "extents_header_error": 0.0
        },
        "scale": 942.4777960769379,
-       "views_matching": [],
+       "views_matching": [
+        "inside",
+        "outside"
+       ],
        "other_labellings_matching": [],
-       "best": {
-        "label": "station 0 at bottom (x=0); seam_b=seam start",
-        "view": "inside",
-        "anchor_residual": 2.2737367544323206e-13,
-        "vertex_dev": 0.46868197844164805,
-        "chord_dev": 0.003910793916277294,
-        "p2r": {
-         "bottom": 1.7053025658242404e-13,
-         "top": 2.2737367544323206e-13,
-         "seam_b": 2.2737367544323206e-13,
-         "seam_a": 2.2737367544323206e-13,
-         "branch_opening": 0.46868197844164805
-        },
-        "r2p": {
-         "bottom": 1.7053025658242404e-13,
-         "top": 2.2737367544323206e-13,
-         "seam_b": 1.7053025658242404e-13,
-         "seam_a": 2.2737367544323206e-13,
-         "branch_opening": 0.003910793916277294
-        }
+       "mapping": "station 0 at bottom (x=0); seam_a=seam start",
+       "anchor_residual": 2.309079803033968e-13,
+       "vertex_dev": 1.8741590311118526e-07,
+       "chord_dev": 0.004024540938345141,
+       "p2r": {
+        "bottom": 1.7053025658242404e-13,
+        "top": 2.309079803033968e-13,
+        "seam_a": 2.309079803033968e-13,
+        "seam_b": 2.2737367544323206e-13,
+        "branch_opening": 1.8741590311118526e-07
        },
+       "r2p": {
+        "bottom": 1.7053025658242404e-13,
+        "top": 2.309079803033968e-13,
+        "seam_a": 1.7053025658242404e-13,
+        "seam_b": 2.2737367544323206e-13,
+        "branch_opening": 0.004024540938345141
+       },
+       "eps_num_stated": 1.1476125846252886e-10,
+       "eps_rep_stated": 0.004023597332246014,
+       "eps_rep_ratio": 1.0002345180248444,
+       "coverage_opening": 0.004024540938345141,
+       "fold_opening_on_branch": 3.979039320256561e-13,
+       "opening_station_range": [
+        150.86819898927368,
+        575.1318010107266
+       ],
+       "opening_seam_clearance": 235.84193499425058,
+       "seam_gap_3d": 8.038873388460929e-14,
        "marking_side_declared": "outside",
        "marking_side_in_dxf": "outside"
       },
@@ -10271,23 +10377,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 8.229741419209167e-12,
-       "vertex_dev": 5.752510006584218e-08,
-       "chord_dev": 0.003910790190544342,
+       "vertex_dev": 1.8741452609459231e-07,
+       "chord_dev": 0.004024537095271648,
        "p2r": {
         "square_end": 8.229741419209167e-12,
-        "saddle_cut": 5.752510006584218e-08,
+        "saddle_cut": 1.8741452609459231e-07,
         "seam_a": 8.229741419209167e-12,
         "seam_b": 1.1251700260321641e-11
        },
        "r2p": {
         "square_end": 8.229741419209167e-12,
-        "saddle_cut": 0.003910790190544342,
+        "saddle_cut": 0.004024537095271648,
         "seam_a": 8.739063044462854e-13,
         "seam_b": 7.958078640513122e-13
        },
        "eps_num_stated": 8.055790678742049e-11,
        "eps_rep_stated": 0.004023593489634804,
-       "eps_rep_ratio": 0.9719645388180852,
+       "eps_rep_ratio": 1.0002345181339205,
+       "coverage_saddle": 0.004024537095271648,
        "fold_cut_on_header": 5.4285465012071654e-12,
        "seam_gap_3d": 3.203499870903343e-12,
        "marking_side_declared": "outside",
@@ -10306,7 +10413,7 @@
      "mating_same_side_ok": true,
      "mating_mixed_side_ok": true,
      "mating_on_declared_side": 1.0113696674044426e-11,
-     "agree": false
+     "agree": true
     },
     "true_numeric_error": {
      "header": {
@@ -10322,12 +10429,12 @@
     }
    },
    "http": 200,
-   "job_id": 139,
+   "job_id": 149,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
-   "class": "disagree",
-   "seconds": 192.243
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "class": "agree",
+   "seconds": 52.605
   },
   {
    "id": "N-tangent-d-b45-g0.01",
@@ -10378,25 +10485,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 2.4438914044371647e-13,
-       "vertex_dev": 3.0467813691312685e-08,
-       "chord_dev": 0.005800856306848825,
+       "vertex_dev": 1.7333933546428937e-07,
+       "chord_dev": 0.005801033675014751,
        "p2r": {
         "bottom": 2.2426114079437863e-13,
         "top": 2.4438914044371647e-13,
         "seam_a": 2.4438914044371647e-13,
         "seam_b": 2.2426114079437863e-13,
-        "branch_opening": 3.0467813691312685e-08
+        "branch_opening": 1.7333933546428937e-07
        },
        "r2p": {
         "bottom": 1.9330898116552956e-13,
         "top": 2.2737367544323206e-13,
         "seam_a": 1.1368683772161603e-13,
         "seam_b": 1.1368683772161603e-13,
-        "branch_opening": 0.005800856306848825
+        "branch_opening": 0.005801033675014751
        },
        "eps_num_stated": 2.692174146396662e-12,
        "eps_rep_stated": 0.005800998656768694,
-       "eps_rep_ratio": 0.9999754611355232,
+       "eps_rep_ratio": 1.0000060365892374,
+       "coverage_opening": 0.005801033675014751,
        "fold_opening_on_branch": 1.7053025658242404e-13,
        "opening_station_range": [
         150.64067760821985,
@@ -10432,23 +10540,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 9.953940410498703e-14,
-       "vertex_dev": 3.046773888056316e-08,
-       "chord_dev": 0.00575689136242289,
+       "vertex_dev": 9.33089956577792e-08,
+       "chord_dev": 0.0057570677526370875,
        "p2r": {
         "square_end": 8.038873388460929e-14,
-        "saddle_cut": 3.046773888056316e-08,
+        "saddle_cut": 9.33089956577792e-08,
         "seam_a": 8.776374974630598e-14,
         "seam_b": 9.953940410498703e-14
        },
        "r2p": {
         "square_end": 8.038873388460929e-14,
-        "saddle_cut": 0.00575689136242289,
+        "saddle_cut": 0.0057570677526370875,
         "seam_a": 8.776374974630598e-14,
         "seam_b": 9.953940410498703e-14
        },
        "eps_num_stated": 1.2322108160976986e-12,
        "eps_rep_stated": 0.00575703318443833,
-       "eps_rep_ratio": 0.9999753654337405,
+       "eps_rep_ratio": 1.0000060045161545,
+       "coverage_saddle": 0.0057570677526370875,
        "fold_cut_on_header": 1.4210854715202004e-13,
        "seam_gap_3d": 1.3869240899526244e-13,
        "marking_side_declared": "outside",
@@ -10483,12 +10592,12 @@
     }
    },
    "http": 200,
-   "job_id": 140,
+   "job_id": 150,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 8.499
+   "seconds": 15.823
   },
   {
    "id": "N-shallow-b10-r0.3",
@@ -10539,25 +10648,26 @@
        "other_labellings_matching": [],
        "mapping": "station 0 at bottom (x=0); seam_a=seam start",
        "anchor_residual": 3.2155493553843715e-13,
-       "vertex_dev": 4.159062333585768e-08,
-       "chord_dev": 0.0032139326236588113,
+       "vertex_dev": 1.699207546854041e-07,
+       "chord_dev": 0.0032140631157460222,
        "p2r": {
         "bottom": 2.4116620165382783e-13,
         "top": 3.2155493553843715e-13,
         "seam_a": 2.4116620165382783e-13,
         "seam_b": 3.2155493553843715e-13,
-        "branch_opening": 4.159062333585768e-08
+        "branch_opening": 1.699207546854041e-07
        },
        "r2p": {
         "bottom": 1.7053025658242404e-13,
         "top": 2.2771342740819555e-13,
         "seam_a": 1.7053025658242404e-13,
         "seam_b": 2.2737367544323203e-13,
-        "branch_opening": 0.0032139326236588113
+        "branch_opening": 0.0032140631157460222
        },
        "eps_num_stated": 5.7113494900274306e-12,
        "eps_rep_stated": 0.0032141419679904675,
-       "eps_rep_ratio": 0.9999348677395893,
+       "eps_rep_ratio": 0.9999754670934792,
+       "coverage_opening": 0.0032140631157460222,
        "fold_opening_on_branch": 5.329070518200751e-13,
        "opening_station_range": [
         150.59544342220585,
@@ -10593,23 +10703,24 @@
        "other_labellings_matching": [],
        "mapping": "seam_a=phi 0",
        "anchor_residual": 2.3437142008433856e-13,
-       "vertex_dev": 4.1590569909363465e-08,
-       "chord_dev": 0.0031878502377024323,
+       "vertex_dev": 2.4821199767098336e-07,
+       "chord_dev": 0.0031879796995055295,
        "p2r": {
         "square_end": 2.3437142008433856e-13,
-        "saddle_cut": 4.1590569909363465e-08,
+        "saddle_cut": 2.4821199767098336e-07,
         "seam_a": 1.407314423814121e-13,
         "seam_b": 2.3437142008433856e-13
        },
        "r2p": {
         "square_end": 2.3437142008433856e-13,
-        "saddle_cut": 0.0031878502377024323,
+        "saddle_cut": 0.0031879796995055295,
         "seam_a": 1.407314423814121e-13,
         "seam_b": 1.2710574864626038e-13
        },
        "eps_num_stated": 1.9107545316430523e-12,
        "eps_rep_stated": 0.003188057956426688,
-       "eps_rep_ratio": 0.9999348447465213,
+       "eps_rep_ratio": 0.9999754531058631,
+       "coverage_saddle": 0.0031879796995055295,
        "fold_cut_on_header": 1.9895196601282805e-13,
        "seam_gap_3d": 2.842170943040401e-14,
        "marking_side_declared": "outside",
@@ -10644,12 +10755,12 @@
     }
    },
    "http": 200,
-   "job_id": 141,
+   "job_id": 151,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 7.025
+   "seconds": 14.779
   },
   {
    "id": "N-shallow-b170.3-r0.3",
@@ -10673,12 +10784,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 142,
+   "job_id": 152,
    "outcome": "out of range (beta): angle between axes must be within about 10..170 deg in this build (grazing intersections are ill-conditioned; limit is an implementation choice, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.009
+   "seconds": 0.022
   },
   {
    "id": "N-aspect-cone-flat-h0.01",
@@ -10695,12 +10806,12 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 143,
+   "job_id": 153,
    "outcome": "not developable: developed angle 6.283185 rad would overlap",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
-   "seconds": 0.004
+   "seconds": 0.005
   },
   {
    "id": "N-aspect-cone-flat-h1e-08",
@@ -10717,10 +10828,10 @@
    "findings": [],
    "info": {},
    "http": 422,
-   "job_id": 144,
+   "job_id": 154,
    "outcome": "out of range (h): 1e-8 mm is below 1e-6 mm, the smallest dimension this build has been exercised with (implementation limit, not an engineering rule)",
    "state": "REFUSED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "refused_correctly",
    "seconds": 0.004
   },
@@ -10808,12 +10919,12 @@
     }
    },
    "http": 200,
-   "job_id": 145,
+   "job_id": 155,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 5.702
+   "seconds": 13.007
   },
   {
    "id": "N-magnitude-cyl-2^-26",
@@ -10830,15 +10941,16 @@
    "info": {
     "scaled_outcome": "accepted",
     "scaled_state": "REVIEW_REQUIRED",
-    "scale_rel_dev": 0.0
+    "scale_worst_dev_over_tau": 0.0,
+    "scale_exact_issues": 0
    },
    "http": 200,
-   "job_id": 146,
+   "job_id": 156,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.025
+   "seconds": 0.364
   },
   {
    "id": "N-magnitude-cone-2^-1040",
@@ -10857,12 +10969,12 @@
     "scaled_outcome": "refused: out of range (r1): 1.697596632772e-311 mm is below 1e-6 mm, the smallest dimension this build has been exercised with (implementation limit, not an engineering rule)"
    },
    "http": 200,
-   "job_id": 148,
+   "job_id": 158,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.015
+   "seconds": 0.03
   },
   {
    "id": "N-magnitude-cone-2^30",
@@ -10881,12 +10993,12 @@
     "scaled_outcome": "refused: out of range (r1): magnitude 2.147483648e11 mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule)"
    },
    "http": 200,
-   "job_id": 150,
+   "job_id": 160,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.017
+   "seconds": 0.033
   },
   {
    "id": "N-magnitude-ecc-2^8",
@@ -10900,23 +11012,21 @@
     "e": 100
    },
    "expect": "accept",
-   "issues": [
-    "scale x256.0: reducer/large_end changes entity type or vertex count",
-    "scale x256.0: reducer/small_end changes entity type or vertex count"
-   ],
+   "issues": [],
    "findings": [],
    "info": {
     "scaled_outcome": "accepted",
     "scaled_state": "REVIEW_REQUIRED",
-    "scale_rel_dev": 0.0
+    "scale_worst_dev_over_tau": 0.9961073481606803,
+    "scale_exact_issues": 0
    },
    "http": 200,
-   "job_id": 152,
+   "job_id": 162,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
-   "class": "disagree",
-   "seconds": 0.627
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
+   "class": "agree",
+   "seconds": 10.525
   },
   {
    "id": "N-magnitude-asm-2^-26",
@@ -10941,15 +11051,16 @@
    "info": {
     "scaled_outcome": "accepted",
     "scaled_state": "REVIEW_REQUIRED",
-    "scale_rel_dev": 0.0
+    "scale_worst_dev_over_tau": 0.0,
+    "scale_exact_issues": 0
    },
    "http": 200,
-   "job_id": 154,
+   "job_id": 164,
    "outcome": null,
    "state": "REVIEW_REQUIRED",
-   "engine": "nf-engine 0.4.0+src.be53b63158593bf7",
+   "engine": "nf-engine 0.4.0+src.e3c264333b691c19",
    "class": "agree",
-   "seconds": 0.151
+   "seconds": 2.334
   }
  ]
 }
