@@ -224,6 +224,9 @@ mod tests {
             delta: 0.0,
             s_end: 400.0,
             surface_reference: "outside".into(),
+            header_surface_reference: None,
+            branch_surface_reference: None,
+            joint: None,
         }
     }
 

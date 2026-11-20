@@ -93,7 +93,7 @@ check "identical request gives identical closure" '[ "$(get $C1 | j "d[\"closure
 A1=$(run '{"family":"header_with_branch","header_radius":150,"header_dev_radius":150,"header_length":1200,"branch_station":600,"branch_radius":100,"branch_dev_radius":100,"beta_deg":60,"delta":0,"s_end":400,"surface_reference":"outside"}')
 RA=$(get $A1)
 check "assembly: two parts, opening on the header"  '[ "$(echo "$RA" | j "[p[\"part\"] for p in d[\"patterns\"]]==[\"header\",\"branch\"] and len(d[\"patterns\"][0][\"holes\"])==1")" = True ]'
-check "assembly: interface checks pass"             '[ "$(echo "$RA" | j "[c[\"verdict\"] for c in d[\"checks\"] if c[\"scope\"]==\"interface\"]==[\"PASS\",\"PASS\",\"PASS\"]")" = True ]'
+check "assembly: interface checks pass (three fold-back, two independent joint point checks)"  '[ "$(echo "$RA" | j "[c[\"verdict\"] for c in d[\"checks\"] if c[\"scope\"]==\"interface\"]==[\"PASS\"]*5")" = True ]'
 check "assembly: dependency edges exposed"          '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/calculations/$A1/dependencies | j "len(d[\"edges\"])>=20")" = True ]'
 check "correction without a reason refused"         '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"parameter\":\"header_radius\",\"new_value\":158}" $BASE/api/calculations/$A1/corrections)" = 400 ]'
 # BE-004: a correction the engine refuses changes nothing (it used to supersede the valid job and record a lesson)

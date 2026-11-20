@@ -56,7 +56,7 @@ pub enum Request {
         #[serde(default = "unknown_surface")]
         surface_reference: String,
     },
-    /// Assembly: header shell rolled from plate with one set-on branch.
+    /// Assembly: header shell rolled from plate with one branch.
     HeaderWithBranch {
         header_radius: f64,
         header_dev_radius: f64,
@@ -68,8 +68,24 @@ pub enum Request {
         delta: f64,
         s_end: f64,
         /// Which wall surface the entered contact radii refer to — a declared
-        /// drawing-level convention, recorded and never inferred.
+        /// drawing-level convention, recorded and never inferred. Used for each
+        /// part that does not declare its own surface below.
         surface_reference: String,
+        /// Optional (review RB-001): the wall surface the HEADER contact radius refers to.
+        /// Absent: `surface_reference`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        header_surface_reference: Option<String>,
+        /// Optional (review RB-001): the wall surface the BRANCH contact radius refers to.
+        /// Absent: `surface_reference`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        branch_surface_reference: Option<String>,
+        /// Optional joint type. `"set_on"`: the set-on joint of Spec 02 §4.4, branch INSIDE
+        /// surface on header OUTSIDE surface. The saddle on the branch and the opening in the
+        /// header are then the same intersection curve, and the opening is the branch bore.
+        /// Absent: the joint type is not declared; the same single contact curve is computed,
+        /// labelled as such.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        joint: Option<String>,
     },
 }
 
@@ -207,33 +223,48 @@ fn layer_name(l: Layer) -> &'static str {
     }
 }
 
+/// The DXF entities of a pattern: the outer profile, then the openings. An opening is a closed
+/// profile: it is written with the closed flag (DXF polyline flag 70 bit 1) and WITHOUT repeating
+/// its first vertex, which the closed flag implies (review RB-008). Its JSON points still carry
+/// the repeated vertex, as they always did; the DXF and JSON agree vertex for vertex.
 pub fn to_entities(p: &Pattern) -> Vec<Entity> {
-    p.outline
-        .iter()
-        .chain(p.holes.iter())
-        .map(|c| {
-            let layer = layer_name(c.layer).to_string();
-            match &c.geom {
-                Geom::Line { a, b } => Entity::Line {
-                    layer,
-                    a: (a.x, a.y),
-                    b: (b.x, b.y),
-                },
-                Geom::Arc { c, r, a0, a1 } => Entity::Arc {
-                    layer,
-                    c: (c.x, c.y),
-                    r: *r,
-                    start_deg: a0.min(*a1).to_degrees(),
-                    end_deg: a0.max(*a1).to_degrees(),
-                },
-                Geom::Polyline { pts, .. } => Entity::Polyline {
-                    layer,
-                    pts: pts.iter().map(|q| (q.x, q.y)).collect(),
-                },
-            }
-        })
-        .collect()
+    let outer = p.outline.iter().map(|c| curve_entity(c, false));
+    let inner = p.holes.iter().map(|c| curve_entity(c, true));
+    outer.chain(inner).collect()
 }
+
+fn curve_entity(c: &uem::Curve, closed_profile: bool) -> Entity {
+    let layer = layer_name(c.layer).to_string();
+    match &c.geom {
+        Geom::Line { a, b } => Entity::Line {
+            layer,
+            a: (a.x, a.y),
+            b: (b.x, b.y),
+        },
+        Geom::Arc { c, r, a0, a1 } => Entity::Arc {
+            layer,
+            c: (c.x, c.y),
+            r: *r,
+            start_deg: a0.min(*a1).to_degrees(),
+            end_deg: a0.max(*a1).to_degrees(),
+        },
+        Geom::Polyline { pts, .. } => {
+            let mut v: Vec<(f64, f64)> = pts.iter().map(|q| (q.x, q.y)).collect();
+            if closed_profile && v.len() >= 2 && v.first() == v.last() {
+                v.pop();
+            }
+            Entity::Polyline {
+                layer,
+                pts: v,
+                closed: closed_profile,
+            }
+        }
+    }
+}
+
+/// Quantities that describe the polyline density. The result view lists only quantities with a unit that the
+/// interface knows; these two are stated in the assumptions of the pattern instead (review RB-004).
+const DENSITY_QUANTITIES: [&str; 2] = ["polyline_segments", "chord_error_limit"];
 
 /// Chords used to show an arc in the JSON result. Display only.
 const ARC_DISPLAY_CHORDS: usize = 96;
@@ -330,6 +361,10 @@ struct Builder {
     evaluated: Vec<String>,
     /// Declared marking side of every part, in order.
     sides: Vec<uem::ViewSide>,
+    /// False once the DXF quality gate has refused a file of this job (such a file is never offered).
+    quality_ok: bool,
+    /// The parts whose DXF the quality gate refused, with the rules it failed.
+    quality_notes: Vec<String>,
 }
 
 impl Builder {
@@ -346,6 +381,8 @@ impl Builder {
             has_polyline: false,
             evaluated: vec![],
             sides: vec![],
+            quality_ok: true,
+            quality_notes: vec![],
         }
     }
     fn push(&mut self, r: Record) -> String {
@@ -407,6 +444,7 @@ impl Builder {
             quantities: pattern
                 .quantities
                 .iter()
+                .filter(|(k, _)| !DENSITY_QUANTITIES.contains(k))
                 .map(|(k, v)| (k.to_string(), *v))
                 .collect(),
             assumptions: pattern
@@ -417,6 +455,8 @@ impl Builder {
                     format!("Marking side: drawn as seen from the {} of the formed part. Provisional convention of this build (Spec 02 §0.3 requires a declared side and does not choose one); not reviewed by a fabrication engineer.", pattern.marking_side.code().to_uppercase()),
                     "eps_num and eps_rep are estimates, not bounds: independent validation measured up to 6 times eps_num and 1.2 times the earlier eps_rep near tangency.".to_string(),
                 ])
+                .chain(pattern.quantity("polyline_segments").map(|n| format!("Polyline density: {n:.0} segments per curve, uniform in the angle; doubled from the base number until the measured chord error is within the chord error limit.")))
+                .chain(pattern.quantity("chord_error_limit").map(|m| format!("Chord error limit: {m} mm, an implementation limit pending engineering review (docs/backend/TOLERANCE_POLICY.md); not an engineering tolerance.")))
                 .collect(),
             curves: pattern.outline.iter().map(curve_view).collect(),
             holes: pattern.holes.iter().map(curve_view).collect(),
@@ -461,11 +501,29 @@ impl Builder {
             vec![rel("verifies", &dxf_id)],
             Some(a_re),
         ));
+        // DXF quality gate (nf-dxf quality, review item 5): the file as written and re-read must pass it.
+        // A file that does not pass is never offered: it is withheld from the job's DXF list and G15 fails.
+        let a_q = self.act("verify.dxf_quality", "Z3", &[&dxf_id], 300);
+        let quality = nf_dxf::quality::quality_gate(&text);
+        let q_id = self.push(Record::new(
+            Family::Assessment,
+            "dxf_quality_report",
+            json!({ "part": part, "pass": quality.pass, "rules_failed": quality.failed_rules(), "findings": quality.findings.iter().map(|f| format!("{}: {}", f.rule, f.detail)).collect::<Vec<String>>(), "entities": quality.entities, "outer_contours": quality.outer_contours, "inner_contours": quality.inner_contours, "segments_tested": quality.segments_tested, "rules_checked": nf_dxf::quality::RULES }),
+            vec![rel("verifies", &dxf_id)],
+            Some(a_q),
+        ));
+        self.quality_ok &= quality.pass;
+        if !quality.pass {
+            self.quality_notes
+                .push(format!("{part}: {}", quality.failed_rules().join(", ")));
+        }
         self.has_polyline |= pattern.eps_rep > 0.0;
         self.patterns.push(pv);
-        self.dxf.push((part.to_string(), text));
+        if quality.pass {
+            self.dxf.push((part.to_string(), text));
+        }
         self.evaluated
-            .extend([pattern_id.clone(), dxf_id.clone(), prof_id, re_id]);
+            .extend([pattern_id.clone(), dxf_id.clone(), prof_id, re_id, q_id]);
         (pattern_id, dxf_id)
     }
 
@@ -488,6 +546,16 @@ impl Builder {
             g.detail = format!(
                 "The parts of this job are not all drawn from the declared marking side ({:?}); marked on one face they would not fit. {}",
                 self.sides, g.detail
+            );
+        }
+        if !self.quality_ok
+            && let Some(g) = gates.iter_mut().find(|g| g.id == "G15")
+        {
+            g.result = GateResult::Fail;
+            g.detail = format!(
+                "The DXF quality gate refused a file of this job, so it is not offered ({}). {}",
+                self.quality_notes.join("; "),
+                g.detail
             );
         }
         // A refusal is not a result under review: it has its own state, end to end (BE-003).
@@ -617,7 +685,7 @@ pub fn evaluate_gates(
             "output_integrity",
             true,
             tri(reimport_ok),
-            "Every DXF re-imported by the independent reader and compared with the intended geometry. CAM acceptance not tested.",
+            "Every DXF is re-imported by a separate reader and compared with the intended geometry, and checked by the DXF quality gate (open contours, overlaps, self-intersection, orientation, extents, release marking); a file that fails is not offered. CAM acceptance not tested.",
         ),
         gate(
             "G16",
@@ -786,40 +854,80 @@ fn single(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// The set-on joint of Spec 02 §4.4 as the request declares it: branch INSIDE surface on header OUTSIDE surface.
+pub const SET_ON_HEADER_SURFACE: &str = "outside";
+pub const SET_ON_BRANCH_SURFACE: &str = "inside";
+
+/// Header with one branch. `dims` = header radius, header development radius, header length, branch
+/// station, branch radius, branch development radius, beta (deg), delta, s_end; `surfaces` = the wall
+/// surface of the header radius and of the branch radius; `joint` = the declared joint type, if any.
 fn header_with_branch(
     req: &Request,
     entered_by: &str,
-    hr: f64,
-    hdev: f64,
-    hlen: f64,
-    station: f64,
-    br: f64,
-    bdev: f64,
-    beta_deg: f64,
-    delta: f64,
-    s_end: f64,
-    sref: &str,
+    dims: [f64; 9],
+    surfaces: (&str, &str),
+    joint: Option<&str>,
 ) -> JobOutput {
+    let [hr, hdev, hlen, station, br, bdev, beta_deg, delta, s_end] = dims;
+    let (hsref, bsref) = surfaces;
     let mut b = Builder::new();
     let rq = b.push(request_claim(req, entered_by));
-    if !SURFACE_REFERENCES.contains(&sref) {
-        return err_output(
-            req,
-            b,
-            &rq,
-            UemError::OutOfRange {
-                param: "surface_reference",
-                reason: format!("must be one of {SURFACE_REFERENCES:?}"),
-            },
-        );
+    for (param, value) in [
+        ("header_surface_reference", hsref),
+        ("branch_surface_reference", bsref),
+    ] {
+        if !SURFACE_REFERENCES.contains(&value) {
+            return err_output(
+                req,
+                b,
+                &rq,
+                UemError::OutOfRange {
+                    param,
+                    reason: format!("must be one of {SURFACE_REFERENCES:?}"),
+                },
+            );
+        }
+    }
+    // RB-001: the joint type is declared or absent. A set-on joint is only the Spec 02 §4.4 pairing: the
+    // branch cut at its bore (inside surface) on the header outside surface. Any other declaration is refused,
+    // because the opening of a branch cut at its outside diameter would be as wide as the branch: it would
+    // pass through the hole.
+    match joint {
+        None => {}
+        Some("set_on") => {
+            if hsref != SET_ON_HEADER_SURFACE || bsref != SET_ON_BRANCH_SURFACE {
+                return err_output(
+                    req,
+                    b,
+                    &rq,
+                    UemError::OutOfRange {
+                        param: "joint",
+                        reason: format!(
+                            "a set-on joint (Spec 02 section 4.4) needs the branch INSIDE surface on the header OUTSIDE surface: branch_surface_reference \"{SET_ON_BRANCH_SURFACE}\" and header_surface_reference \"{SET_ON_HEADER_SURFACE}\". Declared: header \"{hsref}\", branch \"{bsref}\". A branch whose outside surface is the contact would have its opening cut at the outside diameter, so it would pass through the hole; this build has no wall thickness from which the bore could be derived"
+                        ),
+                    },
+                );
+            }
+        }
+        Some(other) => {
+            return err_output(
+                req,
+                b,
+                &rq,
+                UemError::OutOfRange {
+                    param: "joint",
+                    reason: format!("the joint type must be absent or \"set_on\", not \"{other}\""),
+                },
+            );
+        }
     }
     // BE-001: the declared surface of the contact radii must be geometrically possible for the entered
     // development radii. Checked only for radii the engine would accept at all (finite and > 0), so that
-    // a negative radius is still reported as what it is.
+    // a negative radius is still reported as what it is. Each part is checked against its OWN surface.
     let mut scrutiny: Vec<String> = Vec::new();
-    for (contact_name, contact, dev_name, dev) in [
-        ("header_radius", hr, "header_dev_radius", hdev),
-        ("branch_radius", br, "branch_dev_radius", bdev),
+    for (contact_name, contact, dev_name, dev, sref) in [
+        ("header_radius", hr, "header_dev_radius", hdev, hsref),
+        ("branch_radius", br, "branch_dev_radius", bdev, bsref),
     ] {
         if contact.is_finite() && contact > 0.0 && dev.is_finite() && dev > 0.0 {
             match radius_consistency(sref, contact_name, contact, dev_name, dev) {
@@ -840,7 +948,7 @@ fn header_with_branch(
         }
     }
     // One claim per parameter, so that a change to one of them can be traced.
-    let conv = b.push(Record::new(Family::Claim, "convention", json!({ "name": "surface_reference", "value": sref, "scope": "all radii of this request", "axes": { "provenance": "human_entered", "authority": "assumed" } }), vec![rel("declared_in", &rq)], None));
+    let conv = b.push(Record::new(Family::Claim, "convention", json!({ "name": "surface_reference", "value": { "header": hsref, "branch": bsref }, "scope": "header contact radius and its development radius: header; branch contact radius and its development radius: branch", "joint": joint.unwrap_or("not declared"), "axes": { "provenance": "human_entered", "authority": "assumed" } }), vec![rel("declared_in", &rq)], None));
     let param = |b: &mut Builder, name: &str, value: f64, radius: bool| -> String {
         let mut rels = vec![rel("declared_in", &rq)];
         if radius {
@@ -887,14 +995,30 @@ fn header_with_branch(
         beta: beta_deg.to_radians(),
         delta,
     };
-    let branch_pat = match develop::branch_stub(hr, br, bdev, beta_deg, delta, s_end) {
+    let mut branch_pat = match develop::branch_stub(hr, br, bdev, beta_deg, delta, s_end) {
         Ok(p) => p,
         Err(e) => return err_output(req, b, &rq, e),
     };
-    let header_pat = match develop::header_with_opening(&geo, hdev, hlen, station) {
+    let mut header_pat = match develop::header_with_opening(&geo, hdev, hlen, station) {
         Ok(p) => p,
         Err(e) => return err_output(req, b, &rq, e),
     };
+    // Both parts of the joint are sampled with the same number of segments, the larger of the two that each
+    // needs for its own chord error (review RB-004). Their vertices are then the same points of the intersection
+    // curve, at the same branch azimuths, and the interface checks compare vertex with vertex. Without this a
+    // part at 25.4 times the reference size was refused: one part was chord-sampled more finely than the other.
+    let segments = |p: &Pattern| p.quantity("polyline_segments").unwrap_or(0.0) as usize;
+    if segments(&branch_pat) != segments(&header_pat) {
+        let n = segments(&branch_pat).max(segments(&header_pat));
+        branch_pat = match develop::branch_stub_min(hr, br, bdev, beta_deg, delta, s_end, n) {
+            Ok(p) => p,
+            Err(e) => return err_output(req, b, &rq, e),
+        };
+        header_pat = match develop::header_with_opening_min(&geo, hdev, hlen, station, n) {
+            Ok(p) => p,
+            Err(e) => return err_output(req, b, &rq, e),
+        };
+    }
     // The intersection curve is shared by both parts: it depends on both contact radii and the placement.
     let a_int = b.act(
         "build.intersect",
@@ -909,10 +1033,17 @@ fn header_with_branch(
         vec![rel("computed_from", &p_hr), rel("computed_from", &p_br), rel("computed_from", &p_beta), rel("computed_from", &p_delta)],
         Some(a_int),
     ));
+    // RB-001: the joint is called set-on only when the request declares it, and then only as the Spec 02 §4.4
+    // pairing. Without a declaration the same single curve is computed and it is not called set-on.
+    let joint_label = if joint == Some("set_on") {
+        "set-on (Spec 02 section 4.4: branch inside surface on header outside surface; the opening is the branch bore)"
+    } else {
+        "single contact curve (joint type not declared): the branch end cut and the header opening are cut on one curve of the entered radii"
+    };
     let interface = b.push(Record::new(
         Family::Claim,
         "interface",
-        json!({ "name": "header-branch joint", "joint": "set-on (as entered)", "constraint": "branch end cut and header opening are the same intersection curve" }),
+        json!({ "name": "header-branch joint", "joint": joint_label, "declared": joint.unwrap_or("not declared"), "header_surface": hsref, "branch_surface": bsref, "constraint": "branch end cut and header opening are the same intersection curve" }),
         vec![rel("mates_at", &part_h), rel("mates_at", &part_b), rel("interface_feature", &curve), rel("positioned_by", &p_st)],
         None,
     ));
@@ -943,8 +1074,9 @@ fn header_with_branch(
         bc,
     );
 
-    // Interface constraint, evaluated from the two finished patterns.
-    let ic = verify::verify_interface(
+    // Interface constraint, evaluated from the two finished patterns: the fold-back check, and the independent
+    // 3D check of the joint (review RB-001, RB-006), each part against the other part's own geometry.
+    let mut ic = verify::verify_interface(
         &header_pat,
         &geo,
         hdev,
@@ -954,6 +1086,16 @@ fn header_with_branch(
         bdev,
         s_end,
     );
+    ic.extend(verify::verify_joint(
+        &header_pat,
+        &geo,
+        hdev,
+        station,
+        &branch_pat,
+        &geo,
+        bdev,
+        s_end,
+    ));
     let a_if = b.act(
         "verify.interface",
         "Z3",
@@ -976,15 +1118,25 @@ fn header_with_branch(
     b.all_checks.extend(ic);
     b.evaluated.extend([ev, interface]);
 
+    let surface_note = if hsref == "unknown" || bsref == "unknown" {
+        "unknown".to_string()
+    } else if hsref == bsref {
+        hsref.to_string()
+    } else {
+        format!("header {hsref}, branch {bsref}")
+    };
     let mut gates = evaluate_gates(
         &b.all_checks,
         Some(b.topo_ok),
         Some(b.reimport_ok),
         b.has_polyline,
-        Some(sref),
+        Some(surface_note.as_str()),
     );
     if let Some(g) = gates.iter_mut().find(|g| g.id == "G02") {
-        g.detail.push_str(" Contact and development radii were checked against the declared surface (Spec 02 §6.1): the direction is possible; no wall thickness is modelled, so its size is not checked.");
+        g.detail.push_str(" Contact and development radii were checked against the declared surface of each part (Spec 02 §6.1): the direction is possible; no wall thickness is modelled, so its size is not checked.");
+        if joint.is_none() {
+            g.detail.push_str(" Joint type not declared: the saddle and the opening are cut on one curve of the entered contact radii, a zero-thickness idealisation that is not called set-on. A set-on branch is cut at its bore: declare joint set_on with header_surface_reference outside and branch_surface_reference inside.");
+        }
         for note in &scrutiny {
             g.detail.push(' ');
             g.detail.push_str(note);
@@ -1180,19 +1332,32 @@ pub fn run(req: &Request, entered_by: &str) -> JobOutput {
             delta,
             s_end,
             surface_reference,
+            header_surface_reference,
+            branch_surface_reference,
+            joint,
         } => header_with_branch(
             req,
             entered_by,
-            header_radius,
-            header_dev_radius,
-            header_length,
-            branch_station,
-            branch_radius,
-            branch_dev_radius,
-            beta_deg,
-            delta,
-            s_end,
-            &surface_reference,
+            [
+                header_radius,
+                header_dev_radius,
+                header_length,
+                branch_station,
+                branch_radius,
+                branch_dev_radius,
+                beta_deg,
+                delta,
+                s_end,
+            ],
+            (
+                header_surface_reference
+                    .as_deref()
+                    .unwrap_or(&surface_reference),
+                branch_surface_reference
+                    .as_deref()
+                    .unwrap_or(&surface_reference),
+            ),
+            joint.as_deref(),
         ),
     }
 }
@@ -1228,6 +1393,9 @@ mod tests {
             delta: 0.0,
             s_end: 400.0,
             surface_reference: "outside".into(),
+            header_surface_reference: None,
+            branch_surface_reference: None,
+            joint: None,
         }
     }
 
@@ -1303,7 +1471,8 @@ mod tests {
         assert_eq!(o.patterns[0].holes.len(), 1);
         assert_eq!(
             o.checks.iter().filter(|c| c.scope == "interface").count(),
-            3 // two 3D checks, and since D1 the check that both parts declare the same marking side
+            5 // three fold-back checks (the two 3D cross-checks, and since D1 the common marking side) and,
+              // since review RB-001, the two independent 3D point checks of the joint (verify_joint)
         );
         assert!(o.dxf[0].1.contains("CUT_INNER"));
         assert!(o.gates.iter().any(|g| g.id == "G02"));
@@ -1416,6 +1585,9 @@ mod tests {
             delta: 0.0,
             s_end: 400.0,
             surface_reference: sref.into(),
+            header_surface_reference: None,
+            branch_surface_reference: None,
+            joint: None,
         }
     }
 
@@ -1703,6 +1875,9 @@ mod tests {
             delta: 20.0,
             s_end: 400.0,
             surface_reference: "outside".into(),
+            header_surface_reference: None,
+            branch_surface_reference: None,
+            joint: None,
         }
     }
 
@@ -1779,7 +1954,10 @@ mod tests {
             [
                 "parts_declare_the_same_marking_side",
                 "branch_cut_lies_on_header_opening",
-                "header_opening_lies_on_branch_cut"
+                "header_opening_lies_on_branch_cut",
+                // review RB-001: the independent 3D checks of the joint, each part against the other's geometry
+                "opening_on_intersection_of_branch_geometry",
+                "saddle_on_intersection_of_header_geometry"
             ]
         );
         assert!(o.checks.iter().all(|c| c.verdict == "PASS"));
@@ -1953,5 +2131,278 @@ mod tests {
         // a request written before the field existed still parses, as "unknown"
         let old = Request::parse_strict(&json!({ "family": "branch_stub", "header_radius": 150, "branch_radius": 100, "branch_dev_radius": 100, "beta_deg": 60, "delta": 0, "s_end": 400 })).unwrap();
         assert_eq!(old, stub("unknown", 100.0, 100.0));
+    }
+
+    /// The set-on example of Spec 02 §4.4 (DN300 header, DN150 branch): header OUTSIDE radius 161.95 with
+    /// development radius 156.795; branch INSIDE (bore) radius 77.095 with development radius 80.6.
+    fn set_on_example(
+        beta_deg: f64,
+        delta: f64,
+        joint: Option<&str>,
+        hsref: Option<&str>,
+        bsref: Option<&str>,
+    ) -> Request {
+        Request::HeaderWithBranch {
+            header_radius: 161.95,
+            header_dev_radius: 156.795,
+            header_length: 1200.0,
+            branch_station: 600.0,
+            branch_radius: 77.095,
+            branch_dev_radius: 80.6,
+            beta_deg,
+            delta,
+            s_end: 400.0,
+            surface_reference: "outside".into(),
+            header_surface_reference: hsref.map(String::from),
+            branch_surface_reference: bsref.map(String::from),
+            joint: joint.map(String::from),
+        }
+    }
+
+    fn interface_payload(o: &JobOutput) -> Value {
+        o.records
+            .iter()
+            .find(|r| r.kind == "interface")
+            .unwrap()
+            .payload
+            .clone()
+    }
+
+    /// Extent of the header opening along the header axis (x), from the pattern itself.
+    fn opening_width_along_header(o: &JobOutput) -> f64 {
+        let h = o.patterns.iter().find(|p| p.part == "header").unwrap();
+        let q = |name: &str| {
+            h.quantities
+                .iter()
+                .find(|(n, _)| n.as_str() == name)
+                .unwrap()
+                .1
+        };
+        q("opening_x_max") - q("opening_x_min")
+    }
+
+    fn g02_detail(o: &JobOutput) -> String {
+        o.gates
+            .iter()
+            .find(|g| g.id == "G02")
+            .unwrap()
+            .detail
+            .clone()
+    }
+
+    /// RB-001 (review B). The set-on joint of Spec 02 §4.4 is declared per part and computed: the branch is cut
+    /// at its bore on the header outside surface, so the opening is as wide along the header axis as the bore
+    /// (2 × 77.095 mm, not the outside diameter), and every interface check passes, including the independent
+    /// 3D checks of the joint (uem verify::verify_joint, a formulation that shares no chart with develop).
+    #[test]
+    fn rb001_set_on_joint_is_declared_per_part_computed_and_independently_checked() {
+        let o = run(
+            &set_on_example(90.0, 0.0, Some("set_on"), Some("outside"), Some("inside")),
+            "t",
+        );
+        assert_eq!(o.state, ReleaseState::ReviewRequired, "{:?}", o.outcome);
+        assert_eq!(o.dxf.len(), 2, "both parts are offered");
+        assert!(
+            (opening_width_along_header(&o) - 2.0 * 77.095).abs() < 1e-9,
+            "{}",
+            opening_width_along_header(&o)
+        );
+        assert!(
+            interface_payload(&o)["joint"]
+                .as_str()
+                .unwrap()
+                .starts_with("set-on")
+        );
+        let interface: Vec<&CheckView> =
+            o.checks.iter().filter(|c| c.scope == "interface").collect();
+        for want in [
+            "opening_on_intersection_of_branch_geometry",
+            "saddle_on_intersection_of_header_geometry",
+        ] {
+            assert!(interface.iter().any(|c| c.name == want), "{want} missing");
+        }
+        assert!(
+            interface.iter().all(|c| c.verdict == "PASS"),
+            "{:?}",
+            interface
+                .iter()
+                .filter(|c| c.verdict != "PASS")
+                .map(|c| &c.name)
+                .collect::<Vec<_>>()
+        );
+        // a chiral set-on joint (offset and oblique) passes as well
+        let o = run(
+            &set_on_example(60.0, 20.0, Some("set_on"), Some("outside"), Some("inside")),
+            "t",
+        );
+        assert_eq!(o.state, ReleaseState::ReviewRequired, "{:?}", o.outcome);
+        assert!(
+            o.checks
+                .iter()
+                .filter(|c| c.scope == "interface")
+                .all(|c| c.verdict == "PASS")
+        );
+    }
+
+    /// RB-001: a set-on joint is refused unless the branch bore is its contact surface, and the field is named.
+    /// A joint type that does not exist is refused too.
+    #[test]
+    fn rb001_set_on_is_refused_unless_the_branch_bore_is_the_contact_surface() {
+        for (hs, bs) in [
+            ("outside", "outside"),
+            ("inside", "inside"),
+            ("inside", "outside"),
+        ] {
+            let o = run(
+                &set_on_example(90.0, 0.0, Some("set_on"), Some(hs), Some(bs)),
+                "t",
+            );
+            assert_eq!(o.state, ReleaseState::Refused, "{hs}/{bs}");
+            assert_eq!(o.refused_field.as_deref(), Some("joint"), "{hs}/{bs}");
+            assert!(
+                o.dxf.is_empty() && o.patterns.is_empty(),
+                "{hs}/{bs}: nothing is offered"
+            );
+        }
+        let o = run(
+            &set_on_example(90.0, 0.0, Some("set_in"), Some("outside"), Some("inside")),
+            "t",
+        );
+        assert_eq!(
+            (o.state, o.refused_field.as_deref()),
+            (ReleaseState::Refused, Some("joint"))
+        );
+        // the branch's own development radius is checked against the branch's own surface, under set-on too
+        let mut bad = set_on_example(90.0, 0.0, Some("set_on"), Some("outside"), Some("inside"));
+        if let Request::HeaderWithBranch {
+            branch_dev_radius, ..
+        } = &mut bad
+        {
+            *branch_dev_radius = 75.0; // below the inside radius 77.095: a negative wall
+        }
+        let o = run(&bad, "t");
+        assert_eq!(
+            (o.state, o.refused_field.as_deref()),
+            (ReleaseState::Refused, Some("branch_dev_radius"))
+        );
+        // the bore pairing under the single 'outside' reference is refused as a negative wall of the branch
+        let o = run(&set_on_example(90.0, 0.0, None, None, None), "t");
+        assert_eq!(
+            (o.state, o.refused_field.as_deref()),
+            (ReleaseState::Refused, Some("branch_dev_radius"))
+        );
+    }
+
+    /// RB-001: without a declared joint type the pairing is computed as one contact curve and is NOT called
+    /// set-on. The default outside pair (both radii outside) keeps its geometry: its opening is the outside
+    /// diameter, which is why it is labelled, not accepted as a set-on joint.
+    #[test]
+    fn rb001_undeclared_joint_is_one_contact_curve_and_is_not_called_set_on() {
+        let od = Request::HeaderWithBranch {
+            header_radius: 161.95,
+            header_dev_radius: 156.795,
+            header_length: 1200.0,
+            branch_station: 600.0,
+            branch_radius: 84.15,
+            branch_dev_radius: 80.6,
+            beta_deg: 90.0,
+            delta: 0.0,
+            s_end: 400.0,
+            surface_reference: "outside".into(),
+            header_surface_reference: None,
+            branch_surface_reference: None,
+            joint: None,
+        };
+        let o = run(&od, "t");
+        assert_eq!(o.state, ReleaseState::ReviewRequired, "{:?}", o.outcome);
+        assert!((opening_width_along_header(&o) - 2.0 * 84.15).abs() < 1e-9);
+        let joint = interface_payload(&o)["joint"].as_str().unwrap().to_string();
+        assert!(
+            joint.starts_with("single contact curve") && !joint.contains("set-on"),
+            "{joint}"
+        );
+        assert!(g02_detail(&o).contains("Joint type not declared"));
+        // the same pairing declared per part, without the joint type, is still one contact curve, not set-on
+        let o = run(
+            &set_on_example(90.0, 0.0, None, Some("outside"), Some("inside")),
+            "t",
+        );
+        assert_eq!(o.state, ReleaseState::ReviewRequired, "{:?}", o.outcome);
+        assert!(
+            interface_payload(&o)["joint"]
+                .as_str()
+                .unwrap()
+                .starts_with("single contact curve")
+        );
+    }
+
+    /// DXF quality gate (nf-dxf quality, review item 5). A file the gate does not pass is never offered: it is
+    /// withheld from the DXF list, gate G15 fails and the job is REJECTED. The pattern is deliberately broken:
+    /// the opening crosses itself (a figure of eight). The re-import check passes, so the gate alone refuses it.
+    #[test]
+    fn dxf_quality_gate_refuses_a_broken_file_and_withholds_it() {
+        let req = Request::CylinderShell {
+            r_dev: 100.0,
+            length: 250.0,
+        };
+        let mut pattern = uem::develop::cylinder_shell(100.0, 250.0).unwrap();
+        pattern.holes = vec![uem::Curve {
+            name: "branch_opening",
+            layer: Layer::CutInner,
+            geom: Geom::Polyline {
+                pts: [
+                    (40.0, 40.0),
+                    (60.0, 20.0),
+                    (60.0, 40.0),
+                    (40.0, 20.0),
+                    (40.0, 40.0),
+                ]
+                .iter()
+                .map(|&(x, y)| uem::P2::new(x, y))
+                .collect(),
+                eps_rep: 0.0,
+            },
+        }];
+        let mut b = Builder::new();
+        b.part("broken", &pattern, vec![], vec![]);
+        assert!(
+            !b.quality_ok && b.reimport_ok,
+            "the gate refuses it; the re-import alone would not"
+        );
+        assert!(b.dxf.is_empty(), "the broken file is not offered");
+        let report = b
+            .recs
+            .iter()
+            .find(|r| r.kind == "dxf_quality_report")
+            .unwrap();
+        assert_eq!(report.payload["pass"], json!(false));
+        assert!(
+            report.payload["rules_failed"]
+                .to_string()
+                .contains("self_intersection"),
+            "{}",
+            report.payload
+        );
+        let gates = evaluate_gates(
+            &b.all_checks,
+            Some(b.topo_ok),
+            Some(b.reimport_ok),
+            b.has_polyline,
+            Some("outside"),
+        );
+        let out = b.finish(&req, gates, None);
+        assert_eq!(out.state, ReleaseState::Rejected);
+        assert!(out.dxf.is_empty());
+        assert!(out.gates.iter().any(|g| g.id == "G15"
+            && g.result == GateResult::Fail
+            && g.detail.contains("refused")));
+        // a well-formed part passes the gate and is offered
+        let good = run(&req, "t");
+        assert_eq!(good.dxf.len(), 1);
+        assert!(
+            good.records
+                .iter()
+                .any(|r| r.kind == "dxf_quality_report" && r.payload["pass"] == json!(true))
+        );
     }
 }

@@ -265,6 +265,9 @@ fn stress_header_with_branch_assembly() {
                 delta,
                 s_end: big_r * g.log(1.5, 20.0),
                 surface_reference: sref.into(),
+                header_surface_reference: None,
+                branch_surface_reference: None,
+                joint: None,
             },
             &mut t,
         );

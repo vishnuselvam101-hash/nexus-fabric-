@@ -6,11 +6,15 @@
 //! reducer), cylinder-on-cylinder branch, press-brake bend formulas, and the
 //! independent verification checks for those families.
 //!
-//! Numerical regime of this build: IEEE binary64 with *estimated* error
-//! (comparison of two quadrature orders / step sizes). Interval-certified
-//! bounds are NOT implemented; every result says so.
+//! Numerical regime of this build: IEEE binary64. Rounding errors of the
+//! closed-form parts are stated as first-order a-priori bounds, quadrature
+//! errors as the difference of two refinement levels, and the distance between
+//! a polyline and its curve is measured after the density was chosen for a
+//! stated limit. Interval-certified bounds are NOT implemented; every result
+//! says so.
 
 pub mod develop;
+pub mod independent;
 pub mod profile;
 pub mod verify;
 
@@ -131,16 +135,32 @@ pub struct Pattern {
     pub outline: Vec<Curve>,
     /// Closed inner profiles (openings), each a single closed polyline, clockwise.
     pub holes: Vec<Curve>,
-    /// ESTIMATE of the numerical error of pattern coordinates (mm). Not a
-    /// bound: independent validation measured up to 6 times this value near
-    /// tangency (cancellation in R² − y²) and 2 times for a very flat oblique reducer.
+    /// Numerical error of the pattern coordinates (mm): what kind of figure it
+    /// is, and how it was obtained, is stated in `eps_num_basis`. It is never
+    /// interval-certified in this build.
     pub eps_num: f64,
-    /// ESTIMATE of the largest distance between a polyline and the exact curve
-    /// (mm): the largest deviation found at three interior samples of every
-    /// segment. Not a bound; 0 only for patterns made of lines and exact arcs.
+    /// How `eps_num` was obtained (a-priori rounding bound, quadrature
+    /// estimate, ...), in words that go into the result.
+    pub eps_num_basis: &'static str,
+    /// Largest distance between a polyline and the exact curve it stands for
+    /// (mm), MEASURED at `develop::VERIFY_SUB - 1` interior points of every
+    /// segment after the density was chosen. 0 only for patterns made of lines
+    /// and exact arcs.
     pub eps_rep: f64,
+    /// How `eps_rep` was obtained and which limit the polyline density was
+    /// chosen for.
+    pub eps_rep_basis: &'static str,
     /// Named scalar results (mm, rad, mm²) for reporting and verification.
     pub quantities: Vec<(&'static str, f64)>,
+    /// What the plate coordinates mean on the formed part, in words a workshop
+    /// can act on: plate axes and rolling axis, which edges are seams, where
+    /// stations and angles start and in which direction they grow, where the
+    /// origin lies, and that kerf is not compensated. Written into the result
+    /// and, as non-cutting text, into every DXF (review RB-002, RB-003,
+    /// RB-007, RB-008, RB-009). Provisional, not reviewed by a fabricator.
+    pub conventions: Vec<String>,
+    /// What each outline curve is on the formed part: (curve name, role).
+    pub roles: Vec<(&'static str, &'static str)>,
     /// Assumptions under which the pattern is valid for fabrication.
     pub assumptions: Vec<&'static str>,
 }
@@ -151,6 +171,13 @@ impl Pattern {
             .iter()
             .find(|(n, _)| *n == name)
             .map(|(_, v)| *v)
+    }
+    /// Role of a curve on the formed part ("seam", "end", ...), if stated.
+    pub fn role(&self, curve: &str) -> Option<&'static str> {
+        self.roles
+            .iter()
+            .find(|(n, _)| *n == curve)
+            .map(|(_, r)| *r)
     }
 }
 
@@ -210,6 +237,64 @@ pub fn gauss(f: &dyn Fn(f64) -> f64, a: f64, b: f64, n: usize) -> (f64, f64) {
     (s5, (s5 - s3).abs())
 }
 
+/// One 5-point Gauss–Legendre panel on [a,b].
+pub fn gauss5(f: &dyn Fn(f64) -> f64, a: f64, b: f64) -> f64 {
+    const X: [f64; 2] = [0.538_469_310_105_683_1, 0.906_179_845_938_664];
+    const W: [f64; 3] = [
+        0.568_888_888_888_888_9,
+        0.478_628_670_499_366_47,
+        0.236_926_885_056_189_08,
+    ];
+    let (m, k) = (0.5 * (a + b), 0.5 * (b - a));
+    k * (W[0] * f(m)
+        + W[1] * (f(m - k * X[0]) + f(m + k * X[0]))
+        + W[2] * (f(m - k * X[1]) + f(m + k * X[1])))
+}
+
+/// Adaptive 5-point Gauss–Legendre on [a,b]: the interval is halved until the
+/// whole-interval value and the sum of its halves agree to `rel` of the value
+/// (or `depth` halvings were made). Returns (value, sum of the last
+/// whole-minus-halves differences). The second value is a conservative
+/// ESTIMATE of the error, not a bound: for a resolved integrand the error of
+/// the returned value is about 1/1000 of it (the rule is of order 10).
+pub fn gauss_adaptive(f: &dyn Fn(f64) -> f64, a: f64, b: f64, rel: f64, depth: u32) -> (f64, f64) {
+    fn go(f: &dyn Fn(f64) -> f64, a: f64, b: f64, whole: f64, rel: f64, depth: u32) -> (f64, f64) {
+        let m = 0.5 * (a + b);
+        let (l, r) = (gauss5(f, a, m), gauss5(f, m, b));
+        let d = (whole - (l + r)).abs();
+        if depth == 0 || d <= rel * (l + r).abs() || !d.is_finite() {
+            return (l + r, d);
+        }
+        let (lv, le) = go(f, a, m, l, rel, depth - 1);
+        let (rv, re) = go(f, m, b, r, rel, depth - 1);
+        (lv + rv, le + re)
+    }
+    go(f, a, b, gauss5(f, a, b), rel, depth)
+}
+
+/// Running sum with Neumaier compensation: the rounding error of the total
+/// stays at a few units in the last place whatever the number of terms.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Compensated {
+    sum: f64,
+    c: f64,
+}
+
+impl Compensated {
+    pub fn add(&mut self, x: f64) {
+        let t = self.sum + x;
+        self.c += if self.sum.abs() >= x.abs() {
+            (self.sum - t) + x
+        } else {
+            (x - t) + self.sum
+        };
+        self.sum = t;
+    }
+    pub fn value(&self) -> f64 {
+        self.sum + self.c
+    }
+}
+
 /// Press-brake bend allowance: neutral arc length. `theta` = bend angle (rad),
 /// `ri` inside radius, `k` neutral factor, `t` thickness. `k` is a calibrated
 /// process parameter; no default exists (Spec 02 MATH-16).
@@ -238,6 +323,27 @@ mod tests {
         assert!((bd - 5.402655427461).abs() < 1e-11);
         assert!((100.0 - bd - 94.59734457254).abs() < 1e-10);
         assert!(bend_deduction(2.0, 3.0, 0.4, 3.0).is_err());
+    }
+
+    #[test]
+    fn adaptive_quadrature_resolves_a_peak_the_fixed_rule_misses() {
+        // a narrow peak of width 1e-3 inside [0, 1]: integral = atan(500/1) * 2 * 1e-3 ... exactly 2*w*atan(1/(2w)) / 1
+        let w = 1e-3;
+        let f = |x: f64| w / (w * w + (x - 0.5) * (x - 0.5));
+        let exact = 2.0 * (0.5 / w).atan();
+        let (fixed, fixed_est) = gauss(&f, 0.0, 1.0, 8);
+        assert!(
+            (fixed - exact).abs() > 10.0 * fixed_est.min(1e-3),
+            "the fixed rule is wrong here and its estimate does not say so: {fixed} against {exact}, estimate {fixed_est}"
+        );
+        let (v, e) = gauss_adaptive(&f, 0.0, 1.0, 1e-13, 40);
+        assert!((v - exact).abs() < 1e-11, "{v} against {exact}");
+        assert!(e < 1e-9 && (v - exact).abs() <= e.max(1e-12));
+        let mut s = Compensated::default();
+        for _ in 0..1_000_000 {
+            s.add(0.1);
+        }
+        assert!((s.value() - 100_000.0).abs() < 1e-9);
     }
 
     #[test]
