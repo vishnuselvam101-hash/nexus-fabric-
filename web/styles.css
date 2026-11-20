@@ -263,6 +263,7 @@ th{font-size:var(--t-s);font-weight:400;color:var(--ink-3);white-space:nowrap;ba
 tbody tr:hover>td{background:var(--sheet-2)}
 td.num,th.num{text-align:right;white-space:nowrap}
 td.nw{white-space:nowrap}
+dd .nw{white-space:nowrap}
 td.gcell{line-height:1.9}
 .jobs td:nth-child(2){min-width:150px}.jobs td:nth-child(3){min-width:130px}
 td .sub{font-size:var(--t-s)}

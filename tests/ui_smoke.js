@@ -380,6 +380,37 @@ const controlProbe = () => {
   await p.click('#logout'); await p.waitForSelector('#f');
   check('logout: returns to sign-in and the session is invalid', (await ctx.request.get(`${B}/api/projects`, { headers: { 'X-NF-Request': '1' } })).status() === 401);
 
+  // ---- 14a. joints (review RB-001; UI_CHANGES items 1-5, 9-12): a declared set-on joint, an undeclared one, a refused pairing
+  await p.fill('input[name=u]', ADMIN.username); await p.fill('input[name=p]', NEW_PW); await p.click('#f button'); await p.waitForSelector('#view h1');
+  const SO = await (async () => {
+    await go('math/1', '#calc'); await p.selectOption('select[name=fam]', 'header_with_branch');
+    await p.selectOption('select[name=surface_reference]', 'outside'); await p.selectOption('select[name=branch_surface_reference]', 'inside'); await p.selectOption('select[name=joint]', 'set_on');
+    await p.click('#run'); await p.waitForURL(/#\/calc\/\d+$/); await p.waitForSelector('.pv .c', { state: 'attached' });
+    return Number(p.url().split('/').pop());
+  })();
+  const jointDd = async () => p.locator('#joint dd').allTextContents();
+  await go(`calc/${SO}`, '.pv'); await p.waitForSelector('#joint');
+  const soDd = (await jointDd()).map((x) => x.trim());
+  check('joint: a declared set-on job shows the declared joint and both of its surfaces', /Set-on/.test(soDd[0] || '') && soDd.includes('outside') && soDd.includes('inside') && /^set-on \(Spec 02 section 4\.4/.test((await p.textContent('#joint p')).trim()), soDd);
+  await go(`calc/${A}`, '.pv'); await p.waitForSelector('#joint');
+  const undDd = (await jointDd()).map((x) => x.trim());
+  const aText = await p.textContent('#view');
+  check('joint: an undeclared job says the joint type is not declared and is not called set-on', /single contact curve \(joint type not declared\)/.test((await p.textContent('#joint p')).trim()) && undDd[0] === 'not declared' && !/set-on joint assumed/i.test(aText) && !/set-on/i.test(await p.textContent('#joint p')), { undDd });
+  await go('math/1', '#calc'); await p.selectOption('select[name=fam]', 'header_with_branch');
+  const beforeRefusal = await jobCount();
+  check('form: the optional joint fields are left at their defaults, so the request is the same as before', (await p.inputValue('#f_joint')) === '' && (await p.inputValue('#f_header_surface_reference')) === '' && (await p.inputValue('#f_branch_surface_reference')) === '' && (await p.locator('#calc [aria-invalid="true"]').count()) === 0);
+  await p.selectOption('select[name=joint]', 'set_on'); await p.click('#run'); await p.waitForSelector('#f_joint[aria-invalid="true"]');
+  const jm = await p.evaluate(() => ({ marked: [...document.querySelectorAll('#calc [aria-invalid="true"]')].map((e) => e.name), msg: (document.querySelector('#f_joint').closest('.field').querySelector('.field-err') || {}).textContent || '' }));
+  check('refusal: a set-on pairing that is not outside-header and inside-branch marks the joint field, nothing is sent', jm.marked.join() === 'joint' && /INSIDE/.test(jm.msg) && (await jobCount()) === beforeRefusal, jm);
+  // the same pairing refused by the engine: the server names the field, and the refused job marks that row
+  const refusedApi = await ctx.request.post(`${B}/api/projects/1/calculations`, { headers: { 'X-NF-Request': '1' }, data: { family: 'header_with_branch', header_radius: 150, header_dev_radius: 150, header_length: 1200, branch_station: 600, branch_radius: 100, branch_dev_radius: 100, beta_deg: 60, delta: 0, s_end: 400, surface_reference: 'unknown', joint: 'set_on' } });
+  const rfb = await refusedApi.json();
+  check('refusal: the engine names the field "joint" for a set-on pairing it does not accept', refusedApi.status() === 422 && rfb.field === 'joint', rfb);
+  await go(`calc/${rfb.id}`, '#view h1');
+  const rowMark = await p.evaluate(() => { const dd = [...document.querySelectorAll('dl.req dd')].find((d) => d.querySelector('.tag')); return dd ? dd.previousElementSibling.textContent : ''; });
+  check('refusal: the refused job marks the request row of the field it names', /joint/.test(rowMark), rowMark);
+
+  await p.click('#logout'); await p.waitForSelector('#f');
   // ---- 14b. routing and Japanese: the switch, its persistence, the URL override, every main screen walked for
   // English words, layout at three widths in both languages, and errors in both languages.
   // The walk accepts only English that is English by design. Before it reads any text it skips:
@@ -435,6 +466,23 @@ const controlProbe = () => {
   // every main screen, in Japanese
   await jaScreen('dashboard');
   for (const fam of ['cylinder_shell', 'cone_frustum', 'eccentric_reducer', 'header_with_branch', 'branch_stub']) { await go('math/1', '#calc'); await p.selectOption('select[name=fam]', fam); await jaScreen(`new calculation, ${fam}`); }
+  // engine sentences shown without their Japanese text (the class .eng.raw is set by the client for an untranslated text)
+  const rawEng = () => p.evaluate(() => [...document.querySelectorAll('#joint .eng.raw, #assume .eng.raw, #gates li[data-gate="G02"] .eng.raw')].map((e) => e.textContent.trim().slice(0, 160)));
+  // the joint in Japanese: the refused pairing, the declared set-on job and the undeclared one (assumptions opened)
+  await go('math/1', '#calc'); await p.selectOption('select[name=fam]', 'header_with_branch'); await p.selectOption('select[name=joint]', 'set_on'); await p.click('#run'); await p.waitForSelector('#f_joint[aria-invalid="true"]');
+  const jaMark = await p.evaluate(() => ({ marked: [...document.querySelectorAll('#calc [aria-invalid="true"]')].map((e) => e.name), msg: (document.querySelector('#f_joint').closest('.field').querySelector('.field-err') || {}).textContent || '' }));
+  check('ja: the refused set-on pairing marks the joint field in Japanese', jaMark.marked.join() === 'joint' && /セットオン/.test(jaMark.msg), jaMark);
+  await jaScreen('new calculation, header with branch, joint field marked');
+  await go(`calc/${SO}`, '.pv'); await p.waitForSelector('#joint'); await p.evaluate(() => { document.querySelector('#assume').parentElement.open = true; });
+  const soJa = await p.textContent('#joint');
+  check('ja: the declared set-on joint is shown in Japanese, with both surfaces', /セットオン/.test(soJa) && /外面/.test(soJa) && /内面/.test(soJa), soJa.slice(0, 120));
+  check('ja: no engine sentence of the declared set-on job is untranslated (joint, assumptions, gate G02)', (await rawEng()).length === 0, await rawEng());
+  await jaScreen('job view, declared set-on joint');
+  await go(`calc/${A}`, '.pv'); await p.waitForSelector('#joint'); await p.evaluate(() => { document.querySelector('#assume').parentElement.open = true; });
+  const undJa = await p.textContent('#view');
+  check('ja: the undeclared job does not say that set-on is assumed, and says the joint type is not declared', !/セットオン継手を前提/.test(undJa) && /未宣言/.test(await p.textContent('#joint')));
+  check('ja: no engine sentence of the undeclared job is untranslated (joint, assumptions, gate G02)', (await rawEng()).length === 0, await rawEng());
+  await jaScreen('job view, undeclared joint');
   await go(`calc/${J}`, '.pv'); await p.waitForSelector('.pv .c', { state: 'attached' }); await jaScreen('job view, pattern');
   for (const k of ['gates', 'checks', 'scrutiny', 'graph', 'history', 'records']) { await p.click(`#tab-ws-${k}`); await jaScreen(`job view, ${k} tab`); }
   await go(`calc/${N}`, '.pv'); await p.waitForSelector('.pv .c', { state: 'attached' }); await p.click('#tab-ws-changes'); await jaScreen('job view, changes tab');
