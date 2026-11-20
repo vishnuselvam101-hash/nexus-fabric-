@@ -540,6 +540,7 @@ dependencies = [
  "argon2",
  "axum",
  "futures-core",
+ "getrandom",
  "hex",
  "http-body-util",
  "hyper",

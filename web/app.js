@@ -530,6 +530,13 @@ function paintStatus() {
 async function refreshSummary() { try { summary = await api('/api/dashboard'); paintStatus(); } catch { /* status bar keeps its last state */ } }
 
 // ---------------------------------------------------------------- sign in
+// Desktop mode (nf-server --desktop) hands the one-time setup token over in the URL fragment, which the browser never sends to the server.
+// It is read once, kept in memory, and removed from the address bar. Server mode never sets a fragment, so this is a no-op there.
+let desktopSetupToken = null;
+try {
+  const m = /^#setup=([0-9a-f]{64})$/.exec(location.hash);
+  if (m) { desktopSetupToken = m[1]; history.replaceState(null, '', location.pathname + location.search); }
+} catch { /* no fragment support: the token can be typed in */ }
 // `st`: { setup, key, params, err, kind, username } — kept so that the screen can be drawn again in another language.
 function renderLogin(st) {
   loginState = st = { setup: false, key: null, params: null, err: null, kind: 'bad', username: '', ...st };
@@ -545,7 +552,7 @@ function renderLogin(st) {
     ${message ? `<div class="note ${st.kind}" role="alert" id="loginmsg">${ic(st.kind === 'info' ? 'info' : 'warn')}<div>${message}</div></div>` : ''}
     <form id="f" novalidate><div class="field"><label for="lu">${esc(t('login.user'))}</label><input id="lu" name="u" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(st.username)}"></div>
     <div class="field"><label for="lp">${esc(t(setup ? 'login.pass.setup' : 'login.pass'))}</label><input id="lp" name="p" type="password" autocomplete="${setup ? 'new-password' : 'current-password'}"></div>
-    ${setup ? `<div class="field"><label for="lt">${esc(t('login.token'))}</label><input id="lt" name="t" autocomplete="off" spellcheck="false"><p class="hint">${h('login.token.hint')}</p></div>` : ''}
+    ${setup && !desktopSetupToken ? `<div class="field"><label for="lt">${esc(t('login.token'))}</label><input id="lt" name="t" autocomplete="off" spellcheck="false"><p class="hint">${h('login.token.hint')}</p></div>` : ''}
     <button class="pri">${esc(t(setup ? 'login.go.setup' : 'login.go'))}</button></form>
     <p class="legal">${esc(t('login.legal'))}</p></div></main>`;
   const f = $('#f'); (st.username ? f.p : f.u).focus();
@@ -554,11 +561,14 @@ function renderLogin(st) {
     if (!f.u.value.trim()) { fieldError(f.u, t('login.e.user')); return; }
     if (!f.p.value) { fieldError(f.p, t('login.e.pass')); return; }
     if (setup && f.p.value.length < 10) { fieldError(f.p, t('login.e.len')); return; }
-    if (setup && !f.t.value.trim()) { fieldError(f.t, t('login.e.token')); return; }
+    if (setup && !desktopSetupToken && !f.t.value.trim()) { fieldError(f.t, t('login.e.token')); return; }
     const body = { username: f.u.value, password: f.p.value };
     try {
       await withBusy($('button', f), t(setup ? 'login.busy.setup' : 'login.busy'), async () => {
-        if (setup) await api('/api/setup', { method: 'POST', json: { ...body, setup_token: f.t.value.trim() } });
+        if (setup) {
+          await api('/api/setup', { method: 'POST', json: { ...body, setup_token: (f.t ? f.t.value.trim() : '') || desktopSetupToken || '' } });
+          desktopSetupToken = null;
+        }
         await api('/api/login', { method: 'POST', json: body });
         me = await api('/api/me');
       });
