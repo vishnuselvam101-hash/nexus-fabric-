@@ -22,6 +22,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build
         run: cargo build --release --workspace --locked
+      - name: Third-party notices match the release dependency graph
+        run: bash tests/notices_check.sh target/release/nf-server cargo
       - name: Lint (warnings are errors)
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Unit, property, stress, regression and command-line tests
