@@ -2,7 +2,7 @@
 ; Development build. Not validated. Outputs must not be used for manufacturing.
 ;
 ; Build (normally through packaging/windows/build.sh):
-;   makensis -DVERSION=0.1.0 -DSTAGE=<folder with nexus-fabric.exe, README.txt, NOTICE.txt> -DOUTFILE=<setup.exe> packaging/windows/installer.nsi
+;   makensis -DVERSION=0.1.0 -DSTAGE=<folder with nexus-fabric.exe, README.txt, NOTICE.txt, THIRD_PARTY_NOTICES.txt> -DOUTFILE=<setup.exe> packaging/windows/installer.nsi
 
 Unicode true
 Target amd64-unicode
@@ -75,6 +75,7 @@ Section "NEXUS FABRIC (required)" SEC_APP
   File "${STAGE}\nexus-fabric.exe"
   File "${STAGE}\README.txt"
   File "${STAGE}\NOTICE.txt"
+  File "${STAGE}\THIRD_PARTY_NOTICES.txt"
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   CreateDirectory "$SMPROGRAMS\NEXUS FABRIC"
@@ -104,6 +105,7 @@ Section "Uninstall"
     Abort
   Delete "$INSTDIR\README.txt"
   Delete "$INSTDIR\NOTICE.txt"
+  Delete "$INSTDIR\THIRD_PARTY_NOTICES.txt"
   Delete "$INSTDIR\uninstall.exe"
   Delete "$SMPROGRAMS\NEXUS FABRIC\NEXUS FABRIC.lnk"
   Delete "$SMPROGRAMS\NEXUS FABRIC\Uninstall NEXUS FABRIC.lnk"

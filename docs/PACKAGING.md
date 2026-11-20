@@ -91,6 +91,7 @@ mentions the desktop setup link.
 | `packaging/windows/installer.nsi` | NSIS per-user installer and uninstaller script. |
 | `packaging/README.txt` | README shipped in every package. |
 | `packaging/NOTICE.txt` | Notice shipped in every package. |
+| `packaging/THIRD_PARTY_NOTICES.txt` | Licence texts of the compiled Rust crates, shipped in every package. Regenerate with `packaging/generate_notices.sh` (cargo-about, config `packaging/about.toml`, template `packaging/about.hbs`); `tests/notices_check.sh` builds the Linux package and fails if it lacks the file, or if the notices list does not match `cargo tree -e normal,build` of `nf-server` for both packaged targets (it runs in the `quality-gate.yml` software job as `bash tests/notices_check.sh target/release/nf-server cargo`). It does not check the installed Windows file: `packaging/verify/windows_checks.sh` checks that `THIRD_PARTY_NOTICES.txt` is present in the installed Windows folder. |
 | `packaging/INSTALL.md` | Install guide, English and Japanese. |
 | `.github/workflows/release.yml` | Builds the packages on a `v*` tag or manually; uploads workflow artefacts only. |
 | `tests/desktop_smoke.js` | Browser test of desktop mode (see below). |

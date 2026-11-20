@@ -5,7 +5,7 @@
 #   nexus-fabric            the program (desktop mode is started with --desktop)
 #   nexus-fabric.sh         launcher script
 #   nexus-fabric.desktop    desktop entry (edit its Exec= line to the full path first)
-#   README.txt, NOTICE.txt
+#   README.txt, NOTICE.txt, THIRD_PARTY_NOTICES.txt (licence texts of the compiled crates)
 set -euo pipefail
 
 if [ "$#" -ne 3 ]; then
@@ -30,6 +30,7 @@ cp "$ROOT/packaging/linux/nexus-fabric.desktop" "$STAGE/$NAME/nexus-fabric.deskt
 chmod 755 "$STAGE/$NAME/nexus-fabric.sh"
 cp "$ROOT/packaging/README.txt" "$STAGE/$NAME/README.txt"
 cp "$ROOT/packaging/NOTICE.txt" "$STAGE/$NAME/NOTICE.txt"
+cp "$ROOT/packaging/THIRD_PARTY_NOTICES.txt" "$STAGE/$NAME/THIRD_PARTY_NOTICES.txt"
 
 OUT="$DIST/$NAME-linux-x86_64.tar.gz"
 rm -f "$OUT"

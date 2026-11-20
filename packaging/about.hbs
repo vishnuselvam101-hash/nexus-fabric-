@@ -1,0 +1,35 @@
+NEXUS FABRIC - third-party licence notices
+==========================================
+
+This file lists the third-party Rust crates in the dependency graph of the release
+build of nf-server (the program shipped in every NEXUS FABRIC package), including
+build-time and procedural-macro crates that are not linked into the shipped binary.
+For each crate it gives the version, the licence identifier and the full licence
+text. For a dual-licensed crate, the licence shown is the one elected via
+packaging/about.toml.
+
+It is generated from the dependency graph of the release build by
+packaging/generate_notices.sh (cargo-about). Do not edit it by hand.
+
+Bundled native code: rusqlite (feature "bundled") compiles the SQLite library from
+source through libsqlite3-sys. SQLite describes itself as in the public domain; this
+is to be confirmed in the dependency evaluation record.
+
+Licences used: {{#each overview}}{{{name}}} ({{count}}){{#unless @last}}, {{/unless}}{{/each}}
+
+--------------------------------------------------------------------------------
+
+{{#each licenses}}
+{{#each used_by}}
+Crate: {{{crate.name}}} {{{crate.version}}}
+Licence: {{{../id}}}
+Repository: {{#if crate.repository}}{{{crate.repository}}}{{else}}https://crates.io/crates/{{{crate.name}}}{{/if}}
+
+{{/each}}
+Licence text:
+
+{{{text}}}
+
+--------------------------------------------------------------------------------
+
+{{/each}}

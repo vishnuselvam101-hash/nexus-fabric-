@@ -3,7 +3,7 @@
 # Usage: packaging/windows/build.sh <nf-server.exe> <version> <dist dir>
 # Produces in <dist dir>:
 #   nexus-fabric-<version>-windows-x64-setup.exe     per-user installer (NSIS)
-#   nexus-fabric-<version>-windows-x64-portable.zip  exe + README + notice (no installer)
+#   nexus-fabric-<version>-windows-x64-portable.zip  exe + README + notice + third-party notices (no installer)
 set -euo pipefail
 
 if [ "$#" -ne 3 ]; then
@@ -27,6 +27,7 @@ mkdir -p "$STAGE/$NAME"
 cp "$EXE" "$STAGE/$NAME/nexus-fabric.exe"
 cp "$ROOT/packaging/README.txt" "$STAGE/$NAME/README.txt"
 cp "$ROOT/packaging/NOTICE.txt" "$STAGE/$NAME/NOTICE.txt"
+cp "$ROOT/packaging/THIRD_PARTY_NOTICES.txt" "$STAGE/$NAME/THIRD_PARTY_NOTICES.txt"
 
 # Portable zip: one folder, exe + README + notice.
 ZIP="$DIST/$NAME-windows-x64-portable.zip"

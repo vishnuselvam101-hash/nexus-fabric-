@@ -219,7 +219,7 @@ run_windows_checks() {
     rec win.install.exit "Silent install (setup.exe /S) exits 0" "$HOW" failed "exit $rc" "exit $rc" win-install.log
   fi
   local missing=""
-  for i in nexus-fabric.exe README.txt NOTICE.txt uninstall.exe; do [ -f "$INST/$i" ] || missing="$missing $i"; done
+  for i in nexus-fabric.exe README.txt NOTICE.txt THIRD_PARTY_NOTICES.txt uninstall.exe; do [ -f "$INST/$i" ] || missing="$missing $i"; done
   if [ -z "$missing" ]; then
     rec win.install.files "Installed files present in the per-user folder" "$HOW" passed "" "$(ls "$INST" | tr '\n' ' ')" win-install.log
   else
