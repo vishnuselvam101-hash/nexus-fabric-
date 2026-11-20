@@ -1,0 +1,32 @@
+{
+ "id": "B-br-verified-floor-beta-180-0.003",
+ "group": "closed_form",
+ "title": "Branch stub R=150 r=100 beta=179.997: developed length 4.78e+06 mm, the shallowest angle the verification covers",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 150,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 179.997,
+  "delta": 0,
+  "s_end": 5200000.0
+ },
+ "expect": "accept",
+ "derivation": "Developed size max(s_max, s_max - s_min) = 4.775e+06 mm (dense evaluation of the closed form): accepted and verified. phi=0: s = sqrt(R^2 - r^2)/sin(beta); phi=90: s = (R - r cos(beta))/sin(beta).",
+ "quantities": {
+  "branch": {
+   "s_at_0": [
+    2135287.631236827,
+    0.002135287631236827
+   ],
+   "s_at_90": [
+    4774648.292342055,
+    0.004774648292342055
+   ],
+   "developed_width": [
+    628.3185307179587,
+    6.283185307179586e-09
+   ]
+  }
+ }
+}

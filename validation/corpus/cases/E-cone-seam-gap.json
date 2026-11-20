@@ -1,0 +1,20 @@
+{
+ "id": "E-cone-seam-gap",
+ "group": "refusal",
+ "title": "cone: seam gap below the closure resolution",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 300,
+  "r2": 50,
+  "h": 1e-05
+ },
+ "expect": "refuse",
+ "derivation": "1 - sin(alpha) = h^2 / (2 * 250^2) = 8e-16: the seam gap l2 (2 pi - Phi) = 50 * 2 pi * 8e-16 = 2.5e-13 mm is below the 1e-9 mm closure resolution of the profile check.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "seam",
+   "closure"
+  ]
+ }
+}

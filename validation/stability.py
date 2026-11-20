@@ -50,12 +50,14 @@ def cases():
     add('aspect-cyl-thin', 'cylinder r = 0.01, L = 1e6', {'family': 'cylinder_shell', 'r_dev': 0.01, 'length': 1e6})
     add('aspect-cyl-flat', 'cylinder r = 1e6, L = 0.01', {'family': 'cylinder_shell', 'r_dev': 1e6, 'length': 0.01})
     for h in (100.0, 1.0, 1e-2, 1e-4, 1e-8):
-        add(f'aspect-cone-flat-h{h:g}', f'nearly flat cone r1=300 r2=50 h={h:g} (sector -> full turn)', {'family': 'cone_frustum', 'r1': 300, 'r2': 50, 'h': h})
+        add(f'aspect-cone-flat-h{h:g}', f'nearly flat cone r1=300 r2=50 h={h:g} (sector -> full turn; refused only when the seam gap is <= 1e-9 mm)', {'family': 'cone_frustum', 'r1': 300, 'r2': 50, 'h': h})
         add(f'aspect-ecc-flat-h{h:g}', f'nearly flat eccentric reducer r1=300 r2=50 h={h:g} e=100', {'family': 'eccentric_reducer', 'r1': 300, 'r2': 50, 'h': h, 'e': 100})
     for sa in (1.5e-3, 1.01e-3, 1.0001e-3, 0.9999e-3):
         h = 1.0 / sa * math.sqrt(1 - sa * sa)
-        add(f'aspect-cone-slender-sa{sa:g}', f'near-cylindrical cone, sin(alpha) = {sa:g} (declared limit 1e-3)', {'family': 'cone_frustum', 'r1': 200.0, 'r2': 199.0, 'h': h})
+        add(f'aspect-cone-slender-sa{sa:g}', f'near-cylindrical cone, sin(alpha) = {sa:g} (accepted since 0.4.2: only the apex radius limit 1e8 mm applies)', {'family': 'cone_frustum', 'r1': 200.0, 'r2': 199.0, 'h': h})
         add(f'aspect-ecc-slender-sa{sa:g}', f'near-cylindrical eccentric reducer, sin(alpha) = {sa:g}', {'family': 'eccentric_reducer', 'r1': 200.0, 'r2': 199.0, 'h': h, 'e': 1.0})
+    for beta in (0.5, 1.0, 5.0, 179.0, 179.5):
+        add(f'shallow-extreme-b{beta:g}', f'extreme shallow angle beta = {beta} (accepted since 0.4.2)', {'family': 'branch_stub', 'header_radius': R, 'branch_radius': 100.0, 'branch_dev_radius': 100.0, 'beta_deg': beta, 'delta': 0.0, 's_end': 1e5})
     for e in (1e3, 1e4, 1e6):
         add(f'aspect-ecc-oblique-e{e:g}', f'very oblique reducer r1=200 r2=100 h=300 e={e:g}', {'family': 'eccentric_reducer', 'r1': 200, 'r2': 100, 'h': 300, 'e': e})
     add('aspect-ecc-tiny-r2', 'reducer with tiny small end r2 = 1e-6', {'family': 'eccentric_reducer', 'r1': 200, 'r2': 1e-6, 'h': 300, 'e': 100})
@@ -71,8 +73,12 @@ def cases():
              'ecc': {'family': 'eccentric_reducer', 'r1': 200, 'r2': 100, 'h': 300, 'e': 100}, 'asm': a}
     for name, b in bases.items():
         for n in (-1040, -200, -60, -30, -26, -22, -16, -8, 8, 14, 16, 18, 30, 200, 505, 1010):
-            inside = -26 <= n <= 16      # every dimension of the scaled part stays within the declared 1e-6 .. 1e8 mm
-            cs.append({'id': f'N-magnitude-{name}-2^{n}', 'group': 'stability', 'title': f'{b["family"]} scaled by 2^{n} (~{2.0 ** n:.1e})' + ('' if inside else ' - outside the declared range'), 'request': b, 'expect': 'accept', 'compare': False, 'hp': False,
+            # every dimension of the scaled part stays within the declared 1e-6 .. 1e8 mm; a polyline family (eccentric, assembly) is also
+            # limited by the chord-error cap: R(1 - cos(pi/46080)) <= 0.01 mm gives a developed radius of at most ~4.3e6 mm (B2-005 point e,
+            # kept in 0.4.2), which the base parts exceed from a scale of 2^15 on (200 * 2^15 = 6.6e6 mm)
+            # CHANGED EXPECTATION (0.4.2 review): the upper bound of `inside` was 16 for every family; it is 14 for ecc/asm (reason above); see TOLERANCE_POLICY.md 'Changed validation rules'
+            inside = -26 <= n <= (14 if name in ('ecc', 'asm') else 16)
+            cs.append({'id': f'N-magnitude-{name}-2^{n}', 'group': 'stability', 'title': f'{b["family"]} scaled by 2^{n} (~{2.0 ** n:.1e})' + ('' if inside else ' - outside the declared range or the chord-error cap'), 'request': b, 'expect': 'accept', 'compare': False, 'hp': False,
                        'relation': {'type': 'scale', 'k': 2.0 ** n, 'refusal_ok': not inside}})
     return cs
 

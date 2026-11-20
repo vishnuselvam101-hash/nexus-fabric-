@@ -52,7 +52,9 @@ use std::collections::{BTreeMap, BTreeSet};
 /// quality gate read the statement back and compare it with the job (BH-004, BH-005). Every refusal carries a
 /// stable code, the fields it concerns and, where the engine computes one exactly, the limit (BH-014). The
 /// cut geometry is unchanged. Results of 0.4.0 are REJECTED with G21 "recompute".
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.1+src.", env!("NF_ENGINE_SRC_HASH"));
+///
+/// 0.4.2 (20 Nov 2026): review B2 fixes B2-001..007: developed radius bounded by the wall (B2-001); polylines report their own deviation (B2-002); arc display chords by sagitta (B2-003); header gross/net area (B2-004); refusals reduced to their mathematical conditions — apex radius ≤ 1e8 mm instead of sin α ≥ 1e-3, seam gap > 1e-9 mm instead of 99.9 % of a turn, β strictly in (0,180) instead of sin β > 0.17; the chord cap stays and states its ~4.3e6 mm bound (B2-005); eccentric area by the adaptive rule and branch s_max/s_min by golden section (B2-006); eps_rep declared an estimate (B2-007); the stated numerical bound eps_num of a branch includes the rounding of the angle, which dominates at the shallow angles B2-005 now accepts. Quantities and refusal outcomes change; cut geometry of every previously accepted case is unchanged. Results of 0.4.1 are REJECTED with G21 recompute.
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.2+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the

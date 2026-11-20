@@ -222,27 +222,28 @@ fn a_branch_as_large_as_the_header_and_a_near_tangent_branch_are_refused() {
 }
 
 #[test]
-fn the_angle_between_the_axes_is_limited_by_its_sine() {
-    // sin(beta) must exceed 0.17 (about 9.79 degrees) and beta must lie strictly between 0 and 180
-    expect_accepted(stub(json!({"beta_deg": 9.9, "s_end": 1e6})));
-    expect_refused(
-        stub(json!({"beta_deg": 9.5})),
+fn the_angle_between_the_axes_is_limited_to_the_open_interval() {
+    // B2-005 (engine 0.4.2): beta is refused only outside the open interval (0, 180) degrees and by the size
+    // of the developed branch (1e8 mm). Until 0.4.1 sin(beta) had to exceed 0.17 (about 9.79 degrees): 9.5 and
+    // 170.3 were refused, now they and the angles to 0.5 / 179.5 are exact and accepted.
+    for beta in [9.5, 5.0, 0.5, 179.5, 170.3, 170.1, 9.9, 169.9] {
+        expect_accepted(stub(json!({"beta_deg": beta, "s_end": 1e6})));
+    }
+    for beta in [0.0, 180.0, -30.0, 1e9] {
+        expect_refused(
+            stub(json!({"beta_deg": beta})),
+            "branch_angle_out_of_range",
+            &["beta_deg"],
+        );
+    }
+    // the developed branch of a very shallow angle exceeds 1e8 mm: refused, with the limit in the detail
+    let r = expect_refused(
+        stub(json!({"beta_deg": 1e-6, "s_end": 1e8})),
         "branch_angle_out_of_range",
         &["beta_deg"],
     );
-    expect_accepted(stub(json!({"beta_deg": 169.9, "s_end": 1e6})));
-    // the limit is symmetric about 90 degrees: sin(170.1) = sin(9.9) is inside it
-    expect_accepted(stub(json!({"beta_deg": 170.1, "s_end": 1e6})));
-    expect_refused(
-        stub(json!({"beta_deg": 170.3})),
-        "branch_angle_out_of_range",
-        &["beta_deg"],
-    );
-    expect_refused(
-        stub(json!({"beta_deg": 180.0})),
-        "branch_angle_out_of_range",
-        &["beta_deg"],
-    );
+    assert_eq!(detail(&r, "limit"), 1e8);
+    assert!(detail(&r, "measured") > 1e8);
 }
 
 #[test]
@@ -379,18 +380,26 @@ fn reducers_and_developments_refuse_with_their_own_codes() {
         "reducer_radii_order",
         &["r1", "r2"],
     );
+    // B2-005: until 0.4.1 (200, 199.99, 300) was refused by sin(alpha) < 1e-3; now only the apex radius
+    // r1/sin(alpha) decides (here 6e6 mm) and the limit is 1e8 mm
+    expect_accepted(json!({"family": "cone_frustum", "r1": 200.0, "r2": 199.99, "h": 300.0}));
     let r = expect_refused(
-        json!({"family": "cone_frustum", "r1": 200.0, "r2": 199.99, "h": 300.0}),
+        json!({"family": "cone_frustum", "r1": 1e6, "r2": 1e6 - 1.0, "h": 1e6}),
         "reducer_near_cylindrical",
         &["r1", "r2", "h"],
     );
-    assert_eq!(detail(&r, "limit"), 1e-3);
+    assert_eq!(detail(&r, "limit"), 1e8);
+    assert!(detail(&r, "measured") > 1e8);
+    // B2-005: until 0.4.1 h = 0.01 (99.9 % of a turn) was refused as overlapping; the sector never overlaps,
+    // it is refused only when its seam gap at the small end is at or below 1e-9 mm
+    expect_accepted(json!({"family": "cone_frustum", "r1": 300.0, "r2": 50.0, "h": 0.01}));
     let r = expect_refused(
-        json!({"family": "cone_frustum", "r1": 300.0, "r2": 50.0, "h": 0.01}),
+        json!({"family": "cone_frustum", "r1": 300.0, "r2": 50.0, "h": 1e-5}),
         "developed_angle_overlaps",
         &["r1", "r2", "h"],
     );
-    assert!(detail(&r, "measured") >= detail(&r, "limit"));
+    assert_eq!(detail(&r, "limit"), 1e-9);
+    assert!(detail(&r, "measured") <= detail(&r, "limit"));
 }
 
 #[test]
@@ -449,4 +458,10 @@ fn table_lists_every_code_of_the_build_once() {
             .all(|c| c.chars().all(|ch| ch.is_ascii_lowercase() || ch == '_')),
         "codes are snake_case"
     );
+}
+
+/// B2-005: the developed-size limit of the conical and branch families is the job's magnitude limit.
+#[test]
+fn the_developed_size_limit_equals_the_magnitude_limit() {
+    assert_eq!(uem::develop::MAX_DEVELOPED_MM, MAX_MAGNITUDE_MM);
 }

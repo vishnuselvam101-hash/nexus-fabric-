@@ -74,8 +74,21 @@ fn judge(req: &Request, t: &mut Tally) {
             case()
         ));
     }
+    // Q2(b) (engine 0.4.2): the profile gate passes unless a flat-pattern seam gap is below the resolution its
+    // adjoining curves allow (the pattern states both numbers); then, and only then, it is INCONCLUSIVE.
+    let seam_unresolved = out.patterns.iter().any(|p| {
+        matches!(
+            (p.quantities.get("seam_gap"), p.quantities.get("seam_gap_resolution")),
+            (Some(g), Some(r)) if g < r
+        )
+    });
+    let g11_want = if seam_unresolved {
+        GateResult::Inconclusive
+    } else {
+        GateResult::Pass
+    };
     if gate("G10") != Some(GateResult::Pass)
-        || gate("G11") != Some(GateResult::Pass)
+        || gate("G11") != Some(g11_want)
         || gate("G15") != Some(GateResult::Pass)
     {
         return t.defects.push(format!(
@@ -318,6 +331,28 @@ fn regression_corpus() {
                     case["request"]
                 ),
                 other => panic!("unknown expectation {other}"),
+            }
+            // optional: the result of gate G11 (Q2(b): INCONCLUSIVE for an unresolved seam) and the engine
+            // advisories of the job (Q1(i): the B2-001 radius advisory is on the job, not only in G02)
+            if let Some(want) = case.get("g11").and_then(|x| x.as_str()) {
+                let out = run(&req, "regression");
+                let g = out.gates.iter().find(|g| g.id == "G11").expect("G11");
+                assert_eq!(
+                    serde_json::to_value(g.result).unwrap().as_str().unwrap(),
+                    want,
+                    "{}: G11 {}",
+                    path.display(),
+                    g.detail
+                );
+            }
+            if let Some(want) = case.get("advisory_contains").and_then(|x| x.as_str()) {
+                let out = run(&req, "regression");
+                assert!(
+                    out.engine_advisories.iter().any(|a| a.contains(want)),
+                    "{}: no engine advisory contains {want:?}: {:?}",
+                    path.display(),
+                    out.engine_advisories
+                );
             }
             // optional: assert on the G02 detail text (review B2-001 advisory)
             if case.get("g02_contains").is_some() || case.get("g02_absent").is_some() {

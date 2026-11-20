@@ -1,0 +1,23 @@
+{
+ "id": "E-br-size-above-beta-0.000141821",
+ "group": "refusal",
+ "title": "Branch stub R=150 r=100 beta=0.000141821: developed length 1.01e+08 mm, 1 % above the 1e8 mm limit",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 150,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 0.000141821,
+  "delta": 0,
+  "s_end": 99500000.0
+ },
+ "expect": "refuse",
+ "derivation": "Developed size 1.01e+08 mm, 1 % above the 1e8 mm limit: refused.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "beta",
+   "1e8"
+  ]
+ }
+}

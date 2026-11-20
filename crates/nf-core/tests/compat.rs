@@ -18,6 +18,26 @@
 //! the `patterns_sha256` of 50 of 335 cases (42 cone_frustum from the arc display points, 8 header_with_branch
 //! from the quantity keys); the values differ only in that field, and every cut geometry is byte-identical.
 //! The fixture was regenerated for that change.
+//! Review B2-005/B2-006 (engine 0.4.2, deliberate, listed in its report): refusals were reduced to their
+//! mathematical conditions and two quantities were improved. Of 335 cases, 20 flipped from REFUSED to accepted
+//! (cases 27, 221: cones with sin alpha below 1e-3 and apex radius within 1e8 mm; 29, 80, 90, 105, 127, 134, 166,
+//! 167, 189, 210, 227, 228, 251, 254, 292, 305, 314: sectors above 99.9 % of a turn with a seam gap above 1e-9 mm;
+//! 33: an eccentric reducer with sin alpha 3.3e-5, a tiny developed angle) and none flipped the other way; 14
+//! branch cases changed the text of a refusal (the angle limit and the exact s_max in the message); the
+//! `patterns_sha256` of 49 accepted cases changed (30 eccentric: area; 11 branch and 8 header_with_branch: exact
+//! s_min/s_max in quantities and notes; counted by a field-level diff of this fixture against the one of 0.4.1). Every cut geometry of a case accepted in both versions is
+//! byte-identical. The fixture was regenerated for that change.
+//! Review B2 Q2(b) (engine 0.4.2, deliberate, same release): every cone and eccentric reducer now reports its
+//! flat-pattern seam gap and the gap below which the profile gate is INCONCLUSIVE (quantities `seam_gap` and
+//! `seam_gap_resolution`). That changed the `patterns_sha256` of the 95 accepted cone_frustum (55) and
+//! eccentric_reducer (40) cases and nothing else: no state, no outcome and no refusal changed, and every
+//! `dxf_cut_geometry` is byte-identical to the fixture before it (and to 0.4.1 for all 158 cases accepted in
+//! both versions). The fixture was regenerated for that change.
+//! Review fix of Q2(b) (engine 0.4.2, same release): the cone `seam_gap_resolution` is now max(1e-9 mm, 2 eps_num) and the
+//! reducer's max(1e-9 mm, 2 eps_rep, 2 eps_num) (it was the bare 1e-9 mm for the cone). Against the fixture before this
+//! fix exactly 2 cone_frustum cases changed `patterns_sha256` (their 2 eps_num exceeds 1e-9 mm) and nothing else: no state,
+//! no outcome, no refusal, and every `dxf_cut_geometry` byte-identical. The true counts of the accepted cases that carry the
+//! seam quantities (field-level diff, 335 cases): 55 cone_frustum and 40 eccentric_reducer. The fixture was regenerated.
 
 use nf_core::job::{Request, run};
 use serde_json::{Value, json};

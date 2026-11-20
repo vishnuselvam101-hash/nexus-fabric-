@@ -1,6 +1,6 @@
 # Refusal codes
 
-Engine 0.4.1 (20 Nov 2026). Every refusal of a calculation or a correction request carries, in addition to its
+Engine 0.4.2 (20 Nov 2026). Engine 0.4.2 (review B2-005) reduced three refusals to their mathematical conditions, see the rows `reducer_near_cylindrical`, `developed_angle_overlaps`, `branch_angle_out_of_range` and `chord_error_unreachable`. Every refusal of a calculation or a correction request carries, in addition to its
 message, the table's columns in the API answer:
 
 - `code`: the stable snake_case rule, one per distinct rule (this table).
@@ -34,13 +34,13 @@ depends on them.
 | `magnitude_above_limit` | a value's magnitude exceeds 1e8 mm, the largest size the build is exercised with | the value's field | yes: `limit` 1e8, `measured` the magnitude |
 | `dimension_below_limit` | a positive dimension is below 1e-6 mm, the smallest size the build is exercised with | the dimension's field | yes: `limit` 1e-6, `measured` the value |
 | `reducer_radii_order` | a reducer needs `r1` greater than `r2` (equal radii are a cylinder; an oblique cylinder is not built) | `r1`, `r2` | no |
-| `reducer_near_cylindrical` | the cone's sine of half-angle is below 1e-3, where the apex-free method is not implemented | `r1`, `r2`, `h` | yes: `limit` 0.001, `measured` the sine |
-| `developed_angle_overlaps` | the developed angle reaches 0.999 of a full turn, so the sector would overlap itself | `r1`, `r2`, `h` (and `e` for the eccentric reducer) | yes: `limit` 0.999 x 2π rad, `measured` the developed angle in rad |
-| `branch_angle_out_of_range` | the sine of the angle between the axes is not above 0.17 (about 10 to 170 degrees), or beta is not strictly between 0 and 180 degrees | `beta_deg` | no (the limit is stated on the sine and in words) |
+| `reducer_near_cylindrical` | the apex radius (r1 / sin α for the cone; the largest distance from the apex to the large end for the eccentric reducer) exceeds 1e8 mm, the largest size this build is exercised with. Until 0.4.1 the rule was sin α < 1e-3; the closed forms are exact for every sin α > 0, only the developed size grows | `r1`, `r2`, `h` | yes: `limit` 1e8 mm, `measured` the apex radius |
+| `developed_angle_overlaps` | the seam gap at the small end, l2·(2π − Φ) for the cone (rho(0)·r2/r1·(2π − Ψ) for the eccentric reducer), is at or below 1e-9 mm, the closure resolution of the profile check (G11), so the two seam edges cannot be told apart. A cone sector never overlaps itself (its angle is below a full turn); until 0.4.1 the rule was 99.9 % of a turn | `r1`, `r2`, `h` (and `e` for the eccentric reducer) | yes: `limit` 1e-9 mm, `measured` the seam gap in mm |
+| `branch_angle_out_of_range` | beta is not strictly between 0 and 180 degrees (not finite counts as not finite), or the developed branch (s_max, or s_max − s_min) exceeds 1e8 mm. Until 0.4.1 the rule was also sin β ≤ 0.17; the saddle s(φ) is exact for every 0 < β < 180 | `beta_deg` | for the size rule: `limit` 1e8 mm, `measured` the size; otherwise no |
 | `branch_tangent_or_partial` | |delta| plus the branch radius reaches the header radius within 1e-6 of it: tangent and partial intersections, including the equal-diameter tee, are not implemented | `header_radius`, `branch_radius`, `delta` | yes: `limit` header radius x (1 - 1e-6), `measured` |delta| + branch radius |
 | `square_end_too_short` | the square end `s_end` does not lie beyond the saddle | `s_end` | no (the saddle height is sampled) |
 | `opening_outside_shell` | the branch opening does not lie inside the header length | `branch_station`, `header_length` | no (the span is sampled) |
-| `chord_error_unreachable` | the curve cannot be represented within the 0.01 mm chord error with the most segments the build uses | the fields of that curve | no |
+| `chord_error_unreachable` | the curve cannot be represented within the 0.01 mm chord error with the most segments the build uses (46 080). For a full-turn polyline the sagitta R(1 − cos(π/n)) ≤ 0.01 mm bounds the developed radius to R ≤ 0.02·n²/π² ≈ 4.3e6 mm. Kept in 0.4.2 (review B2-005 point e) | the fields of that curve | no |
 | `radius_dev_exceeds_outside` | the surface is `outside` and the development radius is larger than the contact radius (a negative wall) | the development radius, the contact radius | yes: `limit` the contact radius, `measured` the development radius |
 | `radius_dev_below_inside` | the surface is `inside` and the development radius is smaller than the contact radius (a negative wall) | the development radius, the contact radius | yes: `limit` the contact radius, `measured` the development radius |
 | `radius_neutral_mismatch` | the surface is `neutral` and the development radius differs from the contact radius | the development radius, the contact radius | yes: `limit` the contact radius, `measured` the development radius |

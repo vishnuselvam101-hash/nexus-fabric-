@@ -1,0 +1,67 @@
+{
+ "description": "Review B2 Q2(b) and Q1(i) (20 Nov 2026, engine 0.4.2). (1) Every cone and reducer reports its flat-pattern seam gap at the small end (quantity seam_gap) and the gap below which its seam cannot be told from a closed one (seam_gap_resolution: max(1e-9 mm, 2 eps_num) for the right cone, whose arcs are exact entities and whose seam lines are straight but whose written vertices carry eps_num; max(1e-9 mm, 2 eps_rep, 2 eps_num) for the eccentric reducer, eps_rep being the representation error of the adjoining polylines; the large-cone band is covered by the unit test q2b_seam_gap_is_a_quantity_and_an_unresolved_seam_is_not_a_pass and the corpus cases B-cone-seam-vs-eps-num-*). When the gap is below that resolution the profile gate G11 is INCONCLUSIVE, never PASS; a true overlap or a gap at or below 1e-9 mm is still refused. (2) The B2-001 radius advisory is on the job itself (engine_advisories), not only in the text of G02. Both are display and gate verdict only: no cut geometry changes.",
+ "found": "2026-11-20 (review B2, lead-approved refinements Q2(b), Q1(i))",
+ "fixed_in": "nf-core job.rs (Builder.seam_unresolved, engine_advisories) and uem develop.rs (seam_gap, seam_gap_resolution quantities); ENGINE_VERSION 0.4.2",
+ "cases": [
+  {
+   "request": {
+    "family": "eccentric_reducer",
+    "r1": 300.0,
+    "r2": 50.0,
+    "h": 1.0925510388562152,
+    "e": 0.0
+   },
+   "expect": "verified",
+   "g11": "INCONCLUSIVE",
+   "note": "Seam gap 3e-3 mm (mpmath) is below 2 eps_rep (about 5.7e-3 mm for 720 segments): the seam cannot be told from a closed one at the representation error."
+  },
+  {
+   "request": {
+    "family": "eccentric_reducer",
+    "r1": 300.0,
+    "r2": 50.0,
+    "h": 4.460487756959022,
+    "e": 0.0
+   },
+   "expect": "verified",
+   "g11": "PASS",
+   "note": "Seam gap 5e-2 mm (mpmath) is above twice the 0.01 mm chord limit: the gate passes."
+  },
+  {
+   "request": {
+    "family": "cone_frustum",
+    "r1": 300.0,
+    "r2": 50.0,
+    "h": 0.01
+   },
+   "expect": "verified",
+   "g11": "PASS",
+   "note": "Right cone, seam gap 2.5e-7 mm: above the resolution max(1e-9 mm, 2 eps_num) = 1e-9 mm of this small cone (2 eps_num is about 1e-12 mm; the arc display sagitta plays no part)."
+  },
+  {
+   "request": {
+    "family": "cone_frustum",
+    "r1": 300.0,
+    "r2": 50.0,
+    "h": 0.00063
+   },
+   "expect": "refused",
+   "note": "Seam gap about 9.97e-10 mm: at or below the 1e-9 mm closure resolution, still refused (the refusal floor is kept; for a small cone 2 eps_num is below 1e-9 mm so the INCONCLUSIVE band is empty, for a large one it is the band between 1e-9 mm and 2 eps_num)."
+  },
+  {
+   "request": {
+    "family": "branch_stub",
+    "header_radius": 100.0,
+    "branch_radius": 50.0,
+    "branch_dev_radius": 0.5,
+    "beta_deg": 60.0,
+    "delta": 0.0,
+    "s_end": 200.0,
+    "surface_reference": "outside"
+   },
+   "expect": "verified",
+   "advisory_contains": "mid-thickness (k = 0.5) is impossible",
+   "note": "B2-001 reproduction: the radius advisory is on the job (engine_advisories)."
+  }
+ ]
+}
