@@ -12,8 +12,10 @@ const SETUP_TOKEN = process.env.NF_SETUP_TOKEN || 'ui-smoke-setup-token';
 const ADMIN = { username: 'admin', password: 'correct-horse-9' }, NEW_PW = 'correct-horse-10';
 const results = [];
 const check = (name, ok, detail) => { results.push({ name, ok: !!ok, detail }); console.log(`${ok ? 'ok  ' : 'FAIL'} - ${name}${ok || detail === undefined ? '' : `  [${JSON.stringify(detail)}]`}`); };
-const f3 = (n) => (Math.abs(n) < 5e-4 ? 0 : n).toFixed(3);
-const n3 = (n) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(n); // the client's display rule for computed numbers
+// The client's ONE display rule for computed numbers, in panels, on the canvas and in the read-out:
+// three decimals with thousands separators (round 3; the read-out used to omit the separators).
+const n3 = (n) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(Math.abs(n) < 5e-4 ? 0 : n);
+const mm = (text) => parseFloat(String(text).replace(/,/g, '')); // a displayed length back to a number
 
 // Elements that stick out of the viewport without a scrollable or clipping ancestor that itself fits.
 const overflowProbe = () => {
@@ -145,8 +147,8 @@ const controlProbe = () => {
   let [x, y] = await vpos(0, 100); await p.mouse.move(x - 30, y - 30); await p.mouse.move(x, y);
   await p.waitForFunction((n) => document.querySelector('#ro-info').textContent.includes(n), curve0.name);
   const ro = await p.textContent('#ro-info');
-  check('viewer: hover read-out names the curve, its computed length and the real vertex coordinates', ro.includes(curve0.name) && ro.includes(`length ${f3(curve0.length)} mm`) && ro.includes(`vertex 101/${curve0.points.length} (${f3(v100[0])}, ${f3(v100[1])})`), ro);
-  check('viewer: cursor coordinates are pattern coordinates in mm', Math.abs(parseFloat(await p.textContent('#ro-x')) - v100[0]) < 2 && Math.abs(parseFloat(await p.textContent('#ro-y')) - v100[1]) < 2 && / mm$/.test(await p.textContent('#ro-x')));
+  check('viewer: hover read-out names the curve, its computed length and the real vertex coordinates', ro.includes(curve0.name) && ro.includes(`length ${n3(curve0.length)} mm`) && ro.includes(`vertex 101/${curve0.points.length} (${n3(v100[0])}, ${n3(v100[1])})`), ro);
+  check('viewer: cursor coordinates are pattern coordinates in mm', Math.abs(mm(await p.textContent('#ro-x')) - v100[0]) < 2 && Math.abs(mm(await p.textContent('#ro-y')) - v100[1]) < 2 && / mm$/.test(await p.textContent('#ro-x')));
   await p.mouse.click(x, y);
   const selText = await p.textContent('#sel');
   check('viewer: clicking a curve selects it and shows its properties from the result data', selText.includes(curve0.name) && selText.includes(`${n3(curve0.length)} mm`) && (await p.getAttribute('#sel dd span[title]', 'title')).startsWith(String(Number(curve0.length.toPrecision(12)))) && selText.includes(String(curve0.points.length)) && (await p.getAttribute('#curves tr[data-ci="0"]', 'aria-selected')) === 'true', selText);
@@ -169,7 +171,7 @@ const controlProbe = () => {
   [x, y] = await vpos(3, 0); await p.mouse.click(x, y); [x, y] = await vpos(3, 1); await p.mouse.move(x, y); await p.mouse.click(x, y);
   await p.waitForFunction(() => /^Distance/.test(document.querySelector('#ro-info').textContent));
   const meas = await p.textContent('#ro-info');
-  check('viewer: measuring between two computed vertices gives the engine length of that line', meas.startsWith(`Distance ${f3(seam.length)} mm`) && (await p.textContent('#meas')).includes(`${f3(seam.length)} mm`) && /vertex/.test(await p.textContent('#meas')), meas);
+  check('viewer: measuring between two computed vertices gives the engine length of that line', meas.startsWith(`Distance ${n3(seam.length)} mm`) && (await p.textContent('#meas')).includes(`${n3(seam.length)} mm`) && /vertex/.test(await p.textContent('#meas')), meas);
   await p.keyboard.press('Escape'); await p.keyboard.press('Escape');
   const quant = (await p.textContent('#quant')).replace(/\s+/g, ' ');
   check('quantities: every value has a unit, angles in degrees, one precision', new RegExp(`Developed angle ?developed_angle ?${n3(data.patterns[0].quantities.developed_angle * 180 / Math.PI)} ° \\(${n3(data.patterns[0].quantities.developed_angle)} rad\\)`).test(quant) && quant.includes(`${n3(data.patterns[0].quantities.area)} mm²`) && !/unit not stated/.test(quant), quant);

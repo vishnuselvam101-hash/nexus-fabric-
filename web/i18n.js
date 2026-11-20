@@ -203,7 +203,7 @@ const EN = {
   'math.planned.3': 'Rectangular-to-round and irregular transitions; equal-diameter and partial branch intersections; oblique cylinders; near-cylindrical cones',
   'math.planned.4': 'Thickness / neutral-surface treatment, bend and roll allowances from calibrated process data', 'math.planned.5': 'Uncertainty and tolerance analysis; interval-certified error bounds',
   'math.planned.6': 'Plate division and seam optimisation',
-  'math.conv.h': 'Sign and view conventions',
+  'math.conv.h': 'Sign and view conventions', 'math.conv.tag': 'provisional',
   'math.conv.lead': 'Conventions of this build (Spec 02 §4.4), stated by the client: the result data does not carry them. Provisional — not reviewed by a fabrication engineer.',
   'math.conv.1': 'The branch leans toward the higher station (+x) when β is below 90°.',
   'math.conv.2': 'A positive axis offset δ moves the branch axis away from the viewer of the side elevation, and to the right in the end view.',
@@ -224,12 +224,12 @@ const EN = {
 
   // parameter schematic
   'sk.msg': 'Enter a positive number in every field to see the schematic.',
-  'sk.cap.cyl': 'Side view · end view', 'sk.cap.cone': 'Side elevation, large end at the bottom', 'sk.cap.branch': 'Side elevation · end view along the header axis', 'sk.cap.branch.part': 'Side elevation · end view along the header axis (header shown in part)',
-  'sk.cap.tail': 'drawn to scale from the values in the form, in mm. An aid for reading the parameters: not the computed pattern, not verified.',
+  'sk.cap': 'Drawn to scale from the values in the form, in mm. An aid for reading the parameters: not the computed pattern, not verified.',
   'sk.notdrawn': 'Not drawn: {items}.', 'sk.dev': '{label} {v} mm → flat width 2π·r = {w} mm', 'sk.aria': 'Schematic of the entered {fam} dimensions: {dims}',
   'sk.d.length': 'length', 'sk.d.hlen': 'header length', 'sk.d.station': 'station',
-  'sk.v.side': 'Side elevation', 'sk.v.end': 'End view from the high-station end', 'sk.v.end.part': 'End view along the header axis',
-  'sk.ax.away': '+y, +δ: away from you', 'sk.ax.toward': '+x: toward you', 'sk.ax.station': 'x, station',
+  'sk.v.sidev': 'Side view', 'sk.v.endv': 'End view', 'sk.v.cone': 'Side elevation, large end at the bottom',
+  'sk.v.side': 'Side elevation', 'sk.v.side.part': 'Side elevation (header shown in part)', 'sk.v.end': 'End view from the high-station end', 'sk.v.end.part': 'End view along the header axis',
+  'sk.ax.away': '+y, +δ: away from you', 'sk.ax.toward': '+x: toward you', 'sk.ax.station': 'x, station', 'sk.ax.x': 'x',
   'sk.delta.pos': 'δ {v}: branch axis displaced away from the viewer of the side elevation', 'sk.delta.neg': 'δ {v}: branch axis displaced toward the viewer of the side elevation', 'sk.delta.zero': 'δ 0: the two axes intersect',
 
   // one job: header, banner, panes
@@ -263,7 +263,7 @@ const EN = {
   'cn.seams': 'Seam edges {names}, hatched', 'cn.seams.tip': 'Named as seams by the engine. The DXF file does not mark them, nor the rolling axis.',
   'pv.role': 'pattern viewer',
   'pv.aria': 'Flat pattern of {part}: {n} curves, extents {w} by {h} millimetres. Arrow keys pan, plus and minus zoom, F fits, M measures. The curve table lists every curve.',
-  'pv.first': 'first', 'pv.last': 'last', 'pv.v1': 'vertex 1', 'pv.free': 'free point', 'pv.on': '{curve} vertex {i}', 'pv.side': 'seen from the {side} · provisional', 'pv.seam': 'seam',
+  'pv.first': 'first', 'pv.last': 'last', 'pv.v1': 'vertex 1', 'pv.free': 'free point', 'pv.on': '{curve} vertex {i}',
 
   // selection, measurement, curves, quantities
   'sel.none': 'Nothing selected. Click a curve in the pattern, or a name in the curve table.',
@@ -542,7 +542,7 @@ const JA = {
   'math.planned.3': '角丸などの変形管、同径および部分的な枝管の相貫、斜円筒、円筒に近い円錐',
   'math.planned.4': '板厚・中立面の扱い、校正済みの工程データに基づく曲げ・ロール加工の伸び代', 'math.planned.5': '不確かさと公差の解析、区間演算で保証された誤差限界',
   'math.planned.6': '板割りと継目位置の最適化',
-  'math.conv.h': '符号と投影の取り決め',
+  'math.conv.h': '符号と投影の取り決め', 'math.conv.tag': '暫定',
   'math.conv.lead': 'このビルドの取り決め（仕様書02 §4.4）をクライアントが表示しています。計算結果のデータには含まれていません。暫定であり、製作技術者によるレビューは受けていません。',
   'math.conv.1': 'βが90°未満のとき、枝管は位置の値が大きい側（+x）へ傾きます。',
   'math.conv.2': '軸オフセットδが正のとき、枝管の軸は、側面図を見る人から遠ざかる向きにずれます（端面図では右へ）。',
@@ -562,12 +562,12 @@ const JA = {
   'v.neutral': '取合い半径を「中立面」と宣言した場合、{d}（{dv}）は{c}（{cv}）と等しくしてください。',
 
   'sk.msg': '概略図を表示するには、すべての欄に正の数値を入力してください。',
-  'sk.cap.cyl': '側面図 · 端面図', 'sk.cap.cone': '側面図（大径側が下）', 'sk.cap.branch': '側面図 · 母管軸方向から見た端面図', 'sk.cap.branch.part': '側面図 · 母管軸方向から見た端面図（母管は一部のみ表示）',
-  'sk.cap.tail': 'フォームの値から原寸比で作図しています（単位mm）。パラメータの意味を確かめるための補助図であり、計算された展開図ではなく、検証もされていません。',
+  'sk.cap': 'フォームの値から原寸比で作図しています（単位mm）。パラメータの意味を確かめるための補助図であり、計算された展開図ではなく、検証もされていません。',
   'sk.notdrawn': '図示していないもの：{items}。', 'sk.dev': '{label} {v} mm → 展開幅 2π·r = {w} mm', 'sk.aria': '入力した{fam}の寸法の概略図：{dims}',
   'sk.d.length': '長さ', 'sk.d.hlen': '母管長さ', 'sk.d.station': '位置',
-  'sk.v.side': '側面図', 'sk.v.end': '端面図（位置の値が大きい側の端から見る）', 'sk.v.end.part': '端面図（母管軸方向から見る）',
-  'sk.ax.away': '+y、+δ：奥へ', 'sk.ax.toward': '+x：手前へ', 'sk.ax.station': 'x、位置',
+  'sk.v.sidev': '側面図', 'sk.v.endv': '端面図', 'sk.v.cone': '側面図（大径側が下）',
+  'sk.v.side': '側面図', 'sk.v.side.part': '側面図（母管は一部のみ表示）', 'sk.v.end': '端面図（位置の値が大きい側の端から見る）', 'sk.v.end.part': '端面図（母管軸方向から見る）',
+  'sk.ax.away': '+y、+δ：奥へ', 'sk.ax.toward': '+x：手前へ', 'sk.ax.station': 'x、位置', 'sk.ax.x': 'x',
   'sk.delta.pos': 'δ {v}：枝管の軸は、側面図を見る人から遠ざかる向きにずれています', 'sk.delta.neg': 'δ {v}：枝管の軸は、側面図を見る人に近づく向きにずれています', 'sk.delta.zero': 'δ 0：2本の軸は交わります',
 
   'calc.notfound.title': 'ジョブが見つかりません', 'calc.notfound.crumb': '該当なし', 'calc.notfound.t': 'ジョブ #{id} は存在しません',
@@ -599,7 +599,7 @@ const JA = {
   'cn.seams': '継目の辺 {names}（斜線の印）', 'cn.seams.tip': 'エンジンが継目として名付けた辺です。DXFファイルには、継目もロールの軸も記されていません。',
   'pv.role': '展開図ビューア',
   'pv.aria': '{part}の展開図：曲線{n}本、外形 {w} × {h} mm。矢印キーで移動、＋と−で拡大縮小、Fで全体表示、Mで計測。すべての曲線は曲線表に一覧があります。',
-  'pv.first': '始点', 'pv.last': '終点', 'pv.v1': '頂点1', 'pv.free': '任意の点', 'pv.on': '{curve} 頂点{i}', 'pv.side': '{side}側から見た図 · 暫定', 'pv.seam': '継目',
+  'pv.first': '始点', 'pv.last': '終点', 'pv.v1': '頂点1', 'pv.free': '任意の点', 'pv.on': '{curve} 頂点{i}',
 
   'sel.none': '未選択です。展開図の曲線、または曲線表の名前をクリックしてください。',
   'sel.curve': '曲線', 'sel.entity': '図形要素', 'sel.layer': 'レイヤー', 'sel.length': '長さ', 'sel.vertices': '頂点数', 'sel.first': '始点（x, y）', 'sel.last': '終点（x, y）', 'sel.extent': '範囲 x × y',
@@ -783,6 +783,7 @@ const ID = {
   layer: { CUT_OUTER: ['profile', '外形'], CUT_INNER: ['opening', '開口'] },
   devclass: { 'E-C': ['exact development, closed form', '厳密な展開・閉形式'], 'E-N': ['exact development, evaluated numerically', '厳密な展開・数値評価'] },
   side: { outside: ['outside', '外面'], inside: ['inside', '内面'] },
+  sref: { unknown: [null, '不明'], outside: [null, '外面'], inside: [null, '内面'], neutral: [null, '中立面'] },
   gate: {
     G00: [null, '現行版であること'], G01: [null, '来歴の完全性'], G02: [null, '未解決の曖昧さがないこと'], G05: [null, '展開クラスの割当て'], G06: [null, '前提条件の裏付け'],
     G08: [null, '数値誤差の限界'], G10: [null, '検証'], G11: [null, '輪郭の位相'], G14: [null, 'アルゴリズムの評価状況'], G15: [null, '出力の完全性'], G16: [null, '技術者承認'],
