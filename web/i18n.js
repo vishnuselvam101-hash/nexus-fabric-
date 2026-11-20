@@ -759,7 +759,7 @@ const ID = {
     cylinder_shell: ['Cylindrical shell', '円筒胴'],
     cone_frustum: ['Concentric reducer (right cone frustum)', '同心レジューサ（直円錐台）'],
     eccentric_reducer: ['Eccentric reducer (oblique cone frustum)', '偏心レジューサ（斜円錐台）'],
-    header_with_branch: ['Assembly: header shell with set-on branch (two parts, one joint)', '組立：母管胴とセットオン枝管（2部材・取合い1箇所）'],
+    header_with_branch: ['Assembly: header shell with branch (two parts, one joint)', '組立：母管胴と枝管（2部材・取合い1箇所）'],
     branch_stub: ['Branch stub on cylindrical header', '円筒母管に取り付く枝管スタブ'],
   },
   param: {
