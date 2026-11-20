@@ -1,0 +1,37 @@
+{
+  "_note": "Flagship 3: every spoken line, exactly as in script/SCRIPT.md (the locked script, field 'text'). 'slot' is the locked slot on the 120 BPM bar grid (bar = 2.0 s); a voice line sits inside its slot with at least 0.25 s of silence at each end. English 'say' is the text given to the synthesiser when it differs (letters spelled, names pronounced). Japanese 'kana' is the AquesTalk-style reading given to VOICEVOX: katakana, ' after the accent nucleus, / accent-phrase boundary, 、 pause, _ devoiced vowel (the long-vowel mark is written as a doubled vowel). Japanese lines L5 to L8 do not fit their slots as locked even at the maximum rate (1.22) with short pauses: 'use' is 'cut' and the audio and subtitles use field 'cut' (the shortest cut found, no change of meaning, honesty words kept). This is a PROPOSAL for the lead to accept or reject; set 'use' to 'exact' to render the locked text (it then overruns its slot, see audio/vo-timing.json). tools: audio/make_voice.py reads this file.",
+  "en": {
+    "lines": [
+      {"id": "L1", "slot": [0.0, 4.0], "text": "One wrong curve — and the steel doesn't fit.", "use": "exact"},
+      {"id": "L2", "slot": [4.0, 8.0], "text": "So before you cut: how do you know?", "use": "exact"},
+      {"id": "L3", "slot": [8.0, 12.0], "text": "NEXUS FABRIC. Dimensions in. Flat pattern out.", "say": "Nexus Fabric. Dimensions in. Flat pattern out.", "use": "exact"},
+      {"id": "L4", "slot": [12.0, 20.0], "text": "Shells. Cones. Eccentric reducers. Branches. Headers with their openings. Every cut computed, point by point.", "use": "exact"},
+      {"id": "L5", "slot": [20.0, 26.0], "text": "Then it checks its own work. Folded back in 3D, both edges must be one curve.", "use": "exact"},
+      {"id": "L6", "slot": [26.0, 30.0], "text": "The DXF is written, read back, and compared.", "say": "The D X F is written, read back, and compared.", "use": "exact"},
+      {"id": "L7", "slot": [30.0, 42.0], "text": "Underneath runs AMOEBA. Every value and every step is recorded and linked. Change one number — and everything that depended on it is flagged for review. Replay a job, and it must match.", "say": "Underneath runs Amoeba. Every value and every step is recorded and linked. Change one number, and everything that depended on it is flagged for review. Replay a job, and it must match.", "use": "exact"},
+      {"id": "L8", "slot": [42.0, 46.0], "text": "What it cannot confirm, it shows. The result stays: review required.", "use": "exact"},
+      {"id": "L9", "slot": [46.0, 50.0], "text": "In English and Japanese. And it runs fully offline.", "use": "exact"},
+      {"id": "L10", "slot": [50.0, 54.0], "text": "NEXUS FABRIC. Engineering, reimagined.", "say": "Nexus Fabric. Engineering, reimagined.", "use": "exact"}
+    ]
+  },
+  "ja": {
+    "credit": "音声：VOICEVOX Nemo",
+    "lines": [
+      {"id": "L1", "slot": [0.0, 4.0], "text": "曲線をひとつ誤れば、鋼板は合いません。", "kana": "キョクセンオ'/ヒト'ツ/アヤマ'レバ、コオハンワ'/アイマセ'ン", "use": "exact"},
+      {"id": "L2", "slot": [4.0, 8.0], "text": "切る前に、どう確かめますか。", "kana": "キ'ル/マ'エニ、ド'オ/タシカメマ'スカ", "use": "exact"},
+      {"id": "L3", "slot": [8.0, 12.0], "text": "NEXUS FABRIC。寸法を入れれば、板展開が出ます。", "kana": "ネ'_クサス/ファブリ'ック、スンポオオ'/イレレ'バ、イタテ'ンカイガ/デマ'ス", "use": "exact"},
+      {"id": "L4", "slot": [12.0, 20.0], "text": "胴、円錐、偏心レジューサ、枝管、開口付きの母管。切断線を、一点ずつ計算します。", "kana": "ド'オ、エンスイ'、ヘンシンレジュ'ウサ、エダカン'、カイコオツキノ'/ボカン'、セツダンセンオ'、イッテンズ'ツ/ケエサン'/シマ'ス", "use": "exact"},
+      {"id": "L5", "slot": [20.0, 26.0], "text": "そして、自ら検算。立体に戻し、二つの縁が一本の曲線になるかを確かめます。", "kana": "ソ_シテ'、ミ'ズカラ/ケンザン'、リッタイニ'/モド'シ、フタツ'ノ/フ'チガ/イッ'ポンノ/キョクセンニ'/ナ'ルカオ/タシカメマ'ス",
+       "cut": {"text": "自ら検算。立体に戻し、二つの縁が一本の曲線になるかを確かめます。", "kana": "ミ'ズカラ/ケンザン'、リッタイニ'/モド'シ、フタツ'ノ/フ'チガ/イッ'ポンノ/キョクセンニ'/ナ'ルカオ/タシカメマ'ス", "removed": ["そして、"]}, "use": "cut"},
+      {"id": "L6", "slot": [26.0, 30.0], "text": "DXFは出力し、再読込して照合します。", "kana": "ディイエッ_クスエ'フワ/シュツ'リョク/シ'、サイヨミコミ_シテ'/ショオゴオ'/シマ'_ス",
+       "cut": {"text": "DXF出力し、再読込して照合します。", "kana": "ディイエッ_クスエ'フ/シュツ'リョク/シ'、サイヨミコミ_シテ'/ショオゴオ'/シマ'_ス", "removed": ["は"]}, "use": "cut"},
+      {"id": "L7", "slot": [30.0, 42.0], "text": "その土台が、AMOEBA。すべての値と手順を記録し、つなぎます。数値をひとつ変えると、依存するものすべてに要精査の印が付きます。再実行すれば、結果は一致しなければなりません。", "kana": "ソノ'/ドダイガ'、ア'ミイバ、ス'ベテノ/アタイ'ト/テジュンオ'/キロク'/シ'、ツナギマ'ス、ス'ウチオ/ヒト'ツ/カエルト'、イゾン'/スル'/モノ'/ス'ベテニ/ヨオセ'エサノ/シルシガ'/ツキマ'ス、サイジ'ッコオ/スレ'バ、ケッカワ'/イッチ'/シナケレ'バ/ナリマセ'ン",
+       "cut": {"text": "土台が、AMOEBA。すべての値と手順を記録し、つなぎます。数値をひとつ変えると、依存するものすべてに要精査の印が付きます。再実行すれば、一致しなければなりません。", "kana": "ド'ダイガ、ア'ミイバ、ス'ベテノ/アタイ'ト/テジュンオ'/キロク'/シ'、ツナギマ'ス、ス'ウチオ/ヒト'ツ/カエルト'、イゾン'/スル'/モノ'/ス'ベテニ/ヨオセ'エサノ/シルシガ'/ツキマ'ス、サイジ'ッコオ/スレ'バ、イッチ'/シナケレ'バ/ナリマセ'ン", "removed": ["その", "結果は"]}, "use": "cut"},
+      {"id": "L8", "slot": [42.0, 46.0], "text": "確認できないことは、隠しません。結果は「要レビュー」のまま。", "kana": "カクニン'/デキ'ナイ/コト'ワ/カ_クシマセ'ン、ケッカワ'/ヨオレ'ビュウノ/ママ'",
+       "cut": {"text": "確認できないことは、隠しません。結果「要レビュー」のまま。", "kana": "カクニン'/デキ'ナイ/コト'ワ/カ_クシマセ'ン、ケッカ'/ヨオレ'ビュウノ/ママ'", "removed": ["は"]}, "use": "cut"},
+      {"id": "L9", "slot": [46.0, 50.0], "text": "日英対応。完全オフラインで動作します。", "kana": "ニチエイタイオオ'、カンゼン'/オフ'ラインデ/ドオサ'/シマ'ス",
+       "use": "exact"},
+      {"id": "L10", "slot": [50.0, 54.0], "text": "NEXUS FABRIC。設計を、再定義。", "kana": "ネ'_クサス/ファブリ'ック、セッケエオ'、サイテ'エギ", "use": "exact"}
+    ]
+  }
+}

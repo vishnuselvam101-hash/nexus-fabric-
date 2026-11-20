@@ -1,0 +1,8 @@
+# Intermediate audio, rebuilt by make_music.py, make_voice.py and make_mix.py.
+# The voice is kept as lossless FLAC (vo-*.flac); the WAV copies are made from the engines and ignored.
+bed.wav
+mix-*.wav
+vo-*.wav
+stem-*.wav
+__pycache__/
+*.pyc
