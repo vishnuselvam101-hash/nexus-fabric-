@@ -516,6 +516,29 @@ const controlProbe = () => {
   await p.setViewportSize({ width: 1366, height: 768 });
   check('ja: zero script errors and zero console errors in Japanese', errs.length === errsBeforeJa, errs.slice(errsBeforeJa, errsBeforeJa + 5));
 
+  // ---- 14c. a dimension is computed exactly as typed, or refused (bug hunt BH-001: a number field turned "1,5" into 15)
+  {
+    const count = () => p.evaluate(async () => (await (await fetch('/api/calculations')).json()).length);
+    for (const lang of ['en', 'ja']) {
+      await p.goto(`${B}/?lang=${lang}#/math/1`); await p.waitForSelector('#calc'); await p.selectOption('select[name=fam]', 'cone_frustum');
+      const before = await count(), refused = {};
+      for (const bad of ['1,5', '0x10', '１２３', '1 000', '1.5.2', '12mm', '']) {
+        await p.fill('#f_h', ''); await p.type('#f_h', bad); const shown = await p.inputValue('#f_h');
+        await p.click('#run'); await p.waitForTimeout(150);
+        refused[bad] = { keptAsTyped: shown === bad, fieldError: await p.locator('#calc .field-err').count() > 0, stillOnForm: await p.locator('#calc').count() === 1 };
+      }
+      const after = await count();
+      check(`dimension ${lang}: a decimal comma, hex, full-width digits, a space, two points, a unit suffix and an empty field are shown as typed, marked, and nothing is sent`,
+        after === before && Object.values(refused).every((r) => r.keptAsTyped && r.fieldError && r.stillOnForm), { before, after, refused });
+    }
+    await p.goto(`${B}/?lang=en#/math/1`); await p.waitForSelector('#calc'); await p.selectOption('select[name=fam]', 'cone_frustum');
+    await p.fill('#f_h', '1.5'); await p.focus('#f_h'); await p.keyboard.press('ArrowUp'); const up = await p.inputValue('#f_h'); await p.keyboard.press('ArrowDown'); await p.keyboard.press('ArrowDown'); const down = await p.inputValue('#f_h');
+    check('dimension: ArrowUp and ArrowDown step the field by one and keep its decimals', up === '2.5' && down === '0.5', { up, down });
+    await p.fill('#f_h', '301.25'); await p.click('#run'); await p.waitForFunction(() => /^#\/calc\/\d+/.test(location.hash)); const id = Number(/calc\/(\d+)/.exec(await p.evaluate(() => location.hash))[1]);
+    const stored = await p.evaluate(async (i) => (await (await fetch(`/api/calculations/${i}`)).json()).request.h, id);
+    check('dimension: the value stored with the job is exactly the value typed (301.25)', stored === 301.25, { stored });
+  }
+
   // ---- 15. global assertions
   const xss = await p.evaluate(() => window.__xss || 0);
   check('security: injected markup never executed, no blocking dialog used', xss === 0 && dialogs === 0, { xss, dialogs });

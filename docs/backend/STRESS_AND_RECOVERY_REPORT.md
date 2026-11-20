@@ -142,3 +142,40 @@ python3 stress/run.py --level 6 --only db --port 8815 --workdir $SCRATCH/w6b
 python3 stress/bottleneck.py --port 8816 --bin $NF_BIN --workdir $SCRATCH/wbn
 ```
 Level 6 mounts a 6 MB tmpfs (needs root) for the disk-full case and falls back to RLIMIT_FSIZE emulation otherwise.
+
+## Addendum, 20 Nov 2026: re-run on engine 0.4.0 (bilingual client, desktop mode)
+
+All six levels were run again on the current build (`nf-engine 0.4.0`). Other workers used the same 4-core machine at
+the same time, so latencies are noisy; errors, crashes and integrity are the results that count. Result files:
+`stress/results/level{1..6}-20261120-*.json`.
+
+The runner itself had to be repaired first; it predated several server changes and its first run tested nothing:
+- it did not supply the one-time setup token, so every level crashed at first-run setup;
+- level 2 did not expect the server to refuse a 250,000-character project description (the refusal is now recorded);
+- it counted the `REFUSED` state as a damaged row and "nothing to replay" for a refused request as a failed replay;
+- the kill test's growing part sizes made most of its requests refusals (now kept inside the accepted range);
+- it looked for the audit action `calculation` only, not `calculation_refused`;
+- its raw malformed requests used `Host: x`, which the host allow-list answers with 421 before looking further.
+
+| Level | Load | Requests | Server errors | Peak memory | Integrity after the run |
+|---|---|---|---|---|---|
+| 1 normal | one user, all five families, replay, correction, DXF | 6,852 | 0 | 37 MB | not applicable |
+| 2 heavy | 1,500 projects, 3,043 jobs, magnitude sweep | 5,294 | 0 | 178 MB | database ok; 0 damaged rows; audit chain intact; 60 of 60 replays match; 17 records flagged by the Python hash cross-check: 3 replay and match, 14 belong to refused requests |
+| 3 extreme | 20,034 jobs, 280,376 records in one database (2.4 GB) | 20,141 | 0 (1 connection closed by the server on an oversized upload) | 91 MB | database ok; audit chain intact; no gaps, no orphans |
+| 4 concurrency | 1 / 4 / 16 / 64 users | 18,478 | 0 | 302 MB | see result file |
+| 5 endurance | 3 users, 5 minutes (not the 20 minutes of the first campaign) | 16,847 | 0 | 66 MB | not applicable |
+| 6 faults | kill -9 x25, SIGTERM, key and database damage, full disk, malformed HTTP, 6,620 fuzz requests | n/a | 0 from fuzz | 80 MB | after 25 kills: 1,410 acknowledged operations all present, database ok, audit chain intact, 0 damaged rows, 40 of 40 replays match |
+
+Level 3's integrity section was produced before the runner's REFUSED handling was corrected, so its "22 bad rows" and
+"4 bad replays" are refused requests; level 3 was not re-run after that correction.
+
+Still open, observed again:
+- **Connection flood (RA-001):** with about 640 connections opened and held, the health request went unanswered for 10 s.
+  300 slow connections sending headers very slowly were still open after 20 s. The server recovered when they closed.
+- **Full disk:** on a 6 MB file system writes fail with 500 "STORAGE FULL", reads keep working and the process stays up,
+  but a restart on the still-full disk did not succeed.
+- **Listing endpoints** still slow down with the total number of jobs (audit verification 54 ms at the start of level 3,
+  1.6 s at 20,000 jobs).
+- Two malformed requests (a body shorter than its declared length; an oversized chunk size) are held until the client
+  gives up rather than refused at once.
+- `nf-server --help` starts a server with the default data folder instead of printing help (found by the bug hunt).
