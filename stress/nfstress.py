@@ -23,6 +23,9 @@ def pct(vals, p):
     return s[min(len(s) - 1, int(round(p / 100.0 * (len(s) - 1))))]
 
 
+# One-time setup token of the disposable servers this runner starts (the server refuses first-run setup without it).
+SETUP_TOKEN = "stress-runner-setup-token-0123456789"
+
 class Recorder:
     """Thread-safe per-request record: (t, latency_s, status, label)."""
     def __init__(self):
@@ -152,7 +155,7 @@ class Server:
         os.makedirs(workdir, exist_ok=True)
 
     def env(self):
-        e = dict(os.environ, NF_DATA_DIR=self.data, NF_LISTEN=f"127.0.0.1:{self.port}")
+        e = dict(os.environ, NF_DATA_DIR=self.data, NF_LISTEN=f"127.0.0.1:{self.port}", NF_SETUP_TOKEN=SETUP_TOKEN)
         if self.key_file:
             e["NF_KEY_FILE"] = self.key_file
         return e
@@ -247,7 +250,7 @@ class Server:
 
 def fresh_admin(srv):
     c = Client(srv.port)
-    st, _ = c.req("POST", "/api/setup", {"username": ADMIN[0], "password": ADMIN[1]})
+    st, _ = c.req("POST", "/api/setup", {"username": ADMIN[0], "password": ADMIN[1], "setup_token": SETUP_TOKEN})
     c.login()
     return c
 
