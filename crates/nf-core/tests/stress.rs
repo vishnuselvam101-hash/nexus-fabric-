@@ -335,6 +335,39 @@ fn regression_corpus() {
                     assert!(!d.contains(s), "{}: G02 has {s:?}: {d}", path.display());
                 }
             }
+            // optional: curve labels (review B2-002). Each check names a curve of pattern `pattern`, in
+            // `curves` (default) or `holes`, and states its points_exact flag and its deviation as a ratio
+            // of that pattern's eps_rep (0 for a line, 1 for the curve the pattern's eps_rep belongs to).
+            if let Some(checks) = case.get("curve_checks").and_then(|c| c.as_array()) {
+                let out = run(&req, "regression");
+                for ck in checks {
+                    let pat = &out.patterns[ck["pattern"].as_u64().unwrap_or(0) as usize];
+                    let list = if ck.get("list").and_then(|l| l.as_str()) == Some("holes") {
+                        &pat.holes
+                    } else {
+                        &pat.curves
+                    };
+                    let name = ck["name"].as_str().unwrap();
+                    let c = list
+                        .iter()
+                        .find(|c| c.name == name)
+                        .unwrap_or_else(|| panic!("{}: no curve {name}", path.display()));
+                    assert_eq!(
+                        c.points_exact,
+                        ck["points_exact"].as_bool().unwrap(),
+                        "{}: points_exact of {name}",
+                        path.display()
+                    );
+                    let ratio = ck["deviation_ratio_to_eps_rep"].as_f64().unwrap();
+                    assert!(
+                        (c.points_max_deviation - ratio * pat.eps_rep).abs() < 1e-15,
+                        "{}: {name} deviation {} is not {ratio} x eps_rep {}",
+                        path.display(),
+                        c.points_max_deviation,
+                        pat.eps_rep
+                    );
+                }
+            }
             n += 1;
         }
     }
