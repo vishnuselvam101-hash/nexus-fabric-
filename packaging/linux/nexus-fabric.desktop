@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=NEXUS FABRIC (development build)
+Comment=Starts the local NEXUS FABRIC server and opens it in the browser
+Exec=/FULL/PATH/TO/nexus-fabric-0.1.0/nexus-fabric.sh
+Terminal=true
+Categories=Engineering;

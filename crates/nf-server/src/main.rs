@@ -16,6 +16,7 @@
 //!   response (503 when the database is busy, 500 otherwise) and a log line.
 
 mod crypto;
+mod desktop;
 mod membrane;
 mod storage;
 #[cfg(test)]
@@ -3421,7 +3422,7 @@ pub(crate) fn build_app(cfg: Config) -> Result<Arc<App>, String> {
         let token = match &cfg.setup_token {
             Some(t) => {
                 println!(
-                    "First-run setup: no administrator exists yet. Setup requires the token given in NF_SETUP_TOKEN."
+                    "First-run setup: no administrator exists yet. Setup requires the one-time setup token (NF_SETUP_TOKEN, or the setup link printed by --desktop)."
                 );
                 t.clone()
             }
@@ -3517,14 +3518,11 @@ async fn serve(
     listener: tokio::net::TcpListener,
     router: Router,
     limits: Limits,
+    hangup_stops: bool,
 ) -> Result<(), String> {
-    use tokio::signal::unix::{SignalKind, signal};
     let slots = Arc::new(Semaphore::new(limits.max_connections));
     let graceful = hyper_util::server::graceful::GracefulShutdown::new();
-    let mut term = signal(SignalKind::terminate())
-        .map_err(|e| format!("cannot install the SIGTERM handler: {e}"))?;
-    let mut int = signal(SignalKind::interrupt())
-        .map_err(|e| format!("cannot install the SIGINT handler: {e}"))?;
+    let mut stop = stop_requested(hangup_stops)?;
     let mut builder = hyper::server::conn::http1::Builder::new();
     builder
         .timer(hyper_util::rt::TokioTimer::new())
@@ -3532,8 +3530,7 @@ async fn serve(
     loop {
         // a connection is accepted only when a slot is free; the rest wait in the kernel's queue
         let accepted = tokio::select! {
-            _ = term.recv() => None,
-            _ = int.recv() => None,
+            _ = &mut stop => None,
             a = async {
                 let permit = slots.clone().acquire_owned().await;
                 (permit, listener.accept().await)
@@ -3571,6 +3568,62 @@ async fn serve(
     Ok(())
 }
 
+/// Resolves when the process is asked to stop: SIGTERM or SIGINT on Unix (and SIGHUP,
+/// which a closed terminal window sends, when `hangup_stops` is set: desktop mode only);
+/// Ctrl+C, Ctrl+Break, closing the console window, or shutdown on Windows.
+fn stop_requested(
+    hangup_stops: bool,
+) -> Result<std::pin::Pin<Box<dyn std::future::Future<Output = ()>>>, String> {
+    // Only Unix has SIGHUP; on other systems the flag changes nothing.
+    let _ = hangup_stops;
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{SignalKind, signal};
+        let mut term = signal(SignalKind::terminate())
+            .map_err(|e| format!("cannot install the SIGTERM handler: {e}"))?;
+        let mut int = signal(SignalKind::interrupt())
+            .map_err(|e| format!("cannot install the SIGINT handler: {e}"))?;
+        let mut hup = if hangup_stops {
+            Some(
+                signal(SignalKind::hangup())
+                    .map_err(|e| format!("cannot install the SIGHUP handler: {e}"))?,
+            )
+        } else {
+            None
+        };
+        Ok(Box::pin(async move {
+            tokio::select! {
+                _ = term.recv() => {}
+                _ = int.recv() => {}
+                _ = async { match hup.as_mut() { Some(h) => { h.recv().await; } None => std::future::pending::<()>().await } } => {}
+            }
+        }))
+    }
+    #[cfg(windows)]
+    {
+        use tokio::signal::windows::{ctrl_break, ctrl_c, ctrl_close, ctrl_shutdown};
+        let io = |e: std::io::Error| format!("cannot install the console stop handler: {e}");
+        let mut c = ctrl_c().map_err(io)?;
+        let mut b = ctrl_break().map_err(io)?;
+        let mut close = ctrl_close().map_err(io)?;
+        let mut shutdown = ctrl_shutdown().map_err(io)?;
+        Ok(Box::pin(async move {
+            tokio::select! {
+                _ = c.recv() => {}
+                _ = b.recv() => {}
+                _ = close.recv() => {}
+                _ = shutdown.recv() => {}
+            }
+        }))
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        Ok(Box::pin(async {
+            let _ = tokio::signal::ctrl_c().await;
+        }))
+    }
+}
+
 /// Remove expired sessions and sign-in failures older than the throttle window. Returns rows removed.
 fn housekeeping(app: &App) -> rusqlite::Result<usize> {
     let db = app.db();
@@ -3588,6 +3641,15 @@ fn housekeeping(app: &App) -> rusqlite::Result<usize> {
 async fn main() {
     if std::env::args().nth(1).as_deref() == Some("replay-check") {
         replay_child();
+        return;
+    }
+    // Desktop mode is strictly opt-in: only an explicit --desktop argument selects it.
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.iter().any(|a| a == "--desktop") {
+        if let Err(e) = desktop::run(&args).await {
+            eprintln!("nf-server: cannot start desktop mode: {e}");
+            std::process::exit(2);
+        }
         return;
     }
     let stop = |msg: String| -> ! {
@@ -3634,7 +3696,7 @@ async fn main() {
         }
     });
     let service = router(app.clone());
-    if let Err(e) = serve(listener, service, limits).await {
+    if let Err(e) = serve(listener, service, limits, false).await {
         eprintln!("nf-server: server error: {e}");
         std::process::exit(1);
     }

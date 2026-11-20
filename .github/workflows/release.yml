@@ -1,0 +1,48 @@
+name: release-packages
+# Builds the downloadable packages on a version tag (v*) or on a manual run.
+# Development build. Not validated. Outputs must not be used for manufacturing.
+# This workflow only uploads workflow artefacts. It does NOT create a release or publish anything.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  packages:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Unit tests
+        run: cargo test --workspace --locked
+      - name: Install NSIS (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          if ! command -v makensis >/dev/null 2>&1; then
+            choco install nsis --no-progress -y
+          fi
+          makensis -VERSION
+      - name: Build all packages
+        # Linux runner: Linux packages only. Windows runner: the Windows exe, installer and zip, built natively.
+        run: packaging/build_all.sh ${{ runner.os == 'Linux' && '--linux-only' || '' }}
+      - name: Check the checksums
+        run: cd dist && sha256sum -c SHA256SUMS
+      - name: Upload packages (workflow artefacts only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-fabric-packages-${{ runner.os }}
+          path: |
+            dist/nexus-fabric-*
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14

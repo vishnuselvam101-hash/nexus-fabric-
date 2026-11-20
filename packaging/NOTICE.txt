@@ -1,0 +1,7 @@
+NEXUS FABRIC - notice
+
+Development build. Not validated. Outputs must not be used for manufacturing.
+
+Licence: All rights reserved. Evaluation use only — terms to be provided by the owner.
+
+The repository has no LICENSE file. No licence terms beyond the statement above are granted by this package.

@@ -130,6 +130,8 @@ fn create_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let mut f = opts.open(path)?;
     f.write_all(bytes)?;
     f.sync_all()?;
+    // Windows cannot open a directory as a file (access denied), and it does not need the directory flushed.
+    #[cfg(unix)]
     if let Some(dir) = path.parent() {
         std::fs::File::open(dir)?.sync_all()?;
     }
