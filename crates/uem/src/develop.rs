@@ -41,7 +41,7 @@ pub const MAX_SEGMENTS: usize = 46_080;
 const SUB: usize = 4;
 pub const VERIFY_SUB: usize = 16;
 
-pub const EPS_REP_BASIS: &str = "Largest distance from the exact curve to the polyline, measured at 15 interior points of every segment after the number of segments was chosen (uniform in the curve angle, doubled from the base number until the measured distance is at most 0.01 mm, an implementation limit pending engineering review). Measured, not interval-certified.";
+pub const EPS_REP_BASIS: &str = "Largest distance from the exact curve to the polyline, measured at 15 interior points of every segment after the number of segments was chosen (uniform in the curve angle, doubled from the base number until the measured distance is at most 0.01 mm, an implementation limit pending engineering review). An ESTIMATE, not a bound: the maximum between the sampled points can exceed it slightly (B2-007). Measured, not interval-certified.";
 const EPS_REP_EXACT: &str = "Lines and circular arcs are exact entities: no representation error.";
 
 fn seg_distance(q: P2, a: P2, b: P2) -> f64 {
@@ -959,7 +959,17 @@ pub fn header_with_opening_min(
     shell.quantities.push(("opening_x_min", xmin));
     shell.quantities.push(("opening_x_max", xmax));
     shell.quantities.push(("opening_perimeter", perimeter));
-    shell.quantities.push(("opening_area", 0.5 * area2.abs()));
+    // B2-004: the plate inherits the gross area of the plain shell; with the opening it is reported as gross and net
+    let opening_area = 0.5 * area2.abs();
+    let gross_area = shell
+        .quantity("area")
+        .expect("cylinder_shell reports its gross area");
+    shell.quantities.retain(|(k, _)| *k != "area");
+    shell.quantities.push(("gross_area", gross_area));
+    shell.quantities.push(("opening_area", opening_area));
+    shell
+        .quantities
+        .push(("net_area", gross_area - opening_area));
     shell.assumptions.push("Header rolled from plate; longitudinal seam placed diametrically opposite the branch. No seam-to-opening clearance rule is applied.");
     shell.assumptions.push("Opening = the curve where the branch surface of the declared radius meets the header surface of the declared radius (Spec 02 §4.4), cut square through the wall. Which wall surfaces these are and the joint type are declared by the user and recorded with the job; weld preparation, root gap and bevel are not modelled.");
     Ok(shell)
@@ -1169,8 +1179,17 @@ mod tests {
         );
     }
 
-    /// Validation defect D3: the representation estimate near tangency. It is an estimate (three interior
-    /// samples per segment); this measures it against a dense sampling of the exact curve.
+    /// B2-007: the basis of eps_rep names the points it is measured at and says it is an estimate, not a bound.
+    #[test]
+    fn b2_007_eps_rep_basis_says_estimate_at_the_measured_points() {
+        assert_eq!(VERIFY_SUB - 1, 15);
+        assert!(EPS_REP_BASIS.contains("measured at 15 interior points"));
+        assert!(EPS_REP_BASIS.contains("ESTIMATE, not a bound"));
+        assert!(!EPS_REP_BASIS.contains("three") && !EPS_REP_BASIS.contains("guarantee"));
+    }
+
+    /// Validation defect D3: the representation estimate near tangency. It is an estimate (15 interior
+    /// points per segment); this measures it against a dense sampling of the exact curve.
     #[test]
     fn d3_representation_estimate_near_tangency_is_close_to_the_dense_truth() {
         for (r, mid_only_ratio) in [(150.0 * (1.0 - 1.1e-6), 1.21), (150.0 * (1.0 - 1e-5), 1.04)] {

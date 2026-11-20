@@ -13,6 +13,11 @@
 //! representation error. That changed the `patterns_sha256` of the 52 accepted eccentric, branch and header cases
 //! that contain a polyline (old and new values differ only in that field; every cut geometry is byte-identical).
 //! The fixture was regenerated for that change.
+//! Review B2-003/B2-004 (deliberate, listed in its report): arc display points now follow a sagitta tolerance,
+//! and the header with an opening reports `gross_area`/`net_area`/`opening_area` instead of `area`. That changed
+//! the `patterns_sha256` of 50 of 335 cases (42 cone_frustum from the arc display points, 8 header_with_branch
+//! from the quantity keys); the values differ only in that field, and every cut geometry is byte-identical.
+//! The fixture was regenerated for that change.
 
 use nf_core::job::{Request, run};
 use serde_json::{Value, json};

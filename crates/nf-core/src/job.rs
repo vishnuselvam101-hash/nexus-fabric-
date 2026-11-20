@@ -292,9 +292,10 @@ pub struct CurveView {
     #[serde(default)]
     pub points_exact: bool,
     /// Largest distance between the chords through `points` and the exact
-    /// curve (mm); 0 for lines. Exact value for a circular arc; for a polyline
-    /// the engine's measured representation error `eps_rep` of that curve
-    /// (an estimate, not a bound).
+    /// curve (mm); 0 for lines. For a circular arc, the exact sagitta of the
+    /// chords actually emitted (at most 0.01 mm unless the chord cap binds);
+    /// for a polyline the engine's measured representation error `eps_rep` of
+    /// that curve (an estimate, not a bound).
     #[serde(default)]
     pub points_max_deviation: f64,
     pub length: f64,
@@ -311,7 +312,8 @@ pub struct PatternView {
     pub marking_side: String,
     /// ESTIMATE of the numerical error (mm), not a bound.
     pub eps_num: f64,
-    /// ESTIMATE of the polyline representation error (mm), not a bound.
+    /// ESTIMATE of the polyline representation error (mm), not a bound: the largest deviation measured at 15
+    /// interior points per segment; a finer sampling can exceed it slightly.
     pub eps_rep: f64,
     pub quantities: BTreeMap<String, f64>,
     pub assumptions: Vec<String>,
@@ -410,8 +412,24 @@ fn curve_entity(c: &uem::Curve, closed_profile: bool) -> Entity {
 /// interface knows; these two are stated in the assumptions of the pattern instead (review RB-004).
 const DENSITY_QUANTITIES: [&str; 2] = ["polyline_segments", "chord_error_limit"];
 
-/// Chords used to show an arc in the JSON result. Display only.
-const ARC_DISPLAY_CHORDS: usize = 96;
+/// Sagitta tolerance of the arc points in the JSON result (mm, display only): the chords shown stay within this
+/// distance of the arc (review B2-003).
+const ARC_DISPLAY_TOL: f64 = 0.01;
+
+/// Safety cap on the display chords of one arc. Where the tolerance needs more chords than this (very large
+/// radii), the points stop at the cap and `points_max_deviation` states the true, larger deviation.
+const ARC_DISPLAY_MAX_CHORDS: usize = 4096;
+
+/// Display chords of an arc of radius `r` and sweep `sweep` (rad): the fewest n with r(1 - cos(sweep / 2n)) <= tol.
+/// Since 1 - cos x <= x²/2, n = ceil((sweep/2)·sqrt(r / (2·tol))) meets the tolerance, capped at ARC_DISPLAY_MAX_CHORDS.
+fn arc_display_chords(r: f64, sweep: f64) -> usize {
+    let needed = (sweep.abs() / 2.0) * (r.abs() / (2.0 * ARC_DISPLAY_TOL)).sqrt();
+    if needed.is_finite() {
+        (needed.ceil() as usize).clamp(1, ARC_DISPLAY_MAX_CHORDS)
+    } else {
+        ARC_DISPLAY_MAX_CHORDS
+    }
+}
 
 /// The annotation line every DXF of this build carries about its marking side.
 pub fn marking_side_note(side: uem::ViewSide) -> String {
@@ -424,6 +442,11 @@ pub fn marking_side_note(side: uem::ViewSide) -> String {
 const MARKING_SIDE_SCRUTINY: &str = "Marking side: every pattern of this job is drawn as seen from the OUTSIDE of the formed part (pattern normal toward the outside). Spec 02 §0.3 requires a declared marking side but does not choose one; this side follows from the frames the specification writes down (§4.1, §4.4) and is a PROVISIONAL convention declared by the software. It has not been reviewed by a fabrication engineer. Marking a pattern on the other face mirrors the part (misfit of tens of millimetres for an offset, oblique branch). An engineer must confirm the marking side before use.";
 
 fn curve_view(c: &uem::Curve) -> CurveView {
+    // B2-003: the chord count of an arc follows from its radius and sweep, so the display stays within tolerance
+    let chords = match c.geom {
+        Geom::Arc { r, a0, a1, .. } => arc_display_chords(r, a1 - a0),
+        _ => 1,
+    };
     CurveView {
         name: c.name.to_string(),
         layer: layer_name(c.layer).to_string(),
@@ -433,16 +456,17 @@ fn curve_view(c: &uem::Curve) -> CurveView {
             Geom::Polyline { .. } => "polyline",
         }
         .to_string(),
-        points: profile::flatten(std::slice::from_ref(c), ARC_DISPLAY_CHORDS)
+        points: profile::flatten(std::slice::from_ref(c), chords)
             .iter()
             .map(|q| [q.x, q.y])
             .collect(),
         // B2-002: only straight lines are exact; a polyline approximates a curved edge
         points_exact: matches!(c.geom, Geom::Line { .. }),
         points_max_deviation: match c.geom {
-            // sagitta of one chord: r·(1 − cos(sweep / 2n)), exact for a circle (validation defect D7)
+            // sagitta of one chord of the chords actually emitted: r·(1 − cos(sweep / 2n)), exact for a circle
+            // (validation defect D7; review B2-003)
             Geom::Arc { r, a0, a1, .. } => {
-                r * (1.0 - ((a1 - a0).abs() / (2.0 * ARC_DISPLAY_CHORDS as f64)).cos())
+                r * (1.0 - ((a1 - a0).abs() / (2.0 * chords as f64)).cos())
             }
             // the curve's own measured representation error (develop.rs: per-curve eps_rep)
             Geom::Polyline { eps_rep, .. } => eps_rep,
@@ -808,7 +832,7 @@ pub fn evaluate_gates(
             true,
             GateResult::Inconclusive,
             if has_polyline {
-                "eps_num and eps_rep are ESTIMATES, not bounds, and not interval-certified. Independent validation measured true errors up to 6 times eps_num near tangency; eps_rep is the largest deviation at three interior samples per polyline segment."
+                "eps_num and eps_rep are ESTIMATES, not bounds, and not interval-certified. Independent validation measured true errors up to 6 times eps_num near tangency; eps_rep is the largest deviation measured at 15 interior points per polyline segment, so a finer sampling can exceed it slightly."
             } else {
                 "eps_num is an ESTIMATE, not a bound, and not interval-certified."
             },
@@ -2398,6 +2422,144 @@ mod tests {
         }));
     }
 
+    /// B2-003: the chords shown for an arc follow the sagitta tolerance; the deviation states the chords emitted.
+    #[test]
+    fn b2_003_arc_display_follows_the_sagitta_tolerance() {
+        // the deviation of a displayed arc, measured from its points against the apex radius of the pattern
+        fn measured_deviation(p: &PatternView, name: &str) -> (usize, f64, f64) {
+            let arc = p.curves.iter().find(|c| c.name == name).unwrap();
+            let l = p.quantities["apex_radius_large"];
+            let dev = arc
+                .points
+                .windows(2)
+                .map(|w| l - (0.5 * (w[0][0] + w[1][0])).hypot(0.5 * (w[0][1] + w[1][1])))
+                .fold(0.0, f64::max);
+            (arc.points.len() - 1, arc.points_max_deviation, dev)
+        }
+        // ordinary cone: the tolerance is met below the chord cap
+        let o = run(
+            &Request::ConeFrustum {
+                r1: 10_000.0,
+                r2: 5_000.0,
+                h: 10_000.0,
+            },
+            "t",
+        );
+        let (n, stated, measured) = measured_deviation(&o.patterns[0], "large_end");
+        assert!(n > 1 && n < super::ARC_DISPLAY_MAX_CHORDS, "{n} chords");
+        assert!(
+            stated <= 0.01 && (stated - measured).abs() < 1e-9,
+            "{stated} {measured}"
+        );
+        // huge cone (B2-003 repro): the tolerance needs more chords than the cap, so the cap binds and the
+        // stated deviation is the true sagitta of the 4096 chords shown (it was 23 946 mm with 96 chords)
+        let o = run(
+            &Request::ConeFrustum {
+                r1: 1e8,
+                r2: 5e7,
+                h: 1e8,
+            },
+            "t",
+        );
+        let (n, stated, measured) = measured_deviation(&o.patterns[0], "large_end");
+        assert_eq!(n, super::ARC_DISPLAY_MAX_CHORDS);
+        assert!(
+            (stated - measured).abs() < 1e-6 * stated.max(1.0) && stated < 100.0,
+            "stated {stated} measured {measured}"
+        );
+        // the chord count is the fewest that meets the tolerance (one chord fewer exceeds it)
+        let r: f64 = 1e4;
+        let sweep: f64 = 1.0;
+        let need = super::arc_display_chords(r, sweep);
+        let sag = |k: usize| r * (1.0 - (sweep / (2.0 * k as f64)).cos());
+        assert!(sag(need) <= 0.01 && sag(need - 1) > 0.01, "need {need}");
+    }
+
+    /// B2-004: a header with an opening reports its gross and net plate area; net = gross - opening, and net < gross.
+    /// A plain cylinder, which has no opening, keeps its `area`.
+    #[test]
+    fn b2_004_header_with_opening_reports_gross_and_net_area() {
+        let a = run(&assembly(), "t");
+        let hp = a
+            .patterns
+            .iter()
+            .find(|p| p.holes.iter().any(|h| h.name == "branch_opening"))
+            .expect("header pattern with the branch opening");
+        let q = &hp.quantities;
+        assert!(
+            !q.contains_key("area"),
+            "the header still reports a bare area"
+        );
+        let (gross, net, opening) = (q["gross_area"], q["net_area"], q["opening_area"]);
+        // gross: developed circumference x length, both reported by the pattern
+        assert!((gross - q["developed_width"] * q["length"]).abs() <= 1e-9 * gross);
+        // opening: shoelace over the vertices of the hole as the JSON states them (independent of the engine sum)
+        let h = hp
+            .holes
+            .iter()
+            .find(|h| h.name == "branch_opening")
+            .unwrap();
+        let k = h.points.len();
+        let shoelace: f64 = (0..k)
+            .map(|i| {
+                let (p0, p1) = (h.points[i], h.points[(i + 1) % k]);
+                p0[0] * p1[1] - p1[0] * p0[1]
+            })
+            .sum::<f64>()
+            * 0.5;
+        assert!(
+            (opening - shoelace.abs()).abs() <= 1e-9 * opening,
+            "{opening} vs {shoelace}"
+        );
+        assert!((net - (gross - opening)).abs() <= 1e-9 * gross);
+        assert!(net < gross && net > 0.0);
+
+        let c = run(
+            &Request::CylinderShell {
+                r_dev: 100.0,
+                length: 250.0,
+            },
+            "t",
+        );
+        let shell = &c.patterns[0].quantities;
+        assert!(shell.contains_key("area") && !shell.contains_key("gross_area"));
+        assert!(!shell.contains_key("net_area") && !shell.contains_key("opening_area"));
+    }
+
+    /// B2-007: eps_rep is described as a measured estimate at the 15 interior points it is measured at, not as a bound.
+    #[test]
+    fn b2_007_eps_rep_is_described_as_a_measured_estimate() {
+        let o = run(
+            &Request::EccentricReducer {
+                r1: 100.0,
+                r2: 50.0,
+                h: 150.0,
+                e: 20.0,
+            },
+            "t",
+        );
+        let g08 = o
+            .gates
+            .iter()
+            .find(|g| g.id == "G08")
+            .unwrap()
+            .detail
+            .clone();
+        assert!(
+            g08.contains("ESTIMATES, not bounds")
+                && g08.contains("measured at 15 interior points per polyline segment")
+                && g08.contains("can exceed it slightly")
+                && !g08.contains("three interior"),
+            "{g08}"
+        );
+        let p = &o.patterns[0];
+        assert!(
+            p.assumptions
+                .iter()
+                .any(|a| a.contains("estimates, not bounds"))
+        );
+    }
+
     /// D7: arc points in the JSON are labelled as a display approximation with their true deviation.
     #[test]
     fn d7_arc_points_are_labelled_as_an_approximation() {
@@ -2419,8 +2581,11 @@ mod tests {
             .windows(2)
             .map(|w| l1 - (0.5 * (w[0][0] + w[1][0])).hypot(0.5 * (w[0][1] + w[1][1])))
             .fold(0.0, f64::max);
+        // B2-003: the chord count follows the 0.01 mm sagitta tolerance (was a fixed 96 chords, 0.034 mm here)
         assert!(
-            (arc.points_max_deviation - measured).abs() < 1e-9 && (measured - 0.034).abs() < 1e-3,
+            (arc.points_max_deviation - measured).abs() < 1e-9
+                && measured <= 0.01
+                && (measured - 0.00996).abs() < 1e-4,
             "stated {} measured {measured}",
             arc.points_max_deviation
         );
