@@ -138,7 +138,7 @@ const F = {
   cylinder_shell: { f: [['r_dev', 500, 'mm'], ['length', 1000, 'mm']] },
   cone_frustum: { f: [['r1', 200, 'mm'], ['r2', 100, 'mm'], ['h', 300, 'mm']] },
   eccentric_reducer: { f: [['r1', 200, 'mm'], ['r2', 100, 'mm'], ['h', 300, 'mm'], ['e', 100, 'mm']] },
-  header_with_branch: { f: [['header_radius', 150, 'mm'], ['header_dev_radius', 150, 'mm'], ['header_length', 1200, 'mm'], ['branch_station', 600, 'mm'], ['branch_radius', 100, 'mm'], ['branch_dev_radius', 100, 'mm'], ['beta_deg', 60, 'deg'], ['delta', 0, 'mm'], ['s_end', 400, 'mm']], sref: true },
+  header_with_branch: { f: [['header_radius', 150, 'mm'], ['header_dev_radius', 150, 'mm'], ['header_length', 1200, 'mm'], ['branch_station', 600, 'mm'], ['branch_radius', 100, 'mm'], ['branch_dev_radius', 100, 'mm'], ['beta_deg', 60, 'deg'], ['delta', 0, 'mm'], ['s_end', 400, 'mm']], sref: true, ext: true },
   branch_stub: { f: [['header_radius', 150, 'mm'], ['branch_radius', 100, 'mm'], ['branch_dev_radius', 100, 'mm'], ['beta_deg', 60, 'deg'], ['delta', 0, 'mm'], ['s_end', 400, 'mm']], sref: true },
 };
 const famLabel = (k) => esc(idLabel('familyLong', k) || idText('family', k));
@@ -215,16 +215,36 @@ function validateRequest(fam, v) {
   if (has('branch_station', 'header_length') && !bad('header_length') && (v.branch_station <= 0 || v.branch_station >= v.header_length)) errors.push(['branch_station', t('v.station')]);
   // Same rule as the engine (Spec 02 §6.1: the development surface lies inside the wall), so that a declared
   // surface the radii contradict is stopped at the field. The engine refuses it in any case.
-  for (const [c, d] of [['header_radius', 'header_dev_radius'], ['branch_radius', 'branch_dev_radius']]) {
-    if (!v.surface_reference || !has(c, d) || bad(c) || bad(d)) continue;
+  // Each part uses its own declared surface (header_surface_reference, branch_surface_reference), or the shared one.
+  const sref = (part) => v[`${part}_surface_reference`] || v.surface_reference;
+  for (const [c, d, part] of [['header_radius', 'header_dev_radius', 'header'], ['branch_radius', 'branch_dev_radius', 'branch']]) {
+    const ref = sref(part);
+    if (!ref || !has(c, d) || bad(c) || bad(d)) continue;
     const same = Math.abs(v[d] - v[c]) <= 1e-12 * Math.max(Math.abs(v[d]), Math.abs(v[c]));
     const p = { d: lab(d), dv: fmt(v[d]), c: lab(c), cv: fmt(v[c]) };
-    if (v.surface_reference === 'outside' && !same && v[d] > v[c]) errors.push([d, t('v.outside', p)]);
-    if (v.surface_reference === 'inside' && !same && v[d] < v[c]) errors.push([d, t('v.inside', p)]);
-    if (v.surface_reference === 'neutral' && !same) errors.push([d, t('v.neutral', p)]);
+    if (ref === 'outside' && !same && v[d] > v[c]) errors.push([d, t('v.outside', p)]);
+    if (ref === 'inside' && !same && v[d] < v[c]) errors.push([d, t('v.inside', p)]);
+    if (ref === 'neutral' && !same) errors.push([d, t('v.neutral', p)]);
+  }
+  // RB-001 (engine 0.4.0): a set-on joint needs the branch INSIDE surface on the header OUTSIDE surface; the engine
+  // refuses any other pairing and names the field "joint". The field is marked here, so nothing is sent.
+  if (v.joint === 'set_on') {
+    const hs = sref('header'), bs = sref('branch');
+    if (hs !== 'outside' || bs !== 'inside') errors.push(['joint', t('v.joint.pair', { hs: t(`sref.${hs || 'unknown'}`), bs: t(`sref.${bs || 'unknown'}`) })]);
   }
   return { errors, warnings };
 }
+
+// The optional parts of a header-with-branch request (review RB-001, engine 0.4.0): the wall surface each contact
+// radius refers to, and the joint type. Left at their first option they are not sent, so the request is as before.
+const extFields = (from) => {
+  const sel = (name, label, opts, hint) => `<div class="field"><label for="f_${name}">${esc(label)}<span class="mono key">${name}</span></label><select id="f_${name}" name="${name}">${opts.map(([v, text]) => `<option value="${v}"${(from ? from[name] || '' : '') === v ? ' selected' : ''}>${esc(text)}</option>`).join('')}</select>${hint ? `<p class="hint">${esc(hint)}</p>` : ''}</div>`;
+  const surf = [['', t('math.psref.same')], ...['unknown', 'outside', 'inside', 'neutral'].map((o) => [o, t(`sref.${o}`)])];
+  const fam = 'header_with_branch';
+  return sel('header_surface_reference', plabel(fam, 'header_surface_reference'), surf)
+    + sel('branch_surface_reference', plabel(fam, 'branch_surface_reference'), surf, t('math.psref.hint'))
+    + sel('joint', plabel(fam, 'joint'), [['', t('math.joint.none')], ['set_on', t('math.joint.set')]], t('math.joint.hint'));
+};
 
 // ---------------------------------------------------------------- parameter schematic
 // A to-scale drawing made only from the values in the form: what each dimension means. It is not the computed
@@ -768,7 +788,8 @@ const views = {
       const pid = projectId || ctxProject || ps[0].id;
       const fam0 = from && F[from.family] ? from.family : 'cylinder_shell';
       const fields = (k) => F[k].f.map(([n, v, u]) => `<div class="field prop"><label for="f_${n}">${esc(plabel(k, n))}<span class="mono key">${n}</span></label><div class="inp"><input id="f_${n}" name="${n}" type="number" step="any" inputmode="decimal" value="${from && from.family === k && typeof from[n] === 'number' ? from[n] : v}"><span class="unit" aria-hidden="true">${esc(unitText(u))}</span></div></div>`).join('')
-        + (F[k].sref ? `<div class="field"><label for="f_sref">${esc(t('math.sref.label'))}<span class="mono key">surface_reference</span></label><select id="f_sref" name="surface_reference">${['unknown', 'outside', 'inside', 'neutral'].map((o) => `<option value="${o}"${from && from.surface_reference === o ? ' selected' : ''}>${esc(t(`sref.${o}`))}</option>`).join('')}</select></div>` : '');
+        + (F[k].sref ? `<div class="field"><label for="f_sref">${esc(t('math.sref.label'))}<span class="mono key">surface_reference</span></label><select id="f_sref" name="surface_reference">${['unknown', 'outside', 'inside', 'neutral'].map((o) => `<option value="${o}"${from && from.surface_reference === o ? ' selected' : ''}>${esc(t(`sref.${o}`))}</option>`).join('')}</select></div>` : '')
+        + (F[k].ext ? extFields(from) : '');
       const lis = (prefix, n) => `<ul>${Array.from({ length: n }, (_, i) => `<li>${h(`${prefix}.${i + 1}`)}</li>`).join('')}</ul>`;
       return {
         title, nav: 'workspace', ws: true, crumbs,
@@ -794,7 +815,7 @@ const views = {
         wire(root) {
           wireSplits(root);
           const form = $('#calc'), canvas = $('#sk-canvas'), cap = $('#sk-cap'); let hot = null, confirmed = '';
-          const read = () => { const fam = form.fam.value, req = { family: fam }; for (const [n] of F[fam].f) { const el = form.elements.namedItem(n); req[n] = !el || el.value.trim() === '' ? NaN : Number(el.value); } if (F[fam].sref) req.surface_reference = form.surface_reference.value; return req; };
+          const read = () => { const fam = form.fam.value, req = { family: fam }; for (const [n] of F[fam].f) { const el = form.elements.namedItem(n); req[n] = !el || el.value.trim() === '' ? NaN : Number(el.value); } if (F[fam].sref) req.surface_reference = form.surface_reference.value; if (F[fam].ext) for (const n of ['header_surface_reference', 'branch_surface_reference', 'joint']) { const el = form.elements.namedItem(n); if (el && el.value) req[n] = el.value; } return req; };
           const draw = () => {
             const fam = form.fam.value, r = sketch(fam, read(), Math.max(320, canvas.clientWidth), Math.max(240, canvas.clientHeight));
             cap.innerHTML = r.cap; canvas.innerHTML = r.svg;
@@ -915,7 +936,7 @@ const views = {
         || empty('shield', t('s.none.t'), esc(t('s.none.p')));
       const graphHtml = graph ? `${graph.html}<p class="hint"><a href="#/amoeba/dependencies/${c.id}">${esc(t('gr.open'))}</a></p>${edgeTable(dep.edges)}` : empty('nodes', t('gr.none.t'), esc(t('gr.none.p')));
       const historyHtml = `<ol class="tl">${ev.map((e) => `<li class="k-${e.k || ''}"><b>${e.h}</b><time>${e.t ? when(e.t) : ''}</time>${e.d}</li>`).join('')}</ol><p class="hint">${esc(t('history.foot'))}</p>`;
-      const subject = (r) => { const p = r.payload || {}; const s = p.name !== undefined ? `${p.name}${p.value !== undefined ? ` = ${typeof p.value === 'number' ? fmt(p.value) : p.value}${p.unit ? ` ${p.unit}` : ''}` : ''}` : p.part !== undefined ? p.part : Array.isArray(p.between) ? p.between.join(' × ') : p.outcome !== undefined ? p.message || p.outcome : ''; return s ? ` · <span class="mono"${ja() ? ' lang="en"' : ''}>${esc(s)}</span>` : ''; };
+      const subject = (r) => { const p = r.payload || {}; const s = p.name !== undefined ? `${p.name}${p.value !== undefined ? ` = ${p.value && typeof p.value === 'object' ? Object.entries(p.value).map(([k, x]) => `${k} ${x}`).join(' · ') : typeof p.value === 'number' ? fmt(p.value) : p.value}${p.unit ? ` ${p.unit}` : ''}` : ''}` : p.part !== undefined ? p.part : Array.isArray(p.between) ? p.between.join(' × ') : p.outcome !== undefined ? p.message || p.outcome : ''; return s ? ` · <span class="mono"${ja() ? ' lang="en"' : ''}>${esc(s)}</span>` : ''; };
       const recKind = (r) => (ja() ? `${labelled('rkind', r.kind)} ${mono(r.kind)}` : mono(r.kind));
       const recordsHtml = `<dl class="kv"><dt>${esc(t('r.closure'))}</dt><dd class="txt"><span class="hash">${esc(c.closure_hash)}</span></dd><dt>${esc(t('r.n'))}</dt><dd>${c.closure_size}</dd><dt>${esc(t('r.wu'))}</dt><dd>${c.work_units}</dd><dt>${esc(t('r.engine'))}</dt><dd class="txt">${mono(c.engine)}</dd>
           <dt>${esc(t('r.replay'))}</dt><dd class="txt" id="replay-state">${rp ? `${replayTag(rp.matches)} ${when(rp.at)} · ${ud(rp.run_by)}` : esc(t('replay.none'))}</dd></dl>
@@ -924,7 +945,12 @@ const views = {
         ${c.records.map((r, i) => `<details class="sec rec" data-rec="${i}"><summary><span class="rec-t">${recKind(r)}${subject(r)}</span><span class="hash">${esc(r.id.slice(0, 8))}…</span></summary><div class="sec-b"></div></details>`).join('')}`;
 
       const reqKeys = [...new Set([...(F[fam] ? F[fam].f.map((x) => x[0]) : []), ...Object.keys(c.request)])].filter((k) => k !== 'family' && k in c.request);
-      const reqValue = (k, v, m) => (typeof v === 'number' ? (m ? `<span class="q"><span class="qv">${fmt(v)}</span> <span class="qu">${esc(unitText(m[3]))}</span></span>` : fmt(v)) : k === 'surface_reference' ? named('sref', v) : esc(v));
+      const reqValue = (k, v, m) => (typeof v === 'number' ? (m ? `<span class="q"><span class="qv">${fmt(v)}</span> <span class="qu">${esc(unitText(m[3]))}</span></span>` : fmt(v)) : (k === 'surface_reference' || k === 'header_surface_reference' || k === 'branch_surface_reference') ? named('sref', v) : k === 'joint' ? `<span class="nw">${named('joint', v)}</span>` : esc(v));
+      // the engine names the refused parameter in its outcome ("out of range (joint): ..."); that row is marked
+      const refKey = noResult && c.outcome ? (/^out of range \(([^)]+)\)/.exec(c.outcome) || [])[1] : null;
+      // the interface record of a header with branch: what the result itself says about the joint
+      const ifc = c.records.find((r) => r.kind === 'interface'), jp = ifc ? ifc.payload : null;
+      const jointHtml = jp ? `<p class="txt">${eng(jp.joint)}</p><dl class="kv"><dt>${esc(plabel(fam, 'joint'))}<small class="mono">joint</small></dt><dd class="txt">${jp.declared === 'set_on' ? named('joint', 'set_on') : esc(t('joint.none.v'))}</dd><dt>${esc(plabel(fam, 'header_surface_reference'))}<small class="mono">header_surface_reference</small></dt><dd class="txt">${named('sref', jp.header_surface)}</dd><dt>${esc(plabel(fam, 'branch_surface_reference'))}<small class="mono">branch_surface_reference</small></dt><dd class="txt">${named('sref', jp.branch_surface)}</dd></dl>` : '';
       const wm = t(state === 'SUPERSEDED' ? 'wm.sup' : state === 'REJECTED' ? 'wm.rej' : 'wm.review');
       const banner = state === 'SUPERSEDED' ? h('ban.sup', { job: jobLink(c.superseded_by, true) }) : state === 'NO_RESULT' ? h('ban.none', { why: c.outcome ? eng(c.outcome) : esc(t('ban.none.default')) }) : state === 'REJECTED' ? h('ban.rej') : h('ban.review');
       // one primary action at most: the successor when superseded, else the correction, else the new calculation from this job
@@ -937,11 +963,12 @@ const views = {
         <div class="ws-banner${blocked ? ' bad' : ''}${state === 'SUPERSEDED' ? ' neutral' : ''}" role="status"><span>${banner}</span></div>
         <div class="ws-body">
           <aside class="pane" aria-label="${esc(t('pane.props.aria'))}"><div class="pane-h"><h2>${esc(t('pane.props.h'))}</h2></div><div class="pane-scroll">
-            <details class="sec" open><summary>${esc(t('req.h'))} ${tag('na', t('req.tag'))}</summary><div class="sec-b"><dl class="kv req">${reqKeys.map((k) => { const v = c.request[k], m = paramMeta(fam, k), ok = canCorrect && c.correctable_parameters.some((x) => x[0] === k); return `<dt>${m ? esc(m[1]) : labelled('param', k)}<small class="mono">${esc(k)}</small></dt><dd${typeof v === 'number' ? '' : ' class="txt"'}>${reqValue(k, v, m)}${ok ? `<button class="ghost mini" data-correct="${esc(k)}" aria-label="${esc(t('req.correct.aria', { label: m ? m[1] : k }))}">${esc(t('req.correct'))}</button>` : ''}</dd>`; }).join('')}</dl>
+            <details class="sec" open><summary>${esc(t('req.h'))} ${tag('na', t('req.tag'))}</summary><div class="sec-b"><dl class="kv req">${reqKeys.map((k) => { const v = c.request[k], m = paramMeta(fam, k), ok = canCorrect && c.correctable_parameters.some((x) => x[0] === k); return `<dt>${m ? esc(m[1]) : labelled('param', k)}<small class="mono">${esc(k)}</small></dt><dd${typeof v === 'number' ? '' : ' class="txt"'}>${reqValue(k, v, m)}${k === refKey ? ` ${tag('bad', t('req.refused'))}` : ''}${ok ? `<button class="ghost mini" data-correct="${esc(k)}" aria-label="${esc(t('req.correct.aria', { label: m ? m[1] : k }))}">${esc(t('req.correct'))}</button>` : ''}</dd>`; }).join('')}</dl>
               <p class="hint">${esc(t('req.hint'))}</p></div></details>
             ${c.patterns.length ? `<details class="sec" open><summary>${esc(t('sel.h'))}</summary><div class="sec-b"><div id="sel" aria-live="polite"></div><div id="meas" aria-live="polite"></div></div></details>
             <details class="sec" open><summary>${esc(t('curves.h'))} <span class="sub" id="curves-part"></span></summary><div class="sec-b flush" id="curves"></div></details>
             <details class="sec" open><summary>${esc(t('quant.h'))}</summary><div class="sec-b" id="quant"></div></details>
+            ${ifc ? `<details class="sec" open id="joint"><summary>${esc(t('joint.h'))}</summary><div class="sec-b">${jointHtml}</div></details>` : ''}
             <details class="sec"><summary>${esc(t('assume.h'))}</summary><div class="sec-b" id="assume"></div></details>` : ''}
           </div></aside>
           <div class="split" role="separator" aria-orientation="vertical" aria-label="${esc(t('split.props'))}" tabindex="0" data-split="l"></div>
