@@ -27,6 +27,8 @@ Owner's goal (2026-11-19): finish NEXUS FABRIC as one integrated, verified softw
 
 Until G-R12 holds, no output may be used for manufacturing, whatever the other gates say.
 
+Readiness is stated per classification, never as one label: see `READINESS.md`.
+
 ## Capability matrix (what exists; evidence level EV-1 throughout)
 
 | Capability | State | Notes |
@@ -35,7 +37,8 @@ Until G-R12 holds, no output may be used for manufacturing, whatever the other g
 | DXF writing (R12 subset) with read-back comparison | Implemented, not fully verified | Read-back uses the product's own reader |
 | Records, dependencies, obligations, corrections, replay, gates, audit chain, users and roles | Implemented, not fully verified | Under audit |
 | Engineering workstation interface | Implemented; first independent review below bar | Fixes in progress |
-| DXF or drawing import, file upload, document management | Not implemented | Standing rule: no parser is merged without an isolated, network-less, resource-limited process and fuzz tests |
+| File upload and document storage | Implemented: documents are uploaded, stored encrypted and never parsed | Corrected 20 Nov 2026: an earlier version of this table said "not implemented" |
+| DXF or drawing import (reading a drawing) | Not implemented | Standing rule: no parser is merged without an isolated, network-less, resource-limited process and fuzz tests |
 | Drawing reading, 3D reconstruction, any AI component | Not implemented | "AI-native" is positioning, not a present capability. AI may never be the final authority for geometry |
 | Plate division, seams, nesting, manufacturing-constraint evaluation, CNC or CAM hand-off | Not implemented | No CNC-readiness claim |
 | Structural frames, trusses, structural analysis, code checks, STEP, IFC | Not implemented, not planned in the specifications | Would be a new product area needing its own specification and independent validation |

@@ -59,9 +59,24 @@ That is an accurate description of BH-017, and it is why the interface and docum
 - Tests for: store unavailable, wrong user, moved folder, damaged wrapped key, downgrade to an older program version.
 - One run on a real Windows PC and a real macOS machine by a person; this container cannot provide that evidence.
 
-## 6. Owner decisions needed
+## 6. Owner decisions (20 Nov 2026)
 
-- Accept recommendation 1 now (wording change only)?
-- Is "data folder copied off the PC" inside the threat model for the first customers? If yes, B (and D) become
-  release conditions for the desktop product; if no, they stay improvements.
-- Who keeps the recovery key in a factory: the user, or an administrator?
+1. **Wording: approved.** The install guide and the first-run screen state that desktop mode does not encrypt the
+   application database or the whole data folder, that stored files have their own encryption but this does not make
+   the desktop data set encrypted, that security depends on the computer and its operating environment, and recommend
+   disk encryption, individual accounts, restricted access to the data folder and secure backups. The wording must not
+   suggest that an operating-system account by itself encrypts the database. Disk encryption is not presented as a
+   substitute for application-level encryption: it protects a stolen device, not a copy taken while the disk is unlocked.
+2. **Threat model: a copied data folder is in scope.** Application-level database encryption, operating-system
+   protected keys, a recovery mechanism, key rotation and tested backup and restore are acceptance conditions for
+   unrestricted desktop deployment (see `docs/project/READINESS.md`). Until then the desktop product is "restricted
+   deployment".
+3. **Recovery key: controlled by the customer organisation**, held by an authorised administrator, not by an individual
+   employee alone. A small site without an IT department names an owner and a second custodian. Requirements: the only
+   recovery key is never stored beside the encrypted data; no recovery key is built into the program; recovery requires
+   authorisation and leaves an audit entry; recovery is tested on a separate machine; the procedure covers the
+   administrator leaving the company; the vendor has no access by default.
+
+This document remains the record of the current risk. It is kept separate from any implementation; the implementation
+is to be designed from a written threat model, with migration, backup and recovery defined before code is written
+(section 5).
