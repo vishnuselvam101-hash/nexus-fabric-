@@ -203,8 +203,11 @@ if [ "$DO_DYNAMIC" = 1 ]; then
   # Engine identifier must be the same on both platforms.
   if [ -n "$LINUX_ENGINE" ] && [ "$LINUX_ENGINE" = "$WIN_ENGINE" ]; then
     rec static.engine "Engine identifier agrees between the Linux binary and the Windows exe" "static" passed "" "$LINUX_ENGINE" ""
+  elif [ -z "$WIN_ENGINE" ]; then
+    rec static.engine "Engine identifier agrees between the Linux binary and the Windows exe" "static" "not run" \
+      "the Windows exe could not be run (wine did not start); linux: ${LINUX_ENGINE:-none}" "" ""
   else
-    rec static.engine "Engine identifier agrees between the Linux binary and the Windows exe" "static" failed "linux: ${LINUX_ENGINE:-none}; windows: ${WIN_ENGINE:-none}" "" ""
+    rec static.engine "Engine identifier agrees between the Linux binary and the Windows exe" "static" failed "linux: ${LINUX_ENGINE:-none}; windows: ${WIN_ENGINE}" "" ""
   fi
   vrow "engine identifier (Linux binary)" "${LINUX_ENGINE:-none}" "native Linux" "$( [ -n "$LINUX_ENGINE" ] && echo yes || echo no)" ""
   vrow "engine identifier (Windows exe under wine)" "${WIN_ENGINE:-none}" "emulated (wine $WINE_VER; not Windows)" "$( [ -n "$WIN_ENGINE" ] && [ "$WIN_ENGINE" = "$LINUX_ENGINE" ] && echo yes || echo no)" ""

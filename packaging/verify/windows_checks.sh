@@ -192,7 +192,15 @@ run_windows_checks() {
   win_boot "$P1" "$LOGS/win-boot.log"
   rc=$?
   if [ "$rc" != 0 ] || ! U=$(wine_user_dir "$P1"); then
-    rec win.prefix "Fresh 64-bit wine prefix (wineboot --init)" "$HOW" failed "wineboot exit $rc" "$(tail -1 "$LOGS/win-boot.log")" win-boot.log
+    # wine could not initialise: every wine-dependent check is recorded as not run, with the reason. Nothing is claimed.
+    local WHY="wine could not initialise (wineboot exit $rc)"
+    rec win.prefix "Fresh 64-bit wine prefix (wineboot --init)" "$HOW" "not run" "$WHY" "$(tail -1 "$LOGS/win-boot.log")" win-boot.log
+    for i in win.install.exit win.install.files win.install.shortcut win.install.desktop_shortcut win.install.registry \
+      win.install.version win.install.start win.install.health win.install.setup_link win.install.setup \
+      win.install.job win.install.job_refused win.install.stop win.portable.version \
+      win.uninstall.program win.uninstall.shortcuts win.uninstall.registry win.uninstall.data_kept win.upgrade; do
+      rec "$i" "Windows check (needs wine): $i" "$HOW" "not run" "$WHY" "" win-boot.log
+    done
     return 0
   fi
   rec win.prefix "Fresh 64-bit wine prefix (wineboot --init)" "$HOW" passed "" "wineboot exit 0" win-boot.log
