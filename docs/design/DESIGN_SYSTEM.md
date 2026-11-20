@@ -126,3 +126,44 @@ Use existing tokens; add one only with a stated meaning and a measured contrast 
 ## Open
 
 Japanese typography and vocabulary review · touch gestures in the viewer · high-contrast (forced-colors) pass · contrast was computed from token values, not yet audited with assistive technology or real users.
+
+## Round 3
+
+What changed in round 3 (`web/`). Where a section above describes round 2 and differs, this section is the current state.
+
+- **Language.** English and Japanese from one catalogue (`web/i18n.js`). The switch is in the top bar and on the sign-in
+  screen; it redraws the screen without a request or a reload. `?lang=` and the saved choice are honoured, and
+  `<html lang>` follows. See `LOCALISATION.md`.
+- **Route.** The empty route `#/` opens the dashboard. It used to say that the page does not exist.
+- **Type.** Three sizes: `--t-s` 11 px, `--t-m` 13 px, `--t-l` 20 px (Japanese 12, 14 and 20 px). Two weights: 400 and 600.
+  The five sizes and the 500 and 700 weights are gone.
+- **Colour.** One accent, `--signal`, for the cut, the focus and the primary action. Amber only for review required, not
+  released, inconclusive and open obligations. Red only for refused, failed, rejected, no result, a replay mismatch, an
+  error message and a broken audit chain. Green only for a passed check, a matching replay or an intact audit chain. A superseded job is blocked but neither refused nor failed: its
+  banner and stamp are grey. There are no gradients, glows, shadows or purple.
+- **Tokens.** Renamed: `--desk`, `--sheet`, `--sheet-2`, `--plate`, `--rule`, `--rule-2`, `--ink`, `--ink-2`, `--ink-3`,
+  `--signal`, `--amber`, `--red`, `--green`, and for the drawing `--cv`, `--cut`, `--mark`, `--dim`, `--frame`. One radius
+  of 3 px (tags and chips 2 px). Spacing on a 4 px grid.
+- **Light theme.** A paper sheet on a grey desk: the chrome is white, the drawing is on warm paper, and the title block
+  and the stamp are printed-looking boxes. Status colours are darkened for contrast on white.
+- **Icons.** Kept on controls and on the brand mark. Removed from status tags, notes, banners, empty states and drawing
+  legends, because they were decoration.
+- **The sheet.** The plate has its own fill and a border made of its cut. Every cut is one colour; the weight carries the
+  hierarchy (2.25 px, 3.5 px when selected). The grid and the rulers are quieter than the drawing, and a thin sheet frame
+  is drawn inside the canvas. Overall dimensions have thin lines, filled terminators and figures centred above their line
+  (the vertical figure to the left of its line), with thousands separators. Seams are hatched. The status stamp sits in
+  the top band; the title block sits in the bottom right corner, filled only from data the job already shows (part, job,
+  engine, marking side, status); the scale bar sits top left.
+- **Job header.** The job number and its state are the headline. The second line carries the family, the project, the
+  author and the date. At most three actions, one of them primary.
+- **Gates.** A verdict list: identifier, name, verdict in a fixed column, the reason in at most two lines, the engine's
+  full statement one click away.
+- **Numbers.** Right-aligned, tabular figures. A unit sits in a fixed 34 px column in the secondary tone (`.q`), in every
+  table, list and read-out that shows a unit.
+- **Input rows.** The correction link is quiet: secondary tone, accent on hover or focus. It stays in the DOM and clickable.
+- **Motion.** The only motion is the fade of a tab panel (140 ms, ease-out). Reduced motion removes it. There are no hover
+  transitions, tooltip fades, pulsing placeholders or spinners; a busy state is shown by its words.
+- **Empty and error states.** Rewritten, in both languages, to say what is missing and what to do next where the client
+  knows it. No illustrations.
+- **Wording.** The sign-in subtitle and the toast for a computed job no longer say "verified". The Japanese equivalents
+  were changed to match.

@@ -101,7 +101,7 @@ export class PatternViewer {
     this.draw();
   }
   computeFit() {
-    const b = this.bbox, ml = 72, mr = 76, mt = 48, mb = 64; // room for rulers and extent dimensions
+    const b = this.bbox, ml = 72, mr = 76, mt = 52, mb = 112; // room for rulers and extent dimensions
     this.fitScale = Math.max(1e-6, Math.min((this.W - ml - mr) / (b.w || 1), (this.H - mt - mb) / (b.h || 1)));
     this.fitT = { tx: ml + (this.W - ml - mr) / 2 - (b.x0 + b.w / 2) * this.fitScale, ty: mt + (this.H - mt - mb) / 2 + (b.y0 + b.h / 2) * this.fitScale };
   }
@@ -150,6 +150,7 @@ export class PatternViewer {
 
     // grid: a 1-2-5 step that keeps major lines about 72 px apart at every zoom
     const g = this.gGrid; g.textContent = '';
+    el('rect', { class: 'frame', x: 6.5, y: 6.5, width: W - 13, height: H - 13 }, g); // the sheet border
     const raw = 72 / s, pow = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 5, 10].find((m) => m * pow >= raw) * pow, minor = step / 5;
     const [wx0, wy1] = this.toWorld(0, 0), [wx1, wy0] = this.toWorld(W, H);
     this.step = step;
@@ -169,11 +170,16 @@ export class PatternViewer {
     if (this.showLabels && Math.max(b.w, b.h) * s > 150) this.renderNames(o);
     if (this.showDims) {
       const [ax, ay] = this.toScreen(b.x0, b.y0), [bx, by] = this.toScreen(b.x1, b.y1);
-      const yb = px(ay + 28), xr = px(bx + 28), tk = 4, X0 = px(ax), X1 = px(bx), Y0 = px(ay), Y1 = px(by);
-      el('path', { class: 'dim', d: `M${X0} ${ay + 6}V${yb + tk + 2}M${X1} ${ay + 6}V${yb + tk + 2}M${X0} ${yb}H${X1}M${X0 - tk} ${yb + tk}L${X0 + tk} ${yb - tk}M${X1 - tk} ${yb + tk}L${X1 + tk} ${yb - tk}`
-        + `M${bx + 6} ${Y0}H${xr + tk + 2}M${bx + 6} ${Y1}H${xr + tk + 2}M${xr} ${Y0}V${Y1}M${xr - tk} ${Y0 + tk}L${xr + tk} ${Y0 - tk}M${xr - tk} ${Y1 + tk}L${xr + tk} ${Y1 - tk}` }, o);
-      el('text', { class: 'dimt', x: (ax + bx) / 2, y: yb + 16, 'text-anchor': 'middle' }, o).textContent = this.fmt(b.w);
-      el('text', { class: 'dimt', 'text-anchor': 'middle', transform: `translate(${xr + 16} ${(ay + by) / 2}) rotate(-90)` }, o).textContent = this.fmt(b.h);
+      // drafting dimensions: thin lines, extension lines with a gap from the plate, filled terminators on the dimension
+      // line, each figure centred above its line (left of the vertical one, which reads bottom to top)
+      const yb = px(ay + 30), xr = px(bx + 30), X0 = px(ax), X1 = px(bx), Y0 = px(ay), Y1 = px(by), g = 4, over = 3, ah = 8, aw = 2.5;
+      const tipH = (x, y, dir) => `M${x} ${y}L${x + dir * ah} ${y - aw}L${x + dir * ah} ${y + aw}Z`;
+      const tipV = (x, y, dir) => `M${x} ${y}L${x - aw} ${y + dir * ah}L${x + aw} ${y + dir * ah}Z`;
+      el('path', { class: 'dim', d: `M${X0} ${ay + g}V${yb + over}M${X1} ${ay + g}V${yb + over}M${X0} ${yb}H${X1}`
+        + `M${bx + g} ${Y0}H${xr + over}M${bx + g} ${Y1}H${xr + over}M${xr} ${Y0}V${Y1}` }, o);
+      el('path', { class: 'dimh', d: tipH(X0, yb, 1) + tipH(X1, yb, -1) + tipV(xr, Y0, -1) + tipV(xr, Y1, 1) }, o);
+      el('text', { class: 'dimt', x: (X0 + X1) / 2, y: yb - 7, 'text-anchor': 'middle' }, o).textContent = this.fmt(b.w);
+      el('text', { class: 'dimt', 'text-anchor': 'middle', transform: `translate(${xr - 8} ${(Y0 + Y1) / 2}) rotate(-90)` }, o).textContent = this.fmt(b.h);
     }
     if (this.sel !== null) {
       const pts = this.curves[this.sel].points;
@@ -207,10 +213,11 @@ export class PatternViewer {
     if (this.cursorPx) { const [cx, cy] = this.cursorPx; if (cx > RL && cy > RT) el('path', { class: 'ruler-cur', d: `M${px(cx)} 0V${RT}M0 ${px(cy)}H${RL}` }, r); }
     el('rect', { class: 'ruler', x: 0, y: 0, width: RL, height: RT }, r); el('text', { class: 'ruler-unit', x: RL - 9, y: 14, 'text-anchor': 'end' }, r).textContent = 'mm';
     // scale bar: one major step, bottom right
-    const sb = step * s, sx0 = W - 16 - sb;
-    el('rect', { class: 'scale-bg', x: sx0 - 8, y: H - 40, width: sb + 16, height: 32, rx: 2 }, r);
-    el('path', { class: 'scale', d: `M${px(sx0)} ${H - 20}v6h${Math.round(sb)}v-6` }, r);
-    el('text', { class: 'dimt', x: sx0 + sb / 2, y: H - 24, 'text-anchor': 'middle' }, r).textContent = `${stepLabel(step, step)} mm`;
+    const sb = step * s, sx0 = RL + 16; // top left, under the ruler: the title block takes the bottom right corner
+    const sy = RT + 26;
+    el('rect', { class: 'scale-bg', x: sx0 - 8, y: sy - 22, width: sb + 16, height: 26, rx: 2 }, r);
+    el('path', { class: 'scale', d: `M${px(sx0)} ${sy - 6}v6h${Math.round(sb)}v-6` }, r);
+    el('text', { class: 'dimt', x: sx0 + sb / 2, y: sy - 9, 'text-anchor': 'middle' }, r).textContent = `${stepLabel(step, step)} mm`;
     if (this.cb.onView) this.cb.onView(this.view.s / this.fitScale);
   }
 
@@ -223,7 +230,7 @@ export class PatternViewer {
       const nx = a.nx, ny = -a.ny; // screen y points down
       if (i < n && isSeam(c)) this.hatch(o, c, nx, ny);
       if (X < this.RL || X > W || Y < this.RT || Y > H) return;
-      const tx = el('text', { class: 'name' + (c.layer === 'CUT_INNER' ? ' inner' : '') + (i === this.sel ? ' sel' : '') }, o); tx.textContent = c.name;
+      const tx = el('text', { class: 'name mono' + (c.layer === 'CUT_INNER' ? ' inner' : '') + (i === this.sel ? ' sel' : '') }, o); tx.textContent = c.name;
       if (a.hole) { tx.setAttribute('x', X); tx.setAttribute('y', Y + 4); tx.setAttribute('text-anchor', 'middle'); return; }
       const side = Math.abs(nx) > 0.5;
       tx.setAttribute('x', X + nx * 12); tx.setAttribute('y', Y + ny * 12 + (side || ny > 0 ? 4 : 5));
