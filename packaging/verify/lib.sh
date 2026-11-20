@@ -77,11 +77,16 @@ graceful_stop() {
 # Why the clean environment: the inherited CCR_PRELOAD_CLAUDE preload makes wine abort with
 # "free(): invalid pointer" during wineboot. Why TMPDIR is not passed: wine puts its server socket under
 # $TMPDIR (or /tmp); a long scratchpad path there makes the socket path too long and wine aborts the same way.
+wine_env_vars() { # wine_env_vars PREFIX: sets WINE_VARS, the variables wine runs with
+  WINE_VARS=(PATH=/usr/local/bin:/usr/bin:/bin "HOME=$WINE_HOME" LANG=C.UTF-8 WINEARCH=win64 WINEDEBUG=-all
+    "WINEPREFIX=$1" 'WINEDLLOVERRIDES=mscoree,mshtml=d')
+}
+
 wine_env() {
   local prefix=$1
   shift
-  env -i PATH=/usr/local/bin:/usr/bin:/bin HOME="$WINE_HOME" LANG=C.UTF-8 \
-    WINEARCH=win64 WINEDEBUG=-all WINEPREFIX="$prefix" WINEDLLOVERRIDES='mscoree,mshtml=d' "$@"
+  wine_env_vars "$prefix"
+  env -i "${WINE_VARS[@]}" "$@"
 }
 
 # wine_user_dir PREFIX: the profile folder of the wine user (the one folder under users/ that is not Public).
