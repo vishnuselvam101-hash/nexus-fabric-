@@ -1,0 +1,66 @@
+{
+ "description": "Review B2 finding B2-001 (20 Nov 2026): with surface_reference outside, a development radius far below the outside contact radius was accepted silently (contact 50 mm, development 0.5 mm, developed width 3.14 mm against a 314 mm contact circumference). Spec 02 section 6.1 with k = 0.5 needs r_dev above r_o/2 for any inner radius above zero, so such pairs are not consistent with a mid-thickness surface. Decision: an ADVISORY, not a refusal, because the spec gives no thickness and no k. For OUTSIDE with 2*r_dev <= r_contact the G02 detail now carries the advisory 'mid-thickness (k = 0.5) is impossible'. The verified cases must still verify with the same patterns and DXF; the boundary case is advisory; the just-above-boundary case must carry no advisory. The G02 gate detail and therefore the content-addressed closure_hash change for affected inputs; patterns and DXF do not change.",
+ "found": "2026-11-20 (review B2, B2-001)",
+ "fixed_in": "nf-core job.rs radius_consistency (outside arm 2*dev <= contact -> advisory); G02 detail text changes for affected inputs (and with it the content-addressed closure_hash); patterns, DXF and gate pass/fail are unchanged. ENGINE_VERSION left at 0.4.1 for this commit; whether to bump to 0.4.2 is a founder decision flagged in the report",
+ "cases": [
+  {
+   "request": {
+    "family": "branch_stub",
+    "header_radius": 100.0,
+    "branch_radius": 50.0,
+    "branch_dev_radius": 0.5,
+    "beta_deg": 60.0,
+    "delta": 0.0,
+    "s_end": 200.0,
+    "surface_reference": "outside"
+   },
+   "expect": "verified",
+   "g02_contains": "mid-thickness (k = 0.5) is impossible"
+  },
+  {
+   "request": {
+    "family": "header_with_branch",
+    "header_radius": 100.0,
+    "header_dev_radius": 0.5,
+    "header_length": 400.0,
+    "branch_station": 150.0,
+    "branch_radius": 50.0,
+    "branch_dev_radius": 50.0,
+    "beta_deg": 60.0,
+    "delta": 10.0,
+    "s_end": 200.0,
+    "surface_reference": "outside"
+   },
+   "expect": "verified",
+   "g02_contains": "mid-thickness (k = 0.5) is impossible"
+  },
+  {
+   "request": {
+    "family": "branch_stub",
+    "header_radius": 100.0,
+    "branch_radius": 50.0,
+    "branch_dev_radius": 25.0,
+    "beta_deg": 60.0,
+    "delta": 0.0,
+    "s_end": 200.0,
+    "surface_reference": "outside"
+   },
+   "expect": "verified",
+   "g02_contains": "mid-thickness (k = 0.5) is impossible"
+  },
+  {
+   "request": {
+    "family": "branch_stub",
+    "header_radius": 100.0,
+    "branch_radius": 50.0,
+    "branch_dev_radius": 25.000001,
+    "beta_deg": 60.0,
+    "delta": 0.0,
+    "s_end": 200.0,
+    "surface_reference": "outside"
+   },
+   "expect": "verified",
+   "g02_absent": "mid-thickness"
+  }
+ ]
+}
