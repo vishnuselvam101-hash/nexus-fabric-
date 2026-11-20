@@ -79,7 +79,13 @@ def level2(ctx):
     new_engineer(adm, "eng2")
     c = Client(port, rec); c.login("eng2", "engineer-pass-1")
     st, d = c.req("POST", "/api/projects", {"name": "L2 heavy", "description": "x" * 250000}, label="create_project_250KB_description")
-    out["project_250KB_description"] = st; pid = d["id"] if d else 1
+    out["project_250KB_description"] = st
+    if isinstance(d, dict) and "id" in d:
+        pid = d["id"]
+    else:  # the server now refuses an oversized description; the refusal is the recorded result, and the rest of the level needs a project
+        out["project_250KB_description_refused"] = True
+        _st, _d = c.req("POST", "/api/projects", {"name": "L2 heavy", "description": "x" * 2000}, label="create_project")
+        pid = _d["id"]
     # (a) magnitude sweep
     mag = []
     for e in (1, 3, 6, 9, 12, 15, 100, 300, 308):
