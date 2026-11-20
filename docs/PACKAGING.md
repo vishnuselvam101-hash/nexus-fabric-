@@ -144,6 +144,46 @@ Windows exe, installer and zip natively. Each job checks `SHA256SUMS` and upload
 its files as a workflow artefact. **It does not create a GitHub release and does not
 publish anything**; the owner decides whether and when to publish.
 
+## Release verification
+
+`packaging/verify_release.sh` builds the packages for one commit and records what was
+run. It is repeatable and does not change the working tree.
+
+    packaging/verify_release.sh [--previous <older setup.exe>] [--out <dir>] [--compare <older manifest.json>]
+
+- It pins `HEAD` at the start. It refuses to run if `crates/`, `web/` or `packaging/` has
+  uncommitted or untracked changes; other changes are reported.
+- It builds with `packaging/build_all.sh` in a fresh copy made by `git archive` of that
+  commit, so the working tree cannot leak in. Each build step prints `STEP <name> exit=<rc>`
+  and its exit status is recorded.
+- Dynamic checks, each recorded as passed, failed or not run, with the mode it ran in:
+  - **Linux: native.** Unpack, `--version`, desktop mode through the shipped launcher with
+    first-run setup in a browser (`tests/release_verify.js`, a copy of `desktop_smoke.js`
+    on ports 8870-8879), and an offline first launch in a network namespace that has only
+    loopback (`unshare -n`).
+  - **Windows: emulator only.** Everything runs under wine (`WINEARCH=win64`, fresh prefix,
+    clean environment). Silent install, shortcuts, registry, `--version`, desktop mode over
+    HTTP with the setup-link token, graceful SIGINT stop, the portable zip, silent uninstall
+    (data folder kept). The upgrade check runs only with `--previous`; otherwise it is
+    recorded as not run. A result from wine is never described as a Windows result.
+- Outputs: `docs/release/manifest-<short commit>.json` and `docs/release/MANIFEST-<short
+  commit>.md`, with artefact sizes and SHA-256, version agreement, tool and build
+  environment, the resolved dependency list, each check's result and one line of evidence,
+  and a fixed "What this does NOT show" section. The artefacts, logs and manifest copies
+  go to `--out` (default `dist/verify-<short commit>`, which git ignores).
+- `--compare <older manifest.json>` checks whether artefact SHA-256 values match an
+  earlier run of the same commit, and states whether the build is bit-reproducible.
+- Exit status is 0 only if every build step passed and no check failed.
+
+Rehearsal example (wine and the mingw cross-compiler in the build container):
+
+    packaging/verify_release.sh --previous /path/to/nexus-fabric-0.1.0-windows-x64-setup.exe \
+      --out /path/to/outputs
+
+The offline check needs root and `unshare`; without them it is recorded as not run. The
+Windows checks need wine and the build needs the mingw cross-compiler; if the build fails,
+every dynamic check is recorded as not run with the reason.
+
 ## Testing: what was run and what was not
 
 Run here (Linux, Debian/Ubuntu container, no real Windows machine):
