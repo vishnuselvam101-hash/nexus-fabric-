@@ -4,7 +4,12 @@
 
 Requirements: a VPS with root SSH access, 2 GB RAM or more for the build, and a domain whose A record points at it. Supported: Ubuntu 22.04, 24.04, 26.04 and Debian 12. Other systems get a warning. Ubuntu 26.04 was verified with a manual install of the same steps; the script itself has not yet been run end to end there. Shared web hosting cannot run this server: it is a long-running native program, not PHP.
 
-The script downloads no program and never builds as root. The server binary comes from one of two places:
+The script never builds as root. Apart from the distribution's packages (installed with apt-get: `curl`, `ufw`, `iproute2`, `sqlite3`, and the build tools when it builds), it fetches two things from outside:
+
+- **Caddy**, when it is not installed yet, from Caddy's apt repository (`dl.cloudsmith.io`). The repository's signing key is fetched and is **not** checked against a pinned fingerprint. This is open: see V-44 in `docs/security/VULNERABILITY_REGISTER.md`.
+- **The crates of the server**, when it builds: cargo fetches the versions pinned in `Cargo.lock` (`cargo build --locked`).
+
+The server binary comes from one of two places:
 
 - **Built here by an unprivileged account that has its own Rust toolchain** (Rust 1.85 or newer). Install the toolchain for that account, not for root: as that account, get `rustup-init` for the machine from https://rustup.rs, check it against its published SHA-256 and run it. Then, from that account:
 
@@ -22,10 +27,12 @@ The script downloads no program and never builds as root. The server binary come
 - Builds the release binary as the build account, in that account's own build directory (`NF_BUILD_DIR`, default `~/.cache/nexus-fabric-build`): the account receives a copy of the sources and never writes the checkout, and root only reads the finished binary back. Or it checks the prebuilt binary against `NF_BINARY_SHA256`. Then it installs the binary to `/usr/local/bin/nf-server` (root, mode 0755).
 - Creates the unprivileged system user `nexusfabric`, the data directory `/var/lib/nexus-fabric` and `/etc/nexus-fabric/master.key` (32 random bytes, readable by the service only; created once, never printed, never replaced).
 - Installs `nf-server.service` as a sandboxed systemd unit listening on `127.0.0.1:$NF_PORT`. Only the listen address (`NF_LISTEN`) and the public host name (`NF_ALLOWED_HOSTS=$DOMAIN`) are changed from the shipped file; the sandboxing is untouched.
-- Checks `http://127.0.0.1:$NF_PORT/api/health` for up to 15 seconds. If the service does not answer, it prints the last 30 journal lines, **puts the previous binary and unit back**, restarts and checks them, and exits 1 (Caddy and the firewall are not touched). The binary and unit that last answered the health check are kept in `/usr/local/lib/nexus-fabric/previous` for this. On a first install there is nothing to return to; the script then only reports the failure.
+- Before it switches to a new version, the binary and unit that last answered the health check are kept in `/usr/local/lib/nexus-fabric/previous`, together with a **copy of the database** (`nexus-fabric.sqlite`). The copy is made with `sqlite3 .backup` while the service keeps running; without `sqlite3` the service is stopped for the copy. The copy is needed because the new version may migrate the database when it starts, and the old version refuses a database with a newer schema, so the old binary alone could not start again.
+- Checks `http://127.0.0.1:$NF_PORT/api/health` for up to 60 seconds. If the service does not answer, it prints the last 30 journal lines and does the rollback: it stops the service, **puts the previous binary and unit back**, **restores the database copy** (the database the new version left is moved to `/usr/local/lib/nexus-fabric/failed-<time>/`, not deleted), starts the service and checks it, and exits 1 (Caddy and the firewall are not touched). On a first install there is nothing to return to; the script then only reports the failure.
+- A rollback returns the database to the moment of the last switch: changes made after that are in the `failed-<time>` folder and are not merged back. A previous version installed by an older script has no database copy; the script warns then, and the old binary may refuse the database.
 - Puts Caddy in front for HTTPS with automatic certificates.
-- Adds the rules for SSH, 80 and 443 to ufw. It does **not** enable ufw. If ufw is inactive, the script warns; enable it deliberately after checking the ports of your other services.
-- Can be run again, and can be interrupted at any point (Ctrl+C, a lost SSH session): every file is written beside its target and renamed into place, the key is never replaced, and a run started afterwards finishes the job. A binary that was put in place but never answered the health check is not taken as the version to return to. User, data and key are kept; the binary and unit are reinstalled and the service restarted. Only one run at a time.
+- Adds the rules for SSH, 80 and 443 to ufw. It does **not** enable ufw. If ufw is inactive, the script warns; enable it deliberately after checking the ports of your other services. A rule that cannot be added is a warning with the command to run by hand; the switch has already happened.
+- Can be run again, and can be interrupted at any point (Ctrl+C, a lost SSH session): every file is written beside its target and renamed into place, the key is never replaced, and a run started afterwards finishes the job. A binary that was put in place but never answered the health check is not taken as the version to return to. User, data and key are kept; the binary and unit are reinstalled and the service restarted. Only one run at a time. If a run is interrupted after the switch, the service may be stopped until the next run starts it again (the previous binary is kept as the rollback copy).
 
 ## Options
 
@@ -36,7 +43,8 @@ The script downloads no program and never builds as root. The server binary come
 | `NF_BUILD_USER` | the account that ran `sudo`, else the owner of the checkout | Unprivileged account that builds the binary with its own Rust toolchain. Root is refused. |
 | `NF_BUILD_DIR` | `~<build account>/.cache/nexus-fabric-build` | Build directory of that account (absolute path it can write). Compiled dependencies are kept there between runs. |
 | `NF_BINARY`, `NF_BINARY_SHA256` | (none) | Install this prebuilt binary instead of building; both are needed, the checksum is 64 hexadecimal digits. |
-| `NF_ADMIN_USER`, `NF_ADMIN_PASSWORD` | (none) | Create the first administrator over loopback before Caddy is configured (both or neither). |
+| `NF_ADMIN_USER` | (none) | Name of the first administrator, created over loopback before Caddy is configured. |
+| `NF_ADMIN_PASSWORD_FILE` | (none) | File holding that administrator's password (its content; one final newline is dropped). It must be **mode 600 and owned by root**, otherwise the script refuses. With `NF_ADMIN_USER` alone, run the script from a terminal and the password is asked for. `NF_ADMIN_PASSWORD` in the environment is **refused**: a password on a command line or in the environment is visible to other accounts and to sudo's log. The password must not contain a double quote, a backslash or a control character. |
 | `NF_INSTALL_ROOT` | (none) | **Tests only** (`tests/install_check.sh`, run as `NF_SANDBOX_STRICT=1 nf-sandbox bash tests/install_check.sh`): a directory put in front of every path the script touches, with stand-in commands first on `PATH`. Never set it for a real install. |
 
 ## Servers that already host other sites
@@ -54,7 +62,7 @@ Each run that changes the Caddyfile leaves a dated backup next to it. Remove old
 
 ## After installing
 
-1. Create the first administrator. This needs the **one-time setup token** that the server writes to `/var/lib/nexus-fabric/setup-token` (root and the service user only) at its first start. Either pass `NF_ADMIN_USER` and `NF_ADMIN_PASSWORD` to `install.sh`, which then creates the account over loopback before Caddy is configured, or run the `curl` command the script prints at the end (also in `docs/BUILD_AND_TEST_GUIDE.md`). Without the token nobody can create the administrator, also not through the public address; the token file is deleted once the account exists.
+1. Create the first administrator. This needs the **one-time setup token** that the server writes to `/var/lib/nexus-fabric/setup-token` (root and the service user only) at its first start. Either give `install.sh` `NF_ADMIN_USER=<name>` with `NF_ADMIN_PASSWORD_FILE=<file>` (mode 600, owned by root; write the file with `umask 077`, then delete it after the run), or run it from a terminal with `NF_ADMIN_USER=<name>` alone to type the password at a prompt; the account is then created over loopback before Caddy is configured. Or run the command the script prints at the end: it asks for the password at a prompt and passes the token to `curl` through a process substitution, so neither is on a command line. Without the token nobody can create the administrator, also not through the public address; the token file is deleted once the account exists.
 2. Check the public address once DNS points here: `https://$DOMAIN`.
 3. Set up backups (below).
 
@@ -68,7 +76,19 @@ git pull
 sudo DOMAIN=app.example.com NF_PORT=<your port> bash deploy/install.sh
 ```
 
-This builds as the unprivileged build account (or installs `NF_BINARY` after checking `NF_BINARY_SHA256`), keeps the running version for rollback, reapplies the unit file, restarts the service and checks it; if the new version does not answer within 15 seconds, the previous one is put back and started again. To return to the previous version by hand: `sudo cp -p /usr/local/lib/nexus-fabric/previous/nf-server /usr/local/bin/nf-server.new && sudo mv -f /usr/local/bin/nf-server.new /usr/local/bin/nf-server && sudo systemctl restart nf-server` (and the same for `nf-server.service` into `/etc/systemd/system/`, followed by `sudo systemctl daemon-reload`).
+This builds as the unprivileged build account (or installs `NF_BINARY` after checking `NF_BINARY_SHA256`), keeps the running version and its database copy for rollback, reapplies the unit file, restarts the service and checks it; if the new version does not answer within 60 seconds, the previous binary, unit and database are put back and the previous version is started again.
+
+To return to the previous version by hand, with the service stopped (`sudo systemctl stop nf-server`):
+
+```
+sudo cp -p /usr/local/lib/nexus-fabric/previous/nf-server /usr/local/bin/nf-server.new && sudo mv -f /usr/local/bin/nf-server.new /usr/local/bin/nf-server
+sudo cp -p /usr/local/lib/nexus-fabric/previous/nf-server.service /etc/systemd/system/nf-server.service.new && sudo mv -f /etc/systemd/system/nf-server.service.new /etc/systemd/system/nf-server.service
+sudo mkdir -m 0700 -p /root/nf-failed-db && sudo mv /var/lib/nexus-fabric/nexus-fabric.sqlite* /root/nf-failed-db/   # keep what the new version wrote
+sudo cp -p /usr/local/lib/nexus-fabric/previous/nexus-fabric.sqlite /var/lib/nexus-fabric/ && sudo chown nexusfabric:nexusfabric /var/lib/nexus-fabric/nexus-fabric.sqlite && sudo chmod 600 /var/lib/nexus-fabric/nexus-fabric.sqlite
+sudo systemctl daemon-reload && sudo systemctl start nf-server
+```
+
+The database step is needed: an older binary refuses a database that the newer one has migrated. Skip it only when `previous/nexus-fabric.sqlite` does not exist.
 
 ## Backups
 

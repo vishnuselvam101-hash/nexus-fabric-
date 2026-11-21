@@ -12,8 +12,9 @@ caddy_is_stock() {
 
 # True when a non-comment line of the file mentions the domain as a whole word.
 caddy_has_site() {
-  local re="${2//./\\.}"
-  grep -vE '^[[:space:]]*#' "$1" | grep -qE "(^|[[:space:],])${re}([[:space:],{]|\$)"
+  local re="${2//./\\.}" body
+  body="$(grep -vE '^[[:space:]]*#' "$1" || true)"   # captured first: grep -q exiting early would make the writer fail
+  grep -qE "(^|[[:space:],])${re}([[:space:],{]|\$)" <<<"$body"
 }
 
 # caddy_apply_site CADDYFILE DOMAIN PORT TEMPLATE
