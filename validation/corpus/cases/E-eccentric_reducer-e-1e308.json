@@ -1,0 +1,18 @@
+{
+ "id": "E-eccentric_reducer-e-1e308",
+ "group": "refusal",
+ "title": "eccentric_reducer: e = 1e308",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 200,
+  "r2": 100,
+  "h": 300,
+  "e": 1e+308
+ },
+ "expect": "refuse",
+ "derivation": "A finite but absurd magnitude: products of lengths overflow binary64. The only acceptable outcomes are a refusal or a finite, correct pattern; a pattern containing non-finite numbers is a defect. Expected here: refusal.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": []
+ }
+}

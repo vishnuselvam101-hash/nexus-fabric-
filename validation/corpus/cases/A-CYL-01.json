@@ -1,0 +1,52 @@
+{
+ "id": "A-CYL-01",
+ "group": "closed_form",
+ "title": "Plain shell r=500, L=1000 (CYL-02)",
+ "request": {
+  "family": "cylinder_shell",
+  "r_dev": 500,
+  "length": 1000
+ },
+ "expect": "accept",
+ "derivation": "Rectangle 2*pi*500 x 1000 = 3141.592653589793 x 1000; area 1000*pi*1000.",
+ "quantities": {
+  "shell": {
+   "developed_width": [
+    3141.592653589793,
+    3.1415926535897924e-08
+   ],
+   "length": [
+    1000.0,
+    1e-08
+   ],
+   "area": [
+    3141592.653589793,
+    3.141592653589793e-05
+   ]
+  }
+ },
+ "measures": {
+  "shell": {
+   "outline_area": [
+    3141592.653589793,
+    3.141592653589793e-05
+   ],
+   "outline_perimeter": [
+    8283.185307179585,
+    8.283185307179584e-08
+   ],
+   "bbox_w": [
+    3141.592653589793,
+    3.1415926535897924e-08
+   ],
+   "bbox_h": [
+    1000.0,
+    1e-08
+   ],
+   "hole_count": [
+    0,
+    0
+   ]
+  }
+ }
+}

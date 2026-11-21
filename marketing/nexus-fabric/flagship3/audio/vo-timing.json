@@ -1,0 +1,1610 @@
+{
+ "sample_rate": 48000,
+ "fps": 30,
+ "duration": 54.0,
+ "frames": 1620,
+ "bpm": 120,
+ "beat": 0.5,
+ "bar": 2.0,
+ "rule_s": 0.25,
+ "lead_s": 0.3,
+ "trim_pad_s": 0.03,
+ "slack_s": 0.05,
+ "voice": {
+  "en": {
+   "engine": "kokoro",
+   "voice": "af_heart",
+   "lang": "en-us",
+   "rates": [
+    1.08,
+    1.1,
+    1.12,
+    1.14,
+    1.16,
+    1.18
+   ],
+   "film2_speed": 0.88
+  },
+  "ja": {
+   "engine": "voicevox",
+   "voice": "女声4 (Nemo), style 10003",
+   "style_id": 10003,
+   "intonation": 1.0,
+   "pitch": 0.0,
+   "rates": [
+    [
+     1.12,
+     0.5
+    ],
+    [
+     1.16,
+     0.5
+    ],
+    [
+     1.22,
+     0.5
+    ],
+    [
+     1.22,
+     0.4
+    ],
+    [
+     1.22,
+     0.3
+    ]
+   ],
+   "film2_speed": 1.05,
+   "film2_pause_scale": 0.62
+  }
+ },
+ "en": {
+  "lines": [
+   {
+    "id": "L1",
+    "slot": [
+     0.0,
+     4.0
+    ],
+    "text": "One wrong curve — and the steel doesn't fit.",
+    "spoken": "One wrong curve — and the steel doesn't fit.",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      1.08,
+      2.185
+     ]
+    ],
+    "edit": "",
+    "start": 0.3,
+    "end": 2.485,
+    "duration": 2.185,
+    "slack_before": 0.3,
+    "slack_after": 1.515,
+    "peak_dbfs": -3.0,
+    "rms_dbfs": -21.75,
+    "pauses": [
+     [
+      1.18,
+      1.39
+     ]
+    ],
+    "speed": 1.08,
+    "units": 9,
+    "unit": "words",
+    "rate": 4.12,
+    "rate_unit": "words/s",
+    "asr": "One wrong curve, and the steel doesn't fit.",
+    "asr_logprob": -0.171,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L2",
+    "slot": [
+     4.0,
+     8.0
+    ],
+    "text": "So before you cut: how do you know?",
+    "spoken": "So before you cut: how do you know?",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      1.08,
+      1.655
+     ]
+    ],
+    "edit": "",
+    "start": 4.3,
+    "end": 5.955,
+    "duration": 1.655,
+    "slack_before": 0.3,
+    "slack_after": 2.045,
+    "peak_dbfs": -7.44,
+    "rms_dbfs": -21.74,
+    "pauses": [
+     [
+      5.165,
+      5.31
+     ]
+    ],
+    "speed": 1.08,
+    "units": 8,
+    "unit": "words",
+    "rate": 4.83,
+    "rate_unit": "words/s",
+    "asr": "So before you cut, how do you know?",
+    "asr_logprob": -0.213,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L3",
+    "slot": [
+     8.0,
+     12.0
+    ],
+    "text": "NEXUS FABRIC. Dimensions in. Flat pattern out.",
+    "spoken": "NEXUS FABRIC. Dimensions in. Flat pattern out.",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      1.08,
+      2.971
+     ]
+    ],
+    "edit": "",
+    "start": 8.3,
+    "end": 11.271,
+    "duration": 2.971,
+    "slack_before": 0.3,
+    "slack_after": 0.729,
+    "peak_dbfs": -6.71,
+    "rms_dbfs": -22.3,
+    "pauses": [
+     [
+      9.2,
+      9.335
+     ],
+     [
+      10.05,
+      10.305
+     ]
+    ],
+    "speed": 1.08,
+    "units": 7,
+    "unit": "words",
+    "rate": 2.36,
+    "rate_unit": "words/s",
+    "asr": "Nexus fabric, dimensions in, flat pattern out.",
+    "asr_logprob": -0.307,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L4",
+    "slot": [
+     12.0,
+     20.0
+    ],
+    "text": "Shells. Cones. Eccentric reducers. Branches. Headers with their openings. Every cut computed, point by point.",
+    "spoken": "Shells. Cones. Eccentric reducers. Branches. Headers with their openings. Every cut computed, point by point.",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 7.5,
+    "tried": [
+     [
+      1.08,
+      6.872
+     ]
+    ],
+    "edit": "",
+    "start": 12.3,
+    "end": 19.172,
+    "duration": 6.872,
+    "slack_before": 0.3,
+    "slack_after": 0.828,
+    "peak_dbfs": -4.53,
+    "rms_dbfs": -22.18,
+    "pauses": [
+     [
+      14.53,
+      14.96
+     ],
+     [
+      15.535,
+      15.785
+     ],
+     [
+      17.005,
+      17.385
+     ]
+    ],
+    "speed": 1.08,
+    "units": 15,
+    "unit": "words",
+    "rate": 2.18,
+    "rate_unit": "words/s",
+    "asr": "shells, cones, eccentric reducers, branches, headers with their openings, every cut computed point by point.",
+    "asr_logprob": -0.204,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L5",
+    "slot": [
+     20.0,
+     26.0
+    ],
+    "text": "Then it checks its own work. Folded back in 3D, both edges must be one curve.",
+    "spoken": "Then it checks its own work. Folded back in 3D, both edges must be one curve.",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 5.5,
+    "tried": [
+     [
+      1.08,
+      4.751
+     ]
+    ],
+    "edit": "",
+    "start": 20.3,
+    "end": 25.051,
+    "duration": 4.751,
+    "slack_before": 0.3,
+    "slack_after": 0.949,
+    "peak_dbfs": -3.0,
+    "rms_dbfs": -22.17,
+    "pauses": [
+     [
+      21.38,
+      21.795
+     ],
+     [
+      23.095,
+      23.355
+     ]
+    ],
+    "speed": 1.08,
+    "units": 16,
+    "unit": "words",
+    "rate": 3.37,
+    "rate_unit": "words/s",
+    "asr": "then it checks its own work. Folded back in 3D, both edges must be one curve.",
+    "asr_logprob": -0.15,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L6",
+    "slot": [
+     26.0,
+     30.0
+    ],
+    "text": "The DXF is written, read back, and compared.",
+    "spoken": "The DXF is written, read back, and compared.",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      1.08,
+      2.57
+     ]
+    ],
+    "edit": "",
+    "start": 26.3,
+    "end": 28.87,
+    "duration": 2.57,
+    "slack_before": 0.3,
+    "slack_after": 1.13,
+    "peak_dbfs": -5.16,
+    "rms_dbfs": -22.18,
+    "pauses": [
+     [
+      27.47,
+      27.695
+     ]
+    ],
+    "speed": 1.08,
+    "units": 8,
+    "unit": "words",
+    "rate": 3.11,
+    "rate_unit": "words/s",
+    "asr": "The DXF is written, read back, and compared.",
+    "asr_logprob": -0.249,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L7",
+    "slot": [
+     30.0,
+     42.0
+    ],
+    "text": "Underneath runs AMOEBA. Every value and every step is recorded and linked. Change one number — and everything that depended on it is flagged for review. Replay a job, and it must match.",
+    "spoken": "Underneath runs AMOEBA. Every value and every step is recorded and linked. Change one number — and everything that depended on it is flagged for review. Replay a job, and it must match.",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 11.5,
+    "tried": [
+     [
+      1.08,
+      11.115
+     ]
+    ],
+    "edit": "",
+    "start": 30.3,
+    "end": 41.415,
+    "duration": 11.115,
+    "slack_before": 0.3,
+    "slack_after": 0.585,
+    "peak_dbfs": -3.0,
+    "rms_dbfs": -22.25,
+    "pauses": [
+     [
+      31.745,
+      32.155
+     ],
+     [
+      34.845,
+      35.295
+     ],
+     [
+      36.24,
+      36.42
+     ],
+     [
+      39.035,
+      39.545
+     ],
+     [
+      40.42,
+      40.54
+     ]
+    ],
+    "speed": 1.08,
+    "units": 32,
+    "unit": "words",
+    "rate": 2.88,
+    "rate_unit": "words/s",
+    "asr": "Underneath runs Amoeba. Every value and every step is recorded and linked. Change one number and everything that depended on it is flagged for review. Replay a job and it must match.",
+    "asr_logprob": -0.151,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L8",
+    "slot": [
+     42.0,
+     46.0
+    ],
+    "text": "What it cannot confirm, it shows. The result stays: review required.",
+    "spoken": "What it cannot confirm, it shows. The result stays: review required.",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      1.08,
+      3.785
+     ],
+     [
+      1.1,
+      3.785
+     ],
+     [
+      1.12,
+      3.736
+     ],
+     [
+      1.14,
+      3.66
+     ],
+     [
+      1.16,
+      3.589
+     ],
+     [
+      1.18,
+      3.564
+     ],
+     [
+      "breath 0.22",
+      3.409
+     ]
+    ],
+    "edit": "sentence pauses of 0.30 s or more shortened to 0.22 s",
+    "start": 42.3,
+    "end": 45.709,
+    "duration": 3.409,
+    "slack_before": 0.3,
+    "slack_after": 0.291,
+    "peak_dbfs": -5.77,
+    "rms_dbfs": -21.84,
+    "pauses": [
+     [
+      43.7,
+      43.92
+     ],
+     [
+      44.765,
+      44.895
+     ]
+    ],
+    "speed": 1.18,
+    "units": 11,
+    "unit": "words",
+    "rate": 3.23,
+    "rate_unit": "words/s",
+    "asr": "What it cannot confirm it shows. The result stays, review required.",
+    "asr_logprob": -0.28,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L9",
+    "slot": [
+     46.0,
+     50.0
+    ],
+    "text": "In English and Japanese. And it runs fully offline.",
+    "spoken": "In English and Japanese. And it runs fully offline.",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      1.08,
+      2.964
+     ]
+    ],
+    "edit": "",
+    "start": 46.3,
+    "end": 49.264,
+    "duration": 2.964,
+    "slack_before": 0.3,
+    "slack_after": 0.736,
+    "peak_dbfs": -6.2,
+    "rms_dbfs": -21.97,
+    "pauses": [
+     [
+      47.62,
+      47.93
+     ]
+    ],
+    "speed": 1.08,
+    "units": 9,
+    "unit": "words",
+    "rate": 3.04,
+    "rate_unit": "words/s",
+    "asr": "in English and Japanese, and it runs fully offline.",
+    "asr_logprob": -0.22,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L10",
+    "slot": [
+     50.0,
+     54.0
+    ],
+    "text": "NEXUS FABRIC. Engineering, reimagined.",
+    "spoken": "NEXUS FABRIC. Engineering, reimagined.",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      1.08,
+      2.517
+     ]
+    ],
+    "edit": "",
+    "start": 50.3,
+    "end": 52.817,
+    "duration": 2.517,
+    "slack_before": 0.3,
+    "slack_after": 1.183,
+    "peak_dbfs": -5.84,
+    "rms_dbfs": -22.09,
+    "pauses": [
+     [
+      51.185,
+      51.45
+     ]
+    ],
+    "speed": 1.08,
+    "units": 4,
+    "unit": "words",
+    "rate": 1.59,
+    "rate_unit": "words/s",
+    "asr": "Nexus Fabric, engineering reimagined.",
+    "asr_logprob": -0.371,
+    "asr_error": 0.0
+   }
+  ],
+  "cues": [
+   {
+    "start": 0.21,
+    "end": 2.915,
+    "lines": [
+     "One wrong curve —",
+     "and the steel doesn't fit."
+    ]
+   },
+   {
+    "start": 4.21,
+    "end": 6.385,
+    "lines": [
+     "So before you cut:",
+     "how do you know?"
+    ]
+   },
+   {
+    "start": 8.21,
+    "end": 10.225,
+    "lines": [
+     "NEXUS FABRIC.",
+     "Dimensions in."
+    ]
+   },
+   {
+    "start": 10.245,
+    "end": 11.701,
+    "lines": [
+     "Flat pattern out."
+    ]
+   },
+   {
+    "start": 12.21,
+    "end": 15.705,
+    "lines": [
+     "Shells. Cones. Eccentric reducers.",
+     "Branches."
+    ]
+   },
+   {
+    "start": 15.725,
+    "end": 19.602,
+    "lines": [
+     "Headers with their openings.",
+     "Every cut computed, point by point."
+    ]
+   },
+   {
+    "start": 20.21,
+    "end": 23.275,
+    "lines": [
+     "Then it checks its own work.",
+     "Folded back in 3D,"
+    ]
+   },
+   {
+    "start": 23.295,
+    "end": 25.479,
+    "lines": [
+     "both edges must be one curve."
+    ]
+   },
+   {
+    "start": 26.21,
+    "end": 29.3,
+    "lines": [
+     "The DXF is written,",
+     "read back, and compared."
+    ]
+   },
+   {
+    "start": 30.21,
+    "end": 32.075,
+    "lines": [
+     "Underneath runs AMOEBA."
+    ]
+   },
+   {
+    "start": 32.095,
+    "end": 35.215,
+    "lines": [
+     "Every value and every step",
+     "is recorded and linked."
+    ]
+   },
+   {
+    "start": 35.235,
+    "end": 36.34,
+    "lines": [
+     "Change one number —"
+    ]
+   },
+   {
+    "start": 36.36,
+    "end": 39.435,
+    "lines": [
+     "and everything that depended",
+     "on it is flagged for review."
+    ]
+   },
+   {
+    "start": 39.485,
+    "end": 41.841,
+    "lines": [
+     "Replay a job, and it must match."
+    ]
+   },
+   {
+    "start": 42.21,
+    "end": 44.815,
+    "lines": [
+     "What it cannot confirm,",
+     "it shows. The result stays:"
+    ]
+   },
+   {
+    "start": 44.835,
+    "end": 46.139,
+    "lines": [
+     "review required."
+    ]
+   },
+   {
+    "start": 46.21,
+    "end": 49.694,
+    "lines": [
+     "In English and Japanese.",
+     "And it runs fully offline."
+    ]
+   },
+   {
+    "start": 50.21,
+    "end": 53.247,
+    "lines": [
+     "NEXUS FABRIC.",
+     "Engineering, reimagined."
+    ]
+   }
+  ],
+  "speech_total": 41.009,
+  "rate_unit": "words/s",
+  "mean_rate": 2.9,
+  "film_length_s": 54.0,
+  "samples": 2592000
+ },
+ "ja": {
+  "lines": [
+   {
+    "id": "L1",
+    "slot": [
+     0.0,
+     4.0
+    ],
+    "text": "曲線をひとつ誤れば、鋼板は合いません。",
+    "spoken": "曲線をひとつ誤れば、鋼板は合いません。",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      [
+       1.12,
+       0.5
+      ],
+      2.966
+     ]
+    ],
+    "edit": "",
+    "start": 0.3,
+    "end": 3.266,
+    "duration": 2.966,
+    "slack_before": 0.3,
+    "slack_after": 0.734,
+    "peak_dbfs": -8.43,
+    "rms_dbfs": -21.81,
+    "pauses": [
+     [
+      1.915,
+      2.115
+     ]
+    ],
+    "speed": 1.12,
+    "pause_scale": 0.5,
+    "kana": "キョクセンオ'/ヒト'ツ/アヤマ'レバ、コオハンワ'/アイマセ'ン",
+    "units": 23,
+    "unit": "mora",
+    "rate": 7.76,
+    "rate_unit": "mora/s",
+    "asr": "曲線を一つ誤れば後半は合いません。",
+    "asr_logprob": -0.094,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L2",
+    "slot": [
+     4.0,
+     8.0
+    ],
+    "text": "切る前に、どう確かめますか。",
+    "spoken": "切る前に、どう確かめますか。",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      [
+       1.12,
+       0.5
+      ],
+      1.927
+     ]
+    ],
+    "edit": "",
+    "start": 4.3,
+    "end": 6.227,
+    "duration": 1.927,
+    "slack_before": 0.3,
+    "slack_after": 1.773,
+    "peak_dbfs": -8.55,
+    "rms_dbfs": -22.05,
+    "pauses": [
+     [
+      4.91,
+      5.105
+     ],
+     [
+      6.0,
+      6.1
+     ]
+    ],
+    "speed": 1.12,
+    "pause_scale": 0.5,
+    "kana": "キ'ル/マ'エニ、ド'オ/タシカメマ'スカ",
+    "units": 14,
+    "unit": "mora",
+    "rate": 7.27,
+    "rate_unit": "mora/s",
+    "asr": "切る前にどう確かめますか。",
+    "asr_logprob": -0.067,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L3",
+    "slot": [
+     8.0,
+     12.0
+    ],
+    "text": "NEXUS FABRIC。寸法を入れれば、板展開が出ます。",
+    "spoken": "NEXUS FABRIC。寸法を入れれば、板展開が出ます。",
+    "use": "exact",
+    "fit": "fits, tight",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      [
+       1.12,
+       0.5
+      ],
+      3.849
+     ],
+     [
+      [
+       1.16,
+       0.5
+      ],
+      3.715
+     ],
+     [
+      [
+       1.22,
+       0.5
+      ],
+      3.598
+     ],
+     [
+      [
+       1.22,
+       0.4
+      ],
+      3.539
+     ],
+     [
+      [
+       1.22,
+       0.3
+      ],
+      3.486
+     ]
+    ],
+    "edit": "",
+    "start": 8.2644,
+    "end": 11.75,
+    "duration": 3.486,
+    "slack_before": 0.264,
+    "slack_after": 0.25,
+    "peak_dbfs": -6.9,
+    "rms_dbfs": -22.58,
+    "pauses": [
+     [
+      9.099,
+      9.249
+     ]
+    ],
+    "speed": 1.22,
+    "pause_scale": 0.3,
+    "kana": "ネ'_クサス/ファブリ'ック、スンポオオ'/イレレ'バ、イタテ'ンカイガ/デマ'ス",
+    "units": 28,
+    "unit": "mora",
+    "rate": 8.03,
+    "rate_unit": "mora/s",
+    "asr": "ネクサスファブリック寸法を入れれば板展開が出ます。",
+    "asr_logprob": -0.097,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L4",
+    "slot": [
+     12.0,
+     20.0
+    ],
+    "text": "胴、円錐、偏心レジューサ、枝管、開口付きの母管。切断線を、一点ずつ計算します。",
+    "spoken": "胴、円錐、偏心レジューサ、枝管、開口付きの母管。切断線を、一点ずつ計算します。",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 7.5,
+    "tried": [
+     [
+      [
+       1.12,
+       0.5
+      ],
+      7.481
+     ],
+     [
+      [
+       1.16,
+       0.5
+      ],
+      7.258
+     ]
+    ],
+    "edit": "",
+    "start": 12.3,
+    "end": 19.558,
+    "duration": 7.258,
+    "slack_before": 0.3,
+    "slack_after": 0.442,
+    "peak_dbfs": -6.64,
+    "rms_dbfs": -23.65,
+    "pauses": [
+     [
+      12.565,
+      12.82
+     ],
+     [
+      13.27,
+      13.515
+     ],
+     [
+      14.475,
+      14.635
+     ],
+     [
+      15.16,
+      15.435
+     ],
+     [
+      16.67,
+      16.885
+     ],
+     [
+      17.775,
+      18.025
+     ],
+     [
+      18.12,
+      18.32
+     ]
+    ],
+    "speed": 1.16,
+    "pause_scale": 0.5,
+    "kana": "ド'オ、エンスイ'、ヘンシンレジュ'ウサ、エダカン'、カイコオツキノ'/ボカン'、セツダンセンオ'、イッテンズ'ツ/ケエサン'/シマ'ス",
+    "units": 48,
+    "unit": "mora",
+    "rate": 6.61,
+    "rate_unit": "mora/s",
+    "asr": "銅・塩水・変身レジューサ・枝管・開口付きの母管・切断線を1点ずつ計算します",
+    "asr_logprob": -0.13,
+    "asr_error": 0.08
+   },
+   {
+    "id": "L5",
+    "slot": [
+     20.0,
+     26.0
+    ],
+    "text": "そして、自ら検算。立体に戻し、二つの縁が一本の曲線になるかを確かめます。",
+    "spoken": "自ら検算。立体に戻し、二つの縁が一本の曲線になるかを確かめます。",
+    "use": "cut",
+    "fit": "fits",
+    "cap_s": 5.5,
+    "tried": [
+     [
+      [
+       1.12,
+       0.5
+      ],
+      5.866
+     ],
+     [
+      [
+       1.16,
+       0.5
+      ],
+      5.703
+     ],
+     [
+      [
+       1.22,
+       0.5
+      ],
+      5.495
+     ],
+     [
+      [
+       1.22,
+       0.4
+      ],
+      5.409
+     ]
+    ],
+    "edit": "",
+    "start": 20.3,
+    "end": 25.709,
+    "duration": 5.409,
+    "slack_before": 0.3,
+    "slack_after": 0.291,
+    "peak_dbfs": -6.04,
+    "rms_dbfs": -23.75,
+    "pauses": [
+     [
+      21.225,
+      21.415
+     ],
+     [
+      21.51,
+      21.64
+     ],
+     [
+      22.335,
+      22.59
+     ],
+     [
+      23.515,
+      23.665
+     ]
+    ],
+    "speed": 1.22,
+    "pause_scale": 0.4,
+    "kana": "ミ'ズカラ/ケンザン'、リッタイニ'/モド'シ、フタツ'ノ/フ'チガ/イッ'ポンノ/キョクセンニ'/ナ'ルカオ/タシカメマ'ス",
+    "units": 43,
+    "unit": "mora",
+    "rate": 7.95,
+    "rate_unit": "mora/s",
+    "locked_text": "そして、自ら検算。立体に戻し、二つの縁が一本の曲線になるかを確かめます。",
+    "asr": "自ら検算、一体に戻し、2つの縁が1本の曲線になるかを確かめます。",
+    "asr_logprob": -0.134,
+    "asr_error": 0.1136
+   },
+   {
+    "id": "L6",
+    "slot": [
+     26.0,
+     30.0
+    ],
+    "text": "DXFは出力し、再読込して照合します。",
+    "spoken": "DXF出力し、再読込して照合します。",
+    "use": "cut",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      [
+       1.12,
+       0.5
+      ],
+      3.771
+     ],
+     [
+      [
+       1.16,
+       0.5
+      ],
+      3.653
+     ],
+     [
+      [
+       1.22,
+       0.5
+      ],
+      3.503
+     ],
+     [
+      [
+       1.22,
+       0.4
+      ],
+      3.458
+     ],
+     [
+      [
+       1.22,
+       0.3
+      ],
+      3.405
+     ]
+    ],
+    "edit": "",
+    "start": 26.3,
+    "end": 29.705,
+    "duration": 3.405,
+    "slack_before": 0.3,
+    "slack_after": 0.295,
+    "peak_dbfs": -7.24,
+    "rms_dbfs": -22.68,
+    "pauses": [
+     [
+      26.605,
+      26.745
+     ],
+     [
+      27.755,
+      27.935
+     ]
+    ],
+    "speed": 1.22,
+    "pause_scale": 0.3,
+    "kana": "ディイエッ_クスエ'フ/シュツ'リョク/シ'、サイヨミコミ_シテ'/ショオゴオ'/シマ'_ス",
+    "units": 28,
+    "unit": "mora",
+    "rate": 8.22,
+    "rate_unit": "mora/s",
+    "locked_text": "DXFは出力し、再読込して照合します。",
+    "asr": "DXF出力し、再読み込みして照合します。",
+    "asr_logprob": -0.119,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L7",
+    "slot": [
+     30.0,
+     42.0
+    ],
+    "text": "その土台が、AMOEBA。すべての値と手順を記録し、つなぎます。数値をひとつ変えると、依存するものすべてに要精査の印が付きます。再実行すれば、結果は一致しなければなりません。",
+    "spoken": "土台が、AMOEBA。すべての値と手順を記録し、つなぎます。数値をひとつ変えると、依存するものすべてに要精査の印が付きます。再実行すれば、一致しなければなりません。",
+    "use": "cut",
+    "fit": "fits",
+    "cap_s": 11.5,
+    "tried": [
+     [
+      [
+       1.12,
+       0.5
+      ],
+      12.538
+     ],
+     [
+      [
+       1.16,
+       0.5
+      ],
+      12.059
+     ],
+     [
+      [
+       1.22,
+       0.5
+      ],
+      11.706
+     ],
+     [
+      [
+       1.22,
+       0.4
+      ],
+      11.461
+     ],
+     [
+      [
+       1.22,
+       0.3
+      ],
+      11.226
+     ]
+    ],
+    "edit": "",
+    "start": 30.3,
+    "end": 41.526,
+    "duration": 11.226,
+    "slack_before": 0.3,
+    "slack_after": 0.474,
+    "peak_dbfs": -5.83,
+    "rms_dbfs": -23.51,
+    "pauses": [
+     [
+      30.82,
+      30.925
+     ],
+     [
+      33.44,
+      33.625
+     ],
+     [
+      34.275,
+      34.465
+     ],
+     [
+      35.725,
+      35.855
+     ],
+     [
+      38.675,
+      38.905
+     ],
+     [
+      39.29,
+      39.415
+     ],
+     [
+      39.945,
+      40.06
+     ]
+    ],
+    "speed": 1.22,
+    "pause_scale": 0.3,
+    "kana": "ド'ダイガ、ア'ミイバ、ス'ベテノ/アタイ'ト/テジュンオ'/キロク'/シ'、ツナギマ'ス、ス'ウチオ/ヒト'ツ/カエルト'、イゾン'/スル'/モノ'/ス'ベテニ/ヨオセ'エサノ/シルシガ'/ツキマ'ス、サイジ'ッコオ/スレ'バ、イッチ'/シナケレ'バ/ナリマセ'ン",
+    "units": 87,
+    "unit": "mora",
+    "rate": 7.75,
+    "rate_unit": "mora/s",
+    "locked_text": "その土台が、AMOEBA。すべての値と手順を記録し、つなぎます。数値をひとつ変えると、依存するものすべてに要精査の印が付きます。再実行すれば、結果は一致しなければなりません。",
+    "asr": "土台がファミーはすべての値と手順を記録しつなぎます数値を一つ変えると依存するものすべてに陽性差の印がつきます再実行すれば一致しなければなりません",
+    "asr_logprob": -0.104,
+    "asr_error": 0.0595
+   },
+   {
+    "id": "L8",
+    "slot": [
+     42.0,
+     46.0
+    ],
+    "text": "確認できないことは、隠しません。結果は「要レビュー」のまま。",
+    "spoken": "確認できないことは、隠しません。結果「要レビュー」のまま。",
+    "use": "cut",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      [
+       1.12,
+       0.5
+      ],
+      3.694
+     ],
+     [
+      [
+       1.16,
+       0.5
+      ],
+      3.64
+     ],
+     [
+      [
+       1.22,
+       0.5
+      ],
+      3.511
+     ],
+     [
+      [
+       1.22,
+       0.4
+      ],
+      3.457
+     ],
+     [
+      [
+       1.22,
+       0.3
+      ],
+      3.413
+     ]
+    ],
+    "edit": "",
+    "start": 42.3,
+    "end": 45.712,
+    "duration": 3.413,
+    "slack_before": 0.3,
+    "slack_after": 0.288,
+    "peak_dbfs": -8.42,
+    "rms_dbfs": -21.97,
+    "pauses": [
+     [
+      44.25,
+      44.46
+     ],
+     [
+      44.57,
+      44.67
+     ]
+    ],
+    "speed": 1.22,
+    "pause_scale": 0.3,
+    "kana": "カクニン'/デキ'ナイ/コト'ワ/カ_クシマセ'ン、ケッカ'/ヨオレ'ビュウノ/ママ'",
+    "units": 28,
+    "unit": "mora",
+    "rate": 8.21,
+    "rate_unit": "mora/s",
+    "locked_text": "確認できないことは、隠しません。結果は「要レビュー」のまま。",
+    "asr": "確認できないことは隠しません。結果用レビューのまま。",
+    "asr_logprob": -0.101,
+    "asr_error": 0.0
+   },
+   {
+    "id": "L9",
+    "slot": [
+     46.0,
+     50.0
+    ],
+    "text": "日英対応。完全オフラインで動作します。",
+    "spoken": "日英対応。完全オフラインで動作します。",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      [
+       1.12,
+       0.5
+      ],
+      3.182
+     ]
+    ],
+    "edit": "",
+    "start": 46.3,
+    "end": 49.481,
+    "duration": 3.182,
+    "slack_before": 0.3,
+    "slack_after": 0.519,
+    "peak_dbfs": -8.02,
+    "rms_dbfs": -22.21,
+    "pauses": [
+     [
+      47.265,
+      47.495
+     ]
+    ],
+    "speed": 1.12,
+    "pause_scale": 0.5,
+    "kana": "ニチエイタイオオ'、カンゼン'/オフ'ラインデ/ドオサ'/シマ'ス",
+    "units": 24,
+    "unit": "mora",
+    "rate": 7.54,
+    "rate_unit": "mora/s",
+    "asr": "日英帯を完全オフラインで動作します",
+    "asr_logprob": -0.127,
+    "asr_error": 0.0417
+   },
+   {
+    "id": "L10",
+    "slot": [
+     50.0,
+     54.0
+    ],
+    "text": "NEXUS FABRIC。設計を、再定義。",
+    "spoken": "NEXUS FABRIC。設計を、再定義。",
+    "use": "exact",
+    "fit": "fits",
+    "cap_s": 3.5,
+    "tried": [
+     [
+      [
+       1.12,
+       0.5
+      ],
+      2.959
+     ]
+    ],
+    "edit": "",
+    "start": 50.3,
+    "end": 53.259,
+    "duration": 2.959,
+    "slack_before": 0.3,
+    "slack_after": 0.741,
+    "peak_dbfs": -6.57,
+    "rms_dbfs": -23.15,
+    "pauses": [
+     [
+      51.205,
+      51.37
+     ],
+     [
+      51.46,
+      51.63
+     ],
+     [
+      51.805,
+      51.975
+     ],
+     [
+      52.335,
+      52.515
+     ]
+    ],
+    "speed": 1.12,
+    "pause_scale": 0.5,
+    "kana": "ネ'_クサス/ファブリ'ック、セッケエオ'、サイテ'エギ",
+    "units": 19,
+    "unit": "mora",
+    "rate": 6.42,
+    "rate_unit": "mora/s",
+    "asr": "ネクサスファブリック設計を再定義。",
+    "asr_logprob": -0.14,
+    "asr_error": 0.0
+   }
+  ],
+  "cues": [
+   {
+    "start": 0.21,
+    "end": 3.69,
+    "lines": [
+     "曲線をひとつ誤れば、",
+     "鋼板は合いません。"
+    ]
+   },
+   {
+    "start": 4.21,
+    "end": 6.657,
+    "lines": [
+     "切る前に、",
+     "どう確かめますか。"
+    ]
+   },
+   {
+    "start": 8.174,
+    "end": 12.18,
+    "lines": [
+     "NEXUS FABRIC。",
+     "寸法を入れれば、板展開が出ます。"
+    ]
+   },
+   {
+    "start": 12.21,
+    "end": 13.435,
+    "lines": [
+     "胴、",
+     "円錐、"
+    ]
+   },
+   {
+    "start": 13.455,
+    "end": 15.355,
+    "lines": [
+     "偏心レジューサ、",
+     "枝管、"
+    ]
+   },
+   {
+    "start": 15.375,
+    "end": 17.945,
+    "lines": [
+     "開口付きの母管。",
+     "切断線を、"
+    ]
+   },
+   {
+    "start": 17.965,
+    "end": 19.985,
+    "lines": [
+     "一点ずつ計算します。"
+    ]
+   },
+   {
+    "start": 20.21,
+    "end": 22.51,
+    "lines": [
+     "自ら検算。",
+     "立体に戻し、"
+    ]
+   },
+   {
+    "start": 22.53,
+    "end": 26.139,
+    "lines": [
+     "二つの縁が一本の曲線になるかを確かめます。"
+    ]
+   },
+   {
+    "start": 26.21,
+    "end": 30.127,
+    "lines": [
+     "DXF出力し、",
+     "再読込して照合します。"
+    ]
+   },
+   {
+    "start": 30.21,
+    "end": 33.545,
+    "lines": [
+     "土台が、AMOEBA。",
+     "すべての値と手順を記録し、"
+    ]
+   },
+   {
+    "start": 33.565,
+    "end": 35.775,
+    "lines": [
+     "つなぎます。",
+     "数値をひとつ変えると、"
+    ]
+   },
+   {
+    "start": 35.795,
+    "end": 38.825,
+    "lines": [
+     "依存するものすべてに要精査の印が付きます。"
+    ]
+   },
+   {
+    "start": 38.845,
+    "end": 41.956,
+    "lines": [
+     "再実行すれば、",
+     "一致しなければなりません。"
+    ]
+   },
+   {
+    "start": 42.21,
+    "end": 46.113,
+    "lines": [
+     "確認できないことは、隠しません。",
+     "結果「要レビュー」のまま。"
+    ]
+   },
+   {
+    "start": 46.21,
+    "end": 49.911,
+    "lines": [
+     "日英対応。",
+     "完全オフラインで動作します。"
+    ]
+   },
+   {
+    "start": 50.21,
+    "end": 52.435,
+    "lines": [
+     "NEXUS FABRIC。",
+     "設計を、"
+    ]
+   },
+   {
+    "start": 52.455,
+    "end": 53.683,
+    "lines": [
+     "再定義。"
+    ]
+   }
+  ],
+  "speech_total": 45.231,
+  "rate_unit": "mora/s",
+  "mean_rate": 7.56,
+  "film_length_s": 54.0,
+  "samples": 2592000
+ },
+ "slots": [
+  {
+   "id": "L1",
+   "start": 0.0,
+   "end": 4.0,
+   "en": 2.185,
+   "ja": 2.966,
+   "en_start": 0.3,
+   "en_end": 2.485,
+   "ja_start": 0.3,
+   "ja_end": 3.266
+  },
+  {
+   "id": "L2",
+   "start": 4.0,
+   "end": 8.0,
+   "en": 1.655,
+   "ja": 1.927,
+   "en_start": 4.3,
+   "en_end": 5.955,
+   "ja_start": 4.3,
+   "ja_end": 6.227
+  },
+  {
+   "id": "L3",
+   "start": 8.0,
+   "end": 12.0,
+   "en": 2.971,
+   "ja": 3.486,
+   "en_start": 8.3,
+   "en_end": 11.271,
+   "ja_start": 8.2644,
+   "ja_end": 11.75
+  },
+  {
+   "id": "L4",
+   "start": 12.0,
+   "end": 20.0,
+   "en": 6.872,
+   "ja": 7.258,
+   "en_start": 12.3,
+   "en_end": 19.172,
+   "ja_start": 12.3,
+   "ja_end": 19.558
+  },
+  {
+   "id": "L5",
+   "start": 20.0,
+   "end": 26.0,
+   "en": 4.751,
+   "ja": 5.409,
+   "en_start": 20.3,
+   "en_end": 25.051,
+   "ja_start": 20.3,
+   "ja_end": 25.709
+  },
+  {
+   "id": "L6",
+   "start": 26.0,
+   "end": 30.0,
+   "en": 2.57,
+   "ja": 3.405,
+   "en_start": 26.3,
+   "en_end": 28.87,
+   "ja_start": 26.3,
+   "ja_end": 29.705
+  },
+  {
+   "id": "L7",
+   "start": 30.0,
+   "end": 42.0,
+   "en": 11.115,
+   "ja": 11.226,
+   "en_start": 30.3,
+   "en_end": 41.415,
+   "ja_start": 30.3,
+   "ja_end": 41.526
+  },
+  {
+   "id": "L8",
+   "start": 42.0,
+   "end": 46.0,
+   "en": 3.409,
+   "ja": 3.413,
+   "en_start": 42.3,
+   "en_end": 45.709,
+   "ja_start": 42.3,
+   "ja_end": 45.712
+  },
+  {
+   "id": "L9",
+   "start": 46.0,
+   "end": 50.0,
+   "en": 2.964,
+   "ja": 3.182,
+   "en_start": 46.3,
+   "en_end": 49.264,
+   "ja_start": 46.3,
+   "ja_end": 49.481
+  },
+  {
+   "id": "L10",
+   "start": 50.0,
+   "end": 54.0,
+   "en": 2.517,
+   "ja": 2.959,
+   "en_start": 50.3,
+   "en_end": 52.817,
+   "ja_start": 50.3,
+   "ja_end": 53.259
+  }
+ ]
+}

@@ -1,0 +1,23 @@
+{
+ "id": "S-STUB-EQUALS-ASSEMBLY-BRANCH",
+ "group": "symmetry",
+ "title": "Branch stub alone equals the branch part of the assembly",
+ "request": {
+  "family": "header_with_branch",
+  "header_radius": 150,
+  "header_dev_radius": 150,
+  "header_length": 1200,
+  "branch_station": 500,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 60,
+  "delta": 20,
+  "s_end": 400,
+  "surface_reference": "outside"
+ },
+ "expect": "accept",
+ "derivation": "The branch pattern depends only on (R, r, r_dev, beta, delta, s_end): the stand-alone branch_stub result must be identical to the branch part of header_with_branch.",
+ "relation": {
+  "type": "stub_equals_branch"
+ }
+}

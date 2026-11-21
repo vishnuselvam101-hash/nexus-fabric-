@@ -1,0 +1,175 @@
+{
+ "source": "cues.json",
+ "cues": [
+  {
+   "t": 0.3,
+   "type": "tick",
+   "gain": 0.45
+  },
+  {
+   "t": 1.8,
+   "type": "tick",
+   "gain": 0.45
+  },
+  {
+   "t": 3.0,
+   "type": "glint",
+   "gain": 0.6
+  },
+  {
+   "t": 3.7,
+   "type": "glint",
+   "gain": 0.6
+  },
+  {
+   "t": 5.0,
+   "type": "tick",
+   "gain": 0.6
+  },
+  {
+   "t": 5.0,
+   "type": "whoosh",
+   "gain": 1.0
+  },
+  {
+   "t": 6.0,
+   "type": "sweep",
+   "gain": 0.8,
+   "until": 6.7
+  },
+  {
+   "t": 8.95,
+   "type": "sweep",
+   "gain": 0.8,
+   "until": 9.85
+  },
+  {
+   "t": 10.75,
+   "type": "tick",
+   "gain": 0.45
+  },
+  {
+   "t": 11.0,
+   "type": "tick",
+   "gain": 0.6
+  },
+  {
+   "t": 11.0,
+   "type": "whoosh",
+   "gain": 1.0
+  },
+  {
+   "t": 11.7,
+   "type": "sweep",
+   "gain": 0.8,
+   "until": 14.7
+  },
+  {
+   "t": 13.2,
+   "type": "glint",
+   "gain": 0.6
+  },
+  {
+   "t": 14.5,
+   "type": "sweep",
+   "gain": 0.8,
+   "until": 17.4
+  },
+  {
+   "t": 18.0,
+   "type": "tick",
+   "gain": 0.6
+  },
+  {
+   "t": 18.0,
+   "type": "whoosh",
+   "gain": 1.0
+  },
+  {
+   "t": 18.9,
+   "type": "sweep",
+   "gain": 0.8,
+   "until": 21.3
+  },
+  {
+   "t": 21.3,
+   "type": "impact",
+   "gain": 0.45
+  },
+  {
+   "t": 21.3,
+   "type": "whoosh",
+   "gain": 0.6
+  },
+  {
+   "t": 21.8,
+   "type": "tick",
+   "gain": 0.55
+  },
+  {
+   "t": 22.0,
+   "type": "tick",
+   "gain": 0.55
+  },
+  {
+   "t": 22.2,
+   "type": "tick",
+   "gain": 0.55
+  },
+  {
+   "t": 22.5,
+   "type": "glint",
+   "gain": 0.6
+  },
+  {
+   "t": 23.1,
+   "type": "glint",
+   "gain": 0.6
+  },
+  {
+   "t": 24.3,
+   "type": "whoosh",
+   "gain": 0.6
+  },
+  {
+   "t": 25.0,
+   "type": "tick",
+   "gain": 0.6
+  },
+  {
+   "t": 25.15,
+   "type": "impact",
+   "gain": 1.0
+  },
+  {
+   "t": 25.15,
+   "type": "whoosh",
+   "gain": 0.85
+  },
+  {
+   "t": 25.75,
+   "type": "glint",
+   "gain": 0.6
+  },
+  {
+   "t": 26.6,
+   "type": "glint",
+   "gain": 0.45
+  },
+  {
+   "t": 26.9,
+   "type": "glint",
+   "gain": 0.45
+  },
+  {
+   "t": 27.2,
+   "type": "glint",
+   "gain": 0.45
+  },
+  {
+   "t": 27.5,
+   "type": "glint",
+   "gain": 0.45
+  }
+ ]
+}

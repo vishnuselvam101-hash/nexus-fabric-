@@ -1,0 +1,8 @@
+CREDIT NEEDED - picture builder, flagship film 3, Japanese version only
+
+Show this line on the Japanese end card (slot 50.0 s to 54.0 s), bottom right, small, for the whole time the card is up:
+
+    音声：VOICEVOX Nemo
+
+The English version needs no credit line under the terms in audio/VOICES.md.
+The exact string is also in script/narration.json, field ja.credit.

@@ -1,0 +1,21 @@
+{
+ "id": "E-eccentric_reducer-seam-gap-below",
+ "group": "refusal",
+ "title": "eccentric_reducer r1=300 r2=50 h=0.0006148113449212067: seam gap 9.5e-10 mm, below the 1e-9 mm closure resolution",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 300,
+  "r2": 50,
+  "h": 0.0006148113449212067,
+  "e": 0
+ },
+ "expect": "refuse",
+ "derivation": "The seam gap at the small end is l2 (2 pi - Phi) = 9.5e-10 mm (mpmath, 40 digits), below the 1e-9 mm closure resolution of the profile check (5 % under the limit).",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "seam",
+   "closure"
+  ]
+ }
+}

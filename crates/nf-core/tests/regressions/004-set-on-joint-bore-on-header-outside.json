@@ -1,0 +1,119 @@
+{
+ "description": "Review B, RB-001 (19 Nov 2026): a set-on joint could not be expressed. Each part of a joint has its own contact surface, and a set-on branch is cut at its bore: the set-on joint of Spec 02 section 4.4 (branch INSIDE surface on header OUTSIDE surface, example radii of that section, DN300 header and DN150 branch). Before the fix the one surface reference applied to both parts, so this joint could be entered only as 'unknown' (which switches the radius checks off), and the outside pair was accepted silently as set-on with its opening at the branch OUTSIDE diameter, which would pass through the hole. Fixed by per-part surface references and the declared joint type 'set_on' (nf-core job::header_with_branch, with verify::verify_joint as the independent 3D check of the joint). The verified cases must pass every check; the refused cases must be refused with the field named.",
+ "found": "2026-11-19 (review B, RB-001)",
+ "fixed_in": "nf-core job.rs (header_surface_reference, branch_surface_reference, joint; radius_consistency per part); uem verify::verify_joint",
+ "cases": [
+  {
+   "request": {
+    "family": "header_with_branch",
+    "header_radius": 161.95,
+    "header_dev_radius": 156.795,
+    "header_length": 1200.0,
+    "branch_station": 600.0,
+    "branch_radius": 77.095,
+    "branch_dev_radius": 80.6,
+    "beta_deg": 90.0,
+    "delta": 0.0,
+    "s_end": 400.0,
+    "surface_reference": "outside",
+    "header_surface_reference": "outside",
+    "branch_surface_reference": "inside",
+    "joint": "set_on"
+   },
+   "expect": "verified"
+  },
+  {
+   "request": {
+    "family": "header_with_branch",
+    "header_radius": 161.95,
+    "header_dev_radius": 156.795,
+    "header_length": 1200.0,
+    "branch_station": 600.0,
+    "branch_radius": 77.095,
+    "branch_dev_radius": 80.6,
+    "beta_deg": 60.0,
+    "delta": 20.0,
+    "s_end": 400.0,
+    "surface_reference": "outside",
+    "header_surface_reference": "outside",
+    "branch_surface_reference": "inside",
+    "joint": "set_on"
+   },
+   "expect": "verified"
+  },
+  {
+   "request": {
+    "family": "header_with_branch",
+    "header_radius": 161.95,
+    "header_dev_radius": 156.795,
+    "header_length": 1200.0,
+    "branch_station": 600.0,
+    "branch_radius": 84.15,
+    "branch_dev_radius": 80.6,
+    "beta_deg": 90.0,
+    "delta": 0.0,
+    "s_end": 400.0,
+    "surface_reference": "outside",
+    "joint": "set_on"
+   },
+   "expect": "refused"
+  },
+  {
+   "request": {
+    "family": "header_with_branch",
+    "header_radius": 151.64,
+    "header_dev_radius": 156.795,
+    "header_length": 1200.0,
+    "branch_station": 600.0,
+    "branch_radius": 77.095,
+    "branch_dev_radius": 80.6,
+    "beta_deg": 90.0,
+    "delta": 0.0,
+    "s_end": 400.0,
+    "surface_reference": "inside",
+    "header_surface_reference": "inside",
+    "branch_surface_reference": "inside",
+    "joint": "set_on"
+   },
+   "expect": "refused"
+  },
+  {
+   "request": {
+    "family": "header_with_branch",
+    "header_radius": 161.95,
+    "header_dev_radius": 156.795,
+    "header_length": 1200.0,
+    "branch_station": 600.0,
+    "branch_radius": 77.095,
+    "branch_dev_radius": 80.6,
+    "beta_deg": 90.0,
+    "delta": 0.0,
+    "s_end": 400.0,
+    "surface_reference": "outside",
+    "header_surface_reference": "outside",
+    "branch_surface_reference": "inside",
+    "joint": "set_in"
+   },
+   "expect": "refused"
+  },
+  {
+   "request": {
+    "family": "header_with_branch",
+    "header_radius": 161.95,
+    "header_dev_radius": 156.795,
+    "header_length": 1200.0,
+    "branch_station": 600.0,
+    "branch_radius": 77.095,
+    "branch_dev_radius": 75.0,
+    "beta_deg": 90.0,
+    "delta": 0.0,
+    "s_end": 400.0,
+    "surface_reference": "outside",
+    "header_surface_reference": "outside",
+    "branch_surface_reference": "inside",
+    "joint": "set_on"
+   },
+   "expect": "refused"
+  }
+ ]
+}

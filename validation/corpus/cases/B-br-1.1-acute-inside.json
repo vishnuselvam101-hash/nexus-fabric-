@@ -1,0 +1,33 @@
+{
+ "id": "B-br-1.1-acute-inside",
+ "group": "closed_form",
+ "title": "Branch stub R=150 r=100 beta=0.0201603: just inside the angle the verification is guaranteed to confirm (ratio 0.9)",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 150,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 0.0201603,
+  "delta": 0,
+  "s_end": 710653.0
+ },
+ "expect": "accept",
+ "derivation": "ratio F/(agree + 3 bound) = 0.9000 < 1 (closed form, TOLERANCE_POLICY.md section 7): the verification is guaranteed to confirm a correct pattern, so the request must be accepted. phi=0: s = sqrt(R^2 - r^2)/sin(beta); phi=90: s = (R - r cos(beta))/sin(beta).",
+ "hp": true,
+ "quantities": {
+  "branch": {
+   "s_at_0": [
+    317746.41364153527,
+    0.0003177464136415353
+   ],
+   "s_at_90": [
+    142100.53369502872,
+    0.00014210053369502872
+   ],
+   "developed_width": [
+    628.3185307179587,
+    6.283185307179586e-09
+   ]
+  }
+ }
+}

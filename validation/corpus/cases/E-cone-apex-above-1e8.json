@@ -1,0 +1,20 @@
+{
+ "id": "E-cone-apex-above-1e8",
+ "group": "refusal",
+ "title": "cone r1=1e5 r2=99999 h=1000.9995004993759: apex radius 1.001e+08 mm, 1 % above the 1e8 mm limit",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 100000,
+  "r2": 99999,
+  "h": 1000.9995004993759
+ },
+ "expect": "refuse",
+ "derivation": "Apex radius L1 = 1.001e+08 mm, 1 % above the 1e8 mm developed-size limit.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "apex",
+   "radius"
+  ]
+ }
+}

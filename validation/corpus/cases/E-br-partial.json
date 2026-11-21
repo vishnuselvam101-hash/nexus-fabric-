@@ -1,0 +1,22 @@
+{
+ "id": "E-br-partial",
+ "group": "refusal",
+ "title": "branch: |delta| + r > R (BR-02)",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 150,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 90,
+  "delta": 60,
+  "s_end": 400
+ },
+ "expect": "refuse",
+ "derivation": "Partial intersection: different topology.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "delta"
+  ]
+ }
+}

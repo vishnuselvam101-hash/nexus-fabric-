@@ -1,0 +1,266 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>NEXUS FABRIC flagship film</title>
+<style>
+html,body{margin:0;background:#070b10;overflow:hidden}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;font-family:"Helvetica Neue","Liberation Sans",Arial,"IPAPGothic","IPAGothic",sans-serif;color:#f2f5f8}
+canvas{position:absolute;inset:0}
+#shot{position:absolute;inset:0;background-size:cover;background-position:center top;opacity:0}
+#veil{position:absolute;inset:0;background:#070b10;opacity:0}
+/* title-safe area: 5% margins (96 px / 54 px) */
+#tag{position:absolute;left:96px;top:60px;font-size:17px;font-weight:600;letter-spacing:.16em;padding-left:14px;border-left:3px solid;text-shadow:0 1px 8px rgba(0,0,0,.8)}
+#note{position:absolute;right:96px;top:60px;font-size:17px;letter-spacing:.04em;color:#f3b85f;text-shadow:0 1px 8px rgba(0,0,0,.8)}
+#scrim{position:absolute;left:0;right:0;bottom:0;height:250px;background:linear-gradient(to top,rgba(4,7,10,.88),rgba(4,7,10,.55) 45%,rgba(4,7,10,0))}
+#cap{position:absolute;left:50%;transform:translateX(-50%);bottom:74px;width:1240px;text-align:center;font-size:34px;line-height:1.38;font-weight:500;letter-spacing:.005em;text-wrap:balance;text-shadow:0 1px 12px rgba(0,0,0,.75)}
+#cap.ja{font-size:33px;letter-spacing:.05em;line-height:1.5;width:1120px;line-break:strict;word-break:keep-all;overflow-wrap:anywhere}
+#brand{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0}
+#brand .wm{font-size:104px;font-weight:700;letter-spacing:.24em;margin-left:.24em}
+#brand .l1{font-size:32px;color:#c3cfdb;margin-top:22px;letter-spacing:.05em}
+#brand .l2{font-size:30px;color:#7fbdf8;margin-top:30px;letter-spacing:.16em}
+#brand .l3{font-size:28px;margin-top:40px;padding:12px 26px;border:1.5px solid #f2f5f8}
+#brand .l4{font-size:19px;color:#f3b85f;margin-top:26px;letter-spacing:.02em}
+#brand.end{align-items:flex-start;justify-content:flex-start;padding:140px 0 0 96px;background:linear-gradient(100deg,rgba(4,7,10,.9),rgba(4,7,10,.72) 38%,rgba(4,7,10,0) 62%)}
+#brand.end .wm{font-size:88px;margin-left:0}
+</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+</head><body><div id="stage"><canvas id="c" width="1920" height="1080"></canvas><div id="shot"></div><div id="veil"></div><div id="scrim"></div>
+<div id="tag"></div><div id="note"></div><div id="brand"><div class="wm">NEXUS FABRIC</div><div class="l1"></div><div class="l2"></div><div class="l3"></div><div class="l4"></div></div><div id="cap"></div></div>
+<script type="module">
+import * as THREE from 'three';
+import { Line2 } from 'three/addons/lines/Line2.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const Q = new URLSearchParams(location.search);
+const lang = Q.get('lang') === 'ja' ? 'ja' : 'en';
+const L = {
+  en: { concept: 'CONCEPT · NOT YET IN THE SOFTWARE', vis: 'VISUALISATION · GEOMETRY FROM THE PRODUCT’S EQUATIONS', real: 'ACTUAL SOFTWARE · DEVELOPMENT BUILD',
+    n3: 'Drawing reading and 3D reconstruction: planned', n5: 'Plate division and seam planning: planned', n6: 'Engineer approval workflow: planned',
+    l1: 'AMOEBA-native industrial engineering platform', l1b: 'From engineering drawings to manufacturing intelligence.', l2: 'UNDERSTAND. RECONSTRUCT. VERIFY. MANUFACTURE.', l3: 'Request a demonstration', l4: 'Product concept. Capabilities in development. Not validated for manufacturing.',
+    cap: ['Complex engineering drawings. Difficult geometry. Hours of engineering work.', 'Meet NEXUS FABRIC, an AMOEBA-native industrial engineering platform.', 'Understand engineering drawings. Reconstruct complex three-dimensional geometry.', 'Perform advanced mathematical engineering and investigate design inconsistencies.', 'Calculate manufacturing developments and generate traceable CAD deliverables.', 'Verify engineering results with traceable evidence and authorised engineering review.', 'One integrated platform for intelligent industrial engineering.', ''] },
+  ja: { concept: 'コンセプト · 未実装', vis: 'ビジュアライゼーション · 製品の計算式による形状', real: '実際のソフトウェア画面 · 開発版',
+    n3: '図面読取・3D再構築:計画中', n5: '板割り・継ぎ目計画:計画中', n6: '技術者による承認ワークフロー:計画中',
+    l1: 'AMOEBAを中核とした産業用エンジニアリングプラットフォーム', l1b: '図面から、製造の未来へ。', l2: '理解する。再構築する。検証する。製造する。', l3: 'デモのご依頼はこちら', l4: '製品コンセプト映像です。機能は開発中であり、製造用途の検証は完了していません。',
+    cap: ['複雑な製作図面。難しい形状。何時間もかかる設計作業。', 'NEXUS FABRIC。AMOEBAを中核とした、産業用エンジニアリングプラットフォーム。', '図面を理解し、複雑な3D形状を再構築する。', '高度な数理計算で形状を導き、設計の不整合を調べる。', '板材展開を計算し、根拠をたどれるCADデータを生成する。', '結果は独立して検証。証拠を残し、最終判断は技術者が行う。', 'インテリジェントな産業エンジニアリングを、ひとつのプラットフォームで。', ''] },
+}[lang];
+const SEG = [[0, 5], [5, 12], [12, 20], [20, 29], [29, 37], [37, 44], [44, 49], [49, 55]];
+
+// ---------- geometry (1 unit = 100 mm): header R150, branch r100 at 60 degrees — the product's reference assembly
+const R = 1.5, r = 1.0, BETA = Math.PI / 3, S_END = 4.0, HLEN = 12, TH = 0.09;
+const sb = Math.sin(BETA), cb = Math.cos(BETA);
+const V = (x, y, z) => new THREE.Vector3(x, z, -y);                 // engineering frame (x along header, z up) -> three.js (y up)
+const sOfR = (phi, rr) => (Math.sqrt(Math.max(0, R * R - (rr * Math.cos(phi)) ** 2)) - rr * Math.sin(phi) * cb) / sb;   // Spec 02 eq. (4.3), delta = 0
+const sOf = (phi) => sOfR(phi, r);
+const smooth = (a, b, t) => { const x = Math.min(1, Math.max(0, (t - a) / (b - a))); return x * x * x * (x * (x * 6 - 15) + 10); };
+const lerp = (a, b, k) => a + (b - a) * k;
+let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+function canvasTex(w, h, draw, rx = 1, ry = 1, srgb = true) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; }
+const blotch = (g, w, h, n, col, amin, amax, smin, smax) => { for (let i = 0; i < n; i++) { const x = rnd() * w, y = rnd() * h, s = smin + rnd() * (smax - smin); const gr = g.createRadialGradient(x, y, 0, x, y, s); gr.addColorStop(0, `rgba(${col},${amin + rnd() * (amax - amin)})`); gr.addColorStop(1, `rgba(${col},0)`); g.fillStyle = gr; g.fillRect(x - s, y - s, 2 * s, 2 * s); } };
+
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(1920, 1080, false); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.AgXToneMapping; renderer.toneMappingExposure = 1.0;        // soft highlight roll-off instead of clipping
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x1a2530); scene.fog = new THREE.Fog(0x1e2a36, 55, 150);
+const cam = new THREE.PerspectiveCamera(32, 16 / 9, 0.2, 300);
+const LIFT = 2.75, TABLE = 0.95, TZ = 12.5;     // header axis height; cutting-table top; table centre z
+
+// ---------- the fabrication hall (reference R02): bright skylights and windows, orange gantry, worn reflective concrete, equipment
+const bay = new THREE.Group();
+const M = (color, rough = 0.7, metal = 0.2, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
+const box = (w, h, d, mat, x, y, z, parent = bay, cast = true) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = cast; m.receiveShadow = true; parent.add(m); return m; };
+const concreteMap = canvasTex(1024, 1024, (g, w, h) => { g.fillStyle = '#7f8588'; g.fillRect(0, 0, w, h); blotch(g, w, h, 240, '60,66,70', 0.05, 0.22, 30, 170); blotch(g, w, h, 160, '170,176,180', 0.03, 0.12, 20, 120);
+  for (let i = 0; i < 30000; i++) { const v = 90 + rnd() * 80 | 0; g.fillStyle = `rgba(${v},${v + 2},${v + 4},${0.04 + rnd() * 0.1})`; g.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 2, 1 + rnd() * 2); }
+  g.strokeStyle = 'rgba(40,44,48,.5)'; g.lineWidth = 3; g.strokeRect(0, 0, w, h); }, 9, 9);
+const concreteRough = canvasTex(512, 512, (g, w, h) => { g.fillStyle = '#9a9a9a'; g.fillRect(0, 0, w, h); blotch(g, w, h, 70, '40,40,40', 0.08, 0.28, 30, 140); blotch(g, w, h, 60, '210,210,210', 0.1, 0.3, 20, 90); }, 5, 5, false);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(160, 120), new THREE.MeshStandardMaterial({ map: concreteMap, roughnessMap: concreteRough, roughness: 0.78, metalness: 0.0, envMapIntensity: 1.1 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; bay.add(floor);
+const cladMap = canvasTex(512, 512, (g, w, h) => { g.fillStyle = '#46586a'; g.fillRect(0, 0, w, h); for (let x = 0; x < w; x += 32) { g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(x, 0, 4, h); g.fillStyle = 'rgba(255,255,255,.07)'; g.fillRect(x + 5, 0, 3, h); } blotch(g, w, h, 30, '20,24,30', 0.05, 0.2, 40, 160); }, 20, 2);
+const wallMat = M(0xffffff, 0.75, 0.35, { map: cladMap });
+const steelDark = M(0x2b343d, 0.55, 0.75), orange = M(0xd9661f, 0.5, 0.35), yellow = M(0xd8a91e, 0.6, 0.2), bench = M(0x39434d, 0.6, 0.6), woodish = M(0x5a4a3a, 0.8, 0.0);
+const glow = (c, i = 1) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(i) });
+for (const [w, x, z, ry] of [[160, 0, -30, 0], [120, -46, 10, Math.PI / 2], [120, 46, 10, -Math.PI / 2]]) { const wl = new THREE.Mesh(new THREE.PlaneGeometry(w, 24), wallMat); wl.position.set(x, 12, z); wl.rotation.y = ry; wl.receiveShadow = true; bay.add(wl); }
+for (let x = -42; x <= 42; x += 12) { box(0.9, 24, 0.9, steelDark, x, 12, -29.2); box(7.2, 5.2, 0.15, glow(0xcfe3f5, 1.5), x + 6, 15.5, -29.7, bay, false); box(7.5, 0.25, 0.3, steelDark, x + 6, 12.8, -29.5); }
+for (let z = -18; z <= 28; z += 12) for (const sx of [-1, 1]) { box(0.9, 24, 0.9, steelDark, sx * 45.2, 12, z); box(0.15, 5.2, 7.2, glow(0xcfe3f5, 1.3), sx * 45.7, 15.5, z + 6, bay, false); }
+box(160, 0.4, 120, M(0x232c35, 0.9, 0.2), 0, 24.2, 10, bay, false);                                   // roof
+for (let x = -30; x <= 30; x += 15) for (let z = -18; z <= 30; z += 16) box(5.5, 0.12, 9.5, glow(0xf4f8ff, 2.2), x, 23.9, z, bay, false);   // skylights
+for (let z = -20; z <= 34; z += 9) box(92, 0.7, 0.5, steelDark, 0, 22.6, z, bay, false);              // roof trusses
+box(92, 1.5, 1.3, orange, 0, 17.2, -9); box(2.2, 1.6, 2.0, orange, 9, 16.1, -9); box(0.12, 6, 0.12, steelDark, 9, 12.5, -9);   // gantry crane, hoist, cable
+for (const sx of [-1, 1]) box(1.0, 0.9, 80, steelDark, sx * 44.6, 16.3, 5);                           // crane rails
+// equipment and stock
+function workbench(x, z, ry = 0) { const g = new THREE.Group(); box(5.2, 0.16, 2.0, bench, 0, 1.9, 0, g); for (const [a, b] of [[-2.4, -0.8], [2.4, -0.8], [-2.4, 0.8], [2.4, 0.8]]) box(0.16, 1.9, 0.16, steelDark, a, 0.95, b, g); box(5.0, 0.1, 1.8, steelDark, 0, 0.55, 0, g); box(1.1, 0.5, 0.8, M(0xb23a2e, 0.5, 0.3), -1.5, 2.25, 0.2, g); box(0.9, 0.3, 0.9, yellow, 1.4, 2.13, -0.2, g); g.position.set(x, 0, z); g.rotation.y = ry; bay.add(g); }
+workbench(-17, -12, 0.15); workbench(19, -15, -0.2); workbench(-27, 6, Math.PI / 2);
+function welder(x, z, ry) { const g = new THREE.Group(); box(1.5, 2.2, 2.2, M(0x1f6f8f, 0.45, 0.4), 0, 1.4, 0, g); box(1.52, 0.5, 2.22, steelDark, 0, 2.2, 0, g); box(0.05, 0.5, 0.9, glow(0x9fe0ff, 0.6), 0.77, 2.2, 0, g, false); for (const zz of [-0.8, 0.8]) { const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.2, 20), steelDark); wh.rotation.z = Math.PI / 2; wh.position.set(0, 0.3, zz); wh.castShadow = true; g.add(wh); }
+  const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 3.4, 24), M(0x8f979e, 0.35, 0.8)); cyl.position.set(-1.2, 1.7, 0.4); cyl.castShadow = true; g.add(cyl);
+  const cable = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(0.8, 1.0, 0.6), new THREE.Vector3(1.6, 0.08, 1.4), new THREE.Vector3(3.2, 0.06, 0.6), new THREE.Vector3(4.6, 0.06, 1.8), new THREE.Vector3(6.2, 0.06, 1.2)]), 60, 0.06, 8), M(0x15191d, 0.7, 0.1)); cable.castShadow = true; g.add(cable);
+  g.position.set(x, 0, z); g.rotation.y = ry; bay.add(g); }
+welder(11.5, -5.5, -2.5); welder(-24, -17, 0.4);
+{ const rack = new THREE.Group(); for (const x of [-3, 3]) { box(0.3, 5.2, 0.3, steelDark, x, 2.6, -1.2, rack); box(0.3, 5.2, 0.3, steelDark, x, 2.6, 1.2, rack); for (const y of [1.2, 2.9, 4.6]) box(0.3, 0.2, 2.7, steelDark, x, y, 0, rack); }
+  const pm = M(0x9aa3aa, 0.38, 0.9, { side: THREE.DoubleSide }); for (const [y, n, rad] of [[1.75, 4, 0.42], [3.35, 5, 0.32], [4.95, 3, 0.5]]) for (let i = 0; i < n; i++) { const p = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, 9, 28, 1, true), pm); p.rotation.z = Math.PI / 2; p.position.set(0, y, -0.9 + i * (1.8 / Math.max(1, n - 1))); p.castShadow = true; rack.add(p); }
+  rack.position.set(-20, 0, -22); bay.add(rack); }
+{ const pm = M(0xa3abb2, 0.4, 0.9); for (let i = 0; i < 9; i++) box(13, 0.1, 6.5, pm, 24 + rnd() * 0.2, 0.25 + i * 0.105, -21 + rnd() * 0.2); box(13.4, 0.2, 0.4, woodish, 24, 0.1, -23); box(13.4, 0.2, 0.4, woodish, 24, 0.1, -19); }
+for (const [x, z] of [[-34, -6], [33, 14], [30, -8]]) { box(2.2, 3.4, 1.4, M(0x4a5560, 0.6, 0.5), x, 1.7, z); box(2.25, 0.5, 1.45, orange, x, 3.2, z); }
+for (const [x1, x2, z] of [[-38, 38, -25.5], [-38, 38, 33]]) { const s = new THREE.Mesh(new THREE.PlaneGeometry(x2 - x1, 0.22), M(0xc9a227, 0.7, 0)); s.rotation.x = -Math.PI / 2; s.position.set((x1 + x2) / 2, 0.012, z); bay.add(s); }
+// cutting table: slatted bed for the flat patterns
+{ const t = new THREE.Group(); box(25, 0.5, 0.5, steelDark, 0, TABLE - 0.42, -6.6, t); box(25, 0.5, 0.5, steelDark, 0, TABLE - 0.42, 6.6, t); for (const x of [-12.2, 12.2]) box(0.5, 0.5, 13.7, steelDark, x, TABLE - 0.42, 0, t);
+  for (const [x, z] of [[-12, -6.4], [12, -6.4], [-12, 6.4], [12, 6.4], [0, -6.4], [0, 6.4]]) box(0.4, TABLE - 0.6, 0.4, steelDark, x, (TABLE - 0.6) / 2, z, t);
+  const slat = M(0x4b545c, 0.55, 0.8); for (let x = -11.6; x <= 11.6; x += 0.58) box(0.07, 0.34, 13.2, slat, x, TABLE - 0.19, 0, t); box(1.4, 2.6, 1.0, orange, -13.6, 1.3, -5.2, t);
+  t.position.set(0, 0, TZ); bay.add(t); }
+scene.add(bay);
+// The steel reflects this hall (environment map rendered from the bay itself, plus sky fill).
+{ const env = new THREE.Scene(); env.background = new THREE.Color(0x3a4a5a); env.add(bay.clone(true), new THREE.HemisphereLight(0xeaf2fa, 0x6b6f72, 6)); const probe = new THREE.PMREMGenerator(renderer);
+  const cc = new THREE.CubeCamera(0.5, 200, new THREE.WebGLCubeRenderTarget(512, { type: THREE.HalfFloatType })); cc.position.set(0, LIFT + 1.2, 1); cc.update(renderer, env); scene.environment = probe.fromCubemap(cc.renderTarget.texture).texture; scene.environmentIntensity = 1.15; }
+const key = new THREE.SpotLight(0xfff3e2, 2600, 110, 0.5, 0.6, 1.7); key.position.set(10, 23, 16); key.target.position.set(0, 1.5, 4); key.castShadow = true; key.shadow.mapSize.set(4096, 4096); key.shadow.bias = -0.00025; key.shadow.radius = 7;
+const fill = new THREE.SpotLight(0xbfdcff, 1500, 110, 0.75, 0.8, 1.7); fill.position.set(-20, 20, -6); fill.target.position.set(0, 2, 4);
+const kick = new THREE.SpotLight(0xffb070, 140, 60, 0.6, 0.8, 1.6); kick.position.set(16, 6, -14); kick.target.position.set(0, 3, 0);
+scene.add(key, key.target, fill, fill.target, kick, kick.target, new THREE.HemisphereLight(0xcfe2f3, 0x6a6f74, 1.15));
+
+// ---------- steel (reference R03): brushed, anisotropic, with scale variation; cut edges bare and bright
+const steelColor = canvasTex(1024, 1024, (g, w, h) => { g.fillStyle = '#aab2b9'; g.fillRect(0, 0, w, h); blotch(g, w, h, 60, '92,104,120', 0.05, 0.16, 60, 260); blotch(g, w, h, 40, '196,202,206', 0.04, 0.12, 40, 200);
+  for (let i = 0; i < 2600; i++) { const y = rnd() * h, v = 120 + rnd() * 90 | 0; g.strokeStyle = `rgba(${v},${v + 3},${v + 6},${0.05 + rnd() * 0.1})`; g.lineWidth = 0.5 + rnd() * 0.9; g.beginPath(); const x = rnd() * w; g.moveTo(x, y); g.lineTo(x + 60 + rnd() * 500, y + rnd() * 3 - 1.5); g.stroke(); }
+  for (let i = 0; i < 70; i++) { g.strokeStyle = `rgba(225,230,235,${0.05 + rnd() * 0.1})`; g.lineWidth = 0.6; g.beginPath(); const x = rnd() * w, y = rnd() * h; g.moveTo(x, y); g.lineTo(x + rnd() * 120 - 60, y + rnd() * 120 - 60); g.stroke(); } }, 1, 1);
+const steelRough = canvasTex(1024, 1024, (g, w, h) => { g.fillStyle = '#7c7c7c'; g.fillRect(0, 0, w, h); blotch(g, w, h, 50, '170,170,170', 0.08, 0.22, 60, 240); blotch(g, w, h, 50, '50,50,50', 0.06, 0.18, 50, 220);
+  for (let i = 0; i < 5200; i++) { const y = rnd() * h, v = 80 + rnd() * 90 | 0; g.strokeStyle = `rgba(${v},${v},${v},0.35)`; g.lineWidth = 0.5 + rnd() * 0.8; g.beginPath(); const x = rnd() * w; g.moveTo(x, y); g.lineTo(x + 80 + rnd() * 600, y + rnd() * 2 - 1); g.stroke(); } }, 1, 1, false);
+const steel = () => new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: steelColor, metalness: 1, roughness: 0.55, roughnessMap: steelRough, bumpMap: steelRough, bumpScale: 0.35, anisotropy: 0.55, anisotropyRotation: Math.PI / 2, side: THREE.DoubleSide, envMapIntensity: 1.0 });
+const edgeSteel = new THREE.MeshPhysicalMaterial({ color: 0xdfe5ea, metalness: 1, roughness: 0.3, side: THREE.DoubleSide });
+
+// A sheet that bends isometrically between its formed shape (k = 0) and flat (k = 1), then travels to the table (m = 1). Real wall: outer and inner surface with closed cut edges.
+function makeSheet(nu, nv, uvOf, hole, rolled, laid, mat) {
+  const uv = [], idx = [];
+  for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) uv.push(uvOf(i / nu, j / nv));
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const a = j * (nu + 1) + i, b = a + 1, c = a + nu + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
+  const N = uv.length, g = new THREE.BufferGeometry(); const pos = new Float32Array(N * 3); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uv.flatMap(([u, v]) => [v / 6.5, u / 6.5])), 2));
+  g.setAttribute('par', new THREE.BufferAttribute(new Float32Array(uv.flat()), 2)); g.setIndex(idx);
+  if (hole) mat.onBeforeCompile = (sh) => {       // the opening is cut per pixel from the same intersection condition, so its edge is exact and smooth
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 par; varying vec2 vPar;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvPar = par;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec2 vPar;').replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n{ float w = vPar.x / ${R.toFixed(4)}; vec3 q = vec3(vPar.y, ${R.toFixed(4)} * sin(w), ${R.toFixed(4)} * cos(w)); vec3 d = vec3(${cb.toFixed(6)}, 0.0, ${sb.toFixed(6)}); if (q.z > 0.0 && length(cross(q, d)) < ${r.toFixed(4)}) discard; }`); };
+  const mesh = new THREE.Mesh(g, mat); mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false;
+  const g2 = new THREE.BufferGeometry(); const pos2 = new Float32Array(N * 3); g2.setAttribute('position', new THREE.BufferAttribute(pos2, 3)); g2.setAttribute('uv', g.attributes.uv); g2.setAttribute('par', g.attributes.par); g2.setIndex(idx);
+  const inner = new THREE.Mesh(g2, mat); inner.castShadow = true; inner.receiveShadow = true; inner.frustumCulled = false; mesh.add(inner);
+  const border = []; for (let i = 0; i <= nu; i++) border.push(i); for (let j = 1; j <= nv; j++) border.push(j * (nu + 1) + nu); for (let i = nu - 1; i >= 0; i--) border.push(nv * (nu + 1) + i); for (let j = nv - 1; j >= 0; j--) border.push(j * (nu + 1));
+  const B = border.length, g3 = new THREE.BufferGeometry(), pos3 = new Float32Array(B * 6), ridx = []; for (let n = 0; n < B - 1; n++) ridx.push(2 * n, 2 * n + 1, 2 * n + 2, 2 * n + 1, 2 * n + 3, 2 * n + 2);
+  g3.setAttribute('position', new THREE.BufferAttribute(pos3, 3)); g3.setIndex(ridx); const rim = new THREE.Mesh(g3, edgeSteel); rim.castShadow = true; rim.frustumCulled = false; mesh.add(rim);
+  let sign = 0; const probe = Math.floor(nv / 2) * (nu + 1) + Math.floor(nu / 2);
+  mesh.userData.set = (k, m) => { const p = new THREE.Vector3(), q = new THREE.Vector3();
+    for (let n = 0; n < N; n++) { rolled(uv[n][0], uv[n][1], k, p); if (m > 0) { laid(uv[n][0], uv[n][1], q); p.lerp(q, m); } pos[3 * n] = p.x; pos[3 * n + 1] = p.y; pos[3 * n + 2] = p.z; }
+    g.attributes.position.needsUpdate = true; g.computeVertexNormals(); const nor = g.attributes.normal.array;
+    if (!sign) sign = nor[3 * probe + 1] >= 0 ? 1 : -1;
+    for (let n = 0; n < 3 * N; n++) pos2[n] = pos[n] - sign * TH * nor[n];
+    g2.attributes.position.needsUpdate = true; g2.computeVertexNormals();
+    for (let n = 0; n < B; n++) { const v = 3 * border[n]; pos3.set([pos[v], pos[v + 1], pos[v + 2], pos2[v], pos2[v + 1], pos2[v + 2]], 6 * n); }
+    g3.attributes.position.needsUpdate = true; g3.computeVertexNormals(); };
+  return mesh;
+}
+const bend = (d, rad, k) => { const kap = (1 - k) / rad; return kap < 1e-6 ? [d, 0] : [Math.sin(kap * d) / kap, (1 - Math.cos(kap * d)) / kap]; };
+const HX = 2.2, BX = -8.0;                                             // where the flat patterns rest on the table
+const header = makeSheet(360, 220, (a, b) => [(a * 2 - 1) * Math.PI * R, (b - 0.5) * HLEN], true,
+  (u, v, k, out) => { const [t, n] = bend(u, R, k); out.copy(V(v, t, R - n)); out.y += LIFT; },
+  (u, v, out) => out.set(v + HX, TABLE + TH + 0.005, -u + TZ), steel());
+const branch = makeSheet(300, 90, (a, b) => { const phi = Math.PI / 2 + (a * 2 - 1) * Math.PI; const s0 = sOf(phi); return [r * (phi - Math.PI / 2), s0 + b * (S_END - s0)]; }, false,
+  (u, v, k, out) => { const [t, n] = bend(u, r, k); out.copy(V(v * cb + (r - n) * -sb, -t, v * sb + (r - n) * cb)); out.y += LIFT; },
+  (u, v, out) => out.set(BX + u, TABLE + TH + 0.005, TZ + 2.4 - v), steel());
+scene.add(header, branch);
+// cradles under the header: the assembly is physically supported
+const stands = new THREE.Group();
+for (const x of [-4.4, 4.4]) { box(1.0, 0.16, 3.6, steelDark, x, 0.08, 0, stands); for (const z of [-1.0, 1.0]) box(0.32, LIFT - R - 0.55, 0.32, steelDark, x, (LIFT - R - 0.55) / 2 + 0.12, z, stands); box(0.8, 0.22, 2.6, steelDark, x, LIFT - R - 0.42, 0, stands);
+  for (const sg of [-1, 1]) { const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.7, 24), M(0x8d959c, 0.35, 0.9)); roll.rotation.z = Math.PI / 2; roll.position.set(x, LIFT - Math.cos(0.62) * (R + 0.3), sg * Math.sin(0.62) * (R + 0.3)); roll.castShadow = true; stands.add(roll); } }
+scene.add(stands);
+
+// ---------- the weld on the exact intersection curve (reference R03): overlapping ripples, heat tint beside it
+const gamma = (phi, rr = r, lift = 0) => { const sv = sOfR(phi, rr); const y = rr * Math.cos(phi), z = sv * sb + rr * Math.sin(phi) * cb, k = (R + lift) / Math.hypot(y, z); const q = V(sv * cb - rr * Math.sin(phi) * sb, y * k, z * k); q.y += LIFT; return q; };
+const tint = (d) => { const stops = [[0, [0.93, 0.80, 0.52, 0.85]], [0.22, [0.78, 0.50, 0.30, 0.8]], [0.45, [0.50, 0.33, 0.56, 0.7]], [0.72, [0.28, 0.42, 0.72, 0.55]], [1, [0.42, 0.52, 0.66, 0]]]; let i = 0; while (i < stops.length - 2 && d > stops[i + 1][0]) i++; const [a, ca] = stops[i], [b, cz] = stops[i + 1], k = (d - a) / (b - a); return ca.map((v, n) => lerp(v, cz[n], Math.min(1, Math.max(0, k)))); };
+const weldGroup = new THREE.Group();
+{ const NS = 900, MR = 12, pos = [], col = [], idx = []; const tmp = new THREE.Vector3();
+  for (let i = 0; i <= NS; i++) { const phi = (i / NS) * 2 * Math.PI, c = gamma(phi), t = gamma(phi + 0.002).sub(gamma(phi - 0.002)).normalize(); const up = c.clone().sub(new THREE.Vector3(c.x, LIFT, 0)).normalize(); const side = new THREE.Vector3().crossVectors(t, up).normalize();
+    const ripple = (i % 9) / 9, rw = 0.085 * (0.86 + 0.26 * Math.pow(1 - ripple, 1.6)) * (0.93 + 0.14 * rnd()), wob = (rnd() - 0.5) * 0.012;
+    for (let j = 0; j <= MR; j++) { const a = (j / MR) * 2 * Math.PI; tmp.copy(c).addScaledVector(up, Math.sin(a) * rw * 0.72 + 0.012).addScaledVector(side, Math.cos(a) * rw * 1.25 + wob); pos.push(tmp.x, tmp.y, tmp.z);
+      const heat = 0.5 + 0.5 * Math.sin(phi * 3 + 1.2) * 0.6 + (rnd() - 0.5) * 0.25, tc = tint(Math.min(0.9, Math.max(0, 0.12 + 0.55 * heat * (0.5 + 0.5 * Math.cos(a))))); const sh = 0.82 + 0.3 * (1 - ripple); col.push(lerp(0.78, tc[0], 0.55) * sh, lerp(0.8, tc[1], 0.55) * sh, lerp(0.84, tc[2], 0.55) * sh); } }
+  for (let i = 0; i < NS; i++) for (let j = 0; j < MR; j++) { const a = i * (MR + 1) + j, b = a + MR + 1; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(idx); g.computeVertexNormals();
+  const bead = new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ vertexColors: true, metalness: 1, roughness: 0.3, iridescence: 0.5, iridescenceIOR: 1.6, side: THREE.DoubleSide })); bead.castShadow = true; bead.receiveShadow = true; weldGroup.add(bead);
+  const strip = (pt) => { const P = [], C = [], I = [], NA = 360, ND = 10; for (let i = 0; i <= NA; i++) for (let j = 0; j <= ND; j++) { const d = j / ND, q = pt((i / NA) * 2 * Math.PI, d); P.push(q.x, q.y, q.z); { const tc = tint(d * (0.92 + 0.08 * Math.sin(i * 0.07))); tc[3] *= 0.7; C.push(...tc); }; }
+    for (let i = 0; i < NA; i++) for (let j = 0; j < ND; j++) { const a = i * (ND + 1) + j, b = a + ND + 1; I.push(a, b, a + 1, a + 1, b, b + 1); }
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); sg.setAttribute('color', new THREE.Float32BufferAttribute(C, 4)); sg.setIndex(I); sg.computeVertexNormals();
+    const m = new THREE.Mesh(sg, new THREE.MeshPhysicalMaterial({ vertexColors: true, transparent: true, metalness: 1, roughness: 0.42, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })); m.renderOrder = 1; weldGroup.add(m); };
+  strip((phi, d) => gamma(phi, r + 0.06 + d * 0.3, 0.006));                                                   // heat tint on the header, on its own surface
+  strip((phi, d) => { const sv = sOf(phi) + 0.05 + d * 0.3, rr = r + 0.006; const q = V(sv * cb - rr * Math.sin(phi) * sb, rr * Math.cos(phi), sv * sb + rr * Math.sin(phi) * cb); q.y += LIFT; return q; }); }
+scene.add(weldGroup);
+
+// ---------- cut lines on the flat patterns
+function outline(points, color, width = 4, dashed = false) { const g = new LineGeometry(); g.setPositions(points.flatMap((p) => [p.x, p.y, p.z])); const l = new Line2(g, new LineMaterial({ color, linewidth: width, transparent: true, opacity: 0, dashed, dashSize: 0.28, gapSize: 0.16, resolution: new THREE.Vector2(1920, 1080) })); l.computeLineDistances(); l.frustumCulled = false; return l; }
+const YL = TABLE + TH + 0.03, lines = new THREE.Group();
+{ const p = []; for (let i = 0; i <= 400; i++) { const phi = -Math.PI / 2 + (i / 400) * 2 * Math.PI; p.push(new THREE.Vector3(BX + r * (phi - Math.PI / 2), YL, TZ + 2.4 - sOf(phi))); }
+  const a = p[0].clone(), b = p[400].clone(); a.z = b.z = TZ + 2.4 - S_END; lines.add(outline([...p, b, a, p[0]], 0x7fbdf8, 3.5));
+  const w = Math.PI * R, hx = HLEN / 2; lines.add(outline([[-hx, -w], [hx, -w], [hx, w], [-hx, w], [-hx, -w]].map(([x, u]) => new THREE.Vector3(x + HX, YL, -u + TZ)), 0x7fbdf8, 3.5));
+  const o = []; for (let i = 0; i <= 400; i++) { const phi = (i / 400) * 2 * Math.PI, s = sOf(phi); o.push(new THREE.Vector3(s * cb - r * Math.sin(phi) * sb + HX, YL, -R * Math.asin((r * Math.cos(phi)) / R) + TZ)); } lines.add(outline(o, 0xf3b85f, 3.5)); }
+scene.add(lines);
+
+// ---------- scene 1: a fictional drawing made for the film, pinned to a plan board in the hall
+const board = new THREE.Group(), drawing = new THREE.Group();
+{ const seg = (pts, dashed = false, w = 3) => { const l = outline(pts.map(([x, y]) => new THREE.Vector3(x, y, 0)), dashed ? 0x4f6274 : 0x1d2a36, dashed ? 1.8 : w, dashed); l.material.opacity = 1; l.material.transparent = false; drawing.add(l); };
+  const ax = (sv, o) => [sv * cb - o * sb, sv * sb + o * cb];
+  seg([[-6, -1.5], [6, -1.5], [6, 1.5], [-6, 1.5], [-6, -1.5]]); seg([[-6.7, 0], [6.7, 0]], true);
+  seg([ax(sOf(-Math.PI / 2), -1), ax(S_END, -1), ax(S_END, 1), ax(sOf(Math.PI / 2), 1)]); seg([ax(-0.6, 0), ax(S_END + 0.8, 0)], true);
+  const dim = (a, b, off) => { const dx = b[0] - a[0], dy = b[1] - a[1], n = Math.hypot(dx, dy), nx = -dy / n * off, ny = dx / n * off, tk = 0.16;
+    seg([[a[0] + nx, a[1] + ny], [b[0] + nx, b[1] + ny]], false, 1.8); for (const q of [a, b]) seg([[q[0] + nx * 0.25, q[1] + ny * 0.25], [q[0] + nx * 1.15, q[1] + ny * 1.15]], false, 1.8);
+    for (const q of [a, b]) seg([[q[0] + nx - tk * (dx / n + dy / n), q[1] + ny - tk * (dy / n - dx / n)], [q[0] + nx + tk * (dx / n + dy / n), q[1] + ny + tk * (dy / n - dx / n)]], false, 1.8); };
+  dim([6, -1.5], [6, 1.5], -1.2); dim([-6, -1.5], [6, -1.5], 1.3); dim(ax(S_END, -1), ax(S_END, 1), -0.9);
+  const arc = []; for (let i = 0; i <= 24; i++) { const a = BETA * i / 24; arc.push([1.7 * Math.cos(a) + 0.87, 1.7 * Math.sin(a) + 1.5]); } seg(arc, false, 1.8); seg([[-4.6, 1.5], [-4.9, 2.6], [-5.6, 2.6]], false, 1.8);
+  const label = (txt, x, y, sz = 0.72, col = '#1d2a36') => { const c = document.createElement('canvas'); c.width = 512; c.height = 128; const g = c.getContext('2d'); g.font = '600 92px Helvetica, Arial, sans-serif'; g.fillStyle = col; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, 256, 66);
+    const sp = new THREE.Mesh(new THREE.PlaneGeometry(4 * sz, sz), new THREE.MeshBasicMaterial({ map: Object.assign(new THREE.CanvasTexture(c), { colorSpace: THREE.SRGBColorSpace, anisotropy: 8 }), transparent: true, depthWrite: false })); sp.renderOrder = 2; sp.position.set(x, y, 0.012); drawing.add(sp); };
+  label('1200', 0, -3.2); label('⌀300', 8.6, 0.3); label('(⌀284)', 8.6, -0.55, 0.6, '#b3541e'); label('60°', 3.25, 2.2); label('⌀200', 5.35, 5.55); label('t = ?', -6.5, 2.6, 0.62, '#b3541e');
+  const paper = canvasTex(1024, 640, (g, w, h) => { g.fillStyle = '#e9edf0'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(60,90,120,.10)'; g.lineWidth = 1; for (let i = 0; i <= w; i += 32) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, h); g.stroke(); } for (let i = 0; i <= h; i += 32) { g.beginPath(); g.moveTo(0, i); g.lineTo(w, i); g.stroke(); }
+    g.strokeStyle = '#1d2a36'; g.lineWidth = 3; g.strokeRect(18, 18, w - 36, h - 36); g.strokeRect(w - 330, h - 130, 312, 112); g.lineWidth = 1.5; for (const y of [h - 92, h - 56]) { g.beginPath(); g.moveTo(w - 330, y); g.lineTo(w - 18, y); g.stroke(); } g.fillStyle = '#1d2a36'; g.font = '500 20px Helvetica, Arial'; g.fillText('HEADER WITH BRANCH', w - 318, h - 102); g.fillText('FICTIONAL · MADE FOR THE FILM', w - 318, h - 66); g.fillText('SCALE 1:10', w - 318, h - 30);
+    blotch(g, w, h, 12, '120,110,90', 0.03, 0.08, 60, 200); });
+  const sheet = new THREE.Mesh(new THREE.PlaneGeometry(24, 15), new THREE.MeshStandardMaterial({ map: paper, roughness: 0.85, metalness: 0 })); sheet.position.set(1.0, 1.4, -0.02); sheet.receiveShadow = true; drawing.add(sheet);
+  drawing.scale.setScalar(0.42); drawing.position.set(-0.42, 5.3, 0.09); board.add(drawing);
+  box(11.2, 7.4, 0.14, M(0x2c3640, 0.7, 0.4), 0, 5.9, 0, board); for (const x of [-5, 5]) { box(0.2, 9.8, 0.2, steelDark, x, 4.9, -0.2, board); box(0.25, 0.14, 2.6, steelDark, x, 0.07, -0.2, board); }
+  board.position.set(-15.5, 0, 9.5); board.rotation.y = 0.62; scene.add(board); }
+const fadeGroup = (g, o) => { g.visible = o > 0.002; g.traverse((x) => { if (x.material && x.material.transparent) x.material.opacity = o; }); };
+
+// ---------- post: depth of field
+let composer = null, bokeh = null;
+try { composer = new EffectComposer(renderer); composer.setSize(1920, 1080); composer.addPass(new RenderPass(scene, cam)); bokeh = new BokehPass(scene, cam, { focus: 10, aperture: 0.00012, maxblur: 0.006 }); composer.addPass(bokeh); composer.addPass(new OutputPass()); } catch (e) { console.error('post-processing unavailable: ' + e.message); composer = null; }
+
+const $ = (id) => document.getElementById(id);
+$('cap').className = lang; $('brand').querySelector('.l2').textContent = L.l2; $('brand').querySelector('.l3').textContent = L.l3; $('brand').querySelector('.l4').textContent = L.l4;
+const SHOTS = { 2: 'app-amoeba.png', 6: 'app-obligations.png', 7: 'app-dashboard.png' };
+const P = (x, y, z) => new THREE.Vector3(x, y, z);
+const bn = P(Math.sin(0.62), 0, Math.cos(0.62)), bc = P(-15.5, 5.3, 9.5);          // plan-board normal and centre
+const K = {
+  board0: [bc.clone().addScaledVector(bn, 17).add(P(-1.5, 0.6, 0)), bc.clone().add(P(0.6, 0.2, 0))], board1: [bc.clone().addScaledVector(bn, 13.5).add(P(-0.6, 0.4, 0)), bc.clone().add(P(0.4, 0.1, 0))],
+  wide: [P(-21, 7.5, 27), P(1, 3.4, 0)], approach: [P(-9.5, 4.6, 15.5), P(0.6, 3.5, 0)],
+  joint0: [P(7.6, 6.2, 9.2), P(1.0, 4.4, 0)], joint1: [P(5.4, 5.6, 6.4), P(1.2, 4.5, 0)],
+  macro0: [P(3.9, 5.25, 2.9), P(1.95, 4.42, 0.55)], macro1: [P(3.2, 5.0, 2.75), P(1.6, 4.4, 0.75)],
+  unroll0: [P(9.5, 9.5, 15), P(0.4, 3.2, 1.5)], table: [P(-1.2, 24.5, TZ + 9.5), P(-1.2, TABLE, TZ + 0.2)],
+  hero0: [P(-16.5, 3.4, 8.2), P(-3.4, 4.6, 0)], hero1: [P(-15.2, 3.2, 7.6), P(-3.4, 4.6, 0)],
+};
+const mix = (a, b, k) => [a[0].clone().lerp(b[0], k), a[1].clone().lerp(b[1], k)];
+
+window.seek = (t) => {
+  const k = SEG.findIndex(([a, b]) => t >= a && t < b); const n = k + 1;
+  $('cap').textContent = k >= 0 ? L.cap[k] : ''; $('scrim').style.opacity = k >= 0 && L.cap[k] ? 1 : 0;
+  const tagText = n === 1 || n === 3 ? L.concept : n === 2 || n === 6 || n === 7 ? L.real : n === 4 || n === 5 ? L.vis : '';
+  $('tag').textContent = tagText; $('tag').style.display = tagText ? 'block' : 'none'; $('tag').style.color = n === 1 || n === 3 ? '#f3b85f' : n === 4 || n === 5 ? '#8cc4fa' : '#6fd39b';
+  $('note').textContent = n === 3 ? L.n3 : n === 5 ? L.n5 : n === 6 ? L.n6 : '';
+  const shot = SHOTS[n]; $('shot').style.backgroundImage = shot ? `url(../drafts/source/${shot})` : 'none'; $('shot').style.opacity = shot ? 1 : 0; $('shot').style.transform = `scale(${shot ? 1.0 + 0.04 * smooth(SEG[k][0], SEG[k][1], t) : 1})`;
+  $('veil').style.opacity = n === 2 ? 0.8 : 0; $('brand').className = n === 8 ? 'end' : '';
+  $('brand').style.opacity = n === 2 ? smooth(5.3, 6.4, t) : n === 8 ? smooth(50, 51.4, t) : 0;
+  $('brand').querySelector('.l1').textContent = n === 8 ? L.l1b : L.l1; for (const c of ['.l2', '.l3', '.l4']) $('brand').querySelector(c).style.display = n === 8 ? 'block' : 'none';
+
+  const back = n === 8, unroll = back ? 0 : smooth(29.8, 33.2, t), lay = back ? 0 : smooth(32.4, 35.8, t);
+  header.userData.set(unroll, lay); branch.userData.set(unroll, lay);
+  weldGroup.visible = back || t < 29.7; fadeGroup(lines, back ? 0 : smooth(35.2, 36.4, t));
+  let c, focus = null;
+  if (n <= 2) c = mix(K.board0, K.board1, smooth(0, 5, t));
+  else if (n === 3) { const p = smooth(12, 19.5, t); c = p < 0.5 ? mix(K.board1, K.wide, smooth(0, 0.5, p)) : mix(K.wide, K.approach, smooth(0.5, 1, p)); }
+  else if (n === 4) { c = t < 24.6 ? mix(K.joint0, K.joint1, smooth(20, 24.6, t)) : mix(K.macro0, K.macro1, smooth(24.6, 29, t)); }
+  else if (n === 5) { const p = smooth(29, 36.2, t); c = mix(K.unroll0, K.table, p); focus = lerp(16, 24, p); }
+  else c = mix(K.hero0, K.hero1, smooth(49, 55, t));
+  cam.position.copy(c[0]); cam.lookAt(c[1]); cam.updateProjectionMatrix();
+  if (composer && Q.get('dof') !== '0') { bokeh.uniforms.focus.value = focus ?? c[0].distanceTo(c[1]); bokeh.uniforms.aperture.value = n === 4 && t >= 24.6 ? 0.0009 : n === 5 ? 0.00004 : 0.00016; composer.render(); } else renderer.render(scene, cam);
+};
+window.seek(Number(Q.get('t') || 0)); window.READY = true;
+</script></body></html>

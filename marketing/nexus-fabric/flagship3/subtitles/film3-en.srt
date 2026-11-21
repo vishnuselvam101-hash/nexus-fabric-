@@ -1,0 +1,84 @@
+1
+00:00:00,210 --> 00:00:02,915
+One wrong curve —
+and the steel doesn't fit.
+
+2
+00:00:04,210 --> 00:00:06,385
+So before you cut:
+how do you know?
+
+3
+00:00:08,210 --> 00:00:10,225
+NEXUS FABRIC.
+Dimensions in.
+
+4
+00:00:10,245 --> 00:00:11,701
+Flat pattern out.
+
+5
+00:00:12,210 --> 00:00:15,705
+Shells. Cones. Eccentric reducers.
+Branches.
+
+6
+00:00:15,725 --> 00:00:19,602
+Headers with their openings.
+Every cut computed, point by point.
+
+7
+00:00:20,210 --> 00:00:23,275
+Then it checks its own work.
+Folded back in 3D,
+
+8
+00:00:23,295 --> 00:00:25,479
+both edges must be one curve.
+
+9
+00:00:26,210 --> 00:00:29,300
+The DXF is written,
+read back, and compared.
+
+10
+00:00:30,210 --> 00:00:32,075
+Underneath runs AMOEBA.
+
+11
+00:00:32,095 --> 00:00:35,215
+Every value and every step
+is recorded and linked.
+
+12
+00:00:35,235 --> 00:00:36,340
+Change one number —
+
+13
+00:00:36,360 --> 00:00:39,435
+and everything that depended
+on it is flagged for review.
+
+14
+00:00:39,485 --> 00:00:41,841
+Replay a job, and it must match.
+
+15
+00:00:42,210 --> 00:00:44,815
+What it cannot confirm,
+it shows. The result stays:
+
+16
+00:00:44,835 --> 00:00:46,139
+review required.
+
+17
+00:00:46,210 --> 00:00:49,694
+In English and Japanese.
+And it runs fully offline.
+
+18
+00:00:50,210 --> 00:00:53,247
+NEXUS FABRIC.
+Engineering, reimagined.
+

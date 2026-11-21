@@ -1,0 +1,44 @@
+{
+ "id": "L-ECC-TO-CONE-3",
+ "group": "limit",
+ "title": "Eccentricity -> 0 (e = 0.001) reduces to the concentric cone",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 200,
+  "r2": 100,
+  "h": 300,
+  "e": 0.001
+ },
+ "expect": "accept",
+ "derivation": "With e = 0 the oblique cone is the right cone CONE-01: developed angle = sector angle 2*pi/sqrt(10), area = 30000*pi*sqrt(10); for small e the quantities are continuous (values from the mpmath tier at this e).  The relation compares the pattern with the cone_frustum pattern of the same radii and height.",
+ "quantities": {
+  "reducer": {
+   "developed_angle": [
+    1.9869176531458086,
+    1.9869176531458084e-11
+   ],
+   "rho_at_0": [
+    632.4548995809898,
+    6.324548995809898e-09
+   ],
+   "rho_at_180": [
+    632.456164492054,
+    6.324561644920539e-09
+   ],
+   "area": [
+    298037.64797455363,
+    0.00029803764797455364
+   ]
+  }
+ },
+ "relation": {
+  "type": "equivalent_outline",
+  "other": {
+   "family": "cone_frustum",
+   "r1": 200,
+   "r2": 100,
+   "h": 300
+  },
+  "tol_rel": 0.0001
+ }
+}

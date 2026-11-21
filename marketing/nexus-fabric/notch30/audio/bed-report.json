@@ -1,0 +1,8 @@
+{
+ "file": "bed.wav",
+ "integrated_lufs": -16.0,
+ "true_peak_dbfs": -1.7,
+ "samples": 1440000,
+ "seconds": 30.0,
+ "clipped_samples": 0
+}

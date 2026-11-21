@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>NEXUS FABRIC promo (real screens)</title>
+<!-- 30 s, 1920x1080, 30 fps. window.seek(seconds) draws any exact frame. ?lang=en|ja
+     Built around unedited captures of the running application (screens/*.png, 1920x1080 at 2x): the camera moves over them;
+     nothing on a screen is redrawn. Counts in the captions come from the same job's data (../notch30/data.js). -->
+<link rel="stylesheet" href="../launch30/node_modules/@fontsource-variable/inter/opsz.css">
+<link rel="stylesheet" href="../launch30/node_modules/@fontsource/noto-sans-jp/500.css">
+<link rel="stylesheet" href="../launch30/node_modules/@fontsource/noto-sans-jp/700.css">
+<style>
+:root{--ink:#f5f7fa;--blue:#2f7df6;--sky:#8fc0ff;--amber:#e8a33d;--bg:#0b0d10}
+html,body{margin:0;background:#000;overflow:hidden}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--bg);color:var(--ink);font-family:'Inter Variable','Noto Sans JP',-apple-system,'Helvetica Neue',sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased}
+.shot{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;opacity:0;will-change:transform}
+#vig{position:absolute;inset:0;background:radial-gradient(120% 120% at 50% 50%,rgba(0,0,0,0) 55%,rgba(0,0,0,.42) 100%);opacity:0}
+#hl{position:absolute;border:3px solid var(--blue);border-radius:10px;box-shadow:0 0 0 2000px rgba(6,8,12,.38),0 0 0 1px rgba(143,192,255,.5) inset;opacity:0}
+#cap{position:absolute;left:96px;bottom:92px;padding:18px 28px 20px;background:rgba(11,13,16,.92);border-radius:16px;box-shadow:0 18px 60px rgba(0,0,0,.5),0 0 0 1px rgba(245,247,250,.10);font-size:46px;font-weight:680;letter-spacing:-.022em;line-height:1.1;opacity:0;white-space:nowrap}
+#cap em{font-style:normal;color:var(--sky)}
+#cap.ja{font-size:42px;font-weight:700;letter-spacing:.02em}
+#status{position:absolute;right:96px;bottom:104px;padding:9px 14px;background:rgba(11,13,16,.88);border-radius:8px;font-size:17px;font-weight:560;letter-spacing:.09em;color:rgba(245,247,250,.78);opacity:0;white-space:nowrap}
+#status.ja{letter-spacing:.04em}
+#status::before{content:"";display:inline-block;width:8px;height:8px;margin-right:10px;background:var(--blue);vertical-align:1px}
+.slam{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;text-transform:uppercase}
+.slam .sm{font-size:74px;font-weight:800;letter-spacing:.01em;line-height:1;margin-bottom:14px}
+.slam .bg{font-size:100px;font-weight:900;letter-spacing:-.03em;line-height:.92;color:var(--sky);white-space:nowrap}
+.slam.ja .sm{font-size:70px;font-weight:700;letter-spacing:.06em;margin-bottom:40px}.slam.ja .bg{font-weight:700;letter-spacing:.02em}
+#end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;background:radial-gradient(90% 72% at 50% -6%,#232831 0%,#0d1014 58%,#060709 100%)}
+#end .wm{display:flex;align-items:center;gap:30px;font-size:96px;font-weight:650;letter-spacing:.13em}
+#end .l1{margin-top:30px;font-size:42px;font-weight:480;letter-spacing:-.012em;color:rgba(245,247,250,.92)}
+#end .cta{margin-top:54px;padding:18px 34px 20px;border-radius:14px;background:var(--blue);font-size:30px;font-weight:650;letter-spacing:-.005em;color:#fff}
+#end .l3{position:absolute;bottom:54px;font-size:19px;color:rgba(245,247,250,.56);letter-spacing:.02em}
+#end .l3::before{content:"";display:inline-block;width:8px;height:8px;margin-right:12px;background:var(--amber);vertical-align:2px}
+</style></head>
+<body><div id="stage">
+<img class="shot" id="img-a" src="screens/a-new.png" alt=""><img class="shot" id="img-b" src="screens/b-job.png" alt=""><img class="shot" id="img-c" src="screens/c-checks.png" alt=""><img class="shot" id="img-d" src="screens/d-records.png" alt=""><img class="shot" id="img-e" src="screens/e-branch.png" alt="">
+<div id="vig"></div><div id="hl"></div><div id="cap"></div><div id="status"></div>
+<div id="slams"></div>
+<div id="end"><div class="wm"><svg id="endmark" width="150" height="62" viewBox="0 0 150 62"><path fill="none" stroke="#2f7df6" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1 1"/></svg><span>NEXUS FABRIC</span></div><div class="l1"></div><div class="cta"></div><div class="l3"></div></div>
+</div>
+<script src="../notch30/data.js"></script>
+<script>
+const Q = new URLSearchParams(location.search), lang = Q.get('lang') === 'ja' ? 'ja' : 'en', NF = window.NF, DUR = 30, PI = Math.PI;
+const $ = (id) => document.getElementById(id), cl = (x) => Math.min(1, Math.max(0, x)), lerp = (a, b, k) => a + (b - a) * k;
+const sm = (a, b, t) => { const x = cl((t - a) / (b - a)); return x * x * (3 - 2 * x); };
+const out4 = (x) => 1 - Math.pow(1 - cl(x), 4), in2 = (x) => cl(x) * cl(x);                       // fast in, hard stop: the kinetic feel
+const settle = (x, resp = 0.4) => { if (x <= 0) return 0; const w = 2 * PI / resp * x; return 1 - (1 + w) * Math.exp(-w); };
+const bounce = (x, resp = 0.45, z = 0.6) => { if (x <= 0) return 0; const w = 2 * PI / resp, wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * x) * (Math.cos(wd * x) + (z * w / wd) * Math.sin(wd * x)); };
+const NCHK = NF.checks.length, NREC = NF.replay.records, NPAR = Object.values(NF.request).filter((v) => typeof v === 'number').length;   // 16 checks, 39 records, 9 numbers: read from the job, not typed
+const L = { en: {
+  slam: [['Enter the', 'numbers.'], ['Get the', 'flat pattern.'], ['See', 'every check.'], ['', 'Developed.'], ['', 'Checked.'], ['', 'On record.']],
+  cap: [`${['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'][NPAR] || NPAR} numbers in. <em>One joint.</em>`, 'The flat plate, <em>with its opening.</em>', 'Every curve, <em>measured.</em>', 'Both parts <em>of the joint.</em>', `${NCHK} checks, <em>line by line.</em>`, 'Every gate shown, <em>pass or not.</em>', `${NREC} records. <em>Replay matches.</em>`, 'DXF out, <em>marked not released.</em>'],
+  status: 'ACTUAL SOFTWARE · DEVELOPMENT BUILD', line: 'Engineering, Reimagined.', cta: 'Request a demonstration', disc: 'Product concept. Capabilities in development. Not validated for manufacturing.' },
+ ja: {
+  slam: [['数値を', '入力。'], ['展開図を', '取得。'], ['検証を', 'すべて表示。'], ['', '展開。'], ['', '検証。'], ['', '記録。']],
+  cap: [`${NPAR}つの数値で、<em>取合いひとつ。</em>`, '開口部つきの、<em>展開板。</em>', '曲線の長さを、<em>すべて表示。</em>', '取合いの、<em>両方の部材。</em>', `${NCHK}項目の検証を、<em>1行ずつ。</em>`, 'ゲートは合否を問わず、<em>すべて表示。</em>', `記録${NREC}件。<em>再実行と一致。</em>`, 'DXFを出力。<em>未リリースと明記。</em>'],
+  status: '実際のソフトウェア・開発版・画面表示は英語版', line: '設計を、再定義。', cta: 'デモのご依頼はこちら', disc: '製品コンセプトです。機能は開発中であり、製造用途での検証は未実施です。' } }[lang];
+
+// ---------- the cut. Everything lands on a half-second grid (the music's pulse).
+// slams: [start, end, index, move]
+const SLAMS = [[0, 1, 0, 'slide'], [1, 2, 1, 'stretch'], [2, 3, 2, 'split'], [7.5, 8.5, 3, 'stretch'], [14.5, 15.5, 4, 'slide'], [20.5, 21.5, 5, 'split']];
+// shots: camera keys [t, cx, cy, zoom] in the capture's own CSS pixels; highlights [t0, t1, [x, y, w, h]]; captions [t0, t1, index]
+const SHOTS = [
+  { a: 3.0, b: 7.5, img: 'a', k: [[3.0, 960, 540, 1.0], [3.85, 826, 594, 1.6], [7.5, 830, 594, 1.62]], hl: [[4.5, 7.3, [598, 440, 746, 312]]], cap: [[3.5, 7.3, 0]] },
+  { a: 8.5, b: 13.0, img: 'b', k: [[8.5, 1006, 590, 1.25], [9.3, 1006, 585, 2.238], [9.9, 1050, 583, 2.55], [11.4, 1052, 583, 2.62], [12.1, 567, 790, 2.9], [13.0, 569, 790, 2.94]], hl: [[10.2, 11.3, [979, 510, 153, 146]], [12.35, 12.95, [244, 826, 326, 27]]], cap: [[9.0, 11.4, 1], [11.9, 12.95, 2]] },
+  { a: 13.0, b: 14.5, img: 'e', k: [[13.0, 1006, 585, 2.1], [14.5, 1006, 585, 2.238]], hl: [], cap: [[13.1, 14.4, 3]] },
+  { a: 15.5, b: 18.5, img: 'c', k: [[15.5, 1484, 300, 1.6], [16.25, 1484, 330, 2.2], [17.2, 1484, 340, 2.2], [18.5, 1484, 660, 2.2]], hl: [[16.45, 17.15, [1452, 163, 106, 21]]], cap: [[16.0, 18.4, 4]] },
+  { a: 18.5, b: 20.5, img: 'b', k: [[18.5, 1484, 380, 1.9], [19.2, 1484, 332, 2.25], [20.5, 1484, 326, 2.32]], hl: [[19.1, 20.4, [1452, 163, 363, 21]]], cap: [[18.7, 20.4, 5]] },
+  { a: 21.5, b: 23.5, img: 'd', k: [[21.5, 1484, 300, 1.7], [22.15, 1484, 330, 2.2], [23.5, 1484, 400, 2.2]], hl: [[22.45, 23.4, [1627, 328, 120, 22]]], cap: [[21.9, 23.4, 6]] },
+  { a: 23.5, b: 25.0, img: 'b', k: [[23.5, 1006, 420, 1.9], [24.05, 1006, 351, 2.238], [25.0, 1010, 351, 2.28]], hl: [[24.15, 24.95, [1175, 121, 164, 29]]], cap: [[23.7, 24.9, 7]] } ];
+const CUES = [];   // collected below for the sound: node -e can read window.CUES
+
+$('slams').innerHTML = SLAMS.map((s, i) => `<div class="slam ${lang}" id="sl${i}">${L.slam[s[2]][0] ? `<div class="sm">${L.slam[s[2]][0]}</div>` : ''}<div class="bg">${L.slam[s[2]][1]}</div></div>`).join('');
+const SL = SLAMS.map((s, i) => ({ el: $('sl' + i), sm_: $('sl' + i).querySelector('.sm'), bg: $('sl' + i).querySelector('.bg') }));
+$('cap').className = $('status').className = lang; $('status').textContent = L.status;
+$('end').querySelector('.l1').textContent = L.line; $('end').querySelector('.cta').textContent = L.cta; $('end').querySelector('.l3').textContent = L.disc;
+{ const R = NF.request.header_radius, r = NF.request.branch_radius, be = NF.request.beta_deg * PI / 180, sOf = (p) => (Math.sqrt(R * R - (r * Math.cos(p)) ** 2) - r * Math.sin(p) * Math.cos(be)) / Math.sin(be), s0 = sOf(PI / 2), s1 = sOf(-PI / 2), pts = [];
+  for (let i = 0; i <= 120; i++) { const p = 2 * PI * i / 120; pts.push((5 + 140 * i / 120).toFixed(2) + ' ' + (5 + 52 * (sOf(p) - s0) / (s1 - s0)).toFixed(2)); } $('endmark').firstChild.setAttribute('d', 'M' + pts.join('L')); }   // the mark is the developed saddle cut
+
+const camAt = (sh, t) => { const k = sh.k; let i = 0; while (i < k.length - 2 && t >= k[i + 1][0]) i++; const a = k[i], b = k[i + 1], x = out4((t - a[0]) / (b[0] - a[0])); return [lerp(a[1], b[1], x), lerp(a[2], b[2], x), a[3] * Math.pow(b[3] / a[3], x)]; };
+
+window.seek = (t) => {
+  t = Math.max(0, Math.min(DUR, t));
+  // slams: three ways in (slide, stretch, split), one fast way out
+  SLAMS.forEach(([a, b, , mv], i) => { const s = SL[i], on = t >= a && t < b; s.el.style.opacity = on ? 1 : 0; if (!on) return; const k = out4((t - a) / 0.32), x = in2((t - (b - 0.14)) / 0.14), k2 = out4((t - a - 0.12) / 0.34);
+    s.el.style.opacity = 1 - x; s.el.style.transform = `translateY(${(-46 * x).toFixed(2)}px)`;
+    if (s.sm_) { s.sm_.style.opacity = k; s.sm_.style.transform = `translateY(${(26 * (1 - k)).toFixed(2)}px)`; }
+    const kb = s.sm_ ? k2 : k; s.bg.style.opacity = cl(kb * 3);
+    s.bg.style.transform = mv === 'slide' ? `translateX(${(-260 * (1 - kb)).toFixed(2)}px) skewX(${(-9 * (1 - kb)).toFixed(2)}deg)` : mv === 'stretch' ? `scaleY(${(0.16 + 0.84 * bounce((t - a - (s.sm_ ? 0.12 : 0)), 0.34, 0.62)).toFixed(4)})` : 'none';
+    s.bg.style.letterSpacing = mv === 'split' ? `${(lerp(0.34, lang === 'ja' ? 0.02 : -0.03, kb)).toFixed(4)}em` : ''; });
+  // shots: the camera over real captures
+  const sh = SHOTS.find((s) => t >= s.a && t < s.b); for (const id of 'abcde') $('img-' + id).style.opacity = sh && sh.img === id ? 1 : 0;
+  const hl = $('hl'), cap = $('cap'); let capOn = 0, hlOn = 0;
+  if (sh) { const [cx, cy, z] = camAt(sh, t), tx = 960 - cx * z, ty = 540 - cy * z; $('img-' + sh.img).style.transform = `translate(${tx.toFixed(2)}px,${ty.toFixed(2)}px) scale(${z.toFixed(5)})`;
+    for (const [a, b, r] of sh.hl) if (t >= a && t < b) { const k = bounce(t - a, 0.36, 0.7), o = Math.min(cl((t - a) / 0.1), 1 - in2((t - (b - 0.12)) / 0.12)), g = 10 + 26 * (1 - cl(k));
+      hl.style.left = (tx + r[0] * z - g).toFixed(2) + 'px'; hl.style.top = (ty + r[1] * z - g).toFixed(2) + 'px'; hl.style.width = (r[2] * z + 2 * g - 6).toFixed(2) + 'px'; hl.style.height = (r[3] * z + 2 * g - 6).toFixed(2) + 'px'; hlOn = o; }
+    for (const [a, b, i] of sh.cap) if (t >= a && t < b) { if (cap.dataset.i !== String(i)) { cap.innerHTML = L.cap[i]; cap.dataset.i = i; } const k = settle(t - a, 0.34); capOn = Math.min(cl(k * 1.6), 1 - in2((t - (b - 0.12)) / 0.12)); cap.style.transform = `translateY(${(30 * (1 - k)).toFixed(2)}px)`; } }
+  hl.style.opacity = hlOn; cap.style.opacity = capOn; $('vig').style.opacity = sh ? 1 : 0; $('status').style.opacity = sh ? sm(sh.a, sh.a + 0.25, t) : 0;
+  // end card
+  const e = $('end'), et = t - 25; e.style.opacity = t >= 25 ? 1 : 0;
+  if (t >= 25) { $('endmark').firstChild.setAttribute('stroke-dashoffset', (1 - sm(0.05, 0.75, et)).toFixed(4)); const k = settle(et - 0.3, 0.6), wm = e.querySelector('.wm span'); wm.style.opacity = cl(k * 1.4); wm.style.transform = `translateX(${(22 * (1 - k)).toFixed(2)}px)`;
+    const k1 = settle(et - 0.85, 0.6), l1 = e.querySelector('.l1'); l1.style.opacity = cl(k1 * 1.4); l1.style.transform = `translateY(${(16 * (1 - k1)).toFixed(2)}px)`;
+    const k2 = bounce(et - 1.5, 0.5, 0.62), c = e.querySelector('.cta'); c.style.opacity = cl(k2 * 2); c.style.transform = `scale(${(0.86 + 0.14 * k2).toFixed(4)})`; e.querySelector('.l3').style.opacity = sm(0.2, 0.8, et); }
+};
+(async () => { await document.fonts.ready; for (const tt of [0.5, 1.5, 2.5, 8, 15, 21, 27]) window.seek(tt); await document.fonts.ready;
+  await Promise.all([...document.images].map((im) => im.complete ? 0 : new Promise((r) => { im.onload = im.onerror = r; })));
+  for (const s of SL) { s.bg.style.fontSize = '100px'; s.el.style.opacity = 1; const w = s.bg.getBoundingClientRect().width; s.bg.style.fontSize = Math.min(330, 100 * 1500 / w).toFixed(1) + 'px'; s.el.style.opacity = 0; }   // the main word fills most of the width
+  window.seek(Number(Q.get('t') || 0)); window.READY = true; })();
+</script></body></html>

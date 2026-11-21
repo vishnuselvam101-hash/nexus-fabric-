@@ -1,0 +1,13 @@
+{
+ "id": "E-cone_frustum-r1-Infinity",
+ "group": "refusal",
+ "title": "cone_frustum: r1 = Infinity",
+ "request": null,
+ "expect": "refuse",
+ "derivation": "Infinity is not a finite JSON number: the request must be rejected at the boundary (HTTP 400), never computed.",
+ "refusal": {
+  "kind": "malformed",
+  "mentions": []
+ },
+ "raw_body": "{\"family\": \"cone_frustum\", \"r1\": Infinity, \"r2\": 100, \"h\": 300}"
+}

@@ -1,0 +1,562 @@
+{
+ "bpm": 120,
+ "beat_s": 0.5,
+ "bar_s": 2.0,
+ "duration_s": 54.0,
+ "frames": 2592000,
+ "sample_rate": 48000,
+ "peak_dBFS_before_scaling": 6.28,
+ "scale_dB": -12.3,
+ "tail_silent_from_s": 54.0,
+ "sections": [
+  [
+   0.0,
+   2.0,
+   "beat",
+   0,
+   0,
+   "q",
+   "Dm"
+  ],
+  [
+   2.0,
+   4.0,
+   "beat",
+   0,
+   8,
+   "8",
+   "Dm"
+  ],
+  [
+   4.0,
+   6.0,
+   "beat",
+   1,
+   8,
+   "8",
+   "Bb"
+  ],
+  [
+   6.0,
+   8.0,
+   "beat",
+   2,
+   16,
+   "8",
+   "C"
+  ],
+  [
+   8.0,
+   10.0,
+   "beat",
+   1,
+   8,
+   "8",
+   "F"
+  ],
+  [
+   10.0,
+   12.0,
+   "beat",
+   1,
+   8,
+   "8",
+   "F"
+  ],
+  [
+   12.0,
+   14.0,
+   "beat",
+   1,
+   16,
+   "16",
+   "Dm"
+  ],
+  [
+   14.0,
+   16.0,
+   "beat",
+   1,
+   16,
+   "16",
+   "Bb"
+  ],
+  [
+   16.0,
+   18.0,
+   "beat",
+   1,
+   16,
+   "16",
+   "F"
+  ],
+  [
+   18.0,
+   20.0,
+   "beat",
+   1,
+   16,
+   "16",
+   "C"
+  ],
+  [
+   20.0,
+   22.0,
+   "beat",
+   1,
+   8,
+   "8",
+   "Dm"
+  ],
+  [
+   22.0,
+   24.0,
+   "beat",
+   1,
+   8,
+   "8",
+   "Gm"
+  ],
+  [
+   24.0,
+   26.0,
+   "beat",
+   1,
+   8,
+   "8",
+   "Bb"
+  ],
+  [
+   26.0,
+   28.0,
+   "beat",
+   1,
+   16,
+   "8",
+   "F"
+  ],
+  [
+   28.0,
+   30.0,
+   "beat",
+   2,
+   16,
+   "8",
+   "C"
+  ],
+  [
+   30.0,
+   36.0,
+   "bar",
+   0,
+   0,
+   "drone",
+   "Bb"
+  ],
+  [
+   36.0,
+   38.0,
+   "beat",
+   1,
+   8,
+   "8",
+   "Dm"
+  ],
+  [
+   38.0,
+   40.0,
+   "beat",
+   1,
+   16,
+   "16",
+   "C"
+  ],
+  [
+   40.0,
+   42.0,
+   "beat",
+   2,
+   16,
+   "16",
+   "Dm"
+  ],
+  [
+   42.0,
+   46.0,
+   "bar_soft",
+   0,
+   0,
+   "drone",
+   "F"
+  ],
+  [
+   46.0,
+   48.0,
+   "beat_soft",
+   1,
+   8,
+   "8",
+   "Dm"
+  ],
+  [
+   48.0,
+   50.0,
+   "beat",
+   2,
+   16,
+   "8",
+   "Bb"
+  ],
+  [
+   50.0,
+   54.0,
+   "end",
+   0,
+   0,
+   "drone",
+   "D"
+  ]
+ ],
+ "slams_s": [
+  12.0,
+  14.0,
+  16.0,
+  18.0
+ ],
+ "ticks_s": [
+  12.0,
+  14.0,
+  16.0,
+  18.0,
+  19.0
+ ],
+ "whooshes": [
+  [
+   4.0,
+   1.0,
+   "rise"
+  ],
+  [
+   12.0,
+   1.0,
+   "rise"
+  ],
+  [
+   20.0,
+   1.0,
+   "rise"
+  ],
+  [
+   26.0,
+   1.0,
+   "rise"
+  ],
+  [
+   30.0,
+   1.0,
+   "rise"
+  ],
+  [
+   42.0,
+   1.2,
+   "fall"
+  ],
+  [
+   46.0,
+   1.0,
+   "rise"
+  ]
+ ],
+ "events": [
+  {
+   "t": 0.0,
+   "section": "0-2",
+   "chord": "Dm",
+   "kick": "beat",
+   "snare": 0,
+   "hats": 0,
+   "bass": "q",
+   "level": 0.688
+  },
+  {
+   "t": 2.0,
+   "section": "2-4",
+   "chord": "Dm",
+   "kick": "beat",
+   "snare": 0,
+   "hats": 8,
+   "bass": "8",
+   "level": 0.75
+  },
+  {
+   "t": 4.0,
+   "section": "4-6",
+   "chord": "Bb",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 8,
+   "bass": "8",
+   "level": 0.875
+  },
+  {
+   "t": 6.0,
+   "section": "6-8",
+   "chord": "C",
+   "kick": "beat",
+   "snare": 2,
+   "hats": 16,
+   "bass": "8",
+   "level": 1.0
+  },
+  {
+   "t": 8.0,
+   "section": "8-10",
+   "chord": "F",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 8,
+   "bass": "8",
+   "level": 0.875
+  },
+  {
+   "t": 10.0,
+   "section": "10-12",
+   "chord": "F",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 8,
+   "bass": "8",
+   "level": 0.875
+  },
+  {
+   "t": 12.0,
+   "section": "12-14",
+   "chord": "Dm",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 16,
+   "bass": "16",
+   "level": 1.0
+  },
+  {
+   "t": 14.0,
+   "section": "14-16",
+   "chord": "Bb",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 16,
+   "bass": "16",
+   "level": 1.0
+  },
+  {
+   "t": 16.0,
+   "section": "16-18",
+   "chord": "F",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 16,
+   "bass": "16",
+   "level": 1.0
+  },
+  {
+   "t": 18.0,
+   "section": "18-20",
+   "chord": "C",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 16,
+   "bass": "16",
+   "level": 1.0
+  },
+  {
+   "t": 20.0,
+   "section": "20-22",
+   "chord": "Dm",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 8,
+   "bass": "8",
+   "level": 0.875
+  },
+  {
+   "t": 22.0,
+   "section": "22-24",
+   "chord": "Gm",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 8,
+   "bass": "8",
+   "level": 0.875
+  },
+  {
+   "t": 24.0,
+   "section": "24-26",
+   "chord": "Bb",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 8,
+   "bass": "8",
+   "level": 0.875
+  },
+  {
+   "t": 26.0,
+   "section": "26-28",
+   "chord": "F",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 16,
+   "bass": "8",
+   "level": 0.875
+  },
+  {
+   "t": 28.0,
+   "section": "28-30",
+   "chord": "C",
+   "kick": "beat",
+   "snare": 2,
+   "hats": 16,
+   "bass": "8",
+   "level": 1.0
+  },
+  {
+   "t": 30.0,
+   "section": "30-36",
+   "chord": "Bb",
+   "kick": "bar",
+   "snare": 0,
+   "hats": 0,
+   "bass": "drone",
+   "level": 1.125
+  },
+  {
+   "t": 36.0,
+   "section": "36-38",
+   "chord": "Dm",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 8,
+   "bass": "8",
+   "level": 1.0
+  },
+  {
+   "t": 38.0,
+   "section": "38-40",
+   "chord": "C",
+   "kick": "beat",
+   "snare": 1,
+   "hats": 16,
+   "bass": "16",
+   "level": 1.125
+  },
+  {
+   "t": 40.0,
+   "section": "40-42",
+   "chord": "Dm",
+   "kick": "beat",
+   "snare": 2,
+   "hats": 16,
+   "bass": "16",
+   "level": 1.25
+  },
+  {
+   "t": 42.0,
+   "section": "42-46",
+   "chord": "F",
+   "kick": "bar_soft",
+   "snare": 0,
+   "hats": 0,
+   "bass": "drone",
+   "level": 0.562
+  },
+  {
+   "t": 46.0,
+   "section": "46-48",
+   "chord": "Dm",
+   "kick": "beat_soft",
+   "snare": 1,
+   "hats": 8,
+   "bass": "8",
+   "level": 0.75
+  },
+  {
+   "t": 48.0,
+   "section": "48-50",
+   "chord": "Bb",
+   "kick": "beat",
+   "snare": 2,
+   "hats": 16,
+   "bass": "8",
+   "level": 1.125
+  },
+  {
+   "t": 50.0,
+   "section": "50-54",
+   "chord": "D",
+   "kick": "end",
+   "snare": 0,
+   "hats": 0,
+   "bass": "drone",
+   "level": 1.25
+  },
+  {
+   "t": 12.0,
+   "accent": "Dm"
+  },
+  {
+   "t": 14.0,
+   "accent": "Bb"
+  },
+  {
+   "t": 16.0,
+   "accent": "F"
+  },
+  {
+   "t": 18.0,
+   "accent": "C"
+  },
+  {
+   "t": 19.0,
+   "tick": "fifth part"
+  },
+  {
+   "t": 8.0,
+   "hit": "product appears"
+  },
+  {
+   "t": 30.0,
+   "hit": "AMOEBA, held Bb chord"
+  },
+  {
+   "t": 4.0,
+   "whoosh": "rising into the cut"
+  },
+  {
+   "t": 12.0,
+   "whoosh": "rising into the cut"
+  },
+  {
+   "t": 20.0,
+   "whoosh": "rising into the cut"
+  },
+  {
+   "t": 26.0,
+   "whoosh": "rising into the cut"
+  },
+  {
+   "t": 30.0,
+   "whoosh": "rising into the cut"
+  },
+  {
+   "t": 42.0,
+   "whoosh": "pulls back"
+  },
+  {
+   "t": 46.0,
+   "whoosh": "rising into the cut"
+  },
+  {
+   "t": 50.0,
+   "hit": "final hit and tail"
+  }
+ ]
+}

@@ -1,0 +1,20 @@
+{
+ "id": "E-cone_frustum-r1-2e8",
+ "group": "refusal",
+ "title": "cone_frustum: r1 = 2e8 mm",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 200000000.0,
+  "r2": 100,
+  "h": 300
+ },
+ "expect": "refuse",
+ "derivation": "Declared implementation limit of the build: magnitudes above 1e8 mm are refused.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "magnitude",
+   "exceeds"
+  ]
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "id": "E-br-beta-0",
+ "group": "refusal",
+ "title": "branch: beta = 0 deg",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 150,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 0,
+  "delta": 0,
+  "s_end": 400
+ },
+ "expect": "refuse",
+ "derivation": "Angle between axes outside the open interval (0, 180) degrees (B2-005: the former 10..170 deg limit is gone, 5 and 175 deg are accepted, see A-BR-GRAZE-*). 600 deg is not an angle between two lines.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "beta",
+   "angle"
+  ]
+ }
+}

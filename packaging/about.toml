@@ -1,0 +1,22 @@
+# cargo-about configuration for packaging/THIRD_PARTY_NOTICES.txt.
+# Regenerate with: packaging/generate_notices.sh
+# Only the licences listed here are accepted. Any other licence makes the
+# generation fail, so a new dependency with a different licence stops the build
+# until it is reviewed.
+accepted = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Zlib",
+    "Unicode-3.0",
+    "Unlicense",
+    "BSL-1.0",
+]
+
+# The two targets the packages are built for (packaging/linux and packaging/windows).
+targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-gnu"]
+
+# Dev-dependencies (tests) are not compiled into the shipped binary.
+ignore-dev-dependencies = true

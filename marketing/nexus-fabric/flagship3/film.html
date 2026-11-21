@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NEXUS FABRIC — film 3</title>
+<!-- Revision 3. One canvas; window.seek(seconds) draws every frame from time. ?lang=en|ja
+     Vector pieces: data/film-data.js (the product's output). Interface pieces: simplified for the film.
+     Real pixels: capture/footage (the application), cropped and moved only. -->
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+html,body{margin:0;background:#f5f5f7;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:#f5f5f7}
+#gfx{position:absolute;left:0;top:0;width:1920px;height:1080px}
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="gfx" width="1920" height="1080"></canvas></div>
+<script src="lib/engine.js"></script>
+<script src="lib/gfx.js"></script>
+<script src="script/onscreen.js"></script>
+<script src="data/check-labels.js"></script>
+<script src="data/film-data.js"></script>
+<script src="film/core.js"></script>
+<script src="film/scenes-a.js"></script>
+<script src="film/scenes-b.js"></script>
+<script src="film/cues.js"></script>
+<script src="film/main.js"></script>
+</body>
+</html>

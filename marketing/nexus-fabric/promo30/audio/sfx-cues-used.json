@@ -1,0 +1,140 @@
+{
+ "source": "cues.json",
+ "cues": [
+  {
+   "t": 0.0,
+   "type": "impact",
+   "gain": 0.45
+  },
+  {
+   "t": 1.0,
+   "type": "impact",
+   "gain": 0.45
+  },
+  {
+   "t": 2.0,
+   "type": "impact",
+   "gain": 0.45
+  },
+  {
+   "t": 3.0,
+   "type": "whoosh",
+   "gain": 0.6
+  },
+  {
+   "t": 4.5,
+   "type": "tick",
+   "gain": 0.45
+  },
+  {
+   "t": 7.5,
+   "type": "impact",
+   "gain": 0.45
+  },
+  {
+   "t": 8.5,
+   "type": "whoosh",
+   "gain": 0.6
+  },
+  {
+   "t": 10.2,
+   "type": "tick",
+   "gain": 0.45
+  },
+  {
+   "t": 11.5,
+   "type": "whoosh",
+   "gain": 0.6
+  },
+  {
+   "t": 12.35,
+   "type": "tick",
+   "gain": 0.45
+  },
+  {
+   "t": 13.0,
+   "type": "tick",
+   "gain": 0.6
+  },
+  {
+   "t": 13.0,
+   "type": "whoosh",
+   "gain": 1.0
+  },
+  {
+   "t": 14.5,
+   "type": "impact",
+   "gain": 0.45
+  },
+  {
+   "t": 15.5,
+   "type": "whoosh",
+   "gain": 0.6
+  },
+  {
+   "t": 16.45,
+   "type": "tick",
+   "gain": 0.45
+  },
+  {
+   "t": 18.5,
+   "type": "tick",
+   "gain": 0.6
+  },
+  {
+   "t": 18.5,
+   "type": "whoosh",
+   "gain": 1.0
+  },
+  {
+   "t": 19.1,
+   "type": "tick",
+   "gain": 0.45
+  },
+  {
+   "t": 20.5,
+   "type": "impact",
+   "gain": 0.45
+  },
+  {
+   "t": 21.5,
+   "type": "whoosh",
+   "gain": 0.6
+  },
+  {
+   "t": 22.45,
+   "type": "glint",
+   "gain": 0.6
+  },
+  {
+   "t": 23.5,
+   "type": "tick",
+   "gain": 0.6
+  },
+  {
+   "t": 23.5,
+   "type": "whoosh",
+   "gain": 1.0
+  },
+  {
+   "t": 24.15,
+   "type": "tick",
+   "gain": 0.45
+  },
+  {
+   "t": 25.0,
+   "type": "impact",
+   "gain": 1.0
+  },
+  {
+   "t": 25.0,
+   "type": "whoosh",
+   "gain": 0.85
+  },
+  {
+   "t": 26.5,
+   "type": "glint",
+   "gain": 0.6
+  }
+ ]
+}

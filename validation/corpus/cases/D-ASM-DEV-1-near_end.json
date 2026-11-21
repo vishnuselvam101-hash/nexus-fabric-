@@ -1,0 +1,116 @@
+{
+ "id": "D-ASM-DEV-1-near_end",
+ "group": "assembly",
+ "title": "R=150 (dev 145), r=100 (dev 96), beta=60, delta=20, opening near end of the plate",
+ "request": {
+  "family": "header_with_branch",
+  "header_radius": 150,
+  "header_dev_radius": 145,
+  "header_length": 681.532717,
+  "branch_station": 478.538651,
+  "branch_radius": 100,
+  "branch_dev_radius": 96,
+  "beta_deg": 60,
+  "delta": 20,
+  "s_end": 267.778812,
+  "surface_reference": "outside"
+ },
+ "expect": "accept",
+ "derivation": "As the D-ASM cases; development radii differ from contact radii (angles from the contact surfaces, arc lengths on the development radius); opening 0.01 R from a plate end.",
+ "quantities": {
+  "branch": {
+   "developed_width": [
+    603.1857894892403,
+    6.031857894892402e-09
+   ],
+   "s_min": [
+    92.56141682682471,
+    0.0273318560862312
+   ],
+   "s_max": [
+    230.27881222908462,
+    0.0273318560862312
+   ],
+   "s_at_0": [
+    103.92304845413267,
+    1.0392304845413267e-08
+   ]
+  },
+  "header": {
+   "developed_width": [
+    911.06186954104,
+    9.110618695410399e-09
+   ],
+   "length": [
+    681.532717,
+    6.81532717e-09
+   ],
+   "opening_x_min": [
+    448.4999996940893,
+    0.0273318560862312
+   ],
+   "opening_x_max": [
+    680.0327181825216,
+    0.0273318560862312
+   ]
+  }
+ },
+ "measures": {
+  "branch": {
+   "bbox_w": [
+    603.1857894892403,
+    6.031857894892402e-09
+   ],
+   "bbox_h": [
+    175.2173951731753,
+    0.0273318560862312
+   ],
+   "len_seam_a": [
+    163.85576354586735,
+    1.6385576354586735e-08
+   ],
+   "len_seam_b": [
+    163.85576354586735,
+    1.6385576354586735e-08
+   ],
+   "len_square_end": [
+    603.1857894892403,
+    6.031857894892402e-09
+   ]
+  },
+  "header": {
+   "bbox_w": [
+    681.532717,
+    6.81532717e-09
+   ],
+   "bbox_h": [
+    911.06186954104,
+    9.110618695410399e-09
+   ],
+   "outline_area": [
+    620918.4713034045,
+    6.209184713034045e-06
+   ],
+   "hole_xmin": [
+    448.4999996940893,
+    0.0273318560862312
+   ],
+   "hole_xmax": [
+    680.0327181825216,
+    0.0273318560862312
+   ],
+   "hole_ymin": [
+    373.9631793116609,
+    0.0273318560862312
+   ],
+   "hole_ymax": [
+    589.9887413807538,
+    0.0273318560862312
+   ],
+   "hole_count": [
+    1,
+    0
+   ]
+  }
+ }
+}

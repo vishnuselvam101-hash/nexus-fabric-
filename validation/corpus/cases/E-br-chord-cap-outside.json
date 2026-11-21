@@ -1,0 +1,22 @@
+{
+ "id": "E-br-chord-cap-outside",
+ "group": "refusal",
+ "title": "Branch stub R=7650000 r=5100000 beta=90: chord error 0.0106 mm with 46 080 segments (just outside the 0.01 mm cap)",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 7650000,
+  "branch_radius": 5100000,
+  "branch_dev_radius": 5100000,
+  "beta_deg": 90,
+  "delta": 0,
+  "s_end": 8000000.0
+ },
+ "expect": "refuse",
+ "derivation": "The chord error of the saddle with 46 080 uniform segments is 0.0106 mm (6 % over the 0.01 mm limit): refused (B2-005 point e, the cap is kept).",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "chord"
+  ]
+ }
+}

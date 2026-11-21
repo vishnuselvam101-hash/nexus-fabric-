@@ -1,0 +1,22 @@
+{
+ "id": "E-ecc-r1-eq-r2",
+ "group": "refusal",
+ "title": "eccentric: r1 = r2 (oblique cylinder)",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 100,
+  "r2": 100,
+  "h": 100,
+  "e": 100
+ },
+ "expect": "refuse",
+ "derivation": "OBLCYL-01 geometry: declared not implemented.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "r1",
+   "r2",
+   "cylinder"
+  ]
+ }
+}

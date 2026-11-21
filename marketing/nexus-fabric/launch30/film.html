@@ -1,0 +1,387 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>NEXUS FABRIC launch film 30 s</title>
+<!-- fonts: local files only (npm packages in ./node_modules, SIL OFL 1.1; see FONTS.md) -->
+<link rel="stylesheet" href="node_modules/@fontsource-variable/inter/opsz.css">
+<link rel="stylesheet" href="node_modules/@fontsource-variable/inter/opsz-italic.css">
+<link rel="stylesheet" href="node_modules/@fontsource/noto-sans-jp/400.css">
+<link rel="stylesheet" href="node_modules/@fontsource/noto-sans-jp/500.css">
+<link rel="stylesheet" href="node_modules/@fontsource/jetbrains-mono/400.css">
+<style>
+:root{--g0:#0E1116;--g1:#171B21;--line:#2A313A;--t1:#8E969F;--t2:#C9CED4;--w:#F5F7FA;--blue:#2F7DF6;--amber:#E8A33D;
+ --sans:"Inter Variable","Noto Sans JP",sans-serif;--mono:"JetBrains Mono","Inter Variable",monospace}
+html,body{margin:0;background:var(--g0);overflow:hidden}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--g0);color:var(--w);font-family:var(--sans);font-optical-sizing:auto;font-kerning:normal;-webkit-font-smoothing:antialiased}
+#stage>*{position:absolute}
+canvas{left:0;top:0}
+#shot{overflow:hidden;opacity:0}
+#shot img{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none}
+.mono{font-family:var(--mono)}
+/* one centred axis (x = 960) for headline, qualifier, content and status line; the small lock-up stays in the top-left margin */
+#wm{left:96px;top:54px;height:20px;display:flex;align-items:center;gap:14px;font-size:15px;font-weight:600;letter-spacing:.14em;color:var(--t2)}
+.ctr{left:0;width:1920px;display:flex;justify-content:center;align-items:center;white-space:nowrap}
+#head{top:94px;height:68px;font-size:58px;font-weight:600;letter-spacing:-.028em;color:var(--w)}
+.ja #head{font-size:50px;font-weight:500;letter-spacing:.02em}
+.ja #head.lat{font-size:58px;font-weight:600;letter-spacing:-.01em}
+#sub{top:170px;height:32px;font-size:25px;font-weight:400;letter-spacing:-.008em;color:var(--t2)}
+.ja #sub{font-size:23px;letter-spacing:.04em}
+/* the "planned" qualifier is a status tag, not a subhead */
+#tag{top:178px;height:36px}
+#tag>span{display:flex;align-items:center;gap:11px;height:34px;padding:0 15px 0 13px;border:1px solid rgba(232,163,61,.5);font-size:20px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--amber)}
+.ja #tag>span{font-weight:500;letter-spacing:.05em}
+.mk{display:inline-block;width:8px;height:8px;flex:none}
+.mk.p{background:var(--amber)}.mk.n{background:var(--t1)}
+#st{top:1004px;height:24px;gap:11px;font-size:15px;font-weight:450;letter-spacing:.01em;color:var(--t1)}
+.ja #st{letter-spacing:.04em}
+#eq{left:96px;top:566px;width:450px;opacity:0}
+.math{font-style:italic;font-size:23px;font-weight:400;color:var(--w);display:flex;align-items:center;gap:9px;white-space:nowrap;letter-spacing:0}
+.math .up{font-style:normal}
+.frac{display:inline-flex;flex-direction:column;align-items:center}
+.frac .n{padding:0 5px 8px}.frac .d{border-top:1px solid var(--t2);align-self:stretch;text-align:center;padding-top:6px}
+.rad{border-top:1px solid var(--t2);padding:3px 2px 0 3px;margin-left:-1px}
+sup{font-size:.6em;font-style:normal;line-height:0}
+.note{margin-top:22px;font-size:14px;letter-spacing:.02em;color:var(--t1);white-space:pre}
+#vals{left:1524px;top:566px;width:300px;opacity:0}
+.rowv{display:flex;justify-content:space-between;align-items:center;height:56px;border-top:1px solid var(--line);font-size:24px;color:var(--t1)}
+.rowv:last-child{border-bottom:1px solid var(--line)}
+.rowv i{font-family:var(--sans);font-size:21px;color:var(--t2)}
+.rowv b{font-weight:400;color:var(--blue)}
+#brand{left:0;top:0;width:1920px;height:1080px}
+#brand>*{position:absolute;left:0;right:0;opacity:0;white-space:nowrap;text-align:center}
+#lock{top:436px;height:84px;display:flex;justify-content:center;align-items:center;gap:30px}
+#lmk{width:112px;height:46px;flex:none}
+#bw{font-size:74px;line-height:84px;font-weight:600;letter-spacing:.14em;margin-right:-.14em;color:var(--w)}
+#bt{top:562px;font-size:34px;line-height:44px;font-weight:400;letter-spacing:-.012em;color:var(--w)}
+.ja #bt{font-size:32px;letter-spacing:0;font-feature-settings:"palt"}
+#bs{top:668px;font-size:16px;line-height:22px;font-weight:600;letter-spacing:.2em;color:var(--t2)}
+.ja #bs{font-size:18px;font-weight:400;letter-spacing:.06em}
+#bs span{opacity:0;display:inline-block;margin:0 .7em}
+#disc{top:1000px;height:28px;display:flex;justify-content:center;align-items:center;gap:12px;font-size:20px;font-weight:400;letter-spacing:0;color:var(--t1)}
+#disc .mk{opacity:.75}
+.ja #disc{letter-spacing:.03em}
+</style></head><body><div id="stage">
+<div id="shot"><img id="i1" src="assets/app-verification.png"><img id="i2" src="assets/app-gates.png"></div>
+<canvas id="c" width="1920" height="1080"></canvas>
+<div id="wm"><svg id="glyph" width="34" height="16" viewBox="0 0 34 16"></svg><span>NEXUS FABRIC</span></div>
+<div id="head" class="ctr"></div>
+<div id="sub" class="ctr"></div>
+<div id="tag" class="ctr"><span><i class="mk p"></i><span id="tagt"></span></span></div>
+<div id="eq">
+ <div class="math"><span>s<span class="up">(</span>φ<span class="up">)</span></span><span class="up">=</span><span class="frac"><span class="n"><span class="up">√</span><span class="rad">R<sup>2</sup> <span class="up">−</span> <span class="up">(</span>r <span class="up">cos</span> φ<span class="up">)</span><sup>2</sup></span> <span class="up">−</span> r <span class="up">sin</span> φ <span class="up">cos</span> β</span><span class="d"><span class="up">sin</span> β</span></span></div>
+ <div class="note mono" id="eqn"></div></div>
+<div id="vals" class="mono"></div>
+<div id="st" class="ctr"><i class="mk n"></i><span id="stt"></span></div>
+<div id="brand"><div id="lock"><span id="lmk"></span><span id="bw">NEXUS FABRIC</span></div><div id="bt"></div><div id="bs"></div><div id="disc"><i class="mk p"></i><span id="disct"></span></div></div>
+</div>
+<script>
+'use strict';
+const Q = new URLSearchParams(location.search), lang = Q.get('lang') === 'ja' ? 'ja' : 'en';
+const $ = (id) => document.getElementById(id);
+const C = { g0: '#0E1116', g1: '#171B21', line: '#2A313A', t1: '#8E969F', t2: '#C9CED4', w: '#F5F7FA', blue: '#2F7DF6', amber: '#E8A33D' };
+// strings written for the picture only (everything else comes from script/narration.json; JA per script/onscreen-ja-review.json)
+const X = { en: { c3: 'Interface check between parts', unit: 'units: mm', sub: 'AI-native engineering platform powered by AMOEBA' },
+            ja: { c3: '部材間の取合い確認', unit: '単位：mm', sub: 'AMOEBAを核とする、AIネイティブの設計基盤' } }[lang];
+const FALLBACK = { headline: ['Hours of engineering work', 'Meet NEXUS FABRIC', 'Understand. Reconstruct. Calculate.', 'Plate developments. DXF output.', ''],
+  labels: { fictional: 'Fictional drawing made for this film', actual_only: 'Actual software · development build', film_vis: 'Visualisation made for this film · not a product view', same_equations: 'Same equations as the product · redrawn for this film', planned_ai: 'AI drawing interpretation: planned', verification: 'Verification checks', disclaimer: 'Product concept. Capabilities in development. Not validated for manufacturing.', planned_reading: 'Drawing reading and 3D reconstruction: planned', planned_constraints: 'Manufacturing-constraint evaluation: planned', dxf_checked: 'DXF written, re-read and compared' },
+  slogan: 'UNDERSTAND. RECONSTRUCT. VERIFY. MANUFACTURE.', brand: 'NEXUS FABRIC — Engineering, Reimagined.' };
+let L = FALLBACK;
+
+// ---------- easing (every value is a pure function of film time)
+const cl = (x) => Math.min(1, Math.max(0, x)), mix = (a, b, k) => a + (b - a) * k;
+const sm = (a, b, t) => { const x = cl((t - a) / (b - a)); return x * x * x * (x * (x * 6 - 15) + 10); };      // smootherstep
+const out = (a, b, t) => { const x = cl((t - a) / (b - a)); return 1 - Math.pow(1 - x, 4); };                    // decelerating settle
+const win = (a, b, c, d, t) => sm(a, b, t) * (1 - sm(c, d, t));
+
+// ---------- geometry of the product's reference assembly (1 unit = 100 mm): header R150, branch r100 at 60 degrees, zero offset
+const R = 1.5, r = 1.0, BETA = Math.PI / 3, S_END = 4.0, HLEN = 12, PI = Math.PI, MM = 100;
+const sb = Math.sin(BETA), cb = Math.cos(BETA);
+const sOf = (phi) => (Math.sqrt(R * R - (r * Math.cos(phi)) ** 2) - r * Math.sin(phi) * cb) / sb;                // branch stub length along its axis
+const opX = (phi) => sOf(phi) * cb - r * Math.sin(phi) * sb, opU = (phi) => R * Math.asin(r * Math.cos(phi) / R);   // opening edge on the header flat plate
+const polyLen = (f, n = 20000) => { let s = 0, p = f(0); for (let i = 1; i <= n; i++) { const q = f(2 * PI * i / n); s += Math.hypot(q[0] - p[0], q[1] - p[1]); p = q; } return s; };
+// cut lengths as the product reports them: its DXF polylines have 720 chords, uniform in phi (uem develop.rs, n = 720)
+const LEN = { c_r: 2 * PI * r * MM, c_R: 2 * PI * R * MM, hl: HLEN * MM, open: polyLen((p) => [opX(p), opU(p)], 720) * MM, saddle: polyLen((p) => [r * p, sOf(p)], 720) * MM };
+const mm = (v, d = 3) => v.toFixed(d);
+const A0 = [cb, 0, sb], E2 = [-sb, 0, cb];                                                                        // branch axis; in-plane normal to it
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], sc = (a, k) => [a[0] * k, a[1] * k, a[2] * k], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const XL = sOf(PI / 2) * cb - sb, XR = sOf(-PI / 2) * cb + sb;                                                    // where the branch outline meets the header top line in elevation
+// header shell, unrolled isometrically about its top generator: k = 0 cylinder, k = 1 flat plate in the plane z = R
+function hdrPt(x, u, k) { const c = (1 - k) / R; if (c < 1e-7) return [x, u, R]; const a = u * c; return [x, Math.sin(a) / c, R - (1 - Math.cos(a)) / c]; }
+function hdrN(u, k) { const a = u * (1 - k) / R; return [0, Math.sin(a), Math.cos(a)]; }
+// branch frame (T tangent, A axis, N normal at the generator opposite the seam; seam at phi = 0 as in the product)
+const qFromM = (m) => { const [a, b, c, d, e, f, g, h, i] = m, tr = a + e + i; let q; if (tr > 0) { const s = Math.sqrt(tr + 1) * 2; q = [s / 4, (h - f) / s, (c - g) / s, (d - b) / s]; } else if (a > e && a > i) { const s = Math.sqrt(1 + a - e - i) * 2; q = [(h - f) / s, s / 4, (b + d) / s, (c + g) / s]; } else if (e > i) { const s = Math.sqrt(1 + e - a - i) * 2; q = [(c - g) / s, (b + d) / s, s / 4, (f + h) / s]; } else { const s = Math.sqrt(1 + i - a - e) * 2; q = [(d - b) / s, (c + g) / s, (f + h) / s, s / 4]; } return q; };
+const mFromQ = ([w, x, y, z]) => [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w), 2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w), 2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)];
+const slerp = (p, q, k) => { let d = p[0] * q[0] + p[1] * q[1] + p[2] * q[2] + p[3] * q[3]; if (d < 0) { q = q.map((v) => -v); d = -d; } if (d > 0.9995) return p.map((v, i) => mix(v, q[i], k)); const th = Math.acos(d), s = Math.sin(th), a = Math.sin((1 - k) * th) / s, b = Math.sin(k * th) / s; return p.map((v, i) => a * v + b * q[i]); };
+const T0 = sc(E2, -1), N0 = [0, -1, 0];
+// the flat branch pattern is laid as the application shows it: u = r*phi to the right, cut edge up (the plate is seen from its inner face)
+const Q0 = qFromM([T0[0], A0[0], N0[0], T0[1], A0[1], N0[1], T0[2], A0[2], N0[2]]), Q1 = [0, 1, 0, 0];           // columns T, A, N -> (x, -y, -z)
+const GAP = 1.3, O1 = [HLEN / 2 + GAP + PI * r, S_END - PI * R, R + r];                                            // where the branch pattern lies on the sheet
+function brFrame(e, lift) { const m = mFromQ(slerp(Q0, Q1, e)); return { T: [m[0], m[3], m[6]], A: [m[1], m[4], m[7]], N: [m[2], m[5], m[8]], O: add(sc(sc(A0, lift), 1 - e), sc(O1, e)) }; }
+function brPt(F, w, s, k) { const c = (1 - k) / r; let a, b; if (c < 1e-7) { a = w; b = r; } else { a = Math.sin(w * c) / c; b = r - (1 - Math.cos(w * c)) / c; } return [F.O[0] + s * F.A[0] + a * F.T[0] + b * F.N[0], F.O[1] + s * F.A[1] + a * F.T[1] + b * F.N[1], F.O[2] + s * F.A[2] + a * F.T[2] + b * F.N[2]]; }
+function brN(F, w, k) { const a = w * (1 - k) / r, s = Math.sin(a), c = Math.cos(a); return [s * F.T[0] + c * F.N[0], s * F.T[1] + c * F.N[1], s * F.T[2] + c * F.N[2]]; }
+const wOf = (phi) => r * (phi - PI);                                                                               // flat abscissa u = r*phi, measured from the fixed generator
+
+// header mesh in pattern coordinates (x, u): regular cells outside a box round the opening, a ring mesh inside it (so the opening edge is exact)
+const HM = (() => {
+  const NO = 144, op = []; let x0 = 1e9, x1 = -1e9, u1 = 0, cx = 0;
+  for (let i = 0; i < NO; i++) { const p = 2 * PI * i / NO; op.push([opX(p), opU(p)]); x0 = Math.min(x0, opX(p)); x1 = Math.max(x1, opX(p)); u1 = Math.max(u1, opU(p)); }
+  cx = (x0 + x1) / 2; const bx0 = x0 - 0.3, bx1 = x1 + 0.3, bu = u1 + 0.3;
+  const xs = [-6, bx0, bx1, 6], us = [-bu, bu]; for (let i = 1; i < 24; i++) xs.push(-6 + i * 0.5); for (let i = 0; i <= 168; i++) us.push(-PI * R + 2 * PI * R * i / 168);
+  const uniq = (a) => a.sort((p, q) => p - q).filter((v, i) => i === 0 || v - a[i - 1] > 1e-6); const X_ = uniq(xs), U_ = uniq(us), quads = [];
+  for (let i = 0; i < X_.length - 1; i++) for (let j = 0; j < U_.length - 1; j++) { const xm = (X_[i] + X_[i + 1]) / 2, um = (U_[j] + U_[j + 1]) / 2; if (xm > bx0 && xm < bx1 && Math.abs(um) < bu) continue; quads.push([[X_[i], U_[j]], [X_[i + 1], U_[j]], [X_[i + 1], U_[j + 1]], [X_[i], U_[j + 1]]]); }
+  const cast = ([px, pu]) => { const dx = px - cx, du = pu, k = Math.min(dx > 0 ? (bx1 - cx) / dx : dx < 0 ? (bx0 - cx) / dx : 1e9, du !== 0 ? bu / Math.abs(du) : 1e9); return [cx + dx * k, du * k]; };
+  const ob = op.map(cast), M = 8, L2 = (a, b, k) => [mix(a[0], b[0], k), mix(a[1], b[1], k)];
+  for (let i = 0; i < NO; i++) { const j = (i + 1) % NO; for (let m = 0; m < M; m++) quads.push([L2(op[i], ob[i], m / M), L2(op[j], ob[j], m / M), L2(op[j], ob[j], (m + 1) / M), L2(op[i], ob[i], (m + 1) / M)]);
+    const ex = Math.abs(Math.abs(ob[i][1]) - bu) < 1e-9, fx = Math.abs(Math.abs(ob[j][1]) - bu) < 1e-9; if (ex !== fx) { const a = ex ? ob[i] : ob[j], b = ex ? ob[j] : ob[i]; quads.push([ob[i], ob[j], [b[0], a[1]]]); } }
+  return quads;
+})();
+const BM = (() => { const q = [], NP = 144, NS = 5; for (let i = 0; i < NP; i++) { const p0 = 2 * PI * i / NP, p1 = 2 * PI * (i + 1) / NP, a0 = sOf(p0), a1 = sOf(p1); for (let j = 0; j < NS; j++) q.push([[wOf(p0), mix(a0, S_END, j / NS)], [wOf(p1), mix(a1, S_END, j / NS)], [wOf(p1), mix(a1, S_END, (j + 1) / NS)], [wOf(p0), mix(a0, S_END, (j + 1) / NS)]]); } return q; })();
+const ring = (f, n = 240) => { const a = []; for (let i = 0; i <= n; i++) a.push(f(2 * PI * i / n)); return a; };
+const OPEN = ring((p) => [opX(p), opU(p)]), SADDLE = ring((p) => [wOf(p), sOf(p)]);
+const hash = (x) => { const s = Math.sin(x * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const grain = (x) => { const i = Math.floor(x), f = x - i, k = f * f * (3 - 2 * f); return 0.988 + 0.024 * mix(hash(i), hash(i + 1), k); };   // brushing: a smooth function of the circumferential coordinate
+
+// ---------- canvas helpers
+const cv = $('c'), g = cv.getContext('2d');
+const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+const off = mk(1920, 1080), go = off.getContext('2d'), shc = mk(960, 540), gs = shc.getContext('2d');
+// fixed grain (deterministic) that keeps the soft studio field from banding
+const NOISE = (() => { const c = mk(256, 256), x = c.getContext('2d'), d = x.createImageData(256, 256); for (let i = 0; i < 65536; i++) { const v = hash(i * 0.731 + 5.1); d.data[4 * i] = d.data[4 * i + 1] = d.data[4 * i + 2] = v > 0.5 ? 255 : 0; d.data[4 * i + 3] = Math.round(Math.abs(v - 0.5) * 2 * 14); } x.putImageData(d, 0, 0); return g.createPattern(c, 'repeat'); })();
+const SANS = '"Inter Variable","Noto Sans JP",sans-serif', MONO = '"JetBrains Mono","Inter Variable",monospace';
+function poly(c, pts, frac = 1, close = false) {   // stroke a polyline up to a fraction of its length (draw-on)
+  if (frac <= 0) return; const P = close ? pts.concat([pts[0]]) : pts; let tot = 0; const ls = []; for (let i = 1; i < P.length; i++) { const l = Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); ls.push(l); tot += l; }
+  let rem = tot * Math.min(frac, 1); c.beginPath(); c.moveTo(P[0][0], P[0][1]);
+  for (let i = 1; i < P.length; i++) { const l = ls[i - 1]; if (rem >= l) { c.lineTo(P[i][0], P[i][1]); rem -= l; } else { const k = l ? rem / l : 0; c.lineTo(mix(P[i - 1][0], P[i][0], k), mix(P[i - 1][1], P[i][1], k)); break; } } c.stroke();
+}
+function text(c, s, x, y, o = {}) { c.save(); c.globalAlpha *= o.a === undefined ? 1 : o.a; c.font = o.font || `14px ${MONO}`; c.fillStyle = o.col || C.t2; c.textAlign = o.al || 'center'; c.textBaseline = o.base || 'middle'; if (o.rot) { c.translate(x, y); c.rotate(o.rot); x = 0; y = 0; } if (o.bg) { const w = c.measureText(s).width + 16; c.fillStyle = o.bg; c.fillRect(x - (c.textAlign === 'center' ? w / 2 : c.textAlign === 'right' ? w - 8 : 8), y - 11, w, 22); c.fillStyle = o.col || C.t2; } c.fillText(s, x, y); c.restore(); }
+function dim(c, a, b, label, f, o = {}) {       // dimension line with oblique ticks; f = draw-on fraction
+  if (f <= 0) return; c.save(); c.strokeStyle = o.col || C.t1; c.lineWidth = 1; const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], k = out(0, 1, f);
+  const p = [mix(m[0], a[0], k), mix(m[1], a[1], k)], q = [mix(m[0], b[0], k), mix(m[1], b[1], k)]; poly(c, [p, q]);
+  for (const e of [p, q]) poly(c, [[e[0] - 5, e[1] + 5], [e[0] + 5, e[1] - 5]]);
+  let rot = Math.atan2(b[1] - a[1], b[0] - a[0]); if (rot > PI / 2 + 1e-6) rot -= PI; if (rot <= -PI / 2 + 1e-6) rot += PI; if (Math.abs(Math.abs(rot) - PI / 2) < 1e-6) rot = -PI / 2;
+  text(c, label, m[0], m[1], { a: sm(0.4, 1, f), rot, bg: o.bg || C.g0, col: o.tcol || C.t2, font: o.font }); c.restore();
+}
+function dotMark(c, p, col) { c.save(); c.fillStyle = col; c.beginPath(); c.arc(p[0], p[1], 3, 0, 2 * PI); c.fill(); c.restore(); }
+
+// ---------- timeline
+const T = { push: [4.7, 5.45], crop1: [6.0, 6.7], cutG: 7.6, cutW: 8.8, plate: [8.95, 9.85], morph: [10.4, 10.95], orbit: [11.7, 14.7], surf: [11.85, 12.75], sweep: [14.5, 17.4],
+  lift: [18.0, 18.9], top: [18.5, 21.2], unrollH: [18.9, 21.3], unrollB: [19.6, 21.3], move: [18.5, 20.5], flat: [21.2, 21.9], clear: [24.3, 24.75], end: [24.7, 25.35] };
+const FC = [960, 630], TH = 0.07;                                                                                  // content centre; wall thickness of the film's solid (visual only: the product develops the reference surface)
+
+// ---------- scene 1-2: the drawing sheet is pushed out of its own frame by the application window
+// crops in CSS px of the 1920 x 1080 application viewport (captures are 2x, so no beat is shown above native resolution): x, y, w, h, scale
+const WIN = { full: [0, 117, 1920, 939, 1280 / 1920], work: [232, 117, 1203, 939, 0.74], gates: [1183, 117, 737, 263.5, 1.9], canvas: [577, 117, 858, 939, 0.74], plate: [647.5, 302, 712.5, 560.5, 840 / 712.5] };
+const HR = { w: 12 * 70, h: 2 * R * 70 }, SHEET = [1248, 702];                                                     // header elevation at the scene-3 opening scale; drawing sheet
+function windowState(t) {
+  const a = sm(...T.crop1, t), pz = sm(...T.plate, t), m = sm(...T.morph, t), gates = t >= T.cutG && t < T.cutW, p = sm(...T.push, t);
+  const c = gates ? WIN.gates.slice() : t < T.cutG ? WIN.full.map((v, i) => mix(v, WIN.work[i], a)) : WIN.canvas.map((v, i) => mix(v, WIN.plate[i], pz));
+  const gs_ = 0.965 + 0.035 * cl(t / 4.7), w = mix(mix(SHEET[0] * gs_, c[2] * c[4], p), HR.w, m), h = mix(mix(SHEET[1] * gs_, c[3] * c[4], p), HR.h, m);
+  return { c, w, h, x: FC[0] - w / 2, y: FC[1] - h / 2, m, gates, p, gs: gs_ };
+}
+function drawSheet(t, W) {
+  const p = W.p; if (p >= 1) return; const s = W.gs;                                                                 // the drawing keeps its scale while it is pushed out
+  g.save(); g.beginPath(); g.rect(W.x, W.y, W.w, W.h); g.clip(); g.translate(FC[0] - SHEET[0] * s / 2 - p * W.w, FC[1] - SHEET[1] * s / 2); g.scale(s, s); g.lineJoin = 'round'; g.lineCap = 'round';
+  const K = 50, EO = [470, 400], E = (x, z) => [EO[0] + x * K, EO[1] - z * K], ax = (sv, o) => E(sv * cb - o * sb, sv * sb + o * cb);
+  // centrelines first: the subject before its frame
+  g.strokeStyle = C.t1; g.lineWidth = 0.8; g.setLineDash([22, 5, 3, 5]);
+  poly(g, [E(-6.7, 0), E(6.7, 0)], sm(0.05, 0.9, t)); poly(g, [ax(-0.9, 0), ax(S_END + 0.7, 0)], sm(0.3, 1.1, t));
+  const VO = [1030, 400], Vw = (y, z) => [VO[0] + y * K, VO[1] - z * K]; poly(g, [Vw(-2.1, 0), Vw(2.1, 0)], sm(0.9, 1.6, t)); poly(g, [Vw(0, -2.1), Vw(0, S_END * sb + 1.1)], sm(0.9, 1.6, t)); g.setLineDash([]);
+  // elevation (the header top line stops where the branch stands on it)
+  g.strokeStyle = C.w; g.lineWidth = 1.5;
+  poly(g, [E(XR, R), E(6, R), E(6, -R), E(-6, -R), E(-6, R), E(XL, R)], sm(0.3, 1.5, t));
+  poly(g, [ax(sOf(PI / 2), 1), ax(S_END, 1), ax(S_END, -1), ax(sOf(-PI / 2), -1)], sm(0.8, 1.8, t));
+  // end view: header circle, branch strip and its end, all projected along the header axis
+  const circ = []; for (let i = 0; i <= 180; i++) { const a = 2 * PI * i / 180 + Math.asin(r / R); circ.push(Vw(R * Math.sin(a), R * Math.cos(a))); } poly(g, circ, sm(1.0, 2.0, t));
+  const zt = (y) => Math.sqrt(R * R - y * y), fe = sm(1.4, 2.2, t); const endE = []; for (let i = 0; i <= 120; i++) { const q = 2 * PI * i / 120; endE.push(Vw(r * Math.cos(q), S_END * sb + r * Math.sin(q) * cb)); }
+  poly(g, [Vw(-r, zt(r)), Vw(-r, S_END * sb)], fe); poly(g, [Vw(r, zt(r)), Vw(r, S_END * sb)], fe); poly(g, endE, fe);
+  // dimensions (the inputs of the reference assembly, all taken from the constants above)
+  g.lineWidth = 1; const df = (a) => cl((t - a) / 0.8);
+  g.strokeStyle = C.line; for (const [a, b] of [[E(-6, -R - 0.15), E(-6, -R - 1.65)], [E(6, -R - 0.15), E(6, -R - 1.65)], [E(-6.15, R), E(-7.25, R)], [E(-6.15, -R), E(-7.25, -R)], [E(0, -R - 0.15), E(0, -R - 0.85)], [ax(0, 0.2), ax(0, 2.0)], [ax(S_END, 1.15), ax(S_END, 2.0)]]) poly(g, [a, b], sm(1.7, 2.3, t));
+  dim(g, E(-6, -R - 1.4), E(6, -R - 1.4), String(HLEN * MM), df(1.8)); dim(g, E(-7, -R), E(-7, R), '⌀' + 2 * R * MM, df(1.95));
+  dim(g, E(-6, -R - 0.65), E(0, -R - 0.65), String(HLEN / 2 * MM), df(2.1));
+  dim(g, ax(S_END + 0.45, -1), ax(S_END + 0.45, 1), '⌀' + 2 * r * MM, df(2.25)); dim(g, ax(0, 1.75), ax(S_END, 1.75), String(S_END * MM), df(2.4), { bg: C.g0 });
+  dim(g, Vw(-R, -R - 1.4), Vw(R, -R - 1.4), '⌀' + 2 * R * MM, df(2.55));
+  const arc = []; for (let i = 0; i <= 40; i++) { const a = BETA * i / 40; arc.push(E(2.6 * Math.cos(a), 2.6 * Math.sin(a))); } g.strokeStyle = C.t1; poly(g, arc, sm(2.3, 3.0, t));
+  text(g, Math.round(BETA * 180 / PI) + '°', ...E(3.25 * Math.cos(0.2), 3.25 * Math.sin(0.2)), { a: sm(2.6, 3.1, t) });
+  // sheet border and title block last
+  g.strokeStyle = C.line; g.lineWidth = 1; poly(g, [[20, 20], [1228, 20], [1228, 682], [20, 682]], sm(1.6, 2.8, t), true);
+  const tb = sm(2.0, 2.8, t); poly(g, [[868, 682], [868, 598], [1228, 598]], tb); poly(g, [[868, 640], [1228, 640]], tb); poly(g, [[1108, 640], [1108, 682]], tb);
+  text(g, L.labels.fictional, 884, 619, { al: 'left', a: sm(2.3, 2.9, t), font: `450 14px ${SANS}`, col: C.t2 });
+  text(g, `R${R * MM} / r${r * MM} / ${Math.round(BETA * 180 / PI)}°`, 884, 661, { al: 'left', a: sm(2.4, 3.0, t), font: `13px ${MONO}`, col: C.t1 });
+  text(g, 'NF-00', 1124, 661, { al: 'left', a: sm(2.4, 3.0, t), font: `13px ${MONO}`, col: C.t1 });
+  // the one line the drawing does not give: the true intersection, and its development
+  const w = []; for (let i = 0; i <= 80; i++) { const q = -PI / 2 + PI * i / 80, sv = sOf(q); w.push(E(sv * cb - r * Math.sin(q) * sb, sv * sb + r * Math.sin(q) * cb)); }
+  g.strokeStyle = C.blue; g.lineWidth = 2; poly(g, w, sm(3.0, 3.8, t));
+  const mid = w[18], cf2 = sm(3.5, 4.0, t); g.lineWidth = 1; poly(g, [[mid[0] - 5, mid[1] + 6], [mid[0] - 34, mid[1] + 40], [mid[0] - 200, mid[1] + 40]], cf2);
+  text(g, 's(φ) = ?', mid[0] - 150, mid[1] + 23, { a: sm(3.7, 4.2, t), col: C.blue, font: `italic 400 19px ${SANS}` });
+  g.restore();
+}
+
+// ---------- scenes 3-4: orthographic camera, painter-sorted shells with wall thickness
+function camera(t) {
+  const o = sm(...T.orbit, t), d = cl((t - T.orbit[0]) / (18.5 - T.orbit[0])), top = sm(...T.top, t);
+  const az = mix(mix(0, 0.5, o) + 0.1 * d, 0, sm(18.3, 20.0, t)), el = mix(0.5 * o, PI / 2, top);
+  return { az, el, K: mix(mix(70, 64, o), 64, top), cx: 960, cy: mix(mix(FC[1], 572, o), 632, top), tg: [mix(mix(0, 0.35, o), (GAP + 2 * PI * r) / 2, top), 0, mix(mix(0, 1.0, o), R, top)] };
+}
+function projector(c) { const ca = Math.cos(c.az), sa = Math.sin(c.az), ce = Math.cos(c.el), se = Math.sin(c.el), rt = [ca, sa, 0], up = [-sa * se, ca * se, ce], f = [-sa * ce, ca * ce, -se];
+  const P = (p) => { const d = [p[0] - c.tg[0], p[1] - c.tg[1], p[2] - c.tg[2]]; return [c.cx + c.K * dot(rt, d), c.cy - c.K * dot(up, d), dot(f, d)]; }; P.f = f; return P; }
+const nrm = (v) => { const n = Math.hypot(...v) || 1; return v.map((x) => x / n); };
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const LIGHT = nrm([-0.38, -0.62, 0.68]);
+// brushed titanium under a soft overhead studio source: sky term, floor bounce, key, a broad anisotropic lobe and a tight one. nn faces the camera; k scales (inner faces sit in their own shade)
+function shade(nn, H, k0) { const sky = Math.pow(nn[2] * 0.5 + 0.5, 1.3), key = Math.max(0, dot(nn, LIGHT)), bounce = 0.075 * Math.pow(0.5 - nn[2] * 0.5, 2), h = Math.max(0, dot(nn, H));
+  const k = (0.085 + bounce + 0.36 * sky + 0.30 * key + 0.20 * Math.pow(h, 5) + 0.16 * Math.pow(h, 40)) * k0;
+  return `rgb(${Math.min(255, Math.round(196 * k + 8))},${Math.min(255, Math.round(202 * k + 9))},${Math.min(255, Math.round(210 * k + 11))})`; }
+const USEG = (() => { const a = []; for (let i = 0; i <= 120; i++) a.push(-PI * R + 2 * PI * R * i / 120); return a; })(), XSEG = (() => { const a = []; for (let i = 0; i <= 24; i++) a.push(-6 + i * 0.5); return a; })();
+function draw3D(t) {
+  const cam = camera(t), P = projector(cam), f = P.f, H = nrm([LIGHT[0] - f[0], LIGHT[1] - f[1], LIGHT[2] - f[2]]);
+  const kH = sm(...T.unrollH, t), kB = sm(...T.unrollB, t), F = brFrame(sm(...T.move, t), 1.25 * sm(...T.lift, t));
+  const sa = sm(...T.surf, t), flat = sm(...T.flat, t), gone = sm(...T.clear, t);
+  const h3 = (x, u, d) => { const p = hdrPt(x, u, kH); if (!d) return p; const n = hdrN(u, kH); return [p[0] - d * n[0], p[1] - d * n[1], p[2] - d * n[2]]; };
+  const b3 = (w, s, d) => { const p = brPt(F, w, s, kB); if (!d) return p; const n = brN(F, w, kB); return [p[0] - d * n[0], p[1] - d * n[1], p[2] - d * n[2]]; };
+  const HP = (x, u) => P(hdrPt(x, u, kH)), BP = (w, s) => P(brPt(F, w, s, kB));
+  // soft studio field behind the solid
+  if (sa > 0 && gone < 1) { const c = P([cam.tg[0], 0, 0]), gr = g.createRadialGradient(c[0], c[1] + 40, 0, c[0], c[1] + 40, 760); gr.addColorStop(0, 'rgba(30,36,44,.8)'); gr.addColorStop(0.35, 'rgba(26,31,38,.55)'); gr.addColorStop(0.7, 'rgba(19,23,29,.25)'); gr.addColorStop(1, 'rgba(14,17,22,0)');
+    g.save(); g.globalAlpha = sa * (1 - gone); g.fillStyle = gr; g.fillRect(0, 0, 1920, 1080); g.globalAlpha *= 0.5; g.fillStyle = NOISE; g.fillRect(0, 0, 1920, 1080); g.restore(); }
+  // centrelines of the drawing view
+  const axA = 1 - sm(12.0, 12.9, t);
+  if (axA > 0) { g.save(); g.lineWidth = 1; g.globalAlpha = axA; g.strokeStyle = C.t1; g.setLineDash([22, 5, 3, 5]); poly(g, [P([-6.7, 0, 0]), P([6.7, 0, 0])], sm(10.55, 11.1, t)); poly(g, [P(sc(A0, -0.9)), P(sc(A0, S_END + 0.7))], sm(10.65, 11.2, t)); g.restore(); }
+  // elevation line work: the plate in the application window has folded down to the header's side view; the drawing view is the front projection of the solid
+  const la = 1 - sm(12.0, 12.9, t), hOn = t >= T.morph[1];
+  if (la > 0) { g.save(); g.globalAlpha = la; g.strokeStyle = C.w; g.lineWidth = 1.5; g.lineJoin = 'round'; const W = (x, z) => P([x, 0, z]), ax = (s, o) => P(add(sc(A0, s), sc(E2, o)));
+    const gap = sm(10.95, 11.3, t), xm = (XL + XR) / 2; if (hOn) poly(g, [W(mix(xm, XR, gap), R), W(6, R), W(6, -R), W(-6, -R), W(-6, R), W(mix(xm, XL, gap), R)]);
+    poly(g, [ax(sOf(PI / 2), 1), ax(S_END, 1), ax(S_END, -1), ax(sOf(-PI / 2), -1)], sm(10.75, 11.4, t));
+    const w = []; for (let i = 0; i <= 80; i++) { const q = -PI / 2 + PI * i / 80; w.push(ax(sOf(q), Math.sin(q))); } g.strokeStyle = C.blue; g.lineWidth = 2; poly(g, w, sm(11.2, 11.7, t)); g.restore(); }
+  if (sa > 0 && gone < 1) {
+    const prims = [], zg = mix(-R, R - TH - 0.2, kH), LS = [-0.2, mix(0.6, 0.12, kH), 1];
+    gs.clearRect(0, 0, 960, 540); gs.fillStyle = '#000'; gs.beginPath();
+    const push = (w3, col, bias) => { const q = w3.map(P); let d = 0; for (const p of q) d += p[2]; prims.push({ d: d / q.length - (bias || 0), q, col }); };
+    const cast = (w3) => { for (let i = 0; i < w3.length; i++) { const p = w3[i], k = (p[2] - zg) / LS[2], s = P([p[0] - LS[0] * k, p[1] - LS[1] * k, zg]); if (i) gs.lineTo(s[0] / 2, s[1] / 2); else gs.moveTo(s[0] / 2, s[1] / 2); } gs.closePath(); };
+    // each wall point shows exactly one face: the outer skin where it faces the camera, otherwise the inner skin (offset by the wall thickness)
+    for (const c of HM) { let um = 0, xm = 0; for (const p of c) { um += p[1]; xm += p[0]; } um /= c.length; xm /= c.length; const n = hdrN(um, kH), gr = grain(um * 16);
+      cast(c.map(([x, u]) => hdrPt(x, u, kH)));
+      if (dot(n, f) < 0) push(c.map(([x, u]) => h3(x, u, 0)), shade(n, H, gr));
+      else push(c.map(([x, u]) => h3(x, u, TH)), shade(sc(n, -1), H, gr * mix(mix(0.62, 0.26, cl((6 - Math.abs(xm)) / 3.5)), 0.94, kH))); }
+    for (const c of BM) { const wm = (c[0][0] + c[1][0]) / 2, smid = (c[0][1] + c[3][1]) / 2, n = brN(F, wm, kB), gr = grain(wm * 16 + 500);
+      cast(c.map(([w, s]) => brPt(F, w, s, kB)));
+      if (dot(n, f) < 0) push(c.map(([w, s]) => b3(w, s, 0)), shade(n, H, gr));
+      else push(c.map(([w, s]) => b3(w, s, TH)), shade(sc(n, -1), H, gr * mix(mix(0.62, 0.24, cl((S_END - smid) / 2.2)), 0.94, kB))); }
+    gs.fill();
+    // rims: the cut faces of the wall at the open ends, the opening, the saddle cut and (once they part) the seams
+    const rim = (a0, a1, b1, b0) => { let n = nrm(cross(sub3(a1, a0), sub3(b0, a0))); if (dot(n, f) > 0) n = sc(n, -1); push([a0, a1, b1, b0], shade(n, H, 1.06), 0.06); };
+    for (let i = 0; i < USEG.length - 1; i++) for (const x of [-6, 6]) rim(h3(x, USEG[i], 0), h3(x, USEG[i + 1], 0), h3(x, USEG[i + 1], TH), h3(x, USEG[i], TH));
+    if (kH > 0.003) for (let i = 0; i < XSEG.length - 1; i++) for (const u of [-PI * R, PI * R]) rim(h3(XSEG[i], u, 0), h3(XSEG[i + 1], u, 0), h3(XSEG[i + 1], u, TH), h3(XSEG[i], u, TH));
+    for (let i = 0; i < OPEN.length - 1; i += 2) { const a = OPEN[i], b = OPEN[Math.min(i + 2, OPEN.length - 1)]; rim(h3(a[0], a[1], 0), h3(b[0], b[1], 0), h3(b[0], b[1], TH), h3(a[0], a[1], TH)); }
+    for (let i = 0; i < SADDLE.length - 1; i += 2) { const a = SADDLE[i], b = SADDLE[Math.min(i + 2, SADDLE.length - 1)];
+      rim(b3(a[0], a[1], 0), b3(b[0], b[1], 0), b3(b[0], b[1], TH), b3(a[0], a[1], TH)); rim(b3(a[0], S_END, 0), b3(b[0], S_END, 0), b3(b[0], S_END, TH), b3(a[0], S_END, TH)); }
+    if (kB > 0.003) for (const w of [-PI * r, PI * r]) rim(b3(w, sOf(0), 0), b3(w, S_END, 0), b3(w, S_END, TH), b3(w, sOf(0), TH));
+    const BIAS = 0.22, line = (pts, col, w) => { for (let i = 1; i < pts.length; i++) prims.push({ d: (pts[i][2] + pts[i - 1][2]) / 2 - BIAS, a: pts[i - 1], b: pts[i], col, w }); };
+    const jl = 1 - flat; if (jl > 0) { line(OPEN.map(([x, u]) => HP(x, u)), `rgba(47,125,246,${jl})`, 2); line(SADDLE.map(([w, s]) => BP(w, s)), `rgba(47,125,246,${jl})`, 2); }
+    // travelling generator: phi sweeps the joint and s(phi) is read out
+    const ma = win(T.sweep[0] - 0.1, T.sweep[0] + 0.3, 17.4, 17.75, t);
+    if (ma > 0) { const phi = PHI(t), a = BP(wOf(phi), sOf(phi)), b = BP(wOf(phi), S_END); prims.push({ d: (a[2] + b[2]) / 2 - BIAS * 1.5, a, b, col: `rgba(47,125,246,${ma})`, w: 2 }); prims.push({ d: a[2] - BIAS * 2, dot: a, al: ma }); }
+    prims.sort((p, q) => q.d - p.d);
+    go.clearRect(0, 0, 1920, 1080); go.lineJoin = 'round'; go.lineCap = 'round';
+    for (const p of prims) {
+      if (p.q) { go.beginPath(); go.moveTo(p.q[0][0], p.q[0][1]); for (let i = 1; i < p.q.length; i++) go.lineTo(p.q[i][0], p.q[i][1]); go.closePath(); go.fillStyle = go.strokeStyle = p.col; go.lineWidth = 0.9; go.fill(); go.stroke(); }
+      else if (p.dot) { go.globalAlpha = p.al; go.beginPath(); go.arc(p.dot[0], p.dot[1], 5, 0, 2 * PI); go.fillStyle = C.g0; go.fill(); go.lineWidth = 2; go.strokeStyle = C.blue; go.stroke(); go.globalAlpha = 1; }
+      else { go.beginPath(); go.moveTo(p.a[0], p.a[1]); go.lineTo(p.b[0], p.b[1]); go.strokeStyle = p.col; go.lineWidth = p.w; go.stroke(); }
+    }
+    const body = sa * mix(1, 0.2, flat) * (1 - gone);
+    g.save(); g.globalAlpha = 0.5 * sa * Math.pow(Math.sin(cam.el), 0.6) * (1 - 0.75 * flat) * (1 - gone); g.filter = `blur(${mix(26, 10, kH).toFixed(1)}px)`; g.drawImage(shc, 0, 0, 1920, 1080); g.restore();
+    g.save(); g.globalAlpha = body; g.drawImage(off, 0, 0); g.restore();
+  }
+  // flat patterns as line work: outer cut, inner cut, dimensions and the checks that belong to them (plan view, exact)
+  if (flat > 0 && gone < 1) {
+    g.save(); g.globalAlpha = flat * (1 - gone); g.lineJoin = 'round';
+    const hr = [HP(-6, PI * R), HP(6, PI * R), HP(6, -PI * R), HP(-6, -PI * R)], sd = SADDLE.map(([w, s]) => BP(w, s)), opn = OPEN.map(([x, u]) => HP(x, u));
+    g.strokeStyle = C.w; g.lineWidth = 1.5; poly(g, hr, 1, true); poly(g, [sd[sd.length - 1], BP(PI * r, S_END), BP(-PI * r, S_END), sd[0]]);
+    g.strokeStyle = C.blue; g.lineWidth = 2; poly(g, opn, 1, true); poly(g, sd);                                       // the two edges of the one joint share a colour
+    const df = (a) => cl((t - a) / 0.9), x0 = hr[0][0], x1 = hr[1][0], y0 = hr[0][1], y1 = hr[2][1], b0 = BP(-PI * r, S_END)[0], b1 = BP(PI * r, S_END)[0];
+    g.lineWidth = 1; g.strokeStyle = C.line; const ex = sm(21.7, 22.3, t);
+    for (const [p, q] of [[[x0, y0 - 8], [x0, y0 - 44]], [[x1, y0 - 8], [x1, y0 - 44]], [[x0 - 8, y0], [x0 - 44, y0]], [[x0 - 8, y1], [x0 - 44, y1]], [[b0, y1 + 8], [b0, y1 + 44]], [[b1, y1 + 8], [b1, y1 + 44]]]) poly(g, [p, q], ex);
+    dim(g, [x0, y0 - 32], [x1, y0 - 32], `${mm(LEN.hl, 0)}`, df(21.8)); dim(g, [x0 - 32, y1], [x0 - 32, y0], `2πR = ${mm(LEN.c_R)}`, df(22.0)); dim(g, [b0, y1 + 32], [b1, y1 + 32], `2πr = ${mm(LEN.c_r)}`, df(22.2));
+    const la2 = sm(22.2, 22.8, t), ox = opn.map((p) => p[0]), oy = opn.map((p) => p[1]), oc = (Math.min(...ox) + Math.max(...ox)) / 2, ob = Math.max(...oy);
+    text(g, 'CUT_INNER', oc, ob + 26, { a: la2, col: C.blue, font: `13px ${MONO}` }); text(g, mm(LEN.open), oc, ob + 46, { a: la2, col: C.t2, font: `13px ${MONO}` });
+    text(g, 'CUT_OUTER', x0 + 18, y1 - 22, { a: la2, al: 'left', col: C.t1, font: `13px ${MONO}` });
+    text(g, 'CUT_OUTER', b0 + 18, y1 - 42, { a: la2, al: 'left', col: C.t1, font: `13px ${MONO}` }); text(g, `saddle_cut ${mm(LEN.saddle)}`, b0 + 18, y1 - 22, { a: la2, al: 'left', col: C.t2, font: `13px ${MONO}` });
+    text(g, X.unit, x1, y1 + 32, { a: la2, al: 'right', col: C.t1, font: `13px ${SANS}` });
+    // annotation 1 stands on the saddle cut it names; the opening is named by layer and length, so no leader has to cross a plate
+    const AF = lang === 'ja' ? `400 18px ${SANS}` : `450 18px ${SANS}`, KF = `450 13px ${SANS}`, ax_ = b0 + 1, top = Math.min(...sd.map((p) => p[1])), foot = sd.reduce((m, p) => Math.abs(p[0] - ax_) < Math.abs(m[0] - ax_) ? p : m, sd[0]);
+    const i1 = sm(22.5, 23.0, t), ty = top - 150; g.strokeStyle = C.t1; g.lineWidth = 1; poly(g, [[ax_, foot[1] - 7], [ax_, ty - 10]], i1); if (i1 > 0) dotMark(g, [ax_, foot[1]], C.blue);
+    text(g, L.labels.verification, ax_ + 16, ty, { a: sm(22.7, 23.1, t), al: 'left', col: C.t1, font: KF }); text(g, X.c3, ax_ + 16, ty + 27, { a: sm(22.8, 23.2, t), al: 'left', col: C.w, font: AF });
+    text(g, `CUT_INNER ${mm(LEN.open)}  ↔  saddle_cut ${mm(LEN.saddle)}`, ax_ + 16, ty + 55, { a: sm(22.9, 23.3, t), al: 'left', col: C.t2, font: `13px ${MONO}` });
+    // annotation 2 starts on the corner of the outline that the DXF describes and runs to its label
+    const i2 = sm(23.1, 23.6, t); g.strokeStyle = C.t1; poly(g, [[x1 + 7, y0], [ax_, y0]], i2); if (i2 > 0) dotMark(g, [x1, y0], C.w);
+    text(g, L.labels.dxf_checked, ax_ + 16, y0, { a: sm(23.3, 23.7, t), al: 'left', col: C.w, font: AF });
+    g.restore();
+  }
+}
+const PHI = (t) => 2 * PI * cl((t - T.sweep[0]) / (T.sweep[1] - T.sweep[0]));
+
+// ---------- once the stage is clear, the cut edge of the branch pattern travels on alone and becomes the mark
+let MARK = { x: 0, y: 0, w: 112, h: 46 };
+const S0 = sOf(PI / 2), S1 = sOf(-PI / 2), markPt = (phi) => [MARK.x + MARK.w * phi / (2 * PI), MARK.y + 3 + (MARK.h - 6) * (sOf(phi) - S0) / (S1 - S0)];
+function drawMark(t) {
+  if (t < T.clear[0]) return; const k = sm(...T.end, t), P = projector(camera(t)), F = brFrame(1, 0), pts = [];
+  for (let i = 0; i <= 240; i++) { const phi = 2 * PI * i / 240, a = P(brPt(F, wOf(phi), sOf(phi), 1)), b = markPt(phi); pts.push([mix(a[0], b[0], k), mix(a[1], b[1], k)]); }
+  g.save(); g.lineJoin = g.lineCap = 'round'; g.lineWidth = mix(2, 6, k); g.strokeStyle = C.blue; poly(g, pts); g.restore();
+}
+
+// ---------- text layers
+const SEG = [[0, 5], [5, 11], [11, 18], [18, 25], [25, 30]];
+let HEADS = [], SUBS = [], PLAN = [], STAT = [];
+function build() {
+  const lb = L.labels;
+  HEADS = L.headline.slice(); if (lang === 'ja') HEADS[1] = 'NEXUS FABRIC';
+  SUBS = ['', X.sub, '', '', '']; PLAN = ['', lb.planned_ai, lb.planned_reading, lb.planned_constraints, ''];
+  STAT = [lb.fictional, lb.actual_only + (lang === 'ja' ? '・画面表示は英語版' : ''), lb.film_vis, lb.same_equations, ''];
+  $('eqn').textContent = `R = ${R * MM}   r = ${r * MM}   β = ${Math.round(BETA * 180 / PI)}°   δ = 0   mm`;
+  const [, tagline] = L.brand.split(/\s*[—–]\s*/); $('bt').textContent = tagline || ''; $('disct').textContent = lb.disclaimer;
+  $('bs').innerHTML = L.slogan.split(/(?<=[.。])\s*/).filter(Boolean).map((s) => `<span>${s}</span>`).join('');
+  // brand glyph: one period of the real developed cut curve
+  const pts = []; for (let i = 0; i <= 60; i++) { const p = 2 * PI * i / 60; pts.push(`${(1 + 32 * i / 60).toFixed(2)} ${(1.5 + 13 * (sOf(p) - S0) / (S1 - S0)).toFixed(2)}`); }
+  $('glyph').innerHTML = `<path d="M${pts.join('L')}" fill="none" stroke="${C.blue}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+const set = (e, a, y = 0) => { e.style.opacity = a.toFixed(4); e.style.transform = y ? `translateY(${y.toFixed(2)}px)` : ''; };
+const FR = 1 / 30;
+window.seek = (t) => {
+  t = Math.min(Math.max(+t || 0, 0), 30); g.clearRect(0, 0, 1920, 1080);
+  // application window: real captures, crops and scaling only
+  const W = windowState(t), sh = $('shot'), p = W.p, ia = t < T.push[0] ? 0 : 1 - sm(T.morph[0] + 0.05, T.morph[1] - 0.03, t);
+  sh.style.left = W.x + 'px'; sh.style.top = W.y + 'px'; sh.style.width = W.w + 'px'; sh.style.height = W.h + 'px'; sh.style.opacity = t >= T.push[0] && t < T.morph[1] ? 1 : 0;
+  sh.style.boxShadow = `0 36px 90px rgba(0,0,0,${(0.55 * p * (1 - W.m)).toFixed(3)})`;
+  const sc_ = W.c[4] * (W.gates ? 1 + 0.006 * cl((t - T.cutG) / 1.2) : 1), ix = W.w / 2 - (W.c[0] + W.c[2] / 2) * sc_ + (1 - p) * W.w, iy = W.h / 2 - (W.c[1] + W.c[3] / 2) * sc_;
+  for (const [id, on] of [['i1', !W.gates], ['i2', W.gates]]) { const e = $(id); e.style.width = 1920 * sc_ + 'px'; e.style.height = 1080 * sc_ + 'px'; e.style.transform = `translate(${ix.toFixed(3)}px,${iy.toFixed(3)}px)`; e.style.opacity = on ? ia : 0; }
+  if (t < T.push[1]) drawSheet(t, W);
+  if (t >= T.morph[0] && t < T.clear[1]) draw3D(t);
+  // the frame itself: sheet edge, then window edge, then the header outline
+  if (t < T.morph[1]) { g.save(); g.lineWidth = mix(1, 1.5, W.m); g.strokeStyle = W.m > 0 ? `rgba(245,247,250,${mix(0.45, 1, W.m)})` : p > 0 ? `rgba(142,150,159,${mix(0.35, 0.6, p)})` : C.line;
+    const rr = [[W.x, W.y], [W.x + W.w, W.y], [W.x + W.w, W.y + W.h], [W.x, W.y + W.h]].map(([x, y]) => [Math.round(x) + 0.5, Math.round(y) + 0.5]); poly(g, rr, t < 4.7 ? sm(1.4, 2.6, t) : 1, true);
+    if (p > 0 && p < 1) { g.strokeStyle = 'rgba(142,150,159,.6)'; g.lineWidth = 1; const x = Math.round(W.x + (1 - p) * W.w) + 0.5; poly(g, [[x, W.y], [x, W.y + W.h]]); } g.restore(); }
+  drawMark(t);
+  // headline, its status tag and one status line per scene. A swap is sequential: the old line is fully out (6 frames) two frames before the new one starts (8 frames); two lines are never on screen together
+  const n = t >= 25 ? 4 : SEG.findIndex(([a, b]) => t >= a && t < b), [a, b] = SEG[n];
+  const vin = n === 0 ? sm(0.3, 0.9, t) : sm(a + FR, a + 9 * FR, t), vout = n === 4 ? 0 : n === 3 ? 1 - sm(T.clear[0], T.clear[0] + 0.3, t) : 1 - sm(b - 8 * FR, b - 2 * FR, t), rise = n === 0 ? 0 : 8 * (1 - out(a + FR, a + 0.5, t));
+  const hd = $('head'); if (hd.dataset.n !== String(n)) { hd.textContent = HEADS[n] || ''; hd.className = 'ctr' + (/^[\x20-\x7e]+$/.test(HEADS[n] || '') ? ' lat' : ''); $('sub').textContent = SUBS[n]; $('tagt').textContent = PLAN[n]; $('tag').style.top = SUBS[n] ? '214px' : '178px'; $('stt').textContent = STAT[n]; hd.dataset.n = n; }
+  set(hd, vin * vout, rise); set($('sub'), SUBS[n] ? vin * vout : 0, rise * 0.7); set($('tag'), PLAN[n] ? (n === 0 ? 0 : sm(a + FR, a + 6 * FR, t)) * vout : 0); set($('st'), (n === 0 ? sm(1.2, 2.0, t) : vin) * vout);
+  set($('wm'), sm(0.1, 0.8, t) * (1 - sm(T.clear[0], T.clear[0] + 0.3, t)));
+  // scene 3: governing equation (left) and live values (right), both centred on the solid
+  const ea = win(13.2, 13.9, 17.45, 17.75, t); set($('eq'), ea, 8 * (1 - out(13.2, 14.1, t))); const va = win(14.2, 14.7, 17.45, 17.75, t); set($('vals'), va);
+  if (va > 0) { const phi = Math.round(PHI(t) * 1800 / PI) * PI / 1800; /* read-out: s is evaluated at the angle as printed (0.1 deg) */
+    $('vals').innerHTML = `<div class="rowv"><i>φ</i><b>${(phi * 180 / PI).toFixed(1).padStart(5, ' ')}°</b></div><div class="rowv"><i>s(φ)</i><b>${mm(sOf(phi) * MM, 2)} mm</b></div>`; }
+  // scene 5: the mark arrives first, then the wordmark beside it, one line, the four verbs; the disclaimer is on from the first frame and is the quietest line
+  set($('lock'), sm(25.15, 25.7, t)); set($('bt'), sm(25.75, 26.4, t), 8 * (1 - out(25.75, 26.6, t)));
+  const ss = $('bs').children; set($('bs'), 1); for (let i = 0; i < ss.length; i++) ss[i].style.opacity = sm(26.6 + i * 0.3, 27.1 + i * 0.3, t).toFixed(4);
+  set($('disc'), sm(24.6, 25.0, t));
+};
+(async () => {
+  try { const j = await (await fetch('script/narration.json')).json(); if (j && j[lang] && j[lang].headline) L = Object.assign({}, j[lang], { labels: Object.assign({}, FALLBACK.labels, j[lang].labels) }); } catch (e) { /* offline fallback: built-in English strings */ }
+  $('stage').className = lang; build();
+  await Promise.all([...document.images].map((i) => i.complete ? 0 : new Promise((r) => { i.onload = i.onerror = r; })));
+  // every face used on the canvas is loaded explicitly (the Japanese family is split into unicode-range subsets)
+  const txt = [X.c3, X.unit, ...Object.values(L.labels), 's(φ) = ? 2πR ⌀ ° ↔ 0123456789 CUT_INNER saddle_cut'].join(' ');
+  await Promise.all(['400 14px "Inter Variable"', '450 18px "Inter Variable"', '600 58px "Inter Variable"', 'italic 400 19px "Inter Variable"', '400 14px "Noto Sans JP"', '500 14px "Noto Sans JP"', '400 13px "JetBrains Mono"'].map((f) => document.fonts.load(f, txt).catch(() => 0)));
+  for (const tt of [0, 6, 12, 16, 22, 27]) window.seek(tt); await document.fonts.ready;
+  const lr = $('lmk').getBoundingClientRect(); MARK = { x: lr.left, y: lr.top, w: lr.width, h: lr.height };
+  window.LENGTHS = LEN; window.seek(Number(Q.get('t') || 0)); window.READY = true;
+})();
+</script></body></html>

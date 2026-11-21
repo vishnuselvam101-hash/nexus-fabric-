@@ -1,0 +1,23 @@
+{
+ "id": "E-branch_stub-header_radius-2e8",
+ "group": "refusal",
+ "title": "branch_stub: header_radius = 2e8 mm",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 200000000.0,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 60,
+  "delta": 20,
+  "s_end": 400
+ },
+ "expect": "refuse",
+ "derivation": "Declared implementation limit of the build: magnitudes above 1e8 mm are refused.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "magnitude",
+   "exceeds"
+  ]
+ }
+}

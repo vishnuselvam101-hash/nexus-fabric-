@@ -1,0 +1,17 @@
+{
+ "id": "E-cylinder_shell-length-missing",
+ "group": "refusal",
+ "title": "cylinder_shell: length missing",
+ "request": {
+  "family": "cylinder_shell",
+  "r_dev": 500
+ },
+ "expect": "refuse",
+ "derivation": "A missing parameter must not be defaulted.",
+ "refusal": {
+  "kind": "malformed",
+  "mentions": [
+   "length"
+  ]
+ }
+}

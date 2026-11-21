@@ -1,0 +1,19 @@
+{
+ "id": "E-cylinder_shell-length-5e-7",
+ "group": "refusal",
+ "title": "cylinder_shell: length = 5e-7 mm",
+ "request": {
+  "family": "cylinder_shell",
+  "r_dev": 500,
+  "length": 5e-07
+ },
+ "expect": "refuse",
+ "derivation": "Declared implementation limit of the build: positive dimensions below 1e-6 mm are refused.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "below",
+   "smallest"
+  ]
+ }
+}

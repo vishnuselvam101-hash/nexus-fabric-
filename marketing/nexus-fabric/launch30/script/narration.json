@@ -1,0 +1,101 @@
+{
+  "segments": [
+    [
+      0,
+      5
+    ],
+    [
+      5,
+      11
+    ],
+    [
+      11,
+      18
+    ],
+    [
+      18,
+      25
+    ],
+    [
+      25,
+      30
+    ]
+  ],
+  "en": {
+    "vo": [
+      "Complex engineering drawings. Difficult geometry. Hours of engineering work.",
+      "Meet NEXUS FABRIC, an AI-native engineering platform powered by AMOEBA.",
+      "Understand complex drawings. Reconstruct 3D geometry. Perform advanced engineering calculations.",
+      "Calculate plate developments, evaluate manufacturing constraints and generate traceable CAD deliverables.",
+      "From drawings to manufacturing intelligence. NEXUS FABRIC. Engineering, reimagined."
+    ],
+    "headline": [
+      "Hours of engineering work",
+      "Meet NEXUS FABRIC",
+      "Understand. Reconstruct. Calculate.",
+      "Plate developments. DXF output.",
+      "Drawings to manufacturing intelligence"
+    ],
+    "labels": {
+      "fictional": "Fictional drawing made for this film",
+      "actual": "Actual software · development build",
+      "planned_concept": "Planned capability · concept",
+      "demonstrated": "Demonstrated · computed by the product's mathematics engine",
+      "implemented": "Implemented",
+      "planned": "Planned",
+      "disclaimer": "Product concept. Capabilities in development. Not validated for manufacturing.",
+      "planned_reading": "Drawing reading and 3D reconstruction: planned",
+      "planned_constraints": "Manufacturing-constraint evaluation: planned",
+      "dxf_checked": "DXF written, re-read and compared",
+      "actual_only": "Actual software · development build",
+      "film_vis": "Visualisation made for this film · not a product view",
+      "same_equations": "Same equations as the product · redrawn for this film",
+      "planned_ai": "AI drawing interpretation: planned",
+      "verification": "Verification checks"
+    },
+    "slogan": "UNDERSTAND. RECONSTRUCT. VERIFY. MANUFACTURE.",
+    "brand": "NEXUS FABRIC — Engineering, Reimagined."
+  },
+  "ja": {
+    "vo": [
+      "複雑な図面。難しい形状。膨大な工数。",
+      "AMOEBAを核とする、AIネイティブの設計基盤。NEXUS FABRIC。",
+      "複雑な図面の理解。3D形状の再構築。高度な工学計算。",
+      "板展開の計算。製造制約の評価。トレーサブルなCADデータの生成。",
+      "図面から、製造へ。NEXUS FABRIC。設計を、再定義。"
+    ],
+    "vo_reading": [
+      "ふくざつな ずめん。むずかしい けいじょう。ぼうだいな こうすう。",
+      "アメーバを かくとする、エーアイネイティブの せっけいきばん。ネクサス ファブリック。",
+      "ふくざつな ずめんの りかい。スリーディー けいじょうの さいこうちく。こうどな こうがくけいさん。",
+      "いたてんかいの けいさん。せいぞうせいやくの ひょうか。トレーサブルな キャドデータの せいせい。",
+      "ずめんから、せいぞうへ。ネクサス ファブリック。せっけいを、さいていぎ。"
+    ],
+    "headline": [
+      "膨大な設計工数",
+      "AIネイティブの設計基盤",
+      "理解・再構築・計算",
+      "板展開。DXF出力。",
+      "図面から、製造へ"
+    ],
+    "labels": {
+      "fictional": "本映像用の架空図面",
+      "actual": "実際のソフトウェア・開発版",
+      "planned_concept": "計画中の機能・コンセプト",
+      "demonstrated": "製品の数理エンジンで実際に計算",
+      "implemented": "実装済み",
+      "planned": "計画中",
+      "disclaimer": "製品コンセプトです。機能は開発中であり、製造用途での検証は未実施です。",
+      "planned_reading": "図面の読み取り・3D再構築：計画中",
+      "planned_constraints": "製造制約の評価：計画中",
+      "dxf_checked": "DXF出力・再読込・照合済み",
+      "actual_only": "実際のソフトウェア・開発版",
+      "film_vis": "本映像用のビジュアル・製品画面ではありません",
+      "same_equations": "製品と同じ計算式・本映像用に再描画",
+      "planned_ai": "AIによる図面解釈：計画中",
+      "verification": "検証項目"
+    },
+    "slogan": "理解する。再構築する。検証する。製造する。",
+    "brand": "NEXUS FABRIC — 設計を、再定義。"
+  }
+}

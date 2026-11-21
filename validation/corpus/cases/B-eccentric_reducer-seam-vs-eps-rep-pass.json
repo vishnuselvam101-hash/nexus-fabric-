@@ -1,0 +1,14 @@
+{
+ "id": "B-eccentric_reducer-seam-vs-eps-rep-pass",
+ "group": "closed_form",
+ "title": "eccentric reducer r1=300 r2=50 h=4.460487756959022 e=0: seam gap 0.05 mm (above 2 x 0.01 mm: the profile gate passes)",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 300,
+  "r2": 50,
+  "h": 4.460487756959022,
+  "e": 0
+ },
+ "expect": "accept",
+ "derivation": "Seam gap 0.05 mm (mpmath). The polyline sector has eps_rep at most the 0.01 mm chord limit and (for 720 segments of the 300 mm arc) about 2.9e-3 mm: a gap of 0.05 mm is larger than twice that, so the seam can be told from a closed one at the representation error."
+}

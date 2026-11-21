@@ -1,0 +1,20 @@
+{
+ "id": "E-cylinder_shell-r_dev-negative-zero",
+ "group": "refusal",
+ "title": "cylinder_shell: r_dev = -0.0",
+ "request": {
+  "family": "cylinder_shell",
+  "r_dev": -0.0,
+  "length": 1000
+ },
+ "expect": "refuse",
+ "derivation": "r_dev must be a finite positive length; -0.0 describes no part.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "r_dev",
+   "radius",
+   "> 0"
+  ]
+ }
+}

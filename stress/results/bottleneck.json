@@ -1,0 +1,197 @@
+{
+ "machine": {
+  "cores": 4,
+  "ram_mb": 16087,
+  "loadavg": [
+   1.21044921875,
+   0.443359375,
+   0.162109375
+  ]
+ },
+ "data_on_disk": {
+  "write_calc_cone": [
+   {
+    "clients": 1,
+    "rps": 48.5,
+    "p50_ms": 3.73,
+    "p95_ms": 23.46
+   },
+   {
+    "clients": 4,
+    "rps": 46.6,
+    "p50_ms": 13.77,
+    "p95_ms": 487.5
+   },
+   {
+    "clients": 16,
+    "rps": 313.9,
+    "p50_ms": 49.94,
+    "p95_ms": 85.16
+   }
+  ],
+  "read_get_calc": [
+   {
+    "clients": 1,
+    "rps": 314.5,
+    "p50_ms": 3.03,
+    "p95_ms": 3.87
+   },
+   {
+    "clients": 4,
+    "rps": 405.9,
+    "p50_ms": 7.48,
+    "p95_ms": 19.75
+   },
+   {
+    "clients": 16,
+    "rps": 387.0,
+    "p50_ms": 40.8,
+    "p95_ms": 65.45
+   }
+  ],
+  "read_health": [
+   {
+    "clients": 1,
+    "rps": 6657.9,
+    "p50_ms": 0.13,
+    "p95_ms": 0.2
+   },
+   {
+    "clients": 4,
+    "rps": 4527.8,
+    "p50_ms": 0.74,
+    "p95_ms": 1.87
+   },
+   {
+    "clients": 16,
+    "rps": 5651.9,
+    "p50_ms": 2.13,
+    "p95_ms": 7.11
+   }
+  ],
+  "login_argon2": [
+   {
+    "clients": 1,
+    "rps": 40.8,
+    "p50_ms": 22.55,
+    "p95_ms": 35.22
+   },
+   {
+    "clients": 4,
+    "rps": 42.0,
+    "p50_ms": 92.54,
+    "p95_ms": 167.28
+   },
+   {
+    "clients": 16,
+    "rps": 42.2,
+    "p50_ms": 367.28,
+    "p95_ms": 496.19
+   }
+  ]
+ },
+ "per_thread_cpu_seconds_16_writers_8s": {
+  "throughput": {
+   "clients": 16,
+   "rps": 216.8,
+   "p50_ms": 68.54,
+   "p95_ms": 145.64
+  },
+  "thread_cpu_s_desc": [
+   1.06,
+   0.98,
+   0.94,
+   0.9,
+   0.0
+  ],
+  "total_cpu_s": 3.88,
+  "wall_s": 8
+ },
+ "strace_50_sequential_header_calcs_(slowed_by_strace)": {
+  "seconds": 1.62,
+  "table": "% time     seconds  usecs/call     calls    errors syscall\n------ ----------- ----------- --------- --------- ----------------\n 82.85    0.433427        3736       116           futex\n  6.77    0.035415          17      2074           fsync\n  5.86    0.030661           1     21893           pwrite64\n  2.01    0.010522           1      7156           pread64\n  1.91    0.009983           0     12764           fcntl\n  0.39    0.002064          18       113           write\n  0.21    0.001106          11       100           openat\n------ ----------- ----------- --------- --------- ----------------\n100.00    0.523178          11     44216           total\n",
+  "calcs": 50
+ },
+ "data_on_tmpfs_devshm": {
+  "write_calc_cone": [
+   {
+    "clients": 1,
+    "rps": 554.8,
+    "p50_ms": 1.61,
+    "p95_ms": 2.83
+   },
+   {
+    "clients": 4,
+    "rps": 768.2,
+    "p50_ms": 4.17,
+    "p95_ms": 11.92
+   },
+   {
+    "clients": 16,
+    "rps": 819.6,
+    "p50_ms": 18.9,
+    "p95_ms": 34.65
+   }
+  ],
+  "read_get_calc": [
+   {
+    "clients": 1,
+    "rps": 88.0,
+    "p50_ms": 10.27,
+    "p95_ms": 15.52
+   },
+   {
+    "clients": 4,
+    "rps": 93.1,
+    "p50_ms": 32.17,
+    "p95_ms": 84.09
+   },
+   {
+    "clients": 16,
+    "rps": 98.6,
+    "p50_ms": 159.17,
+    "p95_ms": 256.88
+   }
+  ],
+  "read_health": [
+   {
+    "clients": 1,
+    "rps": 7134.0,
+    "p50_ms": 0.11,
+    "p95_ms": 0.22
+   },
+   {
+    "clients": 4,
+    "rps": 6280.2,
+    "p50_ms": 0.45,
+    "p95_ms": 1.46
+   },
+   {
+    "clients": 16,
+    "rps": 6204.0,
+    "p50_ms": 1.98,
+    "p95_ms": 6.53
+   }
+  ],
+  "login_argon2": [
+   {
+    "clients": 1,
+    "rps": 42.9,
+    "p50_ms": 21.76,
+    "p95_ms": 29.69
+   },
+   {
+    "clients": 4,
+    "rps": 42.5,
+    "p50_ms": 91.95,
+    "p95_ms": 156.64
+   },
+   {
+    "clients": 16,
+    "rps": 44.5,
+    "p50_ms": 340.0,
+    "p95_ms": 532.72
+   }
+  ]
+ }
+}

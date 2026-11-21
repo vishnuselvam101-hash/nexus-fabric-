@@ -1,0 +1,21 @@
+{
+ "id": "E-branch_stub-delta-missing",
+ "group": "refusal",
+ "title": "branch_stub: delta missing",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 150,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 60,
+  "s_end": 400
+ },
+ "expect": "refuse",
+ "derivation": "A missing parameter must not be defaulted.",
+ "refusal": {
+  "kind": "malformed",
+  "mentions": [
+   "delta"
+  ]
+ }
+}

@@ -1,0 +1,46 @@
+// On-screen sentences of film 3 (revision 5). Source of NEW_STRINGS.md (tools/build_strings.js).
+// Three fixed source labels (one wording each); three type sizes only: headline 132 px, body 48 px, label 40 px.
+// Product words come from data/film-data.js (the application's catalogue and the product output at build time).
+// Japanese wording is not reviewed by a native-speaking engineer; lines marked NEW in NEW_STRINGS.md need that review.
+'use strict';
+window.NF_ONSCREEN = {
+  label_vis: { en: 'Visualisation made for this film · figures from the product', ja: '本映像用のビジュアル・数値は製品の出力です' },
+  label_sim: { en: 'Interface simplified for this film · data from the product', ja: '本映像用に画面を簡略化しています・データは製品の出力です' },
+  label_actual: { en: 'Actual software · development build', ja: '実際のソフトウェア・開発版' },
+  hook: { en: ['One wrong curve.'], ja: ['曲線を、ひとつ誤れば。'] },
+  question: { en: ['Before you cut —', 'how do you know?'], ja: ['切る前に、', 'どう確かめる？'] },
+  product_a: { en: ['Dimensions in.'], ja: ['寸法から、'] },
+  product_b: { en: ['Flat pattern out.'], ja: ['板展開へ。'] },
+  limits: { en: ['Zero-thickness reference surfaces.', 'Thickness, bend allowance, weld gap and kerf are not modelled.'], ja: ['板厚ゼロの基準面です。', '未考慮：板厚、曲げ代、溶接ギャップ、カーフ'] },
+  part_shell: { en: 'Cylindrical shell', ja: '円筒胴' },
+  part_cone: { en: 'Concentric reducer', ja: '同心レジューサ' },
+  part_ecc: { en: 'Eccentric reducer', ja: '偏心レジューサ' },
+  part_branch: { en: 'Branch stub', ja: '枝管スタブ' },
+  part_header: { en: 'Header shell with opening', ja: '開口付き母管胴' },
+  unit_mm: { en: 'mm', ja: 'mm' },
+  checks_big: { en: ['It checks its own work.'], ja: ['自ら、検算。'] },
+  checks_sub: { en: ['Internal consistency checks —', 'not an approval.'], ja: ['内部の整合チェックです。', '承認ではありません。'] },
+  checks_count: { en: '{n} of {b} checks run', ja: '{n} / {b} 件の検算' },
+  dxf_big: { en: ['Written. Read back.', 'Compared.'], ja: ['出力・再読込・照合'] },
+  amoeba_big: { en: ['AMOEBA'], ja: ['AMOEBA'] },
+  amoeba_def: { en: ['Every value and every step,', 'recorded and linked.'], ja: ['すべての値と手順を記録し、', 'つなぎます。'] },
+  change_big: { en: ['Change one number.'], ja: ['数値を、ひとつ変える。'] },
+  corr_line: { en: 'Correction recorded: {o} → {n} mm', ja: '訂正を記録：{o} → {n} mm' },
+  obl_line: { en: '{r} raised · {d} discharged · {o} open', ja: '{r}件発生 · {d}件解消 · {o}件未解決' },
+  rule_flag: { en: 'Flag rule: provisional, not yet reviewed.', ja: '要精査の印：暫定規則、未レビュー' },
+  replay_big: { en: ['Replay: match.'], ja: ['再実行：一致'] },
+  rec_count: { en: '{n} records checked, 0 failing.', ja: '{n}件の記録を照合、不一致0件。' },
+  honesty_big: { en: ["What it can't confirm,", 'it shows.'], ja: ['確認できないことは、', '隠さない。'] },
+  res_pass: { en: 'PASS', ja: '内部チェック通過' },
+  gate_approval: { en: 'Human approval (not implemented)', ja: '人による承認（未実装）' },
+  dev_line: { en: 'Development build. Not validated for manufacturing.', ja: '開発版です。製造用途での検証は未実施です。' },
+  lang_big: { en: ['English · 日本語'], ja: ['English · 日本語'] },
+  offline: { en: ['Runs fully offline.'], ja: ['完全オフラインで動作'] },
+  brand_name: { en: ['NEXUS FABRIC'], ja: ['NEXUS FABRIC'] },
+  brand_line: { en: 'Engineering, Reimagined.', ja: '設計を、再定義。' },
+  cta: { en: 'Request a demonstration', ja: 'デモのご依頼' },
+  positioning: { en: 'Engineering platform powered by AMOEBA.', ja: 'AMOEBAを核とする設計基盤' },
+  disclaimer: { en: 'Product concept. Capabilities in development. Not validated for manufacturing.', ja: '製品コンセプトです。機能は開発中であり、製造用途での検証は未実施です。' },
+  contact: { en: ['sekishion@chuo-sogo.net', 'vishnu.s@chuo-sogo.net'], ja: ['sekishion@chuo-sogo.net', 'vishnu.s@chuo-sogo.net'] },   // owner-supplied (revision 5)
+  credit: { en: '', ja: '音声：VOICEVOX Nemo' },
+};

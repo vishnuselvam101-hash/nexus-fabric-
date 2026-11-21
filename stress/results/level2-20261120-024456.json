@@ -1,0 +1,1235 @@
+{
+ "level": 2,
+ "started": "20261120-024456",
+ "machine": {
+  "cores": 4,
+  "ram_mb": 16087,
+  "loadavg": [
+   7.03076171875,
+   4.291015625,
+   2.66650390625
+  ]
+ },
+ "binary": "/tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress7/nf-server",
+ "details": {
+  "project_250KB_description": 422,
+  "project_250KB_description_refused": true,
+  "magnitude_sweep": [
+   {
+    "family": "cylinder_shell",
+    "mag": "1e1",
+    "status": 200,
+    "ms": 3.4,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 1,
+    "dxf_status": 200,
+    "dxf_bytes": 1564
+   },
+   {
+    "family": "cone_frustum",
+    "mag": "1e1",
+    "status": 200,
+    "ms": 10.9,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 1,
+    "dxf_status": 200,
+    "dxf_bytes": 1747
+   },
+   {
+    "family": "eccentric_reducer",
+    "mag": "1e1",
+    "status": 200,
+    "ms": 24.1,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 1,
+    "dxf_status": 200,
+    "dxf_bytes": 52380
+   },
+   {
+    "family": "branch_stub",
+    "mag": "1e1",
+    "status": 200,
+    "ms": 19.5,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 1,
+    "dxf_status": 200,
+    "dxf_bytes": 52142
+   },
+   {
+    "family": "header_with_branch",
+    "mag": "1e1",
+    "status": 200,
+    "ms": 17.2,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 2,
+    "dxf_status": 200,
+    "dxf_bytes": 51410
+   },
+   {
+    "family": "cylinder_shell",
+    "mag": "1e3",
+    "status": 200,
+    "ms": 11.3,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 1,
+    "dxf_status": 200,
+    "dxf_bytes": 1573
+   },
+   {
+    "family": "cone_frustum",
+    "mag": "1e3",
+    "status": 200,
+    "ms": 11.9,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 1,
+    "dxf_status": 200,
+    "dxf_bytes": 1729
+   },
+   {
+    "family": "eccentric_reducer",
+    "mag": "1e3",
+    "status": 200,
+    "ms": 29.7,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 1,
+    "dxf_status": 200,
+    "dxf_bytes": 102909
+   },
+   {
+    "family": "branch_stub",
+    "mag": "1e3",
+    "status": 200,
+    "ms": 24.9,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 1,
+    "dxf_status": 200,
+    "dxf_bytes": 102468
+   },
+   {
+    "family": "header_with_branch",
+    "mag": "1e3",
+    "status": 200,
+    "ms": 32.9,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 2,
+    "dxf_status": 200,
+    "dxf_bytes": 101146
+   },
+   {
+    "family": "cylinder_shell",
+    "mag": "1e6",
+    "status": 200,
+    "ms": 7.6,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 1,
+    "dxf_status": 200,
+    "dxf_bytes": 1586
+   },
+   {
+    "family": "cone_frustum",
+    "mag": "1e6",
+    "status": 200,
+    "ms": 11.4,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 1,
+    "dxf_status": 200,
+    "dxf_bytes": 1737
+   },
+   {
+    "family": "eccentric_reducer",
+    "mag": "1e6",
+    "status": 200,
+    "ms": 633.3,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 1,
+    "dxf_status": 200,
+    "dxf_bytes": 3237765
+   },
+   {
+    "family": "branch_stub",
+    "mag": "1e6",
+    "status": 200,
+    "ms": 605.7,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 1,
+    "dxf_status": 200,
+    "dxf_bytes": 3227414
+   },
+   {
+    "family": "header_with_branch",
+    "mag": "1e6",
+    "status": 200,
+    "ms": 1613.0,
+    "state": "REVIEW_REQUIRED",
+    "patterns": 2,
+    "dxf_status": 200,
+    "dxf_bytes": 3185584
+   },
+   {
+    "family": "cylinder_shell",
+    "mag": "1e9",
+    "status": 422,
+    "ms": 7.4,
+    "err": "request refused, nothing was computed: out of range (r_dev): magnitude 1e9 mm exceeds 1e8 mm, the la"
+   },
+   {
+    "family": "cone_frustum",
+    "mag": "1e9",
+    "status": 422,
+    "ms": 1.6,
+    "err": "request refused, nothing was computed: out of range (r1): magnitude 1e9 mm exceeds 1e8 mm, the large"
+   },
+   {
+    "family": "eccentric_reducer",
+    "mag": "1e9",
+    "status": 422,
+    "ms": 3.5,
+    "err": "request refused, nothing was computed: out of range (r1): magnitude 1e9 mm exceeds 1e8 mm, the large"
+   },
+   {
+    "family": "branch_stub",
+    "mag": "1e9",
+    "status": 422,
+    "ms": 2.8,
+    "err": "request refused, nothing was computed: out of range (header_radius): magnitude 1.5e9 mm exceeds 1e8 "
+   },
+   {
+    "family": "header_with_branch",
+    "mag": "1e9",
+    "status": 422,
+    "ms": 4.0,
+    "err": "request refused, nothing was computed: out of range (header_radius): magnitude 1.5e9 mm exceeds 1e8 "
+   },
+   {
+    "family": "cylinder_shell",
+    "mag": "1e12",
+    "status": 422,
+    "ms": 3.9,
+    "err": "request refused, nothing was computed: out of range (r_dev): magnitude 1e12 mm exceeds 1e8 mm, the l"
+   },
+   {
+    "family": "cone_frustum",
+    "mag": "1e12",
+    "status": 422,
+    "ms": 1.9,
+    "err": "request refused, nothing was computed: out of range (r1): magnitude 1e12 mm exceeds 1e8 mm, the larg"
+   },
+   {
+    "family": "eccentric_reducer",
+    "mag": "1e12",
+    "status": 422,
+    "ms": 2.2,
+    "err": "request refused, nothing was computed: out of range (r1): magnitude 1e12 mm exceeds 1e8 mm, the larg"
+   },
+   {
+    "family": "branch_stub",
+    "mag": "1e12",
+    "status": 422,
+    "ms": 2.0,
+    "err": "request refused, nothing was computed: out of range (header_radius): magnitude 1.5e12 mm exceeds 1e8"
+   },
+   {
+    "family": "header_with_branch",
+    "mag": "1e12",
+    "status": 422,
+    "ms": 1.6,
+    "err": "request refused, nothing was computed: out of range (header_radius): magnitude 1.5e12 mm exceeds 1e8"
+   },
+   {
+    "family": "cylinder_shell",
+    "mag": "1e15",
+    "status": 422,
+    "ms": 4.4,
+    "err": "request refused, nothing was computed: out of range (r_dev): magnitude 1e15 mm exceeds 1e8 mm, the l"
+   },
+   {
+    "family": "cone_frustum",
+    "mag": "1e15",
+    "status": 422,
+    "ms": 4.0,
+    "err": "request refused, nothing was computed: out of range (r1): magnitude 1e15 mm exceeds 1e8 mm, the larg"
+   },
+   {
+    "family": "eccentric_reducer",
+    "mag": "1e15",
+    "status": 422,
+    "ms": 4.0,
+    "err": "request refused, nothing was computed: out of range (r1): magnitude 1e15 mm exceeds 1e8 mm, the larg"
+   },
+   {
+    "family": "branch_stub",
+    "mag": "1e15",
+    "status": 422,
+    "ms": 4.0,
+    "err": "request refused, nothing was computed: out of range (header_radius): magnitude 1.5e15 mm exceeds 1e8"
+   },
+   {
+    "family": "header_with_branch",
+    "mag": "1e15",
+    "status": 422,
+    "ms": 2.3,
+    "err": "request refused, nothing was computed: out of range (header_radius): magnitude 1.5e15 mm exceeds 1e8"
+   },
+   {
+    "family": "cylinder_shell",
+    "mag": "1e100",
+    "status": 422,
+    "ms": 1.6,
+    "err": "request refused, nothing was computed: out of range (r_dev): magnitude 1e100 mm exceeds 1e8 mm, the "
+   },
+   {
+    "family": "cone_frustum",
+    "mag": "1e100",
+    "status": 422,
+    "ms": 3.9,
+    "err": "request refused, nothing was computed: out of range (r1): magnitude 1e100 mm exceeds 1e8 mm, the lar"
+   },
+   {
+    "family": "eccentric_reducer",
+    "mag": "1e100",
+    "status": 422,
+    "ms": 4.1,
+    "err": "request refused, nothing was computed: out of range (r1): magnitude 1e100 mm exceeds 1e8 mm, the lar"
+   },
+   {
+    "family": "branch_stub",
+    "mag": "1e100",
+    "status": 422,
+    "ms": 2.3,
+    "err": "request refused, nothing was computed: out of range (header_radius): magnitude 1.5000000000000001e10"
+   },
+   {
+    "family": "header_with_branch",
+    "mag": "1e100",
+    "status": 422,
+    "ms": 5.7,
+    "err": "request refused, nothing was computed: out of range (header_radius): magnitude 1.5000000000000001e10"
+   },
+   {
+    "family": "cylinder_shell",
+    "mag": "1e300",
+    "status": 422,
+    "ms": 8.0,
+    "err": "request refused, nothing was computed: out of range (r_dev): magnitude 1e300 mm exceeds 1e8 mm, the "
+   },
+   {
+    "family": "cone_frustum",
+    "mag": "1e300",
+    "status": 422,
+    "ms": 2.9,
+    "err": "request refused, nothing was computed: out of range (r1): magnitude 1e300 mm exceeds 1e8 mm, the lar"
+   },
+   {
+    "family": "eccentric_reducer",
+    "mag": "1e300",
+    "status": 422,
+    "ms": 4.9,
+    "err": "request refused, nothing was computed: out of range (r1): magnitude 1e300 mm exceeds 1e8 mm, the lar"
+   },
+   {
+    "family": "branch_stub",
+    "mag": "1e300",
+    "status": 422,
+    "ms": 4.1,
+    "err": "request refused, nothing was computed: out of range (header_radius): magnitude 1.5e300 mm exceeds 1e"
+   },
+   {
+    "family": "header_with_branch",
+    "mag": "1e300",
+    "status": 422,
+    "ms": 9.4,
+    "err": "request refused, nothing was computed: out of range (header_radius): magnitude 1.5e300 mm exceeds 1e"
+   },
+   {
+    "family": "cylinder_shell",
+    "mag": "1e308",
+    "status": 422,
+    "ms": 8.9,
+    "err": "request refused, nothing was computed: out of range (r_dev): magnitude 1e308 mm exceeds 1e8 mm, the "
+   },
+   {
+    "family": "cone_frustum",
+    "mag": "1e308",
+    "status": 422,
+    "ms": 5.6,
+    "err": "request refused, nothing was computed: out of range (r1): magnitude 1e308 mm exceeds 1e8 mm, the lar"
+   },
+   {
+    "family": "eccentric_reducer",
+    "mag": "1e308",
+    "status": 422,
+    "ms": 4.0,
+    "err": "request refused, nothing was computed: out of range (r1): magnitude 1e308 mm exceeds 1e8 mm, the lar"
+   },
+   {
+    "family": "branch_stub",
+    "mag": "1e308",
+    "status": 400,
+    "ms": 0.3,
+    "err": ""
+   },
+   {
+    "family": "header_with_branch",
+    "mag": "1e308",
+    "status": 400,
+    "ms": 0.2,
+    "err": ""
+   }
+  ],
+  "bulk_jobs_s": 42.6,
+  "bulk_jobs": 3000,
+  "jobs_per_project": 3045,
+  "integrity": {
+   "integrity_check": [
+    "ok"
+   ],
+   "n_users": 2,
+   "n_projects": 1501,
+   "n_calculations": 3043,
+   "n_records": 59834,
+   "n_audit": 4708,
+   "n_obligations": 0,
+   "n_documents": 0,
+   "n_lessons": 0,
+   "n_sessions": 2,
+   "audit_chain_python": {
+    "broken_at": null,
+    "id_gaps": 0
+   },
+   "calc_bad_rows": 28,
+   "calc_id_gaps": 0,
+   "orphan_calc_project": 0,
+   "calc_missing_blob": 0,
+   "records_total": 59834,
+   "records_suspect_python_hash": 17,
+   "suspect_ids": [
+    "38844dbe804a3b4b443ea190cd539b016635792ec4c7da0cd4d16308cfea9813",
+    "5df190eda61f12ca485a92dea9667399290be304d2e1459e5f58de4e79263a46",
+    "bac3a1383268d3287943af01c8ab667154f7b28af048147e71fcad367fad34c4"
+   ],
+   "replay_sample": {
+    "checked": 60,
+    "bad": 0,
+    "errs": []
+   },
+   "suspect_replay": {
+    "calcs": 17,
+    "bad": 14
+   },
+   "audit_verify_api": {
+    "anchor_intact": true,
+    "anchor_problem": null,
+    "chain_intact": true,
+    "database_intact": true,
+    "database_integrity": "ok",
+    "entries": 4772,
+    "first_broken_entry": null,
+    "intact": true,
+    "limitation": "Detects alteration or removal of entries inside the chain, and removal of the newest entries: the latest hash, the entry count and the latest id are stored as an anchor authenticated with the storage key. Someone who can write the database file AND read the storage key can rebuild the chain and the anchor without trace. Someone who can write the database file can also restore an older copy of the whole database together with its older anchor (rollback); that is not detected. An anchor held outside this machine is not implemented."
+   },
+   "live_calc_listing_count": 200
+  }
+ },
+ "http": {
+  "requests": 5294,
+  "errors_5xx_or_conn": 0,
+  "error_rate": 0.0,
+  "p50_ms": 38.38,
+  "p95_ms": 153.9,
+  "p99_ms": 212.67,
+  "max_ms": 1612.93,
+  "throughput_rps": 98.2,
+  "duration_s": 53.9
+ },
+ "by_label": {
+  "GET /api/calculations": {
+   "requests": 1,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 35.42,
+   "p95_ms": 35.42,
+   "p99_ms": 35.42,
+   "max_ms": 35.42,
+   "throughput_rps": 28.2,
+   "duration_s": 0.0
+  },
+  "GET /api/calculations/N": {
+   "requests": 15,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 1.74,
+   "p95_ms": 73.49,
+   "p99_ms": 162.07,
+   "max_ms": 162.07,
+   "throughput_rps": 4.1,
+   "duration_s": 3.7
+  },
+  "GET /api/calculations/N/dxf/branch": {
+   "requests": 3,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 5.09,
+   "p95_ms": 48.88,
+   "p99_ms": 48.88,
+   "max_ms": 48.88,
+   "throughput_rps": 1.6,
+   "duration_s": 1.8
+  },
+  "GET /api/calculations/N/dxf/header": {
+   "requests": 3,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 6.76,
+   "p95_ms": 111.27,
+   "p99_ms": 111.27,
+   "max_ms": 111.27,
+   "throughput_rps": 0.8,
+   "duration_s": 3.8
+  },
+  "GET /api/calculations/N/dxf/reducer": {
+   "requests": 6,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 3.76,
+   "p95_ms": 55.59,
+   "p99_ms": 55.59,
+   "max_ms": 55.59,
+   "throughput_rps": 5.4,
+   "duration_s": 1.1
+  },
+  "GET /api/calculations/N/dxf/shell": {
+   "requests": 3,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 5.43,
+   "p95_ms": 5.79,
+   "p99_ms": 5.79,
+   "max_ms": 5.79,
+   "throughput_rps": 10.7,
+   "duration_s": 0.3
+  },
+  "LISTING /api/amoeba/summary": {
+   "requests": 10,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 104.09,
+   "p95_ms": 143.53,
+   "p99_ms": 143.53,
+   "max_ms": 143.53,
+   "throughput_rps": 4.5,
+   "duration_s": 2.2
+  },
+  "LISTING /api/audit": {
+   "requests": 10,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 0.24,
+   "p95_ms": 15.87,
+   "p99_ms": 15.87,
+   "max_ms": 15.87,
+   "throughput_rps": 4.7,
+   "duration_s": 2.1
+  },
+  "LISTING /api/audit/verify": {
+   "requests": 10,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 0.17,
+   "p95_ms": 3.63,
+   "p99_ms": 3.63,
+   "max_ms": 3.63,
+   "throughput_rps": 4.7,
+   "duration_s": 2.1
+  },
+  "LISTING /api/calculations": {
+   "requests": 10,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 33.56,
+   "p95_ms": 139.23,
+   "p99_ms": 139.23,
+   "max_ms": 139.23,
+   "throughput_rps": 4.4,
+   "duration_s": 2.3
+  },
+  "LISTING /api/dashboard": {
+   "requests": 10,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 17.43,
+   "p95_ms": 73.74,
+   "p99_ms": 73.74,
+   "max_ms": 73.74,
+   "throughput_rps": 4.7,
+   "duration_s": 2.1
+  },
+  "LISTING /api/obligations": {
+   "requests": 10,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 1.1,
+   "p95_ms": 10.81,
+   "p99_ms": 10.81,
+   "max_ms": 10.81,
+   "throughput_rps": 4.7,
+   "duration_s": 2.1
+  },
+  "LISTING /api/projects": {
+   "requests": 10,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 5.1,
+   "p95_ms": 10.58,
+   "p99_ms": 10.58,
+   "max_ms": 10.58,
+   "throughput_rps": 4.7,
+   "duration_s": 2.1
+  },
+  "LISTING /api/projects/1": {
+   "requests": 10,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 36.17,
+   "p95_ms": 96.65,
+   "p99_ms": 96.65,
+   "max_ms": 96.65,
+   "throughput_rps": 4.7,
+   "duration_s": 2.1
+  },
+  "bulk_calc": {
+   "requests": 3000,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 76.98,
+   "p95_ms": 176.35,
+   "p99_ms": 227.76,
+   "max_ms": 393.71,
+   "throughput_rps": 70.5,
+   "duration_s": 42.6
+  },
+  "bulk_create_project": {
+   "requests": 1500,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 7.77,
+   "p95_ms": 26.4,
+   "p99_ms": 57.41,
+   "max_ms": 109.37,
+   "throughput_rps": 564.5,
+   "duration_s": 2.7
+  },
+  "create_project": {
+   "requests": 1,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 4.06,
+   "p95_ms": 4.06,
+   "p99_ms": 4.06,
+   "max_ms": 4.06,
+   "throughput_rps": 246.3,
+   "duration_s": 0.0
+  },
+  "create_project_250KB_description": {
+   "requests": 1,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 1.08,
+   "p95_ms": 1.08,
+   "p99_ms": 1.08,
+   "max_ms": 1.08,
+   "throughput_rps": 923.9,
+   "duration_s": 0.0
+  },
+  "dxf_download": {
+   "requests": 400,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 1.43,
+   "p95_ms": 4.44,
+   "p99_ms": 8.53,
+   "max_ms": 25.63,
+   "throughput_rps": 496.7,
+   "duration_s": 0.8
+  },
+  "get_calc_large": {
+   "requests": 200,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 1.7,
+   "p95_ms": 4.68,
+   "p99_ms": 6.47,
+   "max_ms": 18.67,
+   "throughput_rps": 285.3,
+   "duration_s": 0.7
+  },
+  "heavy_calc_1e1": {
+   "requests": 5,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 17.13,
+   "p95_ms": 24.05,
+   "p99_ms": 24.05,
+   "max_ms": 24.05,
+   "throughput_rps": 49.0,
+   "duration_s": 0.1
+  },
+  "heavy_calc_1e100": {
+   "requests": 5,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 3.86,
+   "p95_ms": 5.69,
+   "p99_ms": 5.69,
+   "max_ms": 5.69,
+   "throughput_rps": 283.1,
+   "duration_s": 0.0
+  },
+  "heavy_calc_1e12": {
+   "requests": 5,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 1.96,
+   "p95_ms": 3.9,
+   "p99_ms": 3.9,
+   "max_ms": 3.9,
+   "throughput_rps": 433.4,
+   "duration_s": 0.0
+  },
+  "heavy_calc_1e15": {
+   "requests": 5,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 3.96,
+   "p95_ms": 4.35,
+   "p99_ms": 4.35,
+   "max_ms": 4.35,
+   "throughput_rps": 268.6,
+   "duration_s": 0.0
+  },
+  "heavy_calc_1e3": {
+   "requests": 5,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 24.87,
+   "p95_ms": 32.82,
+   "p99_ms": 32.82,
+   "max_ms": 32.82,
+   "throughput_rps": 36.0,
+   "duration_s": 0.1
+  },
+  "heavy_calc_1e300": {
+   "requests": 5,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 4.88,
+   "p95_ms": 9.34,
+   "p99_ms": 9.34,
+   "max_ms": 9.34,
+   "throughput_rps": 170.4,
+   "duration_s": 0.0
+  },
+  "heavy_calc_1e308": {
+   "requests": 5,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 3.98,
+   "p95_ms": 8.87,
+   "p99_ms": 8.87,
+   "max_ms": 8.87,
+   "throughput_rps": 262.6,
+   "duration_s": 0.0
+  },
+  "heavy_calc_1e6": {
+   "requests": 5,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 605.64,
+   "p95_ms": 1612.93,
+   "p99_ms": 1612.93,
+   "max_ms": 1612.93,
+   "throughput_rps": 1.5,
+   "duration_s": 3.3
+  },
+  "heavy_calc_1e9": {
+   "requests": 5,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 3.48,
+   "p95_ms": 7.38,
+   "p99_ms": 7.38,
+   "max_ms": 7.38,
+   "throughput_rps": 258.5,
+   "duration_s": 0.0
+  },
+  "list_projects_1500": {
+   "requests": 10,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 4.87,
+   "p95_ms": 6.84,
+   "p99_ms": 6.84,
+   "max_ms": 6.84,
+   "throughput_rps": 150.0,
+   "duration_s": 0.1
+  },
+  "login": {
+   "requests": 1,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 20.19,
+   "p95_ms": 20.19,
+   "p99_ms": 20.19,
+   "max_ms": 20.19,
+   "throughput_rps": 49.5,
+   "duration_s": 0.0
+  },
+  "replay": {
+   "requests": 25,
+   "errors_5xx_or_conn": 0,
+   "error_rate": 0.0,
+   "p50_ms": 19.23,
+   "p95_ms": 37.67,
+   "p99_ms": 43.11,
+   "max_ms": 43.11,
+   "throughput_rps": 46.4,
+   "duration_s": 0.5
+  }
+ },
+ "bad_requests": [],
+ "server": {
+  "peak_rss_mb": 178.0,
+  "peak_cpu_pct": 91.9,
+  "mean_cpu_pct": 60.3,
+  "peak_threads": 6,
+  "peak_fds": 22,
+  "final_data_mb": 554.5
+ },
+ "samples": [
+  {
+   "t": 1.0,
+   "cpu": 72.0,
+   "rss_mb": 68.6,
+   "threads": 6,
+   "fds": 15,
+   "data_mb": 26.6
+  },
+  {
+   "t": 2.0,
+   "cpu": 69.0,
+   "rss_mb": 112.6,
+   "threads": 6,
+   "fds": 15,
+   "data_mb": 34.8
+  },
+  {
+   "t": 3.0,
+   "cpu": 82.0,
+   "rss_mb": 114.2,
+   "threads": 6,
+   "fds": 15,
+   "data_mb": 34.8
+  },
+  {
+   "t": 4.0,
+   "cpu": 62.7,
+   "rss_mb": 174.7,
+   "threads": 6,
+   "fds": 15,
+   "data_mb": 56.4
+  },
+  {
+   "t": 5.0,
+   "cpu": 16.0,
+   "rss_mb": 175.0,
+   "threads": 6,
+   "fds": 21,
+   "data_mb": 56.4
+  },
+  {
+   "t": 6.0,
+   "cpu": 17.9,
+   "rss_mb": 175.0,
+   "threads": 6,
+   "fds": 21,
+   "data_mb": 56.4
+  },
+  {
+   "t": 7.0,
+   "cpu": 25.0,
+   "rss_mb": 178.0,
+   "threads": 6,
+   "fds": 22,
+   "data_mb": 56.9
+  },
+  {
+   "t": 8.0,
+   "cpu": 46.6,
+   "rss_mb": 138.5,
+   "threads": 6,
+   "fds": 22,
+   "data_mb": 60.9
+  },
+  {
+   "t": 9.0,
+   "cpu": 39.7,
+   "rss_mb": 138.5,
+   "threads": 6,
+   "fds": 21,
+   "data_mb": 68.5
+  },
+  {
+   "t": 10.0,
+   "cpu": 43.0,
+   "rss_mb": 138.5,
+   "threads": 6,
+   "fds": 21,
+   "data_mb": 77.5
+  },
+  {
+   "t": 11.0,
+   "cpu": 50.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 21,
+   "data_mb": 88.4
+  },
+  {
+   "t": 12.0,
+   "cpu": 47.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 21,
+   "data_mb": 97.3
+  },
+  {
+   "t": 13.0,
+   "cpu": 51.4,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 21,
+   "data_mb": 108.0
+  },
+  {
+   "t": 14.0,
+   "cpu": 43.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 22,
+   "data_mb": 116.4
+  },
+  {
+   "t": 15.0,
+   "cpu": 45.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 21,
+   "data_mb": 126.7
+  },
+  {
+   "t": 16.1,
+   "cpu": 49.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 20,
+   "data_mb": 135.2
+  },
+  {
+   "t": 17.1,
+   "cpu": 44.8,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 21,
+   "data_mb": 143.8
+  },
+  {
+   "t": 18.1,
+   "cpu": 42.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 20,
+   "data_mb": 152.1
+  },
+  {
+   "t": 19.1,
+   "cpu": 41.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 20,
+   "data_mb": 161.9
+  },
+  {
+   "t": 20.1,
+   "cpu": 40.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 20,
+   "data_mb": 168.7
+  },
+  {
+   "t": 21.1,
+   "cpu": 47.8,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 20,
+   "data_mb": 178.8
+  },
+  {
+   "t": 22.1,
+   "cpu": 40.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 20,
+   "data_mb": 185.8
+  },
+  {
+   "t": 23.1,
+   "cpu": 49.4,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 195.7
+  },
+  {
+   "t": 24.1,
+   "cpu": 49.8,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 205.7
+  },
+  {
+   "t": 25.1,
+   "cpu": 39.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 212.4
+  },
+  {
+   "t": 26.1,
+   "cpu": 50.6,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 222.4
+  },
+  {
+   "t": 27.1,
+   "cpu": 84.4,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 238.8
+  },
+  {
+   "t": 28.1,
+   "cpu": 76.4,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 252.6
+  },
+  {
+   "t": 29.1,
+   "cpu": 88.5,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 270.6
+  },
+  {
+   "t": 30.1,
+   "cpu": 82.6,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 285.7
+  },
+  {
+   "t": 31.1,
+   "cpu": 84.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 302.5
+  },
+  {
+   "t": 32.1,
+   "cpu": 82.2,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 20,
+   "data_mb": 317.7
+  },
+  {
+   "t": 33.2,
+   "cpu": 76.0,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 20,
+   "data_mb": 332.4
+  },
+  {
+   "t": 34.2,
+   "cpu": 83.8,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 20,
+   "data_mb": 349.4
+  },
+  {
+   "t": 35.2,
+   "cpu": 82.5,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 20,
+   "data_mb": 364.3
+  },
+  {
+   "t": 36.2,
+   "cpu": 69.1,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 377.1
+  },
+  {
+   "t": 37.2,
+   "cpu": 64.4,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 390.0
+  },
+  {
+   "t": 38.2,
+   "cpu": 66.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 402.0
+  },
+  {
+   "t": 39.2,
+   "cpu": 60.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 20,
+   "data_mb": 414.9
+  },
+  {
+   "t": 40.3,
+   "cpu": 72.7,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 428.1
+  },
+  {
+   "t": 41.3,
+   "cpu": 65.8,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 441.5
+  },
+  {
+   "t": 42.3,
+   "cpu": 65.0,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 453.1
+  },
+  {
+   "t": 43.3,
+   "cpu": 71.3,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 466.5
+  },
+  {
+   "t": 44.3,
+   "cpu": 87.6,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 484.5
+  },
+  {
+   "t": 45.3,
+   "cpu": 75.0,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 499.5
+  },
+  {
+   "t": 46.3,
+   "cpu": 66.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 20,
+   "data_mb": 512.8
+  },
+  {
+   "t": 47.4,
+   "cpu": 69.2,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 526.1
+  },
+  {
+   "t": 48.4,
+   "cpu": 66.2,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 19,
+   "data_mb": 540.6
+  },
+  {
+   "t": 49.4,
+   "cpu": 70.2,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 14,
+   "data_mb": 553.5
+  },
+  {
+   "t": 50.4,
+   "cpu": 91.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 14,
+   "data_mb": 553.5
+  },
+  {
+   "t": 51.4,
+   "cpu": 70.9,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 14,
+   "data_mb": 553.5
+  },
+  {
+   "t": 52.5,
+   "cpu": 52.3,
+   "rss_mb": 138.6,
+   "threads": 5,
+   "fds": 14,
+   "data_mb": 553.5
+  },
+  {
+   "t": 53.5,
+   "cpu": 58.2,
+   "rss_mb": 138.6,
+   "threads": 6,
+   "fds": 16,
+   "data_mb": 554.5
+  }
+ ],
+ "server_alive_at_end": true,
+ "wall_s": 72.6
+}

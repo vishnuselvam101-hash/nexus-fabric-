@@ -1,0 +1,10 @@
+target/
+data/
+*.key
+node_modules/
+__pycache__/
+*.pyc
+
+# Packaging outputs: never commit binaries
+dist/
+*.exe

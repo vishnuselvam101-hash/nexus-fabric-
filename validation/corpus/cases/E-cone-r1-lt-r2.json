@@ -1,0 +1,20 @@
+{
+ "id": "E-cone-r1-lt-r2",
+ "group": "refusal",
+ "title": "cone: r1 < r2",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 100,
+  "r2": 200,
+  "h": 300
+ },
+ "expect": "refuse",
+ "derivation": "The family is defined with the large end first (Spec 02 4.2: r1 > r2).",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "r1",
+   "r2"
+  ]
+ }
+}

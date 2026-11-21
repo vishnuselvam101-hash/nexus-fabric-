@@ -1,0 +1,59 @@
+<!doctype html><html><head><meta charset="utf-8"><title>NEXUS FABRIC flagship draft animatic</title>
+<style>
+html,body{margin:0;background:#0b1118;overflow:hidden}
+#stage{position:relative;width:1280px;height:720px;background:#0b1118;color:#e8eef4;font-family:"Helvetica Neue",Arial,"IPAPGothic","IPAGothic",sans-serif;overflow:hidden}
+.scene{position:absolute;inset:0;opacity:0;transition:opacity .5s linear}
+.scene.on{opacity:1}
+.scene img{position:absolute;left:70px;top:64px;width:1140px;height:auto;border:1px solid #2a3a4b;transform-origin:50% 30%}
+.scene.on img{animation:push 9s linear forwards}
+@keyframes push{from{transform:scale(1)}to{transform:scale(1.05)}}
+.center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 120px}
+.wm{font-size:64px;font-weight:700;letter-spacing:.22em}
+.sub{font-size:24px;color:#9fb2c5;margin-top:14px;letter-spacing:.04em}
+.big{font-size:40px;line-height:1.35;font-weight:600}
+.slogan{font-size:26px;letter-spacing:.14em;margin-top:26px;color:#5aa9f5}
+.tag{position:absolute;left:70px;top:22px;font-size:15px;font-weight:700;letter-spacing:.1em;padding:5px 10px;border:1px solid}
+.real{color:#59c98a;border-color:#59c98a}.concept{color:#f0b354;border-color:#f0b354}
+.note{position:absolute;right:70px;top:24px;font-size:15px;color:#f0b354}
+#cap{position:absolute;left:0;right:0;bottom:44px;text-align:center;font-size:27px;line-height:1.35;padding:0 150px;text-shadow:0 0 6px #000,0 0 14px #000;font-weight:600}
+#cap span{background:rgba(6,12,18,.82);padding:5px 12px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+#foot{position:absolute;left:70px;right:70px;bottom:12px;display:flex;justify-content:space-between;font-size:13px;color:#7f93a7}
+svg.lines{width:760px;height:300px;margin-bottom:26px}
+svg.lines *{fill:none;stroke:#9fb2c5;stroke-width:1.5}
+</style></head><body><div id="stage"></div>
+<script>
+const lang = new URLSearchParams(location.search).get('lang') === 'ja' ? 'ja' : 'en';
+const T = {
+  en: { real: 'ACTUAL SOFTWARE — DEVELOPMENT BUILD', concept: 'CONCEPT — NOT YET IN THE SOFTWARE', foot: 'DRAFT ANIMATIC · silent · real application screens and concept cards · not final picture', disc: 'Product concept. Capabilities in development. Not validated for manufacturing.',
+    n3: 'Drawing reading and 3D reconstruction: planned', n5: 'Plate division and seam planning: planned', n6: 'Engineer approval workflow: planned',
+    c3: 'Drawing intelligence<br>PDF · scans · CAD → dimensions, views, 3D geometry', sub: 'AMOEBA-native industrial engineering platform', cta: 'Request a demonstration', slogan: 'UNDERSTAND. RECONSTRUCT. VERIFY. MANUFACTURE.', tagline: 'From engineering drawings to manufacturing intelligence.',
+    cap: ['Complex engineering drawings. Difficult geometry. Hours of engineering work.', 'Meet NEXUS FABRIC, an AMOEBA-native industrial engineering platform.', 'Understand engineering drawings. Reconstruct complex three-dimensional geometry.', 'Perform advanced mathematical engineering and investigate design inconsistencies.', 'Calculate manufacturing developments and generate traceable CAD deliverables.', 'Verify engineering results with traceable evidence and authorised engineering review.', 'One integrated platform for intelligent industrial engineering.', 'From engineering drawings to manufacturing intelligence. NEXUS FABRIC. Rethink engineering.'] },
+  ja: { real: '実際のソフトウェア画面(開発版)', concept: 'コンセプト(未実装)', foot: 'ドラフト・アニマティック · 無音 · 実画面とコンセプトカード · 最終映像ではありません', disc: '製品コンセプト映像です。機能は開発中であり、製造用途の検証は完了していません。',
+    n3: '図面読取・3D再構築:計画中', n5: '板割り・継ぎ目計画:計画中', n6: '技術者による承認ワークフロー:計画中',
+    c3: '図面インテリジェンス<br>PDF・スキャン・CAD → 寸法、投影図、3D形状', sub: 'AMOEBAを中核とした産業用エンジニアリングプラットフォーム', cta: 'デモのご依頼はこちら', slogan: '理解する。再構築する。検証する。製造する。', tagline: '図面から、製造の未来へ。',
+    cap: ['複雑な製作図面。難しい形状。何時間もかかる設計作業。', 'NEXUS FABRIC。AMOEBAを中核とした、産業用エンジニアリングプラットフォーム。', '図面を理解し、複雑な3D形状を再構築する。', '高度な数理計算で形状を導き、設計の不整合を調べる。', '板材展開を計算し、根拠をたどれるCADデータを生成する。', '結果は独立して検証。証拠を残し、最終判断は技術者が行う。', 'インテリジェントな産業エンジニアリングを、ひとつのプラットフォームで。', '図面から、製造の未来へ。NEXUS FABRIC。'] },
+}[lang];
+const lines = '<svg class="lines" viewBox="0 0 760 300"><rect x="40" y="110" width="680" height="90"/><line x1="40" y1="155" x2="720" y2="155" stroke-dasharray="14 5 3 5"/><path d="M330 110 L420 20 L500 20 L470 110"/><line x1="375" y1="65" x2="485" y2="65" stroke-dasharray="14 5 3 5"/><path d="M40 230 L720 230 M40 222 L40 238 M720 222 L720 238"/><circle cx="600" cy="155" r="30"/><path d="M120 110 C150 60 210 60 240 110" stroke-dasharray="6 4"/></svg>';
+const img = (f) => `<img src="${f}.png" alt="">`;
+const S = [
+  [0, 5, `<div class="tag concept">${T.concept}</div><div class="center">${lines}</div>`],
+  [5, 12, `<div class="tag real">${T.real}</div>${img('app-amoeba')}<div class="center" style="background:rgba(11,17,24,.78)"><div class="wm">NEXUS FABRIC</div><div class="sub">${T.sub}</div></div>`],
+  [12, 20, `<div class="tag concept">${T.concept}</div><div class="center"><div class="big">${T.c3}</div><div class="sub" style="color:#f0b354">${T.n3}</div></div>`],
+  [20, 29, `<div class="tag real">${T.real}</div>${img('app-pattern-branch')}`],
+  [29, 37, `<div class="tag real">${T.real}</div><div class="note">${T.n5}</div>${img('app-pattern-header')}`],
+  [37, 44, `<div class="tag real">${T.real}</div><div class="note">${T.n6}</div>${img('app-obligations')}`],
+  [44, 49, `<div class="tag real">${T.real}</div>${img('app-dashboard')}`],
+  [49, 55, `<div class="center"><div class="wm">NEXUS FABRIC</div><div class="sub">${T.tagline}</div><div class="slogan">${T.slogan}</div><div class="sub" style="margin-top:34px;color:#e8eef4">${T.cta}</div><div class="sub" style="font-size:16px;margin-top:22px;color:#f0b354">${T.disc}</div></div>`],
+];
+const stage = document.getElementById('stage');
+stage.innerHTML = S.map((s, i) => `<div class="scene" id="s${i}">${s[2]}</div>`).join('') + `<div id="cap"></div><div id="foot"><span>${T.foot}</span><span id="tc"></span></div>`;
+const LEAD = 1.0; const t0 = performance.now();
+(function tick() {
+  const t = (performance.now() - t0) / 1000 - LEAD;
+  S.forEach((s, i) => { document.getElementById('s' + i).classList.toggle('on', t >= s[0] && t < s[1]); });
+  const k = S.findIndex((s) => t >= s[0] && t < s[1]);
+  document.getElementById('cap').innerHTML = k >= 0 ? `<span>${T.cap[k]}</span>` : '';
+  document.getElementById('tc').textContent = t >= 0 && t < 55 ? `${t.toFixed(1)} s / 55.0 s` : '';
+  requestAnimationFrame(tick);
+})();
+</script></body></html>
