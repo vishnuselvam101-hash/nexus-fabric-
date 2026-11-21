@@ -38,8 +38,11 @@ check "same-origin state change accepted"                 '[ "$(asc alice -H "Or
 H=$(curl -s -D - -o /dev/null "$BASE/")
 check "CSP forbids inline and foreign scripts"            'echo "$H" | grep -qi "content-security-policy: default-src .none.; script-src .self.;"'
 check "framing denied, sniffing disabled"                 'echo "$H" | grep -qi "x-frame-options: DENY" && echo "$H" | grep -qi "x-content-type-options: nosniff"'
-check "API responses not cacheable"                       'curl -s -D - -o /dev/null $BASE/api/health | grep -qi "cache-control: no-store"'
-check "session cookie HttpOnly and SameSite=Strict"       'curl -s -D - -o /dev/null -H "$X" -H "$CT" -d "{\"username\":\"alice\",\"password\":\"password-of-alice\"}" $BASE/api/login | grep -i "set-cookie" | grep -qi "HttpOnly; SameSite=Strict"'
+HC=$(curl -s -D - -o /dev/null "$BASE/api/health")
+check "API responses not cacheable"                       'grep -qi "cache-control: no-store" <<<"$HC"'
+LC=$(curl -s -D - -o /dev/null -H "$X" -H "$CT" -d "{\"username\":\"alice\",\"password\":\"password-of-alice\"}" "$BASE/api/login")
+SC=$(grep -i "set-cookie" <<<"$LC" || true)
+check "session cookie HttpOnly and SameSite=Strict"       'grep -qi "HttpOnly; SameSite=Strict" <<<"$SC"'
 
 echo "# project isolation (broken access control, IDOR)"
 CID=$(as alice -H "$CT" -d '{"family":"header_with_branch","header_radius":150,"header_dev_radius":150,"header_length":1200,"branch_station":600,"branch_radius":100,"branch_dev_radius":100,"beta_deg":60,"delta":0,"s_end":400,"surface_reference":"outside"}' "$BASE/api/projects/1/calculations" | j 'd["id"]')

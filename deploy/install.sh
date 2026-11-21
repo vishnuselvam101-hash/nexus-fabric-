@@ -1,16 +1,21 @@
 #!/usr/bin/env bash
 # Install or upgrade NEXUS FABRIC on a Linux server (systemd, Caddy in front). Run as root, from a checkout:
 #   sudo DOMAIN=app.example.com [NF_PORT=8787] bash deploy/install.sh
-# This script downloads no program. The server comes from one of two places:
+# What it fetches from outside the distribution's packages: Caddy, when it is missing, from Caddy's apt repository. The
+# repository's signing key is fetched and not checked against a pinned fingerprint (open: V-44 in
+# docs/security/VULNERABILITY_REGISTER.md). When the server is built, cargo fetches the crates pinned in Cargo.lock
+# (cargo build --locked). The server comes from one of two places:
 #   - built from this checkout by an UNPRIVILEGED account that already has its own Rust toolchain: NF_BUILD_USER=<account>,
 #     otherwise the account that ran sudo, otherwise the owner of the checkout. Building as root is refused. The
 #     account gets a copy of the sources in its own build directory (NF_BUILD_DIR, default ~/.cache/nexus-fabric-build)
 #     and never writes the checkout; root only reads the finished binary back from it;
 #   - or a prebuilt binary: NF_BINARY=/path/to/nf-server NF_BINARY_SHA256=<its SHA-256>, checked before anything is installed.
 # Re-runnable and safe to interrupt: everything is checked before the first change, and every file is written beside
-# its target and renamed into place. The binary and unit that last answered the health check are kept in
-# /usr/local/lib/nexus-fabric/previous; if a new version does not answer within 15 s they are put back and started
-# again (automatic rollback). The service account, the data and the key are kept.
+# its target and renamed into place. Before the switch to a new version, the binary, the unit and a copy of the database
+# are kept in /usr/local/lib/nexus-fabric/previous (the new version may migrate the database when it starts, and the old
+# one refuses a newer schema). If a new version does not answer within 60 s, the old binary and unit are put back, the
+# database copy is restored, and the old version is started again (automatic rollback). The service account, the data
+# and the key are kept.
 # Safe next to other sites: an existing Caddyfile is never overwritten (see deploy/caddy-site.sh), a port in use is
 # refused, and the firewall is never enabled here.
 # NF_INSTALL_ROOT is for tests only (tests/install_check.sh): a directory put in front of every path this script
@@ -71,11 +76,28 @@ main() {
   [[ $NF_PORT =~ ^[1-9][0-9]{3,4}$ ]] && [ "$NF_PORT" -ge 1024 ] && [ "$NF_PORT" -le 65535 ] \
     || die "NF_PORT must be a number from 1024 to 65535"
 
-  NF_ADMIN_USER="${NF_ADMIN_USER:-}"; NF_ADMIN_PASSWORD="${NF_ADMIN_PASSWORD:-}"
-  if [ -n "$NF_ADMIN_USER" ] || [ -n "$NF_ADMIN_PASSWORD" ]; then
-    [ -n "$NF_ADMIN_USER" ] && [ -n "$NF_ADMIN_PASSWORD" ] || die "give both NF_ADMIN_USER and NF_ADMIN_PASSWORD, or neither"
+  # The first administrator (optional). The password never comes from the environment or a command line, where other
+  # accounts and sudo's log can see it: it is read from a file (NF_ADMIN_PASSWORD_FILE, mode 600, owned by root) or typed
+  # at a prompt when this script runs from a terminal.
+  NF_ADMIN_USER="${NF_ADMIN_USER:-}"; NF_ADMIN_PASSWORD_FILE="${NF_ADMIN_PASSWORD_FILE:-}"; ADMIN_PASSWORD=""
+  [ -z "${NF_ADMIN_PASSWORD+x}" ] || die "NF_ADMIN_PASSWORD is refused: a password in the environment or on a command line is visible to other accounts and to sudo's log. Give NF_ADMIN_PASSWORD_FILE=<file with mode 600, owned by root> instead, or run this script from a terminal and type the password when asked"
+  if [ -n "$NF_ADMIN_USER" ] || [ -n "$NF_ADMIN_PASSWORD_FILE" ]; then
+    [ -n "$NF_ADMIN_USER" ] || die "NF_ADMIN_PASSWORD_FILE needs NF_ADMIN_USER too (the name of the first administrator)"
     case "$NF_ADMIN_USER" in *[!A-Za-z0-9._-]*) die "NF_ADMIN_USER may contain letters, digits, . _ - only" ;; esac
-    case "$NF_ADMIN_PASSWORD" in *[\"\\]*|*[[:cntrl:]]*) die "NF_ADMIN_PASSWORD must not contain a double quote, a backslash or a control character when given to this script; create the account by hand instead" ;; esac
+    if [ -n "$NF_ADMIN_PASSWORD_FILE" ]; then
+      [ -f "$NF_ADMIN_PASSWORD_FILE" ] && [ ! -L "$NF_ADMIN_PASSWORD_FILE" ] \
+        || die "NF_ADMIN_PASSWORD_FILE: $NF_ADMIN_PASSWORD_FILE is not a regular file"
+      [ "$(stat -c '%a %u' "$NF_ADMIN_PASSWORD_FILE")" = "600 0" ] \
+        || die "NF_ADMIN_PASSWORD_FILE must be mode 600 and owned by root (chown root and chmod 600 the file)"
+      ADMIN_PASSWORD="$(cat "$NF_ADMIN_PASSWORD_FILE")"
+    elif [ -t 0 ]; then
+      read -r -s -p "Password for the first administrator '$NF_ADMIN_USER' (at least 10 characters): " ADMIN_PASSWORD || die "no password was typed"
+      echo >&2
+    else
+      die "NF_ADMIN_USER needs a password: give NF_ADMIN_PASSWORD_FILE=<file with mode 600, owned by root>, or run this script from a terminal"
+    fi
+    case "$ADMIN_PASSWORD" in *[\"\\]*|*[[:cntrl:]]*) die "the administrator password must not contain a double quote, a backslash or a control character (the setup request is built from it); create the account by hand instead" ;; esac
+    [ -n "$ADMIN_PASSWORD" ] || die "the administrator password is empty"
   fi
 
   NF_BINARY="${NF_BINARY:-}"; NF_BINARY_SHA256="${NF_BINARY_SHA256:-}"
@@ -130,7 +152,8 @@ main() {
   existing_port="$(listen_port "$UNIT")"
   own=0
   if systemctl is-active --quiet nf-server 2>/dev/null && [ "$existing_port" = "$NF_PORT" ]; then own=1; fi
-  if [ "$own" = 0 ] && ss -ltnH "sport = :$NF_PORT" | grep -q .; then
+  listeners="$(ss -ltnH "sport = :$NF_PORT" 2>/dev/null || true)"
+  if [ "$own" = 0 ] && grep -q . <<<"$listeners"; then
     ss -ltnp "sport = :$NF_PORT" >&2 || true
     die "port $NF_PORT is already in use (listeners above); choose a free port with NF_PORT=<port>"
   fi
@@ -158,10 +181,10 @@ main() {
     fi
     echo "prebuilt binary checked: SHA-256 $got"
     apt-get update || warn "apt-get update failed; continuing with the package lists as they are"
-    apt-get install -y curl ufw iproute2
+    apt-get install -y curl ufw iproute2 sqlite3
   else
     apt-get update || warn "apt-get update failed; continuing with the package lists as they are"
-    apt-get install -y build-essential curl ufw iproute2
+    apt-get install -y build-essential curl ufw iproute2 sqlite3
     echo "building as $BUILD_USER in $BUILD_DIR with $(as_builder cargo --version)"
     # The account unpacks a copy of the sources in its own directory (a fresh copy every time; the compiled
     # dependencies in target/ are kept between runs) and builds there.
@@ -207,13 +230,52 @@ main() {
       good=1
     fi
   fi
+  # The database: the new version may migrate it when it starts, and the old version refuses a newer schema. So the copy
+  # kept with the old binary is the rollback's database. It is a consistent copy made with sqlite3 .backup while the
+  # service keeps running; without sqlite3 the service is stopped (it folds its write-ahead log in) and the files are copied.
+  DB="$DATA/nexus-fabric.sqlite"
+  # snapshot_db DIR: copies the database into DIR (only when there is one). Returns 1 when the copy failed.
+  snapshot_db() {
+    [ -f "$DB" ] || return 0
+    if command -v sqlite3 >/dev/null 2>&1; then
+      sqlite3 "$DB" ".backup '$1/nexus-fabric.sqlite'" || return 1
+    else
+      systemctl stop nf-server || return 1
+      cp -p "$DB" "$1/nexus-fabric.sqlite" || return 1
+      if [ -e "$DB-wal" ]; then cp -p "$DB-wal" "$1/nexus-fabric.sqlite-wal" || return 1; fi
+      if [ -e "$DB-shm" ]; then cp -p "$DB-shm" "$1/nexus-fabric.sqlite-shm" || return 1; fi
+    fi
+    chmod 0600 "$1/nexus-fabric.sqlite"
+  }
+  # restore_db: puts the database copy in PREV back. The database as the new version left it is moved to a failed-<time>
+  # folder beside the state, not deleted. The stale -wal and -shm files go with it.
+  restore_db() {
+    local f failed
+    failed="$STATE/failed-$(date +%Y%m%d%H%M%S)"
+    for f in nexus-fabric.sqlite nexus-fabric.sqlite-wal nexus-fabric.sqlite-shm; do
+      if [ -e "$DATA/$f" ]; then
+        [ -d "$failed" ] || mkdir -m 0700 "$failed"
+        mv -f "$DATA/$f" "$failed/$f"
+      fi
+    done
+    cp "$PREV/nexus-fabric.sqlite" "$DATA/nexus-fabric.sqlite.new" \
+      && chmod 0600 "$DATA/nexus-fabric.sqlite.new" \
+      && chown nexusfabric:nexusfabric "$DATA/nexus-fabric.sqlite.new" \
+      && mv -f "$DATA/nexus-fabric.sqlite.new" "$DATA/nexus-fabric.sqlite"
+  }
+
   if [ "$good" = 1 ]; then
     mkdir -m 0700 "$STATE/previous.new"
     cp -p "$BIN" "$UNIT" "$STATE/previous.new/"
+    if ! snapshot_db "$STATE/previous.new"; then
+      systemctl restart nf-server 2>/dev/null || true
+      rm -rf "$STATE/previous.new"
+      die "could not copy the database for a rollback; nothing was changed"
+    fi
     if [ -d "$PREV" ]; then mv "$PREV" "$STATE/previous.old"; fi
     mv "$STATE/previous.new" "$PREV"
     rm -rf "$STATE/previous.old"
-    echo "the installed version is kept for rollback in $PREV"
+    echo "the installed version and its database are kept for rollback in $PREV"
   elif [ -f "$BIN" ]; then
     echo "the installed version is not known to work (an earlier run was interrupted?); the rollback copy in $PREV is kept as it is"
   fi
@@ -224,24 +286,31 @@ main() {
   systemctl enable nf-server || warn "systemctl enable nf-server failed"
   systemctl restart nf-server || warn "systemctl restart nf-server failed"
 
-  # 'enable' succeeds even when the bind fails, so check that the server really answers.
-  if answers "$NF_PORT" 30; then
+  # 'enable' succeeds even when the bind fails, so check that the server really answers (up to 60 s).
+  if answers "$NF_PORT" 120; then
     record_verified
     echo "nf-server answers on 127.0.0.1:${NF_PORT}"
   else
-    echo "nf-server did not answer on http://127.0.0.1:${NF_PORT}/api/health; last log lines:" >&2
+    echo "nf-server did not answer on http://127.0.0.1:${NF_PORT}/api/health within 60 s; last log lines:" >&2
     journalctl -u nf-server -n 30 --no-pager >&2 || true
     [ -f "$PREV/nf-server" ] && [ -f "$PREV/nf-server.service" ] \
       || die "there is no earlier version to return to; fix the cause and run this script again"
     echo "install: returning to the previous version" >&2
+    systemctl stop nf-server 2>/dev/null || true
     cp -p "$PREV/nf-server.service" "$UNIT.new"; mv -f "$UNIT.new" "$UNIT"
     cp -p "$PREV/nf-server" "$BIN.new"; mv -f "$BIN.new" "$BIN"
+    db_note=""
+    if [ -f "$PREV/nexus-fabric.sqlite" ]; then
+      if restore_db; then db_note=" and its database were"; else warn "the database copy could not be restored; the previous version may refuse the database (see $STATE/failed-*)"; fi
+    else
+      warn "there is no database copy in $PREV (made by an older installer): the database was left as it is"
+    fi
     systemctl daemon-reload || warn "systemctl daemon-reload failed"
     systemctl restart nf-server || warn "systemctl restart nf-server failed"
     prev_port="$(listen_port "$UNIT")"
-    if [ -n "$prev_port" ] && answers "$prev_port" 30; then
+    if [ -n "$prev_port" ] && answers "$prev_port" 120; then
       record_verified
-      die "the new version did not answer its health check. The previous version was restored and answers on 127.0.0.1:${prev_port}; Caddy and the firewall were not touched"
+      die "the new version did not answer its health check. The previous version${db_note:- was} restored and answers on 127.0.0.1:${prev_port}; Caddy and the firewall were not touched"
     fi
     journalctl -u nf-server -n 30 --no-pager >&2 || true
     die "the new version did not answer its health check, and the restored previous version does not answer either; see journalctl -u nf-server"
@@ -249,18 +318,19 @@ main() {
 
   # ---------------------------------------------------------------- 6. first administrator, over loopback
   # BEFORE the site is reachable from outside (V-36). Creating it needs the one-time setup token the server wrote to its
-  # data directory at first start (readable by root and the service user only). Either pass
-  #   NF_ADMIN_USER=<name> NF_ADMIN_PASSWORD='<at least 10 characters>'
-  # to this script, or create the account afterwards from this machine with the command printed at the end.
+  # data directory at first start (readable by root and the service user only). Either give this script
+  #   NF_ADMIN_USER=<name> NF_ADMIN_PASSWORD_FILE=<file>   (or NF_ADMIN_USER alone, from a terminal: the password is asked)
+  # or create the account afterwards from this machine with the command printed at the end.
   TOKEN_FILE="$DATA/setup-token"
   if [ -f "$TOKEN_FILE" ] && [ -n "$NF_ADMIN_USER" ]; then
     # The password and the token go to curl on its standard input and in a header file, never on its command line
     # (a command line is visible to every account on the machine).
     hdr="$TPL/setup-headers"
     ( umask 077; printf 'X-NF-Setup-Token: %s\n' "$(cat "$TOKEN_FILE")" > "$hdr" )
-    code="$(printf '{"username":"%s","password":"%s"}' "$NF_ADMIN_USER" "$NF_ADMIN_PASSWORD" \
+    code="$(printf '{"username":"%s","password":"%s"}' "$NF_ADMIN_USER" "$ADMIN_PASSWORD" \
       | curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X POST "http://127.0.0.1:${NF_PORT}/api/setup" -H 'Content-Type: application/json' -H 'X-NF-Request: 1' -H "@$hdr" --data-binary @-)"
     rm -f "$hdr"
+    ADMIN_PASSWORD=""
     [ "$code" = 200 ] || die "creating the first administrator failed (HTTP $code); the site has not been exposed. Fix the cause and run the script again"
     echo "first administrator '${NF_ADMIN_USER}' created"
   fi
@@ -284,9 +354,10 @@ main() {
 
   # ---------------------------------------------------------------- 8. firewall: rules only
   # Enabling ufw on a server with other services can lock them out, so it is left to the operator.
-  ufw allow OpenSSH >/dev/null
-  ufw allow 80/tcp >/dev/null
-  ufw allow 443/tcp >/dev/null
+  # The service is already switched and running here, so a failed rule is a warning, not an error of the whole install.
+  ufw allow OpenSSH >/dev/null || warn "ufw: could not add the SSH rule; allow it by hand: ufw allow OpenSSH"
+  ufw allow 80/tcp >/dev/null || warn "ufw: could not add the rule for port 80; allow it by hand: ufw allow 80/tcp"
+  ufw allow 443/tcp >/dev/null || warn "ufw: could not add the rule for port 443; allow it by hand: ufw allow 443/tcp"
   fw="$(ufw status 2>/dev/null || true)"
   case "$fw" in
     *"Status: active"*) echo "ufw is active: SSH, 80 and 443 allowed." ;;
@@ -295,9 +366,14 @@ main() {
 
   echo "NEXUS FABRIC answers on 127.0.0.1:${NF_PORT}; public address https://${DOMAIN} once DNS points here."
   if [ -f "$TOKEN_FILE" ]; then
-    echo "NO ADMINISTRATOR EXISTS YET. Create it now, from this machine. It needs the one-time setup token in $TOKEN_FILE:"
-    echo "  curl -sS -X POST http://127.0.0.1:${NF_PORT}/api/setup -H 'Content-Type: application/json' -H 'X-NF-Request: 1' -H \"X-NF-Setup-Token: \$(sudo cat $TOKEN_FILE)\" -d '{\"username\":\"<name>\",\"password\":\"<at least 10 characters>\"}'"
-    echo "Nobody without that token can create the administrator, also not through https://${DOMAIN}."
+    # Nothing secret goes on a command line: the password is typed at a prompt, and the token reaches curl through a
+    # process substitution that root reads (curl sees a path to it, not the token). Run in bash.
+    echo "NO ADMINISTRATOR EXISTS YET. Create it now, from this machine, in bash (the token is in $TOKEN_FILE, root and the service user only):"
+    cat <<EOF
+  read -r -s -p 'Password for the first administrator (at least 10 characters): ' P; echo
+  printf '{"username":"<name>","password":"%s"}' "\$P" | curl -sS -X POST http://127.0.0.1:${NF_PORT}/api/setup -H 'Content-Type: application/json' -H 'X-NF-Request: 1' -H @<(sudo sed 's/^/X-NF-Setup-Token: /' ${TOKEN_FILE}) --data-binary @-; unset P
+EOF
+    echo "Replace <name>. The password must not contain a double quote or a backslash. Nobody without that token can create the administrator, also not through https://${DOMAIN}."
   fi
   echo "Back up /var/lib/nexus-fabric together with /etc/nexus-fabric/master.key (see deploy/README.md and docs/BUILD_AND_TEST_GUIDE.md)."
 }
