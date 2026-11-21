@@ -58,3 +58,48 @@ Merged into the register's section "Questions for a fabrication engineer"
 zones); K-factor and t/R limits; set-on cut to the branch bore or outside, bevel and root gap; the 0.01 mm chord limit
 and the cuttable seam gap; kerf compensation ownership and whether R12 POLYLINE/ARC on CUT_OUTER/CUT_INNER is accepted
 by the shop's CAM; the AMOEBA dependency rule table in `crates/nf-core/src/deps.rs`.
+
+## Verification results (21 Nov 2026)
+
+Seven independent verifiers, one per area, tried to refute each finding and reproduced the real ones on throw-away
+servers inside the development sandbox (engine code of `ed4a5fb`). Evidence: `/root/nf-logs/review-c/` on the
+development host (scripts, outputs, `verdicts.json`). The "Verification" column above is filled from this section
+when each fix lands.
+
+| ID | Verdict | Own severity | What was found | Fix (task) |
+|---|---|---|---|---|
+| RC-01 | **CONFIRMED, wider than stated** | High (not Critical: nothing reaches APPROVED, every file stays NOT RELEASED) | Reproduced: an altered point is shown and the old DXF still served; a swapped `dxf_sha256` serves another job's DXF — or an uploaded PDF as `application/dxf`; replay says "reproduced" in each case. Also unverified: the stored request, the checks, the records copy used by dependencies and corrections, and missing closure records (`evaluate` compares two copies of the closure hash in the same row and never walks the closure). BE-002's "fixed" text claimed a check that was not built | One verified loader for every full read: walk the closure in the records table, verify every id and the closure hash, derive patterns, DXF hash, request and checks from the records; any difference from the `result_json` copy is G22 FAIL, REJECTED (2.2, with RA-005 and RC-22) |
+| RC-02 | **PARTLY** | Medium | "Impossible for r_i > 0, k ≤ 0.5" is false: with outside contact r_o, 2·r_dev ≤ r_o is consistent for k < r_dev/r_o (example r_o 50, r_dev 0.5, k 0.005, r_i 0.2513, t 49.749). For inside, no pair is impossible; the only consequence is t ≥ 2(r_dev − r_i). The true part: an inside pair carries no advisory at all | Keep the outside advisory, make its wording exact (consistent only for k < r_dev/r_contact; implied wall r_contact − r_dev < t < r_contact); add a derived inside advisory and quantities (implied wall ≥ 2(r_dev − r_i), no upper bound); no refusal without fabrication questions 1 and 6 (1.4) |
+| RC-03 | ALREADY TRACKED | Medium | Conventions computed in uem reach neither the DXF nor the result | 1.3 |
+| RC-04 | **CONFIRMED** | High | 50 concurrent wrong sign-ins for one account: all 50 hashed and compared (limit 5). Also: V-37 is marked fixed but is raceable, and password-change failures are stored without the client address, so the per-address limit never applies to them | Reserve each attempt inside the checking transaction before hashing; a crash leaves the reservation counted (2.2, RA-002; reopen V-37) |
+| RC-05 | **CONFIRMED** | High as a gate for 3.1 | ASCII85 `z` expansion and unbounded arrays/dictionaries reproduced | 3.1 stage 1 |
+| RC-06 | ALREADY TRACKED | High as a precondition for 3.1 | No launcher exists yet | 3.1 |
+| RC-06-N1 | **NEW, CONFIRMED** | Low | After a signal death (allocation abort, CPU-limit kill) the converter leaves a 0-byte `out.dxf` and a 0-byte report, contradicting its own documentation | Write to `<out>.partial`, rename on success; pre-write an "incomplete" report; the server accepts a DXF only on exit 0, status "converted" and a matching hash (3.1) |
+| RC-07 | ALREADY TRACKED, understated | High | The audit rewrite needs no key at all: `audit()` never verifies the stored anchor before appending and takes its count from an unauthenticated `meta.audit_count` | 2.2 (RA-003 first), 2.5 |
+| RC-08 | ALREADY TRACKED | Low | — | 2.1 (V-47) |
+| RC-09 | **CONFIRMED** | Medium | A turned rectangle with swapped edge names passes the cylinder checks; `verify_cylinder_solid` is unused | 1.5 |
+| RC-10 | **PARTLY, and worse elsewhere** | Medium | The mirror image of an oblique cone is the same plate turned by −Psi (rho and psi are even in theta), so mirror blindness is not a geometric defect; but comparing only distances from `outer[0]` leaves n − 2 shape degrees of freedom free: non-congruent outlines pass all checks; no datum or orientation check | Check orientation, the stated datum (seam_a on +X, seam_b at +Psi) and every vertex in directed coordinates against the verifier's own development; the outline's signed area (1.5) |
+| RC-11 | ALREADY TRACKED | Low | = D4-a | 1.2 |
+| RC-12 | **CONFIRMED** | Informational | The avoidable part is 17–26 % of an error of at most 1.6e-12 mm | 1.6 (changes cut-geometry bits: with an engine bump) |
+| RC-13 | **PARTLY, worse than stated** | Low | Exact touching, collinear overlap, a pinch and a crossing through a vertex all give 0 self-intersections in G11; contrary to the review, the DXF gate also PASSES a T-touch and a crossing through a vertex on separate LINE entities | Endpoint-to-segment distance test for every non-adjacent pair in both crates, using their existing tolerances (1.5) |
+| RC-14 | **REFUTED** | None | The steep knee is a minimum, not a maximum; a miss needs two peaks inside one sample interval and would be at most about 1e-13·R/sin β mm; none found | Close |
+| RC-15 | ALREADY TRACKED | Medium | — | 1.2 / 1.5 |
+| RC-16 | ALREADY TRACKED | Low | Passing the same geometry as both surfaces is correct for today's zero-thickness model | 1.5, 1.7 |
+| RC-17 | **CONFIRMED** | Low today | — | 1.3 |
+| RC-18 | **CONFIRMED** | Low | Latent; no writer path reaches it | 1.3 |
+| RC-19 | **CONFIRMED** | Low | Latent; the server's own JSON parsing already refuses NaN, infinity and 1e999 (the reviewer's location main.rs:348 is unrelated) | 1.4 |
+| RC-20 | **CONFIRMED** | High | No triggers; V-25 still says "fixed, tested" though rollback and rewrite are possible. Triggers stop code bugs and accidental edits, not a file writer (one DROP TRIGGER); a separate anchor key alone does not stop a writer either | Verify the anchor before every append and fail closed; keep a copy of the anchor outside the database; triggers as defence in depth, documented as such (2.2 RA-003) |
+| RC-21 | ALREADY TRACKED | Low | = BE-014 | 3.4 |
+| RC-22 | **CONFIRMED** | Low | — | 2.2 with RC-01 |
+| RC-23 | **CONFIRMED** | Low | — | 3.1 stage 1 |
+| RC-23-N1 | **NEW, CONFIRMED** | Medium | Quadratic `trailer` reconstruction with no deadline check: 1 MiB takes 34.5 s against a 30 s limit; 4 MiB is killed by the CPU limit after 60.7 s with no report | Check the deadline on every iteration; skip occurrences inside the previous parse (3.1) |
+| RC-24 | ALREADY TRACKED | Low | — | 2.1 (V-45) |
+| RC-25 | ALREADY TRACKED | Medium | — | 2.1 (V-44) |
+| RC-26 | ALREADY TRACKED | Low | — | 3.4 |
+| RC-27 | **REFUTED** | Informational | Every HTML sink reviewed and probed: no unescaped user-controlled value | Close (keep the probe in 3.5) |
+| RC-28 | **PARTLY** | Medium | Knowing the implementation limits is necessary for any oracle; presenting those refusal predictions as independent is the defect | 1.8 |
+| RC-29 | **PARTLY** | Medium | The mirrored-reducer test gap hides no defect (see RC-10); the others are real | RC-01, 2.2, 1.3, 1.8 |
+| RC-30 | ALREADY TRACKED | Medium | — | 3.4 |
+| RC-31 | **CONFIRMED** | Low | Defence in depth; needs a schema version 4 | 3.4 |
+| RC-32 | **PARTLY** | Low | The two crossing grids are both live (G11 and the DXF gate), not dead code; the rest is dead; one doc comment (`uem/src/lib.rs`) is false | 1.3, 1.5, 3.4 |
+| RC-33 | **PARTLY** | Low | No panic layer (= RA-011); poisoned mutexes cannot expose half-updated application state (transactions roll back first) | 2.2 (RA-011, RA-013) |
