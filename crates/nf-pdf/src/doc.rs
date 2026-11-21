@@ -423,6 +423,11 @@ impl<'a> Doc<'a> {
         if self.resolving.contains(&num) {
             return malformed("circular reference between objects");
         }
+        // A chain of distinct objects (a /Length that refers to a stream whose /Length refers to
+        // the next, ...) recurses once per link: bound it like object nesting.
+        if self.resolving.len() >= self.lim.max_nesting {
+            return limit("nesting", "indirect object chain too deep");
+        }
         self.resolving.push(num);
         let loaded = self.load(num);
         self.resolving.pop();

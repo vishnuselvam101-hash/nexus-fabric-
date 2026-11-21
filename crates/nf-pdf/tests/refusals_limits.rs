@@ -244,6 +244,58 @@ fn limit_object_nesting_in_operands() {
     );
 }
 
+/// A page whose content stream is the head of a chain of `links` distinct stream objects: each
+/// stream's /Length refers to the next stream, and the last one has a direct /Length.
+fn length_chain_page(links: usize) -> Vec<u8> {
+    const OPS: &[u8] = b"0 0 m 10 10 l S";
+    let mut pdf = Pdf::new();
+    let catalog = pdf.reserve();
+    let pages = pdf.reserve();
+    let page = pdf.reserve();
+    let heads: Vec<u32> = (0..links).map(|_| pdf.reserve()).collect();
+    for (i, &n) in heads.iter().enumerate() {
+        let length = match heads.get(i + 1) {
+            Some(next) => format!("{next} 0 R"),
+            None => OPS.len().to_string(),
+        };
+        let mut body = format!("<< /Length {length} >>\nstream\n").into_bytes();
+        body.extend_from_slice(OPS);
+        body.extend_from_slice(b"\nendstream");
+        pdf.set(n, body);
+    }
+    pdf.set(catalog, format!("<< /Type /Catalog /Pages {pages} 0 R >>"));
+    pdf.set(
+        pages,
+        format!("<< /Type /Pages /Kids [{page} 0 R] /Count 1 >>"),
+    );
+    pdf.set(
+        page,
+        format!(
+            "<< /Type /Page /Parent {pages} 0 R /MediaBox [0 0 200 200] /Contents {} 0 R >>",
+            heads[0]
+        ),
+    );
+    pdf.classic(catalog)
+}
+
+#[test]
+fn a_chain_of_10000_indirect_lengths_is_refused_by_the_nesting_limit() {
+    // Each link recurses once in the object resolver; the chain must end at the nesting limit
+    // (with default limits), not overflow the stack.
+    let bytes = length_chain_page(10_000);
+    assert_eq!(limited(&bytes, &options(1.0)), "nesting");
+}
+
+#[test]
+fn a_chain_of_10_indirect_lengths_is_not_limited() {
+    // Well under the nesting limit: the chain is resolved as before. The head's /Length refers to a
+    // stream object (not a number), so its data is taken up to the end keyword, and the one line
+    // in it converts.
+    let bytes = length_chain_page(10);
+    let c = convert_ok(&bytes, 1.0);
+    assert_eq!(polylines(&c.dxf, "PDF_STROKE").len(), 1);
+}
+
 #[test]
 fn limit_form_depth_on_a_self_referencing_form() {
     // A form whose content invokes itself must stop at the depth limit, with default limits.

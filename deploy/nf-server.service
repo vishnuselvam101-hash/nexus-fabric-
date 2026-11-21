@@ -49,6 +49,8 @@ SystemCallFilter=@sandbox
 CapabilityBoundingSet=
 ReadWritePaths=/var/lib/nexus-fabric
 MemoryMax=1G
+# An OOM kill of the converter's worker (a child process) must not stop the whole server: continue, not stop.
+OOMPolicy=continue
 TasksMax=256
 
 [Install]

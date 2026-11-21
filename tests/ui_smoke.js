@@ -812,7 +812,8 @@ const controlProbe = () => {
       // a page past the end: the converter's refusal, with its code, is shown
       await p.fill('#cv_page', '7'); await p.fill('#cv_scale', '1');
       allow422 = true; await p.click('#cv button.pri'); await p.waitForFunction(() => /page_out_of_range/.test(document.querySelector('#cvmsg') ? document.querySelector('#cvmsg').textContent : '')); allow422 = false;
-      check(`pdf ${lang}: a page past the end shows the converter's code`, true);
+      const refusalShown = ((await p.textContent('#cvmsg')) || '').trim();
+      check(`pdf ${lang}: a page past the end shows the converter's code`, refusalShown.includes('page_out_of_range'), refusalShown);
       // a real conversion
       await p.fill('#cv_page', '1'); await p.fill('#cv_scale', '10');
       await p.click('#cv button.pri'); await p.waitForSelector('#cv-label');
