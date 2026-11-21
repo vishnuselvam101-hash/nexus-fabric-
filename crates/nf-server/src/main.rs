@@ -32,6 +32,7 @@ use nf_core::job::{self, Request};
 use nf_core::{Family, Gate, GateResult, Record, rel};
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use serde_json::{Value, json};
+use std::collections::{BTreeMap, BTreeSet};
 use std::net::IpAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -62,7 +63,8 @@ pub(crate) struct App {
     /// (window start, unauthenticated audit rows written, suppressed) — V-34.
     anon_audit: Mutex<(u64, u32, u32)>,
     /// (database data_version, jobs whose stored summary was checked against the full result at that version).
-    verified: Mutex<(i64, std::collections::HashSet<i64>)>,
+    /// (database version, job id -> findings of the full check against the records). See `calc_rows`.
+    verified: Mutex<(i64, std::collections::HashMap<i64, Vec<String>>)>,
     #[cfg(test)]
     fault: Mutex<Option<&'static str>>,
 }
@@ -1514,6 +1516,10 @@ struct Core {
     closure_json: Option<String>,
     root_id: Option<String>,
     state_json: Option<String>,
+    /// The check of the stored result against its records (RC-01). Present on every full read
+    /// (`load_core`); `None` on a list row served from the stored summary, which is used only for jobs
+    /// whose full read under the current database version passed this check (see `calc_rows`).
+    records: Option<RecordsCheck>,
 }
 
 /// The values `evaluate` needs from a stored result, as one JSON array, derived by SQL so that the
@@ -1582,16 +1588,302 @@ fn core_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Core> {
         closure_json: text(3),
         root_id: text(4),
         state_json: text(5),
+        records: None,
     })
 }
 
+/// Full read of a stored job: the summary derived from the stored result, plus the check of its
+/// pattern list against the content-addressed records (RC-01).
 fn load_core(db: &Connection, id: i64) -> rusqlite::Result<Option<Core>> {
-    db.query_row(
-        &format!("{} WHERE c.id = ?", core_sql(true)),
-        params![id],
-        core_row,
-    )
-    .optional()
+    let Some(mut c) = db
+        .query_row(
+            &format!("{} WHERE c.id = ?", core_sql(true)),
+            params![id],
+            core_row,
+        )
+        .optional()?
+    else {
+        return Ok(None);
+    };
+    c.records = Some(records_check(db, &c)?);
+    Ok(Some(c))
+}
+
+/// What the records table says about a job, independent of the copy in `result_json` (RC-01).
+#[derive(Clone, Default)]
+struct RecordsCheck {
+    /// Differences between the stored result and its records; each one is an integrity failure (G22).
+    findings: Vec<String>,
+    /// part -> SHA-256 of the DXF named by the job's own, verified `dxf_output` record. Empty unless
+    /// the check found nothing.
+    dxf: BTreeMap<String, String>,
+    /// The request of the job's own `development_request` record, when exactly one record of that kind
+    /// with a valid identity was reached (also when other records failed).
+    request: Option<Value>,
+    /// The verified records of the release closure, in the order of the stored result. Empty unless the
+    /// check found nothing.
+    records: Vec<Value>,
+    /// The gate-evaluation record the walk started from, when it exists and passes its identity check.
+    root: Option<String>,
+}
+
+/// Fields of a stored result that no record carries; they are served, but not as checked.
+const NOT_CHECKED_AGAINST_RECORDS: [&str; 2] = ["engine_advisories", "refused_field"];
+
+/// Walk the release closure of a job in the records table, starting at its gate-evaluation record,
+/// verify the identity of every record and the closure hash, and compare the stored result with the
+/// records of that closure (`compare_with_records`). Nothing is repaired; every difference is a
+/// finding. A database error is returned as an error.
+fn records_check(db: &Connection, c: &Core) -> rusqlite::Result<RecordsCheck> {
+    let mut out = RecordsCheck::default();
+    if !c.json_ok {
+        // evaluate reports an unreadable result; there is nothing to compare
+        return Ok(out);
+    }
+    let Some(root) = c.root_id.clone() else {
+        out.findings
+            .push("the stored result names no records to check it against".into());
+        return Ok(out);
+    };
+    // the closure, read from the records table (not from the copy inside the stored result)
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut stack = vec![root.clone()];
+    let (mut missing, mut failing) = (0usize, 0usize);
+    let mut verified: Vec<Record> = Vec::new();
+    while let Some(id) = stack.pop() {
+        if !seen.insert(id.clone()) {
+            continue;
+        }
+        let json: Option<String> = db
+            .query_row("SELECT json FROM records WHERE id = ?", params![id], |r| {
+                text_col(r, 0)
+            })
+            .optional()?
+            .flatten();
+        let Some(rec) = json.and_then(|j| serde_json::from_str::<Record>(&j).ok()) else {
+            missing += 1;
+            continue;
+        };
+        // the edges of a failing record are followed only to count what is reachable; its content is not used
+        for e in &rec.relations {
+            stack.push(e.to.clone());
+        }
+        if let Some(a) = &rec.activity {
+            stack.push(a.clone());
+        }
+        if rec.id == id && rec.verify_id() {
+            if id == root && rec.kind == "gate_evaluation" {
+                out.root = Some(root.clone());
+            }
+            verified.push(rec);
+        } else {
+            failing += 1;
+        }
+    }
+    if missing > 0 {
+        out.findings.push(format!(
+            "{missing} record(s) of the release closure are missing from the records"
+        ));
+    }
+    if failing > 0 {
+        out.findings.push(format!(
+            "{failing} record(s) of the release closure fail their identity check"
+        ));
+    }
+    if missing == 0 && failing == 0 && nf_core::closure_hash(&seen) != c.closure_col {
+        out.findings.push(
+            "the records reached from the gate-evaluation record do not have the closure hash recorded for the job".into(),
+        );
+    }
+    let requests: Vec<&Record> = verified
+        .iter()
+        .filter(|r| r.kind == "development_request")
+        .collect();
+    if let [one] = requests.as_slice() {
+        out.request = Some(one.payload["request"].clone());
+    }
+    let stored = stored_result(db, c.id)?.unwrap_or(Value::Null);
+    let (findings, dxf, records) = compare_with_records(&stored, &verified);
+    out.findings.extend(findings);
+    if out.findings.is_empty() {
+        out.dxf = dxf;
+        out.records = records;
+    }
+    Ok(out)
+}
+
+/// Compare a stored result with the verified records of its release closure: request, pattern list and DXF
+/// references, checks, record list, closure size, work units, engine and refusal. Returns the findings, the
+/// DXF hash of every part and the records in the order of the stored result.
+#[allow(clippy::type_complexity)]
+fn compare_with_records(
+    res: &Value,
+    recs: &[Record],
+) -> (Vec<String>, BTreeMap<String, String>, Vec<Value>) {
+    let mut f: Vec<String> = Vec::new();
+    let of = |kind: &str| -> Vec<&Record> { recs.iter().filter(|r| r.kind == kind).collect() };
+    // the request
+    match of("development_request").as_slice() {
+        [one] if one.payload["request"] == res["request"] => {}
+        [_] => f.push("the stored request differs from the request record of the job".into()),
+        [] => f.push("the release closure holds no request record".into()),
+        _ => f.push("the release closure holds more than one request record".into()),
+    }
+    // patterns and DXF records, part by part
+    let mut pattern_recs: BTreeMap<String, Value> = BTreeMap::new();
+    let mut dxf_recs: BTreeMap<String, String> = BTreeMap::new();
+    for r in recs
+        .iter()
+        .filter(|r| r.kind == "pattern" || r.kind == "dxf_output")
+    {
+        let Some(part) = r.payload["part"].as_str().map(String::from) else {
+            f.push(format!("a {} record names no part", r.kind));
+            continue;
+        };
+        let dup = if r.kind == "pattern" {
+            pattern_recs
+                .insert(part.clone(), r.payload["pattern"].clone())
+                .is_some()
+        } else {
+            match r.payload["sha256"].as_str() {
+                Some(sha) if storage::is_sha256_hex(sha) => {
+                    dxf_recs.insert(part.clone(), sha.to_string()).is_some()
+                }
+                _ => {
+                    f.push(format!(
+                        "the DXF record of part {part} has no valid file reference"
+                    ));
+                    false
+                }
+            }
+        };
+        if dup {
+            f.push(format!(
+                "the release closure holds more than one {} record for part {part}",
+                r.kind
+            ));
+        }
+    }
+    let stored_patterns: &[Value] = match &res["patterns"] {
+        Value::Array(a) => a,
+        // evaluate reports a missing pattern list; one of another type is a finding here
+        Value::Null => &[],
+        _ => {
+            f.push("the stored pattern list is not a list".into());
+            &[]
+        }
+    };
+    let mut stored_parts: BTreeSet<String> = BTreeSet::new();
+    for p in stored_patterns {
+        let Some(part) = p["part"].as_str() else {
+            f.push("a stored pattern names no part".into());
+            continue;
+        };
+        if !stored_parts.insert(part.to_string()) {
+            f.push(format!(
+                "the stored result lists part {part} more than once"
+            ));
+            continue;
+        }
+        match pattern_recs.get(part) {
+            None => f.push(format!(
+                "the stored pattern of part {part} has no pattern record in the release closure"
+            )),
+            Some(rec) if rec != p => f.push(format!(
+                "the stored pattern of part {part} differs from its pattern record"
+            )),
+            Some(_) => {}
+        }
+        if p["dxf_sha256"].as_str() != dxf_recs.get(part).map(String::as_str) {
+            f.push(format!(
+                "the stored DXF reference of part {part} differs from the DXF record of the job"
+            ));
+        }
+    }
+    for (part, rec) in &pattern_recs {
+        if !stored_parts.contains(part) {
+            f.push(format!(
+                "the pattern record of part {part} is missing from the stored result"
+            ));
+        }
+        if rec["dxf_sha256"].as_str() != dxf_recs.get(part).map(String::as_str) {
+            f.push(format!(
+                "the pattern record of part {part} and the DXF record of the job name different files"
+            ));
+        }
+    }
+    // the checks: the same multiset as the evidence records carry
+    let canon = |v: &Value| serde_json::to_string(v).unwrap_or_default();
+    let mut rec_checks: Vec<String> = recs
+        .iter()
+        .filter(|r| r.kind == "verification_evidence" || r.kind == "interface_evidence")
+        .flat_map(|r| r.payload["checks"].as_array().cloned().unwrap_or_default())
+        .map(|c| canon(&c))
+        .collect();
+    let mut stored_checks: Vec<String> = match &res["checks"] {
+        Value::Array(a) => a.iter().map(canon).collect(),
+        _ => vec!["<not a list>".into()],
+    };
+    rec_checks.sort();
+    stored_checks.sort();
+    if rec_checks != stored_checks {
+        f.push("the stored checks differ from the evidence records of the job".into());
+    }
+    // the record list: every record of the closure, once, each as stored in the records table. Records of
+    // the job outside its release closure (a refusal's unevaluated steps) are not covered by the closure
+    // hash; they are not served.
+    let by_id: BTreeMap<&str, &Record> = recs.iter().map(|r| (r.id.as_str(), r)).collect();
+    let mut ordered: Vec<Value> = Vec::with_capacity(recs.len());
+    let mut listed: BTreeSet<&str> = BTreeSet::new();
+    let mut list_ok = res["records"].is_array();
+    for r in res["records"].as_array().map(Vec::as_slice).unwrap_or(&[]) {
+        let id = r["id"].as_str().unwrap_or("");
+        if let Some(rec) = by_id.get(id) {
+            let v = serde_json::to_value(rec).unwrap_or(Value::Null);
+            list_ok &= listed.insert(id) && v == *r;
+            ordered.push(v);
+        }
+    }
+    if !list_ok || listed.len() != recs.len() {
+        f.push("the stored record list differs from the records of the release closure".into());
+    }
+    if res["closure_size"].as_u64() != Some(recs.len() as u64) {
+        f.push("the stored closure size differs from the release closure".into());
+    }
+    let activities: Vec<&Record> = recs
+        .iter()
+        .filter(|r| r.family == Family::Activity)
+        .collect();
+    let work_units: Option<u64> = activities
+        .iter()
+        .map(|r| r.payload["work_units"].as_u64())
+        .sum();
+    if work_units.is_none() || res["work_units"].as_u64() != work_units {
+        f.push("the stored work units differ from the activity records of the job".into());
+    }
+    // A result that names the running engine must have been computed by it in every step; one that names
+    // another engine is withheld as superseded (G21) whatever its records say.
+    if res["engine"]
+        .as_str()
+        .is_some_and(nf_core::engine_is_current)
+        && activities
+            .iter()
+            .any(|r| r.payload["engine"] != res["engine"])
+    {
+        f.push("the stored engine identifier differs from the activity records of the job".into());
+    }
+    // a refusal: outcome and refusal are those of the engineering-outcome record, or absent
+    match of("engineering_outcome").as_slice() {
+        [] if res["outcome"].is_null() && res["refusal"].is_null() => {}
+        [o] if res["outcome"] == o.payload["message"]
+            && ["code", "fields", "message", "detail"]
+                .iter()
+                .all(|k| res["refusal"][k] == o.payload[k]) => {}
+        _ => f.push(
+            "the stored outcome differs from the engineering-outcome record of the job".into(),
+        ),
+    }
+    (f, dxf_recs, ordered)
 }
 
 struct Eval {
@@ -1681,6 +1973,10 @@ fn evaluate(db: &Connection, c: &Core) -> rusqlite::Result<Eval> {
                     _ => integrity.push("the gate-evaluation record of the job is missing or fails its identity check".into()),
                 }
             }
+        }
+        // RC-01: the pattern list and the DXF references are trusted only as far as the records agree
+        if let Some(rc) = &c.records {
+            integrity.extend(rc.findings.iter().cloned());
         }
     }
     let open: i64 = q_count(
@@ -1843,7 +2139,9 @@ fn row_json(c: &Core, e: &Eval) -> Value {
 /// connection commits, and after a restart nothing counts as checked. So an
 /// alteration made by another process or while the server was stopped, also
 /// one that keeps the byte length, is seen by the next list (closes the gap
-/// left by S-7). This process's own writes always re-derive the summary.
+/// left by S-7). This process's own writes always re-derive the summary. The
+/// verdict of the check against the records (RC-01) is remembered with it, for
+/// the same database version, so a failing job is not walked on every list.
 fn calc_rows(
     app: &App,
     db: &Connection,
@@ -1867,17 +2165,29 @@ fn calc_rows(
             *seen = (version, Default::default());
         }
         for c in cores.iter_mut() {
-            if !seen.1.contains(&c.id) {
-                if let Some(full) = load_core(db, c.id)? {
-                    *c = full;
+            if let Some(findings) = seen.1.get(&c.id) {
+                // RC-01: the verdict of the full check against the records, made under this database version,
+                // travels with the summary, so a list says what the detail view says without walking again
+                c.records = Some(RecordsCheck {
+                    findings: findings.clone(),
+                    ..Default::default()
+                });
+                continue;
+            }
+            if let Some(full) = load_core(db, c.id)? {
+                *c = full;
+            }
+            // bring the stored summary in line with the result as it is now; only then may later lists use it
+            match db.execute(&format!("UPDATE calculations AS c SET core_json = {CORE_EXPR}, result_bytes = length(CAST(c.result_json AS BLOB)) WHERE c.id = ?"), params![c.id]) {
+                Ok(_) => {
+                    // no check (a job deleted meanwhile) is remembered as a failure: fail closed
+                    let findings = c.records.as_ref().map_or_else(
+                        || vec!["the stored result could not be checked against its records".to_string()],
+                        |r| r.findings.clone(),
+                    );
+                    seen.1.insert(c.id, findings);
                 }
-                // bring the stored summary in line with the result as it is now; only then may later lists use it
-                match db.execute(&format!("UPDATE calculations AS c SET core_json = {CORE_EXPR}, result_bytes = length(CAST(c.result_json AS BLOB)) WHERE c.id = ?"), params![c.id]) {
-                    Ok(_) => {
-                        seen.1.insert(c.id);
-                    }
-                    Err(err) => eprintln!("nf-server: could not refresh the stored summary of job #{}: {err}", c.id),
-                }
+                Err(err) => eprintln!("nf-server: could not refresh the stored summary of job #{}: {err}", c.id),
             }
         }
     }
@@ -2309,14 +2619,31 @@ async fn get_calc(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> A
         result["request"] = json!({ "family": c.family });
     }
     if !e.integrity.is_empty() {
-        // nothing of a result that failed its integrity check is offered as geometry
+        // nothing of a result that failed its integrity check is offered as geometry, evidence or records;
+        // the request shown is the one of the job's request record where that record is intact (RC-01)
         result["patterns"] = json!([]);
         result["checks"] = json!([]);
+        result["records"] = json!([]);
+        result["closure_size"] = json!(0);
+        result["work_units"] = json!(0);
+        result["request"] = c
+            .records
+            .as_ref()
+            .and_then(|r| r.request.clone())
+            .filter(Value::is_object)
+            .unwrap_or_else(|| json!({ "family": c.family }));
         result["outcome"] = json!(format!(
             "The stored result failed its integrity check ({}). Nothing of this job may be used.",
             e.integrity.join("; ")
         ));
     }
+    if e.integrity.is_empty()
+        && let Some(r) = c.records.as_ref()
+    {
+        // RC-01: the records served are the verified ones of the release closure
+        result["records"] = json!(r.records);
+    }
+    result["not_checked_against_records"] = json!(NOT_CHECKED_AGAINST_RECORDS);
     result["id"] = json!(id);
     result["project_id"] = json!(c.project);
     result["created_by"] = json!(c.created_by);
@@ -2472,14 +2799,19 @@ fn replay_in_separate_process(
 /// - 503 `{error, infrastructure: true}`: the replay could not be run. The job,
 ///   its state and its lessons are untouched; the attempt is in the audit log.
 /// - 409: there is nothing to replay (refused request, superseded engine,
-///   stored result failing its integrity check).
+///   stored result failing its integrity check). A stored result whose only
+///   integrity findings are differences from its records (RC-01) is replayed,
+///   and the report says it does not match.
 async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api {
     let (u, c, request, ids) = {
         let db = app.db();
         let u = auth_db(&db, &app, &headers)?;
         require(&u, &["admin", "engineer"])?;
         let (c, e) = calc_guard(&app, &db, &u, id, "replay")?;
-        if !e.integrity.is_empty() {
+        // A stored result that disagrees only with its records (RC-01) is still replayed: the audit runs,
+        // reports the disagreement and does not match. Any other integrity failure leaves nothing to replay.
+        let records_findings = c.records.as_ref().map_or(0, |r| r.findings.len());
+        if e.integrity.len() > records_findings {
             return Err(fail(
                 StatusCode::CONFLICT,
                 "the stored result failed its integrity check; it is REJECTED and cannot be replayed",
@@ -2513,7 +2845,14 @@ async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api
                     .collect()
             })
             .unwrap_or_default();
-        (u, c, result["request"].clone(), ids)
+        // RC-01: the request replayed is the one of the job's own request record, never the stored copy
+        let Some(request) = c.records.as_ref().and_then(|r| r.request.clone()) else {
+            return Err(fail(
+                StatusCode::CONFLICT,
+                "the request record of this job is missing or damaged; it is REJECTED and cannot be replayed",
+            ));
+        };
+        (u, c, request, ids)
     };
     // Recompute in a separate operating-system process that receives only the request.
     let child = {
@@ -2576,15 +2915,33 @@ async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api
         })
         .unwrap_or_default();
     let got = v["closure_hash"].as_str().unwrap_or("").to_string();
-    let matches = got == c.closure_col && got_ids == ids && tampered == 0 && !ids.is_empty();
+    // RC-01 / RC-22: what is served from the stored result (request, patterns, DXF references, checks,
+    // records) must be what the records closure says. Checked again here, inside the transaction that writes the report.
+    let records_findings: Vec<String> = match load_core(&tx, id)? {
+        Some(fresh) if fresh.closure_col == c.closure_col => {
+            fresh.records.map(|r| r.findings).unwrap_or_else(|| {
+                vec!["the stored result could not be checked against its records".into()]
+            })
+        }
+        _ => vec!["the job changed while the replay ran".into()],
+    };
+    let matches = got == c.closure_col
+        && got_ids == ids
+        && tampered == 0
+        && !ids.is_empty()
+        && records_findings.is_empty();
     let report = json!({ "kind": "separate_process_replay", "matches": matches, "expected_closure_hash": c.closure_col, "replayed_closure_hash": got, "process_error": Value::Null,
-                         "engine": nf_core::ENGINE_VERSION, "stored_records_checked": ids.len(), "stored_records_failing_identity_check": tampered, "run_by": u.username, "at": now(),
-                         "limitation": "Replay ran in a separate process that received only the request, on the same machine with the same build (the child reported the same engine identifier). A separately built binary or separate machine is not used. Discrepancies are reported, never repaired. This audit shows reproducibility, not correctness." });
+                         "engine": nf_core::ENGINE_VERSION, "stored_records_checked": ids.len(), "stored_records_failing_identity_check": tampered,
+                         "stored_result_matches_records": records_findings.is_empty(), "stored_result_findings": records_findings, "run_by": u.username, "at": now(),
+                         "limitation": "Replay ran in a separate process that received only the request, on the same machine with the same build (the child reported the same engine identifier). A separately built binary or separate machine is not used. The stored request, pattern list, DXF references, checks and record list were compared with the records of the release closure. Discrepancies are reported, never repaired. This audit shows reproducibility, not correctness." });
+    // the audit names the job's gate-evaluation record only where the records table holds it intact
     let audit_rec = Record::new(
         Family::Assessment,
         "replay_audit",
         report.clone(),
-        ids.last()
+        c.records
+            .as_ref()
+            .and_then(|r| r.root.as_ref())
             .map(|g| vec![rel("audits", g)])
             .unwrap_or_default(),
         None,
@@ -2595,7 +2952,12 @@ async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api
         params![report.to_string(), id],
     )?;
     app.fault("replay.after_report")?;
-    if !matches && let Ok(req) = serde_json::from_value::<Request>(request) {
+    // A lesson is recorded only for a job whose stored result agrees with its records: a lesson built from
+    // a tampered job would raise advisories on honest jobs with the same request.
+    if !matches
+        && records_findings.is_empty()
+        && let Ok(req) = serde_json::from_value::<Request>(request)
+    {
         record_lesson(
             &app,
             &tx,
@@ -2661,26 +3023,17 @@ async fn get_dxf(
             &format!("this result is REJECTED{why}; its files are withheld"),
         ));
     }
-    let Some(result) = stored_result(&db, id)? else {
+    // RC-01: the file is the one named by the job's own DXF record, read from the verified release
+    // closure; the copy of the reference inside the stored result is never used to choose a file.
+    let Some(records) = c.records.as_ref().filter(|r| r.findings.is_empty()) else {
         return Err(fail(
             StatusCode::CONFLICT,
-            "this result is REJECTED; its files are withheld",
+            "this result is REJECTED (the stored result failed its integrity check); its files are withheld",
         ));
     };
-    let sha = result["patterns"]
-        .as_array()
-        .and_then(|a| a.iter().find(|p| p["part"] == part.as_str()))
-        .and_then(|p| p["dxf_sha256"].as_str().map(String::from));
-    let Some(sha) = sha else {
+    let Some(sha) = records.dxf.get(part.as_str()).cloned() else {
         return Err(fail(StatusCode::NOT_FOUND, "no DXF for this part"));
     };
-    if !storage::is_sha256_hex(&sha) {
-        eprintln!("nf-server: job #{id} part {part} has an invalid file reference");
-        return Err(fail(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "the stored file reference of this part is invalid (integrity failure); the file is withheld",
-        ));
-    }
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let bytes = match storage::load_blob(&app.data_dir, &app.key, &sha) {
         Ok(b) => b,
@@ -2690,8 +3043,10 @@ async fn get_dxf(
             eprintln!(
                 "nf-server: DXF {sha} of job #{id} part {part}: {problem}; trying to restore it by recomputation"
             );
-            let again = serde_json::from_value::<Request>(result["request"].clone())
-                .ok()
+            let again = records
+                .request
+                .clone()
+                .and_then(|r| serde_json::from_value::<Request>(r).ok())
                 .map(|req| job::run(&req, &c.created_by));
             let text = again.and_then(|o| {
                 o.dxf
@@ -2824,15 +3179,19 @@ async fn correct(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, raw: 
                 "this result cannot be corrected: it failed its integrity check or was computed by a superseded engine version — recompute it first",
             ));
         }
-        let Some(result) = stored_result(&db, id)? else {
+        // RC-01: request and records come from the verified release closure; a job with any finding
+        // against its records was refused above (its integrity list is not empty)
+        let Some(verified) = c.records.clone().filter(|r| r.findings.is_empty()) else {
             return Err(fail_code(
                 StatusCode::CONFLICT,
-                nf_core::refusal::STORED_RESULT_UNREADABLE,
+                nf_core::refusal::CORRECTION_NEEDS_RECOMPUTE,
                 &[],
-                "the stored result is unreadable",
+                "this result cannot be corrected: it failed its integrity check or was computed by a superseded engine version — recompute it first",
             ));
         };
-        let Ok(req) = serde_json::from_value::<Request>(result["request"].clone()) else {
+        let Ok(req) =
+            serde_json::from_value::<Request>(verified.request.clone().unwrap_or_default())
+        else {
             return Err(fail_code(
                 StatusCode::CONFLICT,
                 nf_core::refusal::STORED_REQUEST_UNREADABLE,
@@ -2841,7 +3200,7 @@ async fn correct(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, raw: 
             ));
         };
         let records: std::collections::BTreeMap<String, Record> =
-            serde_json::from_value::<Vec<Record>>(result["records"].clone())
+            serde_json::from_value::<Vec<Record>>(Value::Array(verified.records))
                 .unwrap_or_default()
                 .into_iter()
                 .map(|r| (r.id.clone(), r))
@@ -3084,10 +3443,20 @@ async fn resolve_obligation(
 async fn dependencies(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api {
     let db = app.db();
     let u = auth_db(&db, &app, &headers)?;
-    calc_guard(&app, &db, &u, id, "read dependencies")?;
-    let records: Vec<Record> = stored_result(&db, id)?
-        .and_then(|r| serde_json::from_value(r["records"].clone()).ok())
-        .unwrap_or_default();
+    let (c, e) = calc_guard(&app, &db, &u, id, "read dependencies")?;
+    // RC-01: only the verified records of the release closure are shown; a job that failed its
+    // integrity check has no dependency graph to offer
+    let Some(verified) = c
+        .records
+        .filter(|r| e.integrity.is_empty() && r.findings.is_empty())
+    else {
+        return Err(fail(
+            StatusCode::CONFLICT,
+            "the stored result failed its integrity check; it is REJECTED and its records are withheld",
+        ));
+    };
+    let records: Vec<Record> =
+        serde_json::from_value(Value::Array(verified.records)).unwrap_or_default();
     let name = |r: &Record| -> String {
         r.payload
             .get("part")
@@ -3238,6 +3607,75 @@ fn asset(content_type: &'static str, body: &'static str) -> Response {
         .into_response()
 }
 
+/// `host[:port]` split into the lower-cased host and the port (the scheme's default when absent).
+/// Only a plain authority is accepted: a DNS name or IPv4 address, or an IPv6 address in brackets,
+/// optionally followed by `:` and 1 to 5 digits (1 to 65535). Anything else is `None`.
+fn parse_authority(a: &str, default_port: u16) -> Option<(String, u16)> {
+    let (host, rest) = if let Some(inner) = a.strip_prefix('[') {
+        let end = inner.find(']')?;
+        let h = &inner[..end];
+        if h.is_empty()
+            || !h
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() || c == ':' || c == '.')
+        {
+            return None;
+        }
+        (&a[..end + 2], &inner[end + 1..])
+    } else {
+        let (h, rest) = a.find(':').map_or((a, ""), |i| (&a[..i], &a[i..]));
+        if h.is_empty()
+            || !h
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+        {
+            return None;
+        }
+        (h, rest)
+    };
+    let port = match rest {
+        "" => default_port,
+        r => {
+            let digits = r.strip_prefix(':')?;
+            if digits.is_empty() || digits.len() > 5 || !digits.chars().all(|c| c.is_ascii_digit())
+            {
+                return None;
+            }
+            match digits.parse::<u16>() {
+                Ok(p) if p > 0 => p,
+                _ => return None,
+            }
+        }
+    };
+    Some((host.to_ascii_lowercase(), port))
+}
+
+/// RC-08 / V-47: a state-changing request may carry an `Origin` only if it is exactly
+/// `<scheme>://<host[:port]>` with the scheme of this listener (`https` when `NF_COOKIE_SECURE` is set,
+/// else `http`) and the same host and port as the `Host` header (host compared without regard to case,
+/// an absent port read as the scheme's default). No path, query, fragment, user information or second
+/// scheme; `null`, `file://`, `data:` and every other scheme are refused.
+fn origin_allowed(origin: &str, host: &str, https_listener: bool) -> bool {
+    let (scheme, default_port) = if https_listener {
+        ("https", 443)
+    } else {
+        ("http", 80)
+    };
+    let Some((s, authority)) = origin.split_once("://") else {
+        return false;
+    };
+    if !s.eq_ignore_ascii_case(scheme) {
+        return false;
+    }
+    match (
+        parse_authority(authority, default_port),
+        parse_authority(host, default_port),
+    ) {
+        (Some(o), Some(h)) => o == h,
+        _ => false,
+    }
+}
+
 /// Host header without its port, lower case.
 fn host_name(host: &str) -> String {
     let h = host.trim();
@@ -3311,12 +3749,16 @@ async fn security_layer(
             if h.get("x-nf-request").is_none() {
                 return Some(fail(StatusCode::FORBIDDEN, "missing anti-forgery header"));
             }
-            if let Some(origin) = h.get(header::ORIGIN).and_then(|v| v.to_str().ok()) {
+            if let Some(origin) = h.get(header::ORIGIN) {
+                // RC-08 / V-47: the Origin must be exactly <scheme>://<host[:port]> of this listener
                 let host = h
                     .get(header::HOST)
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("");
-                if origin.split("://").nth(1) != Some(host) {
+                if !origin
+                    .to_str()
+                    .is_ok_and(|o| origin_allowed(o, host, app.cookie_secure))
+                {
                     return Some(fail(StatusCode::FORBIDDEN, "cross-origin request refused"));
                 }
             }
