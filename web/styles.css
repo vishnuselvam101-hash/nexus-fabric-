@@ -203,6 +203,7 @@ label{display:block;font-size:var(--t-m);color:var(--ink-2);margin:0 0 var(--s1)
 .app[data-rail=open] .rail a[data-tip]::after{display:none}
 
 main{min-width:0;min-height:0;overflow:auto;background:var(--desk)}
+main.scroll{overflow:auto} /* every view but the workspace; stays scrollable in print (was a style attribute, V-45) */
 .statusbar{grid-column:1/-1;display:flex;align-items:center;gap:var(--s4);padding:0 var(--s3);background:var(--chrome);border-top:1px solid var(--chrome-line);color:var(--chrome-mute);font-size:var(--t-s);white-space:nowrap;overflow:hidden}
 .statusbar a,.statusbar button{color:var(--chrome-text)}
 .statusbar button{min-height:0;height:20px;padding:0 6px;border:0;background:transparent;font-size:var(--t-s)}
@@ -248,8 +249,8 @@ kbd{font-size:var(--t-s);font-weight:400;padding:0 4px;border:1px solid var(--ru
 .stat.attn b{color:var(--amber)}
 .stat.bad b{color:var(--red)}
 .bar{display:flex;gap:2px;height:6px;overflow:hidden;margin:var(--s1) 0 var(--s2)}
-.bar i{display:block;min-width:0}
-.bar i:not([style="flex:0"]){min-width:3px}
+.bar svg{display:block;flex:0 1 auto;min-width:0;height:100%}
+.bar svg.nz{min-width:3px}
 .b-warn{background:var(--amber)}.b-bad{background:var(--red)}.b-ok{background:var(--green)}.b-na{background:var(--ink-3)}
 .legend{display:flex;gap:var(--s1) var(--s3);flex-wrap:wrap;font-size:var(--t-s);color:var(--ink-2)}
 .legend i{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:1px;vertical-align:-1px}
@@ -304,6 +305,7 @@ tr.nomatch>td{padding:var(--s4) var(--s3);color:var(--ink-3)}
 .note{display:flex;gap:var(--s2);align-items:flex-start;padding:var(--s2) var(--s3);border:1px solid var(--rule-2);border-left:2px solid var(--ink-3);border-radius:var(--r);background:var(--sheet-2);color:var(--ink-2);font-size:var(--t-m);margin-bottom:var(--s3)}
 .note .ic{display:none}
 .note b{color:var(--ink)}
+.note.desk p{margin:var(--s1) 0 0}
 .note.bad{border-left-color:var(--red);background:var(--red-soft);border-color:var(--red-line)}
 .note.warn{border-left-color:var(--amber);background:var(--amber-soft);border-color:var(--amber-line)}
 .note.info{border-left-color:var(--signal)}

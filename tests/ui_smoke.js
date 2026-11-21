@@ -56,6 +56,14 @@ const controlProbe = () => {
     page.on('dialog', (d) => { dialogs++; d.dismiss(); }); // the client must never use blocking dialogs; one would also reveal script injection
   };
   const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, acceptDownloads: true, deviceScaleFactor: SHOTS ? 2 : 1 });
+  // V-45: every content-policy violation in any page of this context is recorded (an inline style the policy blocks
+  // is one), in addition to the console errors that the browser also reports for it
+  const cspViolations = [];
+  await ctx.exposeBinding('__nfCsp', (_src, v) => { cspViolations.push(v); });
+  await ctx.addInitScript(() => document.addEventListener('securitypolicyviolation', (e) => window.__nfCsp(`${e.violatedDirective} ${e.blockedURI || 'inline'} ${location.hash} ${e.sourceFile || ''}:${e.lineNumber || 0}`)));
+  // elements that carry a style attribute: none may come from markup, and the client sets none through the CSSOM
+  // except the panel widths of the workspace splitter (custom properties on .ws-body)
+  const styledProbe = () => [...document.querySelectorAll('[style]')].filter((el) => !(el.matches('.ws-body') && [...el.style].every((k) => k === '--lw' || k === '--rw'))).map((el) => el.outerHTML.slice(0, 80)).slice(0, 3);
   const p = await ctx.newPage(); watch(p, 'admin');
   const apiGet = async (path) => (await ctx.request.get(B + path, { headers: { 'X-NF-Request': '1' } })).json();
   // navigation is complete when the client marks the view with the hash it rendered
@@ -66,10 +74,13 @@ const controlProbe = () => {
   const zoom = async () => parseInt(await p.textContent('#zoomv'), 10);
 
   // ---- 1. first-run setup and sign-in
+  const policy = (await ctx.request.get(`${B}/`)).headers()['content-security-policy'] || '';
+  check('V-45: the page is served with a style policy of its own files only (no \'unsafe-inline\')', /(^|;)\s*style-src 'self'\s*(;|$)/.test(policy) && !/unsafe-inline/.test(policy), policy);
   await p.goto(B);
   await p.waitForSelector('#f');
   check('setup: first-run screen asks for the administrator', /Create the administrator/.test(await p.textContent('h1')));
   check('setup: sign-in screen carries the development-build notice', /Not validated/.test(await p.textContent('.login-card')));
+  check('setup: server mode shows no desktop-mode notice (task 2.4: the server says it is not in desktop mode)', (await p.$('#desktop-notice')) === null && (await (await ctx.request.get(`${B}/api/health`)).json()).mode === 'server');
   // V-36: the first administrator can only be created with the installation's one-time setup token
   await p.fill('input[name=u]', ADMIN.username); await p.fill('input[name=p]', ADMIN.password); await p.click('#f button'); await p.waitForSelector('#f .field-err');
   check('setup: refused inline without the setup token', /setup token/i.test(await p.textContent('#f .field-err')) && (await (await ctx.request.get(`${B}/api/health`)).json()).setup_required === true);
@@ -323,17 +334,19 @@ const controlProbe = () => {
   const EXPECT = { dashboard: 'Dashboard', projects: 'Projects & Documents', workspace: 'Engineering Workspace', 'math/1': 'New calculation', amoeba: 'AMOEBA Control Centre', manufacturing: 'Manufacturing', verification: 'Verification & Quality', admin: 'Administration', account: 'Account' };
   for (const [w, h] of [[1366, 768], [1024, 768], [768, 1024]]) {
     await p.setViewportSize({ width: w, height: h });
-    const over = {}, unnamed = {}, titles = {}; let unreachable = 0;
+    const over = {}, unnamed = {}, titles = {}, styled = {}; let unreachable = 0;
     for (const r of ROUTES) {
       await go(r); if (r.startsWith('calc/')) await p.waitForSelector('.pv', { state: 'attached' }); await p.waitForTimeout(120);
       titles[r] = (await p.textContent('#view h1')).trim();
       const o = await p.evaluate(overflowProbe); if (o.length) over[r] = o;
+      const st = await p.evaluate(styledProbe); if (st.length) styled[r] = st;
       const c = await sweepControls(); if (c.unnamed.length) unnamed[r] = c.unnamed;
       if (r.startsWith('calc/')) { // every workspace region must be reachable: on screen, or by scrolling the page or its panel
         for (const sel of ['#replay', '#tab-ws-records', '.pv', '.pane .kv']) { if (await p.locator(sel).count()) { await p.locator(sel).first().scrollIntoViewIfNeeded(); const bb = await p.locator(sel).first().boundingBox(); if (!bb || bb.x < -1 || bb.x + bb.width > w + 1 || bb.y < 0 || bb.y > h) unreachable++; } }
       }
     }
     check(`layout ${w}x${h}: no horizontal overflow on any of ${ROUTES.length} screens`, Object.keys(over).length === 0, over);
+    check(`V-45 ${w}x${h}: no element on any of ${ROUTES.length} screens carries an inline style attribute (dark theme)`, Object.keys(styled).length === 0, styled);
     check(`layout ${w}x${h}: every visible control has an accessible name`, Object.keys(unnamed).length === 0, unnamed);
     check(`layout ${w}x${h}: workspace controls reachable`, unreachable === 0, unreachable);
     if (w === 1366) check('screens: every route renders its heading', Object.entries(EXPECT).every(([r, t]) => titles[r] === t) && titles[`calc/${J}`].startsWith(`Job #${J}`), titles);
@@ -348,6 +361,42 @@ const controlProbe = () => {
   const paneW3 = (await p.locator('.ws-body > .pane').first().boundingBox()).width;
   check('workspace: panels resize by drag and by keyboard', Math.abs(paneW2 - paneW - 60) <= 2 && Math.abs(paneW3 - paneW2 + 24) <= 2, { paneW, paneW2, paneW3 });
   await p.locator('.split[data-split=l]').dblclick();
+
+  // ---- 12b. V-45: the dashboard state bar keeps its proportions without inline styles, and every screen is walked
+  // again in the light theme (headings, overflow, no inline style, and no content-policy violation: section 15)
+  const barProbe = () => {
+    const bar = document.querySelector('.bar'); const m = /(\d+)\D+(\d+)\D+(\d+)\D+(\d+)\D+(\d+)/.exec(bar.getAttribute('aria-label')); // in the order of dash.bar.aria
+    const n = m.slice(1).map(Number), counts = [n[0], n[1], n[2] + n[3], n[4]];
+    return { counts, widths: [...bar.children].map((el) => el.getBoundingClientRect().width), styled: bar.querySelectorAll('[style]').length };
+  };
+  const barOk = (b) => {
+    if (b.styled || b.widths.length !== 4) return false;
+    const live = b.counts.map((c, i) => [c, b.widths[i]]).filter(([c]) => c > 0);
+    if (b.counts.some((c, i) => (c === 0) !== (b.widths[i] === 0)) || live.some(([, w]) => w < 3 - 0.01)) return false;
+    // segments wider than the 3 px minimum have the same width per job, within 3 %
+    const wide = live.filter(([, w]) => w > 3.5), per = wide.map(([c, w]) => w / c);
+    return per.every((x) => Math.abs(x / per[0] - 1) < 0.03);
+  };
+  const barThemes = {};
+  for (const theme of ['dark', 'light']) {
+    await go('dashboard', '.bar');
+    if ((await p.evaluate(() => document.documentElement.dataset.theme)) !== theme) { await p.click('#theme'); await p.waitForTimeout(150); }
+    barThemes[theme] = await p.evaluate(barProbe);
+  }
+  check('V-45: the dashboard state bar shows each state in proportion to its jobs without an inline style (dark and light)', Object.values(barThemes).every(barOk) && barThemes.dark.counts.filter((c) => c > 0).length >= 2, barThemes);
+  {
+    const lightTitles = {}, lightOver = {}, lightStyled = {}; const bg = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    for (const r of ROUTES) {
+      await go(r); if (r.startsWith('calc/')) await p.waitForSelector('.pv', { state: 'attached' }); await p.waitForTimeout(120);
+      lightTitles[r] = (await p.textContent('#view h1')).trim();
+      const o = await p.evaluate(overflowProbe); if (o.length) lightOver[r] = o;
+      const st = await p.evaluate(styledProbe); if (st.length) lightStyled[r] = st;
+    }
+    const theme = await p.evaluate(() => document.documentElement.dataset.theme);
+    check(`light theme: all ${ROUTES.length} screens render their heading, without overflow or inline style attributes`, theme === 'light' && bg !== 'rgb(14, 17, 22)' && Object.entries(EXPECT).every(([r, t]) => lightTitles[r] === t) && Object.keys(lightOver).length === 0 && Object.keys(lightStyled).length === 0, { theme, bg, lightOver, lightStyled });
+    await p.click('#theme'); await p.waitForTimeout(150);
+    check('light theme: switched back to dark for the rest of the run', (await p.evaluate(() => document.documentElement.dataset.theme)) === 'dark');
+  }
 
   // ---- 13. role restrictions (API sign-in first, so that no page ever provokes a refused request)
   const role = async (cred) => { const c = await browser.newContext({ viewport: { width: 1366, height: 768 } }); await c.request.post(`${B}/api/login`, { headers: { 'X-NF-Request': '1' }, data: cred }); const pg = await c.newPage(); watch(pg, cred.username); return [c, pg]; };
@@ -746,6 +795,7 @@ const controlProbe = () => {
   check('security: injected markup never executed, no blocking dialog used', xss === 0 && dialogs === 0, { xss, dialogs });
   check('integrity: no control anywhere approves or releases a result; no job shown as APPROVED', approveControls === 0 && approvedTags === 0, { approveControls, approvedTags });
   check('console: zero script errors and zero unexpected console errors', errs.length === 0, errs.slice(0, 5));
+  check('V-45: no content-policy violation on any screen, in either theme or language', cspViolations.length === 0, cspViolations.slice(0, 5));
 
   await browser.close();
   const failed = results.filter((r) => !r.ok);

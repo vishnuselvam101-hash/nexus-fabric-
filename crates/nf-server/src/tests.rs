@@ -30,6 +30,7 @@ fn config(dir: &std::path::Path) -> Config {
         trusted_proxies: vec![],
         setup_token: Some(TOKEN.into()),
         request_timeout: Duration::from_secs(60),
+        desktop: false,
     }
 }
 
@@ -1986,7 +1987,7 @@ async fn security_headers_and_anti_forgery_are_unchanged() {
     let (_, h, _) = t.send("GET", "/", None, &[]).await;
     assert_eq!(
         h["content-security-policy"],
-        "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     );
     assert_eq!(
         (
@@ -2153,6 +2154,7 @@ async fn s2_page_corruption_is_not_reported_as_an_intact_log() {
         replay_exe: None,
         replay_timeout: Duration::from_secs(1),
         request_timeout: Duration::from_secs(30),
+        desktop: false,
         hash_slots: Semaphore::new(1),
         upload_slots: Semaphore::new(1),
         replay_slots: Semaphore::new(1),
@@ -3442,6 +3444,35 @@ async fn rc08_v47_origin_scheme_follows_the_listener() {
             .0;
         assert_eq!(st, want, "{origin}");
     }
+}
+
+// ---------------------------------------------------------------- task 2.4: the client learns the mode
+
+/// The health answer says whether the server runs in desktop mode, so that the first-run screen can show what desktop
+/// mode does and does not protect. Server mode says "server"; nothing else about the installation is disclosed.
+#[tokio::test]
+async fn task24_health_tells_the_client_whether_it_runs_in_desktop_mode() {
+    let t = boot();
+    assert_eq!(t.get("/api/health").await["mode"], "server");
+    let dir = temp_dir("mode-desktop");
+    let app = build_app(Config {
+        desktop: true,
+        allowed_hosts: vec!["127.0.0.1".into(), "localhost".into()],
+        ..config(&dir)
+    })
+    .unwrap();
+    let d = T {
+        cookie: String::new(),
+        app,
+        dir,
+    };
+    let h = d.get("/api/health").await;
+    assert_eq!(h["mode"], "desktop", "{h}");
+    assert_eq!(h["setup_required"], true, "{h}");
+    assert!(
+        h.get("engine").is_none() && h.get("uptime_seconds").is_none(),
+        "{h}"
+    );
 }
 
 /// RC-01: a correction is computed from the job's request; a stored request that differs from the request

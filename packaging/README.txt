@@ -32,6 +32,20 @@ WHERE YOUR DATA IS
 The server listens on 127.0.0.1 only, so only this computer can reach it. A
 second copy of the program on the same data folder is refused with a message.
 
+HOW YOUR DATA IS PROTECTED
+This program does not encrypt its database or the whole data folder. Stored
+files have their own encryption, but that does not make the data on this
+computer an encrypted data set. How well the data is protected depends on this
+computer and how it is run. Recommended:
+- disk encryption (for example BitLocker on Windows, LUKS on Linux);
+- an individual account on the computer for each person;
+- access to the data folder only for the people who use this program;
+- protected backups of the data folder, kept apart from this computer.
+Disk encryption protects a lost or stolen computer. It does not protect a copy
+of the data folder taken while the disk is unlocked, and it does not replace
+encryption by the program itself. A computer account by itself does not
+encrypt the database. The first-run screen shows the same information.
+
 UNINSTALLING
 - Installed version: Settings > Apps > NEXUS FABRIC, or the "Uninstall NEXUS
   FABRIC" shortcut in the Start menu. The data folder is kept unless you tick

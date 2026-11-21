@@ -57,6 +57,9 @@ pub(crate) struct App {
     replay_timeout: Duration,
     /// Longest a request may take from its first header byte to its answer (S-3).
     request_timeout: Duration,
+    /// Desktop mode (`--desktop`): one person on their own computer. Told to the client (task 2.4), which then shows
+    /// what desktop mode does and does not protect on its first-run screen.
+    desktop: bool,
     hash_slots: Semaphore,
     upload_slots: Semaphore,
     replay_slots: Semaphore,
@@ -638,11 +641,14 @@ fn insert_user(
 
 /// Liveness only. No version, no uptime (V-49). `setup_required` stays: the
 /// client needs it to show the first-run screen, and setup needs the token.
+/// `mode` ("desktop" or "server") tells the client whether to show the desktop
+/// security notice on that screen (task 2.4).
 async fn health(State(app): Ctx) -> Api {
     let db = app.db();
     let users = q_count(&db, "SELECT COUNT(*) FROM users", [])?;
     ok(
         json!({ "status": "ok", "setup_required": users == 0, "setup_token_required": users == 0,
+               "mode": if app.desktop { "desktop" } else { "server" },
                "build_notice": "Development build. Not validated. No output of this software may be used for manufacturing." }),
     )
 }
@@ -3786,7 +3792,7 @@ async fn security_layer(
     set(
         h,
         "content-security-policy",
-        "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     );
     set(h, "x-content-type-options", "nosniff");
     set(h, "x-frame-options", "DENY");
@@ -3902,6 +3908,8 @@ pub(crate) struct Config {
     /// A setup token supplied by the installer; otherwise one is generated when needed.
     pub setup_token: Option<String>,
     pub request_timeout: Duration,
+    /// Desktop mode (`nf-server --desktop`); false in server mode.
+    pub desktop: bool,
 }
 
 /// Connection limits (S-3) and shutdown behaviour (S-8). All configurable.
@@ -3988,6 +3996,7 @@ impl Config {
                 1,
                 3600,
             )?),
+            desktop: false,
         })
     }
 }
@@ -4063,6 +4072,7 @@ pub(crate) fn build_app(cfg: Config) -> Result<Arc<App>, String> {
         replay_exe: None,
         replay_timeout: Duration::from_secs(60),
         request_timeout: cfg.request_timeout,
+        desktop: cfg.desktop,
         hash_slots: Semaphore::new(2),
         upload_slots: Semaphore::new(4),
         replay_slots: Semaphore::new(2),

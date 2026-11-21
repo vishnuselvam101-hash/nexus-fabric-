@@ -629,6 +629,9 @@ async function refreshSummary() { try { summary = await api('/api/dashboard'); p
 // Desktop mode (nf-server --desktop) hands the one-time setup token over in the URL fragment, which the browser never sends to the server.
 // It is read once, kept in memory, and removed from the address bar. Server mode never sets a fragment, so this is a no-op there.
 let desktopSetupToken = null;
+// Set from /api/health at start: the server runs in desktop mode (nf-server --desktop). The first-run screen then says
+// what desktop mode does and does not protect (task 2.4).
+let desktopMode = false;
 try {
   const m = /^#setup=([0-9a-f]{64})$/.exec(location.hash);
   if (m) { desktopSetupToken = m[1]; history.replaceState(null, '', location.pathname + location.search); }
@@ -645,6 +648,7 @@ function renderLogin(st) {
     <h1>${esc(t(setup ? 'login.h.setup' : 'login.h'))}</h1>
     <p class="sub">${esc(t(setup ? 'login.sub.setup' : 'login.sub'))}</p>
     ${note(h('build.login'))}
+    ${setup && desktopMode ? `<div class="note desk" id="desktop-notice"><div><b>${esc(t('login.desktop.h'))}</b><p>${esc(t('login.desktop.p1'))}</p><p>${esc(t('login.desktop.p2'))}</p><p>${esc(t('login.desktop.p3'))}</p></div></div>` : ''}
     ${message ? `<div class="note ${st.kind}" role="alert" id="loginmsg">${ic(st.kind === 'info' ? 'info' : 'warn')}<div>${message}</div></div>` : ''}
     <form id="f" novalidate><div class="field"><label for="lu">${esc(t('login.user'))}</label><input id="lu" name="u" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(st.username)}"></div>
     <div class="field"><label for="lp">${esc(t(setup ? 'login.pass.setup' : 'login.pass'))}</label><input id="lp" name="p" type="password" autocomplete="${setup ? 'new-password' : 'current-password'}"></div>
@@ -762,6 +766,10 @@ const views = {
       // every count below comes from one function, the same one that labels the rows
       const count = (s) => cs.filter((c) => effState(c) === s).length;
       const n = { review: count('REVIEW_REQUIRED'), sup: count('SUPERSEDED'), none: count('NO_RESULT'), rej: count('REJECTED'), ok: count('APPROVED') };
+      // one segment of the state bar: an empty <svg> whose width attribute is its share of all jobs. The content policy
+      // allows no inline style (V-45), and a width attribute is not one.
+      const all = n.review + n.sup + n.none + n.rej + n.ok;
+      const seg = (cls, v) => `<svg class="${cls}${v ? ' nz' : ''}" width="${all ? +(100 * v / all).toFixed(4) : 0}%" aria-hidden="true" focusable="false"></svg>`;
       const stat = (v, key, o = {}) => `<div class="stat${o.attn && v ? ' attn' : ''}${o.cls ? ` ${o.cls}` : ''}"${o.id ? ` id="${o.id}"` : ''}><span>${esc(t(key))}</span><b>${v}</b></div>`;
       return {
         title: t('nav.dashboard'), crumbs: [[t('nav.dashboard')]],
@@ -771,7 +779,7 @@ const views = {
             ${panel(esc(t('dash.recent')), jobsTable(cs.slice(0, 8), 'jobs-recent', { project: true }), { flush: true, count: Math.min(8, cs.length), tools: `<a href="#/workspace">${esc(t('jobs.all'))}</a>` })}
           </div><div>
             ${panel(esc(t('dash.needs')), open.length ? `<ul class="il">${open.map((o) => `<li><div class="l1"><span class="id">#${o.id}</span><b>${oblSubject(o)}</b>${oblTag(o.state)}</div><p>${eng(o.required_check)}</p><p class="sub"><a href="#/calc/${o.target_calc}">${esc(t('dash.needs.open', { id: o.target_calc }))}</a> · ${esc(t('dash.needs.raised', { when: when(o.created_at) }))}</p></li>`).join('')}</ul>` : empty('shield', t('dash.needs.none.t'), esc(t('dash.needs.none.p'))), { count: open.length })}
-            ${panel(esc(t('dash.state')), `<div class="bar" role="img" aria-label="${esc(t('dash.bar.aria', n))}"><i class="b-warn" style="flex:${n.review}"></i><i class="b-na" style="flex:${n.sup}"></i><i class="b-bad" style="flex:${n.none + n.rej}"></i><i class="b-ok" style="flex:${n.ok}"></i></div>
+            ${panel(esc(t('dash.state')), `<div class="bar" role="img" aria-label="${esc(t('dash.bar.aria', n))}">${seg('b-warn', n.review)}${seg('b-na', n.sup)}${seg('b-bad', n.none + n.rej)}${seg('b-ok', n.ok)}</div>
               <div class="legend" id="legend"><span><i class="b-warn"></i>${esc(t('dash.l.review', { n: n.review }))}</span><span><i class="b-na"></i>${esc(t('dash.l.sup', { n: n.sup }))}</span><span><i class="b-bad"></i>${esc(t('dash.l.none', { n: n.none, m: n.rej }))}</span><span><i class="b-ok"></i>${esc(t('dash.l.ok', { n: n.ok }))}</span></div>`,
               { foot: `${jaHtml(t('dash.state.foot'))}${d.calculations > cs.length ? ` ${esc(t('dash.partial', { n: cs.length, total: d.calculations }))}` : ''}` })}
           </div></div>
@@ -1403,7 +1411,7 @@ function paint(cur, o = {}) {
   $$('.rail a').forEach((a) => { if (a.dataset.nav === nav) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   // a crumb is [label, href]; a label that holds a name a person typed is already escaped and wrapped (raw = true)
   $('#crumbs').innerHTML = (out.crumbs || []).map(([l, href, raw], i, all) => { const s = raw ? l : esc(l); return href ? `<a href="${href}">${s}</a>` : `<span${i === all.length - 1 ? ' aria-current="page"' : ''}>${s}</span>`; }).join('<span class="sep" aria-hidden="true">›</span>');
-  main.style.overflow = out.ws ? '' : 'auto';
+  main.classList.toggle('scroll', !out.ws);
   main.innerHTML = out.html; main.dataset.hash = location.hash;
   // a file the user had chosen cannot be set again by a script: the element itself is carried over
   for (const old of o.files || []) { const now = document.getElementById(old.id); if (now && now !== old) now.replaceWith(old); }
@@ -1477,6 +1485,7 @@ function renderBootError(err) {
 (async () => {
   try {
     const health = await api('/api/health');
+    desktopMode = health.mode === 'desktop';
     if (health.setup_required) return renderLogin({ setup: true });
     // The start-up probe answers 200 with signed_in false for a visitor who is not signed in (BH-008: a 401 here was
     // logged by the browser as an error on every sign-in screen load).
