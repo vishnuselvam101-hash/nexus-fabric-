@@ -21,7 +21,7 @@ seen to pass on the stated commit; "not run" is never written as passed.
 | 0.1 | Working on the live server made safe | done | `36072a1` | facts under the task; `nf-sandbox` + `nf-verify` |
 | 0.2 | Readiness and registers tell the truth | done | this commit | READINESS geometry row, RB-011, B2-001…007 rows, fabrication questions (10), hand-off section 6 |
 | 0.3 | The two near-tangent FAILs (D4) | done (facts) | this commit | remedy folded into 1.2 (decision under the task); regression cases land with 1.2 |
-| 1.1 | Shallow and near-180° branch angles | not started | | decided by the CLI under the owner's delegation (below): the plan's proposal |
+| 1.1 | Shallow and near-180° branch angles | done (working tree) | | engine 0.4.3; code `branch_angle_not_verifiable`; decision and derivation under the task, TOLERANCE_POLICY section 7 |
 | 1.2 | A true error bound everywhere | not started | | |
 | 1.3 | Every convention stated in the DXF and the result | not started | | |
 | 1.4 | Surface attribute for every family | not started | | |
@@ -242,6 +242,28 @@ cases become regression cases with the fixed behaviour.
   hard-code 0.003°: derive the condition from the verifier's own tolerance. Same logic at the obtuse end; show
   `eps_num` prominently on any accepted near-180° job.
 - **Tests:** boundary cases just inside and outside at both ends; corpus cases; refusal-code table updated.
+
+#### 1.1 — decision and result (CLI, 21 Nov 2026, engine 0.4.3)
+
+**Decision (under the owner's delegation): the verifier's own criterion, evaluated up front, inside a derived regime.**
+A pure closed-form refusal was built first and measured: the a-priori bound F on the verifier's own rounding (it grows
+as u(R + r)/sin²β; derivation in `docs/backend/TOLERANCE_POLICY.md` section 7) is a worst-case sum of about twenty
+roundings and runs 5 to 30 times above the error the verifier actually commits (largest measured difference / F: 0.19
+saddle, 0.08 opening, 0.15 joint). As the refusal it would turn away angles the verifier confirms by a factor of 20 (for
+R 150, r 100 every header with branch from about 179.97°), against the rule "never refuse a case the verifier can
+confirm". So F decides only the regime: where F ≥ agree + 3·bound (a correct pattern is no longer guaranteed to pass),
+the checks gate G10 reads are evaluated on the final patterns before the job is accepted, and if they fail (only the
+four 3D-intersection point checks, each with its own F exceeded and a difference within F + bound; anything else is a
+wrong pattern and G10 rejects it) the request is refused with `branch_angle_not_verifiable`, naming
+`beta_deg`, `detail` limit = the budget, measured = F. Outside the regime a failing check is a wrong pattern and G10
+rejects the job as before. No angle constant. Same rule at both ends; at the obtuse end the engine's bound grows as
+1/sin²β too (rounding of β near π), so no request is refused there before the 1e8 mm size limit; instead a part whose
+eps_num satisfies 8·eps_num ≥ the tolerance of its 3D point check (branch: 4·eps_num ≥ agree; header: can fire earlier, its
+eps_num includes the plate estimate) carries `eps_num_governs` and the interface shows eps_num first and
+in full (EN/JA). Boundaries for R 150, r 100, δ 0 (ratio F/budget 0.9): stub 0.02016°; header with branch 0.06385° and
+179.96378°. Refused: stub 0.002°, header with branch 0.009°. In the regime and accepted: stub 0.003° (ratio 39), header
+with branch 179.99° (ratio 1.11). Engine 0.4.3 (older results: G21 recompute). Not covered: developed-length checks that
+fail for other reasons (r/R 1e-3 near 180°, near-tangent parts of 1e-3 mm) stay REJECTED (tasks 1.2, 1.6).
 
 ### 1.2 A true error bound everywhere (RB-005, D4, B2-007)
 - **Why:** `eps_num` and `eps_rep` must be upper bounds, or be called estimates and not gate anything.

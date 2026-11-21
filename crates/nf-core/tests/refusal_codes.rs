@@ -246,6 +246,159 @@ fn the_angle_between_the_axes_is_limited_to_the_open_interval() {
     assert!(detail(&r, "measured") > 1e8);
 }
 
+/// A header with branch laid out as the validation corpus lays it out (`validation/stability.py` `_asm`): the plate
+/// just long enough for the opening, the square end just beyond the saddle.
+fn assembly(big_r: f64, r: f64, beta: f64, delta: f64) -> Value {
+    let b = uem::develop::Branch {
+        big_r,
+        r,
+        beta: beta.to_radians(),
+        delta,
+    };
+    let (sb, cb) = b.beta.sin_cos();
+    let (mut xmin, mut xmax, mut smax) = (f64::MAX, f64::MIN, f64::MIN);
+    for i in 0..=40000 {
+        let ph = std::f64::consts::TAU * i as f64 / 40000.0;
+        let s = b.s(ph);
+        xmin = xmin.min(s * cb - r * ph.sin() * sb);
+        xmax = xmax.max(s * cb - r * ph.sin() * sb);
+        smax = smax.max(s);
+    }
+    json!({"family": "header_with_branch", "header_radius": big_r, "header_dev_radius": big_r,
+           "header_length": (xmax - xmin + 2.0 * big_r).ceil(), "branch_station": (-xmin + big_r).ceil(),
+           "branch_radius": r, "branch_dev_radius": r, "beta_deg": beta, "delta": delta,
+           "s_end": (smax + big_r).ceil(), "surface_reference": "outside"})
+}
+
+/// Largest ratio (bound on the verifier's own rounding) / (budget of its tolerance) over the 3D-intersection checks
+/// of a request (`uem::verify` conditioning, TOLERANCE_POLICY section 7): above 1 the verifier is no longer
+/// guaranteed to confirm a correct pattern.
+fn conditioning(v: &Value) -> f64 {
+    let f = |k: &str| v[k].as_f64().unwrap();
+    let b = uem::develop::Branch {
+        big_r: f("header_radius"),
+        r: f("branch_radius"),
+        beta: f("beta_deg").to_radians(),
+        delta: f("delta"),
+    };
+    let c = if v["family"] == "branch_stub" {
+        uem::verify::branch_stub_conditioning(&b, f("branch_dev_radius"), f("s_end"))
+    } else {
+        uem::verify::header_with_branch_conditioning(
+            &b,
+            f("header_dev_radius"),
+            f("header_length"),
+            f("branch_station"),
+            f("branch_dev_radius"),
+            f("s_end"),
+        )
+    };
+    c.iter().map(|k| k.rounding / k.budget).fold(0.0, f64::max)
+}
+
+/// The angle in (lo, hi) at which `make(beta)` has the conditioning ratio `target` (bisection; the ratio is monotone
+/// in beta on either side of 90 degrees).
+fn angle_at(make: &dyn Fn(f64) -> Value, lo: f64, hi: f64, target: f64) -> f64 {
+    let (mut a, mut b) = (lo, hi);
+    let rising = conditioning(&make(b)) > conditioning(&make(a));
+    for _ in 0..60 {
+        let m = 0.5 * (a + b);
+        if (conditioning(&make(m)) > target) == rising {
+            b = m
+        } else {
+            a = m
+        }
+    }
+    0.5 * (a + b)
+}
+
+fn accepted_and_verified(v: &Value) -> nf_core::job::JobOutput {
+    let out = run(&Request::parse_refusal(v).unwrap(), "refusal-test");
+    assert!(
+        out.refusal.is_none(),
+        "{v}: refused: {:?}",
+        out.refusal.map(|r| r.message)
+    );
+    let g10 = out.gates.iter().find(|g| g.id == "G10").unwrap();
+    assert_eq!(g10.result, nf_core::GateResult::Pass, "{v}");
+    assert_ne!(out.state, ReleaseState::Rejected, "{v}");
+    out
+}
+
+/// Work plan task 1.1 (engine 0.4.3): a branch angle the independent verification cannot confirm is refused with
+/// its own code naming beta_deg, at both ends of the angle range; just inside the regime boundary (ratio 0.9) the
+/// job is accepted and verified; inside the regime a pattern the verifier confirms is accepted (never refused for
+/// the bound alone); an accepted near-180 degree part shows eps_num prominently.
+#[test]
+fn a_branch_angle_the_verification_cannot_confirm_is_refused_at_both_ends() {
+    let st = |beta: f64| {
+        stub(
+            json!({"beta_deg": beta, "s_end": ((250.0 / beta.to_radians().sin()) + 150.0f64).ceil()}),
+        )
+    };
+    // acute end, branch stub: just inside the boundary of the regime, accepted and verified
+    let b_in = angle_at(&st, 0.005, 1.0, 0.9);
+    assert!((0.01..0.05).contains(&b_in), "{b_in}");
+    accepted_and_verified(&st(b_in));
+    // inside the regime and confirmed by the verifier (ratio about 40 at 0.003 deg): accepted, not refused
+    assert!(conditioning(&st(0.003)) > 1.0);
+    accepted_and_verified(&st(0.003));
+    // outside: the verifier's 3D check fails (G10 rejected this before 0.4.3): refused with the new code
+    for beta in [0.002, 0.001] {
+        let r = expect_refused(st(beta), "branch_angle_not_verifiable", &["beta_deg"]);
+        assert!(
+            r.message.contains(&format!("beta_deg = {beta}")),
+            "{}",
+            r.message
+        );
+        assert!(detail(&r, "measured") > detail(&r, "limit"));
+    }
+    // obtuse end, branch stub: the regime is never entered before the 1e8 mm size limit (the tolerance carries the
+    // rounding of beta near pi, which grows as 1/sin²(beta) too); accepted to 179.9997 deg with eps_num prominent,
+    // and the size limit refuses beyond
+    for beta in [179.997, 179.9997] {
+        assert!(conditioning(&st(beta)) < 1.0);
+        let out = accepted_and_verified(&st(beta));
+        assert!(out.patterns.iter().all(|p| p.eps_num_governs), "{beta}");
+    }
+    expect_refused(
+        stub(json!({"beta_deg": 180.0 - 0.000141821, "s_end": 0.995e8})),
+        "branch_angle_out_of_range",
+        &["beta_deg"],
+    );
+    // a part at an ordinary angle does not carry the flag
+    assert!(
+        accepted_and_verified(&stub(json!({})))
+            .patterns
+            .iter()
+            .all(|p| !p.eps_num_governs)
+    );
+
+    // header with branch, acute end: the joint checks govern
+    let asm = |beta: f64| assembly(150.0, 100.0, beta, 0.0);
+    let a_in = angle_at(&asm, 0.02, 1.0, 0.9);
+    assert!((0.03..0.2).contains(&a_in), "{a_in}");
+    accepted_and_verified(&asm(a_in));
+    let r = expect_refused(asm(0.009), "branch_angle_not_verifiable", &["beta_deg"]);
+    assert!(r.message.contains("beta_deg = 0.009"));
+    // header with branch, obtuse end: just inside the regime boundary, and inside the regime (ratio above 1) the
+    // verifier confirms: accepted, every part with eps_num prominent
+    let a_ob = angle_at(&asm, 179.9, 179.9999, 0.9);
+    assert!((179.9..179.99).contains(&a_ob), "{a_ob}");
+    for beta in [a_ob, 179.99] {
+        let out = accepted_and_verified(&asm(beta));
+        assert!(out.patterns.iter().all(|p| p.eps_num_governs), "{beta}");
+    }
+    assert!(conditioning(&asm(179.99)) > 1.0);
+    println!(
+        "boundary (ratio 0.9): stub {b_in} deg; header with branch {a_in} deg and {a_ob} deg; ratios: stub 0.003 deg {:.1}, 0.002 deg {:.1}; assembly 0.009 deg {:.1}, 179.99 deg {:.2}",
+        conditioning(&st(0.003)),
+        conditioning(&st(0.002)),
+        conditioning(&asm(0.009)),
+        conditioning(&asm(179.99))
+    );
+}
+
 #[test]
 fn a_square_end_must_lie_beyond_the_saddle() {
     let r = expect_refused(

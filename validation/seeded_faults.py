@@ -128,7 +128,56 @@ def run(cl):
         lines.append(('ok  ' if issues else 'MISS') + f' DXF: {name}: ' + (issues[0][:150] if issues else 'not detected'))
     ok2, lines2 = near_tangent_and_scale(cl)
     ok3, lines3 = seam_faults(cl)
-    return ok and ok2 and ok3, lines + lines2 + lines3
+    ok4, lines4 = regime_faults(cl)
+    return ok and ok2 and ok3 and ok4, lines + lines2 + lines3 + lines4
+
+
+def regime_faults(cl):
+    """Engine 0.4.3, work plan task 1.1: faults planted in results INSIDE the regime where the product's verification is not
+    guaranteed (checks/oracle.py branch_conditioning >= 1): a stub at 0.003 deg (ratio 39) and a header with branch at
+    179.99 deg (ratio 1.11). The product accepts both (its verification confirms them); the validator must still catch a
+    wrong pattern there. (That the product's own verification rejects such a pattern instead of refusing the angle as
+    branch_angle_not_verifiable is tested in crates/uem, test task_1_1_a_wrong_pattern_inside_the_regime_is_rejected_not_refused.)"""
+    lines, ok = [], True
+    stub_req = {'family': 'branch_stub', 'header_radius': 150, 'branch_radius': 100, 'branch_dev_radius': 100, 'beta_deg': 0.003, 'delta': 0, 's_end': 5.2e6}
+    asm_req = _asm(150.0, 100.0, 179.99, 0.0)
+
+    def shift(part, curve, dx, dy):
+        def plant(j):
+            c = j.parts[part].curve(curve)
+            setpts(c, c.pts + [dx, dy])
+        return plant
+
+    def scale_y(k):
+        def plant(j):
+            c = j.parts['branch'].curve('saddle_cut')
+            setpts(c, np.stack([c.pts[:, 0], c.pts[:, 1] * k], 1))
+        return plant
+
+    plan = [(stub_req, 'stub 0.003 deg: saddle cut 0.05 mm too high', shift('branch', 'saddle_cut', 0.0, 0.05)),
+            (stub_req, 'stub 0.003 deg: saddle heights scaled by 1 + 1e-7', scale_y(1 + 1e-7)),
+            (asm_req, 'header with branch 179.99 deg: opening shifted 0.05 mm along the axis', shift('header', 'branch_opening', 0.05, 0.0)),
+            (asm_req, 'header with branch 179.99 deg: saddle cut 0.05 mm too high', shift('branch', 'saddle_cut', 0.0, 0.05))]
+    for req in (stub_req, asm_req):
+        j = Job(cl, cl.calculate(req))
+        base = compare_job(req, j) if j.accepted else {'issues': ['not accepted: ' + j.refusal_text()[:150]]}
+        good = j.accepted and not base['issues']
+        ok &= good
+        lines.append(('ok  ' if good else 'FAIL') + f" task 1.1 regime, {req['family']} beta {req['beta_deg']}: unmodified result accepted, no geometry issue" + ('' if good else ': ' + base['issues'][0][:160]))
+    for req, name, plant in plan:
+        j = Job(cl, cl.calculate(req))
+        if not j.accepted:
+            ok = False
+            lines.append(f'MISS task 1.1 regime, {name}: could not plant (result not accepted)')
+            continue
+        plant(j)
+        issues = []
+        if 'header' in j.parts:
+            cmp_header(req, j.parts['header'], issues)
+        cmp_branch(req, j.parts['branch'], issues)
+        ok &= bool(issues)
+        lines.append(('ok  ' if issues else 'MISS') + f' task 1.1 regime, {name}: ' + (issues[0][:150] if issues else 'not detected'))
+    return ok, lines
 
 
 def seam_faults(cl):

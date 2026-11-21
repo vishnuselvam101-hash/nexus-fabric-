@@ -1,0 +1,26 @@
+{
+ "id": "E-hwb-1.1-acute-outside",
+ "group": "refusal",
+ "title": "Header with branch R=150 r=100 beta=0.009: the verification cannot confirm the pattern",
+ "request": {
+  "family": "header_with_branch",
+  "header_radius": 150,
+  "header_dev_radius": 150,
+  "header_length": 1273540.0,
+  "branch_station": -318159.0,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 0.009,
+  "delta": 0,
+  "s_end": 1591700.0,
+  "surface_reference": "outside"
+ },
+ "expect": "refuse",
+ "derivation": "ratio F/(agree + 3 bound) = 43.9 (joint checks): not guaranteed; measured on engine 0.4.2, the two 3D checks of the joint differed by about 2 times their tolerance (G10 FAIL, job REJECTED). Refused with branch_angle_not_verifiable since engine 0.4.3.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "beta_deg"
+  ]
+ }
+}

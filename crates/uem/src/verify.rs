@@ -59,6 +59,256 @@ pub fn agree_tol(size: f64) -> f64 {
     }
 }
 
+// ------------------------------------------------------------------------------------------------------------
+// The verifier's OWN rounding error at a branch angle (work plan task 1.1, engine 0.4.3).
+//
+// The three 3D-intersection checks of a branch joint (`saddle_matches_3d_intersection`,
+// `opening_matches_3d_intersection` and the two checks of `verify_joint`) compare the pattern with the numerical
+// intersection of `independent::Joint3`. Their tolerance is `agree_tol(size) + 4·bound`, where `bound` is the
+// engine's a-priori error bound of the compared vertices (`develop::saddle_error_bound`,
+// `develop::opening_error_bound`). The threshold says nothing about the verifier's own rounding, which grows as
+// 1/sin²(beta) (the root search divides an error of the order u·s by the slope sin(beta)·cos(omega), with s itself of
+// the order (R + r)/sin(beta)). A correct pattern is GUARANTEED to pass a check only when
+//
+//     engine error + verifier error <= agree + 4·bound,   i.e. (engine error <= bound)   F <= agree + 3·bound,
+//
+// with F the a-priori bound below. Where F exceeds that, the check can neither confirm a correct pattern nor tell
+// it from a wrong one, so the engine refuses the angle with its own code (`branch_angle_not_verifiable`) instead
+// of accepting a job that its own verification then fails (G10). Derivation in docs/backend/TOLERANCE_POLICY.md
+// section 7. First-order analysis like `develop::s_error_bound`; u = 2^-53.
+// ------------------------------------------------------------------------------------------------------------
+
+/// Unit roundoff.
+const U: f64 = develop::U;
+/// Largest defect of the stored constants of the tilted frame from an orthonormal frame: |ex·ex − 1| = 1.0 u,
+/// |ey·ey − 1| = 0.47 u, |ez·ez − 1| = 0.28 u, |ex·ez| = 0.17 u, ex·ey = ey·ez = 0 (exact rational evaluation of
+/// the binary64 constants, asserted by `frame_defect_is_at_most_one_unit_roundoff`).
+const FRAME_DEFECT: f64 = U;
+/// |frame origin| / scale for `Frame::tilted` (sqrt(0.7² + 0.4² + 0.3²) = 0.8602…), rounded up.
+const FRAME_ORIGIN: f64 = 0.87;
+
+/// Geometry terms shared by the bounds: (sin beta, |cos beta|, cos omega_min, S, D) with
+/// S = (R + r|cos beta|)/sin beta >= |s(phi)| and D = r (1 + y/root)/sin beta >= |ds/dphi|,
+/// y = |delta| + r, root = sqrt(R² − y²), cos omega_min = root/R.
+fn branch_terms(b: &Branch) -> (f64, f64, f64, f64, f64) {
+    let sb = b.beta.sin().abs();
+    let cb = b.beta.cos().abs();
+    let y = b.delta.abs() + b.r;
+    let root = (b.big_r * b.big_r - y * y).sqrt();
+    let s_big = (b.big_r + b.r * cb) / sb;
+    let d_big = b.r * (1.0 + y / root) / sb;
+    (sb, cb, root / b.big_r, s_big, d_big)
+}
+
+/// Rounding of a point formed by `Joint3::branch_point` at |s| <= S in a frame of the given scale and station:
+/// the branch origin (3 roundings of |station|, |delta|), the transverse part (radius r, rotated basis), d·s
+/// (2 u of d, 1 u of the product), the sums (1 u of each partial sum).
+fn branch_point_rounding(b: &Branch, scale: f64, station: f64, s_big: f64) -> f64 {
+    U * (3.0 * FRAME_ORIGIN * scale
+        + 5.0 * station.abs()
+        + 5.0 * b.delta.abs()
+        + 13.0 * b.r
+        + 4.0 * s_big)
+}
+
+/// A-PRIORI BOUND on the error of `Joint3::s_at` (the numerical root on a branch ruling), every phi.
+///   g(s) = |b + dp·s| − R,  slope g'(s*) = sin(beta)·cos(omega) >= sin(beta)·cos(omega_min);
+///   dp = d − (d·ex)·ex: the part across the header axis carries <= 3u (d·ex and its error lie along ex);
+///   b = off_axis(branch_point(phi, 0, r)): <= u·(2|o| + 6|station| + 6|delta| + 15 r);
+///   evaluation of g at the root: <= u·(5R + |delta| + r);
+///   stopping rule 2·eps·max(|s|, R) = 4u·max(S, R), plus the relative frame defect: 8u·max(S, R) in all.
+pub fn intersection_root_bound(b: &Branch, scale: f64, station: f64) -> f64 {
+    let (sb, _, cw, s_big, _) = branch_terms(b);
+    let y = b.delta.abs() + b.r;
+    let e_b =
+        U * (2.0 * FRAME_ORIGIN * scale + 6.0 * station.abs() + 6.0 * b.delta.abs() + 15.0 * b.r);
+    let e_f = U * (5.0 * b.big_r + y);
+    (3.0 * U * s_big + e_b + e_f) / (sb * cw) + 8.0 * U * s_big.max(b.big_r)
+}
+
+/// A-priori bound on the verifier's own error in `saddle_matches_3d_intersection` (branch stub): the root bound
+/// in the frame of `Joint3::new` (scale R, station 0) plus the fold of the vertex parameter phi = x / r_dev
+/// (2u·tau) through |ds/dphi| <= D.
+pub fn saddle_check_rounding(b: &Branch) -> f64 {
+    let (_, _, _, _, d_big) = branch_terms(b);
+    intersection_root_bound(b, b.big_r, 0.0) + 2.0 * U * TAU * d_big
+}
+
+/// A-priori bound on the verifier's own error in `opening_matches_3d_intersection`: the computed curve point
+/// (root bound and `branch_point` rounding), its header chart (x = q·ex; omega = atan2 of two components of
+/// q, |q| <= |station| + S + |delta| + r, at radius R), the plate value v = R_dev·(omega + pi), and the
+/// rounding of the vertex parameter (3u·tau) through |dx/dphi| <= D + r and |dv/dphi| <= R_dev·r/root.
+pub fn opening_check_rounding(b: &Branch, r_dev_header: f64, station: f64) -> f64 {
+    let (_, _, cw, s_big, d_big) = branch_terms(b);
+    let q = station.abs() + s_big + b.delta.abs() + b.r;
+    let e_pt = intersection_root_bound(b, b.big_r, station)
+        + branch_point_rounding(b, b.big_r, station, s_big);
+    let dx = e_pt + 4.0 * U * q;
+    let d_trans = e_pt + (4.0 * U + FRAME_DEFECT) * q;
+    let d_omega = std::f64::consts::SQRT_2 * d_trans / b.big_r + 2.0 * U * TAU;
+    let dv = r_dev_header * (d_omega + 3.0 * U * TAU + 1.3e-16);
+    let root = cw * b.big_r;
+    dx + dv + 3.0 * U * TAU * (d_big + b.r + r_dev_header * b.r / root)
+}
+
+/// A-priori bound on the verifier's own error in the two checks of `verify_joint` (frame of scale R): the vertex
+/// placed on its surface (opening: `header_point` at |x| <= |station| + S + r, omega from v / R_dev; saddle:
+/// `branch_point` and the fold of phi), its branch azimuth recovered by atan2 from q = p − o with
+/// |q| <= S + r (rounding of p, o, the subtraction, w = ez cos − ex sin, the dot products, and the defect of d·w,
+/// d·ey), the azimuth error moved along the intersection curve by |C'(phi)| <= r + D, and the computed curve
+/// point itself.
+pub fn joint_check_rounding(b: &Branch, station: f64) -> f64 {
+    let (_, _, _, s_big, d_big) = branch_terms(b);
+    let scale = b.big_r;
+    let q = s_big + b.r;
+    let e_open = U * (FRAME_ORIGIN * scale + 3.0 * (station.abs() + s_big + b.r) + 5.0 * b.big_r)
+        + b.big_r * (3.0 * std::f64::consts::PI * U + 4.0 * U);
+    let e_bp = branch_point_rounding(b, scale, station, s_big);
+    let e_p = e_open.max(e_bp + 2.0 * U * TAU * b.r);
+    let e_o = U * (FRAME_ORIGIN * scale + 3.0 * station.abs() + 3.0 * b.delta.abs());
+    let da = e_p + e_o + q * (7.0 * U + 2.0 * FRAME_DEFECT);
+    let db = e_p + e_o + q * (4.0 * U + 1.5 * FRAME_DEFECT);
+    let d_phi = da.hypot(db) / b.r + 2.0 * U * TAU;
+    let e_ref = intersection_root_bound(b, scale, station) + e_bp;
+    e_p + e_ref + (b.r + d_big) * d_phi
+}
+
+/// The 3D-intersection point checks that carry an a-priori bound on the verifier's own rounding (`Conditioning`):
+/// the only checks whose failure the refusal `branch_angle_not_verifiable` may attribute to the verifier's
+/// conditioning. A failure of any other check (fold-back, profile, lengths and areas, circles) rejects the job (G10).
+pub const CONDITIONED_CHECKS: [&str; 4] = [
+    "saddle_matches_3d_intersection",
+    "opening_matches_3d_intersection",
+    "opening_on_intersection_of_branch_geometry",
+    "saddle_on_intersection_of_header_geometry",
+];
+
+/// The conditioning of 3D-intersection point checks of a branch job: the a-priori bound `rounding` on the
+/// verifier's own error, the engine's a-priori bound `bound` on the error of the compared vertices, and the `budget`
+/// of the checks' tolerance that is left after the engine's own error: agree + 3·bound.
+#[derive(Clone, Copy, Debug)]
+pub struct Conditioning {
+    pub checks: &'static [&'static str],
+    pub rounding: f64,
+    pub bound: f64,
+    pub budget: f64,
+}
+
+impl Conditioning {
+    /// The verifier is no longer guaranteed to confirm a correct pattern in these checks.
+    pub fn exceeded(&self) -> bool {
+        // a value that is not a number counts as exceeded (fail closed)
+        self.rounding.partial_cmp(&self.budget) != Some(std::cmp::Ordering::Less)
+    }
+    /// A difference a correct pattern can show: at most the engine's bound plus the verifier's own rounding.
+    /// A larger difference is a wrong pattern, whatever the conditioning.
+    pub fn explains(&self, difference: f64) -> bool {
+        difference <= self.rounding + self.bound
+    }
+}
+
+/// The conditioning of the 3D-intersection check of a branch stub (`verify_branch`).
+pub fn branch_stub_conditioning(b: &Branch, r_dev: f64, s_end: f64) -> Vec<Conditioning> {
+    let saddle = develop::saddle_error_bound(b, r_dev);
+    vec![Conditioning {
+        checks: &["saddle_matches_3d_intersection"],
+        rounding: saddle_check_rounding(b),
+        bound: saddle,
+        budget: agree_tol(b.big_r.max(s_end)) + 3.0 * saddle,
+    }]
+}
+
+/// The conditioning of the 3D-intersection checks of a header with branch: the branch part, the header opening
+/// (`verify_header_opening`) and the joint (`verify_joint`), for a joint whose two parts share one geometry.
+pub fn header_with_branch_conditioning(
+    b: &Branch,
+    r_dev_header: f64,
+    length: f64,
+    station: f64,
+    r_dev_branch: f64,
+    s_end: f64,
+) -> Vec<Conditioning> {
+    let open = develop::opening_error_bound(b, r_dev_header, station);
+    let saddle = develop::saddle_error_bound(b, r_dev_branch);
+    let mut v = branch_stub_conditioning(b, r_dev_branch, s_end);
+    v.push(Conditioning {
+        checks: &["opening_matches_3d_intersection"],
+        rounding: opening_check_rounding(b, r_dev_header, station),
+        bound: open,
+        budget: agree_tol(b.big_r.max(length)) + 3.0 * open,
+    });
+    v.push(Conditioning {
+        checks: &[
+            "opening_on_intersection_of_branch_geometry",
+            "saddle_on_intersection_of_header_geometry",
+        ],
+        rounding: joint_check_rounding(b, station),
+        bound: open + saddle,
+        budget: agree_tol(b.big_r.max(s_end)) + 3.0 * (open + saddle),
+    });
+    v
+}
+
+/// Work plan task 1.1: the refusal of a branch angle the verification cannot confirm. It is the verifier's own
+/// criterion, evaluated on the final patterns before the job is accepted (`checks` are exactly the checks gate
+/// G10 reads), restricted to failures the verifier's conditioning can explain. Refused only when at least one check
+/// FAILS and EVERY failing check (a) is one of `CONDITIONED_CHECKS`, (b) has its own conditioning `exceeded` (the
+/// verifier is not guaranteed to confirm a correct pattern there), and (c) differs by no more than a correct pattern
+/// can (`explains`: the engine's bound plus the verifier's rounding bound). Anything else is a wrong pattern and the
+/// job is rejected by G10 as before; a pattern the verifier confirms is accepted.
+pub fn branch_angle_refusal(
+    beta_deg: f64,
+    conditioning: &[Conditioning],
+    checks: &[Check],
+) -> Option<crate::UemError> {
+    let failing: Vec<&Check> = checks
+        .iter()
+        .filter(|c| c.verdict == Verdict::Fail)
+        .collect();
+    if failing.is_empty() {
+        return None;
+    }
+    let mut governing: Option<(&Check, &Conditioning)> = None;
+    for c in &failing {
+        let k = conditioning.iter().find(|k| k.checks.contains(&c.name))?;
+        if !(CONDITIONED_CHECKS.contains(&c.name) && k.exceeded() && k.explains(c.difference)) {
+            return None;
+        }
+        if governing.is_none_or(|(_, g)| k.rounding / k.budget > g.rounding / g.budget) {
+            governing = Some((c, k));
+        }
+    }
+    let (first, worst) = governing?;
+    Some(crate::out_of_range_with(
+        crate::refusal::BRANCH_ANGLE_NOT_VERIFIABLE,
+        "beta",
+        vec!["beta_deg"],
+        format!(
+            "beta_deg = {beta_deg}: the independent verification cannot confirm the pattern at this branch angle. \
+             Its numerical intersection is conditioned by 1/sin²(beta): the bound on its own rounding error in \
+             {} is {:e} mm, not below the {:e} mm of its tolerance left after the engine's own error, and the \
+             check differs by {:e} mm against a tolerance of {:e} mm. An implementation limit of the \
+             verification, not an engineering rule; nothing is offered.",
+            first.name, worst.rounding, worst.budget, first.difference, first.tolerance
+        ),
+        vec![("limit", worst.budget), ("measured", worst.rounding)],
+    ))
+}
+
+/// 8·eps_num >= the tolerance of the part's 3D-intersection point check (agree + 4·bound). For a branch eps_num is
+/// that bound, so the condition is 4·eps_num >= agree; for a header eps_num is the larger of the plate's own estimate
+/// and the opening bound, so on a long plate it can hold before the opening bound alone would make it. In practice:
+/// a branch angle near 180 degrees, where the rounding of beta itself dominates eps_num. The result then shows
+/// eps_num prominently.
+pub fn eps_num_governs(p: &Pattern, checks: &[Check]) -> bool {
+    checks.iter().any(|c| {
+        matches!(
+            c.name,
+            "saddle_matches_3d_intersection" | "opening_matches_3d_intersection"
+        ) && 8.0 * p.eps_num >= c.tolerance
+    })
+}
+
 /// Fold a point of a BRANCH pattern back to (φ, s) using only the side the
 /// pattern DECLARES, never the way it was built (validation defect D1).
 /// Outside view is the frame of Spec 02 §4.4, (u, v) = (r_dev·φ, s). The
@@ -1895,5 +2145,308 @@ mod tests {
         );
         let tiny = cylinder_shell(1e-4, 1e-3).unwrap();
         all_pass(&verify_cylinder(&tiny, 1e-4, 1e-3));
+    }
+
+    // ---- work plan task 1.1: the verifier's own rounding at shallow and near-180 degree branch angles
+
+    /// a·b + c·d + e·f of binary64 numbers as an unevaluated sum hi + lo (error-free products, compensated sum):
+    /// exact to far below 1e-30 for the frame constants.
+    fn exact_dot(a: V3, b: V3) -> f64 {
+        let (mut hi, mut lo) = (0.0f64, 0.0f64);
+        for i in 0..3 {
+            let p = a[i] * b[i];
+            let e = a[i].mul_add(b[i], -p);
+            let s = hi + p;
+            let bb = s - hi;
+            lo += (hi - (s - bb)) + (p - bb) + e;
+            hi = s;
+        }
+        hi + lo
+    }
+
+    #[test]
+    fn frame_defect_is_at_most_one_unit_roundoff() {
+        let f = independent::Frame::tilted(1.0);
+        for (a, b, want) in [
+            (f.ex, f.ex, 1.0),
+            (f.ey, f.ey, 1.0),
+            (f.ez, f.ez, 1.0),
+            (f.ex, f.ey, 0.0),
+            (f.ex, f.ez, 0.0),
+            (f.ey, f.ez, 0.0),
+        ] {
+            // the difference from the wanted value, taken before rounding to binary64 where it matters
+            let p: Vec<f64> = (0..3).map(|i| a[i] * b[i]).collect();
+            let e: Vec<f64> = (0..3).map(|i| a[i].mul_add(b[i], -p[i])).collect();
+            let defect = ((p[0] - want) + p[1] + p[2] + e[0] + e[1] + e[2]).abs();
+            assert!(defect <= FRAME_DEFECT, "{defect:e}");
+            assert!((exact_dot(a, b) - want).abs() <= FRAME_DEFECT);
+        }
+        let o = f.o;
+        assert!((o[0] * o[0] + o[1] * o[1] + o[2] * o[2]).sqrt() <= FRAME_ORIGIN);
+    }
+
+    /// A branch stub and a header with branch laid out as the validation corpus lays them out: the plate just
+    /// long enough for the opening, the square end just beyond the saddle, both parts with one sampling.
+    fn joint_at(
+        big_r: f64,
+        r: f64,
+        beta_deg: f64,
+        delta: f64,
+    ) -> Option<(Branch, Pattern, Pattern, f64, f64, f64)> {
+        let b = Branch {
+            big_r,
+            r,
+            beta: beta_deg.to_radians(),
+            delta,
+        };
+        let (sb, cb) = b.beta.sin_cos();
+        let (mut xmin, mut xmax, mut smax) = (f64::MAX, f64::MIN, f64::MIN);
+        for i in 0..=4000 {
+            let ph = TAU * i as f64 / 4000.0;
+            let s = b.s(ph);
+            xmin = xmin.min(s * cb - r * ph.sin() * sb);
+            xmax = xmax.max(s * cb - r * ph.sin() * sb);
+            smax = smax.max(s);
+        }
+        let (station, length, s_end) = (
+            (-xmin + big_r).ceil(),
+            (xmax - xmin + 2.0 * big_r).ceil(),
+            (smax + big_r).ceil(),
+        );
+        let p = branch_stub(big_r, r, r, beta_deg, delta, s_end).ok()?;
+        let h = header_with_opening(&b, big_r, length, station).ok()?;
+        let n = |q: &Pattern| q.quantity("polyline_segments").unwrap() as usize;
+        let k = n(&p).max(n(&h));
+        let p = branch_stub_min(big_r, r, r, beta_deg, delta, s_end, k).ok()?;
+        let h = header_with_opening_min(&b, big_r, length, station, k).ok()?;
+        Some((b, p, h, station, length, s_end))
+    }
+
+    /// The a-priori bound on the verifier's own error covers every measured difference of the three point checks, at
+    /// both ends of the angle range and across sizes, ratios and offsets; and where the bound is inside the budget
+    /// (outside the regime of `branch_angle_refusal`) those checks pass. Largest measured difference / bound in the
+    /// sweep of TOLERANCE_POLICY section 7: 0.19 (saddle), 0.08 (opening), 0.15 (joint).
+    #[test]
+    fn task_1_1_verifier_rounding_bound_covers_the_measured_differences() {
+        let mut worst: f64 = 0.0;
+        for (big_r, r, delta, betas) in [
+            (
+                150.0,
+                100.0,
+                0.0,
+                &[0.002, 0.009, 0.03, 0.3, 60.0, 179.9, 179.97, 179.997][..],
+            ),
+            (150.0, 45.0, 31.5, &[0.004, 0.05, 120.0, 179.99][..]),
+            (1e4, 6.67e3, 0.0, &[1.0, 179.0][..]),
+            (2.0, 0.6, -0.5, &[0.001, 179.999][..]),
+        ] {
+            for &beta_deg in betas {
+                let Some((b, p, h, station, length, s_end)) = joint_at(big_r, r, beta_deg, delta)
+                else {
+                    panic!("R {big_r} r {r} delta {delta} beta {beta_deg}: refused");
+                };
+                let mut all = verify_branch(&p, &b, r, s_end);
+                all.extend(verify_header_opening(&h, &b, big_r, length, station));
+                all.extend(verify_joint(&h, &b, big_r, station, &p, &b, r, s_end));
+                let cond = header_with_branch_conditioning(&b, big_r, length, station, r, s_end);
+                let d = |name: &str| all.iter().find(|c| c.name == name).unwrap();
+                let pairs = [
+                    (d("saddle_matches_3d_intersection"), cond[0]),
+                    (d("opening_matches_3d_intersection"), cond[1]),
+                    (d("opening_on_intersection_of_branch_geometry"), cond[2]),
+                    (d("saddle_on_intersection_of_header_geometry"), cond[2]),
+                ];
+                for (c, k) in pairs {
+                    worst = worst.max(c.difference / k.rounding);
+                    assert!(
+                        c.difference < k.rounding,
+                        "R {big_r} r {r} beta {beta_deg}: {} {:e} >= bound {:e}",
+                        c.name,
+                        c.difference,
+                        k.rounding
+                    );
+                    if !cond.iter().any(Conditioning::exceeded) {
+                        assert_eq!(
+                            c.verdict,
+                            Verdict::Pass,
+                            "R {big_r} r {r} beta {beta_deg}: {} outside the regime",
+                            c.name
+                        );
+                    }
+                }
+            }
+        }
+        println!("largest measured difference / bound: {worst:.3}");
+        assert!(worst < 0.5);
+    }
+
+    #[test]
+    fn task_1_1_refusal_is_the_verifiers_criterion_inside_the_regime_only() {
+        let check = |name: &'static str, verdict: Verdict, difference: f64| Check {
+            name,
+            method: "",
+            independence: "I-F",
+            primary: 0.0,
+            reference: 0.0,
+            difference,
+            tolerance: 1.0,
+            verdict,
+        };
+        const SADDLE: &[&str] = &["saddle_matches_3d_intersection"];
+        let inside = [Conditioning {
+            checks: SADDLE,
+            rounding: 3.0,
+            bound: 0.1,
+            budget: 1.0,
+        }];
+        let outside = [Conditioning {
+            checks: SADDLE,
+            rounding: 0.5,
+            bound: 0.1,
+            budget: 1.0,
+        }];
+        let fail = vec![
+            check("saddle_matches_3d_intersection", Verdict::Fail, 2.0),
+            check("square_end_equals_circumference", Verdict::Pass, 0.0),
+        ];
+        // in the regime, a failure the conditioning explains is refused with the code, naming beta_deg, limit and bound
+        let e = branch_angle_refusal(0.002, &inside, &fail).expect("refused");
+        assert_eq!(e.code(), crate::refusal::BRANCH_ANGLE_NOT_VERIFIABLE);
+        assert_eq!(e.fields(), ["beta_deg"]);
+        assert_eq!(e.detail(), [("limit", 1.0), ("measured", 3.0)]);
+        assert!(e.to_string().contains("beta_deg = 0.002"));
+        // outside the regime the same failure is a wrong pattern: no refusal, G10 rejects the job
+        assert!(branch_angle_refusal(0.002, &outside, &fail).is_none());
+        // in the regime, a difference larger than the engine's bound plus the verifier's rounding is a wrong pattern
+        let big = vec![check("saddle_matches_3d_intersection", Verdict::Fail, 3.2)];
+        assert!(branch_angle_refusal(0.002, &inside, &big).is_none());
+        let nan = vec![check(
+            "saddle_matches_3d_intersection",
+            Verdict::Fail,
+            f64::NAN,
+        )];
+        assert!(branch_angle_refusal(0.002, &inside, &nan).is_none());
+        // in the regime, a pattern the verifier confirms is not refused
+        let pass = vec![check("saddle_matches_3d_intersection", Verdict::Pass, 0.5)];
+        assert!(branch_angle_refusal(0.002, &inside, &pass).is_none());
+        // a failing check without its own bound is not excused: fold-back, or a length check of the same family
+        for other in [
+            "cut_points_on_header_surface",
+            "saddle_developed_length_equals_3d_arc_length",
+        ] {
+            let v = vec![
+                check("saddle_matches_3d_intersection", Verdict::Fail, 2.0),
+                check(other, Verdict::Fail, 2.0),
+            ];
+            assert!(
+                branch_angle_refusal(0.002, &inside, &v).is_none(),
+                "{other}"
+            );
+        }
+        // the failing check's OWN conditioning must be exceeded: the joint checks failing while only the saddle
+        // check is in the regime are a wrong pattern
+        const JOINT: &[&str] = &[
+            "opening_on_intersection_of_branch_geometry",
+            "saddle_on_intersection_of_header_geometry",
+        ];
+        let mixed = [
+            inside[0],
+            Conditioning {
+                checks: JOINT,
+                rounding: 0.5,
+                bound: 0.1,
+                budget: 1.0,
+            },
+        ];
+        let jf = vec![check(
+            "opening_on_intersection_of_branch_geometry",
+            Verdict::Fail,
+            0.55,
+        )];
+        assert!(branch_angle_refusal(0.002, &mixed, &jf).is_none());
+        // an INCONCLUSIVE check is not a failure of G10
+        let inc = vec![check(
+            "saddle_matches_3d_intersection",
+            Verdict::Inconclusive,
+            2.0,
+        )];
+        assert!(branch_angle_refusal(0.002, &inside, &inc).is_none());
+        // a bound that is not a number counts as exceeded
+        assert!(
+            Conditioning {
+                checks: SADDLE,
+                rounding: f64::NAN,
+                bound: 0.1,
+                budget: 1.0
+            }
+            .exceeded()
+        );
+    }
+
+    /// Planted faults INSIDE the regime (stub at 0.003 deg, ratio 39; header with branch at 179.99 deg, ratio 1.11):
+    /// a wrong pattern must fail G10 and must NOT be excused as `branch_angle_not_verifiable`.
+    #[test]
+    fn task_1_1_a_wrong_pattern_inside_the_regime_is_rejected_not_refused() {
+        let scale_saddle = |p: &mut Pattern, k: f64| {
+            for c in p.outline.iter_mut().filter(|c| c.name == "saddle_cut") {
+                if let Geom::Polyline { pts, .. } = &mut c.geom {
+                    for q in pts.iter_mut() {
+                        q.y *= k;
+                    }
+                }
+            }
+        };
+        // stub, saddle heights 1 part in 1e6 too large (a radius error of the same order)
+        let (b, mut p, _h, _st, _len, s_end) = joint_at(150.0, 100.0, 0.003, 0.0).unwrap();
+        let cond = branch_stub_conditioning(&b, 100.0, s_end);
+        assert!(cond.iter().any(Conditioning::exceeded));
+        assert!(
+            verify_branch(&p, &b, 100.0, s_end)
+                .iter()
+                .all(|c| c.verdict == Verdict::Pass)
+        );
+        scale_saddle(&mut p, 1.0 + 1e-6);
+        let c = verify_branch(&p, &b, 100.0, s_end);
+        assert!(c.iter().any(|c| c.verdict == Verdict::Fail));
+        assert!(
+            branch_angle_refusal(0.003, &cond, &c).is_none(),
+            "stub fault excused"
+        );
+        // header with branch at 179.99 deg: the opening shifted 0.05 mm along the axis, and separately the branch
+        // saddle scaled as above
+        let (b, p, h, st, len, s_end) = joint_at(150.0, 100.0, 179.99, 0.0).unwrap();
+        let cond = header_with_branch_conditioning(&b, 150.0, len, st, 100.0, s_end);
+        assert!(cond.iter().any(Conditioning::exceeded));
+        let all = |h: &Pattern, p: &Pattern| -> Vec<Check> {
+            let mut v = verify_header_opening(h, &b, 150.0, len, st);
+            v.extend(verify_branch(p, &b, 100.0, s_end));
+            v.extend(verify_interface(h, &b, 150.0, st, p, &b, 100.0, s_end));
+            v.extend(verify_joint(h, &b, 150.0, st, p, &b, 100.0, s_end));
+            v
+        };
+        assert!(all(&h, &p).iter().all(|c| c.verdict == Verdict::Pass));
+        let mut h2 = h.clone();
+        for c in h2.holes.iter_mut() {
+            if let Geom::Polyline { pts, .. } = &mut c.geom {
+                for q in pts.iter_mut() {
+                    q.x += 0.05;
+                }
+            }
+        }
+        let c = all(&h2, &p);
+        assert!(c.iter().any(|c| c.verdict == Verdict::Fail));
+        assert!(
+            branch_angle_refusal(179.99, &cond, &c).is_none(),
+            "opening fault excused"
+        );
+        let mut p2 = p.clone();
+        scale_saddle(&mut p2, 1.0 + 1e-6);
+        let c = all(&h, &p2);
+        assert!(c.iter().any(|c| c.verdict == Verdict::Fail));
+        assert!(
+            branch_angle_refusal(179.99, &cond, &c).is_none(),
+            "saddle fault excused"
+        );
     }
 }

@@ -10,7 +10,13 @@
                (Until engine 0.4.1 the rules were sin alpha < 1e-3, sin beta <= 0.17 and 99.9 % of a turn; the
                mathematics never required them: a cone is exact for every sin alpha > 0, the developed angle of a cone is
                below a full turn, and the saddle s(phi) is exact for every 0 < beta < 180.)
-'edge'         within rounding distance of a boundary: either outcome is acceptable, an accepted result must still be correct
+'edge'         within rounding distance of a boundary: either outcome is acceptable, an accepted result must still be correct.
+               Also (engine 0.4.3, work plan task 1.1) a branch whose angle puts the product's own verification in the regime
+               where it is not guaranteed to confirm a correct pattern (`branch_conditioning` below, ratio >= 1): the product
+               then accepts a pattern its verifier confirms and refuses with `branch_angle_not_verifiable` one it cannot; both
+               are allowed, an accepted result must still be correct (run_all.py: in this regime a refusal counts only
+               with that code and never when the product's own gates rejected a computed pattern). A refusal with that
+               code at a ratio below 1 is a wrong refusal. The ratio mirrors the engine's tolerance definition (RC-28).
 """
 import math
 import numpy as np
@@ -47,6 +53,96 @@ def chord_sag_eccentric(r1, r2, h, e, n=CHORD_MAX_SEGMENTS):
     rho = np.sqrt(rho2)[::2]
     P = np.stack([rho * np.cos(psi), rho * np.sin(psi)], axis=1)
     return _chord_sag(P[::2], P[1::2][:n]), float(psi[-1])
+
+
+# ---------------------------------------------------------------------------------------------------- task 1.1
+# The product's verification of a branch compares its pattern with an independently, numerically intersected 3D curve
+# (a solid joint in a tilted frame: each branch ruling intersected with the header cylinder by a root search; the
+# azimuth of a point recovered by atan2). Each such check has the tolerance agree + 4 * bound, where `bound` is the
+# product's stated a-priori error bound of the compared vertices; it is guaranteed to confirm a correct pattern only if
+# its own rounding F stays within agree + 3 * bound. The closed forms below are those of docs/backend/TOLERANCE_POLICY.md
+# section 7 (first-order rounding analysis, u = 2^-53). They MIRROR the product's tolerance definition (develop.rs
+# saddle_error_bound / opening_error_bound and the verify.rs bounds and constants, as the other limits of this oracle
+# mirror the engine's, review C RC-28): this classification is not independent evidence; the geometry of every accepted
+# case is still compared with the independent reference.
+#   * a root of g(s) = |b + dp s| - R has slope sin(beta) cos(omega) >= sin(beta) root/R, root = sqrt(R^2 - (|delta| + r)^2);
+#     the direction across the header axis carries 3u absolute, |s| <= S = (R + r |cos beta|)/sin(beta): the error of the
+#     root grows as u S / sin(beta), i.e. 1/sin^2(beta), near 0 and near 180 degrees alike;
+#   * the azimuth recovered from a vector of length up to S + r errs by its rounding / r and moves along the curve by
+#     |C'| <= r + D, D = r (1 + y/root)/sin(beta).
+# The product's bound itself carries the rounding of beta = fl(beta_deg pi/180), 2u beta |ds/dbeta|, which near 180
+# degrees (beta ~ pi) grows as 1/sin^2(beta) too: that is why the regime is reached at the shallow end and, for ordinary
+# proportions, not at the obtuse end before the 1e8 mm size limit.
+U = 2.0 ** -53
+TRIG = 2 * U
+TAU = 2 * math.pi
+FRAME_DEFECT = U        # defect of the stored constants of the tilted frame from orthonormal (exact evaluation: <= 1.0 u)
+FRAME_ORIGIN = 0.87     # |frame origin| / scale, sqrt(0.74) rounded up
+
+
+def _agree(size):
+    return 1e-6 * size if 0 < size < 1 else 1e-6
+
+
+def _terms(R, r, beta, delta):
+    sb, cb = abs(math.sin(beta)), abs(math.cos(beta))
+    y = abs(delta) + r
+    root = math.sqrt(R * R - y * y)
+    return sb, cb, y, root, (R + r * cb) / sb, r * (1 + y / root) / sb
+
+
+def _engine_bounds(R, r, beta, delta, r_dev, R_dev, station):
+    """The product's stated a-priori error bounds of the saddle and opening vertices (TOLERANCE_POLICY section 6/7)."""
+    sb, cb, y, root, _, _ = _terms(R, r, beta, delta)
+    dsdb = r + (R + r) * cb / (sb * sb)
+    s_err = ((2 * U * R * R + R * r * (TRIG + U)) / root + 1.5 * U * R + r * (2 * TRIG + 2 * U) + (R + r) * (TRIG + 2 * U)) / sb + dsdb * 2 * U * abs(beta)
+    saddle = s_err + 2 * U * TAU * r_dev + 4 * U * TAU * r / sb
+    s_abs, d_phi = (R + r) / sb, 4 * U * TAU
+    bx = (s_err * cb + 2 * U * abs(beta) * (dsdb * cb + (R + r) + r) + s_abs * cb * (TRIG + U) + r * (2 * TRIG + 2 * U)
+          + U * (s_abs * cb + r) + U * (abs(station) + s_abs * cb + r) + (s_abs * cb + r) * d_phi)
+    d_omega = (r * (TRIG + U) + U * y + U * R) / root + TRIG * 0.5 * math.pi
+    opening = bx + R_dev * (d_omega + 1.3e-16 + 3 * U * math.pi) + R_dev * d_phi
+    return saddle, opening
+
+
+def _root_bound(R, r, beta, delta, scale, station):
+    sb, _, y, root, S, _ = _terms(R, r, beta, delta)
+    e_b = U * (2 * FRAME_ORIGIN * scale + 6 * abs(station) + 6 * abs(delta) + 15 * r)
+    e_f = U * (5 * R + y)
+    return (3 * U * S + e_b + e_f) / (sb * root / R) + 8 * U * max(S, R)
+
+
+def _point_rounding(R, r, delta, scale, station, S):
+    return U * (3 * FRAME_ORIGIN * scale + 5 * abs(station) + 5 * abs(delta) + 13 * r + 4 * S)
+
+
+def branch_conditioning(req):
+    """Largest ratio F / (agree + 3 bound) over the 3D-intersection checks the product runs on this request."""
+    R, r, delta = req['header_radius'], req['branch_radius'], req['delta']
+    beta = math.radians(req['beta_deg'])
+    r_dev, s_end = req['branch_dev_radius'], req['s_end']
+    sb, cb, y, root, S, D = _terms(R, r, beta, delta)
+    asm = req['family'] == 'header_with_branch'
+    R_dev, L, st = (req['header_dev_radius'], req['header_length'], req['branch_station']) if asm else (R, 0.0, 0.0)
+    saddle, opening = _engine_bounds(R, r, beta, delta, r_dev, R_dev, st)
+    ratios = [(_root_bound(R, r, beta, delta, R, 0.0) + 2 * U * TAU * D) / (_agree(max(R, s_end)) + 3 * saddle)]
+    if asm:
+        q = abs(st) + S + abs(delta) + r
+        e_pt = _root_bound(R, r, beta, delta, R, st) + _point_rounding(R, r, delta, R, st, S)
+        dx = e_pt + 4 * U * q
+        d_omega = math.sqrt(2) * (e_pt + (4 * U + FRAME_DEFECT) * q) / R + 2 * U * TAU
+        f_open = dx + R_dev * (d_omega + 3 * U * TAU + 1.3e-16) + 3 * U * TAU * (D + r + R_dev * r / root)
+        ratios.append(f_open / (_agree(max(R, L)) + 3 * opening))
+        qj = S + r
+        e_open = U * (FRAME_ORIGIN * R + 3 * (abs(st) + S + r) + 5 * R) + R * (3 * math.pi * U + 4 * U)
+        e_bp = _point_rounding(R, r, delta, R, st, S)
+        e_p = max(e_open, e_bp + 2 * U * TAU * r)
+        e_o = U * (FRAME_ORIGIN * R + 3 * abs(st) + 3 * abs(delta))
+        da = e_p + e_o + qj * (7 * U + 2 * FRAME_DEFECT)
+        db = e_p + e_o + qj * (4 * U + 1.5 * FRAME_DEFECT)
+        f_joint = e_p + _root_bound(R, r, beta, delta, R, st) + e_bp + (r + D) * (math.hypot(da, db) / r + 2 * U * TAU)
+        ratios.append(f_joint / (_agree(max(R, s_end)) + 3 * (opening + saddle)))
+    return max(ratios)
 
 
 def chord_sag_branch(R, r, r_dev, beta_deg, delta, n=CHORD_MAX_SEGMENTS):
@@ -214,5 +310,14 @@ def classify(req):
                 return 'edge', 'opening at a plate end'
             if lo <= 0 or hi >= L:
                 return 'invalid', 'opening not inside the plate'
+        # task 1.1: in this regime the product either accepts a pattern its verification confirms or refuses the angle
+        # with branch_angle_not_verifiable. Band 1e-12 below 1: the product evaluates the same closed form in binary64 with
+        # a different order of about 60 operations (each relative error <= u) and its own sin/cos/radians (<= 2 ulp);
+        # first order the two ratios differ by at most about 100 u = 1.1e-14 relative, so 1e-12 covers it with a
+        # factor of about 100 and is far below any change of the angle that matters (the ratio moves by 2e-12 when
+        # beta moves by 1e-12 relative)
+        k = branch_conditioning(req)
+        if k >= 1 - 1e-12:
+            return 'edge', f'the verification is not guaranteed to confirm this branch angle (ratio {k:.3g} >= 1, task 1.1)'
         return 'valid', ''
     return 'invalid', 'unknown family'

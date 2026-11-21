@@ -128,11 +128,9 @@ pub fn propagate(records: &BTreeMap<String, Record>, changed: &str) -> Vec<Affec
                 continue;
             }
             match edge_class(via) {
-                Some(EdgeClass::Derivation) => {
-                    if seen.insert(dep.to_string()) {
-                        add(&mut out, r, Direction::Downstream, via);
-                        queue.push_back(dep.to_string());
-                    }
+                Some(EdgeClass::Derivation) if seen.insert(dep.to_string()) => {
+                    add(&mut out, r, Direction::Downstream, via);
+                    queue.push_back(dep.to_string());
                 }
                 Some(EdgeClass::Interface) => {
                     touched_interfaces.insert(dep.to_string());
