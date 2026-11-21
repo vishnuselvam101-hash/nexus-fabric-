@@ -164,7 +164,7 @@ Packages: `bash packaging/build_all.sh` → `dist/` (never committed). Release v
 
 ## 6. How to verify (run before every push)
 
-| Command | Expected at commit `2894cc5` (engine 0.4.1) |
+| Command | Expected at commit `ed4a5fb` (engine 0.4.2) |
 |---|---|
 | `cargo build --release` | builds |
 | `cargo test --workspace` | 263 pass (engine 0.4.2) |
@@ -187,8 +187,8 @@ Deeper audit: `NF_SETUP_TOKEN=<24+ chars> NF_R6_SETUP_ARGS='-H X-NF-Setup-Token:
 Shell scripts need Git Bash or WSL on Windows; say which suites you could not run and why. The totals will rise when
 the work in section 8 lands: use the totals stated in the newest commit message.
 
-GitHub runs the same checks on every push in two jobs: `software` and `geometry-validation`. The second fails until
-task B3 is done; that is an honest failure, not a broken build.
+GitHub runs the same checks on every push in two jobs: `software` and `geometry-validation` (the quick corpus). Both
+passed on `ed4a5fb` and `ccaa7f2` (20 Nov 2026). The full corpus is not yet run by CI (work plan task 1.8).
 
 ---
 
