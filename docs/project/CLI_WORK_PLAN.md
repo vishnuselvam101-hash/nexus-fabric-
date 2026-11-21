@@ -18,9 +18,9 @@ seen to pass on the stated commit; "not run" is never written as passed.
 
 | Task | Subject | Status | Commit | Note |
 |---|---|---|---|---|
-| 0.1 | Working on the live server made safe | done | this commit | facts under the task; `nf-sandbox` + `nf-verify` |
-| 0.2 | Readiness and registers tell the truth | not started | | |
-| 0.3 | The two near-tangent FAILs (D4) | not started | | |
+| 0.1 | Working on the live server made safe | done | `36072a1` | facts under the task; `nf-sandbox` + `nf-verify` |
+| 0.2 | Readiness and registers tell the truth | done | this commit | READINESS geometry row, RB-011, B2-001…007 rows, fabrication questions (10), hand-off section 6 |
+| 0.3 | The two near-tangent FAILs (D4) | done (facts) | this commit | remedy folded into 1.2 (decision under the task); regression cases land with 1.2 |
 | 1.1 | Shallow and near-180° branch angles | not started | | decided by the CLI under the owner's delegation (below): the plan's proposal |
 | 1.2 | A true error bound everywhere | not started | | |
 | 1.3 | Every convention stated in the DXF and the result | not started | | |
@@ -47,7 +47,8 @@ seen to pass on the stated commit; "not run" is never written as passed.
 | 4.4 | Release-candidate report | not started | | |
 | 4.5 | Legal drafts | not started | | |
 | 4.6 | The live server | not started | | only when the owner says so |
-| 5.x | Later work | not started | | ask the owner before any of it |
+| RC | External review C (RC-01 … RC-33): verify every finding, fix what is real | in progress | | register: `docs/backend/REVIEW_C_EXTERNAL.md`; fixes tracked to the tasks named there |
+| 5.x | Later work | not started | | the owner asked on 21 Nov 2026 for the complete software: taken up after phase 4 |
 | 6.x | What only people can supply | tracked | | |
 
 **Owner decision, 21 Nov 2026 (in the CLI session).** Asked how far the CLI may decide on its own, the owner answered:
@@ -201,6 +202,35 @@ working hours of the live server's users if the owner wants that — Japanese wo
 - **Do:** state the case ids, what fails, the measured error against the reported `eps_num`, the state the job
   ends in and whether a DXF is offered. If a file is offered while the bound is exceeded: make the job REJECTED
   (bound gate fails) until the bound is fixed in task 1.2. Add a regression case for each.
+
+#### 0.3 — facts (CLI, 21 Nov 2026; engine `nf-engine 0.4.2+src.7d97912629c96ba8`, the build of `ed4a5fb`)
+
+Both cases were replayed on a private server; the true errors were measured twice, independently (a first-principles
+derivation at 50 digits; the repository's 3D reference at 40 digits), and an adversarial check per case re-measured
+the worst points. All three agree to every printed digit. Evidence: `/root/nf-logs/0.3/` on the development host.
+
+| | `N-tangent-r-b90-g2e-06` (r = R(1 − 2e-6), delta 0, beta 90) | `N-aspect-branch-tiny` (r/R = 1e-6, beta 60) |
+|---|---|---|
+| What is not PASS | `opening_developed_length_equals_3d_arc_length`, `saddle_developed_length_equals_3d_arc_length`: **INCONCLUSIVE**, not FAIL. The difference (3.9e-4 mm) is 33 × below tolerance + resolution, but the limit of the polyline length near the knee is not resolved to the required 1e-5 of the length (resolution 1.29e-2 mm, needed 1.15e-2 mm) | `opening_area_equals_surface_area`: **INCONCLUSIVE**. The verifier computes the shoelace area on absolute plate coordinates (about 1000 mm) for an opening of 3.6e-6 mm²: rounding steps of 1.16e-9 mm² against a needed 3.6e-11 mm². In coordinates relative to a vertex the same check passes (difference 3.7e-15 mm²) |
+| Gate and state | G10 INCONCLUSIVE, G08 INCONCLUSIVE, G15 PASS → **REVIEW_REQUIRED** | same → **REVIEW_REQUIRED** |
+| DXF offered | **yes**, both parts (HTTP 200), marked NOT RELEASED | **yes**, both parts |
+| True vertex error vs reported `eps_num` | header 3.44e-12 mm vs 4.30e-11 (0.08 ×); branch 4.87e-12 vs 4.26e-11 (0.11 ×) — **holds** | header 5.23e-13 vs 7.27e-12 (0.07 ×); branch 2.73e-13 vs 1.12e-12 (0.25 ×) — **holds** |
+| True chord error vs reported `eps_rep` | **exceeded**: 0.0096085 mm vs 0.0095979 mm (× 1.0011, +1.07e-5 mm) on the four knee segments of each part (phi near 0° and 180°); still below the 0.01 mm limit | header 1.09920e-8 vs 1.09920e-8 (+8.6e-14 mm, below one rounding unit of the engine's own sample, inside eps_rep + eps_num); branch within |
+| Further defects found | — | the area check's tolerance is scaled to the whole plate (8.3e-3 mm², 2,284 × the opening area), so it **can never FAIL**; the reported `opening_area` quantity is 0.053 % low from the same cancellation |
+
+The validation harness's `vertex_dev` (1.83e-7 mm and 1.35e-9 mm) is **not** a product error: it is the sagitta of the
+harness's own reference polyline (refined only to 2e-10 × scale); the harness's `true_numeric_error` (hpcheck) gives the
+true values above. To be corrected in task 1.8.
+
+**Decision (CLI, under the owner's delegation of 21 Nov 2026).** The condition of this task is met for case 1 through
+`eps_rep` (not `eps_num`). Instead of an interim REJECTED rule, the bound itself is fixed at once in task 1.2: report
+`eps_rep` as max over segments of (largest sampled deviation + M·h²/8), where M bounds the curve's second derivative
+across the chord on that segment (interval-certified) and h is the sample spacing — a derived upper bound, 0.0096401
+mm here, which covers the true 0.0096085 mm and stays under 0.01 mm. Reasons: no build with the exceeded value is
+deployed (the live server is not updated without the owner), the fix is small and derived, and an interim REJECT
+rule could not be predicted by the independent validation oracle. The area-check defects of case 2 are fixed in the
+same change (shoelace on relative coordinates, tolerance scaled to the opening, `opening_area` quantity). The two
+cases become regression cases with the fixed behaviour.
 
 ---
 
