@@ -23,7 +23,8 @@ On the owner's PC (Windows 10/11, macOS or Linux):
 3. Start Claude Code in that folder (`claude`) and type:
    ```
    Read docs/project/NEXUS_FABRIC_COMPLETE_HANDOFF.md completely. Follow sections 3 and 6 without exception.
-   Do the tasks in section 10 in order, starting with the first one that is not blocked.
+   Do the tasks in docs/project/CLI_WORK_PLAN.md in order (it replaced section 10 on 21 Nov 2026),
+   starting with the first one that is not blocked.
    ```
 4. Always `git pull` before starting a task: the cloud session is still pushing the work listed in section 8.
 
@@ -300,52 +301,27 @@ organisation-held recovery key.
 
 ---
 
-## 10. Tasks for the CLI, in order
+## 10. Tasks for the CLI — replaced
 
-### B. Mathematics and engine — first priority
-- **B1.** After A3 lands: fix every finding of `docs/backend/REVIEW_B2_COMPUTATIONAL.md`, most severe first. Each
-  fix needs a unit test, a regression case in `crates/nf-core/tests/regressions/`, and a check that does not reuse the
-  construction it checks. Bump the engine version when results change.
-- **B2.** After A1 lands: state every convention in the DXF and the result — RB-002, RB-003, RB-007, RB-009, the rest
-  of RB-008, RB-010 — in the same 999 `KEY: value` scheme (`docs/backend/DXF_METADATA.md`), read back and compared by
-  the quality gate.
-- **B3.** After A2 lands: run the validation; explain every remaining disagreement; close D4 with a true error bound
-  (RB-005); for the 0.01 mm chord limit (RB-004) record the open question for a fabrication engineer — do not invent a
-  justification.
+Replaced on 21 Nov 2026 by `docs/project/CLI_WORK_PLAN.md` (the CLI's full work plan, with the status of every task
+kept current in it). Where the old items went:
 
-### C. Security
-- **C1.** The five failing audit checks, fixed in the product, never in the tests: V-45 (move inline styles to
-  classes and drop `'unsafe-inline'`), V-47 (refuse non-web and wrong-scheme Origins), V-44 (install script: no
-  download piped into a shell, no build as root). Add tests for cross-origin requests, invalid and missing Origin
-  headers, malformed installer input, insufficient privileges, an interrupted install and rollback.
-- **C2.** After A1 lands: the owner-approved desktop security wording (`docs/security/DESKTOP_KEY_ASSESSMENT.md`,
-  section 6) in `packaging/INSTALL.md`, `packaging/README.txt` and on the first-run screen in desktop mode, English
-  and Japanese. It must not suggest an operating-system account encrypts the database.
-- **C3.** Database encryption and key protection: write `docs/security/DESKTOP_ENCRYPTION_DESIGN.md` first (threat
-  model, migration, backup and restore, key rotation, recovery with an organisation-held key). No code until the
-  owner approves the design.
-- **C4.** The stress findings in 9.4.
-
-### D. Release hygiene
-- **D1.** Generate THIRD_PARTY_NOTICES (name, version, licence, licence text) from the exact build; ship it in every
-  package; a test fails if a package lacks it.
-- **D2.** A test that fails if the interface, packages or install texts contain the words in rule 3. Remove the
-  leftover AI wording (9.5).
-- **D3.** Windows native verification (section 11) — only on a real Windows PC.
-- **D4.** `docs/release/RC1_REPORT.md`: source commit, artefacts and SHA-256, every suite's result, known
-  limitations, security findings, install instructions, and the five readiness classifications.
-
-### E. PDF → DXF inside the product (after A4 lands; section 12)
-
-### F. Execution and scale
-Listing endpoints, audit verification time, throughput with many users (one database mutex today). Measure with
-`stress/run.py` before and after. No behaviour change.
-
-### G. Later — ask the owner before starting
-Thickness, bend allowance, weld gap and kerf (needs a fabrication engineer's process values; never invent them);
-more part families (segmented elbows, rectangular-to-round, Y-branches, several branches on one header); 3D view;
-PDF pattern reports and cutting lists; a desktop window instead of the browser tab; the engineer approval workflow;
-DXF import; nesting and CNC output; draft terms of use and privacy statement for the owner's lawyer.
+| Old item | Now |
+|---|---|
+| B1 (review B2 findings) | done in engine 0.4.2 (`ed4a5fb`); remainder in 1.2 and 1.6 |
+| B2 (conventions in the DXF and the result) | 1.3 and 1.4 |
+| B3 (validation, D4, chord limit) | 0.3, 1.2, 1.6, 1.8 |
+| C1 (five failing audit checks) | 2.1 |
+| C2 (desktop security wording) | 2.4 |
+| C3 (database encryption design) | 2.5 |
+| C4 (stress findings) | 2.3 |
+| D1 (third-party notices) | done (`b368d9a`) |
+| D2 (banned-word test, leftover AI wording) | wording removed (`9169305`); the test is 3.3 |
+| D3 (Windows native verification) | 4.2 (real Windows PC only) |
+| D4 (release-candidate report) | 4.4 |
+| E (PDF → DXF in the product) | 3.1 |
+| F (execution and scale) | 3.4 |
+| G (later) | phase 5 (ask the owner first) |
 
 ---
 
