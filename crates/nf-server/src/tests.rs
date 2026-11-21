@@ -747,8 +747,9 @@ async fn be006_blobs_are_atomic_verified_and_repaired() {
             None,
         )
         .await;
-    assert_eq!(st, StatusCode::INTERNAL_SERVER_ERROR);
-    assert!(v["error"].as_str().unwrap().contains("invalid"));
+    // RC-01: the check against the records rejects the job first (was 500 "invalid file reference")
+    assert_eq!(st, StatusCode::CONFLICT);
+    assert!(v["error"].as_str().unwrap().contains("integrity check"));
 }
 
 fn nf_dxf_mark() -> &'static str {
@@ -3030,4 +3031,609 @@ async fn b2_engine_0_4_1_results_are_recomputed() {
         gate_of(&d, "G21")
     );
     assert_eq!(t.dxf_status(id, "branch").await, StatusCode::CONFLICT);
+}
+
+// ---------------------------------------------------------------- RC-01 / RC-22
+
+/// The SHA-256 of the DXF of `part` named by the job's own `dxf_output` record.
+fn dxf_record_sha(t: &T, id: i64, part: &str) -> String {
+    let stored = stored_result(&t.app.db(), id).unwrap().unwrap();
+    stored["records"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["kind"] == "dxf_output" && r["payload"]["part"] == part)
+        .and_then(|r| r["payload"]["sha256"].as_str())
+        .unwrap()
+        .to_string()
+}
+
+/// RC-01 (verification row of Review C): the pattern list and the DXF references inside a stored result are
+/// checked against the content-addressed `pattern` and `dxf_output` records of its release closure. An
+/// altered point, a reference swapped to another job's DXF and a reference swapped to an uploaded PDF are
+/// each an integrity failure: G22 FAIL, REJECTED, no geometry and no file; a replay runs, reports the
+/// disagreement and does not match. Gates, state and closure
+/// hash of the stored result are left as they were, as in the reproduction.
+#[tokio::test]
+async fn rc01_stored_patterns_and_dxf_references_are_checked_against_the_records() {
+    let mut t = boot();
+    let other = t
+        .job(json!({ "family": "cylinder_shell", "r_dev": 100, "length": 250 }))
+        .await;
+    let other_part = t.get(&format!("/api/calculations/{other}")).await["patterns"][0]["part"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let other_sha = dxf_record_sha(&t, other, &other_part);
+    // an uploaded document is stored as a blob in the same store as the DXF files
+    let pdf = HttpRequest::builder()
+        .method("POST")
+        .uri("/api/projects/1/documents")
+        .header("host", "localhost")
+        .header("x-nf-request", "1")
+        .header("x-filename", "drawing.pdf")
+        .header("cookie", &t.cookie)
+        .body(Body::from("%PDF-1.7\nan uploaded drawing"))
+        .unwrap();
+    assert_eq!(
+        router(t.app.clone()).oneshot(pdf).await.unwrap().status(),
+        StatusCode::OK
+    );
+    let pdf_sha: String = t
+        .app
+        .db()
+        .query_row("SELECT sha256 FROM documents ORDER BY id DESC", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert!(storage::load_blob(&t.dir, &t.app.key, &pdf_sha).is_ok());
+
+    // untouched jobs pass the check and serve exactly the file of their own DXF record
+    let clean = t.job(cone()).await;
+    for (id, part) in [(clean, "reducer"), (other, other_part.as_str())] {
+        let d = t.get(&format!("/api/calculations/{id}")).await;
+        assert_eq!(d["integrity"], json!([]), "job #{id}: {d}");
+        assert_eq!(d["state"], "REVIEW_REQUIRED", "job #{id}");
+        let (st, h, bytes) = t
+            .send(
+                "GET",
+                &format!("/api/calculations/{id}/dxf/{part}"),
+                None,
+                &[],
+            )
+            .await;
+        assert_eq!(st, StatusCode::OK);
+        assert_eq!(h[header::CONTENT_TYPE], "application/dxf");
+        assert_eq!(nf_core::sha256_hex(&bytes), dxf_record_sha(&t, id, part));
+    }
+
+    let cases = [
+        (
+            "an altered point",
+            "json_set(result_json, '$.patterns[0].curves[0].points[0][0]', 12345.678)".to_string(),
+            "differs from its pattern record",
+        ),
+        (
+            "a reference swapped to another job's DXF",
+            format!("json_set(result_json, '$.patterns[0].dxf_sha256', '{other_sha}')"),
+            "DXF reference of part reducer differs from the DXF record",
+        ),
+        (
+            "a reference swapped to an uploaded PDF",
+            format!("json_set(result_json, '$.patterns[0].dxf_sha256', '{pdf_sha}')"),
+            "DXF reference of part reducer differs from the DXF record",
+        ),
+    ];
+    let mut tampered = Vec::new();
+    for (what, expr, finding) in cases {
+        let id = t.job(cone()).await;
+        let before: (String, String) = t
+            .app
+            .db()
+            .query_row(
+                "SELECT closure_hash, json_extract(result_json, '$.gates') FROM calculations WHERE id = ?",
+                params![id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        t.sql(&format!(
+            "UPDATE calculations SET result_json = {expr} WHERE id = {id}"
+        ));
+        let after: (String, String) = t
+            .app
+            .db()
+            .query_row(
+                "SELECT closure_hash, json_extract(result_json, '$.gates') FROM calculations WHERE id = ?",
+                params![id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(before, after, "{what}: gates and closure hash are kept");
+        tampered.push((id, what, finding));
+    }
+    // the replay child reports the true closure of the request (the same for every cone job)
+    let stored = stored_result(&t.app.db(), clean).unwrap().unwrap();
+    let ids: Vec<&str> = stored["records"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["id"].as_str().unwrap())
+        .collect();
+    t.with_replay_exe(&format!("cat >/dev/null; echo '{}'", json!({ "engine": nf_core::ENGINE_VERSION, "closure_hash": stored["closure_hash"], "ids": ids })));
+    // the list reads each tampered job in full (nothing of it was listed before)
+    assert_consistent_and_never_approved(&t).await;
+    for (id, what, finding) in &tampered {
+        let d = t.get(&format!("/api/calculations/{id}")).await;
+        assert_eq!(d["state"], "REJECTED", "{what}");
+        assert_eq!(gate_of(&d, "G22")["result"], "FAIL", "{what}");
+        assert_eq!(d["patterns"], json!([]), "{what}: no geometry is shown");
+        let findings = d["integrity"].to_string();
+        assert!(findings.contains(finding), "{what}: {findings}");
+        let (st, h, bytes) = t
+            .send(
+                "GET",
+                &format!("/api/calculations/{id}/dxf/reducer"),
+                None,
+                &[],
+            )
+            .await;
+        assert_eq!(st, StatusCode::CONFLICT, "{what}: the file is withheld");
+        assert_ne!(
+            h.get(header::CONTENT_TYPE).map(|v| v.as_bytes()),
+            Some(&b"application/dxf"[..]),
+            "{what}"
+        );
+        assert!(!String::from_utf8_lossy(&bytes).contains("%PDF"), "{what}");
+        // the replay runs, reports the disagreement and does not match
+        let (st, v) = t
+            .call("POST", &format!("/api/calculations/{id}/replay"), None)
+            .await;
+        assert_eq!(st, StatusCode::OK, "{what}: {v}");
+        assert_eq!(
+            (
+                v["matches"].as_bool(),
+                v["stored_result_matches_records"].as_bool()
+            ),
+            (Some(false), Some(false)),
+            "{what}: {v}"
+        );
+        assert!(
+            v["stored_result_findings"].to_string().contains(finding),
+            "{what}: {v}"
+        );
+        let d = t.get(&format!("/api/calculations/{id}")).await;
+        assert_eq!(
+            (d["state"].as_str(), gate_of(&d, "G19")["result"].as_str()),
+            (Some("REJECTED"), Some("FAIL")),
+            "{what}"
+        );
+        // the list agrees, also on a second list, which reads a disagreeing job in full again
+        for _ in 0..2 {
+            let list = t.get("/api/calculations").await;
+            let row = list
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|r| r["id"] == *id)
+                .unwrap()
+                .clone();
+            assert_eq!(
+                (row["state"].as_str(), row["integrity_failure"].as_bool()),
+                (Some("REJECTED"), Some(true)),
+                "{what}"
+            );
+        }
+    }
+    // a replay of a tampered job records no lesson: one built from it would raise advisories on honest jobs
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM lessons WHERE kind = 'integrity_failure'"),
+        0
+    );
+    // each replay audit names the job's intact gate-evaluation record (identical reports are stored once)
+    let root = stored_result(&t.app.db(), clean).unwrap().unwrap()["records"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        t.count(&format!("SELECT COUNT(*) FROM records WHERE kind = 'replay_audit' AND json_extract(json, '$.relations[0].to') = '{root}'")),
+        t.count("SELECT COUNT(*) FROM records WHERE kind = 'replay_audit'")
+    );
+    assert!(t.count("SELECT COUNT(*) FROM records WHERE kind = 'replay_audit'") >= 1);
+    // the untampered jobs are unaffected
+    assert_eq!(t.dxf_status(clean, "reducer").await, StatusCode::OK);
+    assert_eq!(t.dxf_status(other, &other_part).await, StatusCode::OK);
+}
+
+/// RC-01: a record of the release closure that is missing or altered in the records table makes the job
+/// fail its integrity check, although the stored result itself is untouched.
+#[tokio::test]
+async fn rc01_a_damaged_or_missing_closure_record_rejects_the_job() {
+    let t = boot();
+    let altered = t.job(cone()).await;
+    let pattern_id: String = t
+        .app
+        .db()
+        .query_row(
+            "SELECT id FROM records WHERE kind = 'pattern' AND json_extract(json, '$.payload.part') = 'reducer'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    t.sql(&format!(
+        "UPDATE records SET json = json_set(json, '$.payload.pattern.eps_num', 1.0) WHERE id = '{pattern_id}'"
+    ));
+    let d = t.get(&format!("/api/calculations/{altered}")).await;
+    assert_eq!(d["state"], "REJECTED");
+    assert!(
+        d["integrity"]
+            .to_string()
+            .contains("fail their identity check"),
+        "{}",
+        d["integrity"]
+    );
+    assert_eq!(t.dxf_status(altered, "reducer").await, StatusCode::CONFLICT);
+    t.sql(&format!("DELETE FROM records WHERE id = '{pattern_id}'"));
+    let d = t.get(&format!("/api/calculations/{altered}")).await;
+    assert_eq!(d["state"], "REJECTED");
+    assert!(
+        d["integrity"]
+            .to_string()
+            .contains("missing from the records"),
+        "{}",
+        d["integrity"]
+    );
+    assert_eq!(t.dxf_status(altered, "reducer").await, StatusCode::CONFLICT);
+}
+
+/// RC-22: a replay that runs reports whether the stored pattern list matches the records of the closure, and
+/// a match requires it.
+#[tokio::test]
+async fn rc22_replay_reports_the_check_against_the_records() {
+    let mut t = boot();
+    let id = t
+        .job(json!({ "family": "cylinder_shell", "r_dev": 100, "length": 250 }))
+        .await;
+    let stored = stored_result(&t.app.db(), id).unwrap().unwrap();
+    let ids: Vec<&str> = stored["records"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["id"].as_str().unwrap())
+        .collect();
+    t.with_replay_exe(&format!("cat >/dev/null; echo '{}'", json!({ "engine": nf_core::ENGINE_VERSION, "closure_hash": stored["closure_hash"], "ids": ids })));
+    let (st, v) = t
+        .call("POST", &format!("/api/calculations/{id}/replay"), None)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(v["matches"], true, "{v}");
+    assert_eq!(v["stored_result_matches_records"], true, "{v}");
+    assert_eq!(v["stored_result_findings"], json!([]), "{v}");
+}
+
+// ---------------------------------------------------------------- RC-08 / V-47
+
+#[test]
+fn rc08_origin_is_parsed_strictly() {
+    let h = "127.0.0.1:8787";
+    // accepted: exactly the listener's scheme, host and port
+    assert!(origin_allowed("http://127.0.0.1:8787", h, false));
+    assert!(origin_allowed("HTTP://127.0.0.1:8787", h, false));
+    assert!(origin_allowed(
+        "http://LocalHost:8787",
+        "localhost:8787",
+        false
+    ));
+    assert!(origin_allowed(
+        "http://localhost:8787",
+        "LOCALHOST:8787",
+        false
+    ));
+    assert!(origin_allowed("https://fab.example", "fab.example", true));
+    assert!(origin_allowed(
+        "https://fab.example",
+        "fab.example:443",
+        true
+    ));
+    assert!(origin_allowed(
+        "https://fab.example:443",
+        "fab.example",
+        true
+    ));
+    assert!(origin_allowed("http://[::1]:8787", "[::1]:8787", false));
+    // refused: non-web schemes, the wrong scheme for the listener, anything after the authority
+    for (origin, host, https_listener) in [
+        ("file://127.0.0.1:8787", h, false),
+        ("javascript://127.0.0.1:8787", h, false),
+        ("data://127.0.0.1:8787", h, false),
+        ("data:text/html,x", h, false),
+        ("null", h, false),
+        ("", h, false),
+        ("https://127.0.0.1:8787", h, false),
+        ("http://fab.example", "fab.example", true),
+        ("ws://fab.example", "fab.example", true),
+        ("http://127.0.0.1:8787://evil", h, false),
+        ("http://127.0.0.1:8787://evil.example", h, false),
+        ("http://127.0.0.1:8787/", h, false),
+        ("http://127.0.0.1:8787/path", h, false),
+        ("http://127.0.0.1:8787?q", h, false),
+        ("http://127.0.0.1:8787#f", h, false),
+        ("http://user@127.0.0.1:8787", h, false),
+        ("http://user:pw@127.0.0.1:8787", h, false),
+        ("http://evil.example@127.0.0.1:8787", h, false),
+        ("http://127.0.0.1:8787@evil.example", h, false),
+        ("http://127.0.0.1\\@evil:8787", h, false),
+        ("http:// 127.0.0.1:8787", h, false),
+        ("http://127.0.0.1:8787 ", h, false),
+        ("http://127.0.0.1:8788", h, false),
+        ("http://127.0.0.1", h, false),
+        ("http://127.0.0.1:", h, false),
+        ("http://127.0.0.1:08787x", h, false),
+        ("http://127.0.0.1:0", "127.0.0.1:0", false),
+        ("http://127.0.0.1:99999", "127.0.0.1:99999", false),
+        ("http://127.0.0.2:8787", h, false),
+        ("http://evil.example", h, false),
+        ("http://[::1]:8787", h, false),
+        ("http://[::1]x:8787", "[::1]:8787", false),
+        ("http://:8787", ":8787", false),
+        ("http://127.0.0.1:8787", "", false),
+        ("http//127.0.0.1:8787", h, false),
+    ] {
+        assert!(
+            !origin_allowed(origin, host, https_listener),
+            "{origin:?} for Host {host:?} (https listener: {https_listener})"
+        );
+    }
+}
+
+#[tokio::test]
+async fn rc08_v47_origin_scheme_follows_the_listener() {
+    let t = boot();
+    let post = |origin: &'static str| {
+        let t = &t;
+        async move {
+            t.send(
+                "POST",
+                "/api/projects",
+                Some(json!({ "name": "o" })),
+                &[("origin", origin)],
+            )
+            .await
+            .0
+        }
+    };
+    assert_eq!(post("file://127.0.0.1:8787").await, StatusCode::FORBIDDEN);
+    assert_eq!(post("https://127.0.0.1:8787").await, StatusCode::FORBIDDEN);
+    assert_eq!(
+        post("http://127.0.0.1:8787://evil").await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(post("http://127.0.0.1:8787/x").await, StatusCode::FORBIDDEN);
+    assert_eq!(post("http://127.0.0.1:8787").await, StatusCode::OK);
+    // behind HTTPS (NF_COOKIE_SECURE) only an https origin is accepted
+    let dir = temp_dir("origin-https");
+    let app = build_app(Config {
+        cookie_secure: true,
+        ..config(&dir)
+    })
+    .unwrap();
+    *app.setup_token.lock().unwrap() = None;
+    let s = T {
+        cookie: add_session(&app, "admin", "admin").replace("nf_session", "__Host-nf_session"),
+        app,
+        dir,
+    };
+    s.app.db().execute("INSERT INTO projects(name, description, created_by, created_at) VALUES ('p','', 'admin', 0)", []).unwrap();
+    for (origin, want) in [
+        ("http://127.0.0.1:8787", StatusCode::FORBIDDEN),
+        ("https://127.0.0.1:8787", StatusCode::OK),
+    ] {
+        let st = s
+            .send(
+                "POST",
+                "/api/projects",
+                Some(json!({ "name": "o" })),
+                &[("origin", origin)],
+            )
+            .await
+            .0;
+        assert_eq!(st, want, "{origin}");
+    }
+}
+
+/// RC-01: a correction is computed from the job's request; a stored request that differs from the request
+/// record makes the job REJECTED, and the correction is refused.
+#[tokio::test]
+async fn rc01_a_correction_on_a_tampered_request_is_refused() {
+    let t = boot();
+    let id = t.job(good_assembly()).await;
+    t.sql(&format!(
+        "UPDATE calculations SET result_json = json_set(result_json, '$.request.header_radius', 151.0) WHERE id = {id}"
+    ));
+    let d = t.get(&format!("/api/calculations/{id}")).await;
+    assert_eq!(d["state"], "REJECTED");
+    assert!(
+        d["integrity"]
+            .to_string()
+            .contains("stored request differs from the request record"),
+        "{}",
+        d["integrity"]
+    );
+    assert_eq!(
+        d["request"]["header_radius"], 150.0,
+        "the request shown is the recorded one"
+    );
+    assert_eq!(d["correctable_parameters"], json!([]));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/calculations/{id}/corrections"),
+            Some(json!({ "parameter": "header_radius", "new_value": 158, "reason": "outside diameter per drawing" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::CONFLICT, "{v}");
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM calculations"),
+        1,
+        "nothing was computed"
+    );
+}
+
+/// RC-01: the dependency graph is built only from the verified records of the release closure; a job that
+/// fails its integrity check has none to offer.
+#[tokio::test]
+async fn rc01_dependencies_of_a_tampered_job_are_refused() {
+    let t = boot();
+    let clean = t.job(good_assembly()).await;
+    let tampered = t.job(good_assembly()).await;
+    let (st, v) = t
+        .call(
+            "GET",
+            &format!("/api/calculations/{clean}/dependencies"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(v["edges"].as_array().unwrap().len() >= 20, "{v}");
+    t.sql(&format!(
+        "UPDATE calculations SET result_json = json_set(result_json, '$.records[0].payload', json('{{}}')) WHERE id = {tampered}"
+    ));
+    let (st, v) = t
+        .call(
+            "GET",
+            &format!("/api/calculations/{tampered}/dependencies"),
+            None,
+        )
+        .await;
+    assert_eq!(st, StatusCode::CONFLICT, "{v}");
+    let d = t.get(&format!("/api/calculations/{tampered}")).await;
+    assert_eq!(d["state"], "REJECTED");
+    assert_eq!(
+        d["records"],
+        json!([]),
+        "no records of a tampered job are served"
+    );
+    assert!(
+        d["integrity"]
+            .to_string()
+            .contains("stored record list differs")
+    );
+}
+
+/// RC-01: a part listed twice, and a check whose verdict was changed, are integrity failures.
+#[tokio::test]
+async fn rc01_duplicate_parts_and_altered_checks_are_detected() {
+    let t = boot();
+    let dup = t.job(cone()).await;
+    t.sql(&format!(
+        "UPDATE calculations SET result_json = json_insert(result_json, '$.patterns[#]', json_extract(result_json, '$.patterns[0]')) WHERE id = {dup}"
+    ));
+    let d = t.get(&format!("/api/calculations/{dup}")).await;
+    assert_eq!(d["state"], "REJECTED");
+    assert!(
+        d["integrity"]
+            .to_string()
+            .contains("lists part reducer more than once")
+    );
+    assert_eq!(t.dxf_status(dup, "reducer").await, StatusCode::CONFLICT);
+    let chk = t.job(cone()).await;
+    let verdict: String = t
+        .app
+        .db()
+        .query_row(
+            &format!("SELECT json_extract(result_json, '$.checks[0].verdict') FROM calculations WHERE id = {chk}"),
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let other = if verdict == "PASS" { "FAIL" } else { "PASS" };
+    t.sql(&format!(
+        "UPDATE calculations SET result_json = json_set(result_json, '$.checks[0].verdict', '{other}') WHERE id = {chk}"
+    ));
+    let d = t.get(&format!("/api/calculations/{chk}")).await;
+    assert_eq!(d["state"], "REJECTED");
+    assert_eq!(d["checks"], json!([]));
+    assert!(
+        d["integrity"]
+            .to_string()
+            .contains("stored checks differ from the evidence records")
+    );
+}
+
+/// RC-01, the comparison itself: records are altered in memory (identities are checked by the walk, not here).
+#[test]
+fn rc01_compare_with_records_finds_every_difference() {
+    let req: Request = serde_json::from_value(cone()).unwrap();
+    let out = job::run(&req, "u");
+    let res = serde_json::to_value(&out).unwrap();
+    let recs = out.records.clone();
+    let (f, dxf, ordered) = compare_with_records(&res, &recs);
+    assert!(f.is_empty(), "{f:?}");
+    assert_eq!(dxf.len(), 1);
+    assert_eq!(ordered.len(), recs.len());
+    let with = |edit: &dyn Fn(&mut Vec<Record>)| {
+        let mut r = recs.clone();
+        edit(&mut r);
+        compare_with_records(&res, &r).0.join("; ")
+    };
+    // a second pattern record for the same part
+    let f = with(&|r| {
+        let mut p = r.iter().find(|x| x.kind == "pattern").unwrap().clone();
+        p.id = "another".into();
+        r.push(p);
+    });
+    assert!(
+        f.contains("more than one pattern record for part reducer"),
+        "{f}"
+    );
+    // the pattern record and the DXF record name different files
+    let f = with(&|r| {
+        let d = r.iter_mut().find(|x| x.kind == "dxf_output").unwrap();
+        d.payload["sha256"] = json!("ab".repeat(32));
+    });
+    assert!(
+        f.contains(
+            "pattern record of part reducer and the DXF record of the job name different files"
+        ),
+        "{f}"
+    );
+    // a check recorded as FAIL that the stored result shows as PASS
+    let f = with(&|r| {
+        let e = r
+            .iter_mut()
+            .find(|x| x.kind == "verification_evidence")
+            .unwrap();
+        e.payload["checks"][0]["verdict"] = json!("FAIL");
+    });
+    assert!(
+        f.contains("stored checks differ from the evidence records"),
+        "{f}"
+    );
+    // a second request record, and none
+    let f = with(&|r| {
+        let mut q = r
+            .iter()
+            .find(|x| x.kind == "development_request")
+            .unwrap()
+            .clone();
+        q.id = "another".into();
+        r.push(q);
+    });
+    assert!(f.contains("more than one request record"), "{f}");
+    let f = with(&|r| r.retain(|x| x.kind != "development_request"));
+    assert!(f.contains("no request record"), "{f}");
+    // work units and engine
+    let f = with(&|r| {
+        let a = r.iter_mut().find(|x| x.family == Family::Activity).unwrap();
+        a.payload["work_units"] = json!(1);
+    });
+    assert!(f.contains("work units"), "{f}");
+    let f = with(&|r| {
+        let a = r.iter_mut().find(|x| x.family == Family::Activity).unwrap();
+        a.payload["engine"] = json!("nf-engine 0.0.1");
+    });
+    assert!(f.contains("engine identifier"), "{f}");
 }
