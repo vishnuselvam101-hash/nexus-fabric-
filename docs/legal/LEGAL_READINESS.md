@@ -31,7 +31,7 @@ use only".
    "validated", "secure", "hack-proof").
 3. Put the approved desktop-security wording into the install guide and first-run screen (item 9).
 4. Prepare DRAFT terms of use, privacy statement and engineering-responsibility notice in English and Japanese, each
-   marked "DRAFT — not reviewed by a lawyer", for the owner's lawyer to correct.
+   marked "DRAFT — not reviewed by a lawyer", for the owner's lawyer to correct. **Drafted 21 Nov 2026 (task 4.5); see section 4.**
 
 ## 3. What only the owner can do
 
@@ -39,3 +39,55 @@ use only".
 - Order the trademark search (item 7).
 - Read the VOICEVOX Nemo terms and the Kokoro model card, or choose other voices (item 5).
 - Decide the commercial model (evaluation, paid licence, subscription), because the terms depend on it.
+
+## 4. Drafts for the lawyer (task 4.5, 21 Nov 2026)
+
+Each file holds the English text (Part A), a Japanese translation (Part B) and, at the end, "Questions for the
+lawyer". Each is headed "DRAFT — not reviewed by a lawyer" / 「下書き — 弁護士による確認を受けていません。」. None is
+in force. **The Japanese text of all three needs review by a native-speaking lawyer admitted in Japan.** Square
+brackets mark what only the owner or the lawyer can supply; nothing in them was guessed.
+
+| File | Covers (section 1 item) | Placeholders left open |
+|---|---|---|
+| `TERMS_OF_USE.md` | 2, 3, 11 | company legal name, address, contact, effective date, version, hosted-server address, evaluation period / licence model and fees, liability cap, confidentiality terms for the hosted server, delivery channel, support, term, notice period, export/deletion of data on termination, change procedure, governing law, court, prevailing language |
+| `PRIVACY_STATEMENT.md` | 8 | company legal name, address, contact, effective date, hosted-server address, hosting provider and location, legal exceptions to sharing, proxy-log retention, OS-log retention, whether the hosted server uses `deploy/nf-backup.sh`, procedure for deletion requests, change procedure |
+| `ENGINEERING_RESPONSIBILITY_NOTICE.md` | 3 | company legal name, address, contact, effective date, how the vendor responds to reported errors |
+
+Facts in the privacy statement were checked against the code on base `2bf369a` (re-check on the release commit):
+tables `crates/nf-server/src/storage.rs:18-30`; sessions 12 h (`main.rs:854`, cookie `main.rs:859-860`, HttpOnly,
+SameSite=Strict); failed sign-ins (user name, time, client address) removed after 15 min (`main.rs:648`, `791`,
+`3775-3785`, hourly at `3952`); client address recorded in the audit detail of sign-in events (`main.rs:803`, `836`,
+`857`), taken from the peer or a trusted proxy (`main.rs:3252-3261`); audit append-only with no deletion path outside
+tests; users deactivated, never deleted (no `DELETE FROM users`); file contents AES-256-GCM (`crypto.rs:34`), file
+names in clear in the database (`storage.rs:21`); desktop data folder `desktop.rs:74-108`, listens on 127.0.0.1 only
+(`desktop.rs:5`); browser storage holds display preferences and form drafts without passwords (`web/app.js:36-40`,
+`403-421`, `488-541`); no outbound-capable library (`tests/offline_check.sh:15`); hosted proxy log
+(`deploy/Caddyfile:6-8`); backups keep 14 (`deploy/nf-backup.sh:13`).
+
+### Open questions for the lawyer (summary; details at the end of each draft)
+
+1. Commercial model, governing law, court, prevailing language, and whether the terms are 定型約款 (owner decides
+   the model first).
+2. How far the warranty disclaimer and limitation of liability hold under Japanese law (Consumer Contract Act,
+   Product Liability Act), given that a DXF is still produced for review-required cases, marked NOT RELEASED;
+   amount and form of any liability cap.
+3. Whether "review by a qualified engineer before any use" can bind the customer, and how "qualified engineer"
+   should be defined.
+4. **No erasure:** the product cannot delete a user account or audit entries, and the audit log keeps user names and
+   client network addresses indefinitely by design. Compatibility with deletion/suspension requests under the Act on
+   the Protection of Personal Information; required retention period or pseudonymisation.
+5. Disclosure of the unencrypted desktop database (copied data folder in the threat model) and its effect on the
+   operator's safety-management duty.
+6. Obligations of the owner as operator of the hosted evaluation server (purpose of use, contact point, proxy logs,
+   backups, cross-border transfer if hosted abroad, entrustment agreement for customers' drawings).
+7. Disclosure, ownership and registrability of code and engineering rules written with AI assistance (item 10).
+8. Export notification for the cryptography outside Japan (item 11).
+9. Where the notices must be shown to take effect (installer, first-run screen, each DXF, contract); the product
+   has no acceptance screen today.
+
+### Inconsistency found while drafting (not fixed here; task 4.5 is docs/legal only)
+
+- `README.md` line 5 still says "AI interprets the drawing", which contradicts the owner decision of 20 Nov 2026
+  (item 1: the product contains no AI). It must be corrected before any draft is shown to a customer.
+- `docs/security/DESKTOP_KEY_ASSESSMENT.md` section 6 says "secure backups"; the drafts say "protected backups"
+  to keep rule A.3.
