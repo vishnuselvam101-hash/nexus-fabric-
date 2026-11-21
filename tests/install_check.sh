@@ -86,6 +86,8 @@ cp "$REAL_BIN" "$P/real"; chmod 0755 "$P/real"
 fake "$P/v1" v1; fake "$P/v2" v2; fake "$P/v3" v3
 printf '#!/bin/bash\n# stand-in v4: migrates the database to a newer schema (user_version 999), then does not start\n'\
 'sqlite3 "$NF_DATA_DIR/nexus-fabric.sqlite" "PRAGMA user_version=999"\necho "stand-in v4: does not start" >&2\nexit 1\n' >"$P/v4"; chmod 0755 "$P/v4"
+printf '#!/bin/sh\n# stand-in converter nf-pdf2dxf (task 3.1): installed beside nf-server, never run here\necho "stand-in nf-pdf2dxf" >&2; exit 1\n' >"$P/pdf2dxf"; chmod 0755 "$P/pdf2dxf"
+SHA_PDF=$(sha "$P/pdf2dxf")
 SHA_REAL=$(sha "$P/real"); SHA_V1=$(sha "$P/v1"); SHA_V2=$(sha "$P/v2"); SHA_V3=$(sha "$P/v3"); SHA_V4=$(sha "$P/v4")
 
 # ---------------------------------------------------------------- stand-in commands
@@ -138,7 +140,7 @@ case "\${1:-}" in --version) echo "cargo 1.85.0 (stand-in)"; exit 0 ;; build) ;;
 td="\$PWD/target"; prev=""
 for a in "\$@"; do [ "\$prev" = --target-dir ] && td="\$a"; prev="\$a"; done
 if [ -f "$S/pause-build" ]; then echo \$\$ >"$M/building.pid"; touch "$M/building"; exec sleep 120; fi
-mkdir -p "\$td/release" && cp "\$(cat "$S/build-payload")" "\$td/release/nf-server"
+mkdir -p "\$td/release" && cp "\$(cat "$S/build-payload")" "\$td/release/nf-server" && cp "$P/pdf2dxf" "\$td/release/nf-pdf2dxf"
 EOF
 printf '#!/bin/bash\necho "cargo: this toolchain does not run (stand-in)" >&2\nexit 1\n' >"$TC/broken/cargo"
 chmod 0755 "$B"/* "$TC"/good/cargo "$TC"/broken/cargo
@@ -240,6 +242,7 @@ run_install fresh "${VALID[@]}" SUDO_USER=nobody "NF_BUILD_DIR=$BD" NF_ADMIN_USE
 check "fresh install: exit 0 ($(logline fresh))" '[ $rc = 0 ]'
 check "  built as uid 65534 in its own build directory; the checkout was not written" 'grep -q "^65534 build .*--target-dir $BD/target" "$L/cargo.log" && [ -f "$BD/src/Cargo.toml" ] && [ ! -e "$CO/target" ]'
 check "  the installed binary is the built one, mode 755" '[ "$(sha "$BIN")" = "$SHA_REAL" ] && [ "$(stat -c %a "$BIN")" = 755 ]'
+check "  the converter nf-pdf2dxf is built the same way and installed beside it, mode 755" '[ "$(sha "$R/usr/local/bin/nf-pdf2dxf")" = "$SHA_PDF" ] && [ "$(stat -c %a "$R/usr/local/bin/nf-pdf2dxf")" = 755 ]'
 check "  unit: 127.0.0.1:18787, host app.example.test, service account nexusfabric" 'grep -qx "Environment=NF_LISTEN=127.0.0.1:18787" "$UNIT" && grep -qx "Environment=NF_ALLOWED_HOSTS=app.example.test" "$UNIT" && grep -qx "User=nexusfabric" "$UNIT"'
 check "  key: 32 bytes, mode 440, given to root:nexusfabric" '[ "$(stat -c %s "$KEY")" = 32 ] && [ "$(stat -c %a "$KEY")" = 440 ] && grep -q "chown root:nexusfabric $KEY.new" "$L/chown.log"'
 check "  data directory mode 700, given to nexusfabric" '[ "$(stat -c %a "$R/var/lib/nexus-fabric")" = 700 ] && grep -q "chown nexusfabric:nexusfabric $R/var/lib/nexus-fabric" "$L/chown.log"'
@@ -254,6 +257,7 @@ cg=$(count "$L/cargo.log" " build")
 run_install upgrade-v1 "${VALID[@]}" "NF_BINARY=$P/v1" "NF_BINARY_SHA256=${SHA_V1^^}"; rc=$?
 check "upgrade: exit 0, v1 answers ($(logline upgrade-v1))" '[ $rc = 0 ] && answers_as 18787 v1'
 check "  nothing was built; the real server is kept for rollback; key and database kept" '[ "$(count "$L/cargo.log" " build")" = "$cg" ] && [ "$(sha "$PREV/nf-server")" = "$SHA_REAL" ] && [ "$(sha "$KEY")" = "$KEYSUM" ] && [ -f "$R/var/lib/nexus-fabric/nexus-fabric.sqlite" ]'
+check "  the rollback copy keeps the converter too; a prebuilt install leaves the installed converter as it was" '[ "$(sha "$PREV/nf-pdf2dxf")" = "$SHA_PDF" ] && [ "$(sha "$R/usr/local/bin/nf-pdf2dxf")" = "$SHA_PDF" ]'
 check "  the database copy kept with it is a consistent sqlite copy of the database" '[ "$(sqlite3 "$PREV/nexus-fabric.sqlite" "PRAGMA integrity_check")" = ok ] && [ "$(sqlite3 "$PREV/nexus-fabric.sqlite" "PRAGMA user_version")" = "$(sqlite3 "$R/var/lib/nexus-fabric/nexus-fabric.sqlite" "PRAGMA user_version")" ]'
 refused "a wrong checksum on an installed system" "does not match NF_BINARY_SHA256" "${VALID[@]}" "NF_BINARY=$P/v2" "NF_BINARY_SHA256=$SHA_V3"
 check "  v1 is still installed and answers" '[ "$(sha "$BIN")" = "$SHA_V1" ] && answers_as 18787 v1'
