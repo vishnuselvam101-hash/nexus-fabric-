@@ -1,0 +1,37 @@
+{
+ "id": "B-hwb-1.1-obtuse-in-regime",
+ "group": "closed_form",
+ "title": "Header with branch R=150 r=100 beta=179.99: outside the guaranteed range (ratio 1.11) but confirmed by the verification",
+ "request": {
+  "family": "header_with_branch",
+  "header_radius": 150,
+  "header_dev_radius": 150,
+  "header_length": 1146216.0,
+  "branch_station": 1432545.0,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 179.99,
+  "delta": 0,
+  "s_end": 1432545.0,
+  "surface_reference": "outside"
+ },
+ "expect": "accept",
+ "derivation": "ratio F/(agree + 3 bound) = 1.108 > 1: the verification is not guaranteed, but its measured differences are about 1/20 of its tolerances, so it confirms the pattern: the angle must not be refused for the bound alone (no over-refusal). The parts carry eps_num_governs: near 180 deg the rounding of beta itself dominates eps_num. Saddle heights from the closed form.",
+ "hp": true,
+ "quantities": {
+  "branch": {
+   "s_at_0": [
+    640586.2923272788,
+    0.0006405862923272788
+   ],
+   "s_at_90": [
+    1432394.4863717011,
+    0.0014323944863717012
+   ],
+   "developed_width": [
+    628.3185307179587,
+    6.283185307179586e-09
+   ]
+  }
+ }
+}

@@ -208,14 +208,53 @@ fn shallow_and_obtuse_branch_angles_are_within_eps_num_and_the_chord_limit() {
 
 /// Down to the developed-size limit (beta = 0.000144686 deg: s_max = 9.9e7 mm) the pattern itself stays within
 /// `eps_num` of the exact curve and within the chord limit. (The product's own independent verification, a
-/// numerically intersected 3D curve conditioned by 1 / sin beta, stops confirming it below about 0.003 deg and then
-/// REJECTS the result, which is fail-closed; that is a limit of the verifier, not of the pattern.)
+/// numerically intersected 3D curve conditioned by 1 / sin² beta, stops confirming it below about 0.003 deg; since
+/// engine 0.4.3 (work plan task 1.1) such a request is refused with `branch_angle_not_verifiable`, fail-closed; that
+/// is a limit of the verifier, not of the pattern.)
 #[test]
 fn geometry_stays_within_eps_num_down_to_the_size_limit() {
     for (b, s_end) in [(0.000144686, 99.5e6), (0.001, 2e7), (0.01, 2e6), (0.1, 2e5)] {
         let (vertex, chord, eps_num, eps_rep, n) = measure_s(b, s_end);
         println!(
             "beta = {b} deg: {n} segments; vertex error {vertex:.3e} mm vs eps_num {eps_num:.3e} mm; chord error {chord:.4e} mm vs eps_rep {eps_rep:.4e} mm"
+        );
+        assert!(
+            vertex <= eps_num,
+            "beta {b}: vertex {vertex:e} > eps_num {eps_num:e}"
+        );
+        assert!(chord <= MAX_CHORD_ERROR_MM, "beta {b}: chord {chord:e}");
+    }
+}
+
+/// Work plan task 1.1: the angles just inside the boundaries the engine 0.4.3 rule draws for this stub (R 150, r 100,
+/// delta 0) agree with the 31-digit reference. Acute end: 0.02016 deg, where the bound on the verifier's own rounding
+/// is 0.9 of the budget of its tolerance (the boundary is found by bisection in
+/// `crates/nf-core/tests/refusal_codes.rs`; here the ratio is checked again). Obtuse end: the stub never enters that
+/// regime (its tolerance carries the rounding of beta near pi), so the inside boundary is the developed-size limit,
+/// 179.9997 deg and 180 − 0.000144686 deg (s_max 9.9e7 mm).
+#[test]
+fn task_1_1_angles_just_inside_both_ends_agree_with_the_31_digit_reference() {
+    use uem::develop::Branch;
+    use uem::verify::branch_stub_conditioning;
+    for (b, s_end) in [
+        (0.0201603, 7.2e5),
+        (179.9997, 4.8e7),
+        (180.0 - 0.000144686, 99.5e6),
+    ] {
+        let br = Branch {
+            big_r: 150.0,
+            r: 100.0,
+            beta: f64::to_radians(b),
+            delta: 0.0,
+        };
+        let ratio = branch_stub_conditioning(&br, 100.0, s_end)
+            .iter()
+            .map(|c| c.rounding / c.budget)
+            .fold(0.0, f64::max);
+        assert!(ratio < 1.0, "beta {b}: inside the regime ({ratio})");
+        let (vertex, chord, eps_num, eps_rep, n) = measure_s(b, s_end);
+        println!(
+            "beta = {b} deg: ratio {ratio:.3}; {n} segments; vertex error {vertex:.3e} mm vs eps_num {eps_num:.3e} mm; chord error {chord:.4e} mm vs eps_rep {eps_rep:.4e} mm"
         );
         assert!(
             vertex <= eps_num,

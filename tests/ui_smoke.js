@@ -15,6 +15,9 @@ const check = (name, ok, detail) => { results.push({ name, ok: !!ok, detail }); 
 // The client's ONE display rule for computed numbers, in panels, on the canvas and in the read-out:
 // three decimals with thousands separators (round 3; the read-out used to omit the separators).
 const n3 = (n) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(Math.abs(n) < 5e-4 ? 0 : n);
+// the full-precision form of a number in the client (web/app.js fmt), and Japanese script (task 1.1 checks)
+const fmtFull = (n) => (n === 0 ? '0' : Math.abs(n) >= 1e-3 && Math.abs(n) < 1e9 ? Number(n.toPrecision(12)).toString() : n.toExponential(3));
+const JA_TEXT_11 = /[぀-ヿ一-鿿]/;
 const mm = (text) => parseFloat(String(text).replace(/,/g, '')); // a displayed length back to a number
 
 // Elements that stick out of the viewport without a scrollable or clipping ancestor that itself fits.
@@ -234,6 +237,9 @@ const controlProbe = () => {
   check('obligation: confirmed with a reason, two remain open', openAfter === 2 && /discharged by decision/i.test(await p.textContent('#obls')));
   await p.locator('input[data-reason]').first().fill('not applicable to this joint; recorded'); await p.locator('button[data-decision=waived]').first().click();
   await p.waitForFunction(() => document.querySelectorAll('button[data-decision=waived]').length === 1);
+  // the status bar is repainted by its own fetch of /api/dashboard after the decision (refreshSummary), which can
+  // finish after the obligation list: give it up to 5 s, then check as before (a count that never updates still fails)
+  await p.waitForFunction(() => /1 open scrutiny obligation$/.test((document.querySelector('#sb-obl') || {}).textContent || ''), null, { timeout: 5000 }).catch(() => {});
   check('obligation: waived with a reason, one remains open and the job stays in review', /waived/i.test(await p.textContent('#obls')) && (await p.textContent('.ws-head h1 .tag')).trim() === 'REVIEW REQUIRED' && /1 open scrutiny obligation$/.test((await p.textContent('#sb-obl')).trim()));
   await p.click('#tab-ws-history');
   check('history: decisions listed with who and why', /Obligation #\d+ discharged by decision/.test(await p.textContent('#tp-ws-history')) && /admin: checked against the drawing/.test(await p.textContent('#tp-ws-history')));
@@ -409,6 +415,21 @@ const controlProbe = () => {
   await go(`calc/${rfb.id}`, '#view h1');
   const rowMark = await p.evaluate(() => { const dd = [...document.querySelectorAll('dl.req dd')].find((d) => d.querySelector('.tag')); return dd ? dd.previousElementSibling.textContent : ''; });
   check('refusal: the refused job marks the request row of the field it names', /joint/.test(rowMark), rowMark);
+
+  // ---- 14a. task 1.1: a part near 180 degrees shows eps_num first and in full, in English and Japanese; an ordinary part does not
+  const nearApi = await ctx.request.post(`${B}/api/projects/1/calculations`, { headers: { 'X-NF-Request': '1' }, data: { family: 'branch_stub', header_radius: 150, branch_radius: 100, branch_dev_radius: 100, beta_deg: 179.997, delta: 0, s_end: 5.2e6, surface_reference: 'outside' } });
+  const near = await nearApi.json();
+  const nearJob = await apiGet(`/api/calculations/${near.id}`);
+  const nearEps = nearJob.patterns && nearJob.patterns[0] ? nearJob.patterns[0].eps_num : undefined;
+  await go(`calc/${near.id}`, '.pv'); await p.waitForSelector('#quant dl');
+  const epsEn = (await p.locator('#epsgov').count()) ? (await p.textContent('#epsgov')).replace(/\s+/g, ' ') : '';
+  check('task 1.1: a branch at 179.997 deg is accepted and shows eps_num first, in full, as an estimate', nearApi.ok() && nearJob.patterns[0].eps_num_governs === true && epsEn.includes(`eps_num = ${fmtFull(nearEps)} mm`) && /estimate, not a bound/.test(epsEn) && (await p.evaluate(() => document.querySelector('#quant').firstElementChild.id)) === 'epsgov', { epsEn, nearEps });
+  await p.click('#lang-ja'); await p.waitForSelector('#quant dl');
+  const epsJa = (await p.locator('#epsgov').count()) ? (await p.textContent('#epsgov')).replace(/\s+/g, ' ') : '';
+  check('task 1.1: the same notice in Japanese', JA_TEXT_11.test(epsJa) && epsJa.includes(fmtFull(nearEps)) && /推定値/.test(epsJa), epsJa);
+  await p.click('#lang-en');
+  await go(`calc/${jobs.branch_stub}`, '.pv'); await p.waitForSelector('#quant dl');
+  check('task 1.1: a branch at an ordinary angle carries no such notice', (await p.locator('#epsgov').count()) === 0);
 
   await p.click('#logout'); await p.waitForSelector('#f');
   // ---- 14b. routing and Japanese: the switch, its persistence, the URL override, every main screen walked for
@@ -650,8 +671,10 @@ const controlProbe = () => {
     // it exactly). Its refusal is recorded as a job, and that job names the field and the engine's reason.
     await go('math/1', '#calc');
     await p.selectOption('select[name=fam]', 'header_with_branch'); await p.fill('#f_s_end', '150');
-    allow422 = true; await p.click('#run'); await p.waitForURL(/#\/calc\/\d+$/); await p.waitForSelector('.ws-banner'); allow422 = false;
-    const refusal = (await p.textContent('.ws-banner')).replace(/\s+/g, ' ');
+    // the form page has its own .ws-banner (the provisional-models notice); the job's banner is the one with role=status,
+    // so wait for that one: the URL can change before the job view replaces the form
+    allow422 = true; await p.click('#run'); await p.waitForURL(/#\/calc\/\d+$/); await p.waitForSelector('.ws-banner[role=status]'); allow422 = false;
+    const refusal = (await p.textContent('.ws-banner[role=status]')).replace(/\s+/g, ' ');
     check('BH-014: the engine refusal of a square end names the s_end field and the reason on the refused job', /s_end/.test(refusal) && /saddle/.test(refusal), refusal.slice(0, 200));
 
     // BH-002: obligations on a superseded result are counted apart from current work, and none is lost.

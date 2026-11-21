@@ -80,6 +80,7 @@ class Client:
             out['error'] = r.get('error', str(r))
             return out
         out['error'] = r.get('error')      # 422: refused, recorded as a job in state REFUSED
+        out['code'] = r.get('code')        # the stable refusal code of a 422 answer (engine 0.4.1 and later)
         out['id'] = r['id']
         st2, res = self.json('GET', f"/api/calculations/{r['id']}")
         out['result'] = res if st2 == 200 else None

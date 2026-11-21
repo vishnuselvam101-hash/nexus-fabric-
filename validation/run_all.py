@@ -247,7 +247,15 @@ def run_case(case):
                     check_refusal(case, job, out['findings'])
             return out
         if job.refused:
-            if exp == 'either':
+            regime = 'task 1.1' in str((case.get('oracle') or ['', ''])[-1])
+            if exp == 'either' and regime and (job.self_rejected or job.refusal_code != 'branch_angle_not_verifiable'):
+                # task 1.1: in the regime of the verification's conditioning only that refusal is allowed; a computed
+                # pattern REJECTED by the product's own gates, or a refusal with another code, is not
+                out['class'] = 'wrongly_refused'
+                out['issues'].append(f'in the task 1.1 regime only branch_angle_not_verifiable may refuse: {job.refusal_text()[:200]}')
+                if job.self_rejected:
+                    out['findings'].append({'code': 'REFUSED_ONLY_BY_GATE', 'detail': 'pattern computed, then REJECTED by the product\'s own gates (G10) in the task 1.1 regime instead of refused with branch_angle_not_verifiable'})
+            elif exp == 'either':
                 out['class'] = 'refused_correctly'
                 if not job.self_rejected:
                     check_refusal(case, job, out['findings'])

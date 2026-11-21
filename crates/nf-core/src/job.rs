@@ -178,7 +178,7 @@ fn classify_parse_error(v: &Value, msg: &str) -> (&'static str, Vec<String>) {
                 // joint may be null (absent); surface_reference may not
                 if obj
                     .get(*f)
-                    .is_some_and(|x| !x.is_string() && !(*f == "joint" && x.is_null()))
+                    .is_some_and(|x| !(x.is_string() || *f == "joint" && x.is_null()))
                 {
                     wrong.push(f.to_string());
                 }
@@ -315,6 +315,13 @@ pub struct PatternView {
     /// ESTIMATE of the polyline representation error (mm), not a bound: the largest deviation measured at 15
     /// interior points per segment; a finer sampling can exceed it slightly.
     pub eps_rep: f64,
+    /// Task 1.1: true when 8·eps_num >= the tolerance of the part's 3D-intersection point check (agree + 4·bound).
+    /// For the branch eps_num is that bound, so this is 4·eps_num >= agree; for the header eps_num is the larger of
+    /// the plate's own estimate and the opening bound, so the flag can fire earlier on a long plate. In practice: a
+    /// branch angle near 180 degrees, where the rounding of the angle itself dominates eps_num. The interface then
+    /// shows eps_num prominently. Absent from the result when false.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub eps_num_governs: bool,
     pub quantities: BTreeMap<String, f64>,
     pub assumptions: Vec<String>,
     pub curves: Vec<CurveView>,
@@ -628,6 +635,7 @@ impl Builder {
             marking_side: pattern.marking_side.code().to_string(),
             eps_num: pattern.eps_num,
             eps_rep: pattern.eps_rep,
+            eps_num_governs: verify::eps_num_governs(pattern, &checks),
             quantities: pattern
                 .quantities
                 .iter()
@@ -1112,27 +1120,27 @@ fn header_with_branch(
     // pass through the hole.
     match joint {
         None => {}
-        Some("set_on") => {
-            if hsref != SET_ON_HEADER_SURFACE || bsref != SET_ON_BRANCH_SURFACE {
-                return err_output(
-                    req,
-                    b,
-                    &rq,
-                    uem::out_of_range(
-                        crate::refusal::JOINT_PAIRING_INVALID,
+        Some("set_on") if hsref != SET_ON_HEADER_SURFACE || bsref != SET_ON_BRANCH_SURFACE => {
+            return err_output(
+                req,
+                b,
+                &rq,
+                uem::out_of_range(
+                    crate::refusal::JOINT_PAIRING_INVALID,
+                    "joint",
+                    vec![
                         "joint",
-                        vec![
-                            "joint",
-                            "header_surface_reference",
-                            "branch_surface_reference",
-                        ],
-                        format!(
-                            "a set-on joint (Spec 02 section 4.4) needs the branch INSIDE surface on the header OUTSIDE surface: branch_surface_reference \"{SET_ON_BRANCH_SURFACE}\" and header_surface_reference \"{SET_ON_HEADER_SURFACE}\". Declared: header \"{hsref}\", branch \"{bsref}\". A branch whose outside surface is the contact would have its opening cut at the outside diameter, so it would pass through the hole; this build has no wall thickness from which the bore could be derived"
-                        ),
+                        "header_surface_reference",
+                        "branch_surface_reference",
+                    ],
+                    format!(
+                        "a set-on joint (Spec 02 section 4.4) needs the branch INSIDE surface on the header OUTSIDE surface: branch_surface_reference \"{SET_ON_BRANCH_SURFACE}\" and header_surface_reference \"{SET_ON_HEADER_SURFACE}\". Declared: header \"{hsref}\", branch \"{bsref}\". A branch whose outside surface is the contact would have its opening cut at the outside diameter, so it would pass through the hole; this build has no wall thickness from which the bore could be derived"
                     ),
-                );
-            }
+                ),
+            );
         }
+        // a set-on joint with the Spec 02 section 4.4 pairing
+        Some("set_on") => {}
         Some(other) => {
             return err_output(
                 req,
@@ -1240,6 +1248,37 @@ fn header_with_branch(
             Err(e) => return err_output(req, b, &rq, e),
         };
     }
+    // The checks of gate G10, on the final patterns: the header opening, the branch, the interface constraint
+    // (fold-back) and the independent 3D check of the joint (review RB-001, RB-006), each part against the other
+    // part's own geometry. Task 1.1: evaluated before anything of the joint is recorded, so that a branch angle the
+    // verification cannot confirm is refused with its own code instead of a result that G10 then rejects.
+    let hc = verify::verify_header_opening(&header_pat, &geo, hdev, hlen, station);
+    let bc = verify::verify_branch(&branch_pat, &geo, bdev, s_end);
+    let mut ic = verify::verify_interface(
+        &header_pat,
+        &geo,
+        hdev,
+        station,
+        &branch_pat,
+        &geo,
+        bdev,
+        s_end,
+    );
+    ic.extend(verify::verify_joint(
+        &header_pat,
+        &geo,
+        hdev,
+        station,
+        &branch_pat,
+        &geo,
+        bdev,
+        s_end,
+    ));
+    let all: Vec<Check> = hc.iter().chain(&bc).chain(&ic).cloned().collect();
+    let cond = verify::header_with_branch_conditioning(&geo, hdev, hlen, station, bdev, s_end);
+    if let Some(e) = verify::branch_angle_refusal(beta_deg, &cond, &all) {
+        return err_output(req, b, &rq, e);
+    }
     // The intersection curve is shared by both parts: it depends on both contact radii and the placement.
     let a_int = b.act(
         "build.intersect",
@@ -1269,7 +1308,6 @@ fn header_with_branch(
         None,
     ));
 
-    let hc = verify::verify_header_opening(&header_pat, &geo, hdev, hlen, station);
     let (pat_h, _) = b.part(
         "header",
         &header_pat,
@@ -1283,7 +1321,6 @@ fn header_with_branch(
         hc,
         Some(&js),
     );
-    let bc = verify::verify_branch(&branch_pat, &geo, bdev, s_end);
     let (pat_b, _) = b.part(
         "branch",
         &branch_pat,
@@ -1297,28 +1334,7 @@ fn header_with_branch(
         Some(&js),
     );
 
-    // Interface constraint, evaluated from the two finished patterns: the fold-back check, and the independent
-    // 3D check of the joint (review RB-001, RB-006), each part against the other part's own geometry.
-    let mut ic = verify::verify_interface(
-        &header_pat,
-        &geo,
-        hdev,
-        station,
-        &branch_pat,
-        &geo,
-        bdev,
-        s_end,
-    );
-    ic.extend(verify::verify_joint(
-        &header_pat,
-        &geo,
-        hdev,
-        station,
-        &branch_pat,
-        &geo,
-        bdev,
-        s_end,
-    ));
+    // Interface constraint (`ic`, computed above from the two finished patterns).
     let a_if = b.act(
         "verify.interface",
         "Z3",
@@ -1582,7 +1598,7 @@ pub fn run(req: &Request, entered_by: &str) -> JobOutput {
                 delta,
                 s_end,
             )
-            .map(|p| {
+            .and_then(|p| {
                 let b = Branch {
                     big_r: header_radius,
                     r: branch_radius,
@@ -1590,7 +1606,13 @@ pub fn run(req: &Request, entered_by: &str) -> JobOutput {
                     delta,
                 };
                 let c = verify::verify_branch(&p, &b, branch_dev_radius, s_end);
-                (p, c)
+                // task 1.1: a branch angle the verification cannot confirm is refused with its own code; the checks
+                // read here are exactly those gate G10 reads (see `verify::branch_angle_refusal`)
+                let cond = verify::branch_stub_conditioning(&b, branch_dev_radius, s_end);
+                match verify::branch_angle_refusal(beta_deg, &cond, &c) {
+                    Some(e) => Err(e),
+                    None => Ok((p, c)),
+                }
             }),
         ),
         Request::HeaderWithBranch {

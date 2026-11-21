@@ -54,7 +54,17 @@ use std::collections::{BTreeMap, BTreeSet};
 /// cut geometry is unchanged. Results of 0.4.0 are REJECTED with G21 "recompute".
 ///
 /// 0.4.2 (20 Nov 2026): review B2 fixes B2-001..007: developed radius bounded by the wall (B2-001); polylines report their own deviation (B2-002); arc display chords by sagitta (B2-003); header gross/net area (B2-004); refusals reduced to their mathematical conditions — apex radius ≤ 1e8 mm instead of sin α ≥ 1e-3, seam gap > 1e-9 mm instead of 99.9 % of a turn, β strictly in (0,180) instead of sin β > 0.17; the chord cap stays and states its ~4.3e6 mm bound (B2-005); eccentric area by the adaptive rule and branch s_max/s_min by golden section (B2-006); eps_rep declared an estimate (B2-007); the stated numerical bound eps_num of a branch includes the rounding of the angle, which dominates at the shallow angles B2-005 now accepts. Quantities and refusal outcomes change; cut geometry of every previously accepted case is unchanged. Results of 0.4.1 are REJECTED with G21 recompute.
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.2+src.", env!("NF_ENGINE_SRC_HASH"));
+///
+/// 0.4.3 (21 Nov 2026): work plan task 1.1. A branch angle the independent verification cannot confirm is refused
+/// with its own code, `branch_angle_not_verifiable`, naming `beta_deg`, instead of a result that gate G10 then
+/// rejects: the verifier's own criterion, evaluated on the final patterns before the job is accepted, in the regime
+/// where the a-priori bound on the verifier's rounding (1/sin²(beta), near 0 and 180 degrees) is not below the part
+/// of its tolerance left after the engine's own error, restricted to failures of the four 3D point checks that this
+/// conditioning explains (docs/backend/TOLERANCE_POLICY.md section 7). A part whose
+/// 8·eps_num reaches the tolerance of its 3D point check (near 180 degrees) carries `eps_num_governs` and the interface
+/// shows eps_num prominently. Refusal outcomes change (jobs G10 rejected before are now refused); cut geometry of
+/// every accepted case is unchanged. Results of 0.4.2 are REJECTED with G21 recompute.
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.3+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the
@@ -109,7 +119,7 @@ pub mod refusal {
     pub const NO_PATTERN_PRODUCED: &str = "no_pattern_produced";
 
     /// Every code of this build, in the order of the table in docs/backend/REFUSAL_CODES.md.
-    pub const ALL: [&str; 41] = [
+    pub const ALL: [&str; 42] = [
         REQUEST_NOT_OBJECT,
         FAMILY_UNKNOWN,
         FIELD_MISSING,
@@ -126,6 +136,7 @@ pub mod refusal {
         REDUCER_NEAR_CYLINDRICAL,
         DEVELOPED_ANGLE_OVERLAPS,
         BRANCH_ANGLE_OUT_OF_RANGE,
+        BRANCH_ANGLE_NOT_VERIFIABLE,
         BRANCH_TANGENT_OR_PARTIAL,
         SQUARE_END_TOO_SHORT,
         OPENING_OUTSIDE_SHELL,

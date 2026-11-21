@@ -1154,7 +1154,8 @@ const views = {
           const e = extent(p), cls = idLabel('devclass', p.class);
           // where the opening sits across the plate: the only place the sign of the axis offset shows in the pattern
           const hole = p.holes.length === 1 ? extent({ curves: [], holes: p.holes }) : null;
-          $('#quant').innerHTML = `<dl class="kv"><dt>${esc(t('q.part'))}</dt><dd class="txt">${partName(p.part)}<small>${named('family', p.family)}</small></dd><dt>${esc(t('q.class'))}</dt><dd class="txt">${mono(p.class)} <span class="sub">${esc(t('q.class.note'))}</span>${cls ? `<small>${esc(cls)}</small>` : ''}</dd>
+          // task 1.1: near 180 degrees the rounding of the angle dominates the numerical error; shown in full, first
+          $('#quant').innerHTML = `${p.eps_num_governs ? `<div class="note warn" id="epsgov" role="note"><div>${h('q.epsgov', { v: `<span class="mono">${esc(fmt(p.eps_num))}</span>` })}</div></div>` : ''}<dl class="kv"><dt>${esc(t('q.part'))}</dt><dd class="txt">${partName(p.part)}<small>${named('family', p.family)}</small></dd><dt>${esc(t('q.class'))}</dt><dd class="txt">${mono(p.class)} <span class="sub">${esc(t('q.class.note'))}</span>${cls ? `<small>${esc(cls)}</small>` : ''}</dd>
             <dt class="wide">${esc(t('q.mside'))}<small>${esc(t('q.mside.note'))}</small></dt><dd class="txt wide" id="mside">${p.marking_side ? h('q.mside.v', { side: esc(sideText(p.marking_side)) }) : esc(t('q.mside.none'))}</dd>
             <dt>${esc(t('q.extent'))}<small>${esc(t('q.extent.note'))}</small></dt><dd><span class="q"><span class="qv">${n3(e.w)} × ${n3(e.h)}</span> <span class="qu">mm</span></span></dd>${Object.entries(p.quantities).map(([k, v]) => { const [l, val] = quantity(k, v); return `<dt>${l}</dt><dd>${val}</dd>`; }).join('')}
             ${hole ? `<dt>${esc(t('q.opening'))}<small>${esc(t('q.opening.note'))}</small></dt><dd>${signed((hole.y0 + hole.y1) / 2 - (e.y0 + e.y1) / 2, 'mm')}</dd>` : ''}

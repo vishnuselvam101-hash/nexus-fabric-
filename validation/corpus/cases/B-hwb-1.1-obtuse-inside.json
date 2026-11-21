@@ -1,0 +1,37 @@
+{
+ "id": "B-hwb-1.1-obtuse-inside",
+ "group": "closed_form",
+ "title": "Header with branch R=150 r=100 beta=179.963783: just inside the angle the verification is guaranteed to confirm (ratio 0.9)",
+ "request": {
+  "family": "header_with_branch",
+  "header_radius": 150,
+  "header_dev_radius": 150,
+  "header_length": 316703.0,
+  "branch_station": 395654.0,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 179.963783,
+  "delta": 0,
+  "s_end": 395654.0,
+  "surface_reference": "outside"
+ },
+ "expect": "accept",
+ "derivation": "ratio F/(agree + 3 bound) = 0.9000 < 1 over the opening, branch and joint checks (closed form, TOLERANCE_POLICY.md section 7): must be accepted. Plate layout from the 3D construction of the reference; saddle heights from the closed form.",
+ "hp": true,
+ "quantities": {
+  "branch": {
+   "s_at_0": [
+    176874.4875980535,
+    0.0001768744875980535
+   ],
+   "s_at_90": [
+    395503.34614939534,
+    0.00039550334614939535
+   ],
+   "developed_width": [
+    628.3185307179587,
+    6.283185307179586e-09
+   ]
+  }
+ }
+}

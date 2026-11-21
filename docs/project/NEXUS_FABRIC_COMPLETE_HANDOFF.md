@@ -180,6 +180,9 @@ Packages: `bash packaging/build_all.sh` → `dist/` (never committed). Release v
 | `python3 validation/run_all.py --spawn target/release/nf-server` (FULL, ~17 min) | 1392 cases: 973 agree, 419 refused, 0 disagree, 0 wrongly accepted, 0 wrongly refused; 27/27 seeded faults detected; 2 pre-existing near-tangent D4 FAILs (identical on 0.4.1) |
 | `bash tests/security_r6.sh` | 35 pass, 5 fail (section 9.3) |
 
+
+Engine 0.4.3 (work plan task 1.1, working tree on `011b061`, clean `nf-verify --full` 21 Nov 2026, log `/root/nf-logs/task-1.1-final-20261121T141553Z`, results in `validation/results/latest.json`): build, clippy, fmt clean; `cargo test` 269 pass; e2e 89; security 66; browser 197; desktop 18; offline (static part), i18n, notices ok; quick 177 cases: 116 agree, 61 refused, 0 disagree; FULL 1398 cases: 977 agree, 421 refused, 0 disagree, 0 wrongly accepted, 0 wrongly refused, 0 errors; 33/33 seeded faults detected (27 + 6 inside the task 1.1 regime); verdict FAIL only from the 2 pre-existing near-tangent findings (D4, task 1.2).
+
 Fresh server for the browser suite:
 `NF_SETUP_TOKEN=ui-smoke-setup-token NF_DATA_DIR=$(mktemp -d) NF_LISTEN=127.0.0.1:8793 target/release/nf-server &`
 then `NF_BASE=http://127.0.0.1:8793 node tests/ui_smoke.js`.

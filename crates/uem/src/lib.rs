@@ -204,6 +204,7 @@ pub mod refusal {
     pub const MAGNITUDE_ABOVE_LIMIT: &str = "magnitude_above_limit";
     pub const DIMENSION_BELOW_LIMIT: &str = "dimension_below_limit";
     pub const BEND_ANGLE_OUT_OF_RANGE: &str = "bend_angle_out_of_range";
+    pub const BRANCH_ANGLE_NOT_VERIFIABLE: &str = "branch_angle_not_verifiable";
 }
 
 /// A refusal of the engine. `code` is the rule (see `refusal`), `fields` the request fields it concerns (the

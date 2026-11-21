@@ -260,6 +260,8 @@ class Job:
         # a job whose own gates REJECT it withholds its files: for the caller that is a refusal
         self.self_rejected = bool(r and r.get('patterns') and r.get('state') == 'REJECTED')
         self.accepted = bool(r and r.get('patterns')) and not self.self_rejected
+        # the stable refusal code (engine 0.4.1 and later), when the engine refused the request
+        self.refusal_code = submitted.get('code') or ((r or {}).get('refusal') or {}).get('code')
         if r and self.accepted:
             for pv in r['patterns']:
                 st, text = client.dxf(self.id, pv['part'])

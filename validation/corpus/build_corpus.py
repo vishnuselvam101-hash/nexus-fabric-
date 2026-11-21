@@ -243,9 +243,11 @@ for tag, hyp_t in (('below', 999.0), ('above', 1001.0)):
         refuse('E-cone-apex-above-1e8', f'cone r1=1e5 r2=99999 h={hh!r}: apex radius {l1:.4g} mm, 1 % above the 1e8 mm limit', req, ['apex', 'radius'],
                f'Apex radius L1 = {l1:.6g} mm, 1 % above the 1e8 mm developed-size limit.')
 # developed branch length: refused above 1e8 mm (1 % above the limit, and its mirror: beta -> 180 - beta gives the same developed saddle);
-# accepted just inside the range the product's own independent verification covers (beta 0.003 deg and 179.997 deg, s_max = 4.8e6 mm).
-# Between that and 1e8 mm the geometry is correct (measured 4.2e-8 mm against a 31-digit reference at beta = 1.4e-4 deg, within eps_num)
-# but the verifier's own conditioning (1 / sin beta) makes it REJECT the result (G10); that range is therefore not in the corpus.
+# accepted at beta 0.003 deg and 179.997 deg (s_max = 4.8e6 mm). Between that and 1e8 mm the geometry is correct (measured 4.2e-8 mm against a
+# 31-digit reference at beta = 1.4e-4 deg, within eps_num) but the product's own verification, conditioned by 1 / sin^2 beta, cannot confirm it;
+# since engine 0.4.3 such an angle is refused with branch_angle_not_verifiable (work plan task 1.1; cases B-/E-br-1.1-* and B-/E-hwb-1.1-* below).
+# 0.003 deg lies inside the regime where the verification is no longer guaranteed (ratio about 39, oracle.branch_conditioning) but the
+# verification confirms it: it stays accepted. 179.997 deg is outside the regime (ratio 0.21).
 for tag, bd, size in (('below', 0.003, 4.775e6), ('above', 0.000141821, 1.01e8)):
     for name, b in ((f'beta-{bd}', bd), (f'beta-180-{bd}', 180 - bd)):
         if tag == 'below':
@@ -258,6 +260,63 @@ for tag, bd, size in (('below', 0.003, 4.775e6), ('above', 0.000141821, 1.01e8))
             req = stub(150, 100, b, 0, 0.995e8)
             refuse(f'E-br-size-above-{name}', f'Branch stub R=150 r=100 beta={b!r}: developed length {size:.3g} mm, 1 % above the 1e8 mm limit', req, ['beta', '1e8'],
                    f'Developed size {size:.3g} mm, 1 % above the 1e8 mm limit: refused.')
+# Work plan task 1.1 (engine 0.4.3): the boundary of the regime in which the product's verification is no longer guaranteed to confirm a
+# correct branch pattern. ratio = F / (agree + 3 bound) of checks/oracle.py branch_conditioning (closed form, TOLERANCE_POLICY.md section 7).
+# Just inside (ratio 0.9): must be accepted and agree with the reference. Outside, where the verification measurably cannot confirm the
+# pattern: must be refused (code branch_angle_not_verifiable). Inside the regime with the verification confirming: must be accepted.
+from checks.oracle import branch_conditioning
+
+
+def _angle_at(make, lo, hi, target=0.9):
+    """Angle in (lo, hi) at which branch_conditioning(make(beta)) = target (bisection; monotone on either side of 90 deg)."""
+    a, b = lo, hi
+    rising = branch_conditioning(make(b)) > branch_conditioning(make(a))
+    for _ in range(60):
+        m = 0.5 * (a + b)
+        if (branch_conditioning(make(m)) > target) == rising:
+            b = m
+        else:
+            a = m
+    return 0.5 * (a + b)
+
+
+def _asm_layout(R, r, beta, delta):
+    """Header with branch on a plate just long enough for the opening (reference float tier: 3D construction)."""
+    j = RF.Joint3D(R, r, beta, delta)
+    ph = np.linspace(0, 2 * np.pi, 40001)
+    s = j.s_of_phi(ph)
+    x, _ = j.header_coords(j.branch_point(ph, s))
+    return hwb(R, r, beta, delta, float(math.ceil(x.max() - x.min() + 2 * R)), float(math.ceil(-x.min() + R)), float(math.ceil(np.nanmax(s) + R)))
+
+
+def _branch_q(R, r, b):
+    sb, cb = math.sin(math.radians(b)), math.cos(math.radians(b))
+    return {'s_at_0': q(math.sqrt(R ** 2 - r ** 2) / sb, rel=1e-9), 's_at_90': q((R - r * cb) / sb, rel=1e-9), 'developed_width': q(2 * pi * r)}
+
+
+_st = lambda b: stub(150, 100, b, 0, float(math.ceil(250 / math.sin(math.radians(b)) + 150)))
+b_in = round(_angle_at(_st, 0.005, 1.0), 7)
+case('B-br-1.1-acute-inside', 'closed_form', f'Branch stub R=150 r=100 beta={b_in!r}: just inside the angle the verification is guaranteed to confirm (ratio 0.9)', _st(b_in),
+     f'ratio F/(agree + 3 bound) = {branch_conditioning(_st(b_in)):.4f} < 1 (closed form, TOLERANCE_POLICY.md section 7): the verification is guaranteed to confirm a correct '
+     f'pattern, so the request must be accepted. phi=0: s = sqrt(R^2 - r^2)/sin(beta); phi=90: s = (R - r cos(beta))/sin(beta).', hp=True, quantities={'branch': _branch_q(150, 100, b_in)})
+refuse('E-br-1.1-acute-outside', 'Branch stub R=150 r=100 beta=0.002: the verification cannot confirm the pattern', _st(0.002), ['beta_deg'],
+       f'ratio F/(agree + 3 bound) = {branch_conditioning(_st(0.002)):.1f}: the bound on the rounding of the verification (it grows as 1/sin^2 beta) is 87 times the part of '
+       'its tolerance left after the engine\'s own error; the verification is not guaranteed and, measured on engine 0.4.2, its 3D intersection check differed by 2.9e-6 mm '
+       'against a tolerance of 1.07e-6 mm (G10 FAIL, job REJECTED). The geometry itself is correct (31-digit reference); the angle is refused with its own code.')
+_as = lambda b: _asm_layout(150, 100, b, 0)
+a_in = round(_angle_at(_as, 0.02, 1.0), 6)
+a_ob = round(_angle_at(_as, 179.9, 179.9999), 6)
+for tag, b in (('acute-inside', a_in), ('obtuse-inside', a_ob)):
+    case(f'B-hwb-1.1-{tag}', 'closed_form', f'Header with branch R=150 r=100 beta={b!r}: just inside the angle the verification is guaranteed to confirm (ratio 0.9)', _as(b),
+         f'ratio F/(agree + 3 bound) = {branch_conditioning(_as(b)):.4f} < 1 over the opening, branch and joint checks (closed form, TOLERANCE_POLICY.md section 7): '
+         'must be accepted. Plate layout from the 3D construction of the reference; saddle heights from the closed form.', hp=True, quantities={'branch': _branch_q(150, 100, b)})
+refuse('E-hwb-1.1-acute-outside', 'Header with branch R=150 r=100 beta=0.009: the verification cannot confirm the pattern', _as(0.009), ['beta_deg'],
+       f'ratio F/(agree + 3 bound) = {branch_conditioning(_as(0.009)):.1f} (joint checks): not guaranteed; measured on engine 0.4.2, the two 3D checks of the joint '
+       'differed by about 2 times their tolerance (G10 FAIL, job REJECTED). Refused with branch_angle_not_verifiable since engine 0.4.3.')
+case('B-hwb-1.1-obtuse-in-regime', 'closed_form', 'Header with branch R=150 r=100 beta=179.99: outside the guaranteed range (ratio 1.11) but confirmed by the verification', _as(179.99),
+     f'ratio F/(agree + 3 bound) = {branch_conditioning(_as(179.99)):.3f} > 1: the verification is not guaranteed, but its measured differences are about 1/20 of its '
+     'tolerances, so it confirms the pattern: the angle must not be refused for the bound alone (no over-refusal). The parts carry eps_num_governs: near 180 deg the rounding '
+     'of beta itself dominates eps_num. Saddle heights from the closed form.', hp=True, quantities={'branch': _branch_q(150, 100, 179.99)})
 # the nearest representable angles to the excluded ends: nextafter(0, 1) and nextafter(180, 0) make a developed branch of 1e17 mm and more
 for nm, b in (('nextafter-0', 5e-324), ('nextafter-180', 179.99999999999997)):
     refuse(f'E-br-beta-{nm}', f'branch: beta = {b!r} deg (the representable value next to the excluded end of (0, 180))', stub(150, 100, b, 0, 0.995e8), ['beta', '1e8'],

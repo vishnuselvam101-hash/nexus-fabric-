@@ -2480,7 +2480,15 @@ async fn list_sees_a_same_length_alteration_made_by_another_process() {
 async fn d1_results_of_engine_0_2_0_are_flagged_for_recomputation() {
     let t = boot();
     let id = t.job(good_assembly()).await;
-    assert!(nf_core::ENGINE_VERSION.starts_with("nf-engine 0.4.2+src."));
+    assert!(nf_core::ENGINE_VERSION.starts_with("nf-engine 0.4.3+src."));
+    // engine 0.4.3 (work plan task 1.1) changes what is accepted: a result of 0.4.2 is marked for recomputation too
+    let old = t.job(good_assembly()).await;
+    t.sql(&format!("UPDATE calculations SET result_json = json_set(result_json, '$.engine', 'nf-engine 0.4.2+src.7d97912629c96ba8') WHERE id = {old}"));
+    let d = t.get(&format!("/api/calculations/{old}")).await;
+    assert_eq!(d["state"], "REJECTED");
+    assert!(gate_of(&d, "G21")["detail"].as_str().unwrap().contains(
+        "Computed by a superseded engine version (nf-engine 0.4.2+src.7d97912629c96ba8) — recompute"
+    ));
     t.sql(&format!("UPDATE calculations SET result_json = json_set(result_json, '$.engine', 'nf-engine 0.2.0+src.0123456789abcdef') WHERE id = {id}"));
     let d = t.get(&format!("/api/calculations/{id}")).await;
     assert_eq!(d["state"], "REJECTED");
