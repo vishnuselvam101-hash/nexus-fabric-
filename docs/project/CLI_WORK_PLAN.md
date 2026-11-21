@@ -30,10 +30,10 @@ seen to pass on the stated commit; "not run" is never written as passed.
 | 1.7 | Set-on joint, remaining case — design note | not started | | design only |
 | 1.8 | Validation as a permanent gate | not started | | |
 | 1.9 | Third independent review | not started | | after 1.1–1.6 |
-| 2.1 | The five failing audit checks | not started | | |
+| 2.1 | The five failing audit checks | done | this commit | security_r6 40/40; V-45 + V-44 here, V-47 from `95927a7` (RC-08); installer test `tests/install_check.sh` 67/67 (strict sandbox only); Caddy repository key still fetched without a fingerprint check (V-44 open item) |
 | 2.2 | Architecture review findings RA-001 … RA-017 | not started | | |
 | 2.3 | Stress findings | not on this host | | needs a non-live machine |
-| 2.4 | Desktop security wording | not started | | |
+| 2.4 | Desktop security wording | done | this commit | `/api/health` says `mode` (desktop/server); first-run screen in desktop mode (EN + JA), `packaging/INSTALL.md`, `packaging/README.txt`; "secure backups" written as "protected backups" |
 | 2.5 | Database encryption — design | not started | | design only |
 | 2.6 | Sign-in hardening — design note | not started | | design only |
 | 3.1 | PDF → DXF inside the product | not started | | |

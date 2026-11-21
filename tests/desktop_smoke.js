@@ -94,6 +94,22 @@ function rawGet(p, host) {
   await page.waitForFunction(() => !location.hash, null, { timeout: 5000 }).catch(() => {});
   check('the fragment is removed from the address bar', !(await page.evaluate(() => location.href)).includes('#'));
   check('the token field is hidden when the token came from the link', (await page.$('#lt')) === null);
+  // task 2.4: the server tells the client it runs in desktop mode, and the first-run screen says what is and is not protected
+  const mode = await page.evaluate(async () => (await fetch('/api/health')).json());
+  check('the server tells the client it runs in desktop mode', mode.mode === 'desktop', JSON.stringify(mode).slice(0, 160));
+  const noticeEn = (await page.textContent('#desktop-notice').catch(() => '')) || '';
+  check('first-run screen: the program does not encrypt the database or the whole data folder (English)',
+    /does not encrypt its database or the whole data folder/.test(noticeEn) && /own encryption/.test(noticeEn) && /depends on this computer/.test(noticeEn)
+    && /disk encryption/.test(noticeEn) && /individual account/.test(noticeEn) && /data folder only/.test(noticeEn) && /protected backups/.test(noticeEn)
+    && /account by itself does not encrypt the database/.test(noticeEn), noticeEn.slice(0, 120));
+  check('first-run screen: no wording that an account encrypts the database, no claim words',
+    !/account (encrypts|protects) the database|\b(secure|approved|certified|validated|production-ready|hack-proof|error-free)\b/i.test(noticeEn), noticeEn.slice(0, 120));
+  await page.click('#lang-ja');
+  await page.waitForFunction(() => /暗号化/.test((document.querySelector('#desktop-notice') || {}).textContent || ''), null, { timeout: 5000 }).catch(() => {});
+  const noticeJa = (await page.textContent('#desktop-notice').catch(() => '')) || '';
+  check('first-run screen: the same notice in Japanese', /データベースもデータフォルダー全体も暗号化しません/.test(noticeJa) && /保護されたバックアップ/.test(noticeJa) && /アカウントだけでは、データベースは暗号化されません/.test(noticeJa), noticeJa.slice(0, 80));
+  await page.click('#lang-en');
+  await page.waitForFunction(() => /Desktop mode/.test((document.querySelector('#desktop-notice') || {}).textContent || ''), null, { timeout: 5000 }).catch(() => {});
   await page.fill('#lu', 'admin');
   await page.fill('#lp', 'correct-horse-9');
   await page.click('#f button.pri');

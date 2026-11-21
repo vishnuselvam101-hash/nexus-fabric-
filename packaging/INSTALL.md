@@ -57,6 +57,21 @@ To add a launcher to your menu, copy `nexus-fabric.desktop` to `~/.local/share/a
 - Windows: `%LOCALAPPDATA%\NexusFabric\data`
 - Linux: `$XDG_DATA_HOME/nexus-fabric` (or `~/.local/share/nexus-fabric`)
 
+### How your data is protected
+
+- This program does not encrypt its database or the whole data folder.
+- Stored files have their own encryption, but that does not make the data on this computer an encrypted data set.
+- How well the data is protected depends on this computer and how it is run. Recommended:
+  - disk encryption (for example BitLocker on Windows, LUKS on Linux);
+  - an individual account on the computer for each person;
+  - access to the data folder only for the people who use this program;
+  - protected backups of the data folder, kept apart from this computer.
+- Disk encryption protects a lost or stolen computer. It does not protect a copy of the data folder taken while the
+  disk is unlocked, and it does not replace encryption by the program itself.
+- A computer account by itself does not encrypt the database.
+
+The first-run screen in the browser shows the same information.
+
 ### Uninstall
 
 - Windows installer: *Settings > Apps > NEXUS FABRIC*, or the *Uninstall NEXUS FABRIC* Start-menu shortcut. Your data is kept unless you tick **Also delete my data**.
@@ -113,6 +128,20 @@ cd nexus-fabric-<version>
 
 - Windows: `%LOCALAPPDATA%\NexusFabric\data`
 - Linux: `$XDG_DATA_HOME/nexus-fabric`（または `~/.local/share/nexus-fabric`）
+
+### データの保護について
+
+- このプログラムは、データベースもデータフォルダー全体も暗号化しません。
+- 保存されたファイルには個別の暗号化がありますが、それによってこのコンピューター上のデータ全体が暗号化されるわけではありません。
+- データがどの程度保護されるかは、このコンピューターとその運用環境によって決まります。推奨事項:
+  - ディスクの暗号化（例: Windows の BitLocker、Linux の LUKS）
+  - 利用者ごとに、このコンピューターの個別アカウントを使うこと
+  - データフォルダーへのアクセスを、このプログラムの利用者だけに限定すること
+  - データフォルダーの保護されたバックアップを、このコンピューターとは別の場所に保管すること
+- ディスクの暗号化は、紛失・盗難にあったコンピューターを保護します。ディスクのロックが解除されている間に取られたデータフォルダーのコピーは保護せず、プログラム自体による暗号化の代わりにもなりません。
+- コンピューターのアカウントだけでは、データベースは暗号化されません。
+
+ブラウザーの初回設定画面にも同じ内容が表示されます。
 
 ### アンインストール
 

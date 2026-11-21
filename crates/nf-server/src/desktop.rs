@@ -204,6 +204,7 @@ pub(crate) async fn run(args: &[String]) -> Result<(), String> {
         trusted_proxies: Vec::new(),
         setup_token: Some(token.clone()),
         request_timeout: Duration::from_secs(120),
+        desktop: true,
     };
     // The same limits as server mode, without reading the NF_* server settings.
     let limits = crate::Limits {
