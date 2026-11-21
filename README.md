@@ -2,7 +2,7 @@
 
 Engineering Drawing-to-Manufacturing Geometry System: converts engineering drawings (PDF, images, scans, CAD) into mathematically verified, manufacturing-ready DXF, with traceable engineering decisions and measurable accuracy.
 
-AI interprets the drawing; deterministic mathematical engines calculate; independent verification challenges the result; an authorised engineer releases it.
+A person enters the dimensions; deterministic mathematical engines calculate; independent verification challenges the result; an authorised engineer would release it (engineer release is not implemented in this development build, so nothing is released).
 
 ## Software
 
