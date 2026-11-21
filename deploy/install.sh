@@ -10,6 +10,8 @@
 #     account gets a copy of the sources in its own build directory (NF_BUILD_DIR, default ~/.cache/nexus-fabric-build)
 #     and never writes the checkout; root only reads the finished binary back from it;
 #   - or a prebuilt binary: NF_BINARY=/path/to/nf-server NF_BINARY_SHA256=<its SHA-256>, checked before anything is installed.
+#     A prebuilt install does not install or update the PDF to DXF converter nf-pdf2dxf (it has no checksum here); the
+#     converter is built from the same source only when the server is built (task 3.1).
 # Re-runnable and safe to interrupt: everything is checked before the first change, and every file is written beside
 # its target and renamed into place. Before the switch to a new version, the binary, the unit and a copy of the database
 # are kept in /usr/local/lib/nexus-fabric/previous (the new version may migrate the database when it starts, and the old
@@ -58,6 +60,7 @@ main() {
     echo "install: TEST MODE: every path below $R"
   fi
   BIN="$R/usr/local/bin/nf-server"
+  PDF="$R/usr/local/bin/nf-pdf2dxf"
   UNIT="$R/etc/systemd/system/nf-server.service"
   DATA="$R/var/lib/nexus-fabric"
   CONF="$R/etc/nexus-fabric"
@@ -163,9 +166,9 @@ main() {
   exec 9<"$(dirname "$BIN")"
   flock -n 9 || die "another run of this script is installing right now"
   TPL="$(mktemp -d)"
-  trap 'rm -rf "$TPL"; rm -f "$BIN.new" "$UNIT.new" "$KEY.new"' EXIT
+  trap 'rm -rf "$TPL"; rm -f "$BIN.new" "$PDF.new" "$UNIT.new" "$KEY.new"' EXIT
   cp "$SCRIPT_DIR/nf-server.service" "$SCRIPT_DIR/Caddyfile" "$TPL/"
-  rm -f "$BIN.new" "$UNIT.new" "$KEY.new" "$STATE/verified.new"
+  rm -f "$BIN.new" "$PDF.new" "$UNIT.new" "$KEY.new" "$STATE/verified.new"
   if [ -d "$STATE" ]; then
     if [ ! -d "$PREV" ] && [ -d "$STATE/previous.old" ]; then mv "$STATE/previous.old" "$PREV"; fi
     rm -rf "$STATE/previous.new" "$STATE/previous.old"
@@ -174,6 +177,7 @@ main() {
   # ---------------------------------------------------------------- 3. the new program, staged beside the installed one
   if [ -n "$NF_BINARY" ]; then
     install -m 0755 "$NF_BINARY" "$BIN.new"
+    echo "install: NOTE: nf-pdf2dxf is not installed or updated by a prebuilt install (no checksum for it); PDF to DXF conversion uses the converter already installed, if any" >&2
     got="$(sha256 "$BIN.new")"
     if [ "$got" != "$NF_BINARY_SHA256" ]; then
       rm -f "$BIN.new"
@@ -196,6 +200,12 @@ main() {
     as_builder cat "$BUILD_DIR/target/release/nf-server" > "$BIN.new"
     chmod 0755 "$BIN.new"
     echo "built binary: SHA-256 $(sha256 "$BIN.new")"
+    # The PDF to DXF converter (task 3.1), built from the same sources and read back the same way; the server starts it
+    # from its own directory. Its failure stops the install: a server that refuses conversions is not what was asked for.
+    as_builder cargo build --release --locked -p nf-pdf --bin nf-pdf2dxf --manifest-path "$BUILD_DIR/src/Cargo.toml" --target-dir "$BUILD_DIR/target"
+    as_builder cat "$BUILD_DIR/target/release/nf-pdf2dxf" > "$PDF.new"
+    chmod 0755 "$PDF.new"
+    echo "built converter: SHA-256 $(sha256 "$PDF.new")"
   fi
 
   # ---------------------------------------------------------------- 4. service account, directories, key
@@ -267,6 +277,7 @@ main() {
   if [ "$good" = 1 ]; then
     mkdir -m 0700 "$STATE/previous.new"
     cp -p "$BIN" "$UNIT" "$STATE/previous.new/"
+    if [ -f "$PDF" ]; then cp -p "$PDF" "$STATE/previous.new/nf-pdf2dxf"; fi
     if ! snapshot_db "$STATE/previous.new"; then
       systemctl restart nf-server 2>/dev/null || true
       rm -rf "$STATE/previous.new"
@@ -282,6 +293,7 @@ main() {
 
   mv -f "$UNIT.new" "$UNIT"
   mv -f "$BIN.new" "$BIN"
+  if [ -f "$PDF.new" ]; then mv -f "$PDF.new" "$PDF"; fi
   systemctl daemon-reload || warn "systemctl daemon-reload failed"
   systemctl enable nf-server || warn "systemctl enable nf-server failed"
   systemctl restart nf-server || warn "systemctl restart nf-server failed"
@@ -299,6 +311,7 @@ main() {
     systemctl stop nf-server 2>/dev/null || true
     cp -p "$PREV/nf-server.service" "$UNIT.new"; mv -f "$UNIT.new" "$UNIT"
     cp -p "$PREV/nf-server" "$BIN.new"; mv -f "$BIN.new" "$BIN"
+    if [ -f "$PREV/nf-pdf2dxf" ]; then cp -p "$PREV/nf-pdf2dxf" "$PDF.new"; mv -f "$PDF.new" "$PDF"; else rm -f "$PDF"; fi
     db_note=""
     if [ -f "$PREV/nexus-fabric.sqlite" ]; then
       if restore_db; then db_note=" and its database were"; else warn "the database copy could not be restored; the previous version may refuse the database (see $STATE/failed-*)"; fi

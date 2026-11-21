@@ -692,3 +692,9 @@ dialog form{margin:0}
   .panel{break-inside:avoid}
   .gate details>.g-body{display:block}
 }
+/* PDF to DXF (task 3.1): a still line drawing of the converted file; deliberately not the pattern viewer */
+.chk{display:inline-flex;gap:var(--s1);align-items:center;margin-right:var(--s3);font-size:var(--t-m)}
+.cpv{display:block;width:100%;height:360px;border:1px solid var(--rule-2);border-radius:var(--r);background:var(--sheet)}
+.cpv path{fill:none;stroke:var(--ink-2);stroke-width:1}
+.cpv path.l-pdf_dashed{stroke-dasharray:4 3}
+.cpv path.l-pdf_fill{stroke:var(--ink-3)}

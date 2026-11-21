@@ -178,6 +178,7 @@ fn blank_report(sha256: String, bytes: usize, opts: &Options) -> Report {
         bbox_mm: None,
         dxf_bytes: 0,
         dxf_sha256: None,
+        isolation: Vec::new(),
     }
 }
 

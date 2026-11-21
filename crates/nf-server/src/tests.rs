@@ -2158,6 +2158,9 @@ async fn s2_page_corruption_is_not_reported_as_an_intact_log() {
         hash_slots: Semaphore::new(1),
         upload_slots: Semaphore::new(1),
         replay_slots: Semaphore::new(1),
+        pdf2dxf_exe: None,
+        convert_timeout: Duration::from_secs(1),
+        convert_slots: Arc::new(Semaphore::new(1)),
         anon_audit: Mutex::new((0, 0, 0)),
         verified: Mutex::new((-1, Default::default())),
         fault: Mutex::new(None),
@@ -3668,3 +3671,5 @@ fn rc01_compare_with_records_finds_every_difference() {
     });
     assert!(f.contains("engine identifier"), "{f}");
 }
+/// Task 3.1: PDF to DXF through the server.
+mod pdfconv;

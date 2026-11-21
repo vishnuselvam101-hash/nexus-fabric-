@@ -1,9 +1,10 @@
 //! PDF lexical analysis and object parsing over byte slices.
 //!
 //! Nothing here indexes untrusted data unchecked: every read goes through
-//! `get`, and nesting is bounded by the caller's depth limit.
+//! `get`. Building objects is bounded by a [`Budget`]: nesting depth, items per array
+//! or dictionary, items in total, and the wall-clock deadline.
 
-use crate::limits::{malformed, Fault};
+use crate::limits::{limit, malformed, Deadline, Fault, Limits, CHECK_EVERY};
 
 pub type Name = Vec<u8>;
 
@@ -361,14 +362,59 @@ impl<'a> Lexer<'a> {
     }
 }
 
+/// Bounds for building objects from tokens. `items` counts every array element and
+/// dictionary entry built with this budget; its owner decides when objects are released
+/// and the count may start again.
+#[derive(Clone, Debug)]
+pub struct Budget {
+    pub max_depth: usize,
+    pub max_collection_items: usize,
+    pub max_total_items: u64,
+    pub items: u64,
+    pub dl: Deadline,
+}
+
+impl Budget {
+    pub fn new(lim: &Limits, dl: Deadline) -> Self {
+        Budget {
+            max_depth: lim.max_nesting,
+            max_collection_items: lim.max_collection_items,
+            max_total_items: lim.max_total_items,
+            items: 0,
+            dl,
+        }
+    }
+
+    /// Accounts for one more item in a collection that already holds `held` items.
+    fn item(&mut self, held: usize) -> Result<(), Fault> {
+        if held >= self.max_collection_items {
+            return limit(
+                "collection_items",
+                "an array or dictionary has more items than the limit allows",
+            );
+        }
+        self.items += 1;
+        if self.items > self.max_total_items {
+            return limit(
+                "total_items",
+                "arrays and dictionaries hold more items than the limit allows",
+            );
+        }
+        if self.items.is_multiple_of(CHECK_EVERY) {
+            self.dl.check()?;
+        }
+        Ok(())
+    }
+}
+
 /// Parses one direct object starting at the lexer's position.
-pub fn parse_obj(lx: &mut Lexer, max_depth: usize) -> Result<Obj, Fault> {
+pub fn parse_obj(lx: &mut Lexer, b: &mut Budget) -> Result<Obj, Fault> {
     let t = lx.next()?;
-    obj_from_tok(lx, t, 0, max_depth)
+    obj_from_tok(lx, t, 0, b)
 }
 
 /// Builds an object from a token already read. `depth` counts open arrays and dictionaries.
-pub fn obj_from_tok(lx: &mut Lexer, t: Tok, depth: usize, max_depth: usize) -> Result<Obj, Fault> {
+pub fn obj_from_tok(lx: &mut Lexer, t: Tok, depth: usize, b: &mut Budget) -> Result<Obj, Fault> {
     match t {
         Tok::Num(v) => {
             // "n g R" is an indirect reference; anything else leaves the lexer where it was.
@@ -390,7 +436,7 @@ pub fn obj_from_tok(lx: &mut Lexer, t: Tok, depth: usize, max_depth: usize) -> R
         Tok::Name(n) => Ok(Obj::Name(n)),
         Tok::Str(s) => Ok(Obj::Str(s)),
         Tok::ArrOpen => {
-            if depth >= max_depth {
+            if depth >= b.max_depth {
                 return Err(Fault::Limit("nesting", "object nesting too deep".into()));
             }
             let mut items = Vec::new();
@@ -398,13 +444,16 @@ pub fn obj_from_tok(lx: &mut Lexer, t: Tok, depth: usize, max_depth: usize) -> R
                 match lx.next()? {
                     Tok::ArrClose => break,
                     Tok::Eof => return malformed("unterminated array"),
-                    other => items.push(obj_from_tok(lx, other, depth + 1, max_depth)?),
+                    other => {
+                        b.item(items.len())?;
+                        items.push(obj_from_tok(lx, other, depth + 1, b)?);
+                    }
                 }
             }
             Ok(Obj::Arr(items))
         }
         Tok::DictOpen => {
-            if depth >= max_depth {
+            if depth >= b.max_depth {
                 return Err(Fault::Limit("nesting", "object nesting too deep".into()));
             }
             let mut dict = Dict::default();
@@ -416,7 +465,8 @@ pub fn obj_from_tok(lx: &mut Lexer, t: Tok, depth: usize, max_depth: usize) -> R
                         if vt == Tok::DictClose {
                             break;
                         }
-                        let v = obj_from_tok(lx, vt, depth + 1, max_depth)?;
+                        b.item(dict.0.len())?;
+                        let v = obj_from_tok(lx, vt, depth + 1, b)?;
                         dict.0.push((key, v));
                     }
                     Tok::Eof => return malformed("unterminated dictionary"),
@@ -436,5 +486,87 @@ pub fn obj_from_tok(lx: &mut Lexer, t: Tok, depth: usize, max_depth: usize) -> R
         },
         Tok::ArrClose | Tok::DictClose => malformed("unbalanced closing delimiter"),
         Tok::Eof => malformed("unexpected end of data"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
+    use super::*;
+    use std::time::Duration;
+
+    fn budget(per_collection: usize, total: u64, dl: Deadline) -> Budget {
+        let lim = Limits {
+            max_collection_items: per_collection,
+            max_total_items: total,
+            ..Limits::default()
+        };
+        Budget::new(&lim, dl)
+    }
+
+    fn parse(text: &[u8], b: &mut Budget) -> Result<Obj, Fault> {
+        parse_obj(&mut Lexer::new(text, 0), b)
+    }
+
+    fn limit_name(r: Result<Obj, Fault>) -> Option<&'static str> {
+        match r {
+            Err(Fault::Limit(name, _)) => Some(name),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn items_are_bounded_per_collection() {
+        let dl = Deadline::after(Duration::from_secs(60));
+        assert!(parse(b"[1 2 3]", &mut budget(3, 100, dl)).is_ok());
+        assert_eq!(
+            limit_name(parse(b"[1 2 3 4]", &mut budget(3, 100, dl))),
+            Some("collection_items")
+        );
+        assert!(parse(b"<< /a 1 /b 2 /c 3 >>", &mut budget(3, 100, dl)).is_ok());
+        assert_eq!(
+            limit_name(parse(b"<< /a 1 /b 2 /c 3 /d 4 >>", &mut budget(3, 100, dl))),
+            Some("collection_items")
+        );
+    }
+
+    #[test]
+    fn items_are_bounded_in_total_across_nesting_and_calls() {
+        let dl = Deadline::after(Duration::from_secs(60));
+        // Outer array 3 items, inner arrays 2 + 2 + 1: 8 items.
+        let mut b = budget(100, 8, dl);
+        assert!(parse(b"[[1 2] [3 4] [5]]", &mut b).is_ok());
+        assert_eq!(b.items, 8);
+        // The count continues across objects until the owner resets it.
+        assert_eq!(limit_name(parse(b"[1]", &mut b)), Some("total_items"));
+        assert_eq!(
+            limit_name(parse(b"[[1 2] [3 4] [5 6]]", &mut budget(100, 8, dl))),
+            Some("total_items")
+        );
+    }
+
+    #[test]
+    fn the_deadline_is_checked_inside_collection_loops() {
+        let mut text = b"[".to_vec();
+        for _ in 0..5_000 {
+            text.extend_from_slice(b"0 ");
+        }
+        text.push(b']');
+        let expired = Deadline::after(Duration::ZERO);
+        assert_eq!(
+            parse(&text, &mut budget(1_000_000, 4_000_000, expired)),
+            Err(Fault::Timeout)
+        );
+        let mut dict = b"<<".to_vec();
+        for _ in 0..5_000 {
+            dict.extend_from_slice(b"/k 0 ");
+        }
+        dict.extend_from_slice(b">>");
+        assert_eq!(
+            parse(&dict, &mut budget(1_000_000, 4_000_000, expired)),
+            Err(Fault::Timeout)
+        );
+        // Below the check stride the parse finishes.
+        assert!(parse(b"[0 0 0]", &mut budget(10, 10, expired)).is_ok());
     }
 }

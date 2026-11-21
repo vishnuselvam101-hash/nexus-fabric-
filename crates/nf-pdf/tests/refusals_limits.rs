@@ -322,3 +322,170 @@ fn pathological_nesting_ends_quickly_with_default_limits() {
     assert!(started.elapsed() < Duration::from_secs(10));
     assert!(f.kind == FailureKind::Refused || f.kind == FailureKind::LimitExceeded);
 }
+
+// ---- Work plan 3.1: limits at their real values, and the review findings RC-05 and RC-23 ----
+
+/// A page that also draws one line, so that it converts when nothing is refused.
+fn page_then_line(content_before: &[u8]) -> Vec<u8> {
+    let mut content = content_before.to_vec();
+    content.extend_from_slice(b" 0 0 m 1 1 l S");
+    page_pdf(&PageSpec::new(&content))
+}
+
+fn repeat(item: &str, n: usize) -> String {
+    item.repeat(n)
+}
+
+#[test]
+fn limit_operands_at_the_default_value() {
+    // 1,024 operands may wait for an operator; the 1,025th is refused (it was dropped silently).
+    let ok = page_then_line(format!("{}n", repeat("0 ", 1_024)).as_bytes());
+    convert(&ok, &options(1.0)).expect("1,024 operands are within the limit");
+    let over = page_then_line(format!("{}n", repeat("0 ", 1_025)).as_bytes());
+    assert_eq!(limited(&over, &options(1.0)), "operands");
+}
+
+#[test]
+fn limit_operands_counts_true_false_and_null() {
+    // These keywords bypassed the operand limit: 'true' repeated grew memory without bound.
+    for word in ["true ", "false ", "null "] {
+        let over = page_then_line(format!("{}n", repeat(word, 1_025)).as_bytes());
+        assert_eq!(limited(&over, &options(1.0)), "operands", "{word}");
+    }
+}
+
+#[test]
+fn limit_collection_items_at_the_default_value() {
+    let ok = page_then_line(format!("[{}] n", repeat("0 ", 1_000_000)).as_bytes());
+    convert(&ok, &options(1.0)).expect("1,000,000 array items are within the limit");
+    let over = page_then_line(format!("[{}] n", repeat("0 ", 1_000_001)).as_bytes());
+    assert_eq!(limited(&over, &options(1.0)), "collection_items");
+}
+
+#[test]
+fn limit_collection_items_in_dictionaries_and_document_objects() {
+    let opts = opts_with(|l| l.max_collection_items = 10);
+    let dict = page_then_line(format!("/OC << {}>> BDC EMC", repeat("/k 0 ", 11)).as_bytes());
+    assert_eq!(limited(&dict, &opts), "collection_items");
+    let mut spec = PageSpec::new(b"0 0 m 1 1 l S");
+    let extra = format!("/Extra [{}]", repeat("0 ", 11));
+    spec.extra = extra;
+    assert_eq!(limited(&page_pdf(&spec), &opts), "collection_items");
+}
+
+#[test]
+fn limit_total_items_of_one_operator_with_default_values() {
+    // Five arrays of 999,999 items: each within the collection limit, 4,999,995 in total.
+    let array = format!("[{}] ", repeat("0 ", 999_999));
+    let bytes = page_then_line(format!("{}n", array.repeat(5)).as_bytes());
+    assert_eq!(limited(&bytes, &options(1.0)), "total_items");
+}
+
+#[test]
+fn limit_total_items_of_the_document_structure() {
+    // The page dictionary's items count with those of the catalogue and the page tree.
+    let mut spec = PageSpec::new(b"0 0 m 1 1 l S");
+    spec.extra = format!("/Extra [{}]", repeat("0 ", 30));
+    let bytes = page_pdf(&spec);
+    convert(&bytes, &options(1.0)).expect("converts with default limits");
+    assert_eq!(
+        limited(&bytes, &opts_with(|l| l.max_total_items = 20)),
+        "total_items"
+    );
+}
+
+#[test]
+fn limit_decoded_bytes_is_checked_inside_ascii85() {
+    // 1,000 'z' make 4,000 bytes; the bad character after them was reached (malformed) before
+    // the budget was checked. Now the loop stops at the budget.
+    let mut data = vec![b'z'; 1_000];
+    data.extend_from_slice(b"\x7f~>");
+    let bytes = page_with_content("/Filter /ASCII85Decode", &data);
+    assert_eq!(
+        limited(&bytes, &opts_with(|l| l.max_decoded_bytes = 1_000)),
+        "decoded_bytes"
+    );
+}
+
+#[test]
+fn limit_decoded_bytes_is_checked_inside_ascii_hex() {
+    let mut data = b"00".repeat(1_000);
+    data.extend_from_slice(b"x>");
+    let bytes = page_with_content("/Filter /ASCIIHexDecode", &data);
+    assert_eq!(
+        limited(&bytes, &opts_with(|l| l.max_decoded_bytes = 500)),
+        "decoded_bytes"
+    );
+}
+
+#[test]
+fn ascii85_after_flate_and_runlength_stops_at_the_budget_with_default_limits() {
+    // RC-05: a 4 KB file. Flate gives 4,096,006 bytes (below the 4 MiB ratio check), RunLength
+    // expands them 64 times to 262,144,003 bytes of 'z' (within 256 MiB), and ASCII85 would turn
+    // each 'z' into 4 bytes: about 1 GiB was allocated before the old check after the stage.
+    let mut rl = Vec::with_capacity(4_100_000);
+    for _ in 0..(262_144_000 / 128) {
+        rl.extend_from_slice(&[129, b'z']);
+    }
+    rl.extend_from_slice(&[2, 0x7f, b'~', b'>', 128]);
+    let packed = zlib(&rl);
+    assert!(packed.len() < 64 * 1024, "the crafted stream stays small");
+    let bytes = page_with_content(
+        "/Filter [/FlateDecode /RunLengthDecode /ASCII85Decode]",
+        &packed,
+    );
+    assert_eq!(limited(&bytes, &options(1.0)), "decoded_bytes");
+}
+
+#[test]
+fn limit_wall_clock_is_checked_while_scanning_a_damaged_file() {
+    // RC-23: no cross-reference data, so the file is scanned for 'obj'. The old check ran only
+    // when an 'obj' started at a multiple of 65,536, which these offsets never are.
+    let mut bytes = b"%PDF-1.4\n".to_vec();
+    bytes.extend_from_slice(&b"x obj ".repeat(1_000));
+    let mut o = options(1.0);
+    o.time_limit = Duration::ZERO;
+    assert_eq!(limited(&bytes, &o), "wall_clock");
+}
+
+#[test]
+fn limit_wall_clock_is_checked_while_searching_for_trailers() {
+    // Each 'trailer' starts a parse whose hex string runs to the end of the file: without a
+    // check in this loop the search is quadratic in the file size.
+    let mut bytes = b"%PDF-1.4\n".to_vec();
+    bytes.extend_from_slice(&b"trailer[<".repeat(100));
+    bytes.push(b'>');
+    let mut o = options(1.0);
+    o.time_limit = Duration::ZERO;
+    assert_eq!(limited(&bytes, &o), "wall_clock");
+}
+
+#[test]
+fn the_trailer_search_of_a_damaged_file_is_linear() {
+    // 20,000 candidates whose parses each ran to the end of the file took seconds; each
+    // candidate is now read only up to the next 'trailer'.
+    let mut bytes = b"%PDF-1.4\n".to_vec();
+    bytes.extend_from_slice(&b"trailer[<".repeat(20_000));
+    bytes.push(b'>');
+    let started = std::time::Instant::now();
+    let (code, _) = refused(&bytes, &options(1.0));
+    assert_eq!(code, "malformed");
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
+fn limit_input_bytes_at_the_default_value() {
+    let limit = Limits::default().max_input_bytes;
+    assert_eq!(limit, 64 << 20);
+    let exact = page_of_exact_size(limit);
+    assert_eq!(exact.len(), limit);
+    let c = convert(&exact, &options(1.0)).expect("a file of exactly 64 MiB converts");
+    assert_eq!(c.report.input_bytes, limit);
+    let over = page_of_exact_size(limit + 1);
+    assert_eq!(over.len(), limit + 1);
+    assert_eq!(limited(&over, &options(1.0)), "input_bytes");
+}

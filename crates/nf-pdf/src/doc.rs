@@ -4,14 +4,15 @@
 //! When the cross-reference data cannot be used, the file is scanned for
 //! `N G obj` headers and the trailer is taken from the last dictionary that
 //! carries /Root. Every object load counts against the object limit and checks
-//! the wall-clock deadline.
+//! the wall-clock deadline; every array and dictionary item counts against the item
+//! limits in [`Doc::parse`].
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
 
 use crate::filters::decode_chain;
-use crate::lexer::{obj_from_tok, parse_obj, uint, Dict, Lexer, Name, Obj, Stream, Tok};
-use crate::limits::{limit, malformed, Deadline, Fault, Limits};
+use crate::lexer::{obj_from_tok, parse_obj, uint, Budget, Dict, Lexer, Name, Obj, Stream, Tok};
+use crate::limits::{limit, malformed, Deadline, Fault, Limits, CHECK_EVERY};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Entry {
@@ -34,6 +35,10 @@ pub struct Doc<'a> {
     pub trailer: Dict,
     /// Bytes materialised from streams so far (checked against `Limits::max_decoded_bytes`).
     pub decoded: usize,
+    /// Item budget for objects of the document structure. Objects are cached for the whole
+    /// conversion, so the count is never reset, except after an object that was only inspected
+    /// during reconstruction and dropped.
+    pub parse: Budget,
     objects_parsed: usize,
     entries: BTreeMap<u32, Entry>,
     cache: HashMap<u32, Rc<Obj>>,
@@ -108,12 +113,14 @@ fn scan_digits(s: &[u8]) -> f64 {
 impl<'a> Doc<'a> {
     /// Opens a document: cross-reference data first, reconstruction if that fails.
     pub fn open(data: &'a [u8], lim: Limits, dl: Deadline) -> Result<Doc<'a>, Fault> {
+        let parse = Budget::new(&lim, dl);
         let mut doc = Doc {
             data,
             lim,
             dl,
             trailer: Dict::default(),
             decoded: 0,
+            parse,
             objects_parsed: 0,
             entries: BTreeMap::new(),
             cache: HashMap::new(),
@@ -241,7 +248,7 @@ impl<'a> Doc<'a> {
                 table.push((num, entry));
             }
         }
-        let trailer = match parse_obj(&mut lx, self.lim.max_nesting)? {
+        let trailer = match parse_obj(&mut lx, &mut self.parse)? {
             Obj::Dict(d) => d,
             _ => return malformed("trailer is not a dictionary"),
         };
@@ -343,7 +350,7 @@ impl<'a> Doc<'a> {
             return malformed("object header expected");
         }
         let t = lx.next()?;
-        let value = obj_from_tok(&mut lx, t, 0, self.lim.max_nesting)?;
+        let value = obj_from_tok(&mut lx, t, 0, &mut self.parse)?;
         if let Obj::Dict(d) = &value {
             let t2 = lx.next()?;
             if is_kw(&t2, b"stream") {
@@ -456,10 +463,12 @@ impl<'a> Doc<'a> {
         }
         let mut map = BTreeMap::new();
         let mut i = 0usize;
+        let mut rounds = 0u64;
         while let Some(pos) = find(self.data, i, b"obj") {
-            if pos.is_multiple_of(65_536) {
+            if rounds.is_multiple_of(CHECK_EVERY) {
                 self.dl.check()?;
             }
+            rounds += 1;
             if let Some((num, start)) = header_before(self.data, pos) {
                 if map.len() > self.lim.max_objects {
                     return limit("objects", "too many object headers in the file");
@@ -488,7 +497,7 @@ impl<'a> Doc<'a> {
         let start = os.first.saturating_add(off);
         let mut lx = Lexer::new(os.data.as_slice(), start);
         let t = lx.next()?;
-        obj_from_tok(&mut lx, t, 0, self.lim.max_nesting)
+        obj_from_tok(&mut lx, t, 0, &mut self.parse)
     }
 
     fn objstm(&mut self, stm: u32) -> Result<Rc<ObjStm>, Fault> {
@@ -636,11 +645,22 @@ impl<'a> Doc<'a> {
         let mut by_offset: Vec<(usize, u32)> = offsets.iter().map(|&(n, o)| (o, n)).collect();
         by_offset.sort_unstable();
         let mut best: Option<(usize, Dict)> = None;
-        let mut at = 0usize;
-        while let Some(pos) = find(self.data, at, b"trailer") {
-            at = pos + 7;
-            let mut lx = Lexer::new(self.data, at);
-            if let Ok(Obj::Dict(d)) = parse_obj(&mut lx, self.lim.max_nesting) {
+        let mut next = find(self.data, 0, b"trailer");
+        while let Some(pos) = next {
+            self.dl.check()?;
+            let at = pos + 7;
+            next = find(self.data, at, b"trailer");
+            // A candidate is read only up to the next 'trailer' keyword, so the candidate parses
+            // never overlap and the search stays linear in the file size.
+            let window = self
+                .data
+                .get(..next.unwrap_or(self.data.len()))
+                .unwrap_or(self.data);
+            let mut lx = Lexer::new(window, at);
+            let kept = self.parse.items;
+            let candidate = parse_obj(&mut lx, &mut self.parse);
+            self.parse.items = kept;
+            if let Ok(Obj::Dict(d)) = candidate {
                 if d.get(b"Root").is_some() {
                     best = Some((pos, d));
                 }
@@ -648,7 +668,12 @@ impl<'a> Doc<'a> {
         }
         for (off, num) in by_offset {
             self.dl.check()?;
-            let Ok((n, obj)) = self.parse_indirect_at(off) else {
+            // The object is only inspected here and dropped; an object used later is parsed
+            // again and counted then.
+            let kept = self.parse.items;
+            let parsed = self.parse_indirect_at(off);
+            self.parse.items = kept;
+            let Ok((n, obj)) = parsed else {
                 continue;
             };
             if n != num {

@@ -239,3 +239,92 @@ fn cli_rejects_missing_arguments() {
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("invalid_arguments"));
 }
+
+// ---- Work plan 3.1: --no-text, and the input limit at its real value ----
+
+#[test]
+fn no_text_option_writes_no_text_and_counts_it_as_not_requested() {
+    let mut o = options(1.0);
+    o.include_text = false;
+    let c = convert(&sample_page(), &o).expect("converts");
+    assert!(texts(&c.dxf, "PDF_TEXT").is_empty(), "no TEXT on PDF_TEXT");
+    assert_eq!(
+        polylines(&c.dxf, "PDF_STROKE").len(),
+        2,
+        "geometry is unchanged"
+    );
+    assert_eq!(
+        c.report.stats.text_skipped.get("text_not_requested"),
+        Some(&1)
+    );
+    let json = c.report.to_json();
+    assert!(json.contains("\"include_text\": false"), "{json}");
+    // The release marking is not text of the drawing and stays.
+    assert_eq!(texts(&c.dxf, "NF_NOT_RELEASED").len(), 2);
+}
+
+#[test]
+fn cli_no_text_flag_removes_text_entities() {
+    let dir = work_dir("cli_no_text");
+    let input = dir.join("in.pdf");
+    std::fs::write(&input, sample_page()).expect("write input");
+    let (code, stderr) = run_cli(&dir, &input, &["--mm-per-point", "1.0", "--no-text"]);
+    assert_eq!(code, 0, "{stderr}");
+    let dxf = std::fs::read(dir.join("out.dxf")).expect("dxf written");
+    assert!(
+        texts(&dxf, "PDF_TEXT").is_empty(),
+        "--no-text writes no PDF_TEXT"
+    );
+    let mut o = options(1.0);
+    o.include_text = false;
+    assert_eq!(dxf, convert(&sample_page(), &o).expect("converts").dxf);
+    let json = std::fs::read_to_string(dir.join("out.json")).expect("report written");
+    assert!(json.contains("\"include_text\": false"), "{json}");
+    assert!(json.contains("\"text_not_requested\": 1"), "{json}");
+    // Without the flag the same file has its text.
+    let (code, _) = run_cli(&dir, &input, &["--mm-per-point", "1.0"]);
+    assert_eq!(code, 0);
+    let dxf = std::fs::read(dir.join("out.dxf")).expect("dxf written");
+    assert_eq!(texts(&dxf, "PDF_TEXT").len(), 1);
+}
+
+/// A directory under the system temporary directory, removed when dropped.
+struct TempDir(PathBuf);
+
+impl TempDir {
+    fn new(name: &str) -> Self {
+        let dir = std::env::temp_dir().join(format!("nf-pdf-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        TempDir(dir)
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn cli_input_limit_is_64_mib_exactly() {
+    let limit = nf_pdf::Limits::default().max_input_bytes;
+    assert_eq!(limit, 64 << 20);
+    let tmp = TempDir::new("input-limit");
+    let input = tmp.0.join("in.pdf");
+    std::fs::write(&input, page_of_exact_size(limit)).expect("write input");
+    assert_eq!(std::fs::metadata(&input).expect("size").len(), limit as u64);
+    let (code, stderr) = run_cli(&tmp.0, &input, &["--mm-per-point", "1"]);
+    assert_eq!(code, 0, "a file of exactly 64 MiB converts: {stderr}");
+    let json = std::fs::read_to_string(tmp.0.join("out.json")).expect("report written");
+    assert!(json.contains(&format!("\"bytes\": {limit}")), "{json}");
+    std::fs::write(&input, page_of_exact_size(limit + 1)).expect("write input");
+    assert_eq!(
+        std::fs::metadata(&input).expect("size").len(),
+        limit as u64 + 1
+    );
+    let (code, stderr) = run_cli(&tmp.0, &input, &["--mm-per-point", "1"]);
+    assert_eq!(code, 3, "{stderr}");
+    assert!(stderr.contains("\"limit\": \"input_bytes\""), "{stderr}");
+    assert!(!tmp.0.join("out.dxf").exists(), "no DXF after a limit");
+}

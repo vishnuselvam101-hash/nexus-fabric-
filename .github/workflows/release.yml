@@ -25,6 +25,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Unit tests
         run: cargo test --workspace --locked
+      - name: PDF to DXF converter (task 3.1)
+        # Compiled and tested on both systems: `cargo test --workspace` above runs the nf-pdf tests (the isolation
+        # tests are Linux-only; on Windows the worker's Job Object is compiled and the converter's other tests run).
+        # Not yet in the packages: THIRD_PARTY_NOTICES.txt is generated from nf-server's dependency graph only.
+        run: cargo build --release --locked -p nf-pdf --bin nf-pdf2dxf
       - name: Install NSIS (Windows)
         if: runner.os == 'Windows'
         run: |

@@ -18,6 +18,7 @@
 mod crypto;
 mod desktop;
 mod membrane;
+mod pdfconv;
 mod storage;
 #[cfg(test)]
 mod tests;
@@ -63,6 +64,12 @@ pub(crate) struct App {
     hash_slots: Semaphore,
     upload_slots: Semaphore,
     replay_slots: Semaphore,
+    /// The PDF to DXF converter program (task 3.1); `None`: conversions are unavailable.
+    pdf2dxf_exe: Option<PathBuf>,
+    /// The server's own kill timeout for one conversion.
+    convert_timeout: Duration,
+    /// One conversion at a time; the permit is held by the task that waits for the child.
+    convert_slots: Arc<Semaphore>,
     /// (window start, unauthenticated audit rows written, suppressed) — V-34.
     anon_audit: Mutex<(u64, u32, u32)>,
     /// (database data_version, jobs whose stored summary was checked against the full result at that version).
@@ -1337,16 +1344,27 @@ async fn get_project(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -
     let mut p: Value = db.query_row("SELECT id, name, description, created_by, created_at FROM projects WHERE id = ?", params![id], |r| Ok(json!({ "id": r.get::<_, i64>(0)?, "name": r.get::<_, String>(1)?, "description": r.get::<_, String>(2)?, "created_by": r.get::<_, String>(3)?, "created_at": r.get::<_, i64>(4)? })))?;
     let docs = q_all(
         &db,
-        "SELECT id, filename, detected_type, size, sha256, extension_mismatch, created_by, created_at FROM documents WHERE project_id = ? ORDER BY id",
+        "SELECT id, filename, detected_type, size, sha256, extension_mismatch, created_by, created_at, conversion_id FROM documents WHERE project_id = ? ORDER BY id",
         params![id],
         |r| {
             Ok(
-                json!({ "id": r.get::<_, i64>(0)?, "filename": r.get::<_, String>(1)?, "detected_type": r.get::<_, String>(2)?, "size": r.get::<_, i64>(3)?, "sha256": r.get::<_, String>(4)?, "extension_mismatch": r.get::<_, bool>(5)?, "created_by": r.get::<_, String>(6)?, "created_at": r.get::<_, i64>(7)? }),
+                json!({ "id": r.get::<_, i64>(0)?, "filename": r.get::<_, String>(1)?, "detected_type": r.get::<_, String>(2)?, "size": r.get::<_, i64>(3)?, "sha256": r.get::<_, String>(4)?, "extension_mismatch": r.get::<_, bool>(5)?, "created_by": r.get::<_, String>(6)?, "created_at": r.get::<_, i64>(7)?, "conversion_id": r.get::<_, Option<i64>>(8)? }),
             )
         },
     )?;
+    // PDF to DXF conversions of this project (task 3.1), newest first.
+    let conversions = q_all(
+        &db,
+        &format!(
+            "SELECT {} FROM pdf_conversions c WHERE c.project_id = ? ORDER BY c.id DESC LIMIT 200",
+            pdfconv::CONV_COLS
+        ),
+        params![id],
+        pdfconv::conv_row,
+    )?;
     let snapshot: Option<String> = db.query_row("SELECT id FROM records WHERE project_id = ? AND kind = 'snapshot' ORDER BY rowid DESC LIMIT 1", params![id], |r| r.get(0)).optional()?;
     p["documents"] = json!(docs);
+    p["conversions"] = json!(conversions);
     p["calculations"] = json!(calc_rows(
         &app,
         &db,
@@ -3873,6 +3891,9 @@ pub(crate) fn router(app: Arc<App>) -> Router {
         // the upload handler reads its body itself, after authentication, with its own limit (V-35)
         .route("/api/projects/{id}/documents", post(upload))
         .route("/api/projects/{id}/calculations", post(calculate))
+        .route("/api/documents/{id}/pdf-to-dxf", post(pdfconv::convert))
+        .route("/api/pdf-conversions/{id}", get(pdfconv::get_conversion))
+        .route("/api/pdf-conversions/{id}/{file}", get(pdfconv::get_file))
         .route("/api/calculations", get(list_calcs))
         .route("/api/calculations/{id}", get(get_calc))
         .route("/api/calculations/{id}/replay", post(replay))
@@ -4006,6 +4027,7 @@ impl Config {
 pub(crate) fn build_app(cfg: Config) -> Result<Arc<App>, String> {
     let (mut db, key) = storage::open_storage(&cfg.data_dir, &cfg.key_path)?;
     storage::remove_stale_temporaries(&cfg.data_dir);
+    pdfconv::remove_stale_work(&cfg.data_dir);
     let n = rematerialise_states(&mut db)
         .map_err(|e| format!("cannot evaluate stored jobs at start-up: {e}"))?;
     if n > 0 {
@@ -4076,6 +4098,9 @@ pub(crate) fn build_app(cfg: Config) -> Result<Arc<App>, String> {
         hash_slots: Semaphore::new(2),
         upload_slots: Semaphore::new(4),
         replay_slots: Semaphore::new(2),
+        pdf2dxf_exe: pdfconv::default_converter(),
+        convert_timeout: pdfconv::DEFAULT_TIMEOUT,
+        convert_slots: Arc::new(Semaphore::new(1)),
         anon_audit: Mutex::new((0, 0, 0)),
         verified: Mutex::new((-1, Default::default())),
         #[cfg(test)]
