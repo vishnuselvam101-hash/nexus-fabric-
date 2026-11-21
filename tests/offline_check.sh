@@ -5,6 +5,8 @@
 #  2. dynamic: the API suite, the browser suite and the desktop-mode suite run inside a network namespace that has
 #     only the loopback interface (needs root and `unshare`; skipped with a clear message otherwise).
 # Usage: bash tests/offline_check.sh            (build first: cargo build --release)
+#        NF_OFFLINE_DYNAMIC=0 bash tests/offline_check.sh   static part only; the dynamic part is reported as not run
+#        (for a host that also runs a live service, where the root part must not run: CLI_WORK_PLAN.md task 0.1)
 # Exits 0 only if every part that ran passed. Development build. Not validated. Not for manufacturing.
 set -u
 cd "$(dirname "$0")/.."
@@ -21,6 +23,9 @@ if grep -q "connect-src 'self'" crates/nf-server/src/main.rs && grep -q "default
   say "ok   - content policy: default none, connections to the program itself only"
 else say "FAIL - content policy does not restrict connections to the program itself"; fail=1; fi
 
+if [ "${NF_OFFLINE_DYNAMIC:-1}" = 0 ]; then
+  say "SKIP - dynamic part disabled by NF_OFFLINE_DYNAMIC=0; not run"; exit $fail
+fi
 if [ "$(id -u)" != 0 ] || ! command -v unshare >/dev/null; then
   say "SKIP - dynamic part needs root and unshare; not run"; exit $fail
 fi

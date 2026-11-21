@@ -18,12 +18,12 @@ seen to pass on the stated commit; "not run" is never written as passed.
 
 | Task | Subject | Status | Commit | Note |
 |---|---|---|---|---|
-| 0.1 | Working on the live server made safe | in progress | | facts under the task |
+| 0.1 | Working on the live server made safe | done | this commit | facts under the task; `nf-sandbox` + `nf-verify` |
 | 0.2 | Readiness and registers tell the truth | not started | | |
 | 0.3 | The two near-tangent FAILs (D4) | not started | | |
-| 1.1 | Shallow and near-180° branch angles | blocked | | owner decision pending (asked 20 Nov) |
+| 1.1 | Shallow and near-180° branch angles | not started | | decided by the CLI under the owner's delegation (below): the plan's proposal |
 | 1.2 | A true error bound everywhere | not started | | |
-| 1.3 | Every convention stated in the DXF and the result | not started | | engine-version bump: ask the owner |
+| 1.3 | Every convention stated in the DXF and the result | not started | | |
 | 1.4 | Surface attribute for every family | not started | | |
 | 1.5 | Checks that do not depend on the construction | not started | | |
 | 1.6 | Sampling density | not started | | |
@@ -49,6 +49,14 @@ seen to pass on the stated commit; "not run" is never written as passed.
 | 4.6 | The live server | not started | | only when the owner says so |
 | 5.x | Later work | not started | | ask the owner before any of it |
 | 6.x | What only people can supply | tracked | | |
+
+**Owner decision, 21 Nov 2026 (in the CLI session).** Asked how far the CLI may decide on its own, the owner answered:
+"like you do which is best at last i need this complete software". The CLI therefore takes the decisions this plan
+reserves for the owner — the shallow-angle rule of 1.1 (the plan's proposal), engine-version bumps (one per task that
+changes results, with older results marked for recomputation by G21), and implementation of the design documents
+after an adversarial review — and reports each one. Not covered, still only on the owner's explicit word: anything on
+the live server (4.6), pull requests, tags and releases (rule 10), and any value only a fabrication engineer can
+give (rule 4).
 
 ---
 
@@ -98,6 +106,84 @@ task belongs to; then push.
   the root part of `tests/offline_check.sh`, or any command that touches the live service, Caddy or its data.
 - **Recommend to the owner:** a separate development machine. Until then, heavy runs outside working hours.
 - **Done when:** the four facts are written in `docs/project/CLI_WORK_PLAN.md` under this task.
+
+#### 0.1 — the four facts (CLI, 21 Nov 2026, host `srv2072986`, the Hostinger VPS: 8 CPUs, 31 GiB memory)
+
+**(a) Account and folders.** The CLI works as `root` in `/root/nf-work`, its own clone of this branch. The live service
+is the systemd unit `nf-server.service`: user `nexusfabric`, binary `/usr/local/bin/nf-server`, data
+`/var/lib/nexus-fabric`, key `/etc/nexus-fabric/master.key`, listening on `127.0.0.1:8792`, hardened by its unit
+(`ProtectSystem=strict`, `ProtectHome=true`, `PrivateTmp`, `MemoryMax=1G`). It was built from the separate clone
+`/root/nexus-fabric-`; backups are in `/root/backups/nexus-fabric`. **Stated plainly: `root` is not separated from
+the live service by privilege; root could read or change all of it.** The separation is therefore made structural:
+every build, test suite, validation run and throw-away server of this work runs through `nf-sandbox`, a host-local
+wrapper (`/usr/local/bin/nf-sandbox`, not in the repository) that starts the command as its own transient systemd
+service:
+
+```
+systemd-run --wait --pipe --collect --same-dir \
+  -p PrivateNetwork=yes \
+  -p InaccessiblePaths=/var/lib/nexus-fabric -p InaccessiblePaths=/etc/nexus-fabric \
+  -p InaccessiblePaths=/root/nexus-fabric- -p InaccessiblePaths=-/root/backups/nexus-fabric \
+  -p InaccessiblePaths=-/root/.config/nf-backup \
+  -p ProtectSystem=full -p PrivateTmp=yes \
+  -p MemoryMax=8G -p CPUQuota=400% -p Nice=10 -p IOSchedulingClass=idle -p TasksMax=4096 \
+  -E CARGO_NET_OFFLINE=true -E CARGO_BUILD_JOBS=4 (+ the nf-cargo toolchain: stable, as GitHub CI) -- <command>
+```
+
+Checked from inside on 21 Nov 2026: the live data folder shows 0 entries (4 on the host) and the backup folder 0
+(9 on the host); `/etc/nexus-fabric/master.key` and `/root/nexus-fabric-/Cargo.toml` are inaccessible; writing to
+`/usr/local/bin` or `/etc/caddy` fails (read-only), so the live binary, the unit files and the Caddy configuration
+cannot be replaced from inside. Outside the sandbox the CLI only edits files in `/root/nf-work`, runs git and reads
+documents. `nf-verify <log dir>` (also host-local) runs the whole list of section B inside one sandbox and writes one
+log per suite; its validation output goes to the log folder, never over `validation/results/latest.json`.
+
+**(b) Ports.** Every port a suite or tool binds or calls by default:
+
+| Suite or tool | Port | On this host (listening, 21 Nov 2026) |
+|---|---|---|
+| `tests/e2e_smoke.sh` (`NF_TEST_PORT`) | 8791 | **taken** by another service (`vnxco.web`) |
+| `tests/security_smoke.sh` (`NF_TEST_PORT`) | 8792 | **the live port on this host**: the live service was installed by hand on 8792 instead of the product default 8787 |
+| `tests/ui_smoke.js` (`NF_BASE`), fresh server | 8793 | free |
+| `tests/desktop_smoke.js` | 8860–8869 (plan: 8861) | 8861 and 8857 **taken** (AI-OS application servers) |
+| `tests/security_r6.sh` (`NF_TEST_PORT`) | 8820 | free |
+| `tests/release_verify.js`, `packaging/verify/*` | 8870–8879 | free |
+| `tests/offline_check.sh`, dynamic part | 8791, 8793, 8867 in its own namespace | not run on this host |
+| `validation/run_all.py`, `validation/seeded_faults.py` | 8802 | free |
+| `validation/exact_onsurface_check.py` | 8856, fixed (task 1.8) | free |
+| `stress/run.py` / `stress/bottleneck.py` | 8810–8819 / 8816 | never run on this host |
+| `docs/design/tools/seed_demo.js`, `capture_screens.js` | 8787 | **taken** by AI-OS |
+| `docs/design/tools/capture_r3.js` | 8880, 8881 | free |
+| `nf-server --desktop` default | 8787, then any free port | **taken** by AI-OS |
+| Rust tests (`cargo test`) | `127.0.0.1:0` (ephemeral) or no socket at all | — |
+
+Other listeners in 8700–8899 on the host: 8800 (VNX cloud). **Proof that no suite reaches the live port:** every suite
+runs inside `nf-sandbox`, whose network namespace contains only its own loopback interface (`ip link` lists `lo`
+only). From inside, connecting to `127.0.0.1:8792` and `127.0.0.1:8787` fails (curl exit 7, connection refused),
+and binding `127.0.0.1:8792` inside succeeds because it is a different socket namespace. So the default ports above,
+including 8792, are the sandbox's own: a suite can neither send a request to the live service nor occupy its port.
+Outside the sandbox, `security_smoke.sh` without `NF_TEST_PORT` would send one `GET /` to the live service before its
+V-38 guard refuses; it is never run that way here.
+
+**(c) CPU and memory limits.** Read from inside the sandbox's own cgroup: `cpu.max` 400000/100000 (4 of the 8
+CPUs), `memory.max` 8 GiB, `pids.max` 4096; niceness 10; I/O class idle; cargo uses 4 jobs. Investigation runs use
+`NF_SANDBOX_CPU=100%` (one CPU). The live service keeps its own 1 GiB limit. A baseline of the whole list of section
+B ran under these limits on 21 Nov 2026 from 00:54 UTC: build, 263 unit and integration tests, clippy, fmt, 89 API,
+66 security, 194 browser, 18 desktop (on 8861 inside the sandbox), i18n, notices, offline (static part) all pass;
+quick corpus 173 cases (the corpus grew with 0.4.2's boundary cases; the plan's 155 is the older count): 112 agree,
+61 correctly refused, 0 disagree, 0 wrongly accepted, 0 wrongly refused, 0 errors (248 s).
+
+**(d) Nothing targets the live address.** No suite, tool or script of this work is given `127.0.0.1:8792` or
+`fabric.vsnexustechnologies.com`, and the private network namespace makes it impossible from inside the sandbox.
+The CLI sends no request to the live service; its account and paths above were read from the unit file
+(`systemctl cat nf-server.service`). The dynamic (root) part of `tests/offline_check.sh` is not run on this host:
+`NF_OFFLINE_DYNAMIC=0` (new) runs the static part and reports the dynamic part as "not run". `stress/run.py` and
+`tests/security_r6.sh` against anything but a sandboxed throw-away server are not run here.
+
+**Recommendation to the owner.** A separate development machine (any Linux computer or a second small VPS) removes
+the remaining risk, which is a mistake made outside the sandbox by an account that has root on the live host. Until
+then: everything through `nf-sandbox`, and heavy runs (the full corpus, 17–25 minutes; release builds) outside the
+working hours of the live server's users if the owner wants that — Japanese working hours 09:00–18:00 JST are
+00:00–09:00 UTC; the baseline above ran inside them, under the limits.
 
 ### 0.2 Readiness and registers tell the truth
 - `docs/project/READINESS.md`, row "Geometry verified": rewrite from the full-corpus run on 0.4.2 (1392 cases,
