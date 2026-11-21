@@ -63,6 +63,9 @@ pub struct Report {
     pub bbox_mm: Option<[f64; 4]>,
     pub dxf_bytes: usize,
     pub dxf_sha256: Option<String>,
+    /// How the converting process was isolated, as (aspect, description) pairs; set by the
+    /// command-line program's worker, empty (written as null) for library use.
+    pub isolation: Vec<(&'static str, String)>,
 }
 
 /// Facts the report states but the converter does not compute itself.
@@ -128,6 +131,16 @@ impl Report {
         let _ = writeln!(o, "  \"tool\": \"nf-pdf2dxf\",");
         let _ = writeln!(o, "  \"converter_version\": {},", json_str(crate::VERSION));
         let _ = writeln!(o, "  \"status\": {},", json_str(self.status));
+        if self.isolation.is_empty() {
+            let _ = writeln!(o, "  \"isolation\": null,");
+        } else {
+            let parts: Vec<String> = self
+                .isolation
+                .iter()
+                .map(|(k, v)| format!("{}: {}", json_str(k), json_str(v)))
+                .collect();
+            let _ = writeln!(o, "  \"isolation\": {{{}}},", parts.join(", "));
+        }
         let _ = writeln!(
             o,
             "  \"refusal\": {{\"code\": {}, \"limit\": {}, \"message\": {}}},",

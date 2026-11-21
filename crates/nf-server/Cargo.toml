@@ -24,3 +24,5 @@ uem = { version = "0.1.0", path = "../uem" }
 [dev-dependencies]
 tower = { version = "0.5.3", features = ["util"] }
 futures-core = "0.3"
+# Test fixtures of the PDF conversion tests (compressed content streams); not in the server.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }

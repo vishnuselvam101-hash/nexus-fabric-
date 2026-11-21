@@ -316,10 +316,16 @@ fn parse_cmap(data: &[u8]) -> UniMap {
                             }
                         }
                         Tok::ArrOpen => {
+                            // One string per code of the range: entries past the range are never
+                            // looked up, so they are read but not kept (this bounds the list).
+                            let span = u64::from(hi.saturating_sub(lo)) + 1;
                             let mut list = Vec::new();
                             while let Ok(item) = lx.next() {
                                 match item {
-                                    Tok::Str(d) => list.push(utf16be(&d).unwrap_or_default()),
+                                    Tok::Str(d) if (list.len() as u64) < span && budget > 0 => {
+                                        budget -= 1;
+                                        list.push(utf16be(&d).unwrap_or_default());
+                                    }
                                     Tok::ArrClose | Tok::Eof => break,
                                     _ => {}
                                 }

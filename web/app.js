@@ -440,7 +440,7 @@ async function api(path, opts = {}) {
   // A request the engine refused is answered 422 and kept by the server as job `id` in state REFUSED (no result).
   // The caller gets it back like any other job answer and shows it as NO RESULT.
   if (res.status === 422 && data && data.state === 'REFUSED' && Number.isInteger(data.id)) { factsCache.clear(); return data; }
-  if (!res.ok) throw data && data.error ? new ApiError(String(data.error), { server: true, status: res.status }) : new ApiError('', { key: 'api.failed', params: { status: res.status }, status: res.status });
+  if (!res.ok) throw data && data.error ? new ApiError(String(data.error), { server: true, status: res.status, data }) : new ApiError('', { key: 'api.failed', params: { status: res.status }, status: res.status });
   if (init.method !== 'GET') factsCache.clear();
   return data;
 }
@@ -685,6 +685,28 @@ const stateCell = (c) => `${stateTag(effState(c))}${c.open_obligations && !c.sup
 const partsCell = (c) => (!c.facts ? '<span class="sub">—</span>' : c.facts.noResult ? `<span class="sub">${esc(t('parts.none'))}</span>` : c.facts.parts.map((p) => partName(p.part)).join(', '));
 const newCalcBtn = (pid) => (me.role === 'viewer' ? '' : `<a class="btn pri" href="#/math${pid ? `/${pid}` : ''}">${ic('plus')}${esc(t('new.calc'))}</a>`);
 const noJobs = () => empty('pattern', t('jobs.none.t'), esc(t('jobs.none.p')), newCalcBtn());
+// The conversions of a project (task 3.1). Each row says what it is: converted from PDF, not verified, not released.
+const convTable = (cs) => `<div class="tbl"><table id="tbl-conv"><thead><tr><th>#</th><th>${esc(t('conv.th.doc'))}</th><th class="num">${esc(t('conv.th.page'))}</th><th>${esc(t('conv.th.result'))}</th><th>${esc(t('th.created'))}</th></tr></thead><tbody>${cs.map((c) => `<tr><td><a href="#/conversion/${c.id}">${c.id}</a></td><td>#${c.source_document}</td><td class="num">${c.page}</td><td>${c.status === 'converted' ? tag('warn', t('conv.label')) : `${tag('bad', t(c.status === 'limit_exceeded' ? 'conv.st.limit' : 'conv.st.refused'))} ${mono(c.code || '')}`}</td><td class="nw">${byWhen(c.created_by, c.created_at)}</td></tr>`).join('')}</tbody></table></div>`;
+// A still drawing of the converted DXF (POLYLINE/VERTEX of the R12 file the converter writes): what the file holds,
+// drawn as lines only. Not the pattern viewer: nothing here is a flat pattern, a curve of a part or a measurement.
+const dxfPreview = (text) => {
+  if (!text) return `<p class="sub">${esc(t('conv.preview.none'))}</p>`;
+  const lines = text.split(/\r?\n/), polys = []; let cur = null, inEnt = '', layer = '', x = null;
+  for (let i = 0; i + 1 < lines.length; i += 2) {
+    const code = lines[i].trim(), val = lines[i + 1].trim();
+    if (code === '0') { inEnt = val; if (val === 'POLYLINE') { cur = { layer: '', closed: false, pts: [] }; polys.push(cur); } else if (val === 'SEQEND') cur = null; continue; }
+    if (code === '8') { layer = val; if (inEnt === 'POLYLINE' && cur) cur.layer = val; }
+    if (inEnt === 'POLYLINE' && code === '70' && cur) cur.closed = (Number(val) & 1) === 1;
+    if (inEnt === 'VERTEX' && cur) { if (code === '10') x = Number(val); else if (code === '20' && x !== null) { cur.pts.push([x, Number(val)]); x = null; } }
+  }
+  const shown = polys.filter((p) => p.pts.length > 1 && p.layer !== 'NF_NOT_RELEASED');
+  if (!shown.length) return `<p class="sub">${esc(t('conv.preview.none'))}</p>`;
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const p of shown) for (const [a, b] of p.pts) { x0 = Math.min(x0, a); y0 = Math.min(y0, b); x1 = Math.max(x1, a); y1 = Math.max(y1, b); }
+  const w = Math.max(x1 - x0, 1e-9), hh = Math.max(y1 - y0, 1e-9), pad = Math.max(w, hh) * 0.03;
+  const path = (p) => `M${p.pts.map(([a, b]) => `${(a - x0).toFixed(3)} ${(y1 - b).toFixed(3)}`).join('L')}${p.closed ? 'Z' : ''}`;
+  return `<svg class="cpv" id="cv-preview" viewBox="${(-pad).toFixed(3)} ${(-pad).toFixed(3)} ${(w + 2 * pad).toFixed(3)} ${(hh + 2 * pad).toFixed(3)}" role="img" aria-label="${esc(t('conv.preview.aria', { n: shown.length }))}" preserveAspectRatio="xMidYMid meet">${shown.map((p) => `<path class="l-${esc(p.layer.toLowerCase())}" d="${path(p)}" vector-effect="non-scaling-stroke"/>`).join('')}</svg>`;
+};
 const byWhen = (who, ts) => `${ud(who)}<br><span class="sub">${when(ts)}</span>`;
 // rows must have been through withFacts(); `project` adds the project column, `replay` the replay column
 const jobsTable = (rows, id, o = {}) => (rows.length ? `<div class="tbl"><table id="${id}" class="jobs"><thead><tr><th>${esc(t('th.job'))}</th>${o.project ? `<th>${esc(t('th.project'))}</th>` : ''}<th>${esc(t('th.family'))}</th><th>${esc(t('th.parts'))}</th><th>${esc(t('th.state'))}</th>${o.replay ? `<th>${esc(t('th.replay'))}</th>` : ''}<th>${esc(t('th.entered'))}</th></tr></thead><tbody>${rows.map((c) =>
@@ -819,10 +841,11 @@ const views = {
         html: `<div class="page">${ph(ud(p.name), `${p.description ? `${ud(p.description)} · ` : ''}${h('project.meta', { id: p.id, by: ud(p.created_by), when: when(p.created_at) })}`, newCalcBtn(p.id))}
           ${panel(esc(t('project.jobs')), jobsTable(p.calculations, 'jobs-project', { replay: true }), { flush: true, count: p.calculations.length, tools: p.calculations.length ? filterBox('jobs-project', t('jobs.filter')) : '' })}
           <div class="cols"><div>
-          ${panel(esc(t('project.docs')), `${p.documents.length ? `<div class="tbl"><table><thead><tr><th>${esc(t('th.file'))}</th><th>${esc(t('th.dtype'))}</th><th class="num">${esc(t('th.size'))}</th><th>${esc(t('th.sha'))}</th><th>${esc(t('th.uploaded'))}</th></tr></thead><tbody>${p.documents.map((d) => `<tr><td>${ud(fname(d))}${d.extension_mismatch ? ` ${tag('warn', t('doc.mismatch'), 'warn')}` : ''}</td><td class="mono">${esc(d.detected_type)}</td><td class="num">${d.size}</td><td>${short(d.sha256)}</td><td class="nw">${byWhen(d.created_by, d.created_at)}</td></tr>`).join('')}</tbody></table></div>` : empty('upload', t('docs.none.t'), esc(t('docs.none.p')))}`,
+          ${panel(esc(t('project.docs')), `${p.documents.length ? `<div class="tbl"><table><thead><tr><th>${esc(t('th.file'))}</th><th>${esc(t('th.dtype'))}</th><th class="num">${esc(t('th.size'))}</th><th>${esc(t('th.sha'))}</th><th>${esc(t('th.uploaded'))}</th></tr></thead><tbody>${p.documents.map((d) => `<tr><td>${ud(fname(d))}${d.extension_mismatch ? ` ${tag('warn', t('doc.mismatch'), 'warn')}` : ''}${d.conversion_id ? `<br><a href="#/conversion/${d.conversion_id}">${tag('warn', t('conv.label'))}</a>` : ''}${d.detected_type === 'pdf' && me.role !== 'viewer' ? `<br><a class="btn ghost" href="#/convert/${p.id}/${d.id}" aria-label="${esc(t('conv.action.aria', { file: fname(d) }))}">${esc(t('conv.action'))}</a>` : ''}</td><td class="mono">${esc(d.detected_type)}</td><td class="num">${d.size}</td><td>${short(d.sha256)}</td><td class="nw">${byWhen(d.created_by, d.created_at)}</td></tr>`).join('')}</tbody></table></div>` : empty('upload', t('docs.none.t'), esc(t('docs.none.p')))}`,
             { flush: true, count: p.documents.length, foot: `${me.role === 'viewer' ? '' : `<form id="up" class="row"><input id="upf" class="vh" type="file" name="file" aria-label="${esc(t('doc.file.aria'))}"><label for="upf" class="btn">${ic('folder')}${esc(t('doc.choose'))}</label><span id="upname" class="sub">${esc(t('doc.nofile'))}</span><button>${ic('upload')}${esc(t('doc.store'))}</button></form><div id="upmsg"></div>`}
               <p>${h('doc.accepted')}</p>
               <p>${h('doc.snapshot', { id: p.snapshot ? `<span class="hash">${esc(p.snapshot)}</span>` : esc(t('doc.snapshot.none')) })}</p>` })}
+          ${p.conversions && p.conversions.length ? panel(esc(t('conv.panel')), convTable(p.conversions), { flush: true, count: p.conversions.length }) : ''}
           </div><div>
           ${panel(esc(t('project.access')), `${p.members.length ? `<ul class="members">${p.members.map((m) => `<li><span class="mono">${ud(m)}</span>${me.role === 'admin' ? `<button class="ghost" data-rm="${esc(m)}" aria-label="${esc(t('member.remove.aria', { user: m }))}">${ic('close', 12)}<span>${esc(t('member.remove'))}</span></button>` : ''}</li>`).join('')}</ul>` : `<p class="sub">${esc(t('members.none'))}</p>`}<p class="hint gap">${esc(t('members.hint'))}</p>
             ${me.role === 'admin' ? `<form id="mem" novalidate><div class="field"><label for="memu">${esc(t('member.add.label'))}</label><select id="memu" name="u">${candidates.length ? candidates.map((u) => `<option value="${esc(u.username)}">${esc(t('member.opt', { user: u.username, role: roleText(u.role) }))}</option>`).join('') : `<option value="">${esc(t('member.all'))}</option>`}</select></div><div id="memmsg"></div><button${candidates.length ? '' : ' disabled'}>${esc(t('member.add'))}</button></form>` : ''}`, { count: p.members.length })}
@@ -841,6 +864,97 @@ const views = {
             };
           }
         },
+      };
+    },
+  },
+
+  // PDF to DXF (work plan 3.1). The server runs the separate converter program; the client only sends the form and
+  // shows what came back. A result is "converted from PDF - not verified - not released": it is never drawn with the
+  // pattern viewer, never called a flat pattern and never attached to a calculation.
+  convert: {
+    async load(pid, did) {
+      const p = await api(`/api/projects/${pid}`);
+      const d = p.documents.find((x) => String(x.id) === String(did));
+      if (!d) throw new ApiError('', { key: 'conv.e.nodoc' });
+      return { p, d };
+    },
+    render({ p, d }) {
+      const fname = (() => { try { return decodeURIComponent(d.filename); } catch { return d.filename; } })();
+      const pdf = d.detected_type === 'pdf';
+      return {
+        title: t('conv.title'), nav: 'projects', crumbs: [[t('proj.crumb'), '#/projects'], [ud(p.name), `#/project/${p.id}`, true], [t('conv.title')]],
+        html: `<div class="page">${ph(esc(t('conv.title')), `${ud(fname)} · ${short(d.sha256)}`)}
+          ${note(h('conv.rules'), 'warn')}
+          ${!pdf ? note(esc(t('conv.e.notpdf')), 'bad') : me.role === 'viewer' ? note(esc(t('conv.e.viewer')), 'bad') : panel(esc(t('conv.form')), `<form id="cv" novalidate>
+            <div class="fgrid">
+              <div class="field"><label for="cv_page">${esc(t('conv.f.page'))}</label><input id="cv_page" name="page" inputmode="numeric" value="1"></div>
+              <div class="field"><label for="cv_kind">${esc(t('conv.f.kind'))}</label><select id="cv_kind" name="kind"><option value="ratio">${esc(t('conv.f.kind.ratio'))}</option><option value="mm_per_point">${esc(t('conv.f.kind.mmpt'))}</option></select></div>
+              <div class="field"><label for="cv_scale">${esc(t('conv.f.scale'))}</label><input id="cv_scale" name="scale" inputmode="decimal" autocomplete="off"><p class="hint">${esc(t('conv.f.scale.hint'))}</p></div>
+              <div class="field"><label for="cv_tol">${esc(t('conv.f.tol'))}</label><input id="cv_tol" name="tol" inputmode="decimal" autocomplete="off"><p class="hint">${esc(t('conv.f.tol.hint'))}</p></div>
+            </div>
+            <div class="row gap"><label class="chk"><input type="checkbox" name="fill" checked> ${esc(t('conv.f.fill'))}</label><label class="chk"><input type="checkbox" name="text" checked> ${esc(t('conv.f.text'))}</label></div>
+            <div id="cvmsg"></div><button class="pri">${ic('download')}${esc(t('conv.submit'))}</button></form>`)}</div>`,
+        wire() {
+          const f = $('#cv'); if (!f) return;
+          f.onsubmit = async (e) => {
+            e.preventDefault();
+            const numOrNull = (v) => (String(v).trim() === '' ? null : Number(String(v).trim()));
+            if (String(f.scale.value).trim() === '') { formError('#cvmsg', new ApiError('', { key: 'conv.e.scale' })); return; }
+            const page = Number(String(f.page.value).trim() || '1');
+            const body = { page: Number.isInteger(page) ? page : String(f.page.value), scale_kind: f.kind.value, scale_value: Number.isFinite(numOrNull(f.scale.value)) ? numOrNull(f.scale.value) : String(f.scale.value), tolerance_mm: numOrNull(f.tol.value), include_fill: f.fill.checked, include_text: f.text.checked };
+            if (body.tolerance_mm !== null && !Number.isFinite(body.tolerance_mm)) body.tolerance_mm = String(f.tol.value);
+            try {
+              const r = await withBusy($('button', f), t('conv.running'), () => api(`/api/documents/${d.id}/pdf-to-dxf`, { method: 'POST', json: body }));
+              toast(() => esc(t('conv.done', { id: r.conversion.id })), 'warn');
+              location.hash = `#/conversion/${r.conversion.id}`;
+            } catch (err) {
+              const a = err && err.data;
+              if (a && a.code) $('#cvmsg').innerHTML = `<div class="note bad" role="alert"><div>${h('conv.refused', { code: mono(a.code), limit: a.limit ? mono(a.limit) : '—' })}<br>${srv(a.message || a.error)}${a.conversion ? `<br><a href="#/conversion/${a.conversion.id}">${esc(t('conv.refused.rec', { id: a.conversion.id }))}</a>` : ''}</div></div>`;
+              else formError('#cvmsg', err);
+            }
+          };
+        },
+      };
+    },
+  },
+
+  conversion: {
+    async load(id) {
+      const v = await api(`/api/pdf-conversions/${id}`);
+      let dxf = null;
+      if (v.conversion.dxf_sha256) {
+        const res = await fetch(`/api/pdf-conversions/${id}/dxf`, { headers: { 'X-NF-Request': '1' }, credentials: 'same-origin' });
+        if (res.ok) dxf = await res.text();
+      }
+      return { ...v, dxf };
+    },
+    render({ conversion: c, report: r, dxf }) {
+      const ok = c.status === 'converted';
+      const rep = r || {};
+      const counts = rep.counts ? Object.entries(rep.counts) : [];
+      const skipped = rep.text_skipped_by_reason ? Object.entries(rep.text_skipped_by_reason) : [];
+      const bbox = Array.isArray(rep.bbox_mm) ? rep.bbox_mm : null;
+      const scaleText = c.scale.kind === 'ratio' ? t('conv.scale.ratio', { n: c.scale.value }) : t('conv.scale.mmpt', { x: c.scale.value });
+      const reportHtml = `<dl class="kv">
+        <dt>${esc(t('conv.r.status'))}</dt><dd class="txt">${ok ? tag('warn', t('conv.label')) : tag('bad', t(c.status === 'limit_exceeded' ? 'conv.st.limit' : 'conv.st.refused'))}</dd>
+        ${c.code ? `<dt>${esc(t('conv.r.code'))}</dt><dd class="txt">${mono(c.code)}${c.limit ? ` · ${mono(c.limit)}` : ''}</dd><dt>${esc(t('conv.r.message'))}</dt><dd class="txt">${srv(c.message || '')}</dd>` : ''}
+        <dt>${esc(t('conv.r.page'))}</dt><dd>${c.page}${rep.source && rep.source.page_count ? ` / ${rep.source.page_count}` : ''}</dd>
+        <dt>${esc(t('conv.r.scale'))}</dt><dd class="txt">${esc(scaleText)}</dd>
+        <dt>${esc(t('conv.r.tol'))}</dt><dd>${rep.tolerance ? num(rep.tolerance.chord_mm, 'mm') : esc(c.tolerance_mm ?? '—')}</dd>
+        ${bbox ? `<dt>${esc(t('conv.r.bbox'))}</dt><dd class="txt">${num(bbox[0], 'mm')}, ${num(bbox[1], 'mm')} – ${num(bbox[2], 'mm')}, ${num(bbox[3], 'mm')}</dd>` : ''}
+        <dt>${esc(t('conv.r.source'))}</dt><dd class="txt">${short(c.source_sha256)}</dd>
+        <dt>${esc(t('conv.r.version'))}</dt><dd class="txt">${mono(c.converter_version || '—')}</dd>
+        <dt>${esc(t('conv.r.by'))}</dt><dd class="txt">${byWhen(c.created_by, c.created_at)}</dd></dl>
+        ${counts.length ? `<h3>${esc(t('conv.r.counts'))}</h3><dl class="kv">${counts.map(([k, n]) => `<dt>${mono(k)}</dt><dd>${n}</dd>`).join('')}</dl>` : ''}
+        ${rep.warnings && rep.warnings.length ? `<h3>${esc(t('conv.r.warnings'))}</h3><ul class="il">${rep.warnings.map((w) => `<li>${mono(w.code)} × ${w.count}: ${srv(w.message)}</li>`).join('')}</ul>` : ''}
+        ${skipped.length ? `<h3>${esc(t('conv.r.skipped'))}</h3><dl class="kv">${skipped.map(([k, n]) => `<dt>${mono(k)}</dt><dd>${n}</dd>`).join('')}</dl>` : ''}`;
+      const dl = ok ? `<div class="row"><a class="btn" id="cv-dxf" href="/api/pdf-conversions/${c.id}/dxf" download>${ic('download')}${esc(t('conv.dl.dxf'))}</a><a class="btn" id="cv-rep" href="/api/pdf-conversions/${c.id}/report" download>${ic('download')}${esc(t('conv.dl.report'))}</a></div>` : '';
+      return {
+        title: t('conv.view.title', { id: c.id }), nav: 'projects', crumbs: [[t('proj.crumb'), '#/projects'], [t('conv.crumb.project', { id: c.project }), `#/project/${c.project}`], [t('conv.view.title', { id: c.id })]],
+        html: `<div class="page">${ph(esc(t('conv.view.title', { id: c.id })), esc(t('conv.view.sub', { doc: c.source_document })))}
+          ${ok ? note(`<b id="cv-label">${esc(t('conv.label'))}</b><br>${esc(t('conv.notflat'))}`, 'warn') : note(h('conv.refused', { code: mono(c.code || ''), limit: c.limit ? mono(c.limit) : '—' }), 'bad')}
+          <div class="cols"><div>${panel(esc(t('conv.r.title')), reportHtml, { foot: dl })}</div>
+          <div>${ok ? panel(esc(t('conv.preview')), `${dxfPreview(dxf)}<p class="hint">${esc(t('conv.preview.note'))}</p>`) : ''}</div></div></div>`,
       };
     },
   },

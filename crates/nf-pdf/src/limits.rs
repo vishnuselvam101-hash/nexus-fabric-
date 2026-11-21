@@ -1,7 +1,9 @@
 //! Hard limits, the internal fault type and the wall-clock deadline.
 //!
-//! Every bound the converter enforces lives in [`Limits`]. The defaults are the
-//! project limits; tests may lower them to keep fixtures small.
+//! Every bound the converter enforces lives in [`Limits`]. Each one is an implementation
+//! limit of this converter: a bound on memory and time chosen for this program, not an
+//! engineering value and not a value taken from a standard. Tests may lower them to keep
+//! fixtures small.
 
 use std::time::{Duration, Instant};
 
@@ -29,6 +31,11 @@ pub struct Limits {
     pub max_path_segments: u64,
     /// Nesting of arrays, dictionaries and objects.
     pub max_nesting: usize,
+    /// Items (elements or key/value entries) in one array or dictionary.
+    pub max_collection_items: usize,
+    /// Items in all arrays and dictionaries: kept from the document structure over the whole
+    /// conversion, and, counted separately, in the operands waiting for one content operator.
+    pub max_total_items: u64,
     /// Nesting of q/Q graphics-state saves.
     pub max_graphics_depth: usize,
     /// Nesting of Form XObject invocations.
@@ -52,6 +59,8 @@ impl Default for Limits {
             max_operands: 1_024,
             max_path_segments: 2_000_000,
             max_nesting: 64,
+            max_collection_items: 1_000_000,
+            max_total_items: 4_000_000,
             max_graphics_depth: 256,
             max_form_depth: 16,
             max_text_items: 500_000,
@@ -86,6 +95,10 @@ pub fn malformed<T>(msg: impl Into<String>) -> Result<T, Fault> {
 pub fn limit<T>(name: &'static str, msg: impl Into<String>) -> Result<T, Fault> {
     Err(Fault::Limit(name, msg.into()))
 }
+
+/// Every loop that can run long checks the deadline after this many iterations of its own
+/// counter (never on a data-dependent position, which a crafted file could make skip every check).
+pub const CHECK_EVERY: u64 = 4096;
 
 /// Wall-clock budget. Checked inside every loop that can run long.
 #[derive(Clone, Copy, Debug)]

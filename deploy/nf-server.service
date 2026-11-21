@@ -41,6 +41,11 @@ IPAddressDeny=any
 IPAddressAllow=localhost
 MemoryDenyWriteExecute=true
 SystemCallFilter=@system-service
+# The PDF to DXF converter (nf-pdf2dxf, started by the server) isolates its worker process with Landlock and a
+# seccomp filter (docs/backend/PDF_TO_DXF.md). Their system calls are in @sandbox; allowed explicitly so the
+# conversion does not depend on which calls a systemd version puts into @system-service. Without them a
+# conversion fails closed (exit 70, SIGSYS) and nothing is stored.
+SystemCallFilter=@sandbox
 CapabilityBoundingSet=
 ReadWritePaths=/var/lib/nexus-fabric
 MemoryMax=1G

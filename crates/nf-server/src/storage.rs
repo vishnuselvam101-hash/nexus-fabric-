@@ -28,11 +28,12 @@ CREATE TABLE IF NOT EXISTS advisories(id INTEGER PRIMARY KEY, calc_id INTEGER NO
 CREATE TABLE IF NOT EXISTS project_members(project_id INTEGER NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY(project_id, user_id));
 CREATE TABLE IF NOT EXISTS login_failures(username TEXT NOT NULL, at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS pdf_conversions(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, source_document INTEGER NOT NULL, page INTEGER NOT NULL, scale_kind TEXT NOT NULL, scale_value REAL NOT NULL, tolerance_mm REAL, include_fill INTEGER NOT NULL, include_text INTEGER NOT NULL, status TEXT NOT NULL, code TEXT, limit_name TEXT, message TEXT, converter_version TEXT, source_sha256 TEXT NOT NULL, dxf_sha256 TEXT, report_sha256 TEXT, record_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 ";
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 9] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 10] = [
     ("calculations", "supersedes", "INTEGER"),
     ("users", "active", "INTEGER NOT NULL DEFAULT 1"),
     ("audit", "prev", "TEXT"),
@@ -47,6 +48,8 @@ const ADDED_COLUMNS: [(&str, &str, &str); 9] = [
     // result they were derived from. Lists read these instead of parsing every stored result.
     ("calculations", "core_json", "TEXT"),
     ("calculations", "result_bytes", "INTEGER"),
+    // Task 3.1: the PDF conversion a document was produced by (NULL for an upload).
+    ("documents", "conversion_id", "INTEGER"),
 ];
 
 const INDEXES: &str = "
@@ -57,6 +60,8 @@ CREATE INDEX IF NOT EXISTS ix_adv_calc ON advisories(calc_id, state);
 CREATE INDEX IF NOT EXISTS ix_lessons_project ON lessons(project_id, family);
 CREATE INDEX IF NOT EXISTS ix_records_project ON records(project_id, family, kind);
 CREATE INDEX IF NOT EXISTS ix_docs_project ON documents(project_id);
+CREATE INDEX IF NOT EXISTS ix_docs_conversion ON documents(conversion_id);
+CREATE INDEX IF NOT EXISTS ix_conv_project ON pdf_conversions(project_id);
 CREATE INDEX IF NOT EXISTS ix_fail_user ON login_failures(username, at);
 CREATE INDEX IF NOT EXISTS ix_fail_client ON login_failures(client, at);
 ";

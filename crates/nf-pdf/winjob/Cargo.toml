@@ -1,0 +1,13 @@
+[package]
+name = "nf-pdf-winjob"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Proprietary"
+publish = false
+description = "Job Object limits for the nf-pdf2dxf worker process on Windows (the only unsafe code of nf-pdf2dxf)"
+
+[lib]
+path = "src/lib.rs"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }

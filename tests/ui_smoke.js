@@ -790,6 +790,44 @@ const controlProbe = () => {
     check('BH-014: New from these values marks the length field with the Japanese message', markedJa.aria === 'true' && markedJa.msg.includes('100000000mm'), markedJa);
   }
 
+  // ---- 14c. PDF to DXF (work plan 3.1): the action on a PDF, the form (scale required), a refusal with its code, the
+  // result labelled "converted from PDF - not verified - not released", its preview and downloads, in both languages.
+  // Needs the converter nf-pdf2dxf beside the server binary (or NF_PDF2DXF for the server).
+  {
+    const pdfBytes = fs.readFileSync(require('path').join(__dirname, '..', 'crates', 'nf-pdf', 'tests', 'fixtures', 'reportlab_lines.pdf'));
+    const up = await ctx.request.post(`${B}/api/projects/1/documents`, { headers: { 'X-NF-Request': '1', 'X-Filename': 'lines.pdf' }, data: pdfBytes });
+    check('pdf: a PDF is stored as a document', up.status() === 200, up.status());
+    const proj = await apiGet('/api/projects/1');
+    const doc = proj.documents.filter((d) => d.detected_type === 'pdf').pop();
+    for (const lang of ['en', 'ja']) {
+      await p.goto(`${B}/?lang=${lang}#/project/1`); await p.waitForSelector('#view h1');
+      const action = await p.$(`a[href="#/convert/1/${doc.id}"]`);
+      check(`pdf ${lang}: the PDF row offers the conversion`, !!action);
+      await p.goto(`${B}/?lang=${lang}#/convert/1/${doc.id}`); await p.waitForSelector('#cv');
+      if (lang === 'ja') await jaScreen('PDF to DXF form');
+      // no scale: refused in the form, nothing sent
+      const before = (await apiGet('/api/projects/1')).conversions.length;
+      await p.click('#cv button.pri'); await p.waitForSelector('#cvmsg .note.bad');
+      check(`pdf ${lang}: without a scale the form refuses and sends nothing`, (await apiGet('/api/projects/1')).conversions.length === before);
+      // a page past the end: the converter's refusal, with its code, is shown
+      await p.fill('#cv_page', '7'); await p.fill('#cv_scale', '1');
+      allow422 = true; await p.click('#cv button.pri'); await p.waitForFunction(() => /page_out_of_range/.test(document.querySelector('#cvmsg') ? document.querySelector('#cvmsg').textContent : '')); allow422 = false;
+      check(`pdf ${lang}: a page past the end shows the converter's code`, true);
+      // a real conversion
+      await p.fill('#cv_page', '1'); await p.fill('#cv_scale', '10');
+      await p.click('#cv button.pri'); await p.waitForSelector('#cv-label');
+      const label = (await p.textContent('#cv-label')).trim();
+      check(`pdf ${lang}: the result is labelled converted from PDF, not verified, not released`, lang === 'en' ? label === 'Converted from PDF - not verified - not released' : label === 'PDFから変換・未検証・未リリース', label);
+      const paths = await p.$$eval('#cv-preview path', (ps) => ps.length);
+      check(`pdf ${lang}: the preview draws the converted lines, not the pattern viewer`, paths > 0 && !(await p.$('#view svg.pv')), paths);
+      const href = await p.getAttribute('#cv-dxf', 'href');
+      const dxf = await ctx.request.get(B + href);
+      check(`pdf ${lang}: the DXF downloads with the NOT RELEASED note inside`, dxf.status() === 200 && (await dxf.text()).includes('CONVERTED FROM PDF - NOT VERIFIED - NOT RELEASED'), dxf.status());
+      check(`pdf ${lang}: no flat pattern and no calculation comes from a conversion`, !/flat pattern view/i.test(await p.textContent('#view')) && (await apiGet('/api/calculations')).every((c) => !String(c.family || '').includes('pdf')));
+      if (lang === 'ja') await jaScreen('PDF to DXF result');
+    }
+  }
+
   // ---- 15. global assertions
   const xss = await p.evaluate(() => window.__xss || 0);
   check('security: injected markup never executed, no blocking dialog used', xss === 0 && dialogs === 0, { xss, dialogs });

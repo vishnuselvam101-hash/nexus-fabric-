@@ -356,3 +356,34 @@ pub fn assert_pt(p: (f64, f64), want: (f64, f64)) {
         "point {p:?} is not {want:?}"
     );
 }
+
+/// A valid one-page file of exactly `total` bytes: an unreferenced stream object pads it.
+pub fn page_of_exact_size(total: usize) -> Vec<u8> {
+    let build = |pad: usize| {
+        let mut pdf = Pdf::new();
+        let catalog = pdf.reserve();
+        let pages = pdf.reserve();
+        let page = pdf.reserve();
+        let content = pdf.stream("", b"0 0 m 10 10 l S", false);
+        let _padding = pdf.stream("", &vec![b' '; pad], false);
+        pdf.set(catalog, format!("<< /Type /Catalog /Pages {pages} 0 R >>"));
+        pdf.set(
+            pages,
+            format!("<< /Type /Pages /Kids [{page} 0 R] /Count 1 >>"),
+        );
+        pdf.set(
+            page,
+            format!("<< /Type /Page /Parent {pages} 0 R /MediaBox [0 0 200 200] /Contents {content} 0 R >>"),
+        );
+        pdf.classic(catalog)
+    };
+    let mut pad = total.saturating_sub(build(0).len());
+    for _ in 0..8 {
+        let bytes = build(pad);
+        if bytes.len() == total {
+            return bytes;
+        }
+        pad = (pad + total).saturating_sub(bytes.len());
+    }
+    panic!("no padding gives {total} bytes");
+}

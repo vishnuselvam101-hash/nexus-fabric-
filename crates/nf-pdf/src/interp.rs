@@ -12,7 +12,7 @@ use crate::doc::{find, Doc};
 use crate::dxf::{self, Body};
 use crate::font::Font;
 use crate::geom::{self, IDENTITY, M};
-use crate::lexer::{is_delim, is_ws, obj_from_tok, Dict, Lexer, Obj, Stream, Tok};
+use crate::lexer::{is_delim, is_ws, obj_from_tok, Budget, Dict, Lexer, Obj, Stream, Tok};
 use crate::limits::{limit, malformed, Fault};
 use crate::report::Stats;
 
@@ -190,14 +190,16 @@ impl<'d, 'a> Interp<'d, 'a> {
     pub fn run(&mut self, data: &[u8]) -> Result<(), Fault> {
         let mut lx = Lexer::new(data, 0);
         let mut operands: Vec<Obj> = Vec::new();
+        // Items of the operands waiting for one operator; released when the operator runs.
+        let mut pending = Budget::new(&self.doc.lim, self.doc.dl);
         let max_operands = self.doc.lim.max_operands;
         loop {
             let t = lx.next()?;
-            match t {
+            let operand = match t {
                 Tok::Eof => break,
-                Tok::Kw(b"true") => operands.push(Obj::Bool(true)),
-                Tok::Kw(b"false") => operands.push(Obj::Bool(false)),
-                Tok::Kw(b"null") => operands.push(Obj::Null),
+                Tok::Kw(b"true") => Obj::Bool(true),
+                Tok::Kw(b"false") => Obj::Bool(false),
+                Tok::Kw(b"null") => Obj::Null,
                 Tok::Kw(op) => {
                     self.ops += 1;
                     if self.ops > self.doc.lim.max_operators {
@@ -208,16 +210,18 @@ impl<'d, 'a> Interp<'d, 'a> {
                     }
                     self.op(op, &operands, &mut lx)?;
                     operands.clear();
+                    pending.items = 0;
+                    continue;
                 }
-                other => {
-                    let o = obj_from_tok(&mut lx, other, 0, self.doc.lim.max_nesting)?;
-                    if operands.len() >= max_operands {
-                        operands.clear();
-                        self.bad();
-                    }
-                    operands.push(o);
-                }
+                other => obj_from_tok(&mut lx, other, 0, &mut pending)?,
+            };
+            if operands.len() >= max_operands {
+                return limit(
+                    "operands",
+                    "more operands are waiting for an operator than the limit allows",
+                );
             }
+            operands.push(operand);
         }
         Ok(())
     }
