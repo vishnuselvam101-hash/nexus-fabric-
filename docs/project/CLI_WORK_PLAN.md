@@ -47,7 +47,7 @@ seen to pass on the stated commit; "not run" is never written as passed.
 | 4.4 | Release-candidate report | not started | | |
 | 4.5 | Legal drafts | not started | | |
 | 4.6 | The live server | not started | | only when the owner says so |
-| RC | External review C (RC-01 … RC-33): verify every finding, fix what is real | in progress | | register: `docs/backend/REVIEW_C_EXTERNAL.md`; fixes tracked to the tasks named there |
+| RC | External review C (RC-01 … RC-33): verify every finding, fix what is real | in progress | | register: `docs/backend/REVIEW_C_EXTERNAL.md`; fixes tracked to the tasks named there; RC-01/RC-08/RC-22 fixed |
 | 5.x | Later work | not started | | the owner asked on 21 Nov 2026 for the complete software: taken up after phase 4 |
 | 6.x | What only people can supply | tracked | | |
 
