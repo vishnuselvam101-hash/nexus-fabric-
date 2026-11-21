@@ -36,7 +36,7 @@ seen to pass on the stated commit; "not run" is never written as passed.
 | 2.4 | Desktop security wording | done | this commit | `/api/health` says `mode` (desktop/server); first-run screen in desktop mode (EN + JA), `packaging/INSTALL.md`, `packaging/README.txt`; "secure backups" written as "protected backups" |
 | 2.5 | Database encryption — design | not started | | design only |
 | 2.6 | Sign-in hardening — design note | not started | | design only |
-| 3.1 | PDF → DXF inside the product | done on branch `wt/pdf-3.1`, awaiting review (not pushed) | | converter in the packages and Windows run: not done (see `docs/backend/PDF_TO_DXF.md`) |
+| 3.1 | PDF → DXF inside the product | done | `a12dec4` | reviewed (2 rounds + installer delta). Open: converter not in the downloadable packages; Windows not run; prebuilt `NF_BINARY` install does not install/verify `nf-pdf2dxf` (prints a note) — add `NF_PDF2DXF_BINARY` + `NF_PDF2DXF_SHA256` (task 4.2); rollback-restores-converter test |
 | 3.2 | Forms and refusals | not started | | |
 | 3.3 | Words and language | not started | | |
 | 3.4 | Speed and scale | not started | | |
