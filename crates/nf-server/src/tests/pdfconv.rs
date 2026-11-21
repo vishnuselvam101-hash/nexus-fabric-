@@ -783,10 +783,7 @@ async fn mutated_pdfs_through_the_server_end_in_a_conversion_or_a_refusal() {
                         b.remove(at);
                     }
                 }
-                2 => b.insert(
-                    at.min(b.len()),
-                    [b'[', b']', b'<', b'>', b'(', b'0', b'/', b'\n'][(next() % 8) as usize],
-                ),
+                2 => b.insert(at.min(b.len()), (*b"[]<>(0/\n")[(next() % 8) as usize]),
                 _ => {
                     let cut = at.min(b.len());
                     b.truncate(cut.max(16));
