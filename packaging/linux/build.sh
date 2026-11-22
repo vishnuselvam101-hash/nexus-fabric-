@@ -8,6 +8,8 @@
 #   nexus-fabric.sh         launcher script
 #   nexus-fabric.desktop    desktop entry (edit its Exec= line to the full path first)
 #   README.txt, NOTICE.txt, THIRD_PARTY_NOTICES.txt (licence texts of the compiled crates)
+# Reproducible (task 4.1): entries sorted by name, owner root (0:0), fixed permissions, every time
+# SOURCE_DATE_EPOCH (default: the commit time), GNU tar format, gzip without name or time.
 set -euo pipefail
 
 if [ "$#" -ne 3 ] && [ "$#" -ne 4 ]; then
@@ -22,6 +24,8 @@ BIN=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 VERSION=$2
 DIST=$3
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+. "$ROOT/packaging/reproducible.sh"
+nf_source_date_epoch "$ROOT"
 mkdir -p "$DIST"
 DIST=$(cd "$DIST" && pwd)
 NAME="nexus-fabric-$VERSION"
@@ -42,7 +46,16 @@ cp "$ROOT/packaging/README.txt" "$STAGE/$NAME/README.txt"
 cp "$ROOT/packaging/NOTICE.txt" "$STAGE/$NAME/NOTICE.txt"
 cp "$ROOT/packaging/THIRD_PARTY_NOTICES.txt" "$STAGE/$NAME/THIRD_PARTY_NOTICES.txt"
 
+if [ -n "$CONV" ]; then
+  nf_normalise_tree "$STAGE/$NAME" nexus-fabric nexus-fabric.sh nf-pdf2dxf
+else
+  nf_normalise_tree "$STAGE/$NAME" nexus-fabric nexus-fabric.sh
+fi
+
 OUT="$DIST/$NAME-linux-x86_64.tar.gz"
 rm -f "$OUT"
-tar --owner=0 --group=0 --numeric-owner -C "$STAGE" -czf "$OUT" "$NAME"
+# --sort=name: fixed order; --mtime repeats the time set by nf_normalise_tree, as a guard;
+# --format=gnu: no pax headers (they would carry access and change times); gzip -n: no name, no time.
+tar --sort=name --format=gnu --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner \
+  -C "$STAGE" -cf - "$NAME" | gzip -n -9 >"$OUT"
 echo "built $OUT"

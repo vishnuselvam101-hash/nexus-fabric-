@@ -59,10 +59,14 @@ WINE_HOME="$WORK/home"
 mkdir -p "$WINE_HOME"
 export WINE_HOME
 export CARGO_NET_OFFLINE=true   # no downloads: cargo may use only what is already in the local cache
+# Both builds stamp the commit time into the packages (task 4.1; packaging/reproducible.sh), not the build time.
+SOURCE_DATE_EPOCH=$(git show -s --format=%ct "$COMMIT")
+export SOURCE_DATE_EPOCH
 
 fact commit "$COMMIT"
 fact short_commit "$SHORT"
 fact commit_date "$(git show -s --format=%cI "$COMMIT")"
+fact source_date_epoch "$SOURCE_DATE_EPOCH"
 fact subject "$(git show -s --format=%s "$COMMIT")"
 fact tree_sha "$(git rev-parse "$COMMIT^{tree}")"
 if [ -n "$CORE" ]; then
