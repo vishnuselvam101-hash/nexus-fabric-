@@ -60,7 +60,10 @@ case "$(uname -s)" in
         exit 1
       fi
       # RUSTFLAGS with --target applies to the Windows code only (build scripts are host code and not shipped).
-      step cargo-windows env CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc \
+      # The linker is x86_64-w64-mingw32-gcc, run through packaging/windows/link-wrapper.sh so that the order
+      # of the import tables does not depend on the build folder (task 4.1).
+      step cargo-windows env CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER="$ROOT/packaging/windows/link-wrapper.sh" \
+        NF_REAL_LINKER=x86_64-w64-mingw32-gcc NF_LINK_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}" \
         RUSTFLAGS="$(nf_rustflags "$ROOT" x86_64-pc-windows-gnu)" CFLAGS="$(nf_cflags "$ROOT")" \
         cargo build --release --locked -p nf-server -p nf-pdf --bin nf-server --bin nf-pdf2dxf --target x86_64-pc-windows-gnu
       step package-windows packaging/windows/build.sh target/x86_64-pc-windows-gnu/release/nf-server.exe "$VERSION" "$DIST" \
