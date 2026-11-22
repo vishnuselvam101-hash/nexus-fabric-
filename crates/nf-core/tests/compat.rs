@@ -48,6 +48,13 @@
 //! the 148 changes comes from the assumption text (the fixture does not hold the check verdicts, which are the
 //! reducer's INCONCLUSIVE circumference checks, nor the eps flags): regenerating with the previous `interval::library`
 //! gives the same 148 changes, so the outward margin changed no pattern of this corpus. The fixture was regenerated.
+//! Work plan task 1.3 (engine 0.4.5, deliberate, `NF_WRITE_COMPAT_FIXTURE=1`): RB-008, the outer profile of a part made
+//! of lines and polylines is one closed polyline (same vertices in the same order; tests/plate_conventions.rs). Of 335
+//! cases, no state, outcome, refusal or parse result changed and no `patterns_sha256` changed; `dxf_cut_geometry`
+//! changed for 93 accepted cases: 34 cylinder_shell, 40 eccentric_reducer, 11 branch_stub and 8 header_with_branch (the
+//! header and the branch of each). The 55 cone_frustum cases (arc profiles) are byte-identical. Every changed profile was
+//! checked vertex for vertex against the engine 0.4.4 curves, and every opening entity is byte-identical. The plate
+//! conventions are in the annotation lines and the 999 block, which this snapshot does not hash. The fixture was regenerated.
 
 use nf_core::job::{Request, run};
 use serde_json::{Value, json};

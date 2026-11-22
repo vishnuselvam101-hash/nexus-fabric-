@@ -23,7 +23,7 @@ seen to pass on the stated commit; "not run" is never written as passed.
 | 0.3 | The two near-tangent FAILs (D4) | done (facts) | this commit | remedy folded into 1.2 (decision under the task); regression cases land with 1.2 |
 | 1.1 | Shallow and near-180° branch angles | done | `1ec0f97` | engine 0.4.3; code `branch_angle_not_verifiable`; decision and derivation under the task, TOLERANCE_POLICY section 7 |
 | 1.2 | A true error bound everywhere | done | 2100a22 (+ uncommitted expectation fix-up) | engine 0.4.4; certified eps_rep (TOLERANCE_POLICY section 8); near-tangent FAILs resolved; changed expectations in section 8.8 and the fix-up table after it; fix-up: PRODUCT_CHECK_INCONCLUSIVE split, ui/e2e expectations, eps_num/eps_rep allow-list |
-| 1.3 | Every convention stated in the DXF and the result | not started | | |
+| 1.3 | Every convention stated in the DXF and the result | done (uncommitted) | — | engine 0.4.5; 12 plate-convention keys (999 + TEXT) per family, read back by rule `convention_statement` (14 rules); RB-008 outer profile one closed polyline where the arcs allow (lines/polylines families); changed expectations and i18n keys under the task (section 1.3 result) |
 | 1.4 | Surface attribute for every family | not started | | |
 | 1.5 | Checks that do not depend on the construction | not started | | |
 | 1.6 | Sampling density | not started | | |
@@ -285,6 +285,48 @@ fail for other reasons (r/R 1e-3 near 180°, near-tangent parts of 1e-3 mm) stay
   statement fails the gate and the file is withheld.
 - **Tests:** a statement test per family and part; tampered-file tests; cut geometry byte-identical (snapshot
   test); round trip through the independent reader. Bump the engine version.
+
+#### 1.3 — decision and result (CLI, 22 Nov 2026, engine 0.4.5)
+
+**Built.** Every part states its plate conventions: `NF-VIEW-SIDE`, `NF-PLATE-AXES`, `NF-ROLLING-AXIS`, `NF-SEAM-EDGES`,
+`NF-END-EDGES`, `NF-ANGLE-DATUM`, `NF-ORIGIN`, `NF-KERF`, `NF-STATUS` (all parts), `NF-OFFSET-DELTA`/`NF-OFFSET-SIGN` (eccentric
+reducer, branch stub, header plate) and `NF-BRANCH-ANGLE` (branch stub, header plate), as 999 keys and as TEXT on NF_NOT_RELEASED.
+The job result carries them in `dxf_output.statement`. The quality gate rule `convention_statement` reads them back and fails a
+missing, altered, repeated, extra or contradicting statement; the file is withheld. The viewing side is the existing marking side.
+Key lists per family: `uem::verify::required_convention_keys`. Format: docs/backend/DXF_METADATA.md, "Plate conventions".
+
+**RB-008.** The outer profile of a part made of lines and polylines (cylinder shell, eccentric reducer, branch stub, header plate)
+is ONE closed polyline with the same vertices in the same order. The cone frustum keeps one entity per curve: its profile has
+arcs, and an arc needs a bulge encoding this build does not write, while chords would change the cut.
+
+**Geometry.** Checked on the 156 accepted corpus DXFs before and after (dumps of the ENTITIES section up to the first TEXT): 55
+cone parts byte-identical; 101 changed files, all in grouped families, each checked: one closed outer polyline, vertices equal
+to the old curve chain vertex for vertex, every opening entity byte-identical. The compat fixture changed `dxf_cut_geometry`
+for 93 of 335 cases (34 shell, 40 eccentric reducer, 11 branch stub, 8 header with branch); no state, outcome, refusal, parse
+result or `patterns_sha256` changed. Deliberate; the fixture was regenerated and documented in compat.rs.
+
+**Changed expectations (A2), old → new:**
+1. `nf_dxf::quality::RULES`: 13 → 14 rules (test `well_formed_files_pass_every_rule`, reason: rule `convention_statement`).
+2. `tests/dxf_statement.rs`, every family: the 999 keys were exactly the units and the joint keys; now the same keys plus the
+   convention keys. The test compares the units and joint keys (filtered); the convention keys are checked in `tests/plate_conventions.rs`.
+3. `tests/compat.rs` fixture: `dxf_cut_geometry` of 93 accepted cases changed (RB-008 grouping, listed above).
+4. `ENGINE_VERSION`: `nf-engine 0.4.4+src.…` → `nf-engine 0.4.5+src.…`. Results of 0.4.4 are marked for recomputation (G21).
+5. DXF `$EXTMIN`/`$EXTMAX`: the fine-print lines extend the drawing extents below the geometry in every file (the gate's
+   `extents` rule still passes; the file is not the same bytes in its header).
+6. Edited by the integration (the coordinator's instruction; part of the 1.3 gate, not outside it): `crates/nf-server/src/tests.rs:2498`, `0.4.4` → `0.4.5`; `tests/e2e_smoke.sh` line 81, exact TEXT count on NF_NOT_RELEASED for the cone case 3 → 12 (the three fixed lines, then the nine base labels once each; the per-label checks are kept).
+7. The entity counts changed with the RB-008 grouping: `dxf_output.entities` and `reimport_report.entities_written`: cylinder shell 4 → 1; eccentric reducer 4 → 1; branch stub 4 → 1 (also the branch part of a header with branch); header plate 5 → 2 (the outer profile and one opening).
+8. The marking-side TEXT line was exempt from the convention check; it is now compared with `NF-VIEW-SIDE` (one line, the declared side). A file whose marking side contradicts its viewing side fails `convention_statement`; test `a_marking_side_text_that_contradicts_the_view_side_fails_the_gate` fails on the pre-fix code and passes now.
+9. `validation/checks/product.py` (the independent reader): pairs each DXF entity with an outline curve by index, so the RB-008 closed polyline broke it (KeyError in the quick run). Now `split_grouped_outline` splits a grouped outer profile back into the job's curves at the shared vertices and checks every piece against the curve's own JSON points; a mismatch raises. Derivation in its docstring. Quick corpus after the change: 177 cases, 116 agree, 0 disagree; the quick run exited PASS (its planted-fault stage was not separately inspected).
+
+**i18n keys needed (web, EN and JA; the DXF annotations stay English, as before):** `conv.view_side`, `conv.plate_axes`,
+`conv.rolling_axis`, `conv.seam_edges`, `conv.end_edges`, `conv.angle_datum`, `conv.origin`, `conv.kerf`, `conv.status`,
+`conv.offset_delta`, `conv.offset_sign`, `conv.branch_angle` (the twelve labels, in docs/backend/DXF_METADATA.md) and the
+family sentences of `conventions_for` (their JA is not yet written; EN source is in job.rs). Two fixed statements (KERF, STATUS,
+and the branch offset sign) have their JA in the same document.
+
+**Open.** Japanese for the family sentences (i18n above). The eccentric reducer's origin statement names the apex but gives no
+distance: no such quantity is in the pattern, and none is invented. Statements are carried from the wording of develop.rs
+(unreviewed; the convention status says so). CAM acceptance not tested.
 
 ### 1.4 Surface attribute for every family; "unknown" never switches a check off (RB-010)
 - Cone, eccentric reducer and cylindrical shell get the same surface declaration as the branch families

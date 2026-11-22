@@ -57,6 +57,76 @@ pub const JOINT_NOT_DECLARED: &str = "not declared";
 /// prefixes is a contradiction and fails the quality gate.
 pub const JOINT_TEXT_PREFIXES: [&str; 2] = ["JOINT:", "HEADER SURFACE:"];
 
+/// Keys of the plate-convention statement (work plan task 1.3; docs/backend/DXF_METADATA.md, "Plate conventions").
+/// A part states exactly the keys its family needs: the offset keys only for a part that has an offset.
+pub const KEY_VIEW_SIDE: &str = "NF-VIEW-SIDE";
+pub const KEY_PLATE_AXES: &str = "NF-PLATE-AXES";
+pub const KEY_ROLLING_AXIS: &str = "NF-ROLLING-AXIS";
+pub const KEY_SEAM_EDGES: &str = "NF-SEAM-EDGES";
+pub const KEY_END_EDGES: &str = "NF-END-EDGES";
+pub const KEY_ANGLE_DATUM: &str = "NF-ANGLE-DATUM";
+pub const KEY_ORIGIN: &str = "NF-ORIGIN";
+pub const KEY_KERF: &str = "NF-KERF";
+pub const KEY_STATUS: &str = "NF-STATUS";
+pub const KEY_OFFSET_DELTA: &str = "NF-OFFSET-DELTA";
+pub const KEY_OFFSET_SIGN: &str = "NF-OFFSET-SIGN";
+pub const KEY_BRANCH_ANGLE: &str = "NF-BRANCH-ANGLE";
+/// Every plate-convention key this build writes.
+pub const CONVENTION_KEYS: [&str; 12] = [
+    KEY_VIEW_SIDE,
+    KEY_PLATE_AXES,
+    KEY_ROLLING_AXIS,
+    KEY_SEAM_EDGES,
+    KEY_END_EDGES,
+    KEY_ANGLE_DATUM,
+    KEY_ORIGIN,
+    KEY_KERF,
+    KEY_STATUS,
+    KEY_OFFSET_DELTA,
+    KEY_OFFSET_SIGN,
+    KEY_BRANCH_ANGLE,
+];
+/// Longest value a group-999 comment line holds (DXF strings are at most 255 characters; kept below it).
+pub const MAX_COMMENT_CHARS: usize = 240;
+
+/// The plate conventions of one part: (key, value) in the order they are written. In the file each fact is
+/// a 999 line `key: value` AND a TEXT annotation on the annotation layer, `LABEL: VALUE` in capitals.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct Conventions {
+    pub facts: Vec<(String, String)>,
+}
+
+impl Conventions {
+    /// The 999 comment lines, as (key, value).
+    pub fn comments(&self) -> Vec<(String, String)> {
+        self.facts.clone()
+    }
+
+    /// The annotation lines (before splitting at `MAX_NOTE_CHARS`): the key without `NF-`, its dashes as
+    /// spaces, then the value in capitals.
+    pub fn texts(&self) -> Vec<String> {
+        self.facts
+            .iter()
+            .map(|(k, v)| {
+                format!(
+                    "{}: {}",
+                    k.trim_start_matches("NF-").replace('-', " "),
+                    v.to_uppercase()
+                )
+            })
+            .collect()
+    }
+}
+
+/// The annotation line that states the marking side, from the viewing side as the statement holds it
+/// (`outside` or `inside`). The job writes its marking-side line with this same function.
+pub fn marking_side_line(side: &str) -> String {
+    format!(
+        "MARKING SIDE: PATTERN DRAWN AS SEEN FROM THE {} OF THE FORMED PART - PROVISIONAL CONVENTION, NOT REVIEWED",
+        side.to_uppercase()
+    )
+}
+
 /// True for layers whose entities are cut paths.
 pub fn is_cut_layer(layer: &str) -> bool {
     layer.starts_with("CUT")
@@ -638,7 +708,24 @@ pub fn statement_keys(text: &str) -> Vec<(String, String)> {
 }
 
 /// Application keys this build writes. A file that states any other `NF-` key is not one of its files.
-pub const KNOWN_KEYS: [&str; 4] = [KEY_UNITS, KEY_JOINT, KEY_HEADER_SURFACE, KEY_BRANCH_SURFACE];
+pub const KNOWN_KEYS: [&str; 16] = [
+    KEY_UNITS,
+    KEY_JOINT,
+    KEY_HEADER_SURFACE,
+    KEY_BRANCH_SURFACE,
+    KEY_VIEW_SIDE,
+    KEY_PLATE_AXES,
+    KEY_ROLLING_AXIS,
+    KEY_SEAM_EDGES,
+    KEY_END_EDGES,
+    KEY_ANGLE_DATUM,
+    KEY_ORIGIN,
+    KEY_KERF,
+    KEY_STATUS,
+    KEY_OFFSET_DELTA,
+    KEY_OFFSET_SIGN,
+    KEY_BRANCH_ANGLE,
+];
 
 /// `NF-` keys that this build does not write.
 pub fn unknown_statement_keys(text: &str) -> Vec<String> {
@@ -729,6 +816,120 @@ pub fn joint_statement_problems(text: &str, expect: Option<&JointStatement>) -> 
             ));
         }
     }
+    out
+}
+
+/// Compare the plate conventions the file states with the ones the job declares for this part. Empty when they
+/// agree exactly: every declared key is stated once with the declared value (no more, no less), no other
+/// convention key is stated, and the annotation layer carries exactly the declared annotation lines besides the
+/// fixed marking, units, marking-side and joint lines. Missing, altered, repeated or extra statements are reported.
+pub fn convention_statement_problems(text: &str, expect: &Conventions) -> Vec<String> {
+    let mut out = Vec::new();
+    let file_keys = statement_keys(text);
+    for (key, want) in &expect.facts {
+        let want = one_line(want);
+        if want.chars().count() > MAX_COMMENT_CHARS {
+            out.push(format!(
+                "{key} is longer than {MAX_COMMENT_CHARS} characters"
+            ));
+        }
+        let have: Vec<&str> = file_keys
+            .iter()
+            .filter(|(k, _)| k == key)
+            .map(|(_, v)| v.as_str())
+            .collect();
+        match have.as_slice() {
+            [v] if *v == want => {}
+            [] => out.push(format!("{key} is missing; the job declares: {want}")),
+            _ => out.push(format!(
+                "{key} is stated as {} but the job declares {want}",
+                have.join(", ")
+            )),
+        }
+    }
+    for (key, _) in &file_keys {
+        let convention = CONVENTION_KEYS.contains(&key.as_str());
+        if convention && !expect.facts.iter().any(|(k, _)| k == key) {
+            out.push(format!(
+                "{key} is stated, but the job declares no {key} for this part"
+            ));
+        }
+    }
+    let entities = match read(text) {
+        Ok((e, _)) => e,
+        Err(e) => {
+            out.push(format!("the file cannot be read: {e}"));
+            return out;
+        }
+    };
+    // The marking-side lines are left out of the multiset below, because they are compared with NF-VIEW-SIDE
+    // by their own check (a file whose marking side contradicts its viewing side fails).
+    let fixed = |t: &str| {
+        t == MARK_TEXT
+            || t == UNITS_TEXT
+            || t.starts_with("MARKING SIDE:")
+            || t.starts_with("HEADER SURFACE:")
+            || JOINT_TEXT_PREFIXES.iter().any(|p| t.starts_with(p))
+    };
+    let marking_lines: Vec<String> = entities
+        .iter()
+        .filter_map(|e| match e {
+            Entity::Text { layer, text, .. }
+                if layer == MARK_LAYER && text.starts_with("MARKING SIDE:") =>
+            {
+                Some(text.clone())
+            }
+            _ => None,
+        })
+        .collect();
+    match expect.facts.iter().find(|(k, _)| k == KEY_VIEW_SIDE) {
+        None => out.push(format!(
+            "{KEY_VIEW_SIDE} is not declared, so the marking side cannot be checked"
+        )),
+        Some((_, side)) => {
+            let want = marking_side_line(side);
+            let n = marking_lines.iter().filter(|t| **t == want).count();
+            if n != 1 {
+                out.push(format!(
+                    "the marking side line \"{want}\" is written {n} times; the job declares it once"
+                ));
+            }
+            for t in marking_lines.iter().filter(|t| **t != want) {
+                out.push(format!(
+                    "the marking side line \"{t}\" contradicts {KEY_VIEW_SIDE}: {side}"
+                ));
+            }
+        }
+    }
+    let mut found: Vec<String> = entities
+        .iter()
+        .filter_map(|e| match e {
+            Entity::Text { layer, text, .. } if layer == MARK_LAYER && !fixed(text) => {
+                Some(text.clone())
+            }
+            _ => None,
+        })
+        .collect();
+    let mut want = annotation_lines(&expect.texts());
+    found.sort();
+    want.sort();
+    let count = |xs: &[String], x: &str| xs.iter().filter(|y| y.as_str() == x).count();
+    for w in &want {
+        let (n, m) = (count(&want, w), count(&found, w));
+        if n != m {
+            out.push(format!(
+                "the statement line \"{w}\" is written {m} times; the job declares it {n} time(s)"
+            ));
+        }
+    }
+    for f in &found {
+        if !want.contains(f) {
+            out.push(format!(
+                "the annotation \"{f}\" is not a statement the job declares for this part"
+            ));
+        }
+    }
+    out.dedup();
     out
 }
 
