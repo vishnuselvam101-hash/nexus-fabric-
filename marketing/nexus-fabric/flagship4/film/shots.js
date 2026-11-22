@@ -30,7 +30,7 @@ export class Shots {
     P.branch5.set(1);
     const sad5 = D.pat.branch5.curves.saddle_cut.filter((_, i) => i % 1 === 0).map(([x, y]) => P.branch5.at(x, y, 1).toArray());
     st.tube('saddle', sad5, 3.4, 0xff7a1a, false, 720); P.branch5.grp.add(st.tubes.saddle.mesh);
-    st.tube('one', hole5, 3.6, C3.green, true, 720);
+    st.tube('one', hole5, 6.5, C3.green, true, 720);
     // the wrong curve (hook): job 5's own branch plate, its computed saddle set a quarter turn out of orientation about
     // the branch axis (a marking/orientation error), then slid down its axis to first contact with the header. The cut
     // is the product's; only its placement is wrong. Slide d* = min over saddle points of (y0 - sqrt(R^2 - z0^2)) / sin(beta)
@@ -115,28 +115,34 @@ export class Shots {
   // Two curves that disagree: the product's true intersection curve on the header (blue) and the misplaced branch's
   // cut edge (red); between them a dark gap with light through it. The camera lands on the misfit and holds.
   s1(t) {
+    // frame 0 already shows the problem: the misplaced branch is just above the header and settles by 0.3 s
     const st = this.st, P = st.parts, b = this.req5.beta_deg * deg, A = new THREE.Vector3(Math.cos(b), Math.sin(b), 0);
-    const land = spring(seg(t, 0.0, 0.9), 0.6);
+    const land = spring(seg(t, 0.0, 0.3), 0.7);
     this.tee({ b: 'branch5' });
-    P.branch5.grp.quaternion.copy(this.wrongQ); P.branch5.grp.position.copy(this.wrongPos).addScaledVector(A, 420 * (1 - land));
-    const hold = quint(seg(t, 0.95, 1.6));
-    const c0 = { tx: 650, ty: 100, tz: 0, az: 20, el: 14, dist: 2250, fov: 24, sx: 120, sy: 130 };
-    const c1 = this.hookCam(t);
-    this.cam(lerpCam(c0, c1, hold));
-    const on = seg(t, 0.95, 1.05);
-    st.tubes.wrong.draw(t >= 0.95 ? 1 : 0, on);
-    st.tubes.true.draw(t >= 1.0 ? spring(seg(t, 1.0, 1.6), 0.9) : 0, 1);
-    this.gapRibbon.visible = t >= 0.95; this.gapRibbon.material.color.setHex(0x0e1117); this.gapRibbon.material.opacity = 0.5 * on;
+    P.branch5.grp.quaternion.copy(this.wrongQ); P.branch5.grp.position.copy(this.wrongPos).addScaledVector(A, 90 * (1 - land));
+    // camera: a short push-in onto the misfit (0-1.6 s), then held nearly still
+    const c1 = this.hookCam(t), push = quint(seg(t, 0.0, 1.6));
+    this.cam({ ...c1, dist: c1.dist * (1.14 - 0.14 * push), az: c1.az - 6 * (1 - push) });
+    st.tubes.wrong.draw(1, 1); st.tubes.wrong.mesh.position.copy(A).multiplyScalar(90 * (1 - land));
+    st.tubes.true.draw(spring(seg(t, 0.05, 0.6), 0.9), 1);
+    const on = seg(t, 0.25, 0.4);
+    this.gapRibbon.visible = on > 0; this.gapRibbon.material.color.setHex(0x0e1117); this.gapRibbon.material.opacity = 0.5 * on;
     return (o, V) => {
       const S = V.S;
       this.head(o, V, S.hook, t, 0.3, 3.95);
-      this.contactFlash(o, t, 0.9);
+      this.contactFlash(o, t, 0.3);
       this.gapLight(o, on * (0.85 + 0.15 * Math.sin(t * 9)));
-      this.label(o, V, S.label_hook, t, 1.0, 3.95);
+      // a "gap" callout at the widest point (a word; the size is not stated)
+      if (t >= 0.5) { const g = this.P(this.gapMid()), a = (0.6 + 0.4 * seg(t, 0.5, 0.63)) * (1 - seg(t, 3.8, 3.95)), u = spring(seg(t, 0.5, 0.9));
+        const lx = g[0] - 300, ly = g[1] + 150; o.line([g, [lerp(g[0], lx + 120, u), lerp(g[1], ly - 30, u)]], 3, COL.red, a); o.dot(g[0], g[1], 8, COL.red, a);
+        o.pill(S.gap_word, lx, ly, { size: BS, weight: 700, color: COL.red, stroke: COL.red, strokeW: 3, alpha: a, h: 74, padX: 26 }); }
+      this.label(o, V, S.label_hook, t, 0.0, 3.95);
     };
   }
+  // the middle of the widest gap (between the misplaced edge and the header surface)
+  gapMid() { const R5 = this.req5.header_radius, p = this.gapPt, r = Math.hypot(p.y, p.z), f = (R5 + (r - R5) / 2) / r; return [p.x, p.y * f, p.z * f]; }
   // the held misfit framing (scene 1 from 1.6 s, and the first frames of scene 2): near-still, a 1 degree drift
-  hookCam(t) { const c = this.jointC; return { tx: c.x, ty: c.y, tz: c.z, az: 24 + 1.0 * seg(t, 1.6, 4.0), el: 22, dist: 1380, fov: 24, sx: 230, sy: 150 }; }
+  hookCam(t) { const c = this.jointC; return { tx: c.x, ty: c.y, tz: c.z, az: 24 + 1.0 * seg(t, 1.6, 4.0), el: 22, dist: 1380, fov: 24, sx: 260, sy: 130 }; }
   get jointC() { const g = this.gapPt; return new THREE.Vector3(lerp(686, g.x, 0.35), lerp(150, g.y, 0.35), lerp(0, g.z, 0.35)); }
   // light seen through the gap: a warm line along the middle of the gap (between the misplaced edge and the header surface)
   gapLight(o, a) {
@@ -200,8 +206,8 @@ export class Shots {
       const S = V.S;
       if (t >= 9.88) this.appWindow(o, V, t);
       if (t < 10) {
-        this.head(o, V, S.brand_name, t, 8.2, 9.2);
-        this.head(o, V, S.product_a, t, 9.2, 9.95);
+        this.head(o, V, S.brand_name, t, 8.2, 9.25);
+        this.head(o, V, S.product_a, t, 9.2, 10.05);
         const cA = clamp(1 - seg(t, 9.72, 9.84));
         if (cA > 0) this.callouts(o, V, t, cA);
         this.label(o, V, S.label_vis, t, 8.0, 9.95);
@@ -213,15 +219,14 @@ export class Shots {
   // 942.478 dimension over the two seconds. The gates panel (right of the preview) is never in the crop.
   appPlate(lang) { return lang === 'ja' ? [609, 265, 1379, 868] : [609, 253, 1379, 856]; }
   appView(lang, t) {
-    // first frame: the inputs panel (with the surface the radii refer to) and the plate in the preview, crop along the
-    // panel borders; then a push-in to the opening and the 942.478 dimension
-    const pl = this.appPlate(lang), W0 = 1224, H0 = 628;
-    const c0 = [pl[0] - 377 + W0 / 2, pl[1] - 63 + H0 / 2];
-    // end: the opening and the 942.478 dimension; the crop's right edge stays inside the preview panel (x <= 1450)
-    const c1 = [1450 - W0 / 4, (pl[1] + pl[3]) / 2 + 6];
-    const zz = quint(seg(t, 10.35, 11.6)), z = 1 + 1.0 * zz;
+    // the real flat pattern, large: the plate in the preview with its rulers and both dimensions (crop along the
+    // preview's panel), then a push-in to the opening and the 942.478 dimension (the crop stays inside the panel)
+    const pl = this.appPlate(lang), W0 = 836, H0 = 698;
+    const c0 = [pl[0] - 26 + W0 / 2, pl[1] - 56 + H0 / 2];
+    const zz = quint(seg(t, 10.45, 11.6)), z = 1 + 0.5 * zz;
+    const c1 = [Math.min(1450 - W0 / (2 * 1.5), pl[2] - 150), (pl[1] + pl[3]) / 2 + 10];
     const cx = lerp(c0[0], c1[0], zz), cy = lerp(c0[1], c1[1], zz);
-    return { sx: cx - W0 / (2 * z), sy: cy - H0 / (2 * z), sw: W0 / z, sh: H0 / z, X: 340, Y: 262, W: 1460, H: 749 };
+    return { sx: cx - W0 / (2 * z), sy: cy - H0 / (2 * z), sw: W0 / z, sh: H0 / z, X: 911, Y: 262, W: 929, H: 776 };
   }
   appFit() {
     // the 3D plate (1200 mm) must cover the preview's plate at the first frame of the window; px per mm at distance d
@@ -237,6 +242,10 @@ export class Shots {
     c.save(); c.globalAlpha = a; c.shadowColor = 'rgba(20,30,50,0.18)'; c.shadowBlur = 40; c.shadowOffsetY = 12; c.fillStyle = '#fff'; o.rr(v.X, v.Y, v.W, v.H, 16); c.fill(); c.shadowColor = 'transparent';
     o.rr(v.X, v.Y, v.W, v.H, 16); c.clip(); c.drawImage(img, v.sx * k2, v.sy * k2, v.sw * k2, v.sh * k2, v.X, v.Y, v.W, v.H); c.restore();
     o.block(V.S.product_b, 120, 210, 140, { size: HS, weight: 650 }, t, 10.0, 12.2);
+    // the same pattern's numbers, large (job 5 header pattern: length x developed width, opening perimeter)
+    const Q = D.pat.header5.quantities;
+    o.block([fmt(V.S.sheet_line, { l: mm(Q.length), w: mm(Q.developed_width) })], 120, 470, 0, { size: BS, weight: 700, color: COL.blueT }, t, 10.15, 12.2);
+    o.block([fmt(V.S.opening_line, { p: mm(Q.opening_perimeter) })], 120, 560, 0, { size: BS, weight: 700, color: COL.blueT }, t, 10.3, 12.2);
     this.label(o, V, V.S.label_actual, t, 10.0, 12.2);
   }
   callouts(o, V, t, alpha) {
@@ -279,11 +288,11 @@ export class Shots {
     // one family per slot, cut on the music's accent. Scale per family so each flat pattern spans a similar width on
     // screen (a visual normalisation; no size is stated). rot: Euler XYZ, so the flat pattern lies horizontal and wide.
     const cfg = [
-      { key: 'shell', s: 0.50, l: [500, 0, 0], rot: [0, Math.PI / 2, 0], dir: 'unroll', cam: { az: 20, el: 30, dist: 3150, sx: 220, sy: 40, ty: 60 } },
-      { key: 'cone', s: 1.15, l: [0, -450, 0], rot: [0, 0, 0], dir: 'roll', cam: { az: 22, el: 30, dist: 2800, sx: 230, sy: 90, ty: -200 } },
-      { key: 'ecc', s: 1.15, l: [0, -450, 150], rot: [0, 0, 0], dir: 'unroll', cam: { az: 24, el: 30, dist: 2800, sx: 230, sy: 90, ty: -200 } },
-      { key: 'branch4', s: 1.6, l: [730, 225, 0], rot: [-Math.PI / 2, 0, -Math.PI / 3], dir: 'roll', cam: { az: 22, el: 32, dist: 2550, sx: 230, sy: 40, ty: 60 } },
-      { key: 'header5', s: 1.0, l: [600, 0, 0], rot: [0, 0, 0], dir: 'unroll', cam: { az: 24, el: 32, dist: 2900, sx: 360, sy: 90, ty: 40 } },
+      { key: 'shell', s: 0.50, l: [500, 0, 0], rot: [0, Math.PI / 2, 0], dir: 'unroll', cam: { az: 20, el: 30, dist: 3600, sx: 200, sy: 110, ty: 60 } },
+      { key: 'cone', s: 1.15, l: [0, -450, 0], rot: [0, 0, 0], dir: 'roll', cam: { az: 22, el: 30, dist: 2350, sx: 140, sy: 170, ty: -200 } },
+      { key: 'ecc', s: 1.15, l: [0, -450, 150], rot: [0, 0, 0], dir: 'unroll', cam: { az: 24, el: 30, dist: 2650, sx: 300, sy: 170, ty: -200 } },
+      { key: 'branch4', s: 1.6, l: [730, 225, 0], rot: [-Math.PI / 2, 0, -Math.PI / 3], dir: 'roll', cam: { az: 22, el: 32, dist: 2300, sx: 260, sy: 90, ty: 60 } },
+      { key: 'header5', s: 1.0, l: [600, 0, 0], rot: [0, 0, 0], dir: 'unroll', cam: { az: 24, el: 32, dist: 3200, sx: 330, sy: 170, ty: 40 } },
     ][i];
     return { ...cfg, c: [0, 0, 0] };
   }
@@ -295,7 +304,8 @@ export class Shots {
     const inU = spring(seg(t, ts, ts + 0.45), 0.75), du = seg(t, ts, te);
     const c = pp.cam;
     this.cam({ tx: 0, ty: c.ty, tz: 0, az: c.az + 8 * du, el: c.el, dist: c.dist * (1.06 - 0.06 * du), fov: 24, sx: c.sx, sy: c.sy });
-    st.setShadow({ cx: 0, cz: 0, size: 4200, floorY: -560, height: 760, opacity: 0.55 });
+    st.setShadow({ cx: 0, cz: 0, size: 3600, floorY: -330, height: 420, opacity: 0.5 });
+    if (pp.key === 'cone' || pp.key === 'ecc') part.mesh.material = st.steelPlain;
     st.setLights(0, 0, 0, 1100);
     part.grp.visible = true;
     part.grp.scale.setScalar(pp.s * (0.94 + 0.06 * inU));
@@ -330,11 +340,11 @@ export class Shots {
       const da = flatness * (pp.dir === 'unroll' ? seg(t, ts + 0.95, ts + 1.15) : 1 - seg(t, ts + 0.6, ts + 0.75));
       if (da > 0.01) {
         const cv = D.pat[pp.key].holes[0] || Object.values(D.pat[pp.key].curves)[0], anc = this.P(this.flatWorld(pp, part, cv[Math.floor(cv.length / 2)]));
-        const w = Math.max(o.tw(dim[1], BS, 650), o.tw(QL[dim[0]][V.lang], LS, 500));
-        o.line([[120 + w + 24, y + 12], anc], 3, COL.blue, da, [2, 8]); o.dot(anc[0], anc[1], 7, COL.blue, da);
-        o.txt(dim[1], 120, y + 20, { size: BS, weight: 650, color: COL.blueT, alpha: da });
-        o.txt(QL[dim[0]][V.lang], 120, y + 72, { size: LS, weight: 500, color: COL.ink2, alpha: da });
-        y += 150;
+        // the dimension sits at the lower left, clear of the part, with a leader to the pattern
+        const w = Math.max(o.tw(dim[1], BS, 650), o.tw(QL[dim[0]][V.lang], LS, 500)), yd = 880;
+        o.line([[120 + w + 24, yd - 8], anc], 3, COL.blue, da, [2, 8]); o.dot(anc[0], anc[1], 7, COL.blue, da);
+        o.txt(dim[1], 120, yd, { size: BS, weight: 650, color: COL.blueT, alpha: da });
+        o.txt(QL[dim[0]][V.lang], 120, yd + 52, { size: LS, weight: 500, color: COL.ink2, alpha: da });
       }
       // point by point: the opening's computed points (job 5), one after another
       if (i === 4 && t >= 19.1) {
@@ -377,8 +387,8 @@ export class Shots {
     const off = new THREE.Vector3(0, 380, 620).multiplyScalar(1 - kf).add(new THREE.Vector3(1500, 0, 0).multiplyScalar(1 - bIn));
     this.tee({ kh: kf, kb: kf, b: 'branch5', boff: off });
     const u = seg(t, 20, 26);
-    const c0 = { tx: 600, ty: 40, tz: 0, az: 32, el: 32, dist: 2900, fov: 24, sx: 360, sy: 90 };
-    const c1 = { tx: 620, ty: 70, tz: 0, az: 36 + 8 * u, el: 17, dist: 3050, fov: 24, sx: -470, sy: 130 };
+    const c0 = { tx: 600, ty: 40, tz: 0, az: 32, el: 32, dist: 3200, fov: 24, sx: 330, sy: 170 };
+    const c1 = { tx: 650, ty: 90, tz: 0, az: 36 + 8 * u, el: 19, dist: 2650, fov: 24, sx: -540, sy: 160 };
     this.cam(lerpCam(c0, c1, quint(seg(t, 20.0, 22.2))));
     // the two cut edges: the header's opening (blue) and the branch's saddle (orange); at 21.9 s they meet: one curve (green)
     const e = seg(t, 21.3, 21.75), m = seg(t, 21.9, 22.25);
@@ -386,8 +396,8 @@ export class Shots {
     st.tubes.one.draw(t >= 21.9 ? spring(seg(t, 21.9, 22.4)) : 0, 1 - 0.0 * seg(t, 25.6, 25.95));
     return (o, V) => {
       const S = V.S;
-      this.head(o, V, S.checks_big, t, 20.0, 21.85);
-      this.head(o, V, S.one_curve, t, 21.9, 25.95);
+      this.head(o, V, S.checks_big, t, 20.0, 21.9);
+      this.head(o, V, S.one_curve, t, 21.85, 25.95);
       // flash at the closing
       const fl = Math.exp(-7 * Math.max(0, t - 21.9)) * (t >= 21.9 ? 1 : 0);
       if (fl > 0.02) { const c = o.c; c.save(); c.globalCompositeOperation = 'lighter'; c.filter = 'blur(14px)'; c.strokeStyle = `rgba(160,255,200,${0.7 * fl})`; c.lineWidth = 26; c.beginPath(); this.hole5.forEach((p, i) => { if (i % 8) return; const s = this.P(p); i ? c.lineTo(s[0], s[1]) : c.moveTo(s[0], s[1]); }); c.closePath(); c.stroke(); c.restore(); }
@@ -413,43 +423,57 @@ export class Shots {
       for (const ck of list) { const nm = ja ? (ck.ja || ck.name) : ck.name, mono = !(ja && ck.ja); const lines = wrapText(o, nm, maxW, mono, ja && !!ck.ja); const h = 34 + lines.length * 50; rows.push({ lines, mono, y, h }); y += h + 12; }
       this._rows = { lang: V.lang, rows };
     }
-    const rows = this._rows.rows, top = 470, H = 440;
-    // the list moves by whole rows: each new row slides in from below with a short spring (0.12 s, inside the 0.125 s
-    // tick); rows that leave the top fade out instead of being cut
-    const target = (k) => { const r = rows[Math.max(0, k - 1)]; return Math.max(0, r.y + r.h - H); };
-    const tk = 21.8 + (n - 1) * 0.125, scroll = lerp(target(n - 1), target(n), spring(seg(t, tk, tk + 0.12), 0.9));
-    for (let j = 0; j < n; j++) {
-      const r = rows[j], y = top + r.y - scroll; if (y > top + H) continue;
-      const fade = clamp((y + r.h * 0.6 - top) / (r.h * 0.6)); if (fade <= 0) continue;
-      const ti = clamp((t - (21.8 + j * 0.125)) / 0.2), ent = j === n - 1 ? spring(seg(t, tk, tk + 0.12), 0.9) : 1;
-      c.save(); c.globalAlpha *= fade * (0.4 + 0.6 * ent);
-      c.fillStyle = 'rgba(255,255,255,0.9)'; o.rr(X, y, W, r.h, 14); c.fill();
-      o.tick(X + 44, y + 42, 30, ti, COL.green, 6);
+    const rows = this._rows.rows, top = 470;
+    // two rows at a time: the newest slides in under the previous one (spring, inside the 0.125 s tick); the row above
+    // moves up and fades; the tick pops in whole (no half-drawn glyph on any frame)
+    const tk = 21.8 + (n - 1) * 0.125, sp = spring(seg(t, tk, tk + 0.11), 0.9), gapR = 14;
+    const H = (j) => (rows[j] ? rows[j].h + gapR : 0);
+    const items = [];
+    if (n >= 3) items.push([n - 3, top, top - 50, 1, 0]);
+    if (n >= 2) items.push([n - 2, top + H(n - 3), top, 1, 1]);
+    items.push([n - 1, top + H(n - 2) + 60, top + H(n - 2), 0, 1]);
+    for (const [j, y0, y1, a0, a1] of items) {
+      const r = rows[j], y = lerp(y0, y1, sp), a = lerp(a0, a1, sp); if (a <= 0.01) continue;
+      c.save(); c.globalAlpha *= a;
+      c.fillStyle = 'rgba(255,255,255,0.92)'; o.rr(X, y, W, r.h, 14); c.fill();
+      const pop = j === n - 1 ? spring(seg(t, tk, tk + 0.11), 0.6) : 1;
+      c.save(); c.translate(X + 44, y + 42); c.scale(Math.max(0.01, pop), Math.max(0.01, pop)); o.tick(0, 0, 32, 1, COL.green, 7); c.restore();
       r.lines.forEach((ln, i) => o.txt(ln, X + 92, y + 56 + i * 50, { size: LS, weight: 500, mono: r.mono, color: COL.ink }));
       c.restore();
     }
     // the disclosure belongs to the checks: under the list, in the panel (labels=1)
-    if (V.labels) { const sub = ja ? V.S.checks_sub.split('。').filter(Boolean).map((x) => x + '。') : V.S.checks_sub.replace(' — ', ' —\n').split('\n'); sub.forEach((ln, i) => o.txt(ln, X, 966 + i * 50, { size: LS, weight: 500, color: COL.ink3 })); }
+    if (V.labels) { const sub = ja ? V.S.checks_sub.split('。').filter(Boolean).map((x) => x + '。') : V.S.checks_sub.replace(' — ', ' —\n').split('\n'); sub.forEach((ln, i) => o.txt(ln, X, 840 + i * 50, { size: LS, weight: 500, color: COL.ink3 })); }
     c.restore();
   }
 
   // ================================================================== 6 · 26-30 s · DXF written, read back, compared
   s6(t) {
-    // the DXF scene is drawn on a sheet: no 3D (the plate it describes is job 6's header pattern); the set stays
-    const st = this.st;
-    this.cam({ tx: 600, ty: 150, tz: 0, az: 0, el: 89.9, dist: 4000, fov: 24 });
-    st.setShadow({ opacity: 0 });
+    // match cut: the flat header plate (job 6, the file's plate) slides in under a top camera and lands exactly where
+    // the DXF sheet will be; the sheet then covers it and its entities draw
+    const st = this.st, P = st.parts;
     const dr = this.dxfRect();
+    const pw = dr.w, dist = 1080 / (2 * Math.tan(12 * deg) * (pw / 1200));
+    this.cam({ tx: 600, ty: 150, tz: 0, az: 0, el: 89.9, dist, fov: 24, sx: dr.x + dr.w / 2 - 960, sy: dr.y + dr.h / 2 - 540 });
+    st.setShadow({ opacity: 0 });
     return (o, V) => {
       const S = V.S, c = o.c;
       const words = S.dxf_words; const wt = [26.0, 26.95, 27.6];
-      for (let k = 0; k < 3; k++) this.head(o, V, words[k], t, wt[k], k < 2 ? wt[k + 1] - 0.02 : 29.95);
+      for (let k = 0; k < 3; k++) this.head(o, V, words[k], t, wt[k], k < 2 ? wt[k + 1] + 0.05 : 29.95);   // each word is gone exactly when the next arrives
       // the plate turns into its DXF drawing: a white sheet covers the steel, the entities draw on it
-      const sh = 0.6 + 0.4 * seg(t, 26.0, 26.13), shs = spring(seg(t, 26.0, 26.35));
-      { c.save(); c.globalAlpha = sh; c.translate(0, 24 * (1 - shs)); c.fillStyle = '#ffffff'; c.shadowColor = 'rgba(20,30,50,0.12)'; c.shadowBlur = 30; c.shadowOffsetY = 8; o.rr(dr.x - 30, dr.y - 30, dr.w + 60, dr.h + 60, 16); c.fill(); c.restore(); }
+      // the flat plate (steel, with its opening, drawn from the file's own entities) slides in and lands on the sheet
+      const toS0 = ([x, y]) => [dr.x + x * dr.w / 1200, dr.y + dr.h - y * dr.w / 1200];
+      const slide = spring(seg(t, 25.95, 26.3), 0.85), plA = 1 - seg(t, 26.3, 26.45);
+      if (plA > 0) { const dx = -900 * (1 - slide); c.save(); c.globalAlpha = plA; c.translate(dx, 0);
+        c.shadowColor = 'rgba(20,30,50,0.25)'; c.shadowBlur = 30; c.shadowOffsetY = 14;
+        const g = c.createLinearGradient(dr.x, dr.y, dr.x + dr.w, dr.y + dr.h); g.addColorStop(0, '#b9bec5'); g.addColorStop(0.45, '#eef0f2'); g.addColorStop(0.55, '#d9dde1'); g.addColorStop(1, '#a3a9b0');
+        c.fillStyle = g; c.beginPath(); c.rect(dr.x, dr.y, dr.w, dr.h);
+        const hole = D.dxf.poly[0].pts; hole.forEach((p, i) => { const q = toS0(p); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); }); c.closePath(); c.fill('evenodd');
+        c.shadowColor = 'transparent'; c.strokeStyle = 'rgba(20,24,30,0.35)'; c.lineWidth = 2; c.stroke(); c.restore(); }
+      const sh = seg(t, 26.28, 26.42), shs = 1;
+      if (sh > 0) { c.save(); c.globalAlpha = sh; c.fillStyle = '#ffffff'; c.shadowColor = 'rgba(20,30,50,0.12)'; c.shadowBlur = 30; c.shadowOffsetY = 8; o.rr(dr.x - 30, dr.y - 30, dr.w + 60, dr.h + 60, 16); c.fill(); c.restore(); }
       const toS = ([x, y]) => [dr.x + x * dr.w / 1200, dr.y + dr.h - y * dr.w / 1200];
       const ents = this.dxfPaths();
-      const wU = smooth(seg(t, 26.05, 26.75)), rU = smooth(seg(t, 26.95, 27.55));
+      const wU = smooth(seg(t, 26.32, 26.95)), rU = smooth(seg(t, 26.95, 27.55));
       for (const [pass, u, col, w] of [[0, wU, COL.ink, 4], [1, rU, COL.blue, 4]]) {
         if (u <= 0) continue;
         // every entity draws at the same time, each to the same fraction of its own length
@@ -467,21 +491,21 @@ export class Shots {
       if (t >= 27.6) { o.dot(dr.x + dr.w - 10, dr.y + 10, 46 * lk, COL.green, 1); o.tick(dr.x + dr.w - 10, dr.y + 12, 44, seg(t, 27.65, 27.9), '#fff', 8);
         o.block([fmt(S.roundtrip_line, { r: mm(R.entities_read), w: mm(R.entities_written) })], 120, 304, 0, { size: BS, weight: 600, color: COL.greenT }, t, 27.6, 29.95); }
       // the format the file declares in its header ($ACADVER)
-      o.block([fmt(S.dxf_kind, { v: D.dxf.acadver })], dr.x + 24, dr.y + 54, 0, { size: LS, weight: 600, color: COL.ink3 }, t, 26.0, 29.95);
+      o.block([fmt(S.dxf_kind, { v: D.dxf.acadver })], dr.x + 24, dr.y + 54, 0, { size: LS, weight: 600, color: COL.ink3 }, t, 26.3, 29.95);
       // the rows of the file stream on the right (group code, value) until the stamp
       this.dxfRows(o, V, t);
       // NOT RELEASED (29.0 s, the music's amber): over the lower part of the sheet, below the opening; the real file
       // name in the column on the right where the rows were
       if (t >= 28.95) {
-        const u = spring(seg(t, 28.95, 29.35), 0.6), cx = 640, cy = dr.y + dr.h - 105;
+        const u = spring(seg(t, 28.95, 29.35), 0.6), cx = 600, cy = dr.y + dr.h - 105;
         c.save(); c.translate(cx, cy); c.rotate(-3 * deg); c.scale(1.1 - 0.1 * u, 1.1 - 0.1 * u); c.globalAlpha = seg(t, 28.95, 29.05);
         const s = B.ui[V.lang]['tb.nr'], w = o.tw(s, HS, 750) + 90, h = 170;
         c.fillStyle = 'rgba(255,255,255,0.94)'; o.rr(-w / 2, -h / 2, w, h, 20); c.fill(); c.strokeStyle = COL.amber; c.lineWidth = 10; o.rr(-w / 2, -h / 2, w, h, 20); c.stroke();
         o.txt(s, 0, 47, { size: HS, weight: 750, color: COL.amberT, align: 'center' }); c.restore();
         const nm = D.dxf.name, k = nm.indexOf('_', Math.floor(nm.length / 2) - 4) + 1, aa = seg(t, 29.05, 29.25);
-        o.txt(nm.slice(0, k), 1160, 440, { size: LS, mono: true, alpha: aa }); o.txt(nm.slice(k), 1160, 492, { size: LS, mono: true, alpha: aa });
+        o.txt(nm.slice(0, k), 1185, 640, { size: LS, mono: true, alpha: aa }); o.txt(nm.slice(k), 1185, 692, { size: LS, mono: true, alpha: aa });
         // the marking the file itself carries (its NF_NOT_RELEASED text entity), line by line
-        D.dxf.marking.split(' - ').forEach((ln, j) => o.txt(ln, 1160, 572 + j * 50, { size: LS, mono: true, color: COL.amberT, alpha: seg(t, 29.15 + 0.08 * j, 29.35 + 0.08 * j) }));
+        D.dxf.marking.split(' - ').forEach((ln, j) => o.txt(ln, 1185, 776 + j * 50, { size: LS, mono: true, color: COL.amberT, alpha: seg(t, 29.15 + 0.08 * j, 29.35 + 0.08 * j) }));
       }
       this.label(o, V, S.label_vis, t, 26.0, 29.95);
     };
@@ -495,25 +519,22 @@ export class Shots {
     return (this._dp = { paths, total });
   }
   dxfRows(o, V, t) {
-    if (t < 26.0) return; const rows = D.dxf.rows, c = o.c, X = 1160, top = 450, lh = 54, vis = 10;
-    const pos = (t - 26.0) * 11;                       // rows per second
-    const a = (0.6 + 0.4 * seg(t, 26.0, 26.13)) * (1 - seg(t, 28.8, 28.95)); if (a <= 0) return;
-    c.save(); c.globalAlpha = a; c.beginPath(); c.rect(X - 20, top - 46, 700, lh * vis + 10); c.clip();
-    const k0 = Math.floor(pos); const fr = pos - k0;
-    for (let j = 0; j <= vis; j++) {
-      const k = k0 + j; if (k >= rows.length) break; const y = top + (j - fr) * lh;
-      const [code, val] = rows[k], isNew = j >= vis - 1;
-      o.txt(code.padStart(3, ' '), X, y, { size: LS, mono: true, weight: 500, color: COL.ink3 });
-      o.txt(val, X + 130, y, { size: LS, mono: true, weight: 500, color: code === '0' ? COL.blueT : COL.ink });
+    // the file's rows (group code, value), four at a time in the top right, stepping one row every 0.12 s (spring);
+    // the row leaving the top fades out, nothing is cut at a mask edge
+    if (t < 26.3) return; const rows = D.dxf.rows, X = 1185, top = 370, lh = 52, vis = 4, c = o.c;
+    const step = 0.12, k = Math.floor((t - 26.3) / step), sp = spring(seg(t, 26.3 + k * step, 26.3 + k * step + 0.1), 0.9);
+    const a0 = seg(t, 26.3, 26.42);
+    for (let j = -1; j < vis; j++) {
+      const r = k + j; if (r < 0 || r >= rows.length) continue;
+      const y = top + (j + 1 - sp) * lh; let a = a0;
+      if (j === -1) a *= 1 - sp; if (j === vis - 1) a *= sp;
+      if (a <= 0.01) continue;
+      const [code, val] = rows[r];
+      o.txt(code.padStart(3, ' '), X, y, { size: LS, mono: true, weight: 500, color: COL.ink3, alpha: a });
+      o.txt(val, X + 130, y, { size: LS, mono: true, weight: 500, color: code === '0' ? COL.blueT : COL.ink, alpha: a });
     }
-    c.restore();
-    // fade top and bottom edges of the stream
-    c.save(); c.globalAlpha = a;
-    const g1 = c.createLinearGradient(0, top - 46, 0, top + 30); g1.addColorStop(0, 'rgba(244,245,247,1)'); g1.addColorStop(1, 'rgba(244,245,247,0)');
-    c.fillStyle = g1; c.fillRect(X - 20, top - 46, 700, 76);
-    const yb = top + lh * vis - 60, g2 = c.createLinearGradient(0, yb, 0, yb + 70); g2.addColorStop(0, 'rgba(236,237,240,0)'); g2.addColorStop(1, 'rgba(236,237,240,1)');
-    c.fillStyle = g2; c.fillRect(X - 20, yb, 700, 70); c.restore();
   }
+
 
   // ================================================================== 7 · 30-42 s · AMOEBA
   graphLayout() {
@@ -554,7 +575,7 @@ export class Shots {
     const am = seg(t, 36.0, 36.15);
     if (am > 0) { const tb = ch > 0.5 ? st.tubes.amber6 : st.tubes.amberSeam; tb.draw(1, am); }
     // replay (40.4-41.3 s): a ring scans the header as the records are checked
-    if (t >= 40.4) { const s = st.tubes.scan, k = quint(seg(t, 40.4, 41.3)); s.draw(1, 1 - seg(t, 41.3, 41.5)); s.mesh.position.set(lerp(-20, 1220, k), 0, 0); }
+    if (t >= 40.45) { const s = st.tubes.scan, k = quint(seg(t, 40.45, 41.3)); s.draw(1, seg(t, 40.45, 40.6) * (1 - seg(t, 41.3, 41.5))); s.mesh.position.set(lerp(60, 1140, k), 0, 0); }
     // anchors on the steel (projected after the camera is set)
     const r = this.req5, b = r.beta_deg * deg, v3 = (x, y, z) => new THREE.Vector3(x, y, z);
     const O = v3(r.branch_station, 0, 0), A = v3(Math.cos(b), Math.sin(b), 0), e1 = v3(-Math.sin(b), Math.cos(b), 0), top = O.clone().addScaledVector(A, r.s_end);
@@ -562,16 +583,21 @@ export class Shots {
       'parameter · branch_station': v3(r.branch_station, -Rh, 40), 'parameter · branch_radius': top.clone().addScaledVector(e1, -r.branch_radius), 'parameter · branch_dev_radius': top.clone().addScaledVector(e1, r.branch_radius),
       'parameter · beta_deg': O.clone().addScaledVector(A, 230), 'parameter · delta': O.clone(), 'parameter · s_end': top, 'convention · surface_reference': v3(900, Rh * 0.7, Rh * 0.7) };
     const anS = {}; for (const [k, v] of Object.entries(an)) anS[k] = this.P(v);
-    anS.centre = this.P(v3(600, 0, 0)); anS.rim = this.P(v3(0, Rh * Math.cos(40 * deg), Rh * Math.sin(40 * deg)));
+    anS.centre = this.P(v3(600, 0, 0)); anS.curve = this.hole5.filter((_, i) => i % 12 === 0).map((p) => this.P(p));
+    if (t < 30.25) st.tubes.one.draw(1, 1 - seg(t, 30.0, 30.2)); anS.rim = this.P(v3(0, Rh * Math.cos(40 * deg), Rh * Math.sin(40 * deg)));
     return (o, V) => this.s7draw(o, V, t, anS);
   }
   s7draw(o, V, t, anS) {
     const S = V.S, j6 = B.job6, corr = j6.corr, ja = V.lang === 'ja', c = o.c;
-    this.head(o, V, S.amoeba_big, t, 30.0, 34.95);
+    this.head(o, V, S.amoeba_big, t, 30.0, 35.05);
     o.block(S.amoeba_def, 120, 310, 62, { size: BS, weight: 500, color: COL.ink2 }, t, 32.0, 34.95);
-    this.head(o, V, S.change_big, t, 35.0, 40.35);
-    // records strip (30.4-38.3 s)
+    this.head(o, V, S.change_big, t, 35.0, 40.45);
+    // records strip (30.0-38.3 s)
     if (t < 38.4) this.graph(o, V, t, anS, 1 - seg(t, 38.1, 38.35));
+    // match cut from scene 5: the green joint curve leaves the steel and shrinks into its record (intersection curve)
+    if (t < 30.7) { const q = this.graphLayout().pos.intersection_curve, u = quint(seg(t, 30.05, 30.6)), cc = o.c;
+      c.save(); c.globalAlpha = 1 - seg(t, 30.5, 30.65); c.strokeStyle = COL.green; c.lineWidth = lerp(9, 4, u); c.lineJoin = 'round'; c.beginPath();
+      anS.curve.forEach((p, i) => { const x = lerp(p[0], q.x + (p[0] - anS.curve[0][0]) * 0.08, u), y = lerp(p[1], q.y + (p[1] - anS.curve[0][1]) * 0.08, u); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.closePath(); c.stroke(); c.restore(); }
     // the changed value, large, tethered to the header (from 35.0 s): the catalogue's name and old -> new
     if (t >= 35.0 && t < 40.4) {
       const a = (0.6 + 0.4 * seg(t, 35.0, 35.13)) * (1 - seg(t, 40.15, 40.35)), y = 330;
@@ -592,10 +618,10 @@ export class Shots {
     if (t >= 38.4 && t < 40.4) this.realGraph(o, V, t);
     // replay: the count runs to the job's 43 records in a third of a second, then one large match tick holds
     if (t >= 40.4) {
-      const n = Math.min(j6.replay.checked, Math.round(j6.replay.checked * smooth(seg(t, 40.42, 40.75))));
+      const n = j6.replay.checked;   // the number of records checked, shown as it is (no count-up)
       this.head(o, V, S.replay_big, t, 40.4, 41.95);
-      const lk = spring(seg(t, 40.75, 41.1), 0.6), fa = 1 - seg(t, 41.8, 41.95);
-      if (t >= 40.75) { o.dot(184, 420, 64 * lk, COL.green, fa); o.tick(184, 424, 62, seg(t, 40.8, 41.05), '#fff', 10, fa); }
+      const lk = 0.6 + 0.4 * spring(seg(t, 40.4, 40.75), 0.6), fa = 1 - seg(t, 41.8, 41.95);
+      if (t >= 40.4) { o.dot(184, 420, 64 * lk, COL.green, fa); o.tick(184, 424, 62 * lk, 1, '#fff', 10, fa); }
       o.block([fmt(S.rec_count, { n: mm(n), f: mm(j6.replay.failing) })], 280, 438, 0, { size: BS, weight: 650, color: COL.ink }, t, 40.4, 41.95);
     }
     if (t < 38.4 || t >= 40.4) this.label(o, V, S.label_vis, t, t < 38.4 ? 30.0 : 40.4, t < 38.4 ? 38.35 : 41.95);
@@ -652,13 +678,13 @@ export class Shots {
     return (o, V) => {
       const S = V.S, ja = V.lang === 'ja';
       o.veil(0.62 * seg(t, 42.0, 42.3));
-      this.head(o, V, S.honesty_big, t, 42.0, 44.45);
+      this.head(o, V, S.honesty_big, t, 42.0, 44.55);
       this.gates(o, V, t);
       // REVIEW REQUIRED (once), 44.6 s
       if (t >= 44.5) {
         const s = B.ui[V.lang]['state.REVIEW_REQUIRED'], uu = spring(seg(t, 44.5, 44.9), 0.65), c = o.c;
         const w = o.tw(s, HS, 750) + 80, h = 172, x = 120, y = 92;
-        c.save(); c.globalAlpha = seg(t, 44.5, 44.6) * (1 - seg(t, 45.8, 45.95)); c.translate(x + w / 2, y + h / 2); c.scale(1.08 - 0.08 * uu, 1.08 - 0.08 * uu); c.translate(-(x + w / 2), -(y + h / 2));
+        c.save(); c.globalAlpha = (0.6 + 0.4 * seg(t, 44.5, 44.6)) * (1 - seg(t, 45.8, 45.95)); c.translate(x + w / 2, y + h / 2); c.scale(1.08 - 0.08 * uu, 1.08 - 0.08 * uu); c.translate(-(x + w / 2), -(y + h / 2));
         c.fillStyle = 'rgba(255,255,255,0.92)'; o.rr(x, y, w, h, 20); c.fill(); c.strokeStyle = COL.amber; c.lineWidth = 10; o.rr(x, y, w, h, 20); c.stroke();
         o.txt(s, x + 40, y + 132, { size: HS, weight: 750, color: COL.amberT }); c.restore();
       }
@@ -670,10 +696,12 @@ export class Shots {
     const groups = [['PASS', COL.green], ['INCONCLUSIVE', '#8e8e93'], ['NOT_IMPLEMENTED', null]];
     const a = seg(t, 42.2, 42.4) * (1 - seg(t, 45.8, 45.95));
     if (a <= 0) return;
-    const S = 64, gap = 16, X0 = 120, rowY = [560, 676, 792];
+    const S = 64, gap = 16, X0 = 120, rowY = [520, 620, 720];
     // the set is named as gates (catalogue tab name) with its total, apart from the checks shown before
-    o.block([`${B.ui[V.lang]['tab.gates']} · ${mm(g.length)}`], X0, 470, 0, { size: BS, weight: 700, color: COL.ink }, t, 42.2, 45.95);
-    o.block([V.S.gates_explain], X0, 960, 0, { size: LS, weight: 500, color: COL.ink2 }, t, 43.3, 45.95);
+    o.block([`${B.ui[V.lang]['tab.gates']} · ${mm(g.length)}`], X0, 440, 0, { size: BS, weight: 700, color: COL.ink }, t, 42.2, 45.95);
+    o.block([V.S.gates_explain], X0, 852, 0, { size: LS, weight: 500, color: COL.ink2 }, t, 43.3, 45.95);
+    // the product's scope, stated beside the verdicts (a product limit, so it is kept in the clean version too)
+    o.block(V.S.scope_line, X0, 920, 50, { size: LS, weight: 650, color: COL.amberT }, t, 43.0, 45.95);
     // tiles in gate order (42.3 s), then they settle into their groups (42.6 s, the music's count)
     const settle = spring(seg(t, 42.6, 43.2), 0.8);
     const idxIn = {}; groups.forEach(([r]) => (idxIn[r] = 0));
@@ -696,55 +724,49 @@ export class Shots {
       o.txt(`${lab}`, x, rowY[gi] + 17, { size: BS, weight: 650, color: r === 'PASS' ? COL.greenT : COL.ink, alpha: la });
       const lw = o.tw(lab, BS, 650);
       o.txt(mm(n), x + lw + 24, rowY[gi] + 17, { size: BS, weight: 650, color: COL.ink3, alpha: la });
-      if (r === 'NOT_IMPLEMENTED') o.txt(V.S.gate_approval, x, rowY[gi] + 76, { size: LS, weight: 500, color: COL.ink2, alpha: la });
+      if (r === 'NOT_IMPLEMENTED') o.txt(V.S.gate_approval, x, rowY[gi] + 62, { size: LS, weight: 500, color: COL.ink2, alpha: la });
     });
   }
 
   // ================================================================== 9 · 46-50 s · English and Japanese, offline
   s9(t) {
+    // 46-48 s: the real application in English, then wiped to the same screen in Japanese (two captured frames of
+    // the same job); 48-50 s: the tee, whole and centred, with "Runs fully offline." and a network-off symbol
     const st = this.st;
     this.tee({ h: 'header6', b: 'branch6' });
-    st.tubes.amber6.draw(1, 1 - seg(t, 46.0, 46.4));
-    const u = seg(t, 46, 50);
-    this.cam({ tx: 640, ty: 80, tz: 0, az: 44 + 14 * smooth(u), el: 16 + 6 * u, dist: 2850 - 250 * u, fov: 24, sx: -230, sy: 150 });
+    const u = seg(t, 46, 50), push = quint(seg(t, 47.9, 48.6));
+    this.cam({ tx: 640, ty: 80, tz: 0, az: 30 + 14 * smooth(u), el: 18, dist: 3300 - 300 * push, fov: 24, sx: 60, sy: 170 });
     return (o, V) => {
       const S = V.S;
-      o.veil(0.5 * (1 - seg(t, 46.0, 46.35)));
-      this.head(o, V, S.lang_big, t, 46.0, 47.95);
+      this.head(o, V, S.lang_big, t, 46.0, 48.05);
       this.head(o, V, S.offline, t, 48.0, 49.95);
-      // the application's own labels (catalogue) flip from English to Japanese on 46.9 s, tethered to the tee
-      const r = this.req5, b = r.beta_deg * deg, v3 = (x, y, z) => new THREE.Vector3(x, y, z);
-      const O = v3(r.branch_station, 0, 0), A = v3(Math.cos(b), Math.sin(b), 0), e1 = v3(-Math.sin(b), Math.cos(b), 0), top = O.clone().addScaledVector(A, r.s_end);
-      const R6 = D.pat.header6.request.header_radius;
-      const tags = [
-        { k: 'branch_radius', an: top.clone().addScaledVector(e1, -r.branch_radius), at: [1560, 320] },
-        { k: 'beta_deg', an: O.clone().addScaledVector(A, 250), at: [1560, 450] },
-        { k: 'header_radius', an: v3(1200, R6 * 0.7, R6 * 0.7), at: [1560, 780] },
-        { k: 'header_length', an: v3(260, -R6 * 0.3, R6 * 0.95), at: [1560, 910] },
-      ];
-      const flipT = 46.9;
-      tags.forEach((tg, k) => {
-        const t0 = 46.15 + 0.1 * k, a = seg(t, t0, t0 + 0.15) * (1 - seg(t, 47.85, 47.98));
-        if (a <= 0) return;
-        const en = B.params[tg.k].en, ja = B.params[tg.k].ja, f = seg(t, flipT + 0.06 * k, flipT + 0.06 * k + 0.3);
-        const s = this.P(tg.an), sy = Math.cos(Math.PI * f);              // card flip about its horizontal axis
-        const txt = f < 0.5 ? en : ja;
-        const lang0 = o.lang; o.lang = f < 0.5 ? 'en' : 'ja';
-        const w = o.tw(txt, BS, 600) + 52, x = Math.min(1860 - w, tg.at[0] - w / 2), y = tg.at[1];
-        o.line([[s[0], s[1]], [x, y]], 2.5, 'rgba(10,102,255,0.6)', a, [2, 8]); o.dot(s[0], s[1], 7, COL.blue, a);
-        // the card flips about its horizontal axis and flashes blue as the language changes
-        const fl = Math.max(0, 1 - Math.abs(f - 0.5) * 2.2), bg = f > 0.5 && f < 1 ? `rgba(234,242,255,${0.97})` : 'rgba(255,255,255,0.95)';
-        const c = o.c; c.save(); c.translate(0, y); c.scale(1, Math.max(0.02, Math.abs(sy))); c.translate(0, -y);
-        o.pill(txt, x, y, { size: BS, weight: 600, alpha: a, h: 78, padX: 26, bg: f > 0 && f < 1 ? 'rgba(234,242,255,0.97)' : 'rgba(255,255,255,0.95)', stroke: f > 0 && f < 1 ? COL.blue : null, strokeW: 3 });
-        c.restore(); o.lang = lang0;
-      });
-      if (t >= 48.0) this.offlineIcon(o, t);
-      this.label(o, V, S.label_vis, t, 46.0, 47.95);
+      if (t < 47.98) this.langWipe(o, V, t);
+      if (t >= 48.0) { const w = o.tw(S.offline[0], HS, 650); this.offlineIcon(o, t, 120 + w + 110, 165); }
+      this.label(o, V, t < 48.0 ? S.label_actual : S.label_vis, t, t < 48.0 ? 46.0 : 48.0, t < 48.0 ? 48.05 : 49.95);
     };
   }
+  // the real screen, cropped large: navigation, job header and the first inputs (application px x 0..960, y 0..434,
+  // the same in both captures; the banner and the gates panel are outside the crop). English, then a wipe to Japanese
+  // that finishes at 46.7 s so Japanese is up for most of the two seconds
+  langWipe(o, V, t) {
+    const c = o.c, X = 120, Y = 262, W = 1680, H = 760, cr = { x: 0, y: 0, w: 960, h: 434 }, a = (0.6 + 0.4 * seg(t, 46.0, 46.13)) * (1 - seg(t, 47.85, 47.98));
+    const z = 1 + 0.05 * smooth(seg(t, 46, 48)), sw = cr.w / z, sh = cr.h / z;
+    const wp = smooth(seg(t, 46.3, 46.7));
+    c.save(); c.globalAlpha = a; c.shadowColor = 'rgba(20,30,50,0.18)'; c.shadowBlur = 40; c.shadowOffsetY = 12; c.fillStyle = '#fff'; o.rr(X, Y, W, H, 16); c.fill(); c.shadowColor = 'transparent';
+    o.rr(X, Y, W, H, 16); c.clip();
+    for (const [lang, x0, x1] of [['en', X + W * wp, X + W], ['ja', X, X + W * wp]]) {
+      if (x1 - x0 < 1) continue; const img = this.foot[lang].result, k2 = img.width / 1920;
+      c.save(); c.beginPath(); c.rect(x0, Y, x1 - x0, H); c.clip(); c.drawImage(img, cr.x * k2, cr.y * k2, sw * k2, sh * k2, X, Y, W, H); c.restore();
+    }
+    if (wp > 0 && wp < 1) { const xb = X + W * wp; c.fillStyle = COL.blue; c.fillRect(xb - 3, Y, 6, H); }
+    c.restore();
+    // the language of the screen, as the application names it (catalogue)
+    const tag = wp < 0.5 ? B.ui.en.lang_en : B.ui.ja.lang_ja;
+    o.pill(tag, X + W - 24, Y + 60, { size: BS, weight: 700, align: 'right', alpha: a, bg: COL.blue, color: '#fff', h: 80, padX: 28 });
+  }
   // a plain network-off symbol (three arcs and a dot, crossed out), drawn for the film; not product UI
-  offlineIcon(o, t) {
-    const u = spring(seg(t, 48.0, 48.45), 0.7), a = (0.6 + 0.4 * seg(t, 48.0, 48.13)) * (1 - seg(t, 49.8, 49.95)), c = o.c, cx = 1560, cy = 560, k = 0.9 + 0.1 * u;
+  offlineIcon(o, t, cx = 1560, cy = 560) {
+    const u = spring(seg(t, 48.0, 48.45), 0.7), a = (0.6 + 0.4 * seg(t, 48.0, 48.13)) * (1 - seg(t, 49.8, 49.95)), c = o.c, k = 0.62 * (0.9 + 0.1 * u);
     c.save(); c.globalAlpha = a; c.translate(cx, cy); c.scale(k, k);
     c.fillStyle = 'rgba(255,255,255,0.9)'; c.beginPath(); c.arc(0, 0, 130, 0, Math.PI * 2); c.fill();
     c.strokeStyle = COL.ink; c.lineWidth = 14; c.lineCap = 'round';
@@ -761,21 +783,19 @@ export class Shots {
     const u = smooth(seg(t, 50, 54));
     // the tee rests small above the wordmark
     const k = 0.96 + 0.04 * quint(seg(t, 50.0, 51.0));
-    this.cam(lerpCam({ tx: 640, ty: 80, tz: 0, az: 58, el: 22, dist: 2600, fov: 24, sx: -230, sy: 150 }, { tx: 640, ty: 80, tz: 0, az: 26 + 8 * u, el: 16, dist: 8200, fov: 24, sx: 0, sy: -370 }, k));
+    this.cam(lerpCam({ tx: 640, ty: 80, tz: 0, az: 58, el: 22, dist: 2600, fov: 24, sx: -230, sy: 150 }, { tx: 640, ty: 80, tz: 0, az: 26 + 8 * u, el: 16, dist: 5100, fov: 24, sx: 0, sy: -290 }, k));
     st.setShadow({ opacity: 0.55 });
     return (o, V) => {
       const S = V.S, ja = V.lang === 'ja';
-      // the name, the brand line, one line of facts, the call to action and both addresses large; the platform line
-      // for the whole card; one disclosure footer
-      o.block(S.brand_name, 960, 470, 0, { size: HS, weight: 700, align: 'center', track: 6 }, t, 50.0, 54.5);
-      o.block([S.brand_line], 960, 545, 0, { size: BS, weight: 500, align: 'center', color: COL.ink2 }, t, 50.1, 54.5);
-      o.block([S.facts_line], 960, 606, 0, { size: LS, weight: 600, align: 'center', color: COL.blueT }, t, 50.2, 54.5);
-      if (t >= 50.3) { const uu = spring(seg(t, 50.3, 50.7)), c = o.c, pu = 1 + 0.05 * Math.sin(Math.PI * seg(t, 51.6, 52.0));
-        const s = S.cta, w = (o.tw(s, 60, 650) + 130) * pu, h = 120 * pu, x = 960 - w / 2, y = 720 - h / 2 + 12 * (1 - uu), aa = 0.6 + 0.4 * seg(t, 50.3, 50.43);
-        c.save(); c.globalAlpha = aa; c.shadowColor = 'rgba(10,102,255,0.35)'; c.shadowBlur = 30; c.shadowOffsetY = 8; c.fillStyle = COL.blue; o.rr(x, y, w, h, h / 2); c.fill(); c.restore();
-        o.txt(s, 960, y + h / 2 + 21, { size: 60, weight: 650, color: '#fff', align: 'center', alpha: aa }); }
-      o.block([S.contact.join('  ·  ')], 960, 862, 0, { size: 56, weight: 600, align: 'center', color: COL.ink }, t, 50.3, 54.5);
-      o.block([S.positioning], 960, 940, 0, { size: LS, weight: 500, align: 'center', color: COL.ink2 }, t, 50.2, 54.5);
+      // the name, the brand line (larger, near-black), one line of facts, the call to action as words (email), both
+      // addresses large, the platform line for the whole card, one disclosure footer
+      o.block(S.brand_name, 960, 560, 0, { size: HS, weight: 700, align: 'center', track: 6 }, t, 50.0, 54.5);
+      o.block([S.brand_line], 960, 642, 0, { size: 60, weight: 600, align: 'center', color: COL.ink }, t, 50.1, 54.5);
+      o.block([S.facts_line], 960, 704, 0, { size: LS, weight: 600, align: 'center', color: COL.blueT }, t, 50.2, 54.5);
+      { const pu = 1 + 0.04 * Math.sin(Math.PI * seg(t, 51.6, 52.0)), c = o.c; c.save(); c.translate(960, 790); c.scale(pu, pu); c.translate(-960, -790);
+        o.block([S.cta_email], 960, 800, 0, { size: BS, weight: 700, align: 'center', color: COL.blueT }, t, 50.3, 54.5); c.restore(); }
+      o.block([S.contact.join('  ·  ')], 960, 878, 0, { size: 56, weight: 600, align: 'center', color: COL.ink }, t, 50.3, 54.5);
+      o.block([S.positioning], 960, 950, 0, { size: LS, weight: 500, align: 'center', color: COL.ink2 }, t, 50.2, 54.5);
       this.label(o, V, S.dev_line, t, 50.3, 54.5, 'center');
       if (ja && S.credit) o.block([S.credit], 1820, 1000, 0, { size: LS, weight: 500, align: 'right', color: COL.ink2 }, t, 50.3, 54.5);
     };

@@ -57,6 +57,10 @@ export class Stage {
         diffuseColor.rgb *= mix(1.0, 0.30, nfInside);`);
     };
     this.steelFlat = this.steel;
+    // the sectors (cone, eccentric) use the same steel without the brushing texture: its direction does not follow a
+    // sector's generators and showed as diagonal streaks
+    this.steelPlain = new THREE.MeshPhysicalMaterial({ color: 0xdfe2e6, metalness: 1.0, roughness: 0.3, clearcoat: 0.25, clearcoatRoughness: 0.18, side: THREE.DoubleSide });
+    this.steelPlain.onBeforeCompile = this.steel.onBeforeCompile;
     this.amberMat = new THREE.MeshPhysicalMaterial({ color: 0xffb340, metalness: 0.6, roughness: 0.35, side: THREE.DoubleSide, emissive: 0xff9f0a, emissiveIntensity: 0.0 });
     this.parts = {}; this.tubes = {};
     this.root = new THREE.Group(); s.add(this.root);

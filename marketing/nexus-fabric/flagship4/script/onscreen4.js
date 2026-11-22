@@ -58,7 +58,13 @@ window.NF_ONSCREEN4 = {
   gates_explain: { en: 'Inconclusive: the software cannot confirm it from the data it has.', ja: '未確定：手元のデータでは、ソフトウェアが確認できない項目です。' },
   dxf_kind: { en: 'R12 DXF ({v})', ja: 'R12 DXF（{v}）' },
   roundtrip_line: { en: 'Written and re-read: {r} of {w} entities match', ja: '書き出して再読込：{w}件中{r}件が一致' },
-  facts_line: { en: 'Flat patterns · self-checks · traceability · offline · EN/JA', ja: '板展開 · 自己検算 · トレーサビリティ · オフライン · 日英' },
+  facts_line: { en: 'Flat patterns · independent checks · traceability · offline · EN/JA', ja: '板展開 · 独立した検算 · トレーサビリティ · オフライン · 日英' },   // round 4: 'independent checks' / 独立した検算 = the catalogue's own term (math.meta)
   points_short: { en: '{n} computed points', ja: '計算点 {n}点' },
+  // ---- round 4
+  gap_word: { en: 'gap', ja: 'すき間' },                                                                          // NEW
+  scope_line: { en: ['Zero-thickness patterns: add your own plate thickness,', 'bend allowance, weld gap and kerf.'], ja: ['板厚・曲げ代・溶接ギャップ・切り代は含みません'] },   // coordinator wording (EN); JA for native review
+  cta_email: { en: 'Request a demonstration by email', ja: 'デモのご依頼はメールで' },                               // coordinator wording; JA for native review
+  sheet_line: { en: '{l} × {w} mm sheet', ja: '{l} × {w} mm の板' },                                              // NEW (numbers: job 5 header pattern)
+  opening_line: { en: '{p} mm opening perimeter', ja: '開口の周長 {p} mm' },                                        // NEW (JA label = catalogue quantity label)
   credit: { en: '', ja: '音声：VOICEVOX Nemo' },                                                                  // BRIEF (licence condition, JA film)
 };
