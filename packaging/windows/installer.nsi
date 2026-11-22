@@ -2,7 +2,7 @@
 ; Development build. Not validated. Outputs must not be used for manufacturing.
 ;
 ; Build (normally through packaging/windows/build.sh):
-;   makensis -DVERSION=0.1.0 -DSTAGE=<folder with nexus-fabric.exe, README.txt, NOTICE.txt, THIRD_PARTY_NOTICES.txt> -DOUTFILE=<setup.exe> packaging/windows/installer.nsi
+;   makensis -DVERSION=0.1.0 -DSTAGE=<folder with nexus-fabric.exe, nf-pdf2dxf.exe, README.txt, NOTICE.txt, THIRD_PARTY_NOTICES.txt> -DOUTFILE=<setup.exe> packaging/windows/installer.nsi
 
 Unicode true
 Target amd64-unicode
@@ -73,6 +73,7 @@ Section "NEXUS FABRIC (required)" SEC_APP
   SetShellVarContext current
   SetOutPath "$INSTDIR"
   File "${STAGE}\nexus-fabric.exe"
+  File "${STAGE}\nf-pdf2dxf.exe"
   File "${STAGE}\README.txt"
   File "${STAGE}\NOTICE.txt"
   File "${STAGE}\THIRD_PARTY_NOTICES.txt"
@@ -103,6 +104,7 @@ Section "Uninstall"
   IfFileExists "$INSTDIR\nexus-fabric.exe" 0 +3
     MessageBox MB_OK|MB_ICONEXCLAMATION "NEXUS FABRIC is still running. Stop it (Ctrl+C in its console window), then run the uninstaller again."
     Abort
+  Delete "$INSTDIR\nf-pdf2dxf.exe"
   Delete "$INSTDIR\README.txt"
   Delete "$INSTDIR\NOTICE.txt"
   Delete "$INSTDIR\THIRD_PARTY_NOTICES.txt"

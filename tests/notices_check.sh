@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Fails if the Linux package does not ship THIRD_PARTY_NOTICES.txt with the
 # licence texts of the compiled crates, or if the notices list does not match
-# the dependency graph of nf-server for both packaged targets.
+# the dependency graph of the shipped programs (nf-server and the PDF converter
+# nf-pdf2dxf from nf-pdf) for both packaged targets.
 # Usage: bash tests/notices_check.sh [path to nf-server binary] [cargo command]
 # Default binary: target/release/nf-server (build it first: nf-cargo build --release).
 # Default cargo command: nf-cargo (CI passes plain `cargo`).
@@ -12,7 +13,7 @@ BIN=${1:-$ROOT/target/release/nf-server}
 CARGO=${2:-nf-cargo}
 VERSION=0.0.0-notices-check
 TARGETS="x86_64-unknown-linux-gnu x86_64-pc-windows-gnu"
-FIRST_PARTY="nf-core nf-dxf nf-server uem"
+FIRST_PARTY="nf-core nf-dxf nf-pdf nf-pdf-winjob nf-server uem"
 fail=0
 
 check() { # check <description> <command...>
@@ -48,13 +49,13 @@ tar -xzf "$PKG" -C "$TMP/unpack"
 NOTICES="$TMP/unpack/nexus-fabric-$VERSION/THIRD_PARTY_NOTICES.txt"
 
 # The exact-build check: the crates named in the notices file must be the crates
-# cargo resolves for nf-server (normal and build dependencies, both packaged
+# cargo resolves for nf-server and nf-pdf (normal and build dependencies, both packaged
 # targets), without the first-party workspace crates. A stale file fails here.
 notices_match_graph() { # notices_match_graph <THIRD_PARTY_NOTICES.txt>
   local notices=$1 t
   : > "$TMP/graph.txt"
   for t in $TARGETS; do
-    if ! (cd "$ROOT" && $CARGO tree --locked -p nf-server -e normal,build \
+    if ! (cd "$ROOT" && $CARGO tree --locked -p nf-server -p nf-pdf -e normal,build \
           --target "$t" --prefix none -f '{p}' > "$TMP/tree-$t.txt"); then
       echo "cargo tree failed for $t (command: $CARGO)"
       return 1
@@ -86,7 +87,7 @@ if [ -f "$NOTICES" ]; then
     grep -q 'Apache License' "$NOTICES"
   check "notices contain the MIT permission grant (full licence text)" \
     grep -q 'Permission is hereby granted, free of charge' "$NOTICES"
-  check "notices name+version set equals cargo tree -e normal,build of nf-server for both targets" \
+  check "notices name+version set equals cargo tree -e normal,build of nf-server and nf-pdf for both targets" \
     notices_match_graph "$NOTICES"
 fi
 
