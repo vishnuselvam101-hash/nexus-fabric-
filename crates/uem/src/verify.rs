@@ -602,6 +602,7 @@ fn curve_len(p: &Pattern, name: &str) -> f64 {
 pub fn verify_cylinder_solid(p: &Pattern, r_dev: f64, length: f64) -> Vec<Check> {
     let agree = agree_tol(r_dev.max(length));
     let (circle, circle_res) = independent::circle_length(r_dev, 1024);
+    let outline = profile::check(&p.outline, 1e-9);
     vec![
         cmp(
             "end_circle_3d_arc_length",
@@ -620,15 +621,23 @@ pub fn verify_cylinder_solid(p: &Pattern, r_dev: f64, length: f64) -> Vec<Check>
         cmp(
             "area_equals_sampled_surface_area",
             "3D circle length (chord sums) times the shell length against the signed area of the plate outline",
-            profile::check(&p.outline, 1e-9).signed_area,
+            outline.signed_area,
             circle * length,
             agree * (r_dev + length) + circle_res * length,
+        ),
+        cmp(
+            "outline_counter_clockwise",
+            "sign of the signed area of the outline: outer profiles are counter-clockwise in the pattern frame (Spec 02 section 0.3)",
+            outline.signed_area.signum(),
+            1.0,
+            0.5,
         ),
     ]
 }
 
 pub fn verify_cylinder(p: &Pattern, r_dev: f64, length: f64) -> Vec<Check> {
     let agree = agree_tol(r_dev.max(length));
+    let outline = profile::check(&p.outline, 1e-9);
     vec![
         cmp(
             "bottom_edge_equals_circumference",
@@ -654,9 +663,16 @@ pub fn verify_cylinder(p: &Pattern, r_dev: f64, length: f64) -> Vec<Check> {
         cmp(
             "area",
             "lateral area 2*pi*r*L",
-            profile::check(&p.outline, 1e-9).signed_area,
+            outline.signed_area,
             TAU * r_dev * length,
             agree * (r_dev + length),
+        ),
+        cmp(
+            "outline_counter_clockwise",
+            "sign of the signed area of the outline: outer profiles are counter-clockwise in the pattern frame (Spec 02 section 0.3)",
+            outline.signed_area.signum(),
+            1.0,
+            0.5,
         ),
     ]
 }
@@ -890,6 +906,14 @@ pub fn verify_eccentric(p: &Pattern, r1: f64, r2: f64, h: f64, e: f64) -> Vec<Ch
         p.quantity("area").unwrap_or(f64::NAN),
         surf,
         1e-6 * surf.max(1.0),
+    ));
+    // (5) Handedness: a mirrored development is clockwise, so the sign of the outline's signed area flips.
+    v.push(cmp(
+        "outline_counter_clockwise",
+        "sign of the signed area of the outline: outer profiles are counter-clockwise in the pattern frame (Spec 02 section 0.3)",
+        profile::check(&p.outline, 1e-9).signed_area.signum(),
+        1.0,
+        0.5,
     ));
     v
 }
@@ -2316,7 +2340,15 @@ mod tests {
             250.0,
         ));
         let v = verify_cylinder_solid(&cylinder_shell(100.05, 250.0).unwrap(), 100.0, 250.0);
-        assert!(v.iter().all(|c| c.verdict == Verdict::Fail), "{v:?}");
+        for name in [
+            "end_circle_3d_arc_length",
+            "end_circles_3d_arc_length_equal",
+            "area_equals_sampled_surface_area",
+        ] {
+            assert_eq!(verdict_of(&v, name), Verdict::Fail, "{name}");
+        }
+        // the handedness guard does not depend on the radius: the wrong-radius shell is still counter-clockwise
+        assert_eq!(verdict_of(&v, "outline_counter_clockwise"), Verdict::Pass);
         let v = verify_cone(
             &cone_frustum(200.2, 100.0, 300.0).unwrap(),
             200.0,
@@ -2395,8 +2427,9 @@ mod tests {
         }
         assert_eq!(agree_tol(1e-3), 1e-9);
         assert_eq!(agree_tol(f64::NAN), AGREE_ABS);
-        // reference case CYL-02 (r 500, L 1000): thresholds exactly as before
-        let before = [1e-6, 1e-6, 1e-6, 1e-6 * 1500.0];
+        // reference case CYL-02 (r 500, L 1000): thresholds exactly as before; the handedness guard (0.5, a sign
+        // test with no radius) is the one check added after them
+        let before = [1e-6, 1e-6, 1e-6, 1e-6 * 1500.0, 0.5];
         let now: Vec<f64> = verify_cylinder(&cylinder_shell(500.0, 1000.0).unwrap(), 500.0, 1000.0)
             .iter()
             .map(|c| c.tolerance)
@@ -2412,6 +2445,48 @@ mod tests {
         );
         let tiny = cylinder_shell(1e-4, 1e-3).unwrap();
         all_pass(&verify_cylinder(&tiny, 1e-4, 1e-3));
+    }
+
+    /// Handedness guard of the plain shell and the eccentric reducer (review RC-09/RC-10, RB-006): a genuine
+    /// development is counter-clockwise and passes `outline_counter_clockwise`; its mirror image (every x negated) is
+    /// clockwise and fails it. The mirror passes every length check, so this guard is the only one that names it.
+    #[test]
+    fn outline_guard_rejects_a_mirrored_cylinder_and_eccentric() {
+        let guard = "outline_counter_clockwise";
+        let cyl = cylinder_shell(100.0, 250.0).unwrap();
+        let mut cyl_mirror = cyl.clone();
+        map_points(&mut cyl_mirror, |q| P2::new(-q.x, q.y));
+        let ecc = eccentric_reducer(200.0, 100.0, 300.0, 100.0).unwrap();
+        let mut ecc_mirror = ecc.clone();
+        map_points(&mut ecc_mirror, |q| P2::new(-q.x, q.y));
+
+        assert_eq!(
+            verdict_of(&verify_cylinder(&cyl, 100.0, 250.0), guard),
+            Verdict::Pass
+        );
+        assert_eq!(
+            verdict_of(&verify_cylinder_solid(&cyl, 100.0, 250.0), guard),
+            Verdict::Pass
+        );
+        assert_eq!(
+            verdict_of(&verify_eccentric(&ecc, 200.0, 100.0, 300.0, 100.0), guard),
+            Verdict::Pass
+        );
+        assert_eq!(
+            verdict_of(&verify_cylinder(&cyl_mirror, 100.0, 250.0), guard),
+            Verdict::Fail
+        );
+        assert_eq!(
+            verdict_of(&verify_cylinder_solid(&cyl_mirror, 100.0, 250.0), guard),
+            Verdict::Fail
+        );
+        assert_eq!(
+            verdict_of(
+                &verify_eccentric(&ecc_mirror, 200.0, 100.0, 300.0, 100.0),
+                guard
+            ),
+            Verdict::Fail
+        );
     }
 
     // ---- work plan task 1.1: the verifier's own rounding at shallow and near-180 degree branch angles
