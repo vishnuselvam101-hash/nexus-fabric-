@@ -537,7 +537,7 @@ fn rb008_written_file_reads_back_with_one_closed_outer_polyline_for_the_shell() 
 #[test]
 fn the_engine_is_0_4_5_and_its_statement_keys_are_the_verifiers_keys() {
     assert!(
-        nf_core::ENGINE_VERSION.starts_with("nf-engine 0.4.5+src."),
+        nf_core::ENGINE_VERSION.starts_with("nf-engine 0.4.6+src."),
         "{}",
         nf_core::ENGINE_VERSION
     );

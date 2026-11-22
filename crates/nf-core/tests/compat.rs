@@ -55,6 +55,15 @@
 //! header and the branch of each). The 55 cone_frustum cases (arc profiles) are byte-identical. Every changed profile was
 //! checked vertex for vertex against the engine 0.4.4 curves, and every opening entity is byte-identical. The plate
 //! conventions are in the annotation lines and the 999 block, which this snapshot does not hash. The fixture was regenerated.
+//! Work plan task 1.4 (deliberate, `NF_WRITE_COMPAT_FIXTURE=1`, engine 0.4.6): the cylinder shell, cone and
+//! eccentric reducer accept the optional `surface_reference`. Of 335 cases exactly ONE line changed: case 70, a cylinder
+//! shell that carried `surface_reference: "outside"`, which 0.4.5 refused as an unknown field and which is accepted now.
+//! It has the same pattern, checks, DXF and state as the same shell without the field (tests/surface_declaration.rs).
+//! Every case without the field is byte-identical to the previous fixture.
+//! Engine 0.4.6 (work plan task 1.4, RB-010): an `unknown` surface makes the radius checks of the branch families INCONCLUSIVE.
+//! This snapshot holds no verdicts, so it is unchanged by that (no state, pattern or cut geometry moved: the same 2 lines
+//! differ). The verdicts are in `fixtures/compat_verdicts.json` (test `compat_verdicts_reproduce_the_verdict_snapshot`),
+//! and there the six flipped cases are listed in docs/backend/TOLERANCE_POLICY.md section 9.
 
 use nf_core::job::{Request, run};
 use serde_json::{Value, json};
@@ -394,6 +403,52 @@ fn snapshots() -> Vec<Value> {
         .enumerate()
         .map(|(i, b)| snapshot(i, b))
         .collect()
+}
+
+/// Work plan task 1.4, deliberate: the check verdicts of every corpus case, with the INCONCLUSIVE reason. The snapshot
+/// above does not hold verdicts; this one does, so a verdict change is listed case by case, not only in prose.
+/// Regenerate with `NF_WRITE_COMPAT_FIXTURE=1`, as the other fixture.
+const VERDICT_FIXTURE: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/compat_verdicts.json"
+);
+
+fn verdict_snapshot(i: usize, body: &Value) -> Value {
+    let checks: Vec<Value> = match Request::parse_strict(body) {
+        Err(_) => vec![],
+        Ok(req) => run(&req, "compat")
+            .checks
+            .iter()
+            .map(|c| json!([c.scope, c.name, c.verdict, c.reason]))
+            .collect(),
+    };
+    json!({ "i": i, "checks": checks })
+}
+
+#[test]
+fn compat_verdicts_reproduce_the_verdict_snapshot() {
+    let now: Vec<Value> = corpus()
+        .iter()
+        .enumerate()
+        .map(|(i, b)| verdict_snapshot(i, b))
+        .collect();
+    if std::env::var_os("NF_WRITE_COMPAT_FIXTURE").is_some() {
+        let mut text = String::from("[\n");
+        for (n, s) in now.iter().enumerate() {
+            text.push_str(&serde_json::to_string(s).expect("json"));
+            text.push_str(if n + 1 < now.len() { ",\n" } else { "\n" });
+        }
+        text.push_str("]\n");
+        std::fs::write(VERDICT_FIXTURE, text).expect("write verdict fixture");
+        return;
+    }
+    let stored: Vec<Value> =
+        serde_json::from_str(&std::fs::read_to_string(VERDICT_FIXTURE).expect("verdict fixture"))
+            .expect("verdict fixture json");
+    assert_eq!(stored.len(), now.len(), "corpus size changed");
+    for (old, new) in stored.iter().zip(&now) {
+        assert_eq!(old, new, "case {} verdicts changed", old["i"]);
+    }
 }
 
 #[test]

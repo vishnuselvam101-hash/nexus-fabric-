@@ -41,6 +41,123 @@ pub struct Check {
     pub difference: f64,
     pub tolerance: f64,
     pub verdict: Verdict,
+    /// Why the verdict is INCONCLUSIVE, where a rule of this build sets it (work plan task 1.4). `None` for every
+    /// other check, including every check whose verdict is PASS or FAIL.
+    pub reason: Option<&'static str>,
+}
+
+/// Why a radius-dependent check is INCONCLUSIVE when the surface the entered radius refers to is `unknown` (task
+/// 1.4). Bilingual on purpose: the English and the Japanese are the user-visible reason (web/i18n.js carries the
+/// Japanese as well).
+pub const SURFACE_UNKNOWN_REASON: &str = "surface unknown: cannot tell which surface the radius is on, so the radius check cannot be certified. / 基準面が不明です: 半径がどの面を指すか判別できないため、半径に関する検査は確定できません。";
+
+/// The checks whose REFERENCE value is computed from an entered radius (task 1.4). Their meaning depends on which
+/// wall surface the radius is on, so with an `unknown` surface they cannot certify the radius. Every other check
+/// compares the pattern with another curve of the same pattern or with the entered length, and is unaffected.
+/// The names are asserted against the verifier's output in the tests, so a renamed check cannot drop out silently.
+pub const CYLINDER_RADIUS_CHECKS: &[&str] = &["bottom_edge_equals_circumference", "area"];
+pub const CONE_RADIUS_CHECKS: &[&str] = &[
+    "large_arc_equals_circumference",
+    "small_arc_equals_circumference",
+    "seam_equals_slant_length",
+    "area",
+    "large_end_3d_arc_length",
+    "small_end_3d_arc_length",
+    "fold_back_radius_residual",
+];
+pub const ECCENTRIC_RADIUS_CHECKS: &[&str] = &[
+    "apex_free_development_agrees",
+    "large_edge_equals_circumference",
+    "small_edge_equals_circumference",
+    "seam_equals_3d_ruling",
+    "area",
+];
+
+/// Branch stub (task 1.4, `verify_branch`): the request declares ONE surface for its contact radii, so every check
+/// whose reference uses the header radius R, the branch radius r or the development radius r_dev is radius-dependent.
+pub const BRANCH_STUB_RADIUS_CHECKS: &[&str] = &[
+    "cut_points_on_header_surface",
+    "cut_points_on_branch_surface",
+    "saddle_handedness_matches_declared_side",
+    "square_end_equals_circumference",
+    "saddle_matches_3d_intersection",
+    "saddle_on_the_declared_delta_side",
+    "saddle_developed_length_equals_3d_arc_length",
+    "pattern_area_equals_surface_area",
+    "square_end_3d_arc_length",
+];
+/// Header with branch (task 1.4): each part has its own surface, so the radius checks split by the radii they use.
+/// `verify_branch` checks that use the header radius R only.
+pub const BRANCH_PART_HEADER_CHECKS: &[&str] = &["cut_points_on_header_surface"];
+/// `verify_branch` checks that use the branch radius r or the branch development radius r_dev only.
+pub const BRANCH_PART_BRANCH_CHECKS: &[&str] = &[
+    "cut_points_on_branch_surface",
+    "saddle_handedness_matches_declared_side",
+    "square_end_equals_circumference",
+    "square_end_3d_arc_length",
+];
+/// `verify_branch` checks that compare with the 3D intersection of R and r (both surfaces).
+pub const BRANCH_PART_JOINT_CHECKS: &[&str] = &[
+    "saddle_matches_3d_intersection",
+    "saddle_on_the_declared_delta_side",
+    "saddle_developed_length_equals_3d_arc_length",
+    "pattern_area_equals_surface_area",
+];
+/// `verify_branch` checks that use no radius.
+pub const BRANCH_PART_NO_RADIUS_CHECKS: &[&str] =
+    &["outline_counter_clockwise", "seam_edges_equal_length"];
+/// `verify_header_opening` checks that use the header development radius only.
+pub const HEADER_OPENING_HEADER_CHECKS: &[&str] = &[
+    "outline_extent_around_header",
+    "shell_edge_equals_circumference",
+    "opening_closed_simple_inside_shell",
+    "header_circle_3d_arc_length",
+];
+/// `verify_header_opening` checks that use the branch radius or the 3D intersection (both surfaces).
+pub const HEADER_OPENING_JOINT_CHECKS: &[&str] = &[
+    "opening_points_on_branch_surface",
+    "opening_centre_on_the_declared_delta_side",
+    "opening_matches_3d_intersection",
+    "opening_developed_length_equals_3d_arc_length",
+    "opening_area_equals_surface_area",
+];
+/// `verify_header_opening` checks that use no radius.
+pub const HEADER_OPENING_NO_RADIUS_CHECKS: &[&str] = &[
+    "outline_extent_along_header_axis",
+    "seam_edges_equal_length",
+    "outline_counter_clockwise",
+];
+/// Interface and joint checks of a header with branch: each compares the two parts with the geometry of both radii.
+pub const INTERFACE_JOINT_CHECKS: &[&str] = &[
+    "branch_cut_lies_on_header_opening",
+    "header_opening_lies_on_branch_cut",
+    "opening_on_intersection_of_branch_geometry",
+    "saddle_on_intersection_of_header_geometry",
+];
+/// Interface checks that use no radius.
+pub const INTERFACE_NO_RADIUS_CHECKS: &[&str] = &["parts_declare_the_same_marking_side"];
+
+/// Task 1.4: with the surface declared `unknown`, every radius-dependent check that would PASS becomes INCONCLUSIVE
+/// with `SURFACE_UNKNOWN_REASON`. A FAIL stays FAIL (the conservative direction, as in `rep_check`). Any other
+/// surface, or no declaration (`None`), returns the checks unchanged.
+pub fn surface_unknown(
+    checks: Vec<Check>,
+    surface: Option<&str>,
+    radius_checks: &[&str],
+) -> Vec<Check> {
+    if surface != Some("unknown") {
+        return checks;
+    }
+    checks
+        .into_iter()
+        .map(|mut c| {
+            if radius_checks.contains(&c.name) && c.verdict != Verdict::Fail {
+                c.verdict = Verdict::Inconclusive;
+                c.reason = Some(SURFACE_UNKNOWN_REASON);
+            }
+            c
+        })
+        .collect()
 }
 
 /// Agreement threshold used when both sides are binary64 evaluations whose
@@ -466,6 +583,7 @@ fn cmp(name: &'static str, method: &'static str, primary: f64, reference: f64, t
         difference: d,
         tolerance: tol,
         verdict,
+        reason: None,
     }
 }
 
@@ -2441,6 +2559,7 @@ mod tests {
             difference,
             tolerance: 1.0,
             verdict,
+            reason: None,
         };
         const SADDLE: &[&str] = &["saddle_matches_3d_intersection"];
         let inside = [Conditioning {
@@ -2629,5 +2748,45 @@ mod tests {
             branch_angle_refusal(179.99, &cond, &c).is_none(),
             "saddle fault excused"
         );
+    }
+
+    /// Task 1.4: `surface_unknown` turns a would-be PASS of a radius check into INCONCLUSIVE with its reason, keeps a
+    /// FAIL as FAIL, and leaves every other check and every other surface (including no declaration) unchanged.
+    #[test]
+    fn task_1_4_unknown_surface_makes_radius_passes_inconclusive_and_keeps_fails() {
+        let check = |name: &'static str, verdict: Verdict| Check {
+            name,
+            method: "",
+            independence: "I-F",
+            primary: 0.0,
+            reference: 0.0,
+            difference: 0.0,
+            tolerance: 1.0,
+            verdict,
+            reason: None,
+        };
+        let input = || {
+            vec![
+                check("area", Verdict::Pass),
+                check("seam_edges_equal_length", Verdict::Pass),
+                check("bottom_edge_equals_circumference", Verdict::Fail),
+            ]
+        };
+        let out = surface_unknown(input(), Some("unknown"), CYLINDER_RADIUS_CHECKS);
+        assert_eq!(out[0].verdict, Verdict::Inconclusive);
+        assert_eq!(out[0].reason, Some(SURFACE_UNKNOWN_REASON));
+        assert_eq!(out[1].verdict, Verdict::Pass, "not radius-dependent");
+        assert_eq!(out[1].reason, None);
+        assert_eq!(out[2].verdict, Verdict::Fail, "a FAIL stays FAIL");
+        assert_eq!(out[2].reason, None);
+        for surface in [None, Some("outside"), Some("inside"), Some("neutral")] {
+            let same = surface_unknown(input(), surface, CYLINDER_RADIUS_CHECKS);
+            for (a, b) in same.iter().zip(input().iter()) {
+                assert_eq!(a.verdict, b.verdict, "{surface:?}");
+                assert_eq!(a.reason, None, "{surface:?}");
+            }
+        }
+        assert!(SURFACE_UNKNOWN_REASON.starts_with("surface unknown:"));
+        assert!(SURFACE_UNKNOWN_REASON.contains('基'));
     }
 }

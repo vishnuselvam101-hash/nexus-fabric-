@@ -403,3 +403,83 @@ threshold changed, no planted fault removed).** Each old value and its reason:
 | ja "no English word" walk and `docs/design/tools/i18n_check.mjs` allow-list | `eps_num`, `eps_rep` not allowed (q.hint, a new tooltip) | allowed as whole identifiers only; no other word added. The ui walk removes the two identifiers before its word rule, which splits at `_` | they are deliberate technical names, shown identically in EN and JA |
 | `validation/seeded_faults.py` | 33 planted faults | 36: the 33 unchanged, plus three planted product verdicts (FAIL, INCONCLUSIVE, unknown) | the verdict split had no planted fault; the new ones test it |
 
+## 9. Surface declaration of the entered radius (work plan task 1.4, engine 0.4.6)
+
+The entered radius of every family with radii may be declared to refer to a wall surface: `surface_reference` =
+`outside`, `inside`, `neutral` or `unknown`. A cylinder shell, a cone and an eccentric reducer take the optional field
+(task 1.4); a branch stub and a header with branch already had it. Engine 0.4.6 makes `unknown` act on the verdicts.
+
+- **`unknown`**: every radius-dependent check that would PASS becomes INCONCLUSIVE with the reason
+  `uem::verify::SURFACE_UNKNOWN_REASON` ("surface unknown: cannot tell which surface the radius is on, so the radius check
+  cannot be certified. / 基準面が不明です: 半径がどの面を指すか判別できないため、半径に関する検査は確定できません。"). A FAIL stays
+  FAIL. G10 is INCONCLUSIVE and carries the reason. Cut geometry, patterns and state do not change.
+- **`outside`, `inside`, `neutral`**: recorded in G02. Verdicts and geometry are those of the request without the field
+  (tested for the cylinder, cone and eccentric reducer; for a branch stub a known surface keeps its verdicts, see the table
+  of changed cases below).
+- **Absent**: for the three new families, not declared, and the engine behaves exactly as before (the entered radius is
+  the reference-surface radius, G06). For a branch stub, absent means `unknown` (its existing default), so it flips like
+  an explicit `unknown`. Absent is never `unknown` for the three new families, because that would change every existing
+  request of those families.
+
+**Radius-dependent checks.** A check is radius-dependent when its REFERENCE value is computed from an entered radius
+(`r_dev`, `r1`, `r2` of the cylinder, cone and reducer; `R`, `r`, `r_dev` of the branch and the header). The lists are in
+`uem::verify` (`*_RADIUS_CHECKS`, `BRANCH_PART_*`, `HEADER_OPENING_*`, `INTERFACE_JOINT_CHECKS`); the tests
+`tests/surface_declaration.rs` assert that every check the verifier produces is in exactly one list, so a new or renamed
+check cannot escape the rule.
+
+| family | radius-dependent (INCONCLUSIVE with `unknown` when PASS) | not radius-dependent |
+|---|---|---|
+| cylinder shell | `bottom_edge_equals_circumference`, `area` | `seam_edges_equal_length`, `seam_length_equals_input` |
+| cone frustum | `large_arc_equals_circumference`, `small_arc_equals_circumference`, `seam_equals_slant_length`, `area`, `large_end_3d_arc_length`, `small_end_3d_arc_length`, `fold_back_radius_residual` | `seam_edges_equal_length` |
+| eccentric reducer | `apex_free_development_agrees`, `large_edge_equals_circumference`, `small_edge_equals_circumference`, `seam_equals_3d_ruling`, `area` | `seam_edges_equal_length` |
+| branch stub (one declaration for both contact radii) | `cut_points_on_header_surface`, `cut_points_on_branch_surface`, `saddle_handedness_matches_declared_side`, `square_end_equals_circumference`, `saddle_matches_3d_intersection`, `saddle_on_the_declared_delta_side`, `saddle_developed_length_equals_3d_arc_length`, `pattern_area_equals_surface_area`, `square_end_3d_arc_length` | `outline_counter_clockwise`, `seam_edges_equal_length` |
+| header with branch, branch part | header radius only: `cut_points_on_header_surface` (header surface); branch radius only: `cut_points_on_branch_surface`, `saddle_handedness_matches_declared_side`, `square_end_equals_circumference`, `square_end_3d_arc_length` (branch surface); both radii: `saddle_matches_3d_intersection`, `saddle_on_the_declared_delta_side`, `saddle_developed_length_equals_3d_arc_length`, `pattern_area_equals_surface_area` (either surface) | `outline_counter_clockwise`, `seam_edges_equal_length` |
+| header with branch, header part | header radius only: `outline_extent_around_header`, `shell_edge_equals_circumference`, `opening_closed_simple_inside_shell`, `header_circle_3d_arc_length` (header surface); both: `opening_points_on_branch_surface`, `opening_centre_on_the_declared_delta_side`, `opening_matches_3d_intersection`, `opening_developed_length_equals_3d_arc_length`, `opening_area_equals_surface_area` (either surface) | `outline_extent_along_header_axis`, `seam_edges_equal_length`, `outline_counter_clockwise` |
+| header with branch, interface | `branch_cut_lies_on_header_opening`, `header_opening_lies_on_branch_cut`, `opening_on_intersection_of_branch_geometry`, `saddle_on_intersection_of_header_geometry` (either surface) | `parts_declare_the_same_marking_side` |
+
+**Changed expectations of engine 0.4.6 (A2, measured).** The verdict snapshot `tests/fixtures/compat_verdicts.json`
+holds the verdicts of all 335 corpus cases; before this change it was recorded and diffed against the 0.4.5 build, and
+it differs in exactly six cases, all with `unknown` (explicit or the branch default). No case with a known surface
+changed, and no FAIL changed. Each flipped check went PASS -> INCONCLUSIVE with the reason:
+
+| case | request | checks flipped (PASS -> INCONCLUSIVE) |
+|---|---|---|
+| 7 | branch_stub, field absent (default `unknown`) | the 9 branch radius checks |
+| 12 | branch_stub, `unknown` | the 9 branch radius checks |
+| 157 | branch_stub, field absent | the 9 branch radius checks |
+| 191 | branch_stub, field absent | the 9 branch radius checks |
+| 196 | branch_stub, field absent | the 9 branch radius checks |
+| 14 | header_with_branch, both parts `unknown` | 22 checks: header part 9 (4 header-radius, 5 joint), branch part 9 (1 header-radius, 4 branch-radius, 4 joint), interface 4 |
+
+The five absent/explicit branch cases are the first flips that matter to users: every branch stub without the field
+reads `unknown` (the existing default), so its radius checks are now INCONCLUSIVE. That follows the RB-010 rule. The
+owner may instead want a default other than `unknown` for branch stubs; that is a decision, not made here.
+
+**Changed test expectations (A2, old -> new).** (a) `crates/nf-core/src/job.rs` `jobs_run_verify_and_never_approve`: a
+branch stub with `unknown` had every check PASS and G10 PASS; now its radius checks are INCONCLUSIVE with the reason and G10
+is INCONCLUSIVE. Only checks with the reason may do this. (b) `crates/nf-core/tests/refusal_codes.rs`
+`accepted_and_verified`: G10 must be PASS for an accepted branch unless a certified bound is coarse (8.8) or the surface is
+unknown (then G10 is INCONCLUSIVE and every reason-bearing check carries the reason). (c) Version expectations
+`0.4.5+src.` -> `0.4.6+src.` in `crates/nf-core/tests/plate_conventions.rs` and `crates/nf-server/src/tests.rs:2498`
+(the second is outside the nf-core ownership; the same one-line change was made by the 1.3 integration).
+(d) `tests/e2e_smoke.sh`: the branch_stub happy-path job (C3) sent no `surface_reference`, which defaulted to `unknown` and
+PASSed before 0.4.6; it now declares `"outside"` so the all-PASS smoke stands (the job always implicitly used the
+reference-surface radius, G06). This is an input change, not a loosened assertion. The `unknown` path is added, not
+removed: new job C6 (branch_stub, `surface_reference` `unknown`) asserts REVIEW_REQUIRED, the 9 radius checks INCONCLUSIVE
+each with a reason, the other 2 PASS, none FAIL. C6 is one more REVIEW_REQUIRED job, so the dashboard count assertion
+moved `review_required` 4 -> 5 (refused unchanged; the later relative assertion `review_required == calculations - 4` is
+unaffected). (e) `tests/ui_smoke.js`: the family loop selected `surface_reference`
+`outside` only for header_with_branch; it now does so for branch_stub as well, for the same reason, so the branch form
+smoke stays all-PASS. The `unknown` rendering is already exercised (the pre-fix run drew its 9 INCONCLUSIVE rows).
+
+**Engine bump.** 0.4.5 -> 0.4.6: verdicts change for requests with `unknown` on a branch or a header with branch (and for
+any branch stub without the field). Results of 0.4.5 are marked for recomputation (G21). The cut geometry and the patterns
+of the corpus are unchanged (`tests/fixtures/compat_0.4.0.json` differs only in case 70, see the compat header).
+
+**Seeded faults and the validation corpus.** `validation/run_all.py --spawn target/release/nf-server --quick` on 0.4.6:
+PASS; seeded faults 37 of 37 detected; corpus 116 agree, 0 disagree; the 14 INCONCLUSIVE product notes are existing
+eccentric-reducer results of task 1.2 (none is a branch or assembly case).
+
+**Not changed.** The branch's `radius_consistency` advisory for `unknown` (G02) stays; the INCONCLUSIVE checks are added
+to it, not in place of it. The surface selector and the reason rendering are web work (docs/backend/UI_CHANGES_NEEDED.md,
+row 18).

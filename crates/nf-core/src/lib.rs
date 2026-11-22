@@ -81,7 +81,13 @@ use std::collections::{BTreeMap, BTreeSet};
 /// RB-008: the outer profile of a part made of lines and polylines is one closed polyline (same vertices, same order;
 /// a profile with an arc stays one entity per curve: an arc needs a bulge encoding this build does not write). The cut geometry
 /// of every other entity is byte-identical. Results of 0.4.4 are REJECTED with G21 recompute.
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.5+src.", env!("NF_ENGINE_SRC_HASH"));
+/// 0.4.6 (work plan task 1.4, RB-010): the surface the entered radius refers to is declared for the cylinder shell, the
+/// cone and the eccentric reducer as for the branch families, and an `unknown` surface makes the radius-dependent
+/// checks of every family INCONCLUSIVE (never PASS; a FAIL stays FAIL), with a stated reason. Results with `unknown` on
+/// a branch stub or a header with branch change verdicts (PASS -> INCONCLUSIVE). Requests without the field keep their
+/// output, except that a branch stub without the field read `unknown` by its default and so changes in the same way.
+/// Results of 0.4.5 are REJECTED with G21 recompute.
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.6+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the
@@ -594,6 +600,7 @@ mod roundtrip_tests {
                 r2: 100.0,
                 h: 300.0,
                 e: 100.0,
+                surface_reference: None,
             },
             "t",
         )

@@ -134,7 +134,9 @@ const controlProbe = () => {
   for (const [fam, parts, curves] of FAMILIES) {
     await go('math/1', '#calc');
     await p.selectOption('select[name=fam]', fam);
-    if (fam === 'header_with_branch') await p.selectOption('select[name=surface_reference]', 'outside');
+    // task 1.4: declare the surface so the branch happy-path still verifies to all-PASS (an `unknown` surface makes the
+    // radius checks INCONCLUSIVE; that path is covered end to end by e2e C6 and by compat 7/157/191/196, surface_declaration.rs).
+    if (fam === 'header_with_branch' || fam === 'branch_stub') await p.selectOption('select[name=surface_reference]', 'outside');
     await p.click('#run'); await p.waitForURL(/#\/calc\/\d+$/); await p.waitForSelector('.pv .c', { state: 'attached' });
     const id = Number(p.url().split('/').pop()); jobs[fam] = id;
     const got = { state: (await p.textContent('.ws-head h1 .tag')).trim(), parts: await p.locator('#parts [role=tab]').count(), curves: await p.locator('.pv .c').count() };

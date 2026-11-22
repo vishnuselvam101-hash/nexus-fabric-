@@ -2495,7 +2495,7 @@ async fn list_sees_a_same_length_alteration_made_by_another_process() {
 async fn d1_results_of_engine_0_2_0_are_flagged_for_recomputation() {
     let t = boot();
     let id = t.job(good_assembly()).await;
-    assert!(nf_core::ENGINE_VERSION.starts_with("nf-engine 0.4.5+src."));
+    assert!(nf_core::ENGINE_VERSION.starts_with("nf-engine 0.4.6+src."));
     // engine 0.4.4 (work plan task 1.2) changes reported bounds and verdicts: a result of 0.4.3 is marked for recomputation
     let old43 = t.job(good_assembly()).await;
     t.sql(&format!("UPDATE calculations SET result_json = json_set(result_json, '$.engine', 'nf-engine 0.4.3+src.1ec0f97c0ffee123') WHERE id = {old43}"));
