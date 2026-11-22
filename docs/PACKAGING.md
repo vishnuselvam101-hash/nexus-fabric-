@@ -134,8 +134,9 @@ Output in `dist/` (ignored by git, as are `*.exe` and binaries in general):
 
 Check: `cd dist && sha256sum -c SHA256SUMS`.
 
-Cross-compilation note: the Windows exe is built with `CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc`
-(set by `build_all.sh`). `rusqlite` uses its bundled SQLite, so no SQLite DLL is needed.
+Cross-compilation note: the Windows exe is linked by `x86_64-w64-mingw32-gcc`, run through
+`packaging/windows/link-wrapper.sh` (set by `build_all.sh` as `CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER`; it keeps the
+build folder out of the order of the import tables, task 4.1). `rusqlite` uses its bundled SQLite, so no SQLite DLL is needed.
 
 ## Release workflow
 
