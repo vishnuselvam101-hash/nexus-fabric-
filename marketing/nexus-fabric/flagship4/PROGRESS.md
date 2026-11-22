@@ -13,15 +13,14 @@
 - Review round 0 and round 1 (EN contact sheets at 1 fps) done; fixes applied: entry alpha 60 % on the bar, larger hero,
   scene 4 as hard cuts per family, app window beside a poster headline, check panel wrap, labels placement.
 
-## State (round 3 finished, 22 Nov 2026)
-- Round 3 (two reviewers: motion director 6/10, Japanese fabrication-shop owner 5/10) applied: hook with two disagreeing
-  curves + dark gap + light + contact flash + held camera + honest footer; surface reference "outside" among the inputs
-  and in the real-app crop (inputs panel); "Checks: n of 28 pass" vs "Gates · 13" + plain line; "R12 DXF (AC1009)" and
-  "Written and re-read: 5 of 5 entities match"; one 30 px footer per scene; graph full size from 30 s; replay count to
-  43 by 40.75 s with a large tick; 48 px language flip; network-off symbol; gates clear of the tube; larger families,
-  720-points label by the opening; end card (facts line, larger button/addresses, platform line whole card, dev footer);
-  JA 切り代, 枝管; native-review notes in NEW_STRINGS.md.
-- final/ holds the four 1080p30 files of this round (README "Finals"). 4K: the coordinator's. Nothing committed.
+## State (round 4, 22 Nov 2026)
+- Round 4 applied: hook starts on the problem (frame 0) with a "gap" callout; large real flat pattern at 10-12 s with
+  its numbers; families re-framed (plain steel on sectors, crisper shadow); two-row check list with popping ticks;
+  DXF match cut (plate slides onto the sheet) and 4-row listing top right; 30 s match cut (joint curve into its
+  record); replay shows 43 directly; headline hand-overs without blank frames; scope line in the gates scene (also in
+  clean); real app EN->JA wipe at 46-48 s; offline symbol beside the words; end card with the email action text.
+- Finals rendered (1,896 s, 0 page errors) and reviewed from the MP4s (stills listed in README, both languages, full
+  size and 400 px). Nothing committed; 4K is the coordinator's.
 
 ## Done docs
 - README.md (concept, rebuild, scene table, real/data/illustration, labels, weaknesses, cut ideas), NEW_STRINGS.md, .gitignore.

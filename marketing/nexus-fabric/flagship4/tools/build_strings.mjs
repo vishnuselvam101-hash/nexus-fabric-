@@ -23,6 +23,8 @@ md += `
 - Applied: カーフ → 切り代 (limits and the scene-4 footer); 枝管スタブ → 枝管 (part name); the call to action is デモのご依頼.
 - Review state: the film shows the application's own string for REVIEW_REQUIRED (${B.ui.ja['state.REVIEW_REQUIRED']}, from the catalogue). The reviewer suggests 要確認; changing it would make the film differ from the software, so it is left to the product team.
 - Tagline 設計を、再定義。 (owner's brand line, kept): the reviewer suggests replacing it; owner decision.
+- Round 4: 自己検算 replaced by the catalogue's own term 独立した検算 (math.meta: 独立した検算付きの板展開; EN \"independent checks\").
+- Round 4, for native review: すき間 (gap callout), 板厚・曲げ代・溶接ギャップ・切り代は含みません (scope line), デモのご依頼はメールで (call to action), {l} × {w} mm の板, 開口の周長 {p} mm.
 - All lines marked NEW above need review by a native-speaking engineer.
 `;
 fs.writeFileSync(path.join(F, 'NEW_STRINGS.md'), md); console.log('wrote NEW_STRINGS.md', Object.keys(O).length, 'keys');
