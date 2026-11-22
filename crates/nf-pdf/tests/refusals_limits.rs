@@ -529,6 +529,58 @@ fn the_trailer_search_of_a_damaged_file_is_linear() {
     );
 }
 
+/// A 1 MiB file with no cross-reference data: every object is damaged in the same way.
+fn damaged_mib(object_text: &str) -> Vec<u8> {
+    let mut bytes = b"%PDF-1.4\n".to_vec();
+    let mut n = 1u32;
+    while bytes.len() < 1 << 20 {
+        bytes.extend_from_slice(format!("{n} 0 obj\n{object_text}").as_bytes());
+        n += 1;
+    }
+    bytes
+}
+
+#[test]
+fn the_rebuild_of_a_1_mib_damaged_file_is_linear() {
+    // RC-23-N1: the rebuild searched the rest of the file for 'endstream' once per stream of
+    // wrong length, and each inspected object could read to the end of the file. A 1 MiB file
+    // took 34.5 s against the 30 s limit. Each shape must now end in a refusal well under 5 s.
+    let shapes = [
+        (
+            "streams of wrong length, no endstream",
+            damaged_mib("<< /Length 99999999 >>\nstream\nabc\n"),
+        ),
+        (
+            "an unclosed literal string in every object",
+            damaged_mib("<< /A [ 1 2 3 (x\n"),
+        ),
+    ];
+    for (name, bytes) in shapes {
+        let started = std::time::Instant::now();
+        let (code, _) = refused(&bytes, &options(1.0));
+        let took = started.elapsed();
+        assert_eq!(code, "malformed", "{name}");
+        assert!(took < Duration::from_secs(5), "{name}: {took:?}");
+    }
+}
+
+#[test]
+fn a_stream_with_a_wrong_length_is_read_up_to_its_endstream() {
+    // The endstream index must still find the keyword that ends a stream whose /Length is wrong.
+    let mut bytes = page_pdf(&PageSpec::new(b"0 0 m 10 0 l S"));
+    let at = bytes
+        .windows(8)
+        .position(|w| w == b"/Length ")
+        .expect("the content stream has a /Length");
+    let digits = bytes[at + 8..]
+        .iter()
+        .take_while(|c| c.is_ascii_digit())
+        .count();
+    bytes.splice(at + 8..at + 8 + digits, b"3".iter().copied());
+    let c = convert(&bytes, &options(1.0)).expect("the damaged stream still converts");
+    assert_eq!(polylines(&c.dxf, "PDF_STROKE").len(), 1);
+}
+
 #[test]
 fn limit_input_bytes_at_the_default_value() {
     let limit = Limits::default().max_input_bytes;

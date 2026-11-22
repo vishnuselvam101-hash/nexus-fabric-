@@ -46,6 +46,8 @@ pub struct Doc<'a> {
     streams: HashMap<u32, Rc<Vec<u8>>>,
     resolving: Vec<u32>,
     scan: Option<BTreeMap<u32, usize>>,
+    /// Every `endstream` keyword offset, in order, built once on first use (see `next_endstream`).
+    endstreams: Option<Vec<usize>>,
 }
 
 fn is_kw(t: &Tok, kw: &[u8]) -> bool {
@@ -128,6 +130,7 @@ impl<'a> Doc<'a> {
             streams: HashMap::new(),
             resolving: Vec::new(),
             scan: None,
+            endstreams: None,
         };
         let usable = match doc.read_xref_chain() {
             Ok(()) => doc.trailer.get(b"Root").is_some(),
@@ -339,8 +342,16 @@ impl<'a> Doc<'a> {
 
     /// Parses an indirect object at `off`, including stream data.
     fn parse_indirect_at(&mut self, off: usize) -> Result<(u32, Obj), Fault> {
+        let end = self.data.len();
+        self.parse_indirect_within(off, end)
+    }
+
+    /// Parses an indirect object at `off` whose header and value are read only up to `end`.
+    /// Stream data is still located through /Length and `endstream`, outside the window.
+    fn parse_indirect_within(&mut self, off: usize, end: usize) -> Result<(u32, Obj), Fault> {
         self.count_object()?;
-        let mut lx = Lexer::new(self.data, off);
+        let window = self.data.get(..end).unwrap_or(self.data);
+        let mut lx = Lexer::new(window, off);
         let num = match lx.next()? {
             Tok::Num(v) => uint(v),
             _ => None,
@@ -400,7 +411,7 @@ impl<'a> Doc<'a> {
             }
         }
         // Declared length is wrong: take everything up to the end keyword, minus one EOL.
-        let Some(e) = find(self.data, p, b"endstream") else {
+        let Some(e) = self.next_endstream(p)? else {
             return malformed("stream without endstream");
         };
         let mut len = e.saturating_sub(p);
@@ -484,6 +495,28 @@ impl<'a> Doc<'a> {
         }
         self.scan = Some(map);
         Ok(())
+    }
+
+    /// First `endstream` keyword at or after `p`. The file is searched for the keyword once, so a
+    /// damaged file with many streams of wrong length costs n·log n, not one search to the end of
+    /// the file per stream (this was quadratic: a 1 MiB file ran into the 30 s limit).
+    fn next_endstream(&mut self, p: usize) -> Result<Option<usize>, Fault> {
+        if self.endstreams.is_none() {
+            let mut found = Vec::new();
+            let mut i = 0usize;
+            let mut rounds = 0u64;
+            while let Some(pos) = find(self.data, i, b"endstream") {
+                if rounds.is_multiple_of(CHECK_EVERY) {
+                    self.dl.check()?;
+                }
+                rounds += 1;
+                found.push(pos);
+                i = pos + 1;
+            }
+            self.endstreams = Some(found);
+        }
+        let all = self.endstreams.as_deref().unwrap_or(&[]);
+        Ok(all.get(all.partition_point(|&x| x < p)).copied())
     }
 
     fn scanned(&self, num: u32) -> Option<usize> {
@@ -671,12 +704,17 @@ impl<'a> Doc<'a> {
                 }
             }
         }
-        for (off, num) in by_offset {
+        for (i, &(off, num)) in by_offset.iter().enumerate() {
             self.dl.check()?;
+            // Each object is read only up to the next object header, so the inspections never
+            // overlap and the rebuild is linear in the file size. Stream data is skipped by /Length,
+            // so only a literal string that spells out a header could lie across the bound; such an
+            // object is not inspected here (its entry from the scan is kept, as before).
+            let end = by_offset.get(i + 1).map_or(self.data.len(), |&(o, _)| o);
             // The object is only inspected here and dropped; an object used later is parsed
             // again and counted then.
             let kept = self.parse.items;
-            let parsed = self.parse_indirect_at(off);
+            let parsed = self.parse_indirect_within(off, end);
             self.parse.items = kept;
             let Ok((n, obj)) = parsed else {
                 continue;

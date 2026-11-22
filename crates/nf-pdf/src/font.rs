@@ -21,8 +21,8 @@ enum Kind {
 enum RangeDst {
     /// Last character of the string increases by one for each code.
     Base(String),
-    /// One string per code.
-    List(Vec<String>),
+    /// One string per code. `None` marks an entry that could not be read: that code is unmapped.
+    List(Vec<Option<String>>),
 }
 
 #[derive(Default)]
@@ -47,7 +47,7 @@ impl UniMap {
                         *last = next;
                         Some(chars.into_iter().collect())
                     }
-                    RangeDst::List(v) => v.get(k as usize).cloned(),
+                    RangeDst::List(v) => v.get(k as usize).cloned().flatten(),
                 };
             }
         }
@@ -107,6 +107,11 @@ impl Font {
     pub fn decode(&self, s: &[u8]) -> Option<String> {
         let mut out = String::new();
         for (code, len) in self.codes(s) {
+            // A composite font has two-byte codes only: an odd trailing byte is not a code, so it
+            // must not be looked up as one (it would match an unrelated two-byte mapping).
+            if matches!(self.kind, Kind::Composite) && len != 2 {
+                return None;
+            }
             if let Some(text) = self.uni.as_ref().and_then(|u| u.lookup(code)) {
                 out.push_str(&text);
                 continue;
@@ -324,7 +329,7 @@ fn parse_cmap(data: &[u8]) -> UniMap {
                                 match item {
                                     Tok::Str(d) if (list.len() as u64) < span && budget > 0 => {
                                         budget -= 1;
-                                        list.push(utf16be(&d).unwrap_or_default());
+                                        list.push(utf16be(&d));
                                     }
                                     Tok::ArrClose | Tok::Eof => break,
                                     _ => {}
