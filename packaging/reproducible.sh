@@ -7,7 +7,8 @@
 #   - owner and permissions are fixed instead of taken from the builder's account and umask;
 #   - gzip stores no file name and no time; zip stores no extra fields (uid/gid, extended times);
 #   - the compiled programs carry no folder path of the build machine (--remap-path-prefix for Rust,
-#     -ffile-prefix-map for the bundled SQLite C code) and no link time (PE time stamp).
+#     -ffile-prefix-map for the bundled SQLite C code) and no link time (PE time stamp); the cross-built
+#     Windows programs carry no COFF symbol table (it named random temporary folders).
 # Development build. Not validated. Outputs must not be used for manufacturing.
 
 # Sets and exports SOURCE_DATE_EPOCH (seconds since 1970, UTC) for the build in folder $1, if it is not set:
@@ -80,7 +81,11 @@ nf_rustflags() {
   case "$triple" in
     *-windows-gnu*)
       # GNU ld writes the link time into the PE header unless told not to.
-      flags="$flags -Clink-arg=-Wl,--no-insert-timestamp" ;;
+      # -Cstrip=symbols: the PE's COFF symbol table names the import libraries rustc generates for raw-dylib
+      # imports (windows-sys) in a temporary folder with a random name (target/.../deps/rustcXXXXXX), so it
+      # differed between any two builds, even in the same folder. The table is used only by debuggers; the
+      # programs behave the same without it (a panic backtrace then shows addresses instead of function names).
+      flags="$flags -Clink-arg=-Wl,--no-insert-timestamp -Cstrip=symbols" ;;
     *-windows-msvc*)
       # link.exe: -Brepro replaces the time stamp and the PDB signature by a hash of the output;
       # -PDBALTPATH:%_PDB% records only the PDB file name, not the build folder. (Dash form: no MSYS path conversion.)
