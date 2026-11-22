@@ -64,7 +64,17 @@ use std::collections::{BTreeMap, BTreeSet};
 /// 8·eps_num reaches the tolerance of its 3D point check (near 180 degrees) carries `eps_num_governs` and the interface
 /// shows eps_num prominently. Refusal outcomes change (jobs G10 rejected before are now refused); cut geometry of
 /// every accepted case is unchanged. Results of 0.4.2 are REJECTED with G21 recompute.
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.3+src.", env!("NF_ENGINE_SRC_HASH"));
+/// 0.4.4 (21 Nov 2026): work plan task 1.2, a true error bound everywhere. `eps_rep` of every polyline is the
+/// certified upper bound of its chord error (interval arithmetic on the closed-form derivatives, TOLERANCE_POLICY
+/// section 8). `eps_rep_certified` says so, and only for the branch saddle and the header opening: the eccentric
+/// reducer's vertex term contains a quadrature estimate, so its value is NOT certified and its two circumference checks
+/// are INCONCLUSIVE (a would-be PASS only; a FAIL stays FAIL). Where no bound can be proved the checks using `eps_rep`
+/// are INCONCLUSIVE in the same way. The developed-length checks of the branch saddle and the header opening use a
+/// certified enclosure of the exact length instead of the Richardson limit. The area check of the header opening is
+/// scaled to the opening's own extents (x and y) and computed relative to its first vertex; `opening_area` is computed
+/// the same way. Cut geometry is byte-identical to 0.4.3; the quantities and check verdicts listed in the work plan
+/// changed. Results of 0.4.3 are REJECTED with G21 recompute.
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.4+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the

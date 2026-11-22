@@ -643,7 +643,6 @@ def compare_job(req, job, ndense=6001, dxf=True):
             findings.append({'code': 'DXF_EXTENTS_WRONG', 'detail': f"{name}: $EXTMIN/$EXTMAX differ from the true extents by {d['extents_header_error']:.4g} mm"})
         if d.get('json_arc_sagitta', 0) > 1e-9 * max(pr.get('scale', 1), 1e-300) and not d.get('json_arc_labelled', False):
             findings.append({'code': 'JSON_ARC_UNLABELLED', 'detail': f"{name}: JSON 'points' of an arc deviate {d['json_arc_sagitta']:.4g} mm from the arc while eps_rep = {part.eps_rep}"})
-        # the product's own checks must all have passed for an accepted job
     # declared marking side against the side the geometry is actually drawn from (reference = outside view by construction)
     sides = {}
     for name, pr in rep['parts'].items():
@@ -657,9 +656,23 @@ def compare_job(req, job, ndense=6001, dxf=True):
         rep['mating_on_declared_side'] = v
         if v is None or v > 3 * rep['mating_tol']:
             issues.append(f'assembly: folded from the declared marking side ({s}) the saddle misses the opening by {v} mm')
-    bad = [c['name'] for c in job.checks() if c['verdict'] != 'PASS']
+    # The product's own verdicts (task 1.2 review; plan rule A9). Derivation, from the specification:
+    # TOLERANCE_POLICY section 8 defines three verdicts. PASS: the check holds to the stated precision. FAIL: the check
+    # is violated, so the pattern is wrong (a defect: PRODUCT_CHECK_NOT_PASS, in DEFECT_CODES). INCONCLUSIVE: the
+    # check cannot be certified to the required precision because a bound is an estimate or too coarse (the product
+    # fails closed; the result is not shown to be wrong), so it is an observation, PRODUCT_CHECK_INCONCLUSIVE, that
+    # is reported in findings_by_code but is NOT in DEFECT_CODES (validation/run_all.py). Any verdict outside the
+    # three is not a known outcome and stays a defect. This reference does not rely on the product's verdicts to
+    # detect a fault: a planted fault is caught by the independent comparison through `issues` (cmp_header, cmp_branch,
+    # declared_side). Findings never feed `agree` (rep['agree'] = not issues), so the split changes no disagree or
+    # wrongly_accepted outcome. Seeded-fault test: validation/seeded_faults.py, verdict_faults().
+    verdicts = [(c['name'], c['verdict']) for c in job.checks()]
+    bad = [n for n, v in verdicts if v not in ('PASS', 'INCONCLUSIVE')]
+    unsure = [n for n, v in verdicts if v == 'INCONCLUSIVE']
     if bad:
-        findings.append({'code': 'PRODUCT_CHECK_NOT_PASS', 'detail': f'product verification checks not PASS: {bad}'})
+        findings.append({'code': 'PRODUCT_CHECK_NOT_PASS', 'detail': f'product verification checks FAIL (or are not a known verdict): {bad}'})
+    if unsure:
+        findings.append({'code': 'PRODUCT_CHECK_INCONCLUSIVE', 'detail': f'product verification checks INCONCLUSIVE (not certified to the required precision, not a wrong result): {unsure}'})
     rep['issues'], rep['findings'] = issues, findings
     rep['agree'] = not issues
     return rep

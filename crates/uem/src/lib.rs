@@ -10,11 +10,16 @@
 //! closed-form parts are stated as first-order a-priori bounds, quadrature
 //! errors as the difference of two refinement levels, and the distance between
 //! a polyline and its curve is measured after the density was chosen for a
-//! stated limit. Interval-certified bounds are NOT implemented; every result
-//! says so.
+//! stated limit. The chord error of every polyline is certified by outward
+//! interval arithmetic (`interval.rs`, `curve_bound.rs`; TOLERANCE_POLICY
+//! section 8) for the branch saddle and the header opening. The eccentric
+//! reducer's vertex term carries a quadrature estimate, so its value is not
+//! certified; every result says which bound it is.
 
+pub mod curve_bound;
 pub mod develop;
 pub mod independent;
+pub mod interval;
 pub mod profile;
 pub mod verify;
 
@@ -150,6 +155,10 @@ pub struct Pattern {
     /// How `eps_rep` was obtained and which limit the polyline density was
     /// chosen for.
     pub eps_rep_basis: &'static str,
+    /// True when `eps_rep` is a certified upper bound (interval arithmetic on the closed-form derivatives,
+    /// docs/backend/TOLERANCE_POLICY.md section 8). False only where no bound could be proved: the value is
+    /// then the measured estimate, and every check that uses it returns INCONCLUSIVE.
+    pub eps_rep_certified: bool,
     /// Named scalar results (mm, rad, mm²) for reporting and verification.
     pub quantities: Vec<(&'static str, f64)>,
     /// What the plate coordinates mean on the formed part, in words a workshop

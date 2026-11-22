@@ -50,7 +50,13 @@ get() { curl -s -H "X-NF-Request: 1" -b "$JAR" "$BASE/api/calculations/$1"; }
 for c in $C1 $C2 $C3 $C4; do
   R=$(get $c)
   check "job $c: REVIEW_REQUIRED, never APPROVED"  '[ "$(echo "$R" | j "d[\"state\"]")" = REVIEW_REQUIRED ]'
-  check "job $c: all verification checks PASS"     '[ "$(echo "$R" | j "all(c[\"verdict\"]==\"PASS\" for c in d[\"checks\"]) and len(d[\"checks\"])>=4")" = True ]'
+  if [ "$c" = "$C2" ]; then
+    # task 1.2 (review; TOLERANCE_POLICY section 8.2): the eccentric reducer's two circumference checks are INCONCLUSIVE
+    # (its eps_rep is not certified); every other check is PASS; none may FAIL. This replaces the old all-PASS expectation.
+    check "job $c (eccentric reducer): circumference checks INCONCLUSIVE, all others PASS, none FAIL" '[ "$(echo "$R" | j "sorted(c[\"name\"] for c in d[\"checks\"] if c[\"verdict\"]==\"INCONCLUSIVE\")==[\"large_edge_equals_circumference\",\"small_edge_equals_circumference\"] and all(c[\"verdict\"]==\"PASS\" for c in d[\"checks\"] if c[\"name\"] not in [\"large_edge_equals_circumference\",\"small_edge_equals_circumference\"]) and len(d[\"checks\"])>=4")" = True ]'
+  else
+    check "job $c: all verification checks PASS"     '[ "$(echo "$R" | j "all(c[\"verdict\"]==\"PASS\" for c in d[\"checks\"]) and len(d[\"checks\"])>=4")" = True ]'
+  fi
   check "job $c: approval gate not implemented"    '[ "$(echo "$R" | j "[g[\"result\"] for g in d[\"gates\"] if g[\"id\"]==\"G16\"][0]")" = NOT_IMPLEMENTED ]'
 done
 check "CONE-01 sector angle matches reference"    '[ "$(get $C1 | j "abs(d[\"patterns\"][0][\"quantities\"][\"sector_angle\"]-1.986917653159)<1e-11")" = True ]'

@@ -38,6 +38,16 @@
 //! fix exactly 2 cone_frustum cases changed `patterns_sha256` (their 2 eps_num exceeds 1e-9 mm) and nothing else: no state,
 //! no outcome, no refusal, and every `dxf_cut_geometry` byte-identical. The true counts of the accepted cases that carry the
 //! seam quantities (field-level diff, 335 cases): 55 cone_frustum and 40 eccentric_reducer. The fixture was regenerated.
+//! Review of work plan task 1.2 (engine 0.4.4, deliberate, `NF_WRITE_COMPAT_FIXTURE=1`): the eccentric reducer's
+//! `eps_rep` is not certified (its vertex term carries the quadrature estimate of its developed angle), so its two
+//! circumference checks are INCONCLUSIVE instead of PASS; the statements of G08 and of the pattern assumptions about
+//! `eps_num` and `eps_rep` were corrected to the status each value has (TOLERANCE_POLICY section 6); `interval::library`
+//! is one unit wider outward. Against the fixture before this change, of 335 cases: no state, no outcome, no refusal
+//! and no parse result changed; every `dxf_cut_geometry` is byte-identical; `patterns_sha256` changed for 148 accepted
+//! cases: 40 eccentric_reducer, 55 cone_frustum, 34 cylinder_shell, 11 branch_stub and 8 header_with_branch. Every one of
+//! the 148 changes comes from the assumption text (the fixture does not hold the check verdicts, which are the
+//! reducer's INCONCLUSIVE circumference checks, nor the eps flags): regenerating with the previous `interval::library`
+//! gives the same 148 changes, so the outward margin changed no pattern of this corpus. The fixture was regenerated.
 
 use nf_core::job::{Request, run};
 use serde_json::{Value, json};

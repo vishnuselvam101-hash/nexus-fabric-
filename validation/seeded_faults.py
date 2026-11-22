@@ -129,7 +129,42 @@ def run(cl):
     ok2, lines2 = near_tangent_and_scale(cl)
     ok3, lines3 = seam_faults(cl)
     ok4, lines4 = regime_faults(cl)
-    return ok and ok2 and ok3 and ok4, lines + lines2 + lines3 + lines4
+    ok5, lines5 = verdict_faults(cl)
+    return ok and ok2 and ok3 and ok4 and ok5, lines + lines2 + lines3 + lines4 + lines5
+
+
+def verdict_faults(cl):
+    """Task 1.2 (review; plan rule A9): the product's own verdicts are split in checks/compare.py. Planted on a correct
+    result's checks: a FAIL must raise PRODUCT_CHECK_NOT_PASS (a defect); an INCONCLUSIVE must raise
+    PRODUCT_CHECK_INCONCLUSIVE and must NOT raise the defect; a verdict that is not one of the three must still raise
+    PRODUCT_CHECK_NOT_PASS. The unmodified result must raise neither code. Derivation: checks/compare.py."""
+    out, ok = [], True
+
+    def fresh():
+        return Job(cl, cl.calculate(REQ))
+
+    def codes(job):
+        return {f['code'] for f in compare_job(REQ, job)['findings']}
+
+    base = codes(fresh())
+    clean = not ({'PRODUCT_CHECK_NOT_PASS', 'PRODUCT_CHECK_INCONCLUSIVE'} & base)
+    ok &= clean
+    out.append(('ok  ' if clean else 'FAIL') + ' unmodified result raises no product-check finding' + ('' if clean else f': {sorted(base)}'))
+    for name, verdict, want, forbid in [('product check FAIL', 'FAIL', 'PRODUCT_CHECK_NOT_PASS', 'PRODUCT_CHECK_INCONCLUSIVE'),
+                                        ('product check INCONCLUSIVE', 'INCONCLUSIVE', 'PRODUCT_CHECK_INCONCLUSIVE', 'PRODUCT_CHECK_NOT_PASS'),
+                                        ('product check with an unknown verdict', 'MAYBE', 'PRODUCT_CHECK_NOT_PASS', 'PRODUCT_CHECK_INCONCLUSIVE')]:
+        j = fresh()
+        checks = j.result.get('checks') or []
+        if not checks:
+            ok = False
+            out.append(f'MISS {name}: the result has no product checks to plant on')
+            continue
+        checks[0]['verdict'] = verdict
+        got = codes(j)
+        caught = want in got and forbid not in got
+        ok &= caught
+        out.append(('ok  ' if caught else 'MISS') + f' {name} ({checks[0]["name"]}): ' + (f'{want} raised' if caught else f'not detected: {sorted(got)}'))
+    return ok, out
 
 
 def regime_faults(cl):

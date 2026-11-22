@@ -1,0 +1,20 @@
+{
+ "description": "Work plan tasks 0.3 and 1.2 (validation defect D4): the near-tangent branch stub R 150, r = R(1 - 2e-6), beta 90 deg, delta 0 (uem N-tangent-r-b90-g2e-06). Engine 0.4.3 reported a representation estimate of 0.0095979 mm against a true chord error of 0.0096085 mm (the sampling missed the maximum), and two developed-length checks could not resolve their need. Engine 0.4.4 certifies the chord error (0.0096380 mm, which covers the truth) and resolves the developed length (3.8e-3 mm against a need of 1.15e-2 mm), so every check of this stub passes. Both checks use the certified bound of the saddle polyline, not an estimate: this case must stay verified with all checks PASS.",
+ "found": "2026-11-21 (work plan task 0.3, validation defect D4)",
+ "fixed_in": "uem develop.rs certified_rep and curve_bound.rs chord_error_bound (task 1.2, TOLERANCE_POLICY sections 8.1 and 8.3); uem tests/task_1_2_regression.rs",
+ "cases": [
+  {
+   "request": {
+    "family": "branch_stub",
+    "header_radius": 150.0,
+    "branch_radius": 149.9997,
+    "branch_dev_radius": 149.9997,
+    "beta_deg": 90.0,
+    "delta": 0.0,
+    "s_end": 151.0,
+    "surface_reference": "outside"
+   },
+   "expect": "verified"
+  }
+ ]
+}

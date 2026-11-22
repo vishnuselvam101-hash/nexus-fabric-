@@ -102,6 +102,19 @@ const controlProbe = () => {
 
   // ---- 3. every calculation family, through the form
   const FAMILIES = [['cylinder_shell', 1, 4], ['cone_frustum', 1, 4], ['eccentric_reducer', 1, 4], ['header_with_branch', 2, 5], ['branch_stub', 1, 4]];
+  // task 1.2 (review; TOLERANCE_POLICY section 8.2): the only INCONCLUSIVE product checks are the eccentric reducer's two
+  // circumference checks, whose eps_rep is not certified. Every other check of every family must be PASS; none may FAIL.
+  const INCONCLUSIVE_CHECKS = { eccentric_reducer: ['large_edge_equals_circumference', 'small_edge_equals_circumference'] };
+  // task 1.2: the error wording is per family, as job.rs eps_assumption states it and the page shows it in #assume.
+  // The sentences are copied from job.rs (EPS_NUM_BOUND, EPS_NUM_REDUCER, EPS_REP_CERTIFIED, EPS_REP_NOT_CERTIFIED).
+  const EPS_NUM_SENTENCE = 'eps_num is an a-priori rounding bound, not interval-certified.';
+  const EPS_WORDING = {
+    cylinder_shell: { has: [EPS_NUM_SENTENCE], not: ['eps_rep is'] },
+    cone_frustum: { has: [EPS_NUM_SENTENCE], not: ['eps_rep is'] },
+    branch_stub: { has: [EPS_NUM_SENTENCE, 'eps_rep is a certified upper bound of the chord error of the drawn polyline'], not: ['NOT certified', 'ESTIMATE'] },
+    header_with_branch: { has: [EPS_NUM_SENTENCE, 'eps_rep is a certified upper bound of the chord error of the drawn polyline'], not: ['NOT certified', 'ESTIMATE'] },
+    eccentric_reducer: { has: [EPS_NUM_SENTENCE, 'For an eccentric reducer its quadrature term is an ESTIMATE, not a bound.', 'eps_rep is NOT certified for this pattern'], not: ['is a certified upper bound'] },
+  };
   const jobs = {};
   for (const [fam, parts, curves] of FAMILIES) {
     await go('math/1', '#calc');
@@ -112,9 +125,22 @@ const controlProbe = () => {
     const got = { state: (await p.textContent('.ws-head h1 .tag')).trim(), parts: await p.locator('#parts [role=tab]').count(), curves: await p.locator('.pv .c').count() };
     await p.click('#tab-ws-checks');
     const verdicts = await p.locator('#tp-ws-checks .l1 .tag').allTextContents();
-    check(`calculation ${fam}: REVIEW REQUIRED, ${parts} part(s), ${curves} curves drawn, all checks PASS`, got.state === 'REVIEW REQUIRED' && got.parts === parts && got.curves === curves && verdicts.length >= 4 && verdicts.every((v) => v.trim() === 'PASS'), { got, verdicts: verdicts.length });
+    const cks = (await apiGet(`/api/calculations/${id}`)).checks || [];
+    const expectInc = (INCONCLUSIVE_CHECKS[fam] || []).slice().sort();
+    const inconc = cks.filter((c) => c.verdict === 'INCONCLUSIVE').map((c) => c.name).sort();
+    const verdictLabel = expectInc.length ? `INCONCLUSIVE ${expectInc.join(' and ')}, all others PASS` : 'all checks PASS';
+    check(`calculation ${fam}: REVIEW REQUIRED, ${parts} part(s), ${curves} curves drawn, ${verdictLabel}`,
+      got.state === 'REVIEW REQUIRED' && got.parts === parts && got.curves === curves && cks.length >= 4 &&
+      JSON.stringify(inconc) === JSON.stringify(expectInc) &&
+      cks.every((c) => c.verdict === (expectInc.includes(c.name) ? 'INCONCLUSIVE' : 'PASS')) &&
+      verdicts.length >= 4 && verdicts.filter((v) => v.trim() === 'INCONCLUSIVE').length === expectInc.length && verdicts.every((v) => ['PASS', 'INCONCLUSIVE'].includes(v.trim())),
+      { got, inconc, verdicts: verdicts.length });
     await p.click('#tab-ws-gates');
-    check(`calculation ${fam}: marking side stated as a provisional convention, errors labelled as estimates`, (await p.locator('#mside').count()) === 1 && /seen from the outside/.test(await p.textContent('#mside')) && /provisional convention, not reviewed/.test(await p.textContent('#quant')) && /estimate, not a bound/.test(await p.textContent('#quant')) && /PROVISIONAL convention/.test(await p.textContent('#tp-ws-gates')));
+    const assume = (await p.textContent('#assume')).replace(/\s+/g, ' ');
+    const wording = EPS_WORDING[fam];
+    check(`calculation ${fam}: marking side stated as a provisional convention; error wording per family (${wording.has.length} sentence(s) present, ${wording.not.length} absent)`,
+      (await p.locator('#mside').count()) === 1 && /seen from the outside/.test(await p.textContent('#mside')) && /provisional convention, not reviewed/.test(await p.textContent('#quant')) && /a-priori bound, not interval-certified/.test(await p.textContent('#quant')) && /PROVISIONAL convention/.test(await p.textContent('#tp-ws-gates')) &&
+      wording.has.every((s) => assume.includes(s)) && wording.not.every((s) => !assume.includes(s)), { assume: assume.slice(0, 400) });
     check(`calculation ${fam}: approval gate G16 shown as NOT IMPLEMENTED`, /G16\s*human approval\s*NOT IMPLEMENTED/.test((await p.textContent('#tp-ws-gates')).replace(/\s+/g, ' ')));
     await sweepControls();
   }
@@ -472,10 +498,10 @@ const controlProbe = () => {
   const nearEps = nearJob.patterns && nearJob.patterns[0] ? nearJob.patterns[0].eps_num : undefined;
   await go(`calc/${near.id}`, '.pv'); await p.waitForSelector('#quant dl');
   const epsEn = (await p.locator('#epsgov').count()) ? (await p.textContent('#epsgov')).replace(/\s+/g, ' ') : '';
-  check('task 1.1: a branch at 179.997 deg is accepted and shows eps_num first, in full, as an estimate', nearApi.ok() && nearJob.patterns[0].eps_num_governs === true && epsEn.includes(`eps_num = ${fmtFull(nearEps)} mm`) && /estimate, not a bound/.test(epsEn) && (await p.evaluate(() => document.querySelector('#quant').firstElementChild.id)) === 'epsgov', { epsEn, nearEps });
+  check('task 1.1: a branch at 179.997 deg is accepted and shows eps_num first, in full, as an a-priori rounding bound, not interval-certified', nearApi.ok() && nearJob.patterns[0].eps_num_governs === true && epsEn.includes(`eps_num = ${fmtFull(nearEps)} mm`) && /a-priori rounding bound, not interval-certified/.test(epsEn) && (await p.evaluate(() => document.querySelector('#quant').firstElementChild.id)) === 'epsgov', { epsEn, nearEps });
   await p.click('#lang-ja'); await p.waitForSelector('#quant dl');
   const epsJa = (await p.locator('#epsgov').count()) ? (await p.textContent('#epsgov')).replace(/\s+/g, ' ') : '';
-  check('task 1.1: the same notice in Japanese', JA_TEXT_11.test(epsJa) && epsJa.includes(fmtFull(nearEps)) && /推定値/.test(epsJa), epsJa);
+  check('task 1.1: the same notice in Japanese', JA_TEXT_11.test(epsJa) && epsJa.includes(fmtFull(nearEps)) && /先験的な上界であり、区間演算による保証はありません/.test(epsJa), epsJa);
   await p.click('#lang-en');
   await go(`calc/${jobs.branch_stub}`, '.pv'); await p.waitForSelector('#quant dl');
   check('task 1.1: a branch at an ordinary angle carries no such notice', (await p.locator('#epsgov').count()) === 0);
@@ -489,14 +515,18 @@ const controlProbe = () => {
   //   .u-select option               project and user names listed in a select
   //   [lang=en]                      engine or server text the catalogue deliberately leaves in English (engineJa)
   // and it accepts these words wherever they are: the product name and its AMOEBA module, the file formats (DXF, PDF,
-  // PNG, JPEG, TIFF, STEP), the hash algorithm name SHA, and the unit rad.
-  const JA_ALLOW = ['NEXUS', 'FABRIC', 'AMOEBA', 'DXF', 'PDF', 'PNG', 'JPEG', 'TIFF', 'STEP', 'SHA', 'rad'];
+  // PNG, JPEG, TIFF, STEP), the hash algorithm name SHA, the unit rad, and the two error identifiers eps_num and eps_rep
+  // (deliberate technical names, shown identically in both languages; the walk's word rule splits them at '_', so each is
+  // removed whole before the words are counted; no other identifier is allowed).
+  const JA_ALLOW = ['NEXUS', 'FABRIC', 'AMOEBA', 'DXF', 'PDF', 'PNG', 'JPEG', 'TIFF', 'STEP', 'SHA', 'rad', 'eps_num', 'eps_rep'];
   const jaWalk = (allow) => {
     const skip = '.mono,.idk,.hash,.u,bdi,code,kbd,pre,[lang=en],.u-select option,script,style,noscript';
     const out = [], w = document.createTreeWalker(document.getElementById('app'), NodeFilter.SHOW_TEXT); let n;
     while ((n = w.nextNode())) {
       const el = n.parentElement; if (!el || el.closest(skip) || !el.getClientRects().length) continue;
-      const bad = (n.textContent.match(/[A-Za-z]{3,}/g) || []).filter((x) => !allow.includes(x));
+      let text = n.textContent;
+      for (const id of allow.filter((w) => w.includes('_'))) text = text.split(id).join(' ');
+      const bad = (text.match(/[A-Za-z]{3,}/g) || []).filter((x) => !allow.includes(x));
       if (bad.length) out.push(`<${el.tagName.toLowerCase()}> "${n.textContent.trim().slice(0, 50)}" [${bad.join(' ')}]`);
     }
     return out;

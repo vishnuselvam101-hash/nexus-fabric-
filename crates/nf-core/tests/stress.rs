@@ -63,7 +63,22 @@ fn judge(req: &Request, t: &mut Tally) {
         return;
     }
     let gate = |id: &str| out.gates.iter().find(|g| g.id == id).map(|g| g.result);
-    let bad_check = out.checks.iter().find(|c| c.verdict != "PASS");
+    // Task 1.2 review (work plan task 1.2, review): the representation error of an eccentric reducer is
+    // not certified (its vertex term carries a quadrature estimate), so its two circumference checks are
+    // INCONCLUSIVE by design, and only those. Any other non-PASS check, and any FAIL, is still a defect.
+    let by_design = |c: &nf_core::job::CheckView| {
+        c.verdict == "INCONCLUSIVE"
+            && matches!(
+                c.name.as_str(),
+                "large_edge_equals_circumference" | "small_edge_equals_circumference"
+            )
+            && out.patterns.iter().any(|p| p.family == "eccentric_reducer")
+    };
+    let inconclusive_by_design = out.checks.iter().filter(|c| by_design(c)).count();
+    let bad_check = out
+        .checks
+        .iter()
+        .find(|c| c.verdict != "PASS" && !by_design(c));
     if let Some(c) = bad_check {
         return t.defects.push(format!(
             "CHECK {} [{}] diff {:e} tol {:e} :: {}",
@@ -87,12 +102,17 @@ fn judge(req: &Request, t: &mut Tally) {
     } else {
         GateResult::Pass
     };
-    if gate("G10") != Some(GateResult::Pass)
+    let g10_want = if inconclusive_by_design > 0 {
+        GateResult::Inconclusive
+    } else {
+        GateResult::Pass
+    };
+    if gate("G10") != Some(g10_want)
         || gate("G11") != Some(g11_want)
         || gate("G15") != Some(GateResult::Pass)
     {
         return t.defects.push(format!(
-            "GATE G10={:?} G11={:?} G15={:?} :: {}",
+            "GATE G10={:?} (want {g10_want:?}) G11={:?} G15={:?} :: {}",
             gate("G10"),
             gate("G11"),
             gate("G15"),

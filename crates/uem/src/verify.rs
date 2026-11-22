@@ -15,7 +15,8 @@
 //! were written by the same author; a separately owned implementation (class
 //! I-I/I-L) does not exist yet and the evidence says so.
 
-use crate::develop::{self, Branch, ObliqueCone};
+use crate::curve_bound::{CurveBound, OpeningCurve, SaddleCurve, length_excess_bound};
+use crate::develop::{self, Branch, MAX_CHORD_ERROR_MM, ObliqueCone};
 use crate::independent::{self, Joint3, V3};
 #[cfg(test)]
 use crate::{Curve, Layer};
@@ -338,6 +339,66 @@ pub fn fold_header(
     [q.x - station, big_r * omega.sin(), big_r * omega.cos()]
 }
 
+/// A check whose tolerance includes a representation error (`eps_rep`). A would-be PASS becomes INCONCLUSIVE when
+/// the error is not a certified bound (work plan task 1.2; TOLERANCE_POLICY section 8.1), and also when the certified
+/// bound is coarser than the precision the product requires, `MAX_CHORD_ERROR_MM` (rule of the review after task 1.2,
+/// TOLERANCE_POLICY section 8.1: a tolerance of 2·eps_rep above the limit would pass almost any pattern). A measured
+/// difference beyond the tolerance stays FAIL in both cases: the conservative direction is kept. The comparison is
+/// written so that NaN is coarse too (fail closed).
+fn rep_check(mut c: Check, certified: bool, eps_rep: f64) -> Check {
+    let coarser_than_required = eps_rep.partial_cmp(&MAX_CHORD_ERROR_MM)
+        != Some(std::cmp::Ordering::Less)
+        && eps_rep.partial_cmp(&MAX_CHORD_ERROR_MM) != Some(std::cmp::Ordering::Equal);
+    if c.verdict == Verdict::Pass && (!certified || coarser_than_required) {
+        c.verdict = Verdict::Inconclusive;
+    }
+    c
+}
+
+/// Certified enclosure of the exact developed length of a polyline (work plan task 1.2 item C, TOLERANCE_POLICY
+/// section 8). `drawn` holds the n + 1 vertices of the pattern; each carries an error of at most `eps_num`. The
+/// exact length of the curve lies in [L − 2·n·eps_num, L + E + 2·n·eps_num], with L the drawn length and E the
+/// certified excess of the curve over its chords (`curve_bound::length_excess_bound`). Returns (centre, half
+/// width); the half width is f64::MAX where no bound can be proved, so the length check is INCONCLUSIVE.
+fn length_enclosure(curve: &dyn CurveBound, drawn: &[P2], n: usize, eps_num: f64) -> (f64, f64) {
+    // the excess is summed over LENGTH_SUB sub-intervals per segment (the midpoint enclosure of each sub-interval
+    // loses a term proportional to its width, so the finer the sum the closer the bound is to the true excess)
+    const LENGTH_SUB: usize = 64;
+    let dphi = TAU / (LENGTH_SUB * n) as f64; // segment i starts at parameter i·TAU/n, as the drawn vertex i
+    let params: Vec<f64> = (0..=LENGTH_SUB * n).map(|i| i as f64 * dphi).collect();
+    let drawn_len: f64 = drawn.windows(2).map(|w| w[0].dist(w[1])).sum();
+    match length_excess_bound(curve, drawn, &params, n, LENGTH_SUB) {
+        Some(e) if e.is_finite() => (drawn_len + 0.5 * e, 0.5 * e + 2.0 * n as f64 * eps_num),
+        _ => (f64::NAN, f64::MAX),
+    }
+}
+
+/// The plate point of the header opening at parameter phi (the closed form that develop samples).
+fn header_plate_point(b: &Branch, r_dev_header: f64, station: f64, phi: f64) -> P2 {
+    let (sb, cb) = b.beta.sin_cos();
+    let s = b.s(phi);
+    let omega = ((b.delta + b.r * phi.cos()) / b.big_r).asin();
+    P2::new(
+        station + s * cb - b.r * phi.sin() * sb,
+        r_dev_header * (omega + std::f64::consts::PI),
+    )
+}
+
+/// The vertices of a closed header opening in the order of its parameter. develop reverses a loop whose
+/// shoelace area is positive (inner profiles are clockwise), so the stored order may be the reverse one; the
+/// first step is compared with the exact plate point at the first parameter value.
+fn forward_loop(pts: &[P2], first_step_exact: P2) -> Vec<P2> {
+    let n = pts.len().saturating_sub(1);
+    if n < 2 {
+        return pts.to_vec();
+    }
+    if pts[1].dist(first_step_exact) <= pts[n - 1].dist(first_step_exact) {
+        pts.to_vec()
+    } else {
+        pts.iter().rev().copied().collect()
+    }
+}
+
 /// The declared side as a number, so that two declarations can be compared by `cmp`.
 fn declared(side: ViewSide) -> f64 {
     match side {
@@ -608,19 +669,27 @@ pub fn verify_eccentric(p: &Pattern, r1: f64, r2: f64, h: f64, e: f64) -> Vec<Ch
     // (2) Developed edge lengths equal the 3D circumferences (isometry invariant).
     let chord_bias =
         |r: f64| TAU * r * (std::f64::consts::PI / n as f64).powi(2) / 6.0 * 1.5 + agree;
-    v.push(cmp(
-        "large_edge_equals_circumference",
-        "3D circumference 2*pi*r1 (polyline chord shortening allowed for)",
-        curve_len(p, "large_end"),
-        TAU * r1,
-        chord_bias(r1) + p.eps_rep,
+    v.push(rep_check(
+        cmp(
+            "large_edge_equals_circumference",
+            "3D circumference 2*pi*r1 (polyline chord shortening allowed for)",
+            curve_len(p, "large_end"),
+            TAU * r1,
+            chord_bias(r1) + p.eps_rep,
+        ),
+        p.eps_rep_certified,
+        p.eps_rep,
     ));
-    v.push(cmp(
-        "small_edge_equals_circumference",
-        "3D circumference 2*pi*r2 (polyline chord shortening allowed for)",
-        curve_len(p, "small_end"),
-        TAU * r2,
-        chord_bias(r2) + p.eps_rep,
+    v.push(rep_check(
+        cmp(
+            "small_edge_equals_circumference",
+            "3D circumference 2*pi*r2 (polyline chord shortening allowed for)",
+            curve_len(p, "small_end"),
+            TAU * r2,
+            chord_bias(r2) + p.eps_rep,
+        ),
+        p.eps_rep_certified,
+        p.eps_rep,
     ));
     // (3) Seam edges equal, and equal to the 3D ruling length at theta = 0.
     let ruling0 = ((e + r2 - r1).powi(2) + h * h).sqrt();
@@ -678,16 +747,6 @@ fn saddle_points(p: &Pattern) -> Vec<P2> {
             }
         })
         .unwrap_or_default()
-}
-
-/// Length of the polyline through every `stride`-th point.
-fn stride_length(pts: &[P2], stride: usize) -> f64 {
-    pts.iter()
-        .step_by(stride)
-        .collect::<Vec<_>>()
-        .windows(2)
-        .map(|w| w[0].dist(*w[1]))
-        .sum()
 }
 
 /// Limit of a sequence that converges like h²: `a` at step 4h, `b` at 2h, `c` at h.
@@ -779,11 +838,7 @@ pub fn verify_branch(p: &Pattern, b: &Branch, r_dev: f64, s_end: f64) -> Vec<Che
     // Developed length of the cut against the 3D arc length of the cut on the development cylinder
     // (radius r_dev about the branch axis), the latter from the numerical intersection alone.
     let (len_p, res_p) = if usable {
-        limit_h2(
-            stride_length(&cut, 4),
-            stride_length(&cut, 2),
-            stride_length(&cut, 1),
-        )
+        length_enclosure(&SaddleCurve { b, r_dev }, &cut, n, p.eps_num)
     } else {
         (f64::NAN, f64::NAN)
     };
@@ -852,13 +907,17 @@ pub fn verify_branch(p: &Pattern, b: &Branch, r_dev: f64, s_end: f64) -> Vec<Che
             0.0,
             agree,
         ),
-        cmp(
-            "saddle_handedness_matches_declared_side",
-            "s(270 deg) - s(90 deg) read from the pattern through the declared marking side against 2*r*cot(beta)",
-            handed,
-            handed_ref,
-            // the two heights are read off a polyline: allow its representation estimate
-            agree + 2.0 * p.eps_rep,
+        rep_check(
+            cmp(
+                "saddle_handedness_matches_declared_side",
+                "s(270 deg) - s(90 deg) read from the pattern through the declared marking side against 2*r*cot(beta)",
+                handed,
+                handed_ref,
+                // the two heights are read off a polyline: allow its representation estimate
+                agree + 2.0 * p.eps_rep,
+            ),
+            p.eps_rep_certified,
+            p.eps_rep,
         ),
         cmp(
             "outline_counter_clockwise",
@@ -888,12 +947,16 @@ pub fn verify_branch(p: &Pattern, b: &Branch, r_dev: f64, s_end: f64) -> Vec<Che
             0.0,
             tol3,
         ),
-        cmp(
-            "saddle_on_the_declared_delta_side",
-            "height of the cut at the seam (phi = 0, positive-delta side) minus the height half a turn away, against the numerical intersection of the solid joint",
-            delta_side,
-            delta_side_ref,
-            tol3 + 2.0 * p.eps_rep,
+        rep_check(
+            cmp(
+                "saddle_on_the_declared_delta_side",
+                "height of the cut at the seam (phi = 0, positive-delta side) minus the height half a turn away, against the numerical intersection of the solid joint",
+                delta_side,
+                delta_side_ref,
+                tol3 + 2.0 * p.eps_rep,
+            ),
+            p.eps_rep_certified,
+            p.eps_rep,
         ),
         cmp_resolved(
             "saddle_developed_length_equals_3d_arc_length",
@@ -1032,11 +1095,9 @@ pub fn verify_header_opening(
     // Developed perimeter of the opening against the 3D arc length of the cut on the development cylinder
     // of the header (radius R_dev), and its developed area against R_dev · ∮ x d(omega), both from the solid.
     let (per_p, per_res) = if usable {
-        limit_h2(
-            stride_length(&pts, 4),
-            stride_length(&pts, 2),
-            stride_length(&pts, 1),
-        )
+        let step = header_plate_point(b, r_dev_header, station, TAU / n as f64);
+        let forward = forward_loop(&pts, step);
+        length_enclosure(&OpeningCurve { b, r_dev_header }, &forward, n, p.eps_num)
     } else {
         (f64::NAN, f64::NAN)
     };
@@ -1061,11 +1122,14 @@ pub fn verify_header_opening(
                 independent::polyline_length(&v)
             };
             let (l, r) = limit_h2(length_of(4), length_of(2), length_of(1));
+            // ∮ x dω over the closed loop equals ∮ (x − x0) dω, since ∮ dω = 0: the shift by the first
+            // station removes the cancellation of the absolute station (task 1.2 item B)
+            let x0 = c.first().map_or(0.0, |q| q.0);
             let area_of = |k: usize| -> f64 {
                 let v: Vec<&(f64, f64)> = c.iter().step_by(k).collect();
                 (0.5 * r_dev_header
                     * v.windows(2)
-                        .map(|w| (w[0].0 + w[1].0) * (w[1].1 - w[0].1))
+                        .map(|w| (w[0].0 + w[1].0 - 2.0 * x0) * (w[1].1 - w[0].1))
                         .sum::<f64>())
                 .abs()
             };
@@ -1075,13 +1139,29 @@ pub fn verify_header_opening(
         }
         None => (f64::NAN, f64::NAN, f64::NAN, f64::NAN),
     };
+    // shoelace on coordinates relative to the first vertex of the opening (task 1.2 item B): the absolute
+    // coordinates (x ~ the station, y ~ the circumference) cancel to a fraction of the opening's own area
     let shoelace = |stride: usize| -> f64 {
-        let v: Vec<&P2> = pts.iter().step_by(stride).collect();
+        let o = pts.first().copied().unwrap_or(P2::new(0.0, 0.0));
+        let v: Vec<P2> = pts
+            .iter()
+            .step_by(stride)
+            .map(|q| P2::new(q.x - o.x, q.y - o.y))
+            .collect();
         (0.5 * v
             .windows(2)
             .map(|w| w[0].x * w[1].y - w[1].x * w[0].y)
             .sum::<f64>())
         .abs()
+    };
+    let opening_extent: f64 = {
+        let (xlo, xhi) = pts.iter().fold((f64::MAX, f64::MIN), |(lo, hi), q| {
+            (lo.min(q.x), hi.max(q.x))
+        });
+        let (ylo, yhi) = pts.iter().fold((f64::MAX, f64::MIN), |(lo, hi), q| {
+            (lo.min(q.y), hi.max(q.y))
+        });
+        (xhi - xlo) + (yhi - ylo)
     };
     let (area_p, area_p_res) = if usable {
         limit_h2(shoelace(4), shoelace(2), shoelace(1))
@@ -1171,7 +1251,10 @@ pub fn verify_header_opening(
             "independent formulation: area cut out of the development cylinder, R_dev times the loop integral of x d(omega) over the numerically intersected cut, against the area of the pattern opening, both taken to the limit of their polygons",
             area_p,
             area_v,
-            agree * (TAU * r_dev_header + length),
+            // the area error of a polygon scales with the size of the opening, not of the whole plate (task 1.2
+            // item B): its extent in x plus its extent in y. The opening lies inside the plate, so this is never
+            // larger than agree × (L + 2π R_dev), the 0.4.3 tolerance
+            agree * opening_extent,
             area_p_res + area_v_res,
             1e-5 * area_v.abs(),
         ),
@@ -1239,19 +1322,27 @@ pub fn verify_interface(
             declared(header.marking_side),
             0.5,
         ),
-        cmp(
-            "branch_cut_lies_on_header_opening",
-            "3D distance from each folded-back branch cut point to the folded-back header opening curve",
-            one_way(&cut3, &open3),
-            0.0,
-            agree + rep(header, branch),
+        rep_check(
+            cmp(
+                "branch_cut_lies_on_header_opening",
+                "3D distance from each folded-back branch cut point to the folded-back header opening curve",
+                one_way(&cut3, &open3),
+                0.0,
+                agree + rep(header, branch),
+            ),
+            header.eps_rep_certified && branch.eps_rep_certified,
+            rep(header, branch),
         ),
-        cmp(
-            "header_opening_lies_on_branch_cut",
-            "3D distance from each folded-back opening point to the folded-back branch cut curve",
-            one_way(&open3, &cut3),
-            0.0,
-            agree + rep(header, branch),
+        rep_check(
+            cmp(
+                "header_opening_lies_on_branch_cut",
+                "3D distance from each folded-back opening point to the folded-back branch cut curve",
+                one_way(&open3, &cut3),
+                0.0,
+                agree + rep(header, branch),
+            ),
+            header.eps_rep_certified && branch.eps_rep_certified,
+            rep(header, branch),
         ),
     ]
 }
@@ -1357,6 +1448,23 @@ mod tests {
         }
     }
 
+    /// The eccentric reducer's representation error is not certified (its vertex term carries the quadrature
+    /// estimate, TOLERANCE_POLICY 8.2): its two circumference checks are INCONCLUSIVE and every other check PASSes.
+    fn pass_but_uncertified_circumferences(v: &[Check]) {
+        for c in v {
+            let want = if c.name.ends_with("_equals_circumference") {
+                Verdict::Inconclusive
+            } else {
+                Verdict::Pass
+            };
+            assert_eq!(
+                c.verdict, want,
+                "{} diff {} tol {}",
+                c.name, c.difference, c.tolerance
+            );
+        }
+    }
+
     #[test]
     fn header_outline_and_opening_share_one_frame() {
         let b = Branch {
@@ -1410,14 +1518,14 @@ mod tests {
             100.0,
             300.0,
         ));
-        all_pass(&verify_eccentric(
+        pass_but_uncertified_circumferences(&verify_eccentric(
             &eccentric_reducer(200.0, 100.0, 300.0, 100.0).unwrap(),
             200.0,
             100.0,
             300.0,
             100.0,
         ));
-        all_pass(&verify_eccentric(
+        pass_but_uncertified_circumferences(&verify_eccentric(
             &eccentric_reducer(350.0, 120.0, 260.0, 40.0).unwrap(),
             350.0,
             120.0,
@@ -2382,6 +2490,38 @@ mod tests {
             }
             .exceeded()
         );
+    }
+
+    #[test]
+    fn task_1_2_a_would_be_pass_with_an_uncertified_or_coarse_bound_is_inconclusive_a_fail_stays_fail()
+     {
+        // the tolerance stays finite and the difference is zero: only the certification and the precision decide
+        let c = cmp("x", "m", 1.0, 1.0, 1e-3);
+        assert_eq!(c.verdict, Verdict::Pass);
+        assert_eq!(rep_check(c.clone(), true, 0.0096).verdict, Verdict::Pass);
+        assert_eq!(
+            rep_check(c.clone(), false, 0.0096).verdict,
+            Verdict::Inconclusive
+        );
+        // review after task 1.2: a certified bound coarser than MAX_CHORD_ERROR_MM is INCONCLUSIVE, never PASS
+        assert_eq!(
+            rep_check(c.clone(), true, 0.0100389).verdict,
+            Verdict::Inconclusive
+        );
+        assert_eq!(
+            rep_check(c.clone(), true, 0.5641).verdict,
+            Verdict::Inconclusive
+        );
+        assert_eq!(
+            rep_check(c.clone(), true, f64::NAN).verdict,
+            Verdict::Inconclusive
+        );
+        // a measured difference beyond the tolerance is a FAIL whatever the certification and the precision
+        let f = cmp("x", "m", 1.0, 2.0, 1e-3);
+        assert_eq!(f.verdict, Verdict::Fail);
+        assert_eq!(rep_check(f.clone(), true, 0.0096).verdict, Verdict::Fail);
+        assert_eq!(rep_check(f.clone(), false, 0.0096).verdict, Verdict::Fail);
+        assert_eq!(rep_check(f, true, 0.5641).verdict, Verdict::Fail);
     }
 
     /// Planted faults INSIDE the regime (stub at 0.003 deg, ratio 39; header with branch at 179.99 deg, ratio 1.11):
