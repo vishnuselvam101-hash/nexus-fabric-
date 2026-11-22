@@ -1,14 +1,23 @@
 # Exact residual check, independent of the validation harness's nearest-point search:
 # every header-opening vertex, folded back onto the header cylinder, must lie on the branch cylinder (distance to the branch axis = r).
-import sys, math, json, numpy as np
+import sys, math, json, socket, numpy as np
 sys.path.insert(0, 'validation')
 import run_all
 from scipy.optimize import minimize_scalar
 from checks.client import Client, SpawnedServer
-server = SpawnedServer(sys.argv[1], 8856)
-client = Client(server.url if hasattr(server,'url') else 'http://127.0.0.1:8856').connect(setup_token=server.token)
+
+
+def free_port():
+    # A port the system reports free on the loopback interface, instead of the fixed 8856 (task 1.8).
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('127.0.0.1', 0))
+        return s.getsockname()[1]
+
+
+server = SpawnedServer(sys.argv[1], free_port())
+import atexit; atexit.register(server.stop)  # registered before the first request, so a failed connect also stops it
+client = Client(server.url).connect(setup_token=server.token)
 run_all._client = client
-import atexit; atexit.register(server.stop)
 cases = [
  dict(family='header_with_branch', header_radius=150.0, header_dev_radius=150.0, header_length=450.0, branch_station=225.0, branch_radius=75.0, branch_dev_radius=75.0, beta_deg=90, delta=74.9997, s_end=300.0, surface_reference='outside'),
  dict(family='header_with_branch', header_radius=150.0, header_dev_radius=150.0, header_length=725.0, branch_station=213.0, branch_radius=149.999835, branch_dev_radius=149.999835, beta_deg=45, delta=0.0, s_end=513.0, surface_reference='outside'),

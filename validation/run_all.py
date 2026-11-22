@@ -441,36 +441,44 @@ def main():
         a.url = server.url
         a.setup_token = server.token
     t0 = time.time()
-    st = selftest()
-    print(f'[0] reference self-test: {sum(r["ok"] for r in st)}/{len(st)} ok')
-    for r in st:
-        if not r['ok']:
-            print('    FAIL', r)
-    client = Client(a.url).connect(a.user, a.password, a.setup_token)
-    # the validator validates itself against the live build: planted faults (Defect 002 among them) must be reported
-    import seeded_faults
-    sf_ok, sf_lines = seeded_faults.run(client)
-    print(f'[0] seeded faults (incl. Defect 002 and DXF tampering): {"all detected" if sf_ok else "NOT ALL DETECTED"}')
-    for ln in sf_lines:
-        if not ln.startswith('ok'):
-            print('    ' + ln)
-    cases = corpus_cases(a.quick)
-    cases += random_cases(a.seed, 5 if a.quick else a.random)
-    cases += workload_cases(24 if a.quick else a.workload, a.seed)
-    stab = stability_cases()
-    cases += [c for i, c in enumerate(stab) if i % 12 == 0 or c['id'] in ('N-tangent-r-b45-g1.1e-06', 'N-tangent-d-b90-g2e-06', 'N-aspect-cone-flat-h0.01')] if a.quick else stab
-    if a.only:
-        cases = [c for c in cases if c['group'] in a.only.split(',')]
-    print(f'[1-4] {len(cases)} cases against {a.url} (health reports engine {client.engine}), project {client.project}')
-    with mp_.Pool(a.workers, initializer=_init, initargs=(a.url, a.user, a.password, client.project)) as pool:
-        results = []
-        for i, r in enumerate(pool.imap(run_case, cases, chunksize=1)):
-            results.append(r)
-            if (i + 1) % 100 == 0:
-                print(f'    {i + 1}/{len(cases)}  ({time.time() - t0:.0f} s)', flush=True)
-    restarts = server.restarts if server else 0
-    if server:
-        server.stop()
+    # The spawned server is stopped however this block ends: an exception in the self-test, the planted-fault
+    # stage or the corpus run must not leave it running (task 1.8).
+    try:
+        st = selftest()
+        print(f'[0] reference self-test: {sum(r["ok"] for r in st)}/{len(st)} ok')
+        for r in st:
+            if not r['ok']:
+                print('    FAIL', r)
+        client = Client(a.url).connect(a.user, a.password, a.setup_token)
+        # the validator validates itself against the live build: planted faults (Defect 002 among them) must be reported
+        import seeded_faults
+        sf_ok, sf_lines = seeded_faults.run(client)
+        print(f'[0] seeded faults (incl. Defect 002 and DXF tampering): {"all detected" if sf_ok else "NOT ALL DETECTED"}')
+        for ln in sf_lines:
+            if not ln.startswith('ok'):
+                print('    ' + ln)
+        cases = corpus_cases(a.quick)
+        cases += random_cases(a.seed, 5 if a.quick else a.random)
+        cases += workload_cases(24 if a.quick else a.workload, a.seed)
+        stab = stability_cases()
+        cases += [c for i, c in enumerate(stab) if i % 12 == 0 or c['id'] in ('N-tangent-r-b45-g1.1e-06', 'N-tangent-d-b90-g2e-06', 'N-aspect-cone-flat-h0.01')] if a.quick else stab
+        if a.only:
+            cases = [c for c in cases if c['group'] in a.only.split(',')]
+        print(f'[1-4] {len(cases)} cases against {a.url} (health reports engine {client.engine}), project {client.project}')
+        with mp_.Pool(a.workers, initializer=_init, initargs=(a.url, a.user, a.password, client.project)) as pool:
+            results = []
+            for i, r in enumerate(pool.imap(run_case, cases, chunksize=1)):
+                results.append(r)
+                if (i + 1) % 100 == 0:
+                    print(f'    {i + 1}/{len(cases)}  ({time.time() - t0:.0f} s)', flush=True)
+        restarts = server.restarts if server else 0
+    finally:
+        if server:
+            server.stop()
+            try:
+                server.proc.wait(timeout=10)
+            except Exception:
+                server.proc.kill()
     # ---- summary
     classes = ['agree', 'disagree', 'refused_correctly', 'wrongly_accepted', 'wrongly_refused', 'error']
     groups = {}
