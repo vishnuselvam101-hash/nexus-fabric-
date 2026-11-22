@@ -4,7 +4,7 @@
 // Every string the client owns comes from the catalogue in i18n.js (English and Japanese); text the engine or
 // the server writes is shown through eng() / srv(), which never translate a statement in part.
 import { PatternViewer, isSeam } from './viewer.js';
-import { t, h, has, lang, setLang, initialLang, LANGS, LANG_NAME, idLabel, quantityUnit, engineJa, engineSentences, missing } from './i18n.js';
+import { t, h, has, lang, setLang, initialLang, LANGS, LANG_NAME, idLabel, quantityUnit, engineJa, engineSentences, missing, GATE_IDS, GATES_NOT_EVALUATED, REFUSAL_CODES, CATALOGUE } from './i18n.js';
 
 // ---------------------------------------------------------------- utilities
 const $ = (s, r = document) => r.querySelector(s);
@@ -38,6 +38,17 @@ const mono = (s) => `<span class="mono">${esc(s)}</span>`;
 const short = (hash) => `<span class="hash" title="${esc(hash)}">${esc(String(hash).slice(0, 12))}…</span>`;
 // text a person typed (project names, user names, reasons, file names): shown as written, in any language
 const ud = (v) => `<bdi class="u">${esc(v)}</bdi>`;
+// Length rules count characters exactly as the server does (work plan 3.2): Unicode scalar values (Rust
+// str::chars().count()), after trimming the characters Rust's str::trim() trims (Unicode White_Space). A JavaScript
+// string's .length counts UTF-16 code units, so a character outside the BMP would count twice, and String.trim()
+// also trims U+FEFF and keeps U+0085. Reasons, project names and descriptions are trimmed; passwords are not.
+const RS_WS = '\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000';
+const RS_TRIM = new RegExp(`^[${RS_WS}]+|[${RS_WS}]+$`, 'g');
+const trimRs = (v) => String(v ?? '').replace(RS_TRIM, '');
+const charCount = (v) => Array.from(String(v ?? '')).length;
+const MIN_REASON = 5, MAX_TEXT = 2000, MAX_PROJECT_NAME = 200, MIN_PASSWORD = 10; // the server's limits (crates/nf-server)
+// the message for a trimmed free-text value that is too short (`short`) or too long; null when it is within the rule
+const textRule = (v, min, max, short) => { const n = charCount(trimRs(v)); return n < min ? t(short) : n > max ? t('v.text.long', { max, n }) : null; };
 const prefs = {
   get(k, d = null) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
   set(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* storage unavailable: preference lasts for this page only */ } },
@@ -179,6 +190,27 @@ const unitText = (u) => (u === 'deg' ? t('unit.deg') : u);
 const partName = (p) => (ja() && idLabel('part', p) ? `${esc(idLabel('part', p))}<span class="mono idk">${esc(p)}</span>` : esc(p));
 const partText = (p) => (ja() && idLabel('part', p) ? `${idLabel('part', p)} ${p}` : String(p));
 const sideText = (s) => idLabel('side', s) || String(s);
+
+// ---------------------------------------------------------------- sample projects (work plan 3.5)
+// Three projects a new user can open or create with one action. Every value is an example value of the form (F) and
+// the form's first choice of surface ('unknown'): no other number exists here. Each job goes through the normal API, so
+// the engine computes it, the server records and audits it append-only, and roles apply (admin and engineer only).
+const SAMPLES = [{ n: 1, jobs: ['cylinder_shell'] }, { n: 2, jobs: ['cone_frustum', 'eccentric_reducer'] }, { n: 3, jobs: ['header_with_branch', 'branch_stub'] }];
+const exampleRequest = (fam) => ({ family: fam, ...Object.fromEntries(F[fam].f.map(([k, v]) => [k, v])), ...(F[fam].sref ? { surface_reference: 'unknown' } : {}) });
+async function openSample(n, btn) {
+  const key = `smp.${n}.name`, names = Object.values(CATALOGUE).map((m) => m[key]);
+  try {
+    await withBusy(btn, t('smp.busy'), async () => {
+      const hit = (await loadProjects()).find((p) => names.includes(p.name));
+      if (hit) { location.hash = `#/project/${hit.id}`; return; }
+      const { id } = await api('/api/projects', { method: 'POST', json: { name: t(key), description: t('smp.desc') } });
+      const sample = SAMPLES.find((s) => s.n === n);
+      for (const fam of sample.jobs) await api(`/api/projects/${id}/calculations`, { method: 'POST', json: exampleRequest(fam) });
+      toast(() => esc(t('smp.done', { id, n: sample.jobs.length })), 'ok');
+      location.hash = `#/project/${id}`;
+    });
+  } catch (err) { formError('#smpmsg', err); }
+}
 
 // ---------------------------------------------------------------- numbers, units, quantities
 // One display rule for computed numbers, in every panel, on the canvas and in the read-out: 3 decimals with
@@ -410,12 +442,21 @@ function readCalcForm(form) {
 // engine refusal is drawn from the answer kept for it. Nothing is sent.
 function reapplyCalc(keep) {
   const form = $('#calc'); if (!form) return;
+  if (keep && keep.kind === 'refusal') { clearFieldErrors(form); showCalcRefusal(form, keep.r); return; }
   const { errors } = validateRequest(form.fam.value, readCalcForm(form));
   clearFieldErrors(form);
   if (!errors.length) { calcKeep = null; return; }
   errors.slice().reverse().forEach(([k, msg]) => fieldError(form.elements.namedItem(k), msg, false));
   $('#cmsg').innerHTML = `<div class="note bad" role="alert"><div>${h('math.notsent', { n: errors.length })}</div></div>`;
   calcKeep = keep;
+}
+// A refusal of the new-calculation form, sent back by the server for this request (BH-014, work plan 3.2): every field
+// it names is marked with the message of its code, the rest is said in the message area. `lead` is the HTML that
+// opens the note (the refused job of "New from these values"); kept for a language switch.
+function showCalcRefusal(form, r, lead) {
+  const { missingFields } = markRefusal(form, r, { family: 'fam' });
+  $('#cmsg').innerHTML = refusalNote(r, missingFields, lead);
+  calcKeep = lead ? null : { kind: 'refusal', r };
 }
 // When the session ends while a form is open, its values are kept for the next sign-in (BH-010). Only the values of
 // the visible form are kept, never a password or a token, and only in this tab's sessionStorage. If storage is not
@@ -478,14 +519,26 @@ function toast(msg, kind = 'info') {
   host.replaceChildren(el); // one at a time; everything stays in the session log behind the bell
 }
 const toastErr = (err) => toast(() => errHtml(err), 'err');
-const clearFieldErrors = (form) => { $$('.field-err', form).forEach((m) => m.remove()); $$('[aria-invalid]', form).forEach((i) => i.removeAttribute('aria-invalid')); };
+const clearFieldErrors = (form) => { $$('[aria-invalid]', form).forEach((i) => { i.removeAttribute('aria-invalid'); unlinkErr(i); }); $$('.field-err', form).forEach((m) => m.remove()); };
+// A field's message is part of its accessible description (work plan 3.5): a screen reader reads it again whenever the
+// field gets focus, not only when the message appears. The ids of any other description (unit, hint) are kept.
+let errSeq = 0;
+function linkErr(input, m) {
+  if (!m.id) m.id = `ferr-${++errSeq}`;
+  const ids = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+  if (!ids.includes(m.id)) input.setAttribute('aria-describedby', [...ids, m.id].join(' '));
+}
+function unlinkErr(input) {
+  const ids = (input.getAttribute('aria-describedby') || '').split(/\s+/).filter((x) => x && !x.startsWith('ferr-'));
+  if (ids.length) input.setAttribute('aria-describedby', ids.join(' ')); else input.removeAttribute('aria-describedby');
+}
 function paintBell() { const d = $('#belldot'); if (d) d.hidden = unseen === 0; const b = $('#bell'); if (b) b.setAttribute('aria-label', unseen ? t('shell.bell.new', { n: unseen }) : t('shell.bell')); }
 function fieldError(input, msg, focus = true) {
   input.setAttribute('aria-invalid', 'true');
   const field = input.closest('.field'); let m = (field || input.parentElement).querySelector('.field-err');
   if (!m) { m = document.createElement('div'); m.className = 'field-err'; m.setAttribute('role', 'alert'); if (field) field.append(m); else input.after(m); }
-  m.textContent = msg; if (focus) input.focus();
-  input.addEventListener('input', () => { input.removeAttribute('aria-invalid'); m.remove(); }, { once: true });
+  m.textContent = msg; linkErr(input, m); if (focus) input.focus();
+  input.addEventListener('input', () => { input.removeAttribute('aria-invalid'); unlinkErr(input); m.remove(); }, { once: true });
 }
 // BH-014: a refusal is shown by its code, with the values it names; a code without a message shows the server's text
 const numText = (v) => (v === undefined || v === null ? '' : String(v));
@@ -497,9 +550,27 @@ function refusedField(input, html) {
   input.setAttribute('aria-invalid', 'true');
   const field = input.closest('.field'); let m = (field || input.parentElement).querySelector('.field-err');
   if (!m) { m = document.createElement('div'); m.className = 'field-err'; m.setAttribute('role', 'alert'); if (field) field.append(m); else input.after(m); }
-  m.innerHTML = html;
-  input.addEventListener('input', () => { input.removeAttribute('aria-invalid'); m.remove(); }, { once: true });
+  m.innerHTML = html; linkErr(input, m);
+  const clear = () => { input.removeAttribute('aria-invalid'); unlinkErr(input); m.remove(); };
+  input.addEventListener('input', clear, { once: true }); input.addEventListener('change', clear, { once: true });
 }
+// BH-014 (work plan 3.2): mark every field a refusal names with the message of its code, in the active language. `map`
+// turns a request field into the form's control name where they differ. The fields the form has no control for are
+// returned, so that the caller states them in the form's message area: no refusal is ever left unshown.
+function markRefusal(form, r, map = {}) {
+  const missingFields = []; let marked = 0;
+  if (!form || !r) return { marked, missingFields };
+  for (const k of r.fields || []) {
+    const el = form.elements.namedItem(map[k] || k);
+    if (el && el.nodeType === 1) { refusedField(el, refusalHtml(r)); marked++; } else missingFields.push(k);
+  }
+  return { marked, missingFields };
+}
+// the coded refusal of a failed request (an answer with `code`), or null
+const coded = (err) => (err && err.data && typeof err.data.code === 'string' ? { code: err.data.code, fields: Array.isArray(err.data.fields) ? err.data.fields : [], message: err.data.message || err.data.error || '', detail: err.data.detail } : null);
+// a refusal in a form's message area (a live region: role alert): `lead` (HTML) or the text by code, and the fields
+// the form cannot show
+const refusalNote = (r, missingFields, lead) => `<div class="note bad" role="alert"><div>${lead || refusalHtml(r)}${missingFields.length ? ` ${h('refusal.unmapped', { fields: missingFields.map((f) => mono(f)).join(', ') })}` : ''}</div></div>`;
 const formError = (sel, err) => { const m = $(sel); if (m) m.innerHTML = `<div class="note bad" role="alert"><div>${errHtml(err)}</div></div>`; };
 async function withBusy(btn, label, fn) { const old = btn.innerHTML; btn.disabled = true; btn.classList.add('busy'); if (label) btn.textContent = label; try { return await fn(); } finally { if (btn.isConnected) { btn.disabled = false; btn.classList.remove('busy'); btn.innerHTML = old; } } }
 
@@ -550,7 +621,7 @@ const NAV = [
   ['overview', [['dashboard', 'dashboard', 'd'], ['projects', 'folder', 'p']]],
   ['engineering', [['workspace', 'pattern', 'w'], ['manufacturing', 'layers', 'm']]],
   ['assurance', [['amoeba', 'nodes', 'a'], ['verification', 'shield', 'v']]],
-  ['system', [['admin', 'sliders', 's']]],
+  ['system', [['admin', 'sliders', 's'], ['help', 'help', 'h']]],
 ];
 const NAV_KEYS = Object.fromEntries(NAV.flatMap(([, items]) => items.map((i) => [i[2], i[0]])));
 
@@ -682,12 +753,12 @@ function renderLogin(st) {
     <button class="pri">${esc(t(setup ? 'login.go.setup' : 'login.go'))}</button></form>
     <p class="legal">${esc(t('login.legal'))}</p></div></main>`;
   const f = $('#f'); (st.username ? f.p : f.u).focus();
-  if (setup) { const hint = () => { const n = f.p.value.length; $('#pwhint').textContent = n >= 10 ? t('login.pw.ok') : t('login.pw.more', { n: 10 - n }); }; hint(); f.p.addEventListener('input', hint); }
+  if (setup) { const hint = () => { const n = charCount(f.p.value); $('#pwhint').textContent = n >= MIN_PASSWORD ? t('login.pw.ok') : t('login.pw.more', { n: MIN_PASSWORD - n }); }; hint(); f.p.addEventListener('input', hint); }
   f.onsubmit = async (e) => {
     e.preventDefault(); clearFieldErrors(f);
     if (!f.u.value.trim()) { fieldError(f.u, t('login.e.user')); return; }
     if (!f.p.value) { fieldError(f.p, t('login.e.pass')); return; }
-    if (setup && f.p.value.length < 10) { fieldError(f.p, t('login.e.len')); return; }
+    if (setup && charCount(f.p.value) < MIN_PASSWORD) { fieldError(f.p, t('login.e.len')); return; }
     if (setup && !desktopSetupToken && !f.t.value.trim()) { fieldError(f.t, t('login.e.token')); return; }
     const body = { username: f.u.value, password: f.p.value };
     try {
@@ -711,7 +782,7 @@ function renderLogin(st) {
 const stateCell = (c) => `${stateTag(effState(c))}${c.open_obligations && !c.superseded ? ` ${tag('warn', t('obl.open.n', { n: c.open_obligations }))}` : ''}`;
 const partsCell = (c) => (!c.facts ? '<span class="sub">—</span>' : c.facts.noResult ? `<span class="sub">${esc(t('parts.none'))}</span>` : c.facts.parts.map((p) => partName(p.part)).join(', '));
 const newCalcBtn = (pid) => (me.role === 'viewer' ? '' : `<a class="btn pri" href="#/math${pid ? `/${pid}` : ''}">${ic('plus')}${esc(t('new.calc'))}</a>`);
-const noJobs = () => empty('pattern', t('jobs.none.t'), esc(t('jobs.none.p')), (me.role === 'viewer' ? '' : `<a class="btn" href="#/projects">${esc(t('jobs.none.cta'))}</a>`) + newCalcBtn());
+const noJobs = () => empty('pattern', t('jobs.none.t'), esc(t('jobs.none.p')), (me.role === 'viewer' ? '' : `<a class="btn" href="#/projects">${esc(t('jobs.none.cta'))}</a><a class="btn" id="go-samples" href="#/help/samples">${esc(t('smp.go'))}</a>`) + newCalcBtn());
 // The conversions of a project (task 3.1). Each row says what it is: converted from PDF, not verified, not released.
 const convTable = (cs) => `<div class="tbl"><table id="tbl-conv"><thead><tr><th>#</th><th>${esc(t('conv.th.doc'))}</th><th class="num">${esc(t('conv.th.page'))}</th><th>${esc(t('conv.th.result'))}</th><th>${esc(t('th.created'))}</th></tr></thead><tbody>${cs.map((c) => `<tr><td><a href="#/conversion/${c.id}">${c.id}</a></td><td>#${c.source_document}</td><td class="num">${c.page}</td><td>${c.status === 'converted' ? tag('warn', t('conv.label')) : `${tag('bad', t(c.status === 'limit_exceeded' ? 'conv.st.limit' : 'conv.st.refused'))} ${mono(c.code || '')}`}</td><td class="nw">${byWhen(c.created_by, c.created_at)}</td></tr>`).join('')}</tbody></table></div>`;
 // A still drawing of the converted DXF (POLYLINE/VERTEX of the R12 file the converter writes): what the file holds,
@@ -845,10 +916,10 @@ const views = {
         html: `<div class="page">${ph(esc(t('nav.projects')), esc(t('proj.sub')))}
           ${panel(esc(t('proj.panel')), ps.length ? `<div class="tbl"><table id="tbl-projects"><thead><tr><th>#</th><th>${esc(t('th.name'))}</th><th class="num">${esc(t('th.docs'))}</th><th class="num">${esc(t('th.jobs'))}</th><th>${esc(t('th.created'))}</th></tr></thead><tbody>${ps.map((p) => `<tr><td>${p.id}</td><td><a href="#/project/${p.id}">${ud(p.name)}</a><br><span class="sub">${ud(p.description)}</span></td><td class="num">${p.documents}</td><td class="num">${p.calculations}</td><td class="nw">${byWhen(p.created_by, p.created_at)}</td></tr>`).join('')}</tbody></table></div>`
             : empty('folder', t('proj.none.t'), esc(t(me.role === 'viewer' ? 'proj.none.viewer' : 'proj.none.p'))), { flush: true, count: ps.length, tools: ps.length ? filterBox('tbl-projects', t('proj.filter')) : '' })}
-          ${me.role === 'viewer' ? '' : panel(esc(t('proj.new')), `<form id="np" novalidate><div class="fgrid"><div class="field"><label for="npn">${esc(t('proj.f.name'))}</label><input id="npn" name="n" maxlength="200"></div><div class="field"><label for="npd">${esc(t('proj.f.desc'))}</label><input id="npd" name="d"></div></div><div id="npmsg"></div><button class="pri">${esc(t('proj.create'))}</button></form>`)}
+          ${me.role === 'viewer' ? '' : panel(esc(t('proj.new')), `<form id="np" novalidate><div class="fgrid"><div class="field"><label for="npn">${esc(t('proj.f.name'))}</label><input id="npn" name="n" autocomplete="off"></div><div class="field"><label for="npd">${esc(t('proj.f.desc'))}</label><input id="npd" name="d"></div></div><div id="npmsg"></div><button class="pri">${esc(t('proj.create'))}</button></form>`)}
           ${plannedKeys('proj.planned', 2)}</div>`,
         wire() {
-          const f = $('#np'); if (f) f.onsubmit = async (e) => { e.preventDefault(); clearFieldErrors(f); if (!f.n.value.trim()) { fieldError(f.n, t('proj.e.name')); return; } try { const r = await withBusy($('button', f), t('creating'), () => api('/api/projects', { method: 'POST', json: { name: f.n.value, description: f.d.value } })); toast(() => esc(t('proj.created', { id: r.id })), 'ok'); location.hash = `#/project/${r.id}`; } catch (err) { formError('#npmsg', err); } };
+          const f = $('#np'); if (f) f.onsubmit = async (e) => { e.preventDefault(); clearFieldErrors(f); if (!trimRs(f.n.value)) { fieldError(f.n, t('proj.e.name')); return; } const nl = textRule(f.n.value, 1, MAX_PROJECT_NAME, 'proj.e.name'); if (nl) { fieldError(f.n, nl); return; } const dl = textRule(f.d.value, 0, MAX_TEXT, 'proj.e.name'); if (dl) { fieldError(f.d, dl); return; } try { const r = await withBusy($('button', f), t('creating'), () => api('/api/projects', { method: 'POST', json: { name: f.n.value, description: f.d.value } })); toast(() => esc(t('proj.created', { id: r.id })), 'ok'); location.hash = `#/project/${r.id}`; } catch (err) { formError('#npmsg', err); } };
         },
       };
     },
@@ -916,8 +987,8 @@ const views = {
             <div class="fgrid">
               <div class="field"><label for="cv_page">${esc(t('conv.f.page'))}</label><input id="cv_page" name="page" inputmode="numeric" value="1"></div>
               <div class="field"><label for="cv_kind">${esc(t('conv.f.kind'))}</label><select id="cv_kind" name="kind"><option value="ratio">${esc(t('conv.f.kind.ratio'))}</option><option value="mm_per_point">${esc(t('conv.f.kind.mmpt'))}</option></select></div>
-              <div class="field"><label for="cv_scale">${esc(t('conv.f.scale'))}</label><input id="cv_scale" name="scale" inputmode="decimal" autocomplete="off"><p class="hint">${esc(t('conv.f.scale.hint'))}</p></div>
-              <div class="field"><label for="cv_tol">${esc(t('conv.f.tol'))}</label><input id="cv_tol" name="tol" inputmode="decimal" autocomplete="off"><p class="hint">${esc(t('conv.f.tol.hint'))}</p></div>
+              <div class="field"><label for="cv_scale">${esc(t('conv.f.scale'))}</label><input id="cv_scale" name="scale" inputmode="decimal" autocomplete="off" aria-required="true" aria-describedby="cv_scale_h"><p class="hint" id="cv_scale_h">${esc(t('conv.f.scale.hint'))}</p></div>
+              <div class="field"><label for="cv_tol">${esc(t('conv.f.tol'))}</label><input id="cv_tol" name="tol" inputmode="decimal" autocomplete="off" aria-describedby="cv_tol_h"><p class="hint" id="cv_tol_h">${esc(t('conv.f.tol.hint'))}</p></div>
             </div>
             <div class="row gap"><label class="chk"><input type="checkbox" name="fill" checked> ${esc(t('conv.f.fill'))}</label><label class="chk"><input type="checkbox" name="text" checked> ${esc(t('conv.f.text'))}</label></div>
             <div id="cvmsg"></div><button class="pri">${ic('download')}${esc(t('conv.submit'))}</button></form>`)}</div>`,
@@ -926,12 +997,14 @@ const views = {
           f.onsubmit = async (e) => {
             e.preventDefault();
             const numOrNull = (v) => (String(v).trim() === '' ? null : Number(String(v).trim()));
-            if (String(f.scale.value).trim() === '') { formError('#cvmsg', new ApiError('', { key: 'conv.e.scale' })); return; }
+            clearFieldErrors(f);
+            if (String(f.scale.value).trim() === '') { formError('#cvmsg', new ApiError('', { key: 'conv.e.scale' })); fieldError(f.scale, t('conv.e.scale')); return; }
             const page = Number(String(f.page.value).trim() || '1');
             const body = { page: Number.isInteger(page) ? page : String(f.page.value), scale_kind: f.kind.value, scale_value: Number.isFinite(numOrNull(f.scale.value)) ? numOrNull(f.scale.value) : String(f.scale.value), tolerance_mm: numOrNull(f.tol.value), include_fill: f.fill.checked, include_text: f.text.checked };
             if (body.tolerance_mm !== null && !Number.isFinite(body.tolerance_mm)) body.tolerance_mm = String(f.tol.value);
             try {
-              const r = await withBusy($('button', f), t('conv.running'), () => api(`/api/documents/${d.id}/pdf-to-dxf`, { method: 'POST', json: body }));
+              f.setAttribute('aria-busy', 'true');
+              const r = await withBusy($('button', f), t('conv.running'), () => api(`/api/documents/${d.id}/pdf-to-dxf`, { method: 'POST', json: body })).finally(() => f.removeAttribute('aria-busy'));
               toast(() => esc(t('conv.done', { id: r.conversion.id })), 'warn');
               location.hash = `#/conversion/${r.conversion.id}`;
             } catch (err) {
@@ -972,9 +1045,9 @@ const views = {
         <dt>${esc(t('conv.r.source'))}</dt><dd class="txt">${short(c.source_sha256)}</dd>
         <dt>${esc(t('conv.r.version'))}</dt><dd class="txt">${mono(c.converter_version || '—')}</dd>
         <dt>${esc(t('conv.r.by'))}</dt><dd class="txt">${byWhen(c.created_by, c.created_at)}</dd></dl>
-        ${counts.length ? `<h3>${esc(t('conv.r.counts'))}</h3><dl class="kv">${counts.map(([k, n]) => `<dt>${mono(k)}</dt><dd>${n}</dd>`).join('')}</dl>` : ''}
+        ${counts.length ? `<h3>${esc(t('conv.r.counts'))}</h3><dl class="kv">${counts.map(([k, n]) => `<dt>${ja() ? named('pdfcount', k) : mono(k)}</dt><dd>${n}</dd>`).join('')}</dl>` : ''}
         ${rep.warnings && rep.warnings.length ? `<h3>${esc(t('conv.r.warnings'))}</h3><ul class="il">${rep.warnings.map((w) => `<li>${mono(w.code)} × ${w.count}: ${srv(w.message)}</li>`).join('')}</ul>` : ''}
-        ${skipped.length ? `<h3>${esc(t('conv.r.skipped'))}</h3><dl class="kv">${skipped.map(([k, n]) => `<dt>${mono(k)}</dt><dd>${n}</dd>`).join('')}</dl>` : ''}`;
+        ${skipped.length ? `<h3>${esc(t('conv.r.skipped'))}</h3><dl class="kv">${skipped.map(([k, n]) => `<dt>${ja() ? named('pdfskip', k) : mono(k)}</dt><dd>${n}</dd>`).join('')}</dl>` : ''}`;
       const dl = ok ? `<div class="row"><a class="btn" id="cv-dxf" href="/api/pdf-conversions/${c.id}/dxf" download>${ic('download')}${esc(t('conv.dl.dxf'))}</a><a class="btn" id="cv-rep" href="/api/pdf-conversions/${c.id}/report" download>${ic('download')}${esc(t('conv.dl.report'))}</a></div>` : '';
       return {
         title: t('conv.view.title', { id: c.id }), nav: 'projects', crumbs: [[t('proj.crumb'), '#/projects'], [t('conv.crumb.project', { id: c.project }), `#/project/${c.project}`], [t('conv.view.title', { id: c.id })]],
@@ -982,6 +1055,43 @@ const views = {
           ${ok ? note(`<b id="cv-label">${esc(t('conv.label'))}</b><br>${esc(t('conv.notflat'))}`, 'warn') : note(h('conv.refused', { code: mono(c.code || ''), limit: c.limit ? mono(c.limit) : '—' }), 'bad')}
           <div class="cols"><div>${panel(esc(t('conv.r.title')), reportHtml, { foot: dl })}</div>
           <div>${ok ? panel(esc(t('conv.preview')), `${dxfPreview(dxf)}<p class="hint">${esc(t('conv.preview.note'))}</p>`) : ''}</div></div></div>`,
+      };
+    },
+  },
+
+  // Offline help (work plan 3.5), in the active language, from the client's own files: nothing is asked of the network
+  // or the server. The inputs come from the form's own table F, the gate names from the labels the job view shows
+  // (ID.gate), the refusal texts from the messages a refused field shows (REFUSAL_EN / REFUSAL_JA): one source each.
+  help: {
+    async load() { return {}; },
+    render(_, section) {
+      const sec = (id, title, body) => `<section class="panel help-sec" id="help-${id}" aria-labelledby="help-${id}-h"><header class="panel-h"><h2 id="help-${id}-h" tabindex="-1">${esc(title)}</h2></header><div class="panel-b">${body}</div></section>`;
+      const SECS = [['build', 'hp.build.h'], ['families', 'hp.fam.h'], ['gates', 'hp.gate.h'], ['refusals', 'hp.ref.h'], ['notmodelled', 'hp.nm.h'], ['samples', 'hp.smp.h']];
+      const row = (cells) => `<tr>${cells.map((c) => `<td>${c}</td>`).join('')}</tr>`;
+      const table = (heads, rows, id) => `<div class="tbl"><table${id ? ` id="${id}"` : ''}><thead><tr>${heads.map((k) => `<th scope="col">${esc(t(k))}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+      const famTable = (fam) => table(['hp.th.input', 'hp.th.key', 'hp.th.unit', 'hp.th.example'], [
+        ...F[fam].f.map(([k, v, u]) => row([esc(plabel(fam, k)), mono(k), esc(unitText(u)), `<span class="num">${esc(fmt(v))}</span>`])),
+        ...(F[fam].sref ? [row([esc(t('math.sref.label')), mono('surface_reference'), '—', esc(t('sref.unknown'))])] : []),
+        ...(F[fam].ext ? ['header_surface_reference', 'branch_surface_reference', 'joint'].map((k) => row([esc(plabel(fam, k)), mono(k), '—', esc(t('hp.optional'))])) : []),
+      ], `help-fam-${fam}`);
+      const families = `<p>${esc(t('hp.fam.p'))}</p>${Object.keys(F).map((fam) => `<h3>${famLabel(fam)} ${mono(fam)}</h3><p>${h(`hp.fam.${fam}`)}</p>${famTable(fam)}`).join('')}`;
+      const gates = `<p>${esc(t('hp.gate.p'))}</p>${table(['hp.th.gate', 'hp.th.name', 'hp.th.means'], GATE_IDS.map((id) => row([`<span class="nw">${esc(id)}</span>`, esc(idLabel('gate', id) || id), `${h(`hp.gate.${id}`)}${GATES_NOT_EVALUATED.includes(id) ? ` ${tag('na', t(id === 'G17' ? 'hp.gate.proposed' : 'hp.gate.na'))}` : ''}`])), 'help-gates')}`;
+      const ph3 = { fields: esc(t('hp.ph.fields')), limit: esc(t('hp.ph.limit')), measured: esc(t('hp.ph.measured')) };
+      const refusals = `<p>${esc(t('hp.ref.p'))}</p>${table(['hp.th.code', 'hp.th.message'], REFUSAL_CODES.map((code) => row([mono(code), h(`refusal.${code}`, ph3)])), 'help-refusals')}`;
+      const notModelled = `<p>${esc(t('hp.nm.p'))}</p><ul>${[1, 2, 3, 4, 5].map((i) => `<li>${esc(t(`hp.nm.${i}`))}</li>`).join('')}</ul>`;
+      const samples = `<p>${h('hp.smp.p')}</p>${me.role === 'viewer' ? note(esc(t('hp.smp.viewer'))) : ''}<ul class="il" id="samples">${SAMPLES.map((sm) => `<li><div class="l1"><b>${esc(t(`smp.${sm.n}.name`))}</b></div><p class="sub">${esc(t('hp.smp.jobs', { list: sm.jobs.map((f) => idText('family', f)).join(', ') }))}</p>${me.role === 'viewer' ? '' : `<div class="row"><button class="btn" data-sample="${sm.n}" aria-label="${esc(t('smp.btn.aria', { name: t(`smp.${sm.n}.name`) }))}">${esc(t(`smp.${sm.n}.name`))}</button></div>`}</li>`).join('')}</ul><div id="smpmsg"></div>`;
+      const body = { build: `<p>${h('hp.build.p')}</p><p>${esc(t('hp.build.ev'))}</p>`, families, gates, refusals, notmodelled: notModelled, samples };
+      return {
+        title: t('hp.title'), crumbs: [[t('hp.title')]],
+        html: `<div class="page">${ph(esc(t('hp.title')), esc(t('hp.sub')))}
+          <nav class="help-toc" aria-label="${esc(t('hp.toc'))}"><ul class="row">${SECS.map(([id, k]) => `<li><a href="#/help/${id}">${esc(t(k))}</a></li>`).join('')}</ul></nav>
+          ${SECS.map(([id, k]) => sec(id, t(k), body[id])).join('')}</div>`,
+        wire(root) {
+          $$('[data-sample]', root).forEach((b) => { b.onclick = () => openSample(Number(b.dataset.sample), b); });
+          // a section named in the address is brought into view and its heading takes the focus (keyboard and reader)
+          const target = section && $(`#help-${section}-h`, root);
+          if (target) setTimeout(() => { if (target.isConnected) { target.scrollIntoView({ block: 'start' }); target.focus({ preventScroll: true }); } }, 0);
+        },
       };
     },
   },
@@ -1011,7 +1121,7 @@ const views = {
       if (me.role === 'viewer') return { title, nav: 'workspace', crumbs, html: `<div class="page">${ph(esc(title), '')}${empty('shield', t('math.viewer.t'), esc(t('math.viewer.p')), `<a class="btn" href="#/workspace">${esc(t('math.viewer.go'))}</a>`)}</div>` };
       const pid = projectId || ctxProject || ps[0].id;
       const fam0 = from && F[from.family] ? from.family : 'cylinder_shell';
-      const fields = (k) => F[k].f.map(([n, v, u]) => `<div class="field prop"><label for="f_${n}">${esc(plabel(k, n))}<span class="mono key">${n}</span></label><div class="inp"><input id="f_${n}" name="${n}" ${dimAttrs} value="${from && from.family === k && typeof from[n] === 'number' ? from[n] : v}"><span class="unit" aria-hidden="true">${esc(unitText(u))}</span></div></div>`).join('')
+      const fields = (k) => F[k].f.map(([n, v, u]) => `<div class="field prop"><label for="f_${n}">${esc(plabel(k, n))}<span class="mono key">${n}</span></label><div class="inp"><input id="f_${n}" name="${n}" ${dimAttrs} aria-describedby="u_${n}" value="${from && from.family === k && typeof from[n] === 'number' ? from[n] : v}"><span class="unit" id="u_${n}">${esc(unitText(u))}</span></div></div>`).join('')
         + (F[k].sref ? `<div class="field"><label for="f_sref">${esc(t('math.sref.label'))}<span class="mono key">surface_reference</span></label><select id="f_sref" name="surface_reference">${['unknown', 'outside', 'inside', 'neutral'].map((o) => `<option value="${o}"${from && from.surface_reference === o ? ' selected' : ''}>${esc(t(`sref.${o}`))}</option>`).join('')}</select></div>` : '')
         + (F[k].ext ? extFields(from) : '');
       const lis = (prefix, n) => `<ul>${Array.from({ length: n }, (_, i) => `<li>${h(`${prefix}.${i + 1}`)}</li>`).join('')}</ul>`;
@@ -1055,7 +1165,9 @@ const views = {
           // the drawing is laid out in real pixels: draw it again when its box changes (panel resize, caption wrap)
           let last = `${canvas.clientWidth}x${canvas.clientHeight}`;
           const ro = new ResizeObserver(() => { const now = `${canvas.clientWidth}x${canvas.clientHeight}`; if (now !== last && canvas.isConnected) { last = now; draw(); } }); ro.observe(canvas);
-          (refusal && refusal.fields || []).forEach((k) => { const el = form.elements.namedItem(k); if (el) refusedField(el, refusalHtml(refusal)); });
+          // BH-014: "New from these values" of a refused job marks every field the refusal names, and says so in the
+          // message area (a live region), with any field this form has no control for
+          if (refusal) showCalcRefusal(form, refusal, h('math.refused.note', { id: esc(fromId), why: refusalHtml(refusal) }));
           form.onsubmit = async (e) => {
             e.preventDefault(); calcKeep = null; const req = read(), fam = req.family, { errors, warnings } = validateRequest(fam, req);
             clearFieldErrors(form);
@@ -1063,12 +1175,13 @@ const views = {
             const key = JSON.stringify(req);
             if (warnings.length && confirmed !== key) { confirmed = key; $('#cmsg').innerHTML = `<div class="note" role="alert" id="plaus"><div><b>${esc(t('math.plaus.t'))}</b><ul>${warnings.map(([, m]) => `<li>${esc(m)}</li>`).join('')}</ul>${esc(t('math.plaus.p'))}</div></div>`; $('#run').textContent = t('math.run.unusual'); return; }
             try {
-              const r = await withBusy($('#run'), t('math.busy'), () => api(`/api/projects/${form.project.value}/calculations`, { method: 'POST', json: req }));
+              form.setAttribute('aria-busy', 'true');
+              const r = await withBusy($('#run'), t('math.busy'), () => api(`/api/projects/${form.project.value}/calculations`, { method: 'POST', json: req })).finally(() => form.removeAttribute('aria-busy'));
               const facts = await jobFacts(r.id);
               if (facts && facts.noResult) toast(() => h('math.toast.none', { id: r.id, why: facts.outcome ? eng(facts.outcome) : esc(t('math.why.default')) }), 'err');
               else toast(() => esc(t('math.toast.ok', { id: r.id, state: r.state ? stateText(r.state) : t('math.state.default') })), 'ok');
               location.hash = `#/calc/${r.id}`;
-            } catch (err) { formError('#cmsg', err); }
+            } catch (err) { const r = coded(err); if (r) { clearFieldErrors(form); showCalcRefusal(form, r); } else formError('#cmsg', err); }
           };
         },
       };
@@ -1255,23 +1368,23 @@ const views = {
             if (nv === now) { fieldError(f.v, t('corr.e.same', { v: fmt(now) })); return; }
             const trial = validateRequest(fam, { ...c.request, [k]: nv });
             if (trial.errors.length) { fieldError(f.v, trial.errors[0][1]); return; }
-            if (f.r.value.trim().length < 5) { fieldError(f.r, t('corr.e.reason')); return; }
+            const rr = textRule(f.r.value, MIN_REASON, MAX_TEXT, 'corr.e.reason'); if (rr) { fieldError(f.r, rr); return; }
             try {
               const r = await withBusy($('#corr-go'), t('corr.busy'), () => api(`/api/calculations/${id}/corrections`, { method: 'POST', json: { parameter: k, new_value: nv, reason: f.r.value } }));
               toast(() => esc(t('corr.toast', { label: plabel(fam, k), a: fmt(now), b: fmt(nv), id: r.new_calculation, n: r.obligations, open: r.open })), 'warn');
               dlg.close(); wsState = { id: r.new_calculation, part: 0, tab: 'changes', scope: 'all', gf: 'all', ghost: false }; location.hash = `#/calc/${r.new_calculation}`;
-            } catch (err) { formError('#corrmsg', err); }
+            } catch (err) { const r = coded(err); if (r) { const { missingFields } = markRefusal(f, r, { parameter: 'p', new_value: 'v', reason: 'r' }); $('#corrmsg').innerHTML = refusalNote(r, missingFields); } else formError('#corrmsg', err); }
           };
         }
         $$('[data-ack]', root).forEach((btn) => { btn.onclick = async () => {
           const input = $(`[data-advreason="${btn.dataset.ack}"]`, root);
-          if (input.value.trim().length < 5) { fieldError(input, t('s.e.adv')); return; }
-          try { await withBusy(btn, null, () => api(`/api/advisories/${btn.dataset.ack}/acknowledge`, { method: 'POST', json: { reason: input.value.trim() } })); toast(() => esc(t('s.t.adv', { id: btn.dataset.ack })), 'ok'); refresh(); } catch (err) { toastErr(err); }
+          const rr = textRule(input.value, MIN_REASON, MAX_TEXT, 's.e.adv'); if (rr) { fieldError(input, rr); return; }
+          try { await withBusy(btn, null, () => api(`/api/advisories/${btn.dataset.ack}/acknowledge`, { method: 'POST', json: { reason: trimRs(input.value) } })); toast(() => esc(t('s.t.adv', { id: btn.dataset.ack })), 'ok'); refresh(); } catch (err) { toastErr(err); }
         }; });
         $$('[data-resolve]', root).forEach((btn) => { btn.onclick = async () => {
           const input = $(`[data-reason="${btn.dataset.resolve}"]`, root), oid = btn.dataset.resolve, dec = btn.dataset.decision;
-          if (input.value.trim().length < 5) { fieldError(input, t('s.e.obl')); return; }
-          try { await withBusy(btn, null, () => api(`/api/obligations/${oid}/resolve`, { method: 'POST', json: { decision: dec, reason: input.value.trim() } })); toast(() => esc(t('s.t.obl', { id: oid, decision: t(`dec.${dec}`) })), 'ok'); refresh(); } catch (err) { toastErr(err); }
+          const rr = textRule(input.value, MIN_REASON, MAX_TEXT, 's.e.obl'); if (rr) { fieldError(input, rr); return; }
+          try { await withBusy(btn, null, () => api(`/api/obligations/${oid}/resolve`, { method: 'POST', json: { decision: dec, reason: trimRs(input.value) } })); toast(() => esc(t('s.t.obl', { id: oid, decision: t(`dec.${dec}`) })), 'ok'); refresh(); } catch (err) { toastErr(err); }
         }; });
 
         // ---- pattern viewer and the panels that follow the active part
@@ -1450,7 +1563,7 @@ const views = {
           f.onsubmit = async (e) => {
             e.preventDefault(); clearFieldErrors(f);
             if (!f.c.value) { fieldError(f.c, t('acc.e.cur')); return; }
-            if (f.n.value.length < 10) { fieldError(f.n, t('acc.e.len')); return; }
+            if (charCount(f.n.value) < MIN_PASSWORD) { fieldError(f.n, t('acc.e.len')); return; }
             if (f.n.value !== f.n2.value) { fieldError(f.n2, t('acc.e.differ')); return; }
             try { await withBusy($('button', f), t('acc.pw.busy'), () => api('/api/password', { method: 'POST', json: { current: f.c.value, new: f.n.value } })); me = null; renderLogin({ setup: false, key: 'login.changed', kind: 'info' }); }
             catch (err) { formError('#pwmsg', err); }
@@ -1496,7 +1609,7 @@ const views = {
           const f = $('#nu'); f.onsubmit = async (e) => {
             e.preventDefault(); clearFieldErrors(f);
             if (!f.u.value.trim()) { fieldError(f.u, t('adm.e.user')); return; }
-            if (f.p.value.length < 10) { fieldError(f.p, t('adm.e.pass')); return; }
+            if (charCount(f.p.value) < MIN_PASSWORD) { fieldError(f.p, t('adm.e.pass')); return; }
             const name = f.u.value, role = f.r.value;
             try { await withBusy($('button', f), t('adm.add.busy'), () => api('/api/users', { method: 'POST', json: { username: name, password: f.p.value, role } })); toast(() => h('adm.add.done', { user: ud(name), role: esc(roleText(role)) }), 'ok'); refresh(); } catch (err) { formError('#umsg', err); }
           };
@@ -1521,7 +1634,10 @@ function wireSplits(root) {
   for (const side of ['l', 'r']) { const v = Number(prefs.get(`nf-${side}w`)); if (v) apply(side, v); }
   $$('.split', body).forEach((sp) => {
     const side = sp.dataset.split, pane = side === 'l' ? sp.previousElementSibling : sp.nextElementSibling;
-    const save = () => prefs.set(`nf-${side}w`, String(pane.offsetWidth));
+    // a focusable separator states its value (WAI-ARIA): the width of the panel it resizes, in pixels (work plan 3.5)
+    const value = () => { const w = pane.offsetWidth, max = Math.max(w, Math.round(body.clientWidth * (side === 'l' ? 0.4 : 0.55))); sp.setAttribute('aria-valuemin', String(Math.min(240, w))); sp.setAttribute('aria-valuemax', String(max)); sp.setAttribute('aria-valuenow', String(w)); };
+    value();
+    const save = () => { prefs.set(`nf-${side}w`, String(pane.offsetWidth)); value(); };
     sp.addEventListener('pointerdown', (e) => {
       e.preventDefault(); sp.setPointerCapture(e.pointerId); sp.classList.add('drag'); const x0 = e.clientX, w0 = pane.offsetWidth;
       const move = (m) => apply(side, w0 + (side === 'l' ? 1 : -1) * (m.clientX - x0));
@@ -1529,7 +1645,7 @@ function wireSplits(root) {
       sp.addEventListener('pointermove', move); sp.addEventListener('pointerup', up, { once: true }); sp.addEventListener('pointercancel', up, { once: true });
     });
     sp.addEventListener('keydown', (e) => { const d = e.key === 'ArrowLeft' ? -24 : e.key === 'ArrowRight' ? 24 : 0; if (!d) return; e.preventDefault(); apply(side, pane.offsetWidth + (side === 'l' ? d : -d)); save(); });
-    sp.addEventListener('dblclick', () => { body.style.removeProperty(side === 'l' ? '--lw' : '--rw'); prefs.set(`nf-${side}w`, null); });
+    sp.addEventListener('dblclick', () => { body.style.removeProperty(side === 'l' ? '--lw' : '--rw'); prefs.set(`nf-${side}w`, null); value(); });
   });
 }
 

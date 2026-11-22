@@ -3008,6 +3008,138 @@ async fn bh014_every_refusal_answers_with_a_code_fields_and_the_message() {
     );
 }
 
+/// Work plan 3.2: every length rule counts characters (Unicode scalar values, after `str::trim`), never bytes and never
+/// UTF-16 units, exactly as the client counts them (web/app.js `charCount`, `trimRs`). A byte count let a reason of two
+/// Japanese characters (six bytes) pass a minimum of five; a UTF-16 count would let three characters outside the BMP
+/// (six units) pass. Corrections, obligation decisions, advisory acknowledgements, project names and passwords.
+#[tokio::test]
+async fn length_rules_count_characters_not_bytes_or_utf16_units() {
+    let t = boot();
+    let a = t.job(good_assembly()).await;
+    let url = format!("/api/calculations/{a}/corrections");
+    let corr =
+        |reason: &str| json!({ "parameter": "header_radius", "new_value": 158, "reason": reason });
+    // too short: two Japanese characters (6 bytes), four outside the BMP (16 bytes, 8 UTF-16 units), three between
+    // ideographic spaces (U+3000 is White_Space: trimmed), two between ASCII spaces
+    for short in [
+        "日本",
+        "𠮷𠮷𠮷𠮷",
+        "\u{3000}\u{3000}日本語\u{3000}",
+        "  理由  ",
+    ] {
+        let (st, v) = t.call("POST", &url, Some(corr(short))).await;
+        assert_eq!(
+            (st, v["code"].as_str()),
+            (StatusCode::BAD_REQUEST, Some("reason_required")),
+            "{short:?}: {v}"
+        );
+        assert_eq!(v["fields"], json!(["reason"]));
+    }
+    // too long: 2001 characters (6003 bytes)
+    let (st, v) = t.call("POST", &url, Some(corr(&"理".repeat(2001)))).await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("reason_too_long"))
+    );
+    // exactly five Japanese characters: the correction is made
+    let (st, v) = t.call("POST", &url, Some(corr("図面を確認"))).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let n = v["new_calculation"].as_i64().unwrap();
+    // obligation decisions: the same rule (text_field, then at least five characters)
+    let open: Vec<i64> = t.get(&format!("/api/calculations/{n}")).await["obligations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|o| o["state"] == "open")
+        .map(|o| o["id"].as_i64().unwrap())
+        .collect();
+    assert!(open.len() >= 3, "{open:?}");
+    let resolve = |id: i64, reason: String| {
+        let t = &t;
+        async move {
+            t.call(
+                "POST",
+                &format!("/api/obligations/{id}/resolve"),
+                Some(json!({ "decision": "confirmed", "reason": reason })),
+            )
+            .await
+            .0
+        }
+    };
+    assert_eq!(
+        resolve(open[0], "日本".into()).await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        resolve(open[0], "\u{3000}日本\u{3000}\u{3000}".into()).await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        resolve(open[0], "理".repeat(2001)).await,
+        StatusCode::UNPROCESSABLE_ENTITY
+    );
+    assert_eq!(resolve(open[0], "𠮷".repeat(5)).await, StatusCode::OK);
+    assert_eq!(
+        resolve(open[1], format!("\u{3000}{}\u{3000}", "理".repeat(2000))).await,
+        StatusCode::OK
+    );
+    // advisory acknowledgement: a repeated mistake raises one; the same rule applies
+    let again = t.job(good_assembly()).await;
+    let adv = t.get(&format!("/api/calculations/{again}")).await["advisories"][0]["id"]
+        .as_i64()
+        .unwrap();
+    let ack = |reason: &str| {
+        let t = &t;
+        let reason = reason.to_string();
+        async move {
+            t.call(
+                "POST",
+                &format!("/api/advisories/{adv}/acknowledge"),
+                Some(json!({ "reason": reason })),
+            )
+            .await
+            .0
+        }
+    };
+    assert_eq!(ack("日本").await, StatusCode::BAD_REQUEST);
+    assert_eq!(ack("外径で確認済み").await, StatusCode::OK);
+    // project names: at most 200 characters, whatever their byte or UTF-16 length
+    let project = |name: String| {
+        let t = &t;
+        async move {
+            t.call(
+                "POST",
+                "/api/projects",
+                Some(json!({ "name": name, "description": "" })),
+            )
+            .await
+            .0
+        }
+    };
+    assert_eq!(project("日".repeat(200)).await, StatusCode::OK);
+    assert_eq!(project("𠮷".repeat(200)).await, StatusCode::OK);
+    assert_eq!(project("日".repeat(201)).await, StatusCode::BAD_REQUEST);
+    // passwords: at least 10 characters (the upper limit, 1024 bytes, is stated in bytes and stays so)
+    let user = |name: &str, password: String| {
+        let t = &t;
+        let name = name.to_string();
+        async move {
+            t.call(
+                "POST",
+                "/api/users",
+                Some(json!({ "username": name, "password": password, "role": "viewer" })),
+            )
+            .await
+            .0
+        }
+    };
+    assert_eq!(
+        user("astral9", "𠮷".repeat(9)).await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(user("astral10", "𠮷".repeat(10)).await, StatusCode::OK);
+}
+
 /// BH-004 (engine 0.4.1): a result stored by 0.4.0 is marked for recomputation (gate G21), is never shown as current and
 /// has no DXF; a result of the running engine is current and its DXF is offered.
 #[tokio::test]
