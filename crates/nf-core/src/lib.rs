@@ -74,7 +74,14 @@ use std::collections::{BTreeMap, BTreeSet};
 /// scaled to the opening's own extents (x and y) and computed relative to its first vertex; `opening_area` is computed
 /// the same way. Cut geometry is byte-identical to 0.4.3; the quantities and check verdicts listed in the work plan
 /// changed. Results of 0.4.3 are REJECTED with G21 recompute.
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.4+src.", env!("NF_ENGINE_SRC_HASH"));
+/// 0.4.5 (22 Nov 2026): work plan task 1.3, every convention stated in the DXF and the result. Every part states its
+/// plate conventions (viewing side, offset sign and positive direction, rolling axis, seam and end edges, angular datum
+/// and direction, plate origin and axes, kerf not compensated) as `NF-` 999 keys and as TEXT on NF_NOT_RELEASED; the
+/// quality gate reads them back (rule `convention_statement`) and withholds a file that does not state exactly them.
+/// RB-008: the outer profile of a part made of lines and polylines is one closed polyline (same vertices, same order;
+/// a profile with an arc stays one entity per curve: an arc needs a bulge encoding this build does not write). The cut geometry
+/// of every other entity is byte-identical. Results of 0.4.4 are REJECTED with G21 recompute.
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.5+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the

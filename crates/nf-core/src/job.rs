@@ -412,9 +412,56 @@ fn layer_name(l: Layer) -> &'static str {
 /// its first vertex, which the closed flag implies (review RB-008). Its JSON points still carry
 /// the repeated vertex, as they always did; the DXF and JSON agree vertex for vertex.
 pub fn to_entities(p: &Pattern) -> Vec<Entity> {
+    // RB-008: the outer profile is one closed polyline wherever R12 can hold it exactly (see outline_closed_polyline);
+    // otherwise it stays one entity per curve, as before.
+    let outer: Vec<Entity> = match outline_closed_polyline(&p.outline) {
+        Some(pts) => vec![Entity::Polyline {
+            layer: layer_name(Layer::CutOuter).to_string(),
+            pts,
+            closed: true,
+        }],
+        None => p.outline.iter().map(|c| curve_entity(c, false)).collect(),
+    };
+    let inner = p.holes.iter().map(|c| curve_entity(c, true));
+    outer.into_iter().chain(inner).collect()
+}
+
+/// The entities as engine 0.4.4 wrote them: one entity per outline curve. Kept for the RB-008 test, which proves
+/// the closed polyline of `to_entities` has the same vertices as these curves.
+pub fn to_entities_per_curve(p: &Pattern) -> Vec<Entity> {
     let outer = p.outline.iter().map(|c| curve_entity(c, false));
     let inner = p.holes.iter().map(|c| curve_entity(c, true));
     outer.chain(inner).collect()
+}
+
+/// RB-008 (task 1.3): the outer profile as the vertices of ONE closed polyline (DXF polyline flag 70 bit 1), with
+/// the same vertices as the profile's curves in the same order. Only where the format holds it exactly: every curve
+/// a line or a polyline (an arc would need a vertex bulge, an encoding this build does not write, and chords would change
+/// the cut), each curve
+/// starting where the previous one ends, and the profile closing on its first vertex. The shared end points are
+/// written once; the closing point is not repeated. None in every other case, and the profile stays as it was.
+fn outline_closed_polyline(outline: &[uem::Curve]) -> Option<Vec<(f64, f64)>> {
+    let mut pts: Vec<uem::P2> = Vec::new();
+    for c in outline {
+        let seg: Vec<uem::P2> = match &c.geom {
+            Geom::Line { a, b } => vec![*a, *b],
+            Geom::Polyline { pts, .. } => pts.clone(),
+            Geom::Arc { .. } => return None,
+        };
+        let mut it = seg.into_iter();
+        let first = it.next()?;
+        match pts.last() {
+            None => pts.push(first),
+            Some(last) if *last == first => {}
+            Some(_) => return None,
+        }
+        pts.extend(it);
+    }
+    if pts.len() < 3 || pts.first() != pts.last() {
+        return None;
+    }
+    pts.pop();
+    Some(pts.into_iter().map(|q| (q.x, q.y)).collect())
 }
 
 fn curve_entity(c: &uem::Curve, closed_profile: bool) -> Entity {
@@ -471,10 +518,190 @@ fn arc_display_chords(r: f64, sweep: f64) -> usize {
 
 /// The annotation line every DXF of this build carries about its marking side.
 pub fn marking_side_note(side: uem::ViewSide) -> String {
-    format!(
-        "MARKING SIDE: PATTERN DRAWN AS SEEN FROM THE {} OF THE FORMED PART - PROVISIONAL CONVENTION, NOT REVIEWED",
-        side.code().to_uppercase()
-    )
+    nf_dxf::marking_side_line(side.code())
+}
+
+/// The request values a part's plate conventions state beyond its pattern. The caller that holds the request
+/// sets it; a part of a family without an offset is `Plain`.
+#[derive(Clone, Copy, Debug)]
+pub enum Frame {
+    /// Cylinder shell or cone frustum: no offset.
+    Plain,
+    /// Eccentric reducer: the offset e of its small end (mm, never negative).
+    Reducer { e: f64 },
+    /// Branch stub: the offset delta (mm), the lean beta (degrees) and the length s_end of the branch (mm).
+    Branch {
+        delta: f64,
+        beta_deg: f64,
+        s_end: f64,
+    },
+    /// Header plate of a header with one branch: the offset delta (mm) and the lean beta (degrees).
+    Header { delta: f64, beta_deg: f64 },
+}
+
+fn frame_of(req: &Request) -> Frame {
+    match req {
+        Request::EccentricReducer { e, .. } => Frame::Reducer { e: *e },
+        Request::BranchStub {
+            delta,
+            beta_deg,
+            s_end,
+            ..
+        } => Frame::Branch {
+            delta: *delta,
+            beta_deg: *beta_deg,
+            s_end: *s_end,
+        },
+        _ => Frame::Plain,
+    }
+}
+
+const CONV_CONE_ANGLE: &str = "0 deg on seam_a (the +X axis), increasing counter-clockwise on the plate; on the part the angle about the axis increases counter-clockwise seen from the small end looking toward the large end";
+const CONV_KERF: &str = "cut lines are the theoretical line on the development surface: kerf is NOT compensated; no bevel, root gap or weld allowance is included";
+const CONV_STATUS: &str = "provisional convention of this build, declared by the software, not reviewed by a fabrication engineer";
+const CONV_SIDE_SIGN: &str = "POSITIVE = THE BRANCH AXIS IS DISPLACED TO THE LEFT OF THE HEADER AXIS, FOR AN OBSERVER AT THE STATION-0 END LOOKING ALONG THE HEADER TOWARD INCREASING STATION WITH THE BRANCH POINTING UP";
+
+/// The plate conventions of one part, as the job declares them (work plan task 1.3). Built from the pattern and the
+/// request only; the DXF file, the result and the interface state these same facts, and the quality gate reads
+/// them back. Values are in millimetres and degrees; `R_dev` is the developed radius of the part (circumference / 2 pi).
+pub fn conventions_for(p: &Pattern, frame: Frame) -> nf_dxf::Conventions {
+    use nf_dxf::{
+        KEY_ANGLE_DATUM, KEY_BRANCH_ANGLE, KEY_END_EDGES, KEY_KERF, KEY_OFFSET_DELTA,
+        KEY_OFFSET_SIGN, KEY_ORIGIN, KEY_PLATE_AXES, KEY_ROLLING_AXIS, KEY_SEAM_EDGES, KEY_STATUS,
+        KEY_VIEW_SIDE,
+    };
+    use uem::develop::mm;
+    let q = |name: &str| p.quantity(name).unwrap_or(f64::NAN);
+    let (w, len) = (q("developed_width"), q("length"));
+    let tau = std::f64::consts::TAU;
+    let mut f: Vec<(&str, String)> = vec![(KEY_VIEW_SIDE, p.marking_side.code().to_string())];
+    let offset = |f: &mut Vec<(&str, String)>, delta: f64, beta_deg: f64| {
+        f.push((
+            KEY_OFFSET_DELTA,
+            format!(
+                "delta = {} mm: the branch axis is displaced by delta from the header axis",
+                mm(delta)
+            ),
+        ));
+        f.push((KEY_OFFSET_SIGN, CONV_SIDE_SIGN.to_string()));
+        f.push((KEY_BRANCH_ANGLE, format!("beta = {} deg, measured from the direction of increasing station to the branch axis; below 90 deg the branch leans toward increasing station", mm(beta_deg))));
+    };
+    match (p.family, frame) {
+        ("header_shell_with_opening", Frame::Header { delta, beta_deg }) => {
+            f.push((KEY_PLATE_AXES, format!("X = along the header axis (station), length {} mm; Y = around the header, developed circumference {} mm", mm(len), mm(w))));
+            f.push((KEY_ROLLING_AXIS, "parallel to X: roll about an axis parallel to X; the drawn face becomes the outside of the header".into()));
+            f.push((KEY_SEAM_EDGES, format!("seam_a and seam_b, the two edges parallel to X at Y = 0 and Y = {} mm; the seam is diametrically opposite the branch", mm(w))));
+            f.push((KEY_END_EDGES, format!("bottom (X = 0, the station-0 end) and top (X = {} mm, the far end); station increases with X", mm(len))));
+            f.push((KEY_ANGLE_DATUM, format!("Y = {} mm (half the circumference) is the generator facing the branch; Y increases toward the positive-delta side: counter-clockwise seen from the station-0 end looking toward increasing station", mm(0.5 * w))));
+            f.push((
+                KEY_ORIGIN,
+                "lower left corner of the plate = the seam at the station-0 end (X = 0, Y = 0)"
+                    .into(),
+            ));
+            offset(&mut f, delta, beta_deg);
+        }
+        ("cylinder_shell", _) => {
+            f.push((KEY_PLATE_AXES, format!("X = around the shell, developed circumference {} mm; Y = along the shell axis, length {} mm", mm(w), mm(len))));
+            f.push((KEY_ROLLING_AXIS, "parallel to Y: roll about an axis parallel to Y; the drawn face becomes the outside of the shell".into()));
+            f.push((
+                KEY_SEAM_EDGES,
+                format!(
+                    "seam_a and seam_b, the two edges parallel to Y at X = 0 and X = {} mm",
+                    mm(w)
+                ),
+            ));
+            f.push((
+                KEY_END_EDGES,
+                format!(
+                    "bottom (Y = 0) and top (Y = {} mm): the two edges parallel to X",
+                    mm(len)
+                ),
+            ));
+            f.push((KEY_ANGLE_DATUM, format!("theta = X / R_dev, R_dev = {} mm: theta = 0 at the seam (X = 0), increasing with X; counter-clockwise seen from the end Y = {} mm looking toward Y = 0", mm(w / tau), mm(len))));
+            f.push((
+                KEY_ORIGIN,
+                "lower left corner of the plate = the seam at the end Y = 0 (X = 0, Y = 0)".into(),
+            ));
+        }
+        ("cone_frustum", _) => {
+            let (l1, l2, phi) = (
+                q("apex_radius_large"),
+                q("apex_radius_small"),
+                q("sector_angle"),
+            );
+            f.push((KEY_PLATE_AXES, "X along seam_a (the +X axis, angle 0); Y = 90 deg counter-clockwise from +X; distances in mm from the origin".into()));
+            f.push((KEY_ROLLING_AXIS, "the cone axis, through the origin (the apex): roll so that the two straight edges meet; the drawn face becomes the outside of the cone".into()));
+            f.push((
+                KEY_SEAM_EDGES,
+                format!(
+                    "seam_a on the +X axis and seam_b at {} deg: the two straight edges",
+                    mm(phi.to_degrees())
+                ),
+            ));
+            f.push((KEY_END_EDGES, format!("outer arc (radius {} mm from the origin) = large end; inner arc (radius {} mm from the origin) = small end", mm(l1), mm(l2))));
+            f.push((KEY_ANGLE_DATUM, CONV_CONE_ANGLE.into()));
+            f.push((
+                KEY_ORIGIN,
+                "(0, 0) = the apex of the developed cone, not on the plate".into(),
+            ));
+        }
+        ("eccentric_reducer", Frame::Reducer { e }) => {
+            let psi = q("developed_angle");
+            f.push((KEY_PLATE_AXES, "flat development of an oblique cone: X = along seam_a (the +X axis, angle 0); Y = 90 deg counter-clockwise from +X; distances in mm from the origin".into()));
+            f.push((KEY_ROLLING_AXIS, "the cone axis, through the origin (the apex): roll so that the two straight edges meet; the drawn face becomes the outside of the cone".into()));
+            f.push((KEY_SEAM_EDGES, format!("seam_a on the +X axis and seam_b at {} deg: the two straight edges; the seam is the generator on the side toward which the small end is offset", mm(psi.to_degrees()))));
+            f.push((
+                KEY_END_EDGES,
+                "outer curve = large end; inner curve = small end".into(),
+            ));
+            f.push((KEY_ANGLE_DATUM, CONV_CONE_ANGLE.into()));
+            f.push((
+                KEY_ORIGIN,
+                "(0, 0) = the apex of the developed oblique cone, not on the plate".into(),
+            ));
+            f.push((
+                KEY_OFFSET_DELTA,
+                format!("e = {} mm: the offset of the small-end axis", mm(e)),
+            ));
+            f.push((KEY_OFFSET_SIGN, "POSITIVE = THE SMALL END IS OFFSET TOWARD THE SEAM GENERATOR, THE SHORTEST GENERATOR; E = 0 IS A RIGHT CONE; THE OFFSET IS NEVER NEGATIVE".into()));
+        }
+        (
+            "branch_stub",
+            Frame::Branch {
+                delta,
+                beta_deg,
+                s_end,
+            },
+        ) => {
+            let s_min = q("s_min");
+            f.push((KEY_PLATE_AXES, format!("X = around the branch, developed circumference {} mm; Y = along the branch axis, from the saddle cut (bottom) to the square end (top)", mm(w))));
+            f.push((KEY_ROLLING_AXIS, "parallel to Y: roll about the branch axis; the drawn face becomes the outside of the branch".into()));
+            f.push((
+                KEY_SEAM_EDGES,
+                format!(
+                    "seam_a and seam_b, the two edges parallel to Y at X = 0 and X = {} mm",
+                    mm(w)
+                ),
+            ));
+            f.push((KEY_END_EDGES, format!("saddle cut (bottom edge, fits the header) and square end (top edge, Y = {} mm)", mm(s_end))));
+            f.push((KEY_ANGLE_DATUM, format!("phi = X / R_dev, R_dev = {} mm: phi = 0 is the seam (generator on the positive-delta side); phi increases with X, counter-clockwise seen from the square end toward the header; phi = 90 deg away from the lean, 270 deg toward it", mm(w / tau))));
+            f.push((KEY_ORIGIN, format!("X = 0 at the seam; Y = 0 is the level of the header axis, {} mm below the lowest point of the saddle cut (not on the plate)", mm(s_min))));
+            offset(&mut f, delta, beta_deg);
+        }
+        _ => {}
+    }
+    f.push((KEY_KERF, CONV_KERF.into()));
+    f.push((KEY_STATUS, CONV_STATUS.into()));
+    // the canonical order of the statement: the order of nf_dxf::CONVENTION_KEYS
+    f.sort_by_key(|(k, _)| {
+        nf_dxf::CONVENTION_KEYS
+            .iter()
+            .position(|c| c == k)
+            .unwrap_or(usize::MAX)
+    });
+    nf_dxf::Conventions {
+        facts: f.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
+    }
 }
 
 const MARKING_SIDE_SCRUTINY: &str = "Marking side: every pattern of this job is drawn as seen from the OUTSIDE of the formed part (pattern normal toward the outside). Spec 02 §0.3 requires a declared marking side but does not choose one; this side follows from the frames the specification writes down (§4.1, §4.4) and is a PROVISIONAL convention declared by the software. It has not been reviewed by a fabrication engineer. Marking a pattern on the other face mirrors the part (misfit of tens of millimetres for an offset, oblique branch). An engineer must confirm the marking side before use.";
@@ -644,6 +871,7 @@ impl Builder {
         deps: Vec<crate::Rel>,
         checks: Vec<Check>,
         joint: Option<&nf_dxf::JointStatement>,
+        frame: Frame,
     ) -> (String, String) {
         let inputs: Vec<&str> = deps.iter().map(|d| d.to.as_str()).collect();
         let a_dev = self.act("build.develop", "Z2", &inputs, 1500);
@@ -652,8 +880,19 @@ impl Builder {
         // the joint lines are drawn at the size of the release marking, below the marking side
         let mut big = notes.clone();
         big.extend(joint.map(|j| j.texts()).unwrap_or_default());
-        let comments = joint.map(|j| j.comments()).unwrap_or_default();
-        let text = nf_dxf::write_stated(&entities, &big, &[], &comments);
+        // task 1.3: the plate conventions, in the 999 block and as annotation lines below the geometry
+        let conv = conventions_for(pattern, frame);
+        let conv_complete = {
+            let keys: Vec<&str> = conv.facts.iter().map(|(k, _)| k.as_str()).collect();
+            uem::verify::convention_keys_complete(pattern.family, &keys)
+                && conv
+                    .facts
+                    .iter()
+                    .all(|(_, v)| !v.contains("NaN") && !v.contains("inf"))
+        };
+        let mut comments = joint.map(|j| j.comments()).unwrap_or_default();
+        comments.extend(conv.comments());
+        let text = nf_dxf::write_stated(&entities, &big, &conv.texts(), &comments);
         let dxf_sha = sha256_hex(text.as_bytes());
         let pv = PatternView {
             part: part.to_string(),
@@ -719,7 +958,7 @@ impl Builder {
         let dxf_id = self.push(Record::new(
             Family::Claim,
             "dxf_output",
-            json!({ "part": part, "sha256": dxf_sha, "bytes": text.len(), "entities": entities.len(), "format": "DXF AC1009 subset", "units": "mm: $LUNITS=2 (decimal), $AUNITS=0, $ANGDIR=0 in the header; the unit is stated by the NF-UNITS comment line, the comment block and a TEXT annotation (R12 has no unit-of-measure variable)", "marking": { "layer": nf_dxf::MARK_LAYER, "text": nf_dxf::MARK_TEXT, "marking_side": notes[0] }, "statement": { "comments": std::iter::once((nf_dxf::KEY_UNITS.to_string(), "mm".to_string())).chain(comments.clone()).collect::<Vec<(String, String)>>(), "texts": big[1..].to_vec() } }),
+            json!({ "part": part, "sha256": dxf_sha, "bytes": text.len(), "entities": entities.len(), "format": "DXF AC1009 subset", "units": "mm: $LUNITS=2 (decimal), $AUNITS=0, $ANGDIR=0 in the header; the unit is stated by the NF-UNITS comment line, the comment block and a TEXT annotation (R12 has no unit-of-measure variable)", "marking": { "layer": nf_dxf::MARK_LAYER, "text": nf_dxf::MARK_TEXT, "marking_side": notes[0] }, "statement": { "comments": std::iter::once((nf_dxf::KEY_UNITS.to_string(), "mm".to_string())).chain(comments.clone()).collect::<Vec<(String, String)>>(), "texts": big[1..].to_vec(), "plate_conventions": conv.facts, "plate_convention_texts": conv.texts() } }),
             vec![rel("rendered_from", &pattern_id)],
             Some(a_dxf),
         ));
@@ -737,7 +976,15 @@ impl Builder {
         // DXF quality gate (nf-dxf quality, review item 5): the file as written and re-read must pass it.
         // A file that does not pass is never offered: it is withheld from the job's DXF list and G15 fails.
         let a_q = self.act("verify.dxf_quality", "Z3", &[&dxf_id], 300);
-        let quality = nf_dxf::quality::quality_gate_stated(&text, joint);
+        let mut quality = nf_dxf::quality::quality_gate_full(&text, joint, Some(&conv));
+        if !conv_complete {
+            // the job itself declares a convention set its family does not require (or a value that is not a number)
+            quality.findings.push(nf_dxf::quality::QualityFinding {
+                rule: "convention_statement",
+                detail: "the plate conventions the job declares are not the complete set of this family, or hold a value that is not a number".into(),
+            });
+            quality.pass = false;
+        }
         let q_id = self.push(Record::new(
             Family::Assessment,
             "dxf_quality_report",
@@ -1080,7 +1327,14 @@ fn single(
     match r {
         Err(e) => err_output(req, b, &rq, e),
         Ok((p, checks)) => {
-            b.part(part, &p, vec![rel("developed_from", &rq)], checks, None);
+            b.part(
+                part,
+                &p,
+                vec![rel("developed_from", &rq)],
+                checks,
+                None,
+                frame_of(req),
+            );
             let sref = match req {
                 Request::BranchStub {
                     surface_reference, ..
@@ -1348,6 +1602,7 @@ fn header_with_branch(
         ],
         hc,
         Some(&js),
+        Frame::Header { delta, beta_deg },
     );
     let (pat_b, _) = b.part(
         "branch",
@@ -1360,6 +1615,11 @@ fn header_with_branch(
         ],
         bc,
         Some(&js),
+        Frame::Branch {
+            delta,
+            beta_deg,
+            s_end,
+        },
     );
 
     // Interface constraint (`ic`, computed above from the two finished patterns).
@@ -2703,7 +2963,14 @@ mod tests {
         let p = develop::cylinder_shell(100.0, 250.0).unwrap();
         let rq = b.push(request_claim(&reqs()[0], "t"));
         let checks = verify::verify_cylinder(&p, 100.0, 250.0);
-        b.part("shell", &p, vec![rel("developed_from", &rq)], checks, None);
+        b.part(
+            "shell",
+            &p,
+            vec![rel("developed_from", &rq)],
+            checks,
+            None,
+            Frame::Plain,
+        );
         let gates = evaluate_gates(&b.all_checks, Some(true), Some(true), false, None);
         let o = b.finish(&reqs()[0], gates, None);
         assert_eq!(o.state, ReleaseState::Rejected);
@@ -3292,7 +3559,7 @@ mod tests {
             },
         }];
         let mut b = Builder::new();
-        b.part("broken", &pattern, vec![], vec![], None);
+        b.part("broken", &pattern, vec![], vec![], None, Frame::Plain);
         assert!(
             !b.quality_ok && b.reimport_ok,
             "the gate refuses it; the re-import alone would not"
@@ -3332,5 +3599,56 @@ mod tests {
                 .iter()
                 .any(|r| r.kind == "dxf_quality_report" && r.payload["pass"] == json!(true))
         );
+    }
+}
+
+#[cfg(test)]
+mod convention_withhold_tests {
+    use super::*;
+
+    /// Task 1.3 review (item 3): a part whose declared convention set is incomplete for its family, or holds a value
+    /// that is not a number, fails the job's own convention check: the quality gate fails and no DXF is offered.
+    #[test]
+    fn an_incomplete_or_non_numeric_declaration_fails_the_gate_and_withholds_the_file() {
+        let base = develop::cylinder_shell(100.0, 250.0).expect("shell");
+        let checks = verify::verify_cylinder(&base, 100.0, 250.0);
+        // a family with no declared key set
+        let mut unknown = base.clone();
+        unknown.family = "teapot";
+        // a quantity the statement needs is missing, so its value is NaN
+        let mut not_a_number = base.clone();
+        not_a_number
+            .quantities
+            .retain(|(k, _)| *k != "developed_width");
+        for (what, p) in [
+            ("a family with no declared key set", unknown),
+            ("a value that is not a number", not_a_number),
+        ] {
+            let mut b = Builder::new();
+            let rq = b.push(request_claim(
+                &Request::CylinderShell {
+                    r_dev: 100.0,
+                    length: 250.0,
+                },
+                "t",
+            ));
+            b.part(
+                "shell",
+                &p,
+                vec![rel("developed_from", &rq)],
+                checks.clone(),
+                None,
+                Frame::Plain,
+            );
+            assert!(!b.quality_ok, "{what}: the gate must fail");
+            assert!(b.dxf.is_empty(), "{what}: the file must be withheld");
+            assert!(
+                b.quality_notes
+                    .iter()
+                    .any(|n| n.contains("convention_statement")),
+                "{what}: {:?}",
+                b.quality_notes
+            );
+        }
     }
 }

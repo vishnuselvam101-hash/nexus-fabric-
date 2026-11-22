@@ -78,7 +78,15 @@ check "DXF file name marked NOT-RELEASED"         'grep -qi "filename=\"NOT-RELE
 check "DXF carries the NOT RELEASED marking on a non-cutting layer" 'grep -q "^NOT RELEASED - DEVELOPMENT BUILD" "$DATA/out.dxf" && [ "$(grep -B2 -A0 "^10$" "$DATA/out.dxf" >/dev/null; python3 - "$DATA/out.dxf" <<PY
 import sys
 L=open(sys.argv[1]).read().split("\n"); p=list(zip(L[0::2],L[1::2])); i=[k for k,(c,v) in enumerate(p) if c.strip()=="0" and v=="TEXT"]
-print(all(p[k+1]==("  8","NF_NOT_RELEASED") for k in i) and len(i)==3 and not any(v=="NF_NOT_RELEASED" and p[k-1][1] in ("LINE","ARC","POLYLINE","VERTEX") for k,(c,v) in enumerate(p)))
+T=[]
+for k in i:
+    j=k+1
+    while j<len(p) and p[j][0].strip()!="0":
+        if p[j][0].strip()=="1": T.append(p[j][1]); break
+        j+=1
+LABELS=["VIEW SIDE:","PLATE AXES:","ROLLING AXIS:","SEAM EDGES:","END EDGES:","ANGLE DATUM:","ORIGIN:","KERF:","STATUS:"]
+fixed=T[:3]==["NOT RELEASED - DEVELOPMENT BUILD - NOT VALIDATED - NOT FOR MANUFACTURING","UNITS: MILLIMETRES","MARKING SIDE: PATTERN DRAWN AS SEEN FROM THE OUTSIDE OF THE FORMED PART - PROVISIONAL CONVENTION, NOT REVIEWED"]
+print(all(p[k+1]==("  8","NF_NOT_RELEASED") for k in i) and len(i)==12 and fixed and all(sum(1 for t in T[3:] if t.startswith(l))==1 for l in LABELS) and not any(v=="NF_NOT_RELEASED" and p[k-1][1] in ("LINE","ARC","POLYLINE","VERTEX") for k,(c,v) in enumerate(p)))
 PY
 )" = True ]'
 # D1 (validation): every pattern states the side it is drawn from, the same for all parts, in result, gates and DXF

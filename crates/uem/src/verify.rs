@@ -301,6 +301,47 @@ pub fn branch_angle_refusal(
 /// and the opening bound, so on a long plate it can hold before the opening bound alone would make it. In practice:
 /// a branch angle near 180 degrees, where the rounding of beta itself dominates eps_num. The result then shows
 /// eps_num prominently.
+/// The plate-convention keys a part must state (work plan task 1.3), by family. Every part states the nine base
+/// keys; a part with an offset (eccentric reducer, branch stub, header plate of a header with branch) adds the offset
+/// keys, and a part with a branch (branch stub, header plate) adds the branch angle. The strings are the keys of
+/// `nf_dxf::CONVENTION_KEYS`; a test in nf-core checks that the two lists agree.
+pub const BASE_CONVENTION_KEYS: [&str; 9] = [
+    "NF-VIEW-SIDE",
+    "NF-PLATE-AXES",
+    "NF-ROLLING-AXIS",
+    "NF-SEAM-EDGES",
+    "NF-END-EDGES",
+    "NF-ANGLE-DATUM",
+    "NF-ORIGIN",
+    "NF-KERF",
+    "NF-STATUS",
+];
+
+/// The convention keys a part of `family` must state. The header plate of a header with one branch is
+/// `header_shell_with_opening` (develop.rs). An unknown family gives an empty list, which is never complete.
+pub fn required_convention_keys(family: &str) -> Vec<&'static str> {
+    let mut keys: Vec<&'static str> = BASE_CONVENTION_KEYS.to_vec();
+    match family {
+        "cylinder_shell" | "cone_frustum" => {}
+        "eccentric_reducer" => keys.extend(["NF-OFFSET-DELTA", "NF-OFFSET-SIGN"]),
+        "branch_stub" | "header_shell_with_opening" => {
+            keys.extend(["NF-OFFSET-DELTA", "NF-OFFSET-SIGN", "NF-BRANCH-ANGLE"])
+        }
+        _ => return Vec::new(),
+    }
+    keys
+}
+
+/// True when `stated` holds exactly the keys `required_convention_keys` asks for: each once, none missing, none extra.
+pub fn convention_keys_complete(family: &str, stated: &[&str]) -> bool {
+    let want = required_convention_keys(family);
+    !want.is_empty()
+        && stated.len() == want.len()
+        && want
+            .iter()
+            .all(|k| stated.iter().filter(|s| *s == k).count() == 1)
+}
+
 pub fn eps_num_governs(p: &Pattern, checks: &[Check]) -> bool {
     checks.iter().any(|c| {
         matches!(

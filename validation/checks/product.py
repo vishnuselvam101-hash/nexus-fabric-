@@ -165,6 +165,37 @@ def read_dxf_minimal(text):
 
 
 # ------------------------------------------------------------------ parts
+def split_grouped_outline(ents, curves):
+    """Engine 0.4.5 (work plan task 1.3, RB-008): a part made of lines and polylines writes its outer profile as ONE
+    closed polyline with the vertices of its curves, in order, each shared end point once. This function splits that
+    polyline back into the curves the job declares, at the shared vertices, and checks every piece against that curve's
+    own points in the result: a piece that does not match raises, so nothing is silently reinterpreted. Derivation: the
+    grouped vertices V are the curve chain with the shared end points written once, so a line takes the next two
+    vertices and a polyline takes its own count of vertices, sharing its end with the next curve; the walk must close
+    on the first vertex. Any other entity list is returned unchanged (arcs are never grouped)."""
+    outer = [i for i, e in enumerate(ents) if e.layer == 'CUT_OUTER']
+    if len(outer) != 1 or ents[outer[0]].kind != 'polyline' or len(curves) < 2:
+        return ents
+    if not all(c['kind'] in ('line', 'polyline') for c in curves):
+        return ents
+    V = [tuple(p) for p in ents[outer[0]].pts]
+    if len(V) > 1 and V[0] == V[-1]:
+        V = V[:-1]
+    n, pos, pieces = len(V), 0, []
+    for c in curves:
+        m = 2 if c['kind'] == 'line' else len(c['points'])
+        idx = [(pos + k) % n for k in range(m)] if c['kind'] != 'line' else [pos, (pos + 1) % n]
+        pos = (pos + m - 1) % n
+        pts = np.asarray([V[k] for k in idx], float)
+        want = np.asarray(c['points'], float)
+        if pts.shape != want.shape or not np.allclose(pts, want, rtol=0, atol=1e-9):
+            raise ValueError(f"grouped outer profile: curve {c['name']} does not match its own points")
+        pieces.append(PCurve(c['kind'], 'CUT_OUTER', pts.tolist(), name=c['name']))
+    if pos != 0:
+        raise ValueError('grouped outer profile does not close on its first vertex')
+    return ents[:outer[0]] + pieces + ents[outer[0] + 1:]
+
+
 class Part:
     def __init__(self, view, dxf_text):
         self.view = view
@@ -175,6 +206,8 @@ class Part:
         self.dxf_text = dxf_text
         self.all_min, self.meta_min = read_dxf_minimal(dxf_text)
         self.all, self.meta = (read_dxf_ezdxf(dxf_text) if HAVE_EZDXF else (self.all_min, self.meta_min))
+        self.all_min = split_grouped_outline(self.all_min, view['curves'])
+        self.all = split_grouped_outline(self.all, view['curves'])
         # geometry that would be cut: everything on a CUT_* layer.  Anything else is kept separately and policed
         # by the round-trip check (only non-cutting TEXT on NF_NOT_RELEASED is tolerated).
         is_cut = lambda e: e.layer.startswith('CUT')

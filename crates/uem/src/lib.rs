@@ -164,9 +164,11 @@ pub struct Pattern {
     /// What the plate coordinates mean on the formed part, in words a workshop
     /// can act on: plate axes and rolling axis, which edges are seams, where
     /// stations and angles start and in which direction they grow, where the
-    /// origin lies, and that kerf is not compensated. Written into the result
-    /// and, as non-cutting text, into every DXF (review RB-002, RB-003,
-    /// RB-007, RB-008, RB-009). Provisional, not reviewed by a fabricator.
+    /// origin lies, and that kerf is not compensated (review RB-002, RB-003,
+    /// RB-007, RB-008, RB-009). This prose is NOT written by this build into
+    /// the DXF or the job result: the statement that is written is built by
+    /// `nf_core::job::conventions_for` from the pattern and the request
+    /// (work plan task 1.3). Provisional, not reviewed by a fabricator.
     pub conventions: Vec<String>,
     /// What each outline curve is on the formed part: (curve name, role).
     pub roles: Vec<(&'static str, &'static str)>,

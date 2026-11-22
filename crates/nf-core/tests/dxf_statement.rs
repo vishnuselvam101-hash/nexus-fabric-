@@ -62,6 +62,15 @@ fn cases() -> Vec<(&'static str, Value, Option<JointStatement>)> {
     ]
 }
 
+/// The 999 keys of the units and the joint. The plate-convention keys (task 1.3) are checked by
+/// tests/plate_conventions.rs, so they are left out here.
+fn joint_and_units_keys(text: &str) -> Vec<(String, String)> {
+    nf_dxf::statement_keys(text)
+        .into_iter()
+        .filter(|(k, _)| !nf_dxf::CONVENTION_KEYS.contains(&k.as_str()))
+        .collect()
+}
+
 fn record<'a>(out: &'a nf_core::job::JobOutput, kind: &str, part: &str) -> Option<&'a Value> {
     out.records
         .iter()
@@ -145,7 +154,7 @@ fn every_family_and_part_states_its_units_and_its_joint_exactly_as_declared() {
             match &joint {
                 Some(js) => {
                     assert_eq!(
-                        nf_dxf::statement_keys(text),
+                        joint_and_units_keys(text),
                         vec![
                             (KEY_UNITS.to_string(), "mm".to_string()),
                             (KEY_JOINT.to_string(), js.joint.to_string()),
@@ -166,7 +175,7 @@ fn every_family_and_part_states_its_units_and_its_joint_exactly_as_declared() {
                 }
                 None => {
                     assert_eq!(
-                        nf_dxf::statement_keys(text),
+                        joint_and_units_keys(text),
                         vec![(KEY_UNITS.to_string(), "mm".to_string())],
                         "{name} {part}: a part without a joint states no joint"
                     );
