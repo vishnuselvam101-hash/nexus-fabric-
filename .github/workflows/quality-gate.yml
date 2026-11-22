@@ -57,6 +57,8 @@ jobs:
       - name: Build
         run: cargo build --release --workspace --locked
       - name: Independent computational and DXF validation
+        # Quick corpus on every push. The FULL corpus runs nightly and on a manual run in
+        # geometry-validation-full.yml (task 1.8).
         run: |
           python3 -m pip install -r validation/requirements.txt
           python3 validation/run_all.py --spawn target/release/nf-server --quick
