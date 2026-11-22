@@ -8,7 +8,8 @@
 #   - gzip stores no file name and no time; zip stores no extra fields (uid/gid, extended times);
 #   - the compiled programs carry no folder path of the build machine (--remap-path-prefix for Rust,
 #     -ffile-prefix-map for the bundled SQLite C code) and no link time (PE time stamp); the cross-built
-#     Windows programs carry no COFF symbol table (it named random temporary folders).
+#     Windows programs carry no COFF symbol table (it named random temporary folders), and their import
+#     tables are ordered by names that do not depend on any folder (packaging/windows/dlltool-wrapper.sh).
 # Development build. Not validated. Outputs must not be used for manufacturing.
 
 # Sets and exports SOURCE_DATE_EPOCH (seconds since 1970, UTC) for the build in folder $1, if it is not set:
@@ -61,6 +62,7 @@ nf_native_path() {
 
 # Prints the RUSTFLAGS for a reproducible build of the workspace in $1 for the Rust target triple $2.
 # The remapped names are fixed words, not paths, so the same flags work in Git Bash (no MSYS path conversion).
+# RUSTFLAGS is split at spaces, so the workspace and cargo home paths must not contain spaces.
 # Any RUSTFLAGS already set are kept, after these (the checksum then also depends on them).
 nf_rustflags() {
   local root=$1 triple=$2 cargo_home flags target_dir
@@ -85,7 +87,14 @@ nf_rustflags() {
       # imports (windows-sys) in a temporary folder with a random name (target/.../deps/rustcXXXXXX), so it
       # differed between any two builds, even in the same folder. The table is used only by debuggers; the
       # programs behave the same without it (a panic backtrace then shows addresses instead of function names).
-      flags="$flags -Clink-arg=-Wl,--no-insert-timestamp -Cstrip=symbols" ;;
+      flags="$flags -Clink-arg=-Wl,--no-insert-timestamp -Cstrip=symbols"
+      # The import tables were ordered by names dlltool derives from the random temporary folder of rustc;
+      # packaging/windows/dlltool-wrapper.sh makes those names depend only on the imported DLL and functions.
+      # A shell script can be run by rustc on a Linux host only; a Windows GNU host keeps the plain dlltool.
+      case "$(uname -s)" in
+        Linux*) flags="$flags -Cdlltool=$root/packaging/windows/dlltool-wrapper.sh" ;;
+      esac
+      ;;
     *-windows-msvc*)
       # link.exe: -Brepro replaces the time stamp and the PDB signature by a hash of the output;
       # -PDBALTPATH:%_PDB% records only the PDB file name, not the build folder. (Dash form: no MSYS path conversion.)
