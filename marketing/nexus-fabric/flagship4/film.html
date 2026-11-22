@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>NEXUS FABRIC — film 4</title>
+<!-- Film 4. One hero object (job 5's header-and-branch joint, in three.js) and every claim as an action on it.
+     film.html?lang=en|ja&labels=1|0&scale=1|2   window.seek(t) draws film time t; window.READY is true when loaded.
+     Deterministic: no clock, no random numbers, no network. Data: data/film4-data.js (built from the product's output). -->
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+html,body{margin:0;background:#f4f5f7;overflow:hidden}
+#gfx{position:absolute;left:0;top:0;width:1920px;height:1080px}
+</style>
+</head>
+<body>
+<canvas id="gfx" width="1920" height="1080"></canvas>
+<script src="data/film4-data.js"></script>
+<script src="script/onscreen4.js"></script>
+<script type="importmap">{"imports":{"three":"./lib/three.module.min.js"}}</script>
+<script type="module" src="film/main.js"></script>
+</body>
+</html>
