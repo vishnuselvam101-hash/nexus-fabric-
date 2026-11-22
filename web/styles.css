@@ -201,6 +201,9 @@ label{display:block;font-size:var(--t-m);color:var(--ink-2);margin:0 0 var(--s1)
 .app[data-rail=closed] .rail a .lbl{display:none}
 .app[data-rail=closed] .rail a .cnt{position:absolute;top:0;right:0;padding:0 2px;font-size:var(--t-s);line-height:13px}
 .app[data-rail=open] .rail a[data-tip]::after{display:none}
+/* the menu button is for phones only; on wider screens the rail is always in place */
+.navtoggle{display:none}
+.ban-min{margin:var(--s1) 0 0}
 
 main{min-width:0;min-height:0;overflow:auto;background:var(--desk)}
 main.scroll{overflow:auto} /* every view but the workspace; stays scrollable in print (was a style attribute, V-45) */
@@ -670,6 +673,16 @@ dialog form{margin:0}
   .topbar{flex-wrap:wrap;row-gap:4px;height:auto;min-height:44px;padding-top:4px;padding-bottom:4px}
   .devnote{flex:1 1 auto}
   .tools{flex-wrap:wrap;justify-content:flex-end;margin-left:auto;max-width:100%}
+  /* phone (B1): the navigation is a menu opened by the menu button, drawn over the page with its labels */
+  .navtoggle{display:inline-flex}
+  #railtoggle{display:none}
+  .app .rail{display:none}
+  .app[data-nav=open] .rail{display:flex;position:relative;z-index:40;grid-row:2;grid-column:1;width:min(82vw,260px);box-shadow:0 8px 24px rgba(0,0,0,.35)}
+  .app[data-nav=open] .rail a{justify-content:flex-start;padding:0 var(--s2);height:36px}
+  .app[data-nav=open] .rail a .lbl{display:inline}
+  .app[data-nav=open] .rail h3{height:auto;margin:0;padding:var(--s3) var(--s2) var(--s1);border-top:0;color:var(--chrome-mute);font-size:var(--t-s)}
+  /* the id chip of a Japanese label may wrap on a narrow screen instead of being cramped against the edge (sim P9) */
+  .idk{white-space:normal;overflow-wrap:anywhere;max-width:100%}
 }
 @media (max-width:820px){
   .who small,.statusbar .sb-opt{display:none}
