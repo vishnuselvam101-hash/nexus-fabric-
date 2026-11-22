@@ -509,7 +509,11 @@ pub fn store_blob(
         f.sync_all()?;
         drop(f);
         std::fs::rename(&tmp, &path)?;
-        std::fs::File::open(&dir)?.sync_all()
+        // Windows cannot open a directory as a file (access denied), so the directory flush is Unix only
+        // (as in `create_private`). Before this change every blob store failed on Windows with os error 5.
+        #[cfg(unix)]
+        std::fs::File::open(&dir)?.sync_all()?;
+        Ok(())
     };
     if let Err(e) = write() {
         let _ = std::fs::remove_file(&tmp);
