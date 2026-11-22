@@ -320,7 +320,19 @@ fn accepted_and_verified(v: &Value) -> nf_core::job::JobOutput {
         out.refusal.map(|r| r.message)
     );
     let g10 = out.gates.iter().find(|g| g.id == "G10").unwrap();
-    assert_eq!(g10.result, nf_core::GateResult::Pass, "{v}");
+    // Review after task 1.2 (changed expectation, listed in TOLERANCE_POLICY 8.8): a certified chord bound coarser
+    // than MAX_CHORD_ERROR_MM makes the checks that use it INCONCLUSIVE, so G10 is INCONCLUSIVE, never a PASS. This is
+    // allowed only when a certified bound really is above the limit; otherwise G10 must PASS as before.
+    let coarse = out
+        .patterns
+        .iter()
+        .any(|p| p.eps_rep > uem::develop::MAX_CHORD_ERROR_MM);
+    let want = if coarse {
+        nf_core::GateResult::Inconclusive
+    } else {
+        nf_core::GateResult::Pass
+    };
+    assert_eq!(g10.result, want, "{v}");
     assert_ne!(out.state, ReleaseState::Rejected, "{v}");
     out
 }

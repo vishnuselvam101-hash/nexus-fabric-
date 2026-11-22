@@ -295,10 +295,36 @@ pub struct CurveView {
     /// curve (mm); 0 for lines. For a circular arc, the exact sagitta of the
     /// chords actually emitted (at most 0.01 mm unless the chord cap binds);
     /// for a polyline the engine's measured representation error `eps_rep` of
-    /// that curve (an estimate, not a bound).
+    /// that curve (a certified bound for the branch and the header; NOT certified for the eccentric reducer).
     #[serde(default)]
     pub points_max_deviation: f64,
     pub length: f64,
+}
+
+/// The stated status of the numerical errors (work plan task 1.2 review; TOLERANCE_POLICY section 8). Each is one
+/// sentence, so the interface translates it sentence by sentence (web/i18n.js).
+const EPS_NUM_BOUND: &str = "eps_num is an a-priori rounding bound, not interval-certified.";
+const EPS_NUM_REDUCER: &str =
+    "For an eccentric reducer its quadrature term is an ESTIMATE, not a bound.";
+const EPS_REP_CERTIFIED: &str = "eps_rep is a certified upper bound of the chord error of the drawn polyline, eps_num included (interval arithmetic on the closed-form derivatives, docs/backend/TOLERANCE_POLICY.md section 8.1).";
+const EPS_REP_NOT_CERTIFIED: &str = "eps_rep is NOT certified for this pattern (no bound could be proved, or its vertex term carries the quadrature estimate of the eccentric reducer): checks that would pass with it are INCONCLUSIVE (docs/backend/TOLERANCE_POLICY.md section 8.2).";
+const EPS_REP_CERT_BRANCH: &str = "eps_rep is a certified upper bound (interval arithmetic, TOLERANCE_POLICY section 8) for a branch saddle and a header opening, where the pattern states it certified.";
+const EPS_REP_NOT_CERT_REDUCER: &str = "For an eccentric reducer eps_rep is NOT certified: checks that would pass with it are INCONCLUSIVE; a FAIL stays FAIL.";
+
+/// The assumption line of one pattern about its numerical errors.
+fn eps_assumption(p: &uem::Pattern) -> String {
+    if p.eps_rep > 0.0 && !p.eps_rep_certified {
+        format!("{EPS_NUM_BOUND} {EPS_NUM_REDUCER} {EPS_REP_NOT_CERTIFIED}")
+    } else if p.eps_rep > 0.0 {
+        format!("{EPS_NUM_BOUND} {EPS_REP_CERTIFIED}")
+    } else {
+        EPS_NUM_BOUND.to_string()
+    }
+}
+
+/// The G08 detail of a job: with polylines, the status of their representation errors as well.
+fn g08_text_with_polylines() -> String {
+    format!("{EPS_NUM_BOUND} {EPS_NUM_REDUCER} {EPS_REP_CERT_BRANCH} {EPS_REP_NOT_CERT_REDUCER}")
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -310,10 +336,11 @@ pub struct PatternView {
     /// the marking side of Spec 02 §0.3. A provisional convention of this build.
     #[serde(default)]
     pub marking_side: String,
-    /// ESTIMATE of the numerical error (mm), not a bound.
+    /// A-priori rounding bound of the numerical error (mm), not interval-certified; for the eccentric reducer it
+    /// includes an ESTIMATE of the quadrature error (TOLERANCE_POLICY section 8.2).
     pub eps_num: f64,
-    /// ESTIMATE of the polyline representation error (mm), not a bound: the largest deviation measured at 15
-    /// interior points per segment; a finer sampling can exceed it slightly.
+    /// Representation error of the polyline (mm): a certified upper bound of the chord error where the pattern
+    /// states it certified, otherwise NOT certified (TOLERANCE_POLICY section 8.1).
     pub eps_rep: f64,
     /// Task 1.1: true when 8·eps_num >= the tolerance of the part's 3D-intersection point check (agree + 4·bound).
     /// For the branch eps_num is that bound, so this is 4·eps_num >= agree; for the header eps_num is the larger of
@@ -648,7 +675,7 @@ impl Builder {
                 .map(|s| s.to_string())
                 .chain([
                     format!("Marking side: drawn as seen from the {} of the formed part. Provisional convention of this build (Spec 02 §0.3 requires a declared side and does not choose one); not reviewed by a fabrication engineer.", pattern.marking_side.code().to_uppercase()),
-                    "eps_num and eps_rep are estimates, not bounds: independent validation measured up to 6 times eps_num and 1.2 times the earlier eps_rep near tangency.".to_string(),
+                    eps_assumption(pattern),
                 ])
                 .chain(pattern.quantity("polyline_segments").map(|n| format!("Polyline density: {n:.0} segments per curve, uniform in the angle; doubled from the base number until the measured chord error is within the chord error limit.")))
                 .chain(pattern.quantity("chord_error_limit").map(|m| format!("Chord error limit: {m} mm, an implementation limit pending engineering review (docs/backend/TOLERANCE_POLICY.md); not an engineering tolerance.")))
@@ -846,6 +873,11 @@ pub fn evaluate_gates(
         Some(true) => GateResult::Pass,
         Some(false) => GateResult::Fail,
     };
+    let g08_detail: String = if has_polyline {
+        g08_text_with_polylines()
+    } else {
+        EPS_NUM_BOUND.to_string()
+    };
     let mut g = vec![
         gate(
             "G01",
@@ -873,11 +905,7 @@ pub fn evaluate_gates(
             "numeric_bounds",
             true,
             GateResult::Inconclusive,
-            if has_polyline {
-                "eps_num and eps_rep are ESTIMATES, not bounds, and not interval-certified. Independent validation measured true errors up to 6 times eps_num near tangency; eps_rep is the largest deviation measured at 15 interior points per polyline segment, so a finer sampling can exceed it slightly."
-            } else {
-                "eps_num is an ESTIMATE, not a bound, and not interval-certified."
-            },
+            &g08_detail,
         ),
         gate(
             "G10",
@@ -1735,7 +1763,15 @@ mod tests {
                 !o.patterns.is_empty() && o.dxf.len() == o.patterns.len(),
                 "{r:?}"
             );
-            assert!(o.checks.iter().all(|c| c.verdict == "PASS"), "{r:?}");
+            // the eccentric reducer's circumference checks are INCONCLUSIVE by design (its eps_rep is not certified)
+            let reducer = o.patterns.iter().any(|p| p.family == "eccentric_reducer");
+            assert!(
+                o.checks.iter().all(|c| c.verdict == "PASS"
+                    || (reducer
+                        && c.verdict == "INCONCLUSIVE"
+                        && c.name.ends_with("_equals_circumference"))),
+                "{r:?}"
+            );
             assert_eq!(
                 o.state,
                 ReleaseState::ReviewRequired,
@@ -1752,7 +1788,14 @@ mod tests {
                     .iter()
                     .any(|g| g.id == id && g.result == GateResult::Pass)
             };
-            assert!(pass("G10") && pass("G11") && pass("G15"), "{r:?}");
+            // G10 is INCONCLUSIVE for a reducer (its circumference checks, see above), PASS otherwise
+            let g10 = o.gates.iter().find(|g| g.id == "G10").map(|g| g.result);
+            let g10_want = if reducer {
+                GateResult::Inconclusive
+            } else {
+                GateResult::Pass
+            };
+            assert!(pass("G11") && pass("G15") && g10 == Some(g10_want), "{r:?}");
         }
     }
 
@@ -2777,9 +2820,45 @@ mod tests {
         assert!(!shell.contains_key("net_area") && !shell.contains_key("opening_area"));
     }
 
-    /// B2-007: eps_rep is described as a measured estimate at the 15 interior points it is measured at, not as a bound.
+    /// B2-007 (changed by task 1.2, and by its review): the eccentric reducer's eps_rep is NOT certified, because its
+    /// vertex term carries the quadrature estimate; the G08 text and the assumption of the pattern say so.
+    /// Review after task 1.2 (fail closed): a certified eps_rep coarser than the product limit `MAX_CHORD_ERROR_MM`
+    /// (0.01 mm) must not let the checks whose tolerance uses it PASS. Branch stub R 150, r 148.5 (r/R = 0.99),
+    /// beta 75 deg: certified eps_rep 0.010032 mm. Its saddle checks (handedness and declared delta side, tolerance
+    /// 2·eps_rep) were PASS before the rule and are INCONCLUSIVE now. The tight near-tangent regression 011 (0.00964 mm)
+    /// stays PASS.
     #[test]
-    fn b2_007_eps_rep_is_described_as_a_measured_estimate() {
+    fn task_1_2_review_a_coarse_certified_bound_is_inconclusive_never_pass() {
+        let v = json!({
+            "family": "branch_stub",
+            "header_radius": 150.0,
+            "branch_radius": 148.5,
+            "branch_dev_radius": 148.5,
+            "beta_deg": 75.0,
+            "delta": 0.0,
+            "s_end": 400.0,
+            "surface_reference": "outside"
+        });
+        let req = Request::parse_strict(&v).unwrap();
+        let o = run(&req, "t");
+        assert!(
+            o.patterns
+                .iter()
+                .any(|p| p.eps_rep > uem::develop::MAX_CHORD_ERROR_MM),
+            "the case must carry a certified bound above the limit"
+        );
+        for name in [
+            "saddle_handedness_matches_declared_side",
+            "saddle_on_the_declared_delta_side",
+        ] {
+            let c = o.checks.iter().find(|c| c.name == name).unwrap();
+            assert_eq!(c.verdict, "INCONCLUSIVE", "{name}: {}", c.difference);
+        }
+        assert!(o.checks.iter().all(|c| c.verdict != "FAIL"));
+    }
+
+    #[test]
+    fn b2_007_eps_rep_of_the_reducer_is_described_as_not_certified() {
         let o = run(
             &Request::EccentricReducer {
                 r1: 100.0,
@@ -2797,17 +2876,28 @@ mod tests {
             .detail
             .clone();
         assert!(
-            g08.contains("ESTIMATES, not bounds")
-                && g08.contains("measured at 15 interior points per polyline segment")
-                && g08.contains("can exceed it slightly")
-                && !g08.contains("three interior"),
+            g08.contains("eps_num is an a-priori rounding bound")
+                && g08.contains("For an eccentric reducer its quadrature term is an ESTIMATE")
+                && g08.contains("For an eccentric reducer eps_rep is NOT certified")
+                && !g08.contains("three interior")
+                && !g08.contains("up to 6 times"),
             "{g08}"
         );
         let p = &o.patterns[0];
+        assert!(p.eps_rep > 0.0);
         assert!(
             p.assumptions
                 .iter()
-                .any(|a| a.contains("estimates, not bounds"))
+                .any(|a| a.contains("eps_rep is NOT certified for this pattern"))
+        );
+        // the circumference checks of the reducer are INCONCLUSIVE, never PASS (rep_check)
+        assert!(
+            o.checks
+                .iter()
+                .filter(|c| c.name.ends_with("_equals_circumference"))
+                .all(|c| c.verdict == "INCONCLUSIVE"),
+            "{:?}",
+            o.checks
         );
     }
 
@@ -2862,15 +2952,19 @@ mod tests {
                 .detail
                 .clone()
         };
+        // task 1.2 (review): eps_num is an a-priori bound (an estimate only for the reducer); eps_rep of the branch
+        // is a certified bound; a cone without polylines states neither
         assert!(
-            g08(&o).contains("ESTIMATE, not a bound")
-                && g08(&poly).contains("ESTIMATES, not bounds")
+            g08(&o).contains("eps_num is an a-priori rounding bound")
+                && !g08(&o).contains("eps_rep")
+                && g08(&poly).contains("eps_num is an a-priori rounding bound")
+                && g08(&poly).contains("eps_rep is a certified upper bound")
         );
         assert!(
             poly.patterns[0]
                 .assumptions
                 .iter()
-                .any(|a| a.contains("estimates, not bounds"))
+                .any(|a| a.contains("eps_rep is a certified upper bound of the chord error"))
         );
     }
 

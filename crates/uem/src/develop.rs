@@ -7,6 +7,7 @@
 //! origin, kerf). The statements carry the numbers of the part, so that they
 //! stay unambiguous for a square plate too (review RB-003).
 
+use crate::curve_bound::{ConeCurve, CurveBound, OpeningCurve, SaddleCurve, chord_error_bound};
 use crate::{
     Compensated, Curve, DevClass, Geom, Layer, MARKING_SIDE, P2, Pattern, TAU, UemError,
     finite_pos, gauss_adaptive,
@@ -62,8 +63,41 @@ pub const MAX_SEGMENTS: usize = 46_080;
 const SUB: usize = 4;
 pub const VERIFY_SUB: usize = 16;
 
-pub const EPS_REP_BASIS: &str = "Largest distance from the exact curve to the polyline, measured at 15 interior points of every segment after the number of segments was chosen (uniform in the curve angle, doubled from the base number until the measured distance is at most 0.01 mm, an implementation limit pending engineering review). An ESTIMATE, not a bound: the maximum between the sampled points can exceed it slightly (B2-007). Measured, not interval-certified.";
+pub const EPS_REP_BASIS: &str = "Certified upper bound of the distance from the exact curve to the polyline (work plan task 1.2, TOLERANCE_POLICY section 8): per segment and per sub-interval of the 16-point sampling, the larger of the two bracketing sampled distances to the chord segment plus M·h²/8, where M bounds |c''| over the sub-interval by interval arithmetic on the closed-form derivatives. The bound is for the drawn polyline: the vertex displacement bound eps_num is added. The polyline density was chosen so that the measured chord error is at most 0.01 mm (an implementation limit pending engineering review, not an engineering tolerance).";
+pub const EPS_REP_UNCERTIFIED: &str = "NOT CERTIFIED: no certified bound could be proved for this polyline; the value is the largest deviation measured at 15 interior points per segment (an estimate, not a bound). Checks that use it return INCONCLUSIVE where they would pass; a FAIL stays FAIL.";
+const EPS_REP_VERTEX_ESTIMATE: &str = "NOT CERTIFIED: the chord part of this value is a certified upper bound, but the vertex displacement added to it includes an estimated term (the quadrature error of the developed angle, EPS_NUM_BASIS_CONE, an estimate and not a bound). The value is therefore conditional on that estimate. Checks that use it are INCONCLUSIVE where they would pass; a FAIL stays FAIL.";
 const EPS_REP_EXACT: &str = "Lines and circular arcs are exact entities: no representation error.";
+
+/// The reported representation error of a polyline: the certified bound where one can be proved, otherwise the
+/// measured estimate with `certified = false`. The drawn vertices are displaced from the exact curve by at most
+/// `vertex_eps` (the vertex error bound, eps_num), which moves every chord by as much, so it is added to the
+/// chord bound (the bound is for the drawn polyline). The result is never below the measured value.
+///
+/// `vertex_rigorous` says whether `vertex_eps` is a proved bound. Where it is not (the eccentric reducer: its
+/// quadrature term is an estimate, EPS_NUM_BASIS_CONE) the value is still the best available bound, but it is NOT
+/// certified: `certified` is false and the checks that use it are INCONCLUSIVE when they would pass (work plan
+/// task 1.2 review, TOLERANCE_POLICY section 8.1).
+fn certified_rep(
+    curve: &dyn CurveBound,
+    pts: &[P2],
+    params: &[f64],
+    n: usize,
+    measured: f64,
+    vertex_eps: f64,
+    vertex_rigorous: bool,
+) -> (f64, bool, &'static str) {
+    match chord_error_bound(curve, pts, params, n, VERIFY_SUB) {
+        Some(bound) if bound.is_finite() && vertex_eps.is_finite() => {
+            let value = bound.max(measured) + vertex_eps;
+            if vertex_rigorous {
+                (value, true, EPS_REP_BASIS)
+            } else {
+                (value, false, EPS_REP_VERTEX_ESTIMATE)
+            }
+        }
+        _ => (measured, false, EPS_REP_UNCERTIFIED),
+    }
+}
 
 fn seg_distance(q: P2, a: P2, b: P2) -> f64 {
     let (dx, dy) = (b.x - a.x, b.y - a.y);
@@ -216,6 +250,7 @@ pub fn cylinder_shell(r_dev: f64, length: f64) -> Result<Pattern, UemError> {
         eps_num_basis: EPS_NUM_BASIS_EXACT,
         eps_rep: 0.0,
         eps_rep_basis: EPS_REP_EXACT,
+        eps_rep_certified: true,
         quantities: vec![
             ("developed_width", w),
             ("length", length),
@@ -341,6 +376,7 @@ pub fn cone_frustum(r1: f64, r2: f64, h: f64) -> Result<Pattern, UemError> {
         eps_num_basis: EPS_NUM_BASIS_EXACT,
         eps_rep: 0.0,
         eps_rep_basis: EPS_REP_EXACT,
+        eps_rep_certified: true,
         quantities: vec![
             ("slant_length", s),
             ("sin_half_angle", sin_a),
@@ -492,12 +528,15 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
             .map(|&(_, rho, psi)| P2::polar(rho, psi))
             .collect()
     };
-    let (n, eps_rep) = choose_density(
+    let (n, measured) = choose_density(
         CONE_SEGMENTS,
         "large end of the oblique cone",
         &["r1", "r2", "h", "e"],
         &sample,
     )?;
+    let steps_v = VERIFY_SUB * n;
+    let dth_v = TAU / steps_v as f64;
+    let params_v: Vec<f64> = (0..=steps_v).map(|i| i as f64 * dth_v).collect();
     let (s, qerr) = oblique_cone_table(&g, 2 * n);
     let psi_total = s[2 * n].2;
     let k = r2 / r1;
@@ -545,6 +584,16 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
     // times that: |dP/dtheta| <= (a·r1 + r1·(H + r1 + a))/rho_min
     let param = 4.0 * U * TAU * (a * r1 + r1 * (hh + r1 + a)) / rho_min;
     let eps_num = rho_max * (qerr + psi_round + 8.0 * U) + param;
+    // the vertex displacement is eps_num (an estimate for this family: its quadrature term is not proved)
+    let (eps_rep, eps_rep_certified, eps_rep_basis) = certified_rep(
+        &ConeCurve { g: &g },
+        &sample(n, VERIFY_SUB),
+        &params_v,
+        n,
+        measured,
+        eps_num,
+        false,
+    );
     let outline = vec![
         Curve {
             name: "large_end",
@@ -589,7 +638,8 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
         eps_num,
         eps_num_basis: EPS_NUM_BASIS_CONE,
         eps_rep,
-        eps_rep_basis: EPS_REP_BASIS,
+        eps_rep_basis,
+        eps_rep_certified,
         quantities: vec![
             ("developed_angle", psi_total),
             // Q2(b): the flat-pattern seam gap (distance between the two seam edges at the small end, the chord
@@ -872,7 +922,7 @@ pub fn branch_stub_min(
             })
             .collect()
     };
-    let (n, eps_rep) = choose_density(
+    let (n, measured) = choose_density(
         min_segments.max(SEGMENTS),
         "saddle cut of the branch",
         &[
@@ -884,6 +934,19 @@ pub fn branch_stub_min(
         ],
         &sample,
     )?;
+    // certified bound of the saddle polyline (the density above is fixed by the measured value, so the cut
+    // geometry is unchanged); the sample grid is the one of the verification (VERIFY_SUB points per segment)
+    let dphi_v = TAU / (VERIFY_SUB * n) as f64;
+    let params_v: Vec<f64> = (0..=VERIFY_SUB * n).map(|i| i as f64 * dphi_v).collect();
+    let (eps_rep, eps_rep_certified, eps_rep_basis) = certified_rep(
+        &SaddleCurve { b: &b, r_dev },
+        &sample(n, VERIFY_SUB),
+        &params_v,
+        n,
+        measured,
+        saddle_error_bound(&b, r_dev),
+        true,
+    );
     let all = sample(n, SUB);
     let w = TAU * r_dev;
     let mut cut: Vec<P2> = (0..=n).map(|i| all[SUB * i]).collect();
@@ -937,7 +1000,8 @@ pub fn branch_stub_min(
         eps_num: saddle_error_bound(&b, r_dev),
         eps_num_basis: EPS_NUM_BASIS_BRANCH,
         eps_rep,
-        eps_rep_basis: EPS_REP_BASIS,
+        eps_rep_basis,
+        eps_rep_certified,
         quantities: vec![
             ("developed_width", w),
             ("s_min", s_min),
@@ -1088,7 +1152,7 @@ pub fn header_with_opening_min(
         Ok((xmin, xmax))
     };
     inside(&sample(SEGMENTS, 1))?;
-    let (n, eps_rep) = choose_density(
+    let (n, measured) = choose_density(
         min_segments.max(SEGMENTS),
         "branch opening of the header",
         &[
@@ -1103,12 +1167,34 @@ pub fn header_with_opening_min(
         ],
         &sample,
     )?;
+    let dphi_v = TAU / (VERIFY_SUB * n) as f64;
+    let params_v: Vec<f64> = (0..=VERIFY_SUB * n).map(|i| i as f64 * dphi_v).collect();
+    // the drawn opening is displaced by at most the vertex bound of the plate (its own rounding) and of the
+    // opening (opening_error_bound); the same maximum is reported as eps_num below
+    let vertex_eps = (8.0 * U * (TAU * r_dev_header).max(length)).max(opening_error_bound(
+        b,
+        r_dev_header,
+        station,
+    ));
+    let (eps_rep, eps_rep_certified, eps_rep_basis) = certified_rep(
+        &OpeningCurve { b, r_dev_header },
+        &sample(n, VERIFY_SUB),
+        &params_v,
+        n,
+        measured,
+        vertex_eps,
+        true,
+    );
     let mut pts = sample(n, 1);
     pts[n] = pts[0]; // close exactly
     let (xmin, xmax) = inside(&pts)?;
+    // shoelace on coordinates relative to the first vertex: the value is unchanged in exact arithmetic (the
+    // loop is closed), but absolute coordinates (x ~ the station, y ~ the circumference) cancel to a fraction of
+    // the opening's own area (TOLERANCE_POLICY section 8, task 1.2 item B)
+    let (x0, y0) = (pts[0].x, pts[0].y);
     let area2: f64 = pts
         .windows(2)
-        .map(|w| w[0].x * w[1].y - w[1].x * w[0].y)
+        .map(|w| (w[0].x - x0) * (w[1].y - y0) - (w[1].x - x0) * (w[0].y - y0))
         .sum();
     if area2 > 0.0 {
         pts.reverse(); // inner profiles are clockwise
@@ -1121,7 +1207,8 @@ pub fn header_with_opening_min(
         geom: Geom::Polyline { pts, eps_rep },
     }];
     shell.eps_rep = eps_rep;
-    shell.eps_rep_basis = EPS_REP_BASIS;
+    shell.eps_rep_basis = eps_rep_basis;
+    shell.eps_rep_certified = eps_rep_certified;
     shell.eps_num = shell
         .eps_num
         .max(opening_error_bound(b, r_dev_header, station));
@@ -1458,10 +1545,15 @@ mod tests {
 
     /// B2-007: the basis of eps_rep names the points it is measured at and says it is an estimate, not a bound.
     #[test]
-    fn b2_007_eps_rep_basis_says_estimate_at_the_measured_points() {
+    fn b2_007_eps_rep_basis_says_certified_bound_or_uncertified_estimate() {
+        // task 1.2 (changed expectation): the certified bound replaces the measured estimate. Where no bound can be
+        // proved the basis says so, and the value is the measured estimate that the checks treat as INCONCLUSIVE.
         assert_eq!(VERIFY_SUB - 1, 15);
-        assert!(EPS_REP_BASIS.contains("measured at 15 interior points"));
-        assert!(EPS_REP_BASIS.contains("ESTIMATE, not a bound"));
+        assert!(EPS_REP_BASIS.contains("Certified upper bound"));
+        assert!(EPS_REP_BASIS.contains("interval arithmetic"));
+        assert!(EPS_REP_UNCERTIFIED.contains("NOT CERTIFIED"));
+        assert!(EPS_REP_UNCERTIFIED.contains("an estimate, not a bound"));
+        assert!(EPS_REP_UNCERTIFIED.contains("INCONCLUSIVE"));
         assert!(!EPS_REP_BASIS.contains("three") && !EPS_REP_BASIS.contains("guarantee"));
     }
 
@@ -1492,14 +1584,20 @@ mod tests {
                     truth = truth.max(((q.x - a.x) * dy - (q.y - a.y) * dx).abs() / dx.hypot(dy));
                 }
             }
+            // task 1.2: eps_rep is a certified bound, so it must cover the dense truth and stay close to it
+            assert!(
+                p.eps_rep_certified,
+                "the saddle of this joint must be certified"
+            );
             let ratio = truth / p.eps_rep;
             assert!(
-                ratio >= 1.0 - 1e-9,
-                "an estimate from fewer samples cannot exceed the dense value"
+                ratio <= 1.0 + 1e-9,
+                "the certified bound {} is below the dense value {truth}",
+                p.eps_rep
             );
             assert!(
-                ratio < 1.08,
-                "estimate {} against dense {truth}: ratio {ratio} (the midpoint-only estimate was off by {mid_only_ratio})",
+                ratio > 1.0 / 1.08,
+                "bound {} against dense {truth}: ratio {ratio} (the midpoint-only estimate was off by {mid_only_ratio})",
                 p.eps_rep
             );
         }

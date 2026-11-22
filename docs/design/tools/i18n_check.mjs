@@ -13,7 +13,7 @@ const src = fs.readFileSync(path.join(here, '..', '..', '..', 'web', 'i18n.js'),
 const { CATALOGUE, PROSE_TABLES } = await import('data:text/javascript;base64,' + Buffer.from(src).toString('base64'));
 
 // the English the Japanese text may keep: the product, its module, file formats, the hash name, the unit, and the DXF file-name prefix NOT-RELEASED
-const ALLOW = new Set(['NEXUS', 'FABRIC', 'AMOEBA', 'DXF', 'PDF', 'PNG', 'JPEG', 'TIFF', 'STEP', 'SHA', 'rad']);
+const ALLOW = new Set(['NEXUS', 'FABRIC', 'AMOEBA', 'DXF', 'PDF', 'PNG', 'JPEG', 'TIFF', 'STEP', 'SHA', 'rad', 'eps_num', 'eps_rep']);
 const bare = (text) => [...String(text).replace(/`[^`]*`/g, ' ').replace(/NOT-RELEASED/g, ' ').replace(/\{[a-z_0-9]+\}/g, ' ').matchAll(/[A-Za-z][A-Za-z0-9_]{2,}/g)]
   .map((m) => m[0]).filter((w) => !ALLOW.has(w));
 const placeholders = (v) => [...new Set(String(Array.isArray(v) ? v.join(' ') : v).match(/\{\w+\}/g) || [])].sort().join(' ');

@@ -21,21 +21,21 @@ seen to pass on the stated commit; "not run" is never written as passed.
 | 0.1 | Working on the live server made safe | done | `36072a1` | facts under the task; `nf-sandbox` + `nf-verify` |
 | 0.2 | Readiness and registers tell the truth | done | this commit | READINESS geometry row, RB-011, B2-001…007 rows, fabrication questions (10), hand-off section 6 |
 | 0.3 | The two near-tangent FAILs (D4) | done (facts) | this commit | remedy folded into 1.2 (decision under the task); regression cases land with 1.2 |
-| 1.1 | Shallow and near-180° branch angles | done (working tree) | | engine 0.4.3; code `branch_angle_not_verifiable`; decision and derivation under the task, TOLERANCE_POLICY section 7 |
-| 1.2 | A true error bound everywhere | not started | | |
+| 1.1 | Shallow and near-180° branch angles | done | `1ec0f97` | engine 0.4.3; code `branch_angle_not_verifiable`; decision and derivation under the task, TOLERANCE_POLICY section 7 |
+| 1.2 | A true error bound everywhere | done | 2100a22 (+ uncommitted expectation fix-up) | engine 0.4.4; certified eps_rep (TOLERANCE_POLICY section 8); near-tangent FAILs resolved; changed expectations in section 8.8 and the fix-up table after it; fix-up: PRODUCT_CHECK_INCONCLUSIVE split, ui/e2e expectations, eps_num/eps_rep allow-list |
 | 1.3 | Every convention stated in the DXF and the result | not started | | |
 | 1.4 | Surface attribute for every family | not started | | |
 | 1.5 | Checks that do not depend on the construction | not started | | |
 | 1.6 | Sampling density | not started | | |
-| 1.7 | Set-on joint, remaining case — design note | not started | | design only |
+| 1.7 | Set-on joint, remaining case — design note | done (design) | `2bf369a` | design only |
 | 1.8 | Validation as a permanent gate | not started | | |
 | 1.9 | Third independent review | not started | | after 1.1–1.6 |
 | 2.1 | The five failing audit checks | done | this commit | security_r6 40/40; V-45 + V-44 here, V-47 from `95927a7` (RC-08); installer test `tests/install_check.sh` 67/67 (strict sandbox only); Caddy repository key still fetched without a fingerprint check (V-44 open item) |
 | 2.2 | Architecture review findings RA-001 … RA-017 | not started | | |
 | 2.3 | Stress findings | not on this host | | needs a non-live machine |
 | 2.4 | Desktop security wording | done | this commit | `/api/health` says `mode` (desktop/server); first-run screen in desktop mode (EN + JA), `packaging/INSTALL.md`, `packaging/README.txt`; "secure backups" written as "protected backups" |
-| 2.5 | Database encryption — design | not started | | design only |
-| 2.6 | Sign-in hardening — design note | not started | | design only |
+| 2.5 | Database encryption — design | done (design) | `2bf369a` | design only |
+| 2.6 | Sign-in hardening — design note | done (design) | `2bf369a` | design only |
 | 3.1 | PDF → DXF inside the product | done | `a12dec4` | reviewed (2 rounds + installer delta). Open: converter not in the downloadable packages; Windows not run; prebuilt `NF_BINARY` install does not install/verify `nf-pdf2dxf` (prints a note) — add `NF_PDF2DXF_BINARY` + `NF_PDF2DXF_SHA256` (task 4.2); rollback-restores-converter test |
 | 3.2 | Forms and refusals | not started | | |
 | 3.3 | Words and language | not started | | |
@@ -45,7 +45,7 @@ seen to pass on the stated commit; "not run" is never written as passed.
 | 4.2 | Release verification | not started | | Windows part needs a real Windows PC |
 | 4.3 | Continuous integration | not started | | |
 | 4.4 | Release-candidate report | not started | | |
-| 4.5 | Legal drafts | not started | | |
+| 4.5 | Legal drafts | done | `011b061` | |
 | 4.6 | The live server | not started | | only when the owner says so |
 | RC | External review C (RC-01 … RC-33): verify every finding, fix what is real | in progress | | register: `docs/backend/REVIEW_C_EXTERNAL.md`; fixes tracked to the tasks named there; RC-01/RC-08/RC-22 fixed |
 | 5.x | Later work | not started | | the owner asked on 21 Nov 2026 for the complete software: taken up after phase 4 |
