@@ -43,6 +43,9 @@ export class Ov {
     const a = clamp((0.6 + 0.4 * seg(t, t0, t0 + 4 / 30)) * out);
     lines.forEach((ln, i) => {
       const ui = spring(seg(t, t0 + i * 0.06, t0 + i * 0.06 + 0.45));
+      if (o.bg) { // a soft backdrop keeps a caption legible where it crosses the steel
+        const size = o.size || BS, w = this.tw(ln, size, o.weight || 500, o.mono), al = o.align || 'left', X = al === 'right' ? x - w : al === 'center' ? x - w / 2 : x;
+        const c = this.c; c.save(); c.globalAlpha *= (o.alpha ?? 1) * a; c.fillStyle = o.bg; this.rr(X - 12, y + i * lh + 18 * (1 - ui) - size * 0.98, w + 24, size * 1.38, 10); c.fill(); c.restore(); }
       this.txt(ln, x, y + i * lh + 18 * (1 - ui), { ...o, alpha: (o.alpha ?? 1) * a });
     });
     return u;
