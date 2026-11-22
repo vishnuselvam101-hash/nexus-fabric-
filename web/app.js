@@ -16,8 +16,13 @@ const fmt = (n) => (typeof n === 'number' ? (n === 0 ? '0' : Math.abs(n) >= 1e-3
 // instead of being interpreted: the value computed must be exactly the value typed. (A browser number field silently
 // drops such characters: "1,5" became 15. These fields are therefore text fields read by this parser.)
 const DIM = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
-const parseDim = (s) => { const v = String(s ?? '').trim(); return DIM.test(v) ? Number(v) : NaN; };
+// Full-width (全角) digits, point, sign and e are read as their ASCII forms, as a Japanese IME produces them. The comma
+// stays refused: a full-width comma is a thousands separator in Japanese, as ambiguous as "1,5" (BH-001).
+const toAscii = (s) => String(s ?? '').replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/[．－−＋ｅＥ，]/g, (c) => ({ '．': '.', '－': '-', '−': '-', '＋': '+', 'ｅ': 'e', 'Ｅ': 'E', '，': ',' }[c]));
+const parseDim = (s) => { const v = toAscii(s).trim(); return DIM.test(v) ? Number(v) : NaN; };
 const dimAttrs = 'type="text" inputmode="decimal" autocomplete="off" autocapitalize="off" spellcheck="false" data-dim';
+// On leaving a dimension field its full-width characters are written as ASCII: the value shown is the value computed.
+document.addEventListener('focusout', (e) => { const el = e.target; if (el instanceof HTMLInputElement && el.hasAttribute('data-dim')) { const a = toAscii(el.value); if (a !== el.value) el.value = a; } });
 // ArrowUp / ArrowDown step a dimension field by one unit, as a number field would, keeping its decimals.
 document.addEventListener('keydown', (e) => {
   const el = e.target; if (!(el instanceof HTMLInputElement) || !el.hasAttribute('data-dim') || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
@@ -69,6 +74,7 @@ const ICONS = {
   check: '<path d="m3 8.5 3.2 3.2L13 4.5"/>',
   warn: '<path d="M8 2 14.5 13.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/>',
   info: '<circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 4.8v.1"/>',
+  menu: '<path d="M2.5 4h11M2.5 8h11M2.5 12h11"/>',
   rail: '<rect x="2" y="2.5" width="12" height="11" rx="1"/><path d="M6 2.5v11"/>',
   pointer: '<path d="M3.5 2.5 12 7 8.4 8.2 7 12z"/>',
   chevron: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',
@@ -116,6 +122,15 @@ const STATE_KIND = { APPROVED: 'ok', REJECTED: 'bad', SUPERSEDED: 'na', NO_RESUL
 const stateText = (s) => (['APPROVED', 'REJECTED', 'SUPERSEDED', 'NO_RESULT', 'REVIEW_REQUIRED', 'REFUSED'].includes(s) ? t(`state.${s}`) : String(s).replaceAll('_', ' '));
 const stateTag = (s) => { const k = STATE_KIND[s] || 'warn'; return tag(k, stateText(s), TAGS[k]); };
 const RESULT_KIND = { PASS: 'ok', FAIL: 'bad', INCONCLUSIVE: 'warn' };
+// The status of eps_rep. The engine states it only in the pattern's assumptions (job.rs eps_assumption): a certified
+// bound, "NOT certified" (with the reducer's ESTIMATE sentence where it applies), or nothing when eps_rep is 0.
+const epsRepKey = (p) => {
+  if (!(p.eps_rep > 0)) return 'q.epsrep.none';
+  const a = (p.assumptions || []).join(' ');
+  if (a.includes('eps_rep is NOT certified for this pattern')) return a.includes('its quadrature term is an ESTIMATE') ? 'q.epsrep.est' : 'q.epsrep.uncert';
+  if (a.includes('eps_rep is a certified upper bound of the chord error')) return 'q.epsrep.cert';
+  return 'q.epsrep.unstated';
+};
 const resultText = (r) => (['PASS', 'FAIL', 'INCONCLUSIVE', 'NOT_IMPLEMENTED', 'NOT_RUN'].includes(r) ? t(`result.${r}`) : String(r).replaceAll('_', ' '));
 const resultTag = (r) => { const k = RESULT_KIND[r] || 'na'; return tag(k, resultText(r), TAGS[k]); };
 const oblText = (s) => (['open', 'discharged', 'discharged_by_decision', 'waived'].includes(s) ? t(`obl.${s}`) : String(s).replaceAll('_', ' '));
@@ -217,6 +232,7 @@ function validateRequest(fam, v) {
   for (const [k] of F[fam].f) {
     if (!Number.isFinite(v[k])) { errors.push([k, t('v.number', { label: lab(k) })]); continue; }
     if (POSITIVE.includes(k) && v[k] <= 0) errors.push([k, t('v.positive', { label: lab(k) })]);
+    else if (POSITIVE.includes(k) && v[k] < 1e-6) errors.push([k, t('v.below', { label: lab(k), v: fmt(v[k]) })]);
     else if (k !== 'beta_deg' && Math.abs(v[k]) > 20000) warnings.push([k, t('v.big', { label: lab(k), v: fmt(v[k]) })]);
     else if (POSITIVE.includes(k) && v[k] < 1) warnings.push([k, t('v.small', { label: lab(k), v: fmt(v[k]) })]);
   }
@@ -384,7 +400,9 @@ let calcKeep = null; // what the new-calculation form shows after an unsent requ
 function readCalcForm(form) {
   const fam = form.fam.value, req = { family: fam };
   for (const [n] of F[fam].f) { const el = form.elements.namedItem(n); req[n] = el ? parseDim(el.value) : NaN; }
-  if (F[fam].sref) req.surface_reference = form.surface_reference.value;
+  // the family's own surface select is absent for a moment when the family changes while a field still has focus (the
+  // focusout handler redraws the sketch first): read it only where it exists, never throw
+  if (F[fam].sref) { const sr = form.elements.namedItem('surface_reference'); if (sr) req.surface_reference = sr.value; }
   if (F[fam].ext) for (const n of ['header_surface_reference', 'branch_surface_reference', 'joint']) { const el = form.elements.namedItem(n); if (el && el.value) req[n] = el.value; }
   return req;
 }
@@ -539,13 +557,18 @@ const NAV_KEYS = Object.fromEntries(NAV.flatMap(([, items]) => items.map((i) => 
 function railMode() { if (window.innerWidth < 900) return 'closed'; return prefs.get('nf-rail') || (window.innerWidth < 1440 ? 'closed' : 'open'); }
 function applyRail() { const a = $('.app'); if (a) { a.dataset.rail = railMode(); $('#railtoggle').setAttribute('aria-expanded', a.dataset.rail === 'open'); } }
 function toggleRail() { prefs.set('nf-rail', railMode() === 'open' ? 'closed' : 'open'); applyRail(); }
+// Phone (600 px and narrower): the navigation is a menu that the menu button opens over the page. Focus moves into it;
+// Escape or a chosen link closes it and Escape returns focus to the button.
+const navOpen = () => { const a = $('.app'); return !!a && a.dataset.nav === 'open'; };
+function setNav(open) { const a = $('.app'); if (!a) return; a.dataset.nav = open ? 'open' : 'closed'; const b = $('#navtoggle'); if (b) b.setAttribute('aria-expanded', String(open)); if (open) { const first = $('#rail a'); if (first) first.focus(); } }
 
 function mountShell(force) {
   if ($('.app') && !force) return;
   $('#app').innerHTML = `<a class="skip" href="#view">${esc(t('shell.skip'))}</a>
-  <div class="app" data-rail="open">
+  <div class="app" data-rail="open" data-nav="closed">
     <header class="topbar">
       <button class="ib" id="railtoggle" aria-label="${esc(t('shell.rail.toggle'))}" aria-controls="rail" data-tip="${esc(t('shell.rail.tip'))}" data-tip-pos="start">${ic('rail')}</button>
+      <button class="ib navtoggle" id="navtoggle" aria-expanded="false" aria-controls="rail" aria-label="${esc(t('shell.menu'))}">${ic('menu')}</button>
       <a class="brand" href="#/dashboard" aria-label="${esc(t('shell.brand.aria'))}">${ic('mark', 18)}<span lang="en">NEXUS FABRIC</span></a>
       <nav class="crumbs" id="crumbs" aria-label="${esc(t('shell.crumbs'))}"></nav>
       <div class="devnote" role="note"><span>${esc(t('build.short'))}<span class="long">${esc(t('build.long'))}</span></span></div>
@@ -579,6 +602,9 @@ function mountShell(force) {
   <dialog id="help" aria-labelledby="help-h"></dialog>`;
   applyRail(); setOnline(online); paintStatus(); paintBell(); setBusy(0);
   $('#railtoggle').onclick = toggleRail;
+  $('#navtoggle').onclick = () => setNav(!navOpen());
+  $('#rail').addEventListener('keydown', (e) => { if (e.key === 'Escape' && navOpen()) { e.preventDefault(); setNav(false); $('#navtoggle').focus(); } });
+  $('#rail').addEventListener('click', (e) => { if (e.target.closest('a') && navOpen()) setNav(false); });
   $('#theme').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
   $('#logout').onclick = async () => { try { await api('/api/logout', { method: 'POST' }); } catch { /* signed out locally either way */ } me = null; renderLogin({ setup: false }); };
   $('#helpbtn').onclick = $('#sb-help').onclick = openHelp;
@@ -651,11 +677,12 @@ function renderLogin(st) {
     ${setup && desktopMode ? `<div class="note desk" id="desktop-notice"><div><b>${esc(t('login.desktop.h'))}</b><p>${esc(t('login.desktop.p1'))}</p><p>${esc(t('login.desktop.p2'))}</p><p>${esc(t('login.desktop.p3'))}</p></div></div>` : ''}
     ${message ? `<div class="note ${st.kind}" role="alert" id="loginmsg">${ic(st.kind === 'info' ? 'info' : 'warn')}<div>${message}</div></div>` : ''}
     <form id="f" novalidate><div class="field"><label for="lu">${esc(t('login.user'))}</label><input id="lu" name="u" autocomplete="username" autocapitalize="none" spellcheck="false" value="${esc(st.username)}"></div>
-    <div class="field"><label for="lp">${esc(t(setup ? 'login.pass.setup' : 'login.pass'))}</label><input id="lp" name="p" type="password" autocomplete="${setup ? 'new-password' : 'current-password'}"></div>
+    <div class="field"><label for="lp">${esc(t(setup ? 'login.pass.setup' : 'login.pass'))}</label><input id="lp" name="p" type="password" autocomplete="${setup ? 'new-password' : 'current-password'}"></div>${setup ? '<p class="hint" id="pwhint" aria-live="polite"></p>' : ''}
     ${setup && !desktopSetupToken ? `<div class="field"><label for="lt">${esc(t('login.token'))}</label><input id="lt" name="t" autocomplete="off" spellcheck="false"><p class="hint">${h('login.token.hint')}</p></div>` : ''}
     <button class="pri">${esc(t(setup ? 'login.go.setup' : 'login.go'))}</button></form>
     <p class="legal">${esc(t('login.legal'))}</p></div></main>`;
   const f = $('#f'); (st.username ? f.p : f.u).focus();
+  if (setup) { const hint = () => { const n = f.p.value.length; $('#pwhint').textContent = n >= 10 ? t('login.pw.ok') : t('login.pw.more', { n: 10 - n }); }; hint(); f.p.addEventListener('input', hint); }
   f.onsubmit = async (e) => {
     e.preventDefault(); clearFieldErrors(f);
     if (!f.u.value.trim()) { fieldError(f.u, t('login.e.user')); return; }
@@ -684,7 +711,7 @@ function renderLogin(st) {
 const stateCell = (c) => `${stateTag(effState(c))}${c.open_obligations && !c.superseded ? ` ${tag('warn', t('obl.open.n', { n: c.open_obligations }))}` : ''}`;
 const partsCell = (c) => (!c.facts ? '<span class="sub">—</span>' : c.facts.noResult ? `<span class="sub">${esc(t('parts.none'))}</span>` : c.facts.parts.map((p) => partName(p.part)).join(', '));
 const newCalcBtn = (pid) => (me.role === 'viewer' ? '' : `<a class="btn pri" href="#/math${pid ? `/${pid}` : ''}">${ic('plus')}${esc(t('new.calc'))}</a>`);
-const noJobs = () => empty('pattern', t('jobs.none.t'), esc(t('jobs.none.p')), newCalcBtn());
+const noJobs = () => empty('pattern', t('jobs.none.t'), esc(t('jobs.none.p')), (me.role === 'viewer' ? '' : `<a class="btn" href="#/projects">${esc(t('jobs.none.cta'))}</a>`) + newCalcBtn());
 // The conversions of a project (task 3.1). Each row says what it is: converted from PDF, not verified, not released.
 const convTable = (cs) => `<div class="tbl"><table id="tbl-conv"><thead><tr><th>#</th><th>${esc(t('conv.th.doc'))}</th><th class="num">${esc(t('conv.th.page'))}</th><th>${esc(t('conv.th.result'))}</th><th>${esc(t('th.created'))}</th></tr></thead><tbody>${cs.map((c) => `<tr><td><a href="#/conversion/${c.id}">${c.id}</a></td><td>#${c.source_document}</td><td class="num">${c.page}</td><td>${c.status === 'converted' ? tag('warn', t('conv.label')) : `${tag('bad', t(c.status === 'limit_exceeded' ? 'conv.st.limit' : 'conv.st.refused'))} ${mono(c.code || '')}`}</td><td class="nw">${byWhen(c.created_by, c.created_at)}</td></tr>`).join('')}</tbody></table></div>`;
 // A still drawing of the converted DXF (POLYLINE/VERTEX of the R12 file the converter writes): what the file holds,
@@ -1150,7 +1177,15 @@ const views = {
       const ifc = c.records.find((r) => r.kind === 'interface'), jp = ifc ? ifc.payload : null;
       const jointHtml = jp ? `<p class="txt">${eng(jp.joint)}</p><dl class="kv"><dt title="joint">${esc(plabel(fam, 'joint'))}</dt><dd class="txt">${jp.declared === 'set-on' ? named('joint', 'set_on') : esc(t('joint.none.v'))}</dd><dt title="header_surface_reference">${esc(plabel(fam, 'header_surface_reference'))}</dt><dd class="txt">${named('sref', jp.header_surface)}</dd><dt title="branch_surface_reference">${esc(plabel(fam, 'branch_surface_reference'))}</dt><dd class="txt">${named('sref', jp.branch_surface)}</dd></dl>` : '';
       const wm = t(state === 'SUPERSEDED' ? 'wm.sup' : state === 'REJECTED' ? 'wm.rej' : 'wm.review');
-      const banner = state === 'SUPERSEDED' ? h('ban.sup', { job: jobLink(c.superseded_by, true) }) : state === 'NO_RESULT' ? h('ban.none', { why: c.refusal ? refusalHtml(c.refusal) : c.outcome ? eng(c.outcome) : esc(t('ban.none.default')) }) : state === 'REJECTED' ? h('ban.rej') : h('ban.review');
+      // NO RESULT: the sentence ends once (the reason may already end in a full stop), and the engine's numeric threshold,
+      // which the toast shows only for a moment, is stated in the banner as well.
+      const noneWhy = c.refusal ? refusalHtml(c.refusal) : c.outcome ? eng(c.outcome) : esc(t('ban.none.default'));
+      const thr = c.outcome ? /s_end\s*>\s*([0-9][0-9.eE+-]*)/.exec(c.outcome) : null;
+      const noneBanner = `${h('ban.none', { why: noneWhy.replace(/[.。]\s*$/, '') })}${thr ? `<p class="ban-min">${h('ban.none.min', { n: esc(thr[1]) })}</p>` : ''}`;
+      // REVIEW REQUIRED: the gates that hold the result, named in the banner itself (the Gates tab gives each reason)
+      const held = c.gates.filter((g) => g.result !== 'PASS');
+      const reviewBanner = `${h('ban.review')}${held.length ? `<p class="ban-min">${h('ban.review.sum', { list: held.map((g) => esc(g.id)).join(', '), n: held.length, total: c.gates.length })}</p>` : ''}`;
+      const banner = state === 'SUPERSEDED' ? h('ban.sup', { job: jobLink(c.superseded_by, true) }) : state === 'NO_RESULT' ? noneBanner : state === 'REJECTED' ? h('ban.rej') : reviewBanner;
       // one primary action at most: the successor when superseded, else the correction, else the new calculation from this job
       const primary = c.superseded_by ? 'successor' : canCorrect ? 'corr' : canEdit ? 'clone' : '';
       const jobActions = [c.superseded_by ? `<a class="btn${primary === 'successor' ? ' pri' : ''}" id="successor" href="#/calc/${c.superseded_by}">${esc(t('job.successor', { id: c.superseded_by }))}</a>` : '', canCorrect ? `<button id="corr-open"${primary === 'corr' ? ' class="pri"' : ''}>${esc(t('job.correct'))}</button>` : '', canEdit && !blocked ? `<button id="replay" data-tip="${esc(t('job.replay.tip'))}" data-tip-pos="end">${esc(t('job.replay'))}</button>` : '', canEdit ? `<a class="btn${primary === 'clone' ? ' pri' : ''}" href="#/math/${c.project_id}/${c.id}" data-tip="${esc(t('job.clone.tip'))}" data-tip-pos="end">${esc(t('job.clone'))}</a>` : ''].join('');
@@ -1281,7 +1316,7 @@ const views = {
             <dt class="wide">${esc(t('q.mside'))}<small>${esc(t('q.mside.note'))}</small></dt><dd class="txt wide" id="mside">${p.marking_side ? h('q.mside.v', { side: esc(sideText(p.marking_side)) }) : esc(t('q.mside.none'))}</dd>
             <dt>${esc(t('q.extent'))}<small>${esc(t('q.extent.note'))}</small></dt><dd><span class="q"><span class="qv">${n3(e.w)} × ${n3(e.h)}</span> <span class="qu">mm</span></span></dd>${Object.entries(p.quantities).map(([k, v]) => { const [l, val] = quantity(k, v); return `<dt>${l}</dt><dd>${val}</dd>`; }).join('')}
             ${hole ? `<dt>${esc(t('q.opening'))}<small>${esc(t('q.opening.note'))}</small></dt><dd>${signed((hole.y0 + hole.y1) / 2 - (e.y0 + e.y1) / 2, 'mm')}</dd>` : ''}
-            <dt>${esc(t('q.epsnum'))}<small>${esc(t('q.eps.note'))}</small></dt><dd>${num(p.eps_num, 'mm')}</dd><dt>${esc(t('q.epsrep'))}<small>${esc(t('q.eps.note'))}</small></dt><dd>${num(p.eps_rep, 'mm')}</dd><dt>${esc(t('q.sha'))}</dt><dd class="txt">${short(p.dxf_sha256)}</dd></dl>
+            <dt>${esc(t('q.epsnum'))}<small>${esc(t('q.eps.note'))}</small></dt><dd>${num(p.eps_num, 'mm')}</dd><dt>${esc(t('q.epsrep'))}<small id="epsrep-note">${esc(t(epsRepKey(p)))}</small></dt><dd>${num(p.eps_rep, 'mm')}</dd><dt>${esc(t('q.sha'))}</dt><dd class="txt">${short(p.dxf_sha256)}</dd></dl>
             <p class="hint">${esc(t('q.hint'))}</p>`;
           $('#assume').innerHTML = `<ul>${p.assumptions.map((a) => `<li>${eng(a)}</li>`).join('')}</ul>`;
           const seams = all.filter(isSeam).map((k) => k.name);
@@ -1586,6 +1621,8 @@ document.addEventListener('keydown', (e) => {
 });
 document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('[data-tip]'); if (b) { b.dataset.tipOff = '1'; b.addEventListener('mouseleave', () => { delete b.dataset.tipOff; }, { once: true }); } }, true);
 document.addEventListener('click', (e) => { const p = $('#notes'); if (p && !p.hidden && !e.target.closest('#notes,#bell')) toggleNotes(false); });
+// The page declares its own icon. Without one the browser requests /favicon.ico on every page, which the server answers 404.
+{ const icon = document.createElement('link'); icon.rel = 'icon'; icon.type = 'image/svg+xml'; icon.href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23161b22'/%3E%3Cpath d='M3 4h10M3 8h10M3 12h6' stroke='%23e0a526' stroke-width='1.6' fill='none'/%3E%3C/svg%3E"; document.head.append(icon); }
 window.addEventListener('resize', applyRail);
 window.addEventListener('hashchange', () => route());
 

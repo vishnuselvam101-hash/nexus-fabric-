@@ -78,6 +78,12 @@ const controlProbe = () => {
   check('V-45: the page is served with a style policy of its own files only (no \'unsafe-inline\')', /(^|;)\s*style-src 'self'\s*(;|$)/.test(policy) && !/unsafe-inline/.test(policy), policy);
   await p.goto(B);
   await p.waitForSelector('#f');
+  // #14: the page declares an inline icon, so the browser does not ask the server for /favicon.ico (a 404 on every page)
+  check('favicon: the page declares an inline icon (no request for /favicon.ico)', !!(await p.$('link[rel~=icon][href^="data:"]')));
+  // #12: the first-run screen counts the characters still needed, then confirms the minimum (client only; the rule is unchanged)
+  await p.fill('input[name=p]', 'short'); const hint5 = await p.textContent('#pwhint');
+  await p.fill('input[name=p]', ADMIN.password); const hint15 = await p.textContent('#pwhint');
+  check('setup: the password hint counts the characters still needed, then confirms the minimum', /^5 more characters needed/.test(hint5) && /Meets the 10-character minimum/.test(hint15), { hint5, hint15 });
   check('setup: first-run screen asks for the administrator', /Create the administrator/.test(await p.textContent('h1')));
   check('setup: sign-in screen carries the development-build notice', /Not validated/.test(await p.textContent('.login-card')));
   check('setup: server mode shows no desktop-mode notice (task 2.4: the server says it is not in desktop mode)', (await p.$('#desktop-notice')) === null && (await (await ctx.request.get(`${B}/api/health`)).json()).mode === 'server');
@@ -90,6 +96,7 @@ const controlProbe = () => {
   check('shell: landmarks present', await p.evaluate(() => !!document.querySelector('header.topbar') && !!document.querySelector('nav[aria-label="Main"]') && !!document.querySelector('main#view') && !!document.querySelector('footer.statusbar') && !!document.querySelector('a.skip')));
   check('shell: build notice in top bar and status bar', /not validated/i.test(await p.textContent('.devnote')) && /NOT FOR MANUFACTURING/.test(await p.textContent('.statusbar')));
   check('dashboard: honest empty state before any job', /No engineering jobs yet/.test(await p.textContent('#view')));
+  check('dashboard: the empty state offers a one-step start, "Create a project", to an administrator', (await p.locator('#view a[href="#/projects"]', { hasText: 'Create a project' }).count()) === 1);
 
   // ---- 2. project (with markup in the name: must be shown as text, never executed) and document storage
   await go('projects', '#np');
@@ -114,6 +121,14 @@ const controlProbe = () => {
     branch_stub: { has: [EPS_NUM_SENTENCE, 'eps_rep is a certified upper bound of the chord error of the drawn polyline'], not: ['NOT certified', 'ESTIMATE'] },
     header_with_branch: { has: [EPS_NUM_SENTENCE, 'eps_rep is a certified upper bound of the chord error of the drawn polyline'], not: ['NOT certified', 'ESTIMATE'] },
     eccentric_reducer: { has: [EPS_NUM_SENTENCE, 'For an eccentric reducer its quadrature term is an ESTIMATE, not a bound.', 'eps_rep is NOT certified for this pattern'], not: ['is a certified upper bound'] },
+  };
+  // task 1.2 follow-up: the eps_rep row (#epsrep-note) states the status the engine gives per family: a certified bound for
+  // a branch and a header, NOT certified (an estimate for the eccentric reducer), and not applicable where eps_rep is 0.
+  const EPS_REP_ROW = {
+    cylinder_shell: /^not applicable: eps_rep is 0/, cone_frustum: /^not applicable: eps_rep is 0/,
+    branch_stub: /^certified upper bound of the chord error of the drawn polyline, eps_num included/,
+    header_with_branch: /^certified upper bound of the chord error of the drawn polyline, eps_num included/,
+    eccentric_reducer: /^NOT certified: for an eccentric reducer its quadrature term is an estimate, not a bound/,
   };
   const jobs = {};
   for (const [fam, parts, curves] of FAMILIES) {
@@ -141,8 +156,19 @@ const controlProbe = () => {
     check(`calculation ${fam}: marking side stated as a provisional convention; error wording per family (${wording.has.length} sentence(s) present, ${wording.not.length} absent)`,
       (await p.locator('#mside').count()) === 1 && /seen from the outside/.test(await p.textContent('#mside')) && /provisional convention, not reviewed/.test(await p.textContent('#quant')) && /a-priori bound, not interval-certified/.test(await p.textContent('#quant')) && /PROVISIONAL convention/.test(await p.textContent('#tp-ws-gates')) &&
       wording.has.every((s) => assume.includes(s)) && wording.not.every((s) => !assume.includes(s)), { assume: assume.slice(0, 400) });
-    check(`calculation ${fam}: approval gate G16 shown as NOT IMPLEMENTED`, /G16\s*human approval\s*NOT IMPLEMENTED/.test((await p.textContent('#tp-ws-gates')).replace(/\s+/g, ' ')));
+    const epsRepNote = (await p.textContent('#epsrep-note')).replace(/\s+/g, ' ').trim();
+    check(`calculation ${fam}: the eps_rep row states the engine's status for this family (only the reducer is NOT certified)`,
+      EPS_REP_ROW[fam].test(epsRepNote) && /NOT certified/.test(epsRepNote) === (fam === 'eccentric_reducer'), { epsRepNote });
+    check(`calculation ${fam}: approval gate G16 shown as NOT IMPLEMENTED`,/G16\s*human approval\s*NOT IMPLEMENTED/.test((await p.textContent('#tp-ws-gates')).replace(/\s+/g, ' ')));
     await sweepControls();
+  }
+
+  // task 1.2 follow-up, Japanese: the eps_rep row of a branch is a certified bound; the reducer's is not certified
+  for (const [fam, re] of [['branch_stub', /描かれた折れ線の弦の誤差について、認証された上界です/], ['eccentric_reducer', /^認証されていません。偏心レデューサ/]]) {
+    await p.goto(`${B}/?lang=ja#/calc/${jobs[fam]}`); await p.waitForSelector('.pv .c', { state: 'attached' });
+    await p.click('#tab-ws-gates');
+    const epsRepJa = (await p.textContent('#epsrep-note')).replace(/\s+/g, ' ').trim();
+    check(`calculation ${fam} ja: the eps_rep row says ${fam === 'eccentric_reducer' ? 'not certified (an estimate)' : 'certified'} in Japanese`, re.test(epsRepJa), { epsRepJa });
   }
 
   // ---- 3b. a refusal must look like a refusal everywhere
@@ -160,6 +186,11 @@ const controlProbe = () => {
   check('refusal: negative radius and impossible intersection are stopped at the field, nothing is sent', /must be greater than 0/.test(negMsg) && /must be smaller than the header radius/.test(bigMsg) && /Not sent/.test(await p.textContent('#cmsg')) && (await jobCount()) === before && p.url().includes('#/math'), { negMsg, bigMsg });
   await p.selectOption('select[name=fam]', 'cylinder_shell'); await p.fill('#f_r_dev', '1e9'); await p.click('#run'); await p.waitForSelector('#plaus');
   check('refusal: an absurd magnitude is questioned before anything is sent', /more than 20 m/.test(await p.textContent('#plaus')) && (await jobCount()) === before && /unusual/i.test(await p.textContent('#run')));
+  // B4 (user simulation): the engine's smallest dimension (MIN_DIMENSION_MM 1e-6, nf-core job.rs) is checked at the field,
+  // before anything is sent, instead of a round trip that ends in a refused job
+  await p.selectOption('select[name=fam]', 'cone_frustum'); await p.fill('#f_h', '0.0000001'); await p.click('#run'); await p.waitForSelector('#calc .field-err');
+  const tinyMsg = await p.textContent('#calc .field-err');
+  check('B4: a dimension below the engine\'s smallest (1e-6 mm) is marked at the field, and nothing is sent', /below 1e-6 mm/.test(tinyMsg) && (await jobCount()) === before && /Not sent/.test(await p.textContent('#cmsg')), { tinyMsg });
   // a request the client cannot judge and the engine refuses (square end inside the saddle): recorded, but as NO RESULT
   // BE-003: the server answers a refused request with 422 (it used to answer 200). That one answer is expected here.
   allow422 = true;
@@ -170,6 +201,12 @@ const controlProbe = () => {
   const rj = { tag: (await p.textContent('.ws-head h1 .tag')).trim(), toastErr: await p.locator('.toast.err').count(), toastOk: await p.locator('.toast.ok').count(), toast: await p.locator('.toast').first().textContent(), banner: await p.textContent('.ws-banner'), dxf: await p.locator('#dxf, #dxf-all, a[href*="/dxf/"]').count(), replay: await p.locator('#replay').count(), corr: await p.locator('#corr-open, [data-correct]').count(), pv: await p.locator('.pv').count() };
   check('refusal: an engine-refused job is shown as NO RESULT with an error notification, never as a computed result', rj.tag === 'No result' && rj.toastErr === 1 && rj.toastOk === 0 && /NO RESULT/.test(rj.toast) && /NO RESULT/.test(rj.banner) && /s_end/.test(rj.banner) && !/REVIEW REQUIRED/.test(await p.textContent('.ws')), rj);
   check('refusal: no DXF, replay or correction is offered on a job without a result', rj.dxf === 0 && rj.replay === 0 && rj.corr === 0 && rj.pv === 0, rj);
+  // B5 (user simulation): the NO RESULT banner states the engine's numeric threshold, which the toast shows only briefly;
+  // and the reason ends with one full stop (#15)
+  const rOutcome = (await apiGet(`/api/calculations/${R}`)).outcome || '';
+  const rThr = /s_end\s*>\s*([0-9][0-9.eE+-]*)/.exec(rOutcome);
+  const rBanner = (await p.locator('.ws-banner.bad').first().textContent()).replace(/\s+/g, ' ');
+  check('NO RESULT banner states the numeric threshold of the toast, and the reason ends with one full stop', !!rThr && rBanner.includes(rThr[1]) && !/\.\./.test(rBanner), { threshold: rThr && rThr[1], rBanner: rBanner.slice(0, 260) });
   await go('dashboard', '.stats');
   const dashR = { none: (await p.textContent('#st-none b')).trim(), review: (await p.textContent('#st-review b')).trim(), row: (await p.locator('#jobs-recent tbody tr', { hasText: `Job #${R}` }).textContent()) };
   check('refusal: dashboard counts it as no result, not as review required', dashR.none === '1' && dashR.review === String(before) && /No result/.test(dashR.row) && /input refused/.test(dashR.row) && !/Review required/i.test(dashR.row), dashR);
@@ -638,13 +675,13 @@ const controlProbe = () => {
     for (const lang of ['en', 'ja']) {
       await p.goto(`${B}/?lang=${lang}#/math/1`); await p.waitForSelector('#calc'); await p.selectOption('select[name=fam]', 'cone_frustum');
       const before = await count(), refused = {};
-      for (const bad of ['1,5', '0x10', '１２３', '1 000', '1.5.2', '12mm', '']) {
+      for (const bad of ['1,5', '0x10', '1 000', '1.5.2', '12mm', '']) {
         await p.fill('#f_h', ''); await p.type('#f_h', bad); const shown = await p.inputValue('#f_h');
         await p.click('#run'); await p.waitForTimeout(150);
         refused[bad] = { keptAsTyped: shown === bad, fieldError: await p.locator('#calc .field-err').count() > 0, stillOnForm: await p.locator('#calc').count() === 1 };
       }
       const after = await count();
-      check(`dimension ${lang}: a decimal comma, hex, full-width digits, a space, two points, a unit suffix and an empty field are shown as typed, marked, and nothing is sent`,
+      check(`dimension ${lang}: a decimal comma, hex, a space, two points, a unit suffix and an empty field are shown as typed, marked, and nothing is sent`,
         after === before && Object.values(refused).every((r) => r.keptAsTyped && r.fieldError && r.stillOnForm), { before, after, refused });
     }
     await p.goto(`${B}/?lang=en#/math/1`); await p.waitForSelector('#calc'); await p.selectOption('select[name=fam]', 'cone_frustum');
@@ -653,6 +690,22 @@ const controlProbe = () => {
     await p.fill('#f_h', '301.25'); await p.click('#run'); await p.waitForFunction(() => /^#\/calc\/\d+/.test(location.hash)); const id = Number(/calc\/(\d+)/.exec(await p.evaluate(() => location.hash))[1]);
     const stored = await p.evaluate(async (i) => (await (await fetch(`/api/calculations/${i}`)).json()).request.h, id);
     check('dimension: the value stored with the job is exactly the value typed (301.25)', stored === 301.25, { stored });
+    // B3 (user simulation): full-width digits and point (IME output, 全角) are read as their ASCII forms: the same value is computed
+    await p.goto(`${B}/?lang=ja#/math/1`); await p.waitForSelector('#calc'); await p.selectOption('select[name=fam]', 'cone_frustum');
+    await p.fill('#f_h', '１５０'); await p.click('#run'); await p.waitForURL(/#\/calc\/\d+$/);
+    const fwId = Number(/calc\/(\d+)/.exec(await p.evaluate(() => location.hash))[1]);
+    const fwStored = await p.evaluate(async (i) => (await (await fetch(`/api/calculations/${i}`)).json()).request.h, fwId);
+    check('B3: full-width digits (１５０) are computed exactly as 150', fwStored === 150, { fwStored });
+    await p.goto(`${B}/?lang=en#/math/1`); await p.waitForSelector('#calc'); await p.selectOption('select[name=fam]', 'cone_frustum');
+    await p.fill('#f_h', '２．５'); await p.press('#f_h', 'Tab');
+    check('B3: leaving a field that holds full-width point and digits shows the ASCII value 2.5', (await p.inputValue('#f_h')) === '2.5', await p.inputValue('#f_h'));
+    // B4 in Japanese: the same client check, in the Japanese message
+    await p.goto(`${B}/?lang=ja#/math/1`); await p.waitForSelector('#calc'); await p.selectOption('select[name=fam]', 'cone_frustum');
+    const beforeTiny = await count();
+    await p.fill('#f_h', '0.0000001'); await p.click('#run'); await p.waitForSelector('#calc .field-err');
+    const tinyJa = await p.textContent('#calc .field-err');
+    check('B4 ja: the below-limit value is marked at the field in Japanese, and nothing is sent', /1e-6 mm未満/.test(tinyJa) && (await count()) === beforeTiny, tinyJa);
+    await p.goto(`${B}/?lang=en#/dashboard`); await p.waitForSelector('.stats');
   }
 
   // ---- 14d. bug hunt round 7 (docs/qa/BUG_HUNT_R7.md, browser part). Each check reproduces its defect before the fix.
@@ -799,6 +852,7 @@ const controlProbe = () => {
     await p.goto(`${B}/#/calc/${sq.v.id}`); await p.waitForTimeout(700);
     const sqEn = await fieldText('s_end');
     check('BH-014: the refused s_end row shows the English message for square_end_too_short', /does not lie beyond the saddle/.test(sqEn) && /make it longer/.test(sqEn), sqEn.slice(0, 160));
+  check('plain words (user simulation): the square-end refusal says what is wrong in plain words, the engine term in brackets', /is too short/.test(sqEn) && /reach past the saddle/.test(sqEn), sqEn.slice(0, 160));
     await p.goto(`${B}/?lang=ja#/calc/${sq.v.id}`); await p.waitForTimeout(700);
     const sqJa = await fieldText('s_end');
     check('BH-014: the refused s_end row shows the Japanese message for square_end_too_short', /相貫線の先まで届いていません/.test(sqJa), sqJa.slice(0, 160));
@@ -857,6 +911,45 @@ const controlProbe = () => {
       check(`pdf ${lang}: no flat pattern and no calculation comes from a conversion`, !/flat pattern view/i.test(await p.textContent('#view')) && (await apiGet('/api/calculations')).every((c) => !String(c.family || '').includes('pdf')));
       if (lang === 'ja') await jaScreen('PDF to DXF result');
     }
+  }
+
+  // ---- 14f. user-simulation drawbacks (phone navigation B1, threshold B5 in Japanese, gate summary #8, id chips #13)
+  {
+    await p.goto(`${B}/?lang=en#/dashboard`); await p.waitForSelector('.stats');
+    await p.setViewportSize({ width: 390, height: 844 });
+    await go('dashboard', '.stats');
+    const menu = p.locator('#navtoggle');
+    const start = { shown: await menu.isVisible(), expanded: await menu.getAttribute('aria-expanded'), railVisible: await p.locator('#rail').isVisible(), label: await menu.getAttribute('aria-label') };
+    check('B1 phone: a labelled menu button at 390 px, and the navigation starts closed', start.shown && start.expanded === 'false' && !!start.label && !start.railVisible, start);
+    await menu.click();
+    const opened = { expanded: await menu.getAttribute('aria-expanded'), railVisible: await p.locator('#rail').isVisible(), focusInRail: await p.evaluate(() => document.getElementById('rail').contains(document.activeElement)), sections: await Promise.all(['manufacturing', 'verification', 'amoeba', 'admin'].map((k) => p.locator(`#rail a[data-nav=${k}]`).isVisible())) };
+    check('B1 phone: the menu button reveals Manufacturing, Verification, AMOEBA and Admin, and moves focus into the menu', opened.expanded === 'true' && opened.railVisible && opened.focusInRail && opened.sections.every(Boolean), opened);
+    await p.locator('#rail a[data-nav=verification]').click(); await p.waitForURL(/#\/verification/); await p.waitForFunction(() => /Verification/.test(document.querySelector('#view h1')?.textContent || ''));
+    check('B1 phone: a link in the menu is clickable, and choosing it opens the page and closes the menu', (await menu.getAttribute('aria-expanded')) === 'false' && !(await p.locator('#rail').isVisible()) && (await p.textContent('#view h1')).trim() === 'Verification & Quality');
+    await menu.click(); await p.keyboard.press('Escape');
+    check('B1 phone: Escape closes the menu and returns focus to its button', (await menu.getAttribute('aria-expanded')) === 'false' && (await p.evaluate(() => document.activeElement.id)) === 'navtoggle');
+    await p.setViewportSize({ width: 1366, height: 768 });
+    check('B1: the menu button is not shown on a desktop-width screen', !(await menu.isVisible()) && (await p.locator('#rail').isVisible()));
+
+    // #8: the REVIEW REQUIRED banner names the gates that hold the result, beside the pointer to the Gates tab
+    await go(`calc/${J}`, '.pv'); await p.waitForSelector('.ws-banner');
+    const revBanner = (await p.locator('.ws-banner').first().textContent()).replace(/\s+/g, ' ');
+    check('#8 the REVIEW banner names the gates that hold the result (G16 among them), beside the Gates-tab pointer', /Not passed: .*G16/.test(revBanner) && /Gates tab/.test(revBanner), revBanner.slice(0, 220));
+
+    // B5 in Japanese: the NO RESULT banner keeps the threshold, and no sentence ends in two full stops
+    await p.goto(`${B}/?lang=ja#/calc/${R}`); await p.waitForSelector('.ws-banner.bad');
+    const jaOutcome = (await apiGet(`/api/calculations/${R}`)).outcome || '';
+    const jaThr = /s_end\s*>\s*([0-9][0-9.eE+-]*)/.exec(jaOutcome);
+    const banJa = (await p.locator('.ws-banner.bad').first().textContent()).replace(/\s+/g, ' ');
+    check('B5 ja: the NO RESULT banner states the threshold in Japanese, once, with no double full stop', !!jaThr && banJa.includes(jaThr[1]) && /閾値/.test(banJa) && !/。。/.test(banJa), banJa.slice(0, 220));
+
+    // #13: on a phone in Japanese the English identifier chips keep the 16 px side gutter
+    await p.setViewportSize({ width: 390, height: 844 });
+    await p.goto(`${B}/?lang=ja#/calc/${J}`); await p.waitForSelector('.pv .c', { state: 'attached' });
+    const chips = await p.evaluate(() => [...document.querySelectorAll('#view .idk')].map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), el.textContent.trim(), r.width > 0 && el.getClientRects().length > 0]; }).filter((c) => c[3]));
+    check('#13 phone, Japanese: the English identifier chips on screen stay inside the 16 px gutter', chips.length > 0 && chips.every(([l, r]) => l >= 15 && r <= 375), chips.slice(0, 6));
+    await p.setViewportSize({ width: 1366, height: 768 });
+    await p.goto(`${B}/?lang=en#/dashboard`); await p.waitForSelector('.stats');
   }
 
   // ---- 15. global assertions
