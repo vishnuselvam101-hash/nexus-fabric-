@@ -14,11 +14,11 @@ window.NF_ONSCREEN4 = {
   product_a: { en: ['Dimensions in.'], ja: ['寸法から、'] },                                                     // F3
   product_b: { en: ['Flat pattern out.'], ja: ['板展開へ。'] },                                                  // F3
   // BRIEF (EN, one sentence each); JA F3
-  limits: { en: ['Zero-thickness reference surfaces.', 'Thickness, bend allowance, weld gap and kerf are not modelled.'], ja: ['板厚ゼロの基準面です。', '未考慮：板厚、曲げ代、溶接ギャップ、カーフ'] },
+  limits: { en: ['Zero-thickness reference surfaces.', 'Thickness, bend allowance, weld gap and kerf are not modelled.'], ja: ['板厚ゼロの基準面です。', '未考慮：板厚、曲げ代、溶接ギャップ、切り代'] },   // round 3: カーフ -> 切り代 (reviewer)
   part_shell: { en: ['Cylindrical shell'], ja: ['円筒胴'] },                                                     // F3
   part_cone: { en: ['Concentric reducer'], ja: ['同心レジューサ'] },                                              // F3
   part_ecc: { en: ['Eccentric reducer'], ja: ['偏心レジューサ'] },                                                // F3
-  part_branch: { en: ['Branch stub'], ja: ['枝管スタブ'] },                                                       // F3
+  part_branch: { en: ['Branch stub'], ja: ['枝管'] },                                                           // F3 (JA round 3: 枝管スタブ -> 枝管, reviewer)                                                       // F3
   part_header: { en: ['Header shell', 'with opening'], ja: ['開口付き母管胴'] },                                  // F3 (EN set on two lines)
   points_line: { en: '{n} computed points on the opening', ja: '開口の計算点 {n}点' },                           // NEW
   checks_big: { en: ['It checks its own work.'], ja: ['自ら、検算。'] },                                          // F3
@@ -50,5 +50,15 @@ window.NF_ONSCREEN4 = {
   positioning: { en: 'Engineering platform powered by AMOEBA.', ja: 'AMOEBAを核とする設計基盤' },                  // BRIEF
   disclaimer: { en: 'Product concept. Capabilities in development. Not validated for manufacturing.', ja: '製品コンセプトです。機能は開発中であり、製造用途での検証は未実施です。' },   // BRIEF / F3
   contact: { en: ['sekishion@chuo-sogo.net', 'vishnu.s@chuo-sogo.net'], ja: ['sekishion@chuo-sogo.net', 'vishnu.s@chuo-sogo.net'] },   // BRIEF (exact)
+  // ---- round 3 (NEW unless noted)
+  label_hook: { en: 'Illustration of a misfit · branch cut from product data', ja: 'ずれの説明図・枝管の切断線は製品データ' },
+  footer_parts: { en: 'Visualisation · data from the product · zero-thickness surfaces; thickness, bend allowance, weld gap and kerf not modelled', ja: '本映像用のビジュアル・データは製品の出力 · 板厚ゼロの基準面。未考慮：板厚、曲げ代、溶接ギャップ、切り代' },
+  checks_line: { en: '{t}: {n} of {b} pass', ja: '{t}：{n} / {b} 件 通過' },
+  gates_line: { en: '{t}: {p} pass · {i} inconclusive · {x} not implemented', ja: '{t}：内部チェック通過 {p} · 未確定 {i} · 未実装 {x}' },
+  gates_explain: { en: 'Inconclusive: the software cannot confirm it from the data it has.', ja: '未確定：手元のデータでは、ソフトウェアが確認できない項目です。' },
+  dxf_kind: { en: 'R12 DXF ({v})', ja: 'R12 DXF（{v}）' },
+  roundtrip_line: { en: 'Written and re-read: {r} of {w} entities match', ja: '書き出して再読込：{w}件中{r}件が一致' },
+  facts_line: { en: 'Flat patterns · self-checks · traceability · offline · EN/JA', ja: '板展開 · 自己検算 · トレーサビリティ · オフライン · 日英' },
+  points_short: { en: '{n} computed points', ja: '計算点 {n}点' },
   credit: { en: '', ja: '音声：VOICEVOX Nemo' },                                                                  // BRIEF (licence condition, JA film)
 };

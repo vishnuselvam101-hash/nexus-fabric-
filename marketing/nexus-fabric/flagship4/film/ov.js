@@ -1,7 +1,7 @@
 // Film 4 overlay: type, labels, callouts and panels drawn on the 2D canvas over the 3D layer.
 // Three type sizes only: HS 132 (headline), BS 48 (body), LS 40 (label). Nothing meant to be read is smaller.
 'use strict';
-export const HS = 132, BS = 48, LS = 40;
+export const HS = 132, BS = 48, LS = 40, FS = 30;   // FS: disclosure footers only (round 3: one line, at least 24 px)
 export const COL = {
   paper: '#f4f5f7', ink: '#1d1d1f', ink2: '#3a3a3e', ink3: '#5a5a60', line: '#1d1d1f',
   blue: '#0a66ff', blueT: '#0057d9', red: '#e5241b', amber: '#ff9f0a', amberT: '#a85f00', green: '#1fa463', greenT: '#137a43',

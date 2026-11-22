@@ -18,4 +18,11 @@ md += `- Parameter identifiers with values (scene 7 tags): ${B.job6.params.map((
 md += `- Flagged records (scene 7): ${B.simple.nodes.filter((n) => n.dist > 0).map((n) => `${n.en} / ${n.ja}`).join('; ')}\n`;
 md += `- Check names (scene 5): the 28 entries of job 6 as the application names them; in Japanese ${B.job6.checkList.filter((c) => c.ja).length} have a catalogue label, the other ${B.job6.checkList.filter((c) => !c.ja).length} appear as identifiers (as the application shows them).\n`;
 md += `- DXF file name: ${d.window.NF4.dxf.name}\n`;
+md += `
+## For native review / owner decision (Japanese reviewer, round 3)
+- Applied: カーフ → 切り代 (limits and the scene-4 footer); 枝管スタブ → 枝管 (part name); the call to action is デモのご依頼.
+- Review state: the film shows the application's own string for REVIEW_REQUIRED (${B.ui.ja['state.REVIEW_REQUIRED']}, from the catalogue). The reviewer suggests 要確認; changing it would make the film differ from the software, so it is left to the product team.
+- Tagline 設計を、再定義。 (owner's brand line, kept): the reviewer suggests replacing it; owner decision.
+- All lines marked NEW above need review by a native-speaking engineer.
+`;
 fs.writeFileSync(path.join(F, 'NEW_STRINGS.md'), md); console.log('wrote NEW_STRINGS.md', Object.keys(O).length, 'keys');
