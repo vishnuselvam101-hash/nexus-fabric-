@@ -11,6 +11,26 @@ use crate::interp::{nums, Interp, TextObj, W_MALFORMED};
 use crate::lexer::{Dict, Obj};
 use crate::limits::{limit, Fault};
 
+/// The ASCII character that a full-width form or a minus sign stands for. Only forms with one
+/// unambiguous ASCII meaning are mapped: the full-width block U+FF01..U+FF5E (digits, full stop,
+/// comma, plus, the Latin letters used in dimensions such as R and t=), the ideographic space,
+/// and the minus sign U+2212.
+fn ascii_equivalent(ch: char) -> Option<char> {
+    match ch {
+        '\u{FF01}'..='\u{FF5E}' => char::from_u32(u32::from(ch) - 0xFEE0),
+        '\u{3000}' => Some(' '),
+        '\u{2212}' => Some('-'),
+        _ => None,
+    }
+}
+
+/// Drawing symbols of Japanese dimension notation that have no ASCII form and that the DXF TEXT
+/// output does not carry (diameter, radius-like Greek letters, square, degree). They are written
+/// as '?' and counted separately, so the report says what was lost.
+fn is_drawing_symbol(ch: char) -> bool {
+    matches!(ch, 'φ' | 'Φ' | 'Ø' | 'ø' | '⌀' | '□' | '°')
+}
+
 impl<'d, 'a> Interp<'d, 'a> {
     /// Handles one text operator. Returns false when `name` is not a text operator.
     pub fn text_op(&mut self, name: &[u8], args: &[Obj]) -> Result<bool, Fault> {
@@ -280,13 +300,31 @@ impl<'d, 'a> Interp<'d, 'a> {
         let rotation = trm.b.atan2(trm.a).to_degrees();
         let mut clean = String::with_capacity(text.len());
         let mut replaced = 0u64;
+        let mut normalised = 0u64;
+        let mut symbols = 0u64;
         for ch in text.chars() {
+            let ch = match ascii_equivalent(ch) {
+                Some(a) => {
+                    normalised += 1;
+                    a
+                }
+                None => ch,
+            };
             if (' '..='~').contains(&ch) && ch != '%' && ch != '^' {
                 clean.push(ch);
             } else {
                 clean.push('?');
                 replaced += 1;
+                if is_drawing_symbol(ch) {
+                    symbols += 1;
+                }
             }
+        }
+        if normalised > 0 {
+            self.stats.count("text_chars_normalised", normalised);
+        }
+        if symbols > 0 {
+            self.stats.count("text_chars_drawing_symbol", symbols);
         }
         if replaced > 0 {
             self.stats.count("text_chars_replaced", replaced);
