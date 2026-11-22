@@ -447,6 +447,9 @@ fail for other reasons (r/R 1e-3 near 180°, near-tangent parts of 1e-3 mm) stay
 - Updated only when the owner says so, by pulling the release commit, rebuilding and restarting, with
   `NF_ALLOWED_HOSTS=fabric.vsnexustechnologies.com`. Back up the data folder and key first; keep the previous
   binary for rollback; check `/api/health` and the audit verification afterwards.
+- DRAFT (22 Nov 2026, not run): the step-by-step live upgrade to the RA-003 / RA-006 build is in
+  `deploy/README.md`, section "Live upgrade to the RA-003 / RA-006 build". It needs `NF_ACCEPT_UNANCHORED_AUDIT=1` for one
+  start (the live log has no anchor), then the flag is removed; `NF_TRUSTED_PROXY=127.0.0.1` is required in the unit.
 
 ---
 

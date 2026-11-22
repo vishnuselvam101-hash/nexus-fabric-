@@ -119,3 +119,39 @@ To restore: stop the service, put the database and blobs back in `/var/lib/nexus
 - The service refuses to start, and says why in `journalctl -u nf-server`, when the key file is missing, world-readable or not the key the data was created with, or when the database is missing, empty or damaged while the data directory holds an installation. It never creates a new key or falls back to first-run setup beside existing data: restore from the backup.
 - On `systemctl stop` / `restart` the server stops accepting connections, lets requests in flight finish (20 s by default) and folds its write-ahead log into the database file.
 - New unit directives (`UMask`, `ProtectProc`, `ProtectKernelLogs`, `RestrictSUIDSGID`, `SystemCallArchitectures`, `IPAddressDeny=any` with `IPAddressAllow=localhost`) have not been run on a server yet; if the service fails to start after an upgrade, `journalctl -u nf-server` names the directive.
+
+## Live upgrade to the RA-003 / RA-006 build (DRAFT, not run)
+
+Status: draft written 22 November 2026 by the server-security pass. Not executed. The owner runs it, step by step, and checks each result before the next. Nothing here touches the live service until then.
+
+Why each step exists: the live database has audit entries and no audit anchor, so the new binary refuses to start until the operator accepts the log once (`NF_ACCEPT_UNANCHORED_AUDIT=1`). The unit must name the allowed host and the trusted proxy: without `NF_TRUSTED_PROXY=127.0.0.1` every request is one client behind Caddy (see REVIEW_A §6, "Unattributed clients").
+
+1. Back up the data folder and the key, and check the copy. Keep the old binary for rollback.
+   ```
+   sudo systemctl stop nf-server   # quiet point; the backup timer must not run now
+   sudo cp -a /var/lib/nexus-fabric /root/backups/nf-pre-ra003-$(date +%F)
+   sudo cp -a /etc/nexus-fabric/master.key /root/backups/nf-pre-ra003-$(date +%F)/
+   sudo sqlite3 /root/backups/nf-pre-ra003-$(date +%F)/nexus-fabric.sqlite 'PRAGMA integrity_check;'   # must print ok
+   ```
+2. MANDATORY: check the live unit. It must contain both lines. Without `NF_TRUSTED_PROXY=127.0.0.1` every visitor is one client behind Caddy, and a single attacker can STARVE the owner's sign-in; the per-address rules (open-request cap, pair lock, per-address failure cap, known-client exemption) do not work at all. The repository unit already has both; the live host has been reported without them:
+   ```
+   Environment=NF_ALLOWED_HOSTS=fabric.vsnexustechnologies.com
+   Environment=NF_TRUSTED_PROXY=127.0.0.1
+   ```
+   Edit with `sudo systemctl edit nf-server` (a drop-in), then `sudo systemctl daemon-reload`. Do not remove the other lines.
+3. Install the new binary (the owner's build from the release commit; `install.sh` is run by the owner, not by this draft).
+4. First start, with the one-time acceptance. Add a drop-in line `Environment=NF_ACCEPT_UNANCHORED_AUDIT=1`, then:
+   ```
+   sudo systemctl daemon-reload && sudo systemctl start nf-server
+   journalctl -u nf-server -n 50 --no-pager   # expect "anchor created for an existing log"
+   ```
+   Then, signed in as the administrator, open `/api/audit/verify`. It must show `"intact": true` and `"anchor_intact": true`. If it shows false, stop the service and restore from step 1. Do not continue.
+5. Remove the acceptance and start again:
+   ```
+   sudo systemctl edit nf-server        # delete the NF_ACCEPT_UNANCHORED_AUDIT line
+   sudo systemctl daemon-reload && sudo systemctl restart nf-server
+   ```
+   `/api/audit/verify` must again show `intact: true`. A healthy anchored log starts without the flag (test `ra003_an_anchored_log_from_an_earlier_start_passes_without_the_flag`).
+6. Check `/api/health`, sign in once from the owner's usual network, and check the journal for errors. The known-address list is seeded from the audit history once, during the first start of this build.
+
+Rollback: stop the service, put the previous binary back, restore the data folder and key from step 1 (the new build also writes a `login_clients` table and an `admitted` column that the old build ignores, so restoring the backup is the only clean rollback), start, and check `/api/audit/verify`.

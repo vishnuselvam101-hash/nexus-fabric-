@@ -101,6 +101,10 @@ kill $PID; wait $PID 2>/dev/null
 python3 - "$DATA/nexus-fabric.sqlite" "$DATA/blobs/$SHA.bin" "$CORRUPT" "$GATELESS" <<'PY'
 import sqlite3, sys
 db = sqlite3.connect(sys.argv[1])
+# attacker model: direct write access to the database file that also removes the append-only triggers (RC-20).
+# Detection below must still find every change: the audit chain and the replay, not the triggers, are the detection.
+for trg in ("audit_no_update", "audit_no_delete", "records_no_update", "records_no_delete"):
+    db.execute(f"DROP TRIGGER IF EXISTS {trg}")
 db.execute("UPDATE audit SET detail = 'tampered' WHERE id = 3")                      # rewrite history
 rid = db.execute("SELECT id FROM records WHERE kind = 'parameter' LIMIT 1").fetchone()[0]
 db.execute("UPDATE records SET json = replace(json, '\"value\":158.0', '\"value\":150.0') WHERE kind = 'parameter'")  # alter an engineering value

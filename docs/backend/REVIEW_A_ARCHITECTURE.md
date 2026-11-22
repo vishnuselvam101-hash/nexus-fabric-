@@ -308,3 +308,57 @@ The tests are meaningful for the fault each was written for. What is missing is 
 ## 5. Cleanup note
 
 Running the validation suite created untracked `validation/**/__pycache__/` directories in the shared tree (13:34). They are caches; I left them in place in case another agent's run is using them. Delete them if they are not wanted.
+
+## 6. Status after the builder pass (22 November 2026, branch wt/server-sec)
+
+Evidence: `nf-sandbox cargo test -p nf-server` gives 103 unit tests and 8 integration tests passing (baseline at 363d7de: 76 and 8; the 7 PDF-converter tests need `cargo build -p nf-pdf --bins` first). `cargo clippy -p nf-server --all-targets -- -D warnings` and `cargo fmt -p nf-server -- --check` are clean. The tests named below were run red against the code before their fix, except where noted: `ra007_*`, `ra009_a_setup_token_*`, `ra016_*`, `ra010_*`, `ra006_known_addresses_*`, `ra003_an_anchored_log_*` and the `ra003` startup/restart checks were written after their fixes. The two `behind_an_unconfigured_local_proxy` tests were checked red by disabling the rule (`unattributed_peer` forced to false).
+
+| Item | Status | Where (crates/nf-server/src) | Test(s) | Behaviour old → new |
+|---|---|---|---|---|
+| RA-003 | partly | `main.rs` `audit` 391, `checked_chain` 437; `storage.rs` `TRIGGERS` 57; `build_app_with` | `ra003_a_truncated_audit_log_is_not_re_signed_by_the_next_event`, `ra003_audit_and_records_cannot_be_updated_or_deleted_through_the_schema`, `ra003_a_log_with_entries_but_no_anchor_stops_start_up`, `ra003_an_anchored_log_from_an_earlier_start_passes_without_the_flag` | Truncated log: next event re-signed it → refused with 503 `audit_broken`; verify intact:false. Rows updated/deleted → refused by triggers. Log with entries and no anchor: re-anchored silently → refuses start unless `NF_ACCEPT_UNANCHORED_AUDIT=1`. Left: key in the data folder unless `NF_KEY_FILE` is set (RC-07 key part, task 2.5). A writer that drops the triggers and holds the key can still re-sign; closing that needs an anchor outside the database. |
+| RA-002 (+RC-04) | closed | `login` 960, `change_password` 1142 | `ra002_concurrent_wrong_sign_ins_…`, `ra002_concurrent_wrong_current_passwords_…` | 30 concurrent wrong sign-ins: 30×401 → 5×401, 25×429. The attempt is reserved (failure row) in the throttle transaction before hashing. Password-change failures store the client address. |
+| RA-006 | closed for the stated threat, residual below (A11) | `login_throttle` 790; `seed_known_clients`; `admitted` column in `login_failures` | `ra006_a_guesser_cannot_lock_the_account_for_another_client`, `ra006_once_an_account_is_under_attack_…`, `ra006_behind_an_unconfigured_local_proxy_…`, `ra006_refused_attempts_are_recorded`, `ra006_known_addresses_are_seeded_…` | Old: one client's 5 failures locked the account for everyone. New: the pair (account, address) is locked alone; per-address rules skipped for unattributed clients (below); refused attempts are recorded (`admitted = 0`) and count, but do not open a slot; known addresses come from the audit `login` history once at upgrade. |
+| RA-001 | partly | `BODY_IDLE` const (named, with mobile note), `guard_body`, `serve_one`, `InFlight` | `ra001_a_request_body_that_stalls_…`, `ra001_one_client_cannot_hold_more_requests_…`, `ra001_behind_an_unconfigured_local_proxy_…` | A stalled body held a request for 120 s → no chunk for 10 s gives 408. One client held any number of open requests → 32 per address (IPv6 by /64). Left: a per-TCP-connection cap, because behind Caddy every connection comes from 127.0.0.1. |
+| RA-007 | partly | `recompute` 3397 (`/api/calculations/{id}/recompute`), `listen_needs_allowed_hosts` 4694 | `ra007_a_result_of_a_superseded_engine_…`, `ra007_a_non_loopback_listener_needs_the_allowed_host_list` | Recompute of a superseded result from its verified stored request; the old one stays. Non-loopback listen without a non-empty `NF_ALLOWED_HOSTS` → refused at start. Left: engine fingerprint (crates/nf-core, lane F); one-click button (web, lanes J/K). |
+| RA-009 | closed | `setup` 852, `distinct_chars` | `ra009_setup_failures_are_counted_per_client`, `ra009_a_setup_token_of_one_repeated_character_is_refused` | Global `setup:` counter → per address. Token: 16+ characters and 8+ different ones. Unattributed clients share one counter (baseline behaviour). |
+| RA-010 | closed (classifier test only) | `storage.rs` `StoreError`, `is_out_of_space`; `App::store_blob` | `ra010_a_full_file_store_is_classified_as_out_of_space` | Full file store 500 → 507 `storage_full`. No end-to-end full-disk test. |
+| RA-011 (+RC-33) | closed | `elog!` (top of `main.rs`); `serve_one` | `ra011_a_panicking_handler_answers_500_…` | Log writes cannot panic; a panicking handler answers 500, the server keeps serving. |
+| RA-012 | closed | `result_repeats_a_key`, `json_keys_are_unique`, `evaluate` | `ra012_a_stored_result_with_a_duplicate_key_is_rejected` | Duplicate key → REJECTED, DXF 409. |
+| RA-013 | partly | `audit` 391 (SAVEPOINT) | `ra013_a_failed_audit_write_leaves_no_entry_behind` | One savepoint per audit entry. Left: denial entries written inside a write handler's transaction still roll back with it. |
+| RA-014 | closed | `open_storage` (`has_key_fingerprint`) | `ra014_a_restored_pre_upgrade_database_…` | Restored database without installation id is accepted when its key fingerprint is present; `load_key` still checks the key. |
+| RA-016 | closed | `client_key` 4055 (IPv4-mapped → IPv4; IPv6 → /64), `host_name` 4024, `allowed_host_entry` 4037 | `ra016_ipv6_clients_share_their_prefix_…`, `ra016_ipv4_mapped_clients_are_keyed_as_ipv4`, `ra016_an_unbracketed_ipv6_allowed_host_…` | Unbracketed NF_ALLOWED_HOSTS IPv6 refused with its bracketed form. |
+| CLI 3.2 reason bytes | closed | acknowledge, correct, resolve | `cli32_a_reason_is_counted_in_characters_not_bytes` | `len() < 5` → `chars().count() < 5`. |
+| RC-20 | partly | `storage.rs` `TRIGGERS` | as RA-003 | Triggers stop code and accidental edits; a file writer is detected by the anchor. |
+| RC-21, RC-31 | left | — | — | Need `project_records` and schema v4 (task 3.4). |
+
+### Review round 3 (rebased onto 556b7c3)
+
+Branch rebased onto origin `claude/nexus-fabric-strategy-8guhxz` (556b7c3, engine 0.4.4). Added: `ra016_an_ipv4_client_on_a_mapped_loopback_listener_is_the_same_client` (`::ffff:127.0.0.1` is the loopback proxy, mapped before every check), `ra006_a_remote_peer_with_a_forged_forwarded_address_is_still_limited_by_its_real_address` (a remote peer's forged X-Forwarded-For does not reach the unattributed branch; this one is a regression guard and was not red before). `v34_…` now pins its anonymous-audit minute (`App::anon_minute`, test-only), so the per-minute limit no longer depends on the wall clock. The v34 assertion is unchanged.
+
+### Unattributed clients (finding of the adversarial review)
+
+The live server runs behind Caddy on loopback. Without `NF_TRUSTED_PROXY=127.0.0.1` every request arrives from 127.0.0.1, and the earlier build keyed them all on one address: one attacker then locked every account and capped every client. Now a request is **unattributed** when its peer is loopback, is not a configured trusted proxy, and carries `X-Forwarded-For` (which Caddy always sends). For unattributed requests the per-address rules are skipped: pair lock, per-address failure cap, per-address open-request cap, and known addresses. Only the account gate applies. Tests: `ra001_behind_an_unconfigured_local_proxy_one_client_cannot_deny_others`, `ra006_behind_an_unconfigured_local_proxy_one_client_cannot_lock_another_account`. The V-33 test is unchanged: `X-Forwarded-For` is still never believed from a peer that is not configured.
+
+Operational consequence: behind an UNCONFIGURED proxy (no `NF_TRUSTED_PROXY`) the owner can be STARVED, not merely delayed. Every request shares one key, so any attacker who reaches the account gate takes the one slot every unattributed client shares, and the owner cannot sign in while the attack lasts. `NF_TRUSTED_PROXY=127.0.0.1` is REQUIRED for every per-address rule to function: the open-request cap (`InFlight`), the pair lock, the per-address failure cap and the known-client exemption all treat unconfigured traffic as one client. Step 2 of the live-upgrade draft in `deploy/README.md` is therefore mandatory, not optional.
+
+### Changed expectations (none of the old assertions was weakened)
+
+- `v25_removal_of_the_newest_audit_entries_is_detected`, `rc01_a_damaged_or_missing_closure_record_rejects_the_job`: the test drops the append-only triggers first (`attacker_drops_triggers`), to play the file writer. Assertions unchanged.
+- `be011_upgrade_migration_flags_old_results_without_rewriting_them`: opens the pre-anchor log with `build_app_with(…, true)` (the explicit acceptance an operator gives). Previously `build_app`.
+- `ra006_once_an_account_is_under_attack_only_known_clients_get_through_at_full_speed`: old expectation: a new address is refused (429) while the account is attacked. New: the slot is per (account, address), so a new address gets its first attempt (401 for a wrong password) and its second within 10 s is refused (429). Reason: a shared slot let one rotating attacker starve the owner's new network.
+- `ra007_a_non_loopback_listener_needs_the_allowed_host_list`: the function now takes the variable's value (`Option<&str>`), not a boolean. The same cases are asserted, plus empty and blank lists are refused.
+
+### A11 honest residual (RA-006)
+
+- An attacker who controls many addresses (for example many /64 prefixes) can make about 5 guesses per 15 minutes per address on one account. Total guesses on one account are therefore bounded by the number of addresses the attacker controls, not by a constant. A shared slot across addresses would bound the total but let one rotating attacker starve the owner's new network; this build chose not to do that.
+- Known addresses are seeded from the audit `login` history, once per database. An owner who first signs in from a new network during an attack is slowed down (one attempt per 10 s per address) until the slot is free; they are not locked out.
+- Refused guesses are counted (`admitted = 0`), so a refusal does not make guessing free.
+- Behind a proxy that is not configured (unattributed), only the account gate applies, and the owner can be STARVED (see the operational consequence above), because the one slot every unattributed client shares is taken by any attacker. This is a configuration failure, and the required setting is `NF_TRUSTED_PROXY=127.0.0.1`. With that setting the residual above applies instead.
+
+### Note for the operator: Caddy timeouts (not deployed by this pass)
+
+`deploy/Caddyfile` has no timeouts. The server's own bound is idle, not whole-body: a request body may take as long as it keeps sending chunks, and any chunk gap longer than 10 s ends the request with 408. A Caddy `read_body` is a whole-body deadline, not an idle one. Do not set it to the server's 10 s idle figure: that would cut large PDF uploads over slow mobile links. Choose Caddy's whole-body value with that in mind; `read_header` 15 s matches `NF_HEADER_TIMEOUT_SECS`. `deploy/` was not changed by this pass.
+
+### Strings for users
+
+The new responses carry `error` (English) and `error_ja` (Japanese): `audit_broken` (503), `storage_full` (507), the pair, gate and in-flight throttles (429), recompute-not-needed (409). `web/i18n.js` should show `error_ja` in Japanese; no key was added to it.

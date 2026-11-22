@@ -27,13 +27,16 @@ CREATE TABLE IF NOT EXISTS lessons(id INTEGER PRIMARY KEY, project_id INTEGER NO
 CREATE TABLE IF NOT EXISTS advisories(id INTEGER PRIMARY KEY, calc_id INTEGER NOT NULL, lesson_id INTEGER NOT NULL, message TEXT NOT NULL, state TEXT NOT NULL, note TEXT NOT NULL, resolved_by TEXT, resolved_at INTEGER);
 CREATE TABLE IF NOT EXISTS project_members(project_id INTEGER NOT NULL, user_id INTEGER NOT NULL, PRIMARY KEY(project_id, user_id));
 CREATE TABLE IF NOT EXISTS login_failures(username TEXT NOT NULL, at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS login_clients(username TEXT NOT NULL, client TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(username, client));
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS pdf_conversions(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, source_document INTEGER NOT NULL, page INTEGER NOT NULL, scale_kind TEXT NOT NULL, scale_value REAL NOT NULL, tolerance_mm REAL, include_fill INTEGER NOT NULL, include_text INTEGER NOT NULL, status TEXT NOT NULL, code TEXT, limit_name TEXT, message TEXT, converter_version TEXT, source_sha256 TEXT NOT NULL, dxf_sha256 TEXT, report_sha256 TEXT, record_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 ";
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 10] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 11] = [
+    // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
+    ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
     ("users", "active", "INTEGER NOT NULL DEFAULT 1"),
     ("audit", "prev", "TEXT"),
@@ -51,6 +54,14 @@ const ADDED_COLUMNS: [(&str, &str, &str); 10] = [
     // Task 3.1: the PDF conversion a document was produced by (NULL for an upload).
     ("documents", "conversion_id", "INTEGER"),
 ];
+
+/// Append-only at the database level (RC-20). Created at every start, so an older database gets them too.
+const TRIGGERS: &str = "
+CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit BEGIN SELECT RAISE(ABORT, 'the audit log is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT, 'the audit log is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS records_no_update BEFORE UPDATE ON records BEGIN SELECT RAISE(ABORT, 'records are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS records_no_delete BEFORE DELETE ON records BEGIN SELECT RAISE(ABORT, 'records are append-only'); END;
+";
 
 const INDEXES: &str = "
 CREATE INDEX IF NOT EXISTS ix_calc_project ON calculations(project_id);
@@ -325,6 +336,15 @@ pub fn open_storage(data_dir: &Path, key_path: &Path) -> Result<(Connection, [u8
             db_path.display()
         )
     })?;
+    // RC-20: the audit log and the records are append-only inside the database too. This stops code bugs and
+    // accidental edits; it does not stop a writer of the file (who can drop a trigger). The audit chain check
+    // (main.rs, App::audit) and the anchor are the detection for that.
+    db.execute_batch(TRIGGERS).map_err(|e| {
+        format!(
+            "database {} cannot be initialised ({e}). Refusing to start.",
+            db_path.display()
+        )
+    })?;
     for (table, column, decl) in ADDED_COLUMNS {
         if !has_column(&db, table, column)
             .map_err(|e| format!("cannot inspect table {table}: {e}"))?
@@ -363,12 +383,21 @@ pub fn open_storage(data_dir: &Path, key_path: &Path) -> Result<(Connection, [u8
             data_dir.display()
         )
     };
+    let has_key_fingerprint = meta_get(&db, "key_fingerprint")
+        .map_err(|e| e.to_string())?
+        .is_some();
     let installation_id = match (db_id, marker_id) {
         (Some(d), Some(m)) if d == m => d,
         (Some(_), Some(_)) => {
             return Err(lost(
                 "its installation id differs from the installation marker",
             ));
+        }
+        // RA-014: a database restored from before the marker carries no installation id. Its key fingerprint
+        // is checked against the key file by `load_key` below, so the database is accepted only with its own key.
+        (None, Some(m)) if has_key_fingerprint => {
+            meta_set(&db, "installation_id", &m).map_err(|e| e.to_string())?;
+            m
         }
         (None, Some(_)) => {
             return Err(lost(
@@ -448,7 +477,11 @@ pub fn load_blob(data_dir: &Path, key: &[u8; 32], sha: &str) -> Result<Vec<u8>, 
 /// same directory, fsync, rename over the final name, fsync of the directory.
 /// A file already present is trusted only if it verifies; a damaged one is
 /// replaced (returns `true` in the second position when that happened).
-pub fn store_blob(data_dir: &Path, key: &[u8; 32], bytes: &[u8]) -> Result<(String, bool), String> {
+pub fn store_blob(
+    data_dir: &Path,
+    key: &[u8; 32],
+    bytes: &[u8],
+) -> Result<(String, bool), StoreError> {
     let sha = nf_core::sha256_hex(bytes);
     let path = blob_path(data_dir, &sha);
     let repaired = match load_blob(data_dir, key, &sha) {
@@ -462,7 +495,7 @@ pub fn store_blob(data_dir: &Path, key: &[u8; 32], bytes: &[u8]) -> Result<(Stri
         &sha[..16],
         hex::encode(crypto::random_bytes::<8>())
     ));
-    let sealed = crypto::seal(key, bytes)?;
+    let sealed = crypto::seal(key, bytes).map_err(StoreError::Failed)?;
     let write = || -> std::io::Result<()> {
         let mut opts = std::fs::OpenOptions::new();
         opts.write(true).create_new(true);
@@ -480,9 +513,34 @@ pub fn store_blob(data_dir: &Path, key: &[u8; 32], bytes: &[u8]) -> Result<(Stri
     };
     if let Err(e) = write() {
         let _ = std::fs::remove_file(&tmp);
-        return Err(format!("could not store file {sha}: {e}"));
+        return Err(if is_out_of_space(&e) {
+            StoreError::Full(format!("could not store file {sha}: {e}"))
+        } else {
+            StoreError::Failed(format!("could not store file {sha}: {e}"))
+        });
     }
     Ok((sha, repaired))
+}
+
+/// Why a file could not be stored. A full disk is told apart from other failures (RA-010): the client gets
+/// 507 for it, not a generic 500.
+#[derive(Debug)]
+pub enum StoreError {
+    Full(String),
+    Failed(String),
+}
+
+impl std::fmt::Display for StoreError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StoreError::Full(m) | StoreError::Failed(m) => f.write_str(m),
+        }
+    }
+}
+
+/// The disk is full (ENOSPC, or the Windows equivalent): nothing was stored (RA-010).
+pub fn is_out_of_space(e: &std::io::Error) -> bool {
+    matches!(e.raw_os_error(), Some(28) | Some(112))
 }
 
 /// Temporary files left by a write that never finished are not blobs; remove them at start-up.
