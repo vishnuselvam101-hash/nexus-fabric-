@@ -49,8 +49,8 @@ depends on them.
 | `joint_pairing_invalid` | the joint is `set_on` but the branch surface is not `inside` or the header surface is not `outside` | `joint`, `header_surface_reference`, `branch_surface_reference` | no |
 | `joint_type_unknown` | the joint is neither absent nor `set_on` | `joint` | no |
 | `bend_angle_out_of_range` | the bend deduction is defined for 0 < theta <= 90 degrees; no request family uses it in this build | none | no |
-| `reason_required` | a correction gives no reason, or one shorter than five bytes (the UTF-8 length: a Japanese character counts as three bytes) | `reason` | no |
-| `reason_too_long` | a correction reason is longer than 2000 characters | `reason` | no |
+| `reason_required` | a correction gives no reason, or one shorter than five characters once trimmed (work plan 3.2: counted in characters, that is Unicode scalar values after Rust's `str::trim`, never in bytes or UTF-16 units; a Japanese character, and a character outside the BMP, counts as one; the client counts the same way, `web/app.js` `charCount`/`trimRs`. Until the server hardening of `9bda4ba` the length was the UTF-8 byte count, which let a reason of two Japanese characters pass) | `reason` | no |
+| `reason_too_long` | a correction reason is longer than 2000 characters (counted as for `reason_required`) | `reason` | no |
 | `correction_not_for_family` | corrections with propagation are implemented for the header-with-branch family only | `family` | no |
 | `correction_unknown_parameter` | the parameter is not a numeric parameter of the job | `parameter` | no |
 | `correction_value_unchanged` | the new value equals the current value | `new_value` | no |
