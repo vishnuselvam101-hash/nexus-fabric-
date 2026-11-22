@@ -67,7 +67,10 @@ const controlProbe = () => {
   const p = await ctx.newPage(); watch(p, 'admin');
   const apiGet = async (path) => (await ctx.request.get(B + path, { headers: { 'X-NF-Request': '1' } })).json();
   // navigation is complete when the client marks the view with the hash it rendered
-  const go = async (hash, sel) => { await p.goto(`${B}/#/${hash}`); await p.waitForFunction((h) => { const v = document.querySelector('#view'); return v && v.dataset.hash === h; }, `#/${hash}`); await p.waitForSelector(sel || '#view h1'); };
+  // goOn: the same wait for any page (work plan 3.5: the role checks of section 13 waited on '#view h1', which the previous
+  // view still matched after a hash-only navigation; that was the intermittent failure)
+  const goOn = async (pg, hash, sel, opt) => { await pg.goto(`${B}/#/${hash}`); await pg.waitForFunction((h) => { const v = document.querySelector('#view'); return v && v.dataset.hash === h; }, `#/${hash}`); await pg.waitForSelector(sel || '#view h1', opt); };
+  const go = (hash, sel) => goOn(p, hash, sel);
   const sweepControls = async () => { const c = await p.evaluate(controlProbe); approveControls += c.approve; approvedTags += c.approvedTags; return c; };
   const vpos = (ci, vi) => p.evaluate(([c, v]) => { const pl = document.querySelector(`.pv .hit[data-ci="${c}"]`), q = pl.points[v], m = pl.getScreenCTM(); return [q.x * m.a + q.y * m.c + m.e, q.x * m.b + q.y * m.d + m.f]; }, [ci, vi]);
   const transform = () => p.evaluate(() => document.querySelector('.pv g[transform]').getAttribute('transform'));
@@ -466,21 +469,21 @@ const controlProbe = () => {
   // ---- 13. role restrictions (API sign-in first, so that no page ever provokes a refused request)
   const role = async (cred) => { const c = await browser.newContext({ viewport: { width: 1366, height: 768 } }); await c.request.post(`${B}/api/login`, { headers: { 'X-NF-Request': '1' }, data: cred }); const pg = await c.newPage(); watch(pg, cred.username); return [c, pg]; };
   const [vctx, v] = await role({ username: 'viewer1', password: 'read-only-pass' });
-  await v.goto(`${B}/#/dashboard`); await v.waitForSelector('.stats');
+  await goOn(v, 'dashboard', '.stats');
   const vDash = { newCalc: await v.locator('#view a:has-text("New calculation")').count(), adminNav: await v.locator('.rail a[data-nav=admin]').count() };
-  await v.goto(`${B}/#/math/1`); await v.waitForSelector('#view h1'); const vMath = await v.textContent('#view');
-  await v.goto(`${B}/#/calc/${N}`); await v.waitForSelector('.pv .c', { state: 'attached' }); await v.click('#tab-ws-scrutiny');
+  await goOn(v, 'math/1'); const vMath = await v.textContent('#view');
+  await goOn(v, `calc/${N}`, '.pv .c', { state: 'attached' }); await v.click('#tab-ws-scrutiny');
   const vJob = { replay: await v.locator('#replay').count(), corr: await v.locator('#corr-open, [data-correct]').count(), resolve: await v.locator('[data-resolve]').count(), obligations: await v.locator('#obls > li').count(), dxf: await v.locator('#dxf').count() };
-  await v.goto(`${B}/#/admin`); await v.waitForSelector('#view h1'); const vAdmin = await v.textContent('#view');
-  await v.goto(`${B}/#/projects`); await v.waitForSelector('#view h1'); const vProj = await v.locator('#np').count();
+  await goOn(v, 'admin'); const vAdmin = await v.textContent('#view');
+  await goOn(v, 'projects'); const vProj = await v.locator('#np').count();
   check('viewer: can read results, but sees no way to calculate, correct, decide, replay or administer', vDash.newCalc === 0 && vDash.adminNav === 0 && /can view results but not run calculations/.test(vMath) && vJob.replay === 0 && vJob.corr === 0 && vJob.resolve === 0 && vJob.obligations >= 9 && vJob.dxf === 1 && /Administrator role required/.test(vAdmin) && vProj === 0, { vDash, vJob, vProj });
   const post = (c, path, data) => c.request.post(B + path, { headers: { 'X-NF-Request': '1' }, data });
   check('viewer: server refuses calculation, decision and audit log', (await post(vctx, '/api/projects/1/calculations', { family: 'cylinder_shell', r_dev: 1, length: 1 })).status() === 403 && (await post(vctx, '/api/obligations/1/resolve', { decision: 'waived', reason: 'viewer attempt' })).status() === 403 && (await vctx.request.get(`${B}/api/audit`, { headers: { 'X-NF-Request': '1' } })).status() === 403);
   await vctx.close();
   const [ectx, e] = await role({ username: 'engineer1', password: 'engineer-pass-1' });
-  await e.goto(`${B}/#/math/1`); await e.waitForSelector('#view h1'); const eCalc = await e.locator('#calc').count();
-  await e.goto(`${B}/#/calc/${N}`); await e.waitForSelector('.pv .c', { state: 'attached' }); const eReplay = await e.locator('#replay').count();
-  await e.goto(`${B}/#/admin`); await e.waitForSelector('#view h1');
+  await goOn(e, 'math/1'); const eCalc = await e.locator('#calc').count();
+  await goOn(e, `calc/${N}`, '.pv .c', { state: 'attached' }); const eReplay = await e.locator('#replay').count();
+  await goOn(e, 'admin');
   check('engineer: can calculate and audit, cannot administer', eCalc === 1 && eReplay === 1 && /Administrator role required/.test(await e.textContent('#view')) && (await e.locator('.rail a[data-nav=admin]').count()) === 0 && (await ectx.request.get(`${B}/api/users`, { headers: { 'X-NF-Request': '1' } })).status() === 403);
   await ectx.close();
   check('deactivated user cannot sign in', (await (await browser.newContext()).request.post(`${B}/api/login`, { headers: { 'X-NF-Request': '1' }, data: { username: 'temp1', password: 'temporary-pass' } })).status() === 401);
