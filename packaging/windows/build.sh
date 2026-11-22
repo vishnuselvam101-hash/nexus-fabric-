@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # Builds the Windows packages from a built nexus-fabric.exe.
-# Usage: packaging/windows/build.sh <nf-server.exe> <version> <dist dir>
+# Usage: packaging/windows/build.sh <nf-server.exe> <version> <dist dir> <nf-pdf2dxf.exe>
 # Produces in <dist dir>:
 #   nexus-fabric-<version>-windows-x64-setup.exe     per-user installer (NSIS)
-#   nexus-fabric-<version>-windows-x64-portable.zip  exe + README + notice + third-party notices (no installer)
+#   nexus-fabric-<version>-windows-x64-portable.zip  exe + converter + README + notice + third-party notices (no installer)
+# nf-pdf2dxf.exe is placed beside nexus-fabric.exe, where the server looks for it.
 set -euo pipefail
 
-if [ "$#" -ne 3 ]; then
-  echo "usage: $0 <nf-server.exe> <version> <dist dir>" >&2
+if [ "$#" -ne 4 ]; then
+  echo "usage: $0 <nf-server.exe> <version> <dist dir> <nf-pdf2dxf.exe>" >&2
   exit 2
 fi
 EXE=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
+CONV=$(cd "$(dirname "$4")" && pwd)/$(basename "$4")
 VERSION=$2
 DIST=$3
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -25,11 +27,12 @@ winpath() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else pr
 
 mkdir -p "$STAGE/$NAME"
 cp "$EXE" "$STAGE/$NAME/nexus-fabric.exe"
+cp "$CONV" "$STAGE/$NAME/nf-pdf2dxf.exe"
 cp "$ROOT/packaging/README.txt" "$STAGE/$NAME/README.txt"
 cp "$ROOT/packaging/NOTICE.txt" "$STAGE/$NAME/NOTICE.txt"
 cp "$ROOT/packaging/THIRD_PARTY_NOTICES.txt" "$STAGE/$NAME/THIRD_PARTY_NOTICES.txt"
 
-# Portable zip: one folder, exe + README + notice.
+# Portable zip: one folder, exe + converter + README + notice.
 ZIP="$DIST/$NAME-windows-x64-portable.zip"
 rm -f "$ZIP"
 if command -v zip >/dev/null 2>&1; then

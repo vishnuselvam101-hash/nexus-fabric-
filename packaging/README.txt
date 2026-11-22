@@ -14,6 +14,10 @@ STARTING IT
       nexus-fabric.exe --desktop
 - Linux: run  ./nexus-fabric.sh  in this folder.
 
+Keep nf-pdf2dxf (nf-pdf2dxf.exe on Windows) in the same folder as the
+program: it is the separate PDF -> DXF converter the program starts for a
+conversion. Without it, PDF conversion is refused; everything else works.
+
 The browser opens the address shown in the console window (normally
 http://127.0.0.1:8787/, or another free port if that one is busy). Keep the
 console window open while you work. To stop, press Ctrl+C in it or close the

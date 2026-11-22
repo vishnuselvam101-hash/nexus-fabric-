@@ -20,3 +20,7 @@ targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-gnu"]
 
 # Dev-dependencies (tests) are not compiled into the shipped binary.
 ignore-dev-dependencies = true
+
+# First-party crates (publish = false; the workspace crates and the converter's
+# Windows helper crates/nf-pdf/winjob) are our own code, not third-party: skip them.
+private = { ignore = true }

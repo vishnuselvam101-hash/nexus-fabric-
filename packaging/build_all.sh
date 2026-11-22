@@ -40,8 +40,8 @@ step() {
 
 case "$(uname -s)" in
   Linux*)
-    step cargo-linux cargo build --release -p nf-server
-    step package-linux packaging/linux/build.sh target/release/nf-server "$VERSION" "$DIST"
+    step cargo-linux cargo build --release -p nf-server -p nf-pdf --bin nf-server --bin nf-pdf2dxf
+    step package-linux packaging/linux/build.sh target/release/nf-server "$VERSION" "$DIST" target/release/nf-pdf2dxf
     if [ "$LINUX_ONLY" -eq 0 ]; then
       if ! command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then
         echo "x86_64-w64-mingw32-gcc not found: install mingw-w64, or run with --linux-only" >&2
@@ -52,13 +52,14 @@ case "$(uname -s)" in
         exit 1
       fi
       step cargo-windows env CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc \
-        cargo build --release -p nf-server --target x86_64-pc-windows-gnu
-      step package-windows packaging/windows/build.sh target/x86_64-pc-windows-gnu/release/nf-server.exe "$VERSION" "$DIST"
+        cargo build --release -p nf-server -p nf-pdf --bin nf-server --bin nf-pdf2dxf --target x86_64-pc-windows-gnu
+      step package-windows packaging/windows/build.sh target/x86_64-pc-windows-gnu/release/nf-server.exe "$VERSION" "$DIST" \
+        target/x86_64-pc-windows-gnu/release/nf-pdf2dxf.exe
     fi
     ;;
   MINGW*|MSYS*|CYGWIN*)
-    step cargo-windows-host cargo build --release -p nf-server
-    step package-windows-host packaging/windows/build.sh target/release/nf-server.exe "$VERSION" "$DIST"
+    step cargo-windows-host cargo build --release -p nf-server -p nf-pdf --bin nf-server --bin nf-pdf2dxf
+    step package-windows-host packaging/windows/build.sh target/release/nf-server.exe "$VERSION" "$DIST" target/release/nf-pdf2dxf.exe
     ;;
   *)
     echo "unsupported host: $(uname -s)" >&2
