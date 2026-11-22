@@ -24,25 +24,39 @@ export class Shots {
     const hole5 = D.pat.header5.holes[0].map(([x, y]) => P.header5.at(x, y, 1).toArray());
     P.header5.set(1);
     this.hole5 = hole5;
-    st.tube('true', hole5, 3.2, C3.blue, true, 720);
-    st.tube('lift', hole5, 3.2, C3.blue, true, 720);
+    st.tube('true', hole5, 4.5, C3.blue, true, 720);
     st.tube('amberSeam', hole5, 3.6, C3.amber, true, 720);
     // the branch saddle edge (job 5): child of the branch part so it follows the branch plate when it moves
     P.branch5.set(1);
     const sad5 = D.pat.branch5.curves.saddle_cut.filter((_, i) => i % 1 === 0).map(([x, y]) => P.branch5.at(x, y, 1).toArray());
     st.tube('saddle', sad5, 3.4, 0xff7a1a, false, 720); P.branch5.grp.add(st.tubes.saddle.mesh);
     st.tube('one', hole5, 3.6, C3.green, true, 720);
-    // the wrong curve: job 6's branch (saddle computed for a 158 mm header) set on job 5's 150 mm header, slid down its
-    // axis to first contact. Shift d* = min over saddle points of (y0 - sqrt(150^2 - z0^2)) / sin(beta) (the point
-    // reaches radius 150 when moved by that much along -a).
-    P.branch6.set(1);
+    // the wrong curve (hook): job 5's own branch plate, its computed saddle set a quarter turn out of orientation about
+    // the branch axis (a marking/orientation error), then slid down its axis to first contact with the header. The cut
+    // is the product's; only its placement is wrong. Slide d* = min over saddle points of (y0 - sqrt(R^2 - z0^2)) / sin(beta)
+    // (a point reaches the header radius R after moving that far along -a). Of the two quarter turns, the one whose
+    // largest gap faces the camera (+Z) is used; the joint is symmetric about the XY plane, so both are the same error.
     const b = req5.beta_deg * deg, a = new THREE.Vector3(Math.cos(b), Math.sin(b), 0), R5 = req5.header_radius;
-    const sad6 = D.pat.branch6.curves.saddle_cut.map(([x, y]) => P.branch6.at(x, y, 1));
-    let dmin = Infinity; for (const p of sad6) dmin = Math.min(dmin, (p.y - Math.sqrt(R5 * R5 - p.z * p.z)) / Math.sin(b));
-    this.wrongShift = a.clone().multiplyScalar(-dmin);
-    this.gapMax = Math.max(...sad6.map((p) => Math.hypot(p.clone().add(this.wrongShift).y, p.z) - R5));
-    st.tube('wrong', sad6.map((p) => p.clone().add(this.wrongShift).toArray()), 5.0, C3.red, false, 720);
-    this.sad6w = sad6.map((p) => p.clone().add(this.wrongShift));
+    const O5 = new THREE.Vector3(req5.branch_station, 0, req5.delta);
+    const sad5v = D.pat.branch5.curves.saddle_cut.map(([x, y]) => P.branch5.at(x, y, 1));
+    let best = null;
+    for (const ang of [Math.PI / 2, -Math.PI / 2]) {
+      const q = new THREE.Quaternion().setFromAxisAngle(a, ang);
+      const pts = sad5v.map((p) => p.clone().sub(O5).applyQuaternion(q).add(O5));
+      let dmin = Infinity; for (const p of pts) dmin = Math.min(dmin, (p.y - Math.sqrt(R5 * R5 - p.z * p.z)) / Math.sin(b));
+      const shift = a.clone().multiplyScalar(-dmin), placed = pts.map((p) => p.clone().add(shift));
+      let gk = 0, gmax = -1; placed.forEach((p, k) => { const g = Math.hypot(p.y, p.z) - R5; if (g > gmax) { gmax = g; gk = k; } });
+      if (!best || placed[gk].z > best.placed[best.gk].z) best = { q, shift, placed, gk, gmax };
+    }
+    this.wrongQ = best.q; this.wrongPos = O5.clone().sub(O5.clone().applyQuaternion(best.q)).add(best.shift);
+    this.wrongPts = best.placed; this.gapPt = best.placed[best.gk]; this.gapMax = best.gmax;
+    st.tube('wrong', best.placed.map((p) => p.toArray()), 6.0, C3.red, false, 720);
+    // the gap itself: a ribbon from each point of the misplaced cut edge down to the header surface (radial foot)
+    { const n = best.placed.length, pos = new Float32Array(n * 6), idx = [];
+      best.placed.forEach((p, k) => { const r = Math.hypot(p.y, p.z); pos.set([p.x, p.y, p.z, p.x, p.y * R5 / r, p.z * R5 / r], k * 6); if (k) { const i = 2 * k; idx.push(i - 2, i - 1, i, i, i - 1, i + 1); } });
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setIndex(idx);
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }));
+      m.renderOrder = 3; m.frustumCulled = false; st.root.add(m); this.gapRibbon = m; m.visible = false; }
     // replay scan ring around the header (job 6 radius + 6 mm)
     const ring = []; for (let i = 0; i < 96; i++) { const q = (i / 96) * 2 * Math.PI; ring.push([0, (D.pat.header6.request.header_radius + 6) * Math.cos(q), (D.pat.header6.request.header_radius + 6) * Math.sin(q)]); }
     st.tube('scan', ring, 4, C3.blue, true, 96);
@@ -67,8 +81,9 @@ export class Shots {
 
   // ------------------------------------------------------------------ per-frame 3D state
   reset() {
-    const st = this.st; for (const p of Object.values(st.parts)) { p.grp.visible = false; p.grp.position.set(0, 0, 0); p.grp.scale.set(1, 1, 1); p.grp.rotation.set(0, 0, 0); p.mesh.material = st.steel; }
+    const st = this.st; for (const p of Object.values(st.parts)) { p.grp.visible = false; p.grp.position.set(0, 0, 0); p.grp.scale.set(1, 1, 1); p.grp.rotation.set(0, 0, 0); p.grp.quaternion.identity(); p.mesh.material = st.steel; }
     for (const t of Object.values(st.tubes)) { t.draw(0); t.mesh.position.set(0, 0, 0); t.mesh.scale.set(1, 1, 1); }
+    if (this.gapRibbon) { this.gapRibbon.visible = false; this.gapRibbon.position.set(0, 0, 0); }
     st.setShadow({ cx: 600, cz: 0, size: 3200, floorY: -300, height: 520, opacity: 0.62 });
     st.setLights(600, 60, 0, 1000);
   }
@@ -93,59 +108,55 @@ export class Shots {
 
   // common pieces of overlay
   head(o, V, lines, t, t0, t1, y = 210, color) { o.block(lines, 120, y, 140, { size: HS, weight: 650, color: color || COL.ink }, t, t0, t1); }
-  label(o, V, s, t, t0, t1, row = 0) { if (!V.labels) return; o.block([s], 120, 1046 - row * 54, 0, { size: LS, weight: 500, color: COL.ink3 }, t, t0, t1); }
+  label(o, V, s, t, t0, t1, row = 0) { if (!V.labels) return; o.block([s], 120, 1046 - row * 54, 0, { size: LS, weight: 500, color: COL.ink3, bg: 'rgba(244,245,247,0.82)' }, t, t0, t1); }
 
   // ================================================================== 1 · 0-4 s · the wrong curve
   s1(t) {
-    const st = this.st, P = st.parts;
-    this.tee({ b: 'branch6' }); P.branch6.grp.position.copy(this.wrongShift);
-    const u = t / 4;
-    this.cam({ tx: 600 + 60 * u, ty: 70, tz: 0, az: 14 + 16 * smooth(u), el: 8 + 6 * u, dist: 2350 - 450 * smooth(u), fov: 24, sx: 110, sy: 150 + 40 * u });
-    const wu = spring(seg(t, 1.0, 1.55));
-    st.tubes.wrong.draw(wu, 1);
+    const st = this.st, P = st.parts, b = this.req5.beta_deg * deg, A = new THREE.Vector3(Math.cos(b), Math.sin(b), 0);
+    // the misplaced branch comes down its axis and lands at 0.9 s; on beat 2 (1.0 s) the gap and the wrong edge light up
+    const land = spring(seg(t, 0.0, 0.9), 0.6);
+    this.tee({ b: 'branch5' });
+    P.branch5.grp.quaternion.copy(this.wrongQ); P.branch5.grp.position.copy(this.wrongPos).addScaledVector(A, 420 * (1 - land));
+    const g = this.gapPt;
+    // camera: the joint, slowly orbiting; on 2.5 s ("doesn't fit") it snaps in to the widest gap
+    const u = t / 4, snap = spring(seg(t, 2.45, 2.85), 0.75);
+    const c0 = { tx: 640, ty: 90, tz: 0, az: 18 + 10 * u, el: 12 + 4 * u, dist: 2150 - 250 * u, fov: 24, sx: 120, sy: 140 };
+    const c1 = { tx: g.x, ty: g.y - 10, tz: g.z, az: 30 + 6 * seg(t, 2.8, 4), el: 16, dist: 1000 - 60 * seg(t, 2.8, 4), fov: 24, sx: 330, sy: 170 };
+    this.cam(lerpCam(c0, c1, snap));
+    const on = seg(t, 0.95, 1.05);
+    st.tubes.wrong.draw(t >= 0.95 ? 1 : 0, on);
+    this.gapRibbon.visible = t >= 0.95; this.gapRibbon.material.opacity = 0.62 * on * (0.85 + 0.15 * Math.cos((t - 1) * Math.PI * 4));
     return (o, V) => {
       const S = V.S;
-      // light through the gap: a soft streak along the projected flank of the gap, from 1.0 s (beat 2)
-      const g = seg(t, 1.0, 1.25) * (1 - 0.35 * seg(t, 2.2, 3.8)) * (1 - seg(t, 3.75, 3.95));
-      if (g > 0) {
-        const c = o.c; c.save(); c.globalCompositeOperation = 'lighter';
-        const pts = this.sad6w.filter((p, i) => i % 6 === 0 && p.z > 20).map((p) => this.P(p));
-        c.strokeStyle = `rgba(255,250,236,${0.9 * g})`; c.lineWidth = 22; c.filter = 'blur(9px)'; c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.stroke();
-        c.filter = 'none'; c.restore();
-      }
       this.head(o, V, S.hook, t, 0.3, 3.95);
-      // a marker on the gap: the gap's real size is not stated (the curve is job 6's, on job 5's header)
+      // a pulse ring on the widest gap at 1.0 s and again on the snap (2.5 s)
+      for (const tp of [1.0, 2.5]) { const k = seg(t, tp, tp + 0.5); if (k > 0 && k < 1) { const p = this.P(g); o.ring(p[0], p[1], 20 + 90 * outCubic(k), 6, COL.red, 1 - k); } }
       this.label(o, V, S.label_vis, t, 1.0, 3.95);
     };
   }
 
-  // ================================================================== 2 · 4-8 s · the true curve lifts off
+  // ================================================================== 2 · 4-8 s · the true curve, drawn on the steel
   s2(t) {
-    const st = this.st, P = st.parts;
-    const out = smooth(seg(t, 4.0, 4.45));                                   // the wrong branch leaves along its axis, its red edge with it
-    this.tee({ b: 'branch6' });
-    const b = this.req5.beta_deg * deg, away = new THREE.Vector3(Math.cos(b), Math.sin(b), 0).multiplyScalar(1100 * out * out);
-    P.branch6.grp.position.copy(this.wrongShift).add(away);
-    st.tubes.wrong.draw(1, 1 - seg(t, 4.2, 4.5)); st.tubes.wrong.mesh.position.copy(away);
-    if (out >= 1) P.branch6.grp.visible = false;
-    const u = seg(t, 4, 8), mv = quint(seg(t, 4.0, 5.4));
-    const c0 = { tx: 660, ty: 70, tz: 0, az: 30, el: 14, dist: 1900, fov: 24, sx: 110, sy: 190 };
-    const c1 = { tx: 700, ty: 170, tz: 10, az: 22 + 8 * u, el: 34, dist: 1500 - 120 * u, fov: 24, sx: 230, sy: 150 };
+    const st = this.st, P = st.parts, b = this.req5.beta_deg * deg, A = new THREE.Vector3(Math.cos(b), Math.sin(b), 0);
+    const out = smooth(seg(t, 4.0, 4.45));                                   // the misplaced branch leaves along its axis, its red edge with it
+    this.tee({ b: 'branch5' });
+    const away = A.clone().multiplyScalar(1100 * out * out);
+    P.branch5.grp.quaternion.copy(this.wrongQ); P.branch5.grp.position.copy(this.wrongPos).add(away);
+    if (out >= 1) P.branch5.grp.visible = false;
+    st.tubes.wrong.draw(1, 1 - seg(t, 4.1, 4.35)); st.tubes.wrong.mesh.position.copy(away);
+    this.gapRibbon.visible = t < 4.25; this.gapRibbon.material.opacity = 0.62 * (1 - seg(t, 4.0, 4.2));
+    const g = this.gapPt, u = seg(t, 4, 8), mv = quint(seg(t, 4.0, 5.2));
+    const c0 = { tx: g.x, ty: g.y - 10, tz: g.z, az: 36, el: 16, dist: 940, fov: 24, sx: 330, sy: 170 };
+    const c1 = { tx: 690, ty: 150, tz: 0, az: 18 + 16 * u, el: 38, dist: 1450 - 100 * u, fov: 24, sx: 260, sy: 160 };
     this.cam(lerpCam(c0, c1, mv));
-    // the true intersection curve (job 5) draws on the steel, then lifts off and holds
-    const d = spring(seg(t, 4.3, 5.1)), lift = spring(seg(t, 5.0, 5.9));
-    st.tubes.true.draw(d * (1 - seg(t, 5.0, 5.3)), 1);
-    const L = st.tubes.lift; L.draw(t >= 5.0 ? 1 : 0, 1); L.mesh.position.set(0, 90 * lift + 6 * Math.sin((t - 5.9) * 2.2) * seg(t, 5.9, 6.4), 0);
+    // the true intersection curve (job 5's opening) draws on the header surface, point by point
+    st.tubes.true.draw(spring(seg(t, 4.25, 5.2), 0.9), 1);
     return (o, V) => {
       const S = V.S;
       this.head(o, V, S.question, t, 4.0, 7.95);
-      // a marker travels the lifted curve point by point (6.25-7.75 s, the music's draw)
+      // a marker travels the curve (6.25-7.75 s, the music's draw)
       const m = seg(t, 6.25, 7.75);
-      if (m > 0 && m < 1) {
-        const n = this.hole5.length, k = Math.floor(m * n) % n, p = this.hole5[k];
-        const s = this.P([p[0], p[1] + L.mesh.position.y, p[2]]);
-        o.dot(s[0], s[1], 11, '#ffffff', 0.95); o.ring(s[0], s[1], 11, 4, COL.blue, 1);
-      }
+      if (m > 0 && m < 1) { const n = this.hole5.length, p = this.hole5[Math.floor(m * n) % n]; const s = this.P(p); o.dot(s[0], s[1], 12, '#ffffff', 0.95); o.ring(s[0], s[1], 12, 5, COL.blue, 1); }
       this.label(o, V, S.label_vis, t, 4.0, 7.95);
     };
   }
@@ -158,84 +169,84 @@ export class Shots {
     const kh = 1 - spring(seg(t, 9.6, 10.0), 0.9);
     this.tee({ kh, b: 'branch5', boff: A.clone().multiplyScalar(520 * (1 - land) + 900 * lift * lift) });
     if (lift >= 1) P.branch5.grp.visible = false;
-    // the lifted ring settles back onto the opening as the branch lands
-    const L = st.tubes.lift; const ry = 90 * (1 - smooth(seg(t, 8.0, 8.4))); L.draw(t < 8.5 ? 1 : 0, 1 - seg(t, 8.35, 8.5)); L.mesh.position.set(0, ry, 0);
-    // camera: whole tee for the callouts, then straight above the flat plate (match cut to the application's preview)
-    const fit = this.appFit(V_LANG_ANY);
-    const c0 = { tx: 620, ty: 60, tz: 0, az: 24, el: 20, dist: 3000, fov: 24, sx: 90, sy: 0 };
-    const c0b = { tx: 620, ty: 60, tz: 0, az: 28, el: 22, dist: 2850, fov: 24, sx: 90, sy: 0 };
+    st.tubes.true.draw(t < 8.5 ? 1 : 0, 1 - seg(t, 8.3, 8.48));
+    // camera: whole tee on the left for the callouts (labels in a column on the right), then straight above the flat
+    // plate where the application's preview will show it (match dissolve at 10.0 s)
+    const fit = this.appFit();
+    const c0 = { tx: 620, ty: 60, tz: 0, az: 24, el: 20, dist: 3500, fov: 24, sx: -230, sy: 40 };
+    const c0b = { tx: 620, ty: 60, tz: 0, az: 30, el: 23, dist: 3350, fov: 24, sx: -230, sy: 40 };
     const ctop = { tx: 600, ty: 150, tz: 0, az: 0, el: 89.9, dist: fit.dist, fov: 24, sx: fit.sx, sy: fit.sy };
-    const cm = lerpCam(c0, c0b, seg(t, 8, 9.6));
-    this.cam(lerpCam(cm, ctop, quint(seg(t, 9.6, 10.0))));
+    this.cam(lerpCam(lerpCam(c0, c0b, seg(t, 8, 9.6)), ctop, quint(seg(t, 9.6, 10.0))));
     return (o, V) => {
       const S = V.S;
       if (t >= 9.88) this.appWindow(o, V, t);
       if (t < 10) {
         this.head(o, V, S.brand_name, t, 8.2, 9.2);
         this.head(o, V, S.product_a, t, 9.2, 9.95);
-        // callouts: the job's inputs (job 5 request), on the geometry, one per eighth-beat from 8.5 s
         const cA = clamp(1 - seg(t, 9.5, 9.62));
         if (cA > 0) this.callouts(o, V, t, cA);
         this.label(o, V, S.label_vis, t, 8.0, 9.95);
       }
     };
   }
-  // where the application's preview puts the header plate (per language) -> the camera that puts the 3D plate there
-  appCrop(lang) {
-    // crop along panel borders (application px of the 1920 x 1080 window): properties + preview, above the toast; the
-    // gates panel (right) is left out. The plate rectangle is where the preview draws x 0..1200, y 0..942 (read from the frame).
-    return lang === 'ja' ? { x: 232, y: 158, w: 1224, h: 832, plate: [609, 265, 1379, 868] } : { x: 232, y: 153, w: 1224, h: 832, plate: [609, 253, 1379, 856] };
+  // The real result screen (job #5): the crop is the plate in the preview with its rulers and dimensions, read from
+  // the frame (plate rectangle = where the preview draws x 0..1200, y 0..942); it pushes in to the opening and the
+  // 942.478 dimension over the two seconds. The gates panel (right of the preview) is never in the crop.
+  appPlate(lang) { return lang === 'ja' ? [609, 265, 1379, 868] : [609, 253, 1379, 856]; }
+  appView(lang, t) {
+    const pl = this.appPlate(lang), W0 = 906, H0 = 715;
+    const c0 = [pl[0] - 64 + W0 / 2, pl[1] - 62 + H0 / 2];                          // whole plate, rulers, both dimensions
+    const c1 = [pl[2] - 199, (pl[1] + pl[3]) / 2 + 6];                             // the opening and the 942.478 dimension
+    const z = 1 + 0.95 * quint(seg(t, 10.15, 11.75));
+    const cx = lerp(c0[0], c1[0], (z - 1) / 0.95), cy = lerp(c0[1], c1[1], (z - 1) / 0.95);
+    return { sx: cx - W0 / (2 * z), sy: cy - H0 / (2 * z), sw: W0 / z, sh: H0 / z, X: 498, Y: 272, W: 924, H: 729 };
   }
-  appPlace(lang, t) { const cr = this.appCrop(lang); const k = 0.95 + 0.03 * smooth(seg(t, 10, 12)); const w = cr.w * k, h = cr.h * k;
-    // the Japanese frame draws the plate 7 px lower inside the crop: the window moves up by that much so both plates meet the 3D plate
-    const dy = ((cr.plate[1] - cr.y) - 100) * k; return { cr, k, X: 1840 - w, Y: 540 - h / 2 - dy, w, h }; }
   appFit() {
-    // the plate (1200 mm) must span the preview's plate width; px per mm at distance d (fov 24): 1080 / (2 d tan 12 deg)
-    const pl = this.appPlace('en', 10.0), cr = pl.cr, pw = (cr.plate[2] - cr.plate[0]) * pl.k;
-    const dist = 1080 / (2 * Math.tan(12 * deg) * (pw / 1200));
-    const cx = pl.X + ((cr.plate[0] + cr.plate[2]) / 2 - cr.x) * pl.k, cy = pl.Y + ((cr.plate[1] + cr.plate[3]) / 2 - cr.y) * pl.k;
+    // the 3D plate (1200 mm) must cover the preview's plate at the first frame of the window; px per mm at distance d
+    // (fov 24) is 1080 / (2 d tan 12 deg)
+    const v = this.appView('en', 10.0), pl = this.appPlate('en'), k = v.W / v.sw;
+    const pw = (pl[2] - pl[0]) * k, dist = 1080 / (2 * Math.tan(12 * deg) * (pw / 1200));
+    const cx = v.X + ((pl[0] + pl[2]) / 2 - v.sx) * k, cy = v.Y + ((pl[1] + pl[3]) / 2 - v.sy) * k;
     return { dist, sx: cx - 960, sy: cy - 540 };
   }
   appWindow(o, V, t) {
-    const pl = this.appPlace(V.lang, t), cr = pl.cr, img = this.foot[V.lang].result, c = o.c, k2 = img.width / 1920;
-    const a = seg(t, 9.88, 10.0);                     // the window holds to the bar (12.0 s cut)
-    c.save(); c.globalAlpha = a; c.shadowColor = 'rgba(20,30,50,0.18)'; c.shadowBlur = 40; c.shadowOffsetY = 12; c.fillStyle = '#fff'; o.rr(pl.X, pl.Y, pl.w, pl.h, 14); c.fill(); c.shadowColor = 'transparent';
-    o.rr(pl.X, pl.Y, pl.w, pl.h, 14); c.clip(); c.drawImage(img, cr.x * k2, cr.y * k2, cr.w * k2, cr.h * k2, pl.X, pl.Y, pl.w, pl.h); c.restore();
-    const pb = V.lang === 'ja' ? V.S.product_b[0].replace('へ', '\nへ').split('\n') : V.S.product_b[0].split(' ');   // the line set as a poster column beside the window
-    o.block(pb, 120, 400, 140, { size: HS, weight: 650 }, t, 10.0, 11.95);
-    this.label(o, V, V.S.label_actual, t, 10.0, 11.95);
+    const v = this.appView(V.lang, t), img = this.foot[V.lang].result, c = o.c, k2 = img.width / 1920;
+    const a = seg(t, 9.88, 10.0);
+    c.save(); c.globalAlpha = a; c.shadowColor = 'rgba(20,30,50,0.18)'; c.shadowBlur = 40; c.shadowOffsetY = 12; c.fillStyle = '#fff'; o.rr(v.X, v.Y, v.W, v.H, 16); c.fill(); c.shadowColor = 'transparent';
+    o.rr(v.X, v.Y, v.W, v.H, 16); c.clip(); c.drawImage(img, v.sx * k2, v.sy * k2, v.sw * k2, v.sh * k2, v.X, v.Y, v.W, v.H); c.restore();
+    o.block(V.S.product_b, 120, 210, 140, { size: HS, weight: 650 }, t, 10.0, 12.2);
+    this.label(o, V, V.S.label_actual, t, 10.0, 12.2);
   }
   callouts(o, V, t, alpha) {
-    const P = this.st.parts, r = this.req5, b = r.beta_deg * deg, prm = B.params, ja = V.lang === 'ja';
+    const r = this.req5, b = r.beta_deg * deg, prm = B.params, ja = V.lang === 'ja';
     const name = (k) => (prm[k] ? (ja ? prm[k].ja : prm[k].en) : k);
     const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
     const items = [];
-    // labels sit in fixed screen places with a leader line to their anchor on the steel (no label over the object)
-    // 1 header radius: from the axis to the rim at the far end (x = header length)
-    { const L = r.header_length, a = this.P(v3(L, 0, 0)), q = this.P(v3(L, -r.header_radius * Math.sin(30 * deg), r.header_radius * Math.cos(30 * deg))); items.push({ t0: 8.5, line: [a, q], dot: a, lead: q, lab: [name('header_radius'), `${mm(r.header_radius)} mm`], at: [1840, 730], align: 'right' }); }
-    // 2 branch position (near end to the axes' meeting point) and 3 header length: stacked dimension lines under the header
-    { const y = -r.header_radius - 60, a = this.P(v3(0, y, 160)), q = this.P(v3(r.branch_station, y, 160)), top = this.P(v3(r.branch_station, -r.header_radius, 120)); items.push({ t0: 8.75, dim: [a, q], tick: [q, top], lab: [name('branch_station'), `${mm(r.branch_station)} mm`], at: [(a[0] + q[0]) / 2 - 60, (a[1] + q[1]) / 2 - 92], align: 'center' }); }
-    { const y = -r.header_radius - 60, a = this.P(v3(0, y, 160)), q = this.P(v3(r.header_length, y, 160)); const a2 = [a[0], a[1] + 120], q2 = [q[0], q[1] + 120]; items.push({ t0: 9.0, dim: [a2, q2], ext: [[a, a2], [q, q2]], lead: [(a2[0] + q2[0]) / 2, (a2[1] + q2[1]) / 2], lab: [name('header_length'), `${mm(r.header_length)} mm`], at: [1840, 900], align: 'right' }); }
-    // 4 branch radius: at the square end of the branch
+    // the job's inputs (job 5 request) on the geometry; every label sits in one column on the right with a leader line
+    // to its anchor, so no text lies on the steel. Slots are assigned in the order of the anchors' height on screen.
+    { const L = r.header_length, a = this.P(v3(L, 0, 0)), q = this.P(v3(L, -r.header_radius * Math.sin(30 * deg), r.header_radius * Math.cos(30 * deg))); items.push({ t0: 8.5, line: [a, q], dot: a, lead: q, lab: [name('header_radius'), `${mm(r.header_radius)} mm`] }); }
+    { const y = -r.header_radius - 60, a = this.P(v3(0, y, 160)), q = this.P(v3(r.branch_station, y, 160)), top = this.P(v3(r.branch_station, -r.header_radius, 120)); items.push({ t0: 8.75, dim: [a, q], tick: [q, top], lead: [(a[0] + q[0]) / 2, (a[1] + q[1]) / 2], lab: [name('branch_station'), `${mm(r.branch_station)} mm`] }); }
+    { const y = -r.header_radius - 60, a = this.P(v3(0, y, 160)), q = this.P(v3(r.header_length, y, 160)); const a2 = [a[0], a[1] + 110], q2 = [q[0], q[1] + 110]; items.push({ t0: 9.0, dim: [a2, q2], ext: [[a, a2], [q, q2]], lead: [lerp(a2[0], q2[0], 0.75), lerp(a2[1], q2[1], 0.75)], lab: [name('header_length'), `${mm(r.header_length)} mm`] }); }
     { const O = v3(r.branch_station, 0, r.delta), A = v3(Math.cos(b), Math.sin(b), 0), e1 = v3(-Math.sin(b), Math.cos(b), 0);
       const c = O.clone().addScaledVector(A, r.s_end), q = c.clone().addScaledVector(e1, -r.branch_radius); const pc = this.P(c), pq = this.P(q);
-      items.push({ t0: 9.25, line: [pc, pq], dot: pc, lead: [(pc[0] + pq[0]) / 2, (pc[1] + pq[1]) / 2], lab: [name('branch_radius'), `${mm(r.branch_radius)} mm`], at: [1840, 250], align: 'right' }); }
-    // 5 angle between axes: arc at the meeting point
+      items.push({ t0: 9.25, line: [pc, pq], dot: pc, lead: [(pc[0] + pq[0]) / 2, (pc[1] + pq[1]) / 2], lab: [name('branch_radius'), `${mm(r.branch_radius)} mm`] }); }
     { const arc = []; for (let i = 0; i <= 24; i++) { const q = (i / 24) * b; arc.push(this.P(v3(r.branch_station + 230 * Math.cos(q), 230 * Math.sin(q), 0))); }
-      items.push({ t0: 9.5, arc, lead: arc[12], lab: [name('beta_deg'), `${mm(r.beta_deg)}°`], at: [1840, 520], align: 'right' }); }
+      items.push({ t0: 9.5, arc, lead: arc[12], lab: [name('beta_deg'), `${mm(r.beta_deg)}°`] }); }
+    const order = items.map((it, k) => k).sort((p, q) => items[p].lead[1] - items[q].lead[1]);
+    order.forEach((k, slot) => (items[k].at = [1840, 250 + slot * 168]));
     for (const it of items) {
       const u = spring(seg(t, it.t0 - 0.25, it.t0 + 0.2)), a = alpha * seg(t, it.t0 - 0.25, it.t0 - 0.1);
       if (a <= 0) continue;
       if (it.line) { const [p, q] = it.line; o.line([p, [lerp(p[0], q[0], u), lerp(p[1], q[1], u)]], 4, COL.blue, a); o.dot(p[0], p[1], 7, COL.blue, a); }
       if (it.dim) { const [p, q] = it.dim; const m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]; o.line([[lerp(m[0], p[0], u), lerp(m[1], p[1], u)], [lerp(m[0], q[0], u), lerp(m[1], q[1], u)]], 4, COL.blue, a); o.line([[p[0], p[1] - 22], [p[0], p[1] + 22]], 4, COL.blue, a * u); o.line([[q[0], q[1] - 22], [q[0], q[1] + 22]], 4, COL.blue, a * u); }
-      if (it.tick) { const [q, top] = it.tick; o.line([q, [lerp(q[0], top[0], u), lerp(q[1], top[1], u)]], 3, COL.blue, a, [10, 10]); o.line([[q[0], q[1] - 22], [q[0], q[1] + 22]], 4, COL.blue, a); }
-      if (it.arc) { const n = Math.max(2, Math.round(u * it.arc.length)); o.line(it.arc.slice(0, n), 4, COL.blue, a); }
-      let [x, y] = it.at; const al = it.align;
+      if (it.tick) { const [q, top] = it.tick; o.line([q, [lerp(q[0], top[0], u), lerp(q[1], top[1], u)]], 3, COL.blue, a, [10, 10]); }
       if (it.ext) for (const [p, q] of it.ext) o.line([p, [lerp(p[0], q[0], u), lerp(p[1], q[1], u)]], 2, COL.blue, a * 0.6, [6, 8]);
-      if (it.lead) { const w = Math.max(o.tw(it.lab[0], LS, 500), o.tw(it.lab[1], BS, 650)); const lx = al === 'right' ? x - w - 24 : x - 24, ly = y - 14; const e = [lerp(it.lead[0], lx, u), lerp(it.lead[1], ly, u)]; o.line([it.lead, e], 2.5, COL.blue, a, [2, 8]); o.dot(it.lead[0], it.lead[1], 6, COL.blue, a); }
-      if (it.fitRight) { const w = Math.max(o.tw(it.lab[0], LS, 500), o.tw(it.lab[1], BS, 650)); x = Math.min(x, it.fitRight - w); }
-      o.txt(it.lab[1], x, y + 10 * (1 - u), { size: BS, weight: 650, color: COL.blueT, align: al, alpha: a });
-      o.txt(it.lab[0], x, y + 52 + 10 * (1 - u), { size: LS, weight: 500, color: COL.ink2, align: al, alpha: a });
+      if (it.arc) { const n = Math.max(2, Math.round(u * it.arc.length)); o.line(it.arc.slice(0, n), 4, COL.blue, a); }
+      const [x, y] = it.at, w = Math.max(o.tw(it.lab[0], LS, 500), o.tw(it.lab[1], BS, 650));
+      const lx = x - w - 28, ly = y + 8; const e = [lerp(it.lead[0], lx, u), lerp(it.lead[1], ly, u)];
+      o.line([it.lead, e], 3, COL.blue, a, [2, 8]); o.dot(it.lead[0], it.lead[1], 7, COL.blue, a);
+      o.txt(it.lab[1], x, y + 10 * (1 - u), { size: BS, weight: 650, color: COL.blueT, align: 'right', alpha: a });
+      o.txt(it.lab[0], x, y + 52 + 10 * (1 - u), { size: LS, weight: 500, color: COL.ink2, align: 'right', alpha: a });
     }
   }
 
@@ -244,11 +255,11 @@ export class Shots {
     // one family per slot, cut on the music's accent. Scale per family so each flat pattern spans a similar width on
     // screen (a visual normalisation; no size is stated). rot: Euler XYZ, so the flat pattern lies horizontal and wide.
     const cfg = [
-      { key: 'shell', s: 0.50, l: [500, 0, 0], rot: [0, Math.PI / 2, 0], dir: 'unroll', cam: { az: 20, el: 30, dist: 3350, sx: 120, sy: 150, ty: 60 } },
+      { key: 'shell', s: 0.50, l: [500, 0, 0], rot: [0, Math.PI / 2, 0], dir: 'unroll', cam: { az: 20, el: 30, dist: 3600, sx: 200, sy: 30, ty: 60 } },
       { key: 'cone', s: 1.15, l: [0, -450, 0], rot: [0, 0, 0], dir: 'roll', cam: { az: 22, el: 30, dist: 3250, sx: 150, sy: 120, ty: -200 } },
       { key: 'ecc', s: 1.15, l: [0, -450, 150], rot: [0, 0, 0], dir: 'unroll', cam: { az: 24, el: 30, dist: 3250, sx: 150, sy: 120, ty: -200 } },
       { key: 'branch4', s: 1.6, l: [730, 225, 0], rot: [-Math.PI / 2, 0, -Math.PI / 3], dir: 'roll', cam: { az: 22, el: 32, dist: 2900, sx: 180, sy: 40, ty: 60 } },
-      { key: 'header5', s: 1.0, l: [600, 0, 0], rot: [0, 0, 0], dir: 'unroll', cam: { az: 24, el: 32, dist: 2950, sx: 160, sy: 170, ty: 40 } },
+      { key: 'header5', s: 1.0, l: [600, 0, 0], rot: [0, 0, 0], dir: 'unroll', cam: { az: 24, el: 32, dist: 3250, sx: 340, sy: 120, ty: 40 } },
     ][i];
     return { ...cfg, c: [0, 0, 0] };
   }
@@ -272,9 +283,16 @@ export class Shots {
     part.grp.position.set(-lw.x, -lw.y - drop, -lw.z);
     part.set(kap);
     return (o, V) => {
-      const S = V.S;
+      const S = V.S, ja = V.lang === 'ja';
       const names = [S.part_shell, S.part_cone, S.part_ecc, S.part_branch, S.part_header];
-      this.head(o, V, names[i], t, ts, te - 0.02);
+      // the family's name stays up for its whole slot (it changes on the cut); the catalogue's long name adds the
+      // geometric kind where it gives one in brackets (right / oblique cone frustum)
+      this.head(o, V, names[i], t, ts, i < 4 ? te + 0.3 : 19.95);
+      const famKey = ['cylinder_shell', 'cone_frustum', 'eccentric_reducer', 'branch_stub', 'header_shell_with_opening'][i];
+      const lg = (D.fam[famKey][V.lang] || {}).long || '', mt = lg.match(/[（(]([^）)]+)[）)]/);
+      const nLines = names[i].length;
+      let y = 210 + (nLines - 1) * 140 + 80;
+      if (mt) { const sub = ja ? mt[1] : mt[1][0].toUpperCase() + mt[1].slice(1); o.block([sub], 120, y, 0, { size: BS, weight: 500, color: COL.ink2 }, t, ts, i < 4 ? te + 0.3 : 19.95); y += 70; }
       // the computed outline flashes when the plate locks flat (lock = slot start + 1.1 s) and stays as a thin line while flat
       const flatness = 1 - clamp(part.kappa * 6);
       if (flatness > 0) {
@@ -282,14 +300,26 @@ export class Shots {
         const fl = t >= lock - 0.05 ? Math.exp(-6 * Math.max(0, t - lock)) : 0;
         this.outline(o, pp, part, 3 + 5 * fl, flatness * (0.6 + 0.4 * fl));
       }
+      // one dimension of the flat pattern, from the product's quantities (angles converted from radians: deg = rad * 180 / pi)
+      const Q = D.pat[pp.key].quantities, QL = D.quantLab;
+      const dim = [['developed_width', `${mm(Q.developed_width)} mm`], ['sector_angle', `${mm(Q.sector_angle * 180 / Math.PI)}°`], ['developed_angle', `${mm(Q.developed_angle * 180 / Math.PI)}°`], ['s_max', `${mm(Q.s_max)} mm`], ['opening_perimeter', `${mm(Q.opening_perimeter)} mm`]][i];
+      const da = flatness * (pp.dir === 'unroll' ? seg(t, ts + 0.95, ts + 1.15) : 1 - seg(t, ts + 0.6, ts + 0.75));
+      if (da > 0.01) {
+        const cv = D.pat[pp.key].holes[0] || Object.values(D.pat[pp.key].curves)[0], anc = this.P(this.flatWorld(pp, part, cv[Math.floor(cv.length / 2)]));
+        const w = Math.max(o.tw(dim[1], BS, 650), o.tw(QL[dim[0]][V.lang], LS, 500));
+        o.line([[120 + w + 24, y + 12], anc], 3, COL.blue, da, [2, 8]); o.dot(anc[0], anc[1], 7, COL.blue, da);
+        o.txt(dim[1], 120, y + 20, { size: BS, weight: 650, color: COL.blueT, alpha: da });
+        o.txt(QL[dim[0]][V.lang], 120, y + 72, { size: LS, weight: 500, color: COL.ink2, alpha: da });
+        y += 150;
+      }
       // point by point: the opening's computed points (job 5), one after another
       if (i === 4 && t >= 19.1) {
         const pts = D.pat.header5.holes[0], n = pts.length, m = Math.floor(n * seg(t, 19.1, 19.75));
         for (let j = 0; j < m; j += 4) { const p = this.P(part.at(pts[j][0], pts[j][1])); o.dot(p[0], p[1], 4.5, COL.blue, 0.95); }
         if (m > 0 && m < n) { const p = this.P(part.at(pts[m - 1][0], pts[m - 1][1])); o.dot(p[0], p[1], 12, '#fff', 1); o.ring(p[0], p[1], 12, 4, COL.blue, 1); }
-        o.block([fmt(S.points_line, { n: mm(n) })], 120, V.lang === 'ja' ? 300 : 440, 0, { size: BS, weight: 560, color: COL.blueT }, t, 19.1, 19.95);
+        o.block([fmt(S.points_line, { n: mm(n) })], 120, y + 10, 0, { size: BS, weight: 560, color: COL.blueT }, t, 19.1, 19.95);
       }
-      if (V.labels) { o.block(S.limits, 120, 938, 52, { size: LS, weight: 500, color: COL.ink3 }, t, 12.0, 19.95); }
+      if (V.labels) { o.block(S.limits, 120, 938, 52, { size: LS, weight: 500, color: COL.ink3, bg: 'rgba(244,245,247,0.82)' }, t, 12.0, 19.95); }
       this.label(o, V, S.label_vis, t, 12.0, 19.95);
     };
   }
@@ -322,7 +352,7 @@ export class Shots {
     const off = new THREE.Vector3(0, 380, 620).multiplyScalar(1 - kf).add(new THREE.Vector3(1500, 0, 0).multiplyScalar(1 - bIn));
     this.tee({ kh: kf, kb: kf, b: 'branch5', boff: off });
     const u = seg(t, 20, 26);
-    const c0 = { tx: 600, ty: 40, tz: 0, az: 32, el: 32, dist: 2950, fov: 24, sx: 160, sy: 170 };
+    const c0 = { tx: 600, ty: 40, tz: 0, az: 32, el: 32, dist: 3250, fov: 24, sx: 340, sy: 120 };
     const c1 = { tx: 620, ty: 70, tz: 0, az: 36 + 8 * u, el: 17, dist: 3050, fov: 24, sx: -470, sy: 130 };
     this.cam(lerpCam(c0, c1, quint(seg(t, 20.0, 22.2))));
     // the two cut edges: the header's opening (blue) and the branch's saddle (orange); at 21.9 s they meet: one curve (green)
@@ -337,8 +367,7 @@ export class Shots {
       const fl = Math.exp(-7 * Math.max(0, t - 21.9)) * (t >= 21.9 ? 1 : 0);
       if (fl > 0.02) { const c = o.c; c.save(); c.globalCompositeOperation = 'lighter'; c.filter = 'blur(14px)'; c.strokeStyle = `rgba(160,255,200,${0.7 * fl})`; c.lineWidth = 26; c.beginPath(); this.hole5.forEach((p, i) => { if (i % 8) return; const s = this.P(p); i ? c.lineTo(s[0], s[1]) : c.moveTo(s[0], s[1]); }); c.closePath(); c.stroke(); c.restore(); }
       this.checkPanel(o, V, t);
-      if (V.labels) o.block([S.checks_sub], 1840, 1046 - 54, 0, { size: LS, weight: 500, color: COL.ink3, align: 'right' }, t, 21.8, 25.95);
-      if (V.labels) o.block([S.label_vis], t < 21.8 ? 120 : 1840, 1046, 0, { size: LS, weight: 500, color: COL.ink3, align: t < 21.8 ? 'left' : 'right' }, t, t < 21.8 ? 20.0 : 21.8, t < 21.8 ? 21.8 : 25.95);
+      this.label(o, V, S.label_vis, t, 20.0, 25.95);
     };
   }
   checkPanel(o, V, t) {
@@ -359,28 +388,30 @@ export class Shots {
       for (const ck of list) { const nm = ja ? (ck.ja || ck.name) : ck.name, mono = !(ja && ck.ja); const lines = wrapText(o, nm, maxW, mono, ja && !!ck.ja); const h = 34 + lines.length * 50; rows.push({ lines, mono, y, h }); y += h + 12; }
       this._rows = { lang: V.lang, rows };
     }
-    const rows = this._rows.rows, top = 470, H = 450;
-    const last = rows[n - 1], scroll = Math.max(0, last.y + last.h - H);
-    const sc = this._sc || 0;
-    c.save(); c.beginPath(); c.rect(X - 10, top - 6, W + 20, H + 8); c.clip();
+    const rows = this._rows.rows, top = 470, H = 440;
+    // the list moves by whole rows: each new row slides in from below with a short spring (0.12 s, inside the 0.125 s
+    // tick); rows that leave the top fade out instead of being cut
+    const target = (k) => { const r = rows[Math.max(0, k - 1)]; return Math.max(0, r.y + r.h - H); };
+    const tk = 21.8 + (n - 1) * 0.125, scroll = lerp(target(n - 1), target(n), spring(seg(t, tk, tk + 0.12), 0.9));
     for (let j = 0; j < n; j++) {
-      const r = rows[j], y = top + r.y - scroll; if (y > top + H || y + r.h < top) continue;
-      const ti = clamp((t - (21.8 + j * 0.125)) / 0.2);
-      c.fillStyle = 'rgba(255,255,255,0.88)'; o.rr(X, y, W, r.h, 14); c.fill();
+      const r = rows[j], y = top + r.y - scroll; if (y > top + H) continue;
+      const fade = clamp((y + r.h * 0.6 - top) / (r.h * 0.6)); if (fade <= 0) continue;
+      const ti = clamp((t - (21.8 + j * 0.125)) / 0.2), ent = j === n - 1 ? spring(seg(t, tk, tk + 0.12), 0.9) : 1;
+      c.save(); c.globalAlpha *= fade * (0.4 + 0.6 * ent);
+      c.fillStyle = 'rgba(255,255,255,0.9)'; o.rr(X, y, W, r.h, 14); c.fill();
       o.tick(X + 44, y + 42, 30, ti, COL.green, 6);
       r.lines.forEach((ln, i) => o.txt(ln, X + 92, y + 56 + i * 50, { size: LS, weight: 500, mono: r.mono, color: COL.ink }));
+      c.restore();
     }
-    c.restore();
-    // soft fade at the top edge of the list
-    const g = c.createLinearGradient(0, top - 6, 0, top + 50); g.addColorStop(0, 'rgba(240,241,244,1)'); g.addColorStop(1, 'rgba(240,241,244,0)');
-    if (scroll > 0) { c.fillStyle = g; c.fillRect(X - 10, top - 6, W + 20, 56); }
+    // the disclosure belongs to the checks: under the list, in the panel (labels=1)
+    if (V.labels) { const sub = ja ? V.S.checks_sub.split('。').filter(Boolean).map((x) => x + '。') : V.S.checks_sub.replace(' — ', ' —\n').split('\n'); sub.forEach((ln, i) => o.txt(ln, X, 966 + i * 50, { size: LS, weight: 500, color: COL.ink3 })); }
     c.restore();
   }
 
   // ================================================================== 6 · 26-30 s · DXF written, read back, compared
   s6(t) {
     const st = this.st, P = st.parts;
-    const kh = 1 - spring(seg(t, 26.0, 26.55), 0.9), lift = smooth(seg(t, 26.0, 26.35));
+    const kh = 1 - spring(seg(t, 26.0, 26.45), 0.9), lift = smooth(seg(t, 26.0, 26.3));
     const b = this.req5.beta_deg * deg;
     this.tee({ h: 'header6', kh, b: 'branch5', boff: new THREE.Vector3(Math.cos(b), Math.sin(b), 0).multiplyScalar(900 * lift * lift) });
     if (lift >= 1) P.branch5.grp.visible = false;
@@ -389,49 +420,53 @@ export class Shots {
     const pw = dr.w, dist = 1080 / (2 * Math.tan(12 * deg) * (pw / 1200));
     const ctop = { tx: 600, ty: 150, tz: 0, az: 0, el: 89.9, dist, fov: 24, sx: dr.x + dr.w / 2 - 960, sy: dr.y + dr.h / 2 - 540 };
     const c0 = { tx: 620, ty: 70, tz: 0, az: 44, el: 17, dist: 3050, fov: 24, sx: -470, sy: 130 };
-    this.cam(lerpCam(c0, ctop, quint(seg(t, 26.0, 26.55))));
-    st.setShadow({ opacity: 0.6 * (1 - seg(t, 26.3, 26.6)) });
+    this.cam(lerpCam(c0, ctop, quint(seg(t, 26.0, 26.45))));
+    st.setShadow({ opacity: 0.6 * (1 - seg(t, 26.25, 26.5)) });
     return (o, V) => {
       const S = V.S, c = o.c;
       const words = S.dxf_words; const wt = [26.0, 26.95, 27.6];
       for (let k = 0; k < 3; k++) this.head(o, V, words[k], t, wt[k], k < 2 ? wt[k + 1] - 0.02 : 29.95);
       // the plate turns into its DXF drawing: a white sheet covers the steel, the entities draw on it
-      const sh = seg(t, 26.5, 26.8);
+      const sh = seg(t, 26.35, 26.55);
       if (sh > 0) { c.save(); c.globalAlpha = sh; c.fillStyle = '#ffffff'; c.shadowColor = 'rgba(20,30,50,0.12)'; c.shadowBlur = 30; c.shadowOffsetY = 8; o.rr(dr.x - 30, dr.y - 30, dr.w + 60, dr.h + 60, 16); c.fill(); c.restore(); }
       const toS = ([x, y]) => [dr.x + x * dr.w / 1200, dr.y + dr.h - y * dr.w / 1200];
       const ents = this.dxfPaths();
-      const wU = seg(t, 26.55, 27.25), rU = seg(t, 26.95, 27.6);
+      const wU = seg(t, 26.4, 27.0), rU = seg(t, 26.95, 27.55);
       for (const [pass, u, col, w] of [[0, wU, COL.ink, 4], [1, rU, COL.blue, 4]]) {
-        if (u <= 0) continue; const tot = ents.total * u; let acc = 0;
-        c.save(); c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.lineJoin = 'round'; if (pass === 1) c.setLineDash([]);
-        for (const pth of ents.paths) { if (acc >= tot) break; c.beginPath(); let first = true;
-          for (let j = 0; j < pth.length; j++) { const p = toS(pth[j]); if (j > 0) { const q = pth[j - 1]; acc += Math.hypot(pth[j][0] - q[0], pth[j][1] - q[1]); }
-            if (first) { c.moveTo(p[0], p[1]); first = false; } else c.lineTo(p[0], p[1]); if (acc >= tot) break; }
+        if (u <= 0) continue;
+        // every entity draws at the same time, each to the same fraction of its own length
+        c.save(); c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.lineJoin = 'round';
+        for (const pth of ents.paths) { let L = 0; for (let j = 1; j < pth.length; j++) L += Math.hypot(pth[j][0] - pth[j - 1][0], pth[j][1] - pth[j - 1][1]);
+          const tot = L * u; let acc = 0; c.beginPath(); c.moveTo(...toS(pth[0]));
+          for (let j = 1; j < pth.length; j++) { const d = Math.hypot(pth[j][0] - pth[j - 1][0], pth[j][1] - pth[j - 1][1]);
+            if (acc + d >= tot) { const f = d ? (tot - acc) / d : 0; c.lineTo(...toS([lerp(pth[j - 1][0], pth[j][0], f), lerp(pth[j - 1][1], pth[j][1], f)])); break; }
+            acc += d; c.lineTo(...toS(pth[j])); }
           c.stroke(); }
         c.restore();
       }
-      // compared: the tick locks
-      const lk = spring(seg(t, 27.6, 28.0));
-      if (t >= 27.6) { o.dot(dr.x + dr.w - 10, dr.y + 10, 46 * lk, COL.green, 1); o.tick(dr.x + dr.w - 10, dr.y + 12, 44, seg(t, 27.65, 27.9), '#fff', 8); }
-      // the rows of the file stream on the right (group code, value), from 26.8 s
+      // compared: the tick locks, and the product's own re-import report says what was compared (job 6, header)
+      const lk = spring(seg(t, 27.6, 28.0)), R = D.reimport;
+      if (t >= 27.6) { o.dot(dr.x + dr.w - 10, dr.y + 10, 46 * lk, COL.green, 1); o.tick(dr.x + dr.w - 10, dr.y + 12, 44, seg(t, 27.65, 27.9), '#fff', 8);
+        o.block([fmt(S.reimport_line, { r: mm(R.entities_read), w: mm(R.entities_written), d: mm(R.max_point_deviation) })], 120, 304, 0, { size: BS, weight: 600, color: COL.greenT }, t, 27.6, 29.95); }
+      // the rows of the file stream on the right (group code, value) until the stamp
       this.dxfRows(o, V, t);
-      // NOT RELEASED: stamp with the real file name, 29.0 s
+      // NOT RELEASED (29.0 s, the music's amber): over the lower part of the sheet, below the opening; the real file
+      // name in the column on the right where the rows were
       if (t >= 28.95) {
-        const u = spring(seg(t, 28.95, 29.35), 0.6), cx = dr.x + dr.w / 2, cy = dr.y + dr.h / 2 - 30;
-        c.save(); c.translate(cx, cy); c.rotate(-6 * deg); c.scale(1.25 - 0.25 * u, 1.25 - 0.25 * u); c.globalAlpha = seg(t, 28.95, 29.05);
+        const u = spring(seg(t, 28.95, 29.35), 0.6), cx = 640, cy = dr.y + dr.h - 105;
+        c.save(); c.translate(cx, cy); c.rotate(-3 * deg); c.scale(1.1 - 0.1 * u, 1.1 - 0.1 * u); c.globalAlpha = seg(t, 28.95, 29.05);
         const s = B.ui[V.lang]['tb.nr'], w = o.tw(s, HS, 750) + 90, h = 170;
-        c.fillStyle = 'rgba(255,255,255,0.92)'; o.rr(-w / 2, -h / 2, w, h, 20); c.fill(); c.strokeStyle = COL.amber; c.lineWidth = 10; o.rr(-w / 2, -h / 2, w, h, 20); c.stroke();
+        c.fillStyle = 'rgba(255,255,255,0.94)'; o.rr(-w / 2, -h / 2, w, h, 20); c.fill(); c.strokeStyle = COL.amber; c.lineWidth = 10; o.rr(-w / 2, -h / 2, w, h, 20); c.stroke();
         o.txt(s, 0, 47, { size: HS, weight: 750, color: COL.amberT, align: 'center' }); c.restore();
-        { // the real file name, broken after an underscore onto two lines so it stays inside the drawing
-          const nm = D.dxf.name, k = nm.indexOf('_', Math.floor(nm.length / 2) - 4) + 1, l1 = nm.slice(0, k), l2 = nm.slice(k), aa = seg(t, 29.1, 29.3);
-          const w = Math.max(o.tw(l1, LS, 500, true), o.tw(l2, LS, 500, true)) + 52, y0 = cy + 110;
-          c.save(); c.globalAlpha = aa; c.fillStyle = 'rgba(255,255,255,0.95)'; c.shadowColor = 'rgba(20,30,50,0.10)'; c.shadowBlur = 16; o.rr(cx - w / 2, y0, w, 124, 16); c.fill(); c.restore();
-          o.txt(l1, cx, y0 + 52, { size: LS, mono: true, align: 'center', alpha: aa }); o.txt(l2, cx, y0 + 102, { size: LS, mono: true, align: 'center', alpha: aa }); }
+        const nm = D.dxf.name, k = nm.indexOf('_', Math.floor(nm.length / 2) - 4) + 1, aa = seg(t, 29.05, 29.25);
+        o.txt(nm.slice(0, k), 1160, 440, { size: LS, mono: true, alpha: aa }); o.txt(nm.slice(k), 1160, 492, { size: LS, mono: true, alpha: aa });
+        // the marking the file itself carries (its NF_NOT_RELEASED text entity), line by line
+        D.dxf.marking.split(' - ').forEach((ln, j) => o.txt(ln, 1160, 572 + j * 50, { size: LS, mono: true, color: COL.amberT, alpha: seg(t, 29.15 + 0.08 * j, 29.35 + 0.08 * j) }));
       }
       this.label(o, V, S.label_vis, t, 26.0, 29.95);
     };
   }
-  dxfRect() { const w = 860, h = w * D.pat.header6.quantities.developed_width / D.pat.header6.quantities.length; return { x: 140, y: 1000 - h - 20, w, h }; }
+  dxfRect() { const w = 780, h = w * D.pat.header6.quantities.developed_width / D.pat.header6.quantities.length; return { x: 140, y: 1000 - h - 20, w, h }; }
   dxfPaths() {
     if (this._dp) return this._dp; const paths = [];
     for (const l of D.dxf.lines) paths.push([l.a, l.b]);
@@ -440,9 +475,9 @@ export class Shots {
     return (this._dp = { paths, total });
   }
   dxfRows(o, V, t) {
-    if (t < 26.8) return; const rows = D.dxf.rows, c = o.c, X = 1160, top = 300, lh = 54, vis = 13;
-    const pos = (t - 26.8) * 11;                       // rows per second
-    const a = seg(t, 26.8, 26.95);
+    if (t < 26.0) return; const rows = D.dxf.rows, c = o.c, X = 1160, top = 450, lh = 54, vis = 10;
+    const pos = (t - 26.0) * 11;                       // rows per second
+    const a = (0.6 + 0.4 * seg(t, 26.0, 26.13)) * (1 - seg(t, 28.8, 28.95)); if (a <= 0) return;
     c.save(); c.globalAlpha = a; c.beginPath(); c.rect(X - 20, top - 46, 700, lh * vis + 10); c.clip();
     const k0 = Math.floor(pos); const fr = pos - k0;
     for (let j = 0; j <= vis; j++) {
@@ -453,173 +488,145 @@ export class Shots {
     }
     c.restore();
     // fade top and bottom edges of the stream
+    c.save(); c.globalAlpha = a;
     const g1 = c.createLinearGradient(0, top - 46, 0, top + 30); g1.addColorStop(0, 'rgba(244,245,247,1)'); g1.addColorStop(1, 'rgba(244,245,247,0)');
     c.fillStyle = g1; c.fillRect(X - 20, top - 46, 700, 76);
     const yb = top + lh * vis - 60, g2 = c.createLinearGradient(0, yb, 0, yb + 70); g2.addColorStop(0, 'rgba(236,237,240,0)'); g2.addColorStop(1, 'rgba(236,237,240,1)');
-    c.fillStyle = g2; c.fillRect(X - 20, yb, 700, 70);
+    c.fillStyle = g2; c.fillRect(X - 20, yb, 700, 70); c.restore();
   }
 
   // ================================================================== 7 · 30-42 s · AMOEBA
   graphLayout() {
     if (this._gl) return this._gl;
+    // the job's 18 records in five columns by level (levels from the edges: longest path to an entered record), as dots
+    // in a strip along the bottom of the frame
     const lv = this.lvl, nodes = B.deps.nodes, cols = {};
     for (const n of nodes) (cols[lv[n]] = cols[lv[n]] || []).push(n);
-    // columns: 0 entered/declared, 1 parameters derived from a convention, 2..4 derived records
-    const X = [120, 760, 1500, 1665, 1825], pos = {};
-    for (const [l, ns] of Object.entries(cols)) {
-      ns.sort();
-      const L = Number(l), n = ns.length;
-      ns.forEach((id, j) => {
-        if (L <= 1) pos[id] = { x: X[L], y: 640 + j * 66, tag: true };
-        else pos[id] = { x: X[L], y: 790 + (j - (n - 1) / 2) * 130, tag: false };
-      });
-    }
+    const pos = {};
+    for (const [l, ns] of Object.entries(cols)) { ns.sort(); const L = Number(l), n = ns.length; ns.forEach((id, j) => (pos[id] = { x: 200 + L * 380, y: 892 + (j - (n - 1) / 2) * 42 })); }
     return (this._gl = { pos });
   }
   s7(t) {
     const st = this.st, P = st.parts, j6 = B.job6, corr = j6.corr;
     // the change: header radius 150 -> 158 (35.2 s), the header grows, the branch takes job 6's saddle
     const ch = spring(seg(t, 35.2, 35.75), 0.8);
-    const after = t >= 35.2;
     const Rh = lerp(corr.old, corr.new, ch);
-    this.tee({ h: ch > 0.5 ? 'header6' : 'header5', Rh: ch > 0.5 ? undefined : undefined, b: ch > 0.5 ? 'branch6' : 'branch5' });
-    // radial growth: scale the header about its axis (y, z) by Rh / radius of the plate shown
+    this.tee({ h: ch > 0.5 ? 'header6' : 'header5', b: ch > 0.5 ? 'branch6' : 'branch5' });
     const hp = ch > 0.5 ? P.header6 : P.header5, base = ch > 0.5 ? corr.new : corr.old;
-    hp.grp.scale.set(1, Rh / base, Rh / base);
-    const bp = ch > 0.5 ? P.branch6 : P.branch5; bp.grp.position.set(0, 0, 0);
+    hp.grp.scale.set(1, Rh / base, Rh / base);                         // radial growth about the header axis
     if (ch > 0 && ch < 1) {      // blend the job 5 branch into the job 6 branch while the header grows
       P.branch5.grp.visible = false; P.branch6.grp.visible = true; const g = P.branch6.g, pa = g.attributes.position.array, na = g.attributes.normal.array, q = this.bl;
       for (let i = 0; i < pa.length; i++) { pa[i] = q.p5[i] + (q.p6[i] - q.p5[i]) * ch; na[i] = q.n5[i] + (q.n6[i] - q.n5[i]) * ch; }
       g.attributes.position.needsUpdate = true; g.attributes.normal.needsUpdate = true; P.branch6.kappa = -1;
     }
-    // camera: the tee upper right, the graph below
-    const u = seg(t, 30, 42);
-    const camA = { tx: 640, ty: 80, tz: 0, az: 24 + 8 * u, el: 20, dist: 2500, fov: 24, sx: 250, sy: 60 };
-    const camB = { tx: 640, ty: 80, tz: 0, az: 24 + 8 * u, el: 18, dist: 4500, fov: 24, sx: 380, sy: -95 };
-    const toB = 0.82 + 0.18 * quint(seg(t, 30.0, 32.6)), back = quint(seg(t, 40.3, 40.8));
-    this.cam(lerpCam(lerpCam(camA, camB, toB), { ...camA, dist: 2600, sx: 330, sy: 120 }, back));
-    st.setShadow({ opacity: 0.6 * (1 - 0.4 * toB * (1 - back)) });
+    // camera: the tee in the upper right (the records strip below, the words on the left); a push-in on the change;
+    // back to a hero view for the replay
+    const u = seg(t, 30, 42), pushC = spring(seg(t, 35.0, 35.6), 0.9) * (1 - quint(seg(t, 37.6, 38.3)));
+    const camA = { tx: 640, ty: 90, tz: 0, az: 22 + 10 * u, el: 18, dist: 3900, fov: 24, sx: 430, sy: -70 };
+    const camC = { tx: 560, ty: 90, tz: 0, az: 22 + 10 * u, el: 17, dist: 3750, fov: 24, sx: 400, sy: -40 };
+    const camR = { tx: 640, ty: 80, tz: 0, az: 30 + 6 * seg(t, 40.3, 42), el: 20, dist: 2600, fov: 24, sx: 330, sy: 120 };
+    const intro = spring(seg(t, 30.0, 30.8), 0.9);
+    const camI = { ...camA, dist: 3000, sy: -60 };
+    let cm = lerpCam(camI, camA, intro); cm = lerpCam(cm, camC, pushC);
+    this.cam(lerpCam(cm, camR, quint(seg(t, 40.3, 40.8))));
+    st.setShadow({ opacity: 0.6 });
     // the intersection curve turns amber on the object when it is flagged (36.0 s)
     const am = seg(t, 36.0, 36.15);
     if (am > 0) { const tb = ch > 0.5 ? st.tubes.amber6 : st.tubes.amberSeam; tb.draw(1, am); }
     // replay (40.4-41.3 s): a ring scans the header as the records are checked
     if (t >= 40.4) { const s = st.tubes.scan, k = quint(seg(t, 40.4, 41.3)); s.draw(1, 1 - seg(t, 41.3, 41.5)); s.mesh.position.set(lerp(-20, 1220, k), 0, 0); }
-    return (o, V) => this.s7draw(o, V, t, Rh, after);
+    // anchors on the steel (projected after the camera is set)
+    const r = this.req5, b = r.beta_deg * deg, v3 = (x, y, z) => new THREE.Vector3(x, y, z);
+    const O = v3(r.branch_station, 0, 0), A = v3(Math.cos(b), Math.sin(b), 0), e1 = v3(-Math.sin(b), Math.cos(b), 0), top = O.clone().addScaledVector(A, r.s_end);
+    const an = { 'parameter · header_radius': v3(0, Rh * 0.7, Rh * 0.7), 'parameter · header_dev_radius': v3(150, -Rh * 0.7, Rh * 0.7), 'parameter · header_length': v3(1200, 0, Rh),
+      'parameter · branch_station': v3(r.branch_station, -Rh, 40), 'parameter · branch_radius': top.clone().addScaledVector(e1, -r.branch_radius), 'parameter · branch_dev_radius': top.clone().addScaledVector(e1, r.branch_radius),
+      'parameter · beta_deg': O.clone().addScaledVector(A, 230), 'parameter · delta': O.clone(), 'parameter · s_end': top, 'convention · surface_reference': v3(900, Rh * 0.7, Rh * 0.7) };
+    const anS = {}; for (const [k, v] of Object.entries(an)) anS[k] = this.P(v);
+    anS.centre = this.P(v3(600, 0, 0)); anS.rim = this.P(v3(0, Rh * Math.cos(40 * deg), Rh * Math.sin(40 * deg)));
+    return (o, V) => this.s7draw(o, V, t, anS);
   }
-  s7draw(o, V, t, Rh, after) {
+  s7draw(o, V, t, anS) {
     const S = V.S, j6 = B.job6, corr = j6.corr, ja = V.lang === 'ja', c = o.c;
-    // headline zone
     this.head(o, V, S.amoeba_big, t, 30.0, 34.95);
-    o.block(S.amoeba_def, 120, 300, 62, { size: BS, weight: 500, color: COL.ink2 }, t, 32.0, 34.95);
-    this.head(o, V, S.change_big, t, 35.0, 38.35);
-    // graph (records and links) from 30.4 s; hidden behind the real screen 38.4-40.4 s; out at 40.3 s
-    const gA = 1 - seg(t, 40.2, 40.4);
-    if (t < 40.4) this.graph(o, V, t, Rh, gA);
-    // the real dependency graph screen (job 6), 38.4-40.4 s
+    o.block(S.amoeba_def, 120, 310, 62, { size: BS, weight: 500, color: COL.ink2 }, t, 32.0, 34.95);
+    this.head(o, V, S.change_big, t, 35.0, 40.35);
+    // records strip (30.4-38.3 s)
+    if (t < 38.4) this.graph(o, V, t, anS, 1 - seg(t, 38.1, 38.35));
+    // the changed value, large, tethered to the header (from 35.0 s): the catalogue's name and old -> new
+    if (t >= 35.0 && t < 40.4) {
+      const a = (0.6 + 0.4 * seg(t, 35.0, 35.13)) * (1 - seg(t, 40.15, 40.35)), y = 330;
+      const nm = B.params[corr.name][V.lang], val = `${mm(corr.old)} → ${mm(corr.new)} ${corr.unit}`;
+      const w = Math.max(o.tw(nm, LS, 500), o.tw(val, BS, 700)) + 56;
+      c.save(); c.globalAlpha *= a; c.fillStyle = '#eaf2ff'; c.strokeStyle = COL.blue; c.lineWidth = 3; o.rr(120, y - 50, w, 126, 18); c.fill(); c.stroke(); c.restore();
+      o.txt(val, 148, y + 8, { size: BS, weight: 700, color: COL.blueT, alpha: a }); o.txt(nm, 148, y + 56, { size: LS, weight: 500, color: COL.ink2, alpha: a });
+      const rim = anS.rim; o.line([[120 + w, y + 10], rim], 3, COL.blue, a * seg(t, 35.1, 35.3), [2, 8]); o.dot(rim[0], rim[1], 8, COL.blue, a);
+    }
+    // what the change reached, one record per beat (36.0-38.0 s): the product's flag order and names
+    const fo = B.simple.flagOrder;
+    if (t >= 36.0 && t < 38.35) {
+      const a0 = 1 - seg(t, 38.1, 38.3);
+      fo.forEach((id, k) => { const tk = 36.0 + 0.5 * k; if (t < tk) return; const nd = B.simple.nodes.find((n) => n.id === id), y = 500 + k * 62, uu = spring(seg(t, tk, tk + 0.35));
+        o.dot(140, y - 16, 12 * uu, COL.amber, a0); o.txt(ja ? nd.ja : nd.en, 170, y + 8 * (1 - uu), { size: BS, weight: 600, color: COL.amberT, alpha: a0 * seg(t, tk, tk + 0.1) }); });
+    }
+    // the obligations in plain words (38.1 s): counts from the data, wording from the obligations' own notes
+    if (t >= 38.1 && t < 40.4) {
+      const a0 = (0.6 + 0.4 * seg(t, 38.1, 38.23)) * (1 - seg(t, 40.15, 40.35));
+      const rows = [[B.obligations.length, S.obl_flagged, COL.amberT], [B.oblCounts.discharged, S.obl_cleared, COL.greenT], [B.oblCounts.open, S.obl_open, COL.ink]];
+      rows.forEach(([n, s, col], k) => { const y = 500 + k * 66, uu = spring(seg(t, 38.1 + 0.08 * k, 38.5 + 0.08 * k));
+        const wN = o.tw(mm(n), BS, 750); o.txt(mm(n), 120, y + 10 * (1 - uu), { size: BS, weight: 750, color: col, alpha: a0 }); o.txt(s, 120 + wN + 20, y + 10 * (1 - uu), { size: BS, weight: 500, color: COL.ink, alpha: a0 }); });
+    }
+    // the real dependency graph screen (job 6), zoomed into the derived records, 38.4-40.4 s
     if (t >= 38.4 && t < 40.4) this.realGraph(o, V, t);
-    o.block([fmt(S.obl_line, { r: mm(B.obligations.length), d: mm(B.oblCounts.discharged), o: mm(B.oblCounts.open) })], 120, 300, 0, { size: BS, weight: 600, color: COL.amberT }, t, 38.1, 40.35);
     // replay
     if (t >= 40.4) {
       const n = Math.min(j6.replay.checked, Math.floor(j6.replay.checked * seg(t, 40.45, 41.2)));
-      this.head(o, V, S.replay_big, t, 41.0, 41.95);
-      o.block([fmt(S.rec_count, { n: mm(n), f: mm(j6.replay.failing) })], 120, 300, 0, { size: BS, weight: 560, color: COL.ink2 }, t, 40.4, 41.95);
-      if (t > 41.2) { const lk = spring(seg(t, 41.2, 41.55)), fa = 1 - seg(t, 41.75, 41.95); o.dot(1730, 230, 46 * lk, COL.green, fa); o.tick(1730, 232, 44, seg(t, 41.25, 41.5), '#fff', 8, fa); }
+      this.head(o, V, S.replay_big, t, 40.4, 41.95);
+      o.block([fmt(S.rec_count, { n: mm(n), f: mm(j6.replay.failing) })], 120, 310, 0, { size: BS, weight: 600, color: COL.ink2 }, t, 40.4, 41.95);
+      if (t > 41.2) { const lk = spring(seg(t, 41.2, 41.55)), fa = 1 - seg(t, 41.75, 41.95); o.dot(160, 400, 40 * lk, COL.green, fa); o.tick(160, 402, 38, seg(t, 41.25, 41.5), '#fff', 7, fa); }
     }
     if (t < 38.4 || t >= 40.4) this.label(o, V, S.label_vis, t, t < 38.4 ? 30.0 : 40.4, t < 38.4 ? 38.35 : 41.95);
     else this.label(o, V, S.label_actual, t, 38.4, 40.35);
   }
-  graph(o, V, t, Rh, gA) {
-    const G = this.graphLayout(), pos = G.pos, c = o.c, ja = V.lang === 'ja', j6 = B.job6;
-    const val = {}; for (const p of j6.params) val[p.name] = p; // job 6 values; header_radius shows the change
-    const req5 = this.req5;
-    const r = this.req5, b = r.beta_deg * deg, v3 = (x, y, z) => new THREE.Vector3(x, y, z);
-    const O = v3(r.branch_station, 0, 0), A = v3(Math.cos(b), Math.sin(b), 0), e1 = v3(-Math.sin(b), Math.cos(b), 0), top = O.clone().addScaledVector(A, r.s_end);
-    const Rs = Rh;
-    const anchor = { 'parameter · header_radius': v3(0, Rs * 0.7, Rs * 0.7), 'parameter · header_dev_radius': v3(150, -Rs * 0.7, Rs * 0.7), 'parameter · header_length': v3(1200, 0, Rs),
-      'parameter · branch_station': v3(r.branch_station, -Rs, 40), 'parameter · branch_radius': top.clone().addScaledVector(e1, -r.branch_radius), 'parameter · branch_dev_radius': top.clone().addScaledVector(e1, r.branch_radius),
-      'parameter · beta_deg': O.clone().addScaledVector(A, 230).add(v3(0, 0, 0)), 'parameter · delta': O.clone(), 'parameter · s_end': top, 'convention · surface_reference': v3(900, Rs * 0.7, Rs * 0.7) };
-    const ids = Object.keys(pos);
-    // order of appearance of the tags: one per eighth-beat from 30.5 s
-    const tagOrder = ids.filter((id) => pos[id].tag);
-    const showT = (id) => 30.5 + 0.25 * tagOrder.indexOf(id);
+  graph(o, V, t, anS, gA) {
+    const pos = this.graphLayout().pos, c = o.c;
     const flagT = {}; B.simple.flagOrder.forEach((id, k) => (flagT[id] = 36.0 + 0.5 * k));
     const src = B.simple.source;
-    // edges (draw 32.4-33.8 s), from the record to what it depends on
+    // each record leaves the steel and settles in the strip (30.4-31.9 s): parameters from their place on the tee,
+    // derived records from the joint
+    const t0 = (id, k) => 30.15 + 0.08 * k;
+    const ids = B.deps.nodes;
+    const at = (id, k) => { const p = pos[id], s0 = anS[id] || anS.centre, uu = spring(seg(t, t0(id, k), t0(id, k) + 0.55), 0.85); return [lerp(s0[0], p.x, uu), lerp(s0[1], p.y, uu), uu]; };
+    const P2 = {}; ids.forEach((id, k) => (P2[id] = at(id, k)));
+    // links (32.4-33.8 s), from a record to what it depends on
     const eU = seg(t, 32.4, 33.8);
-    if (eU > 0) {
-      B.deps.edges.forEach((e, k) => {
-        const p = pos[e.from], q = pos[e.to]; if (!p || !q) return;
-        const uu = clamp(eU * 1.6 - (k / B.deps.edges.length) * 0.6); if (uu <= 0) return;
-        const left = q.x < p.x; const pa = left ? [p.x, p.y] : this.nodePort(o, p, e.from, V, 'in'), qa = this.nodePort(o, q, e.to, V, 'out');
-        const onPath = flagT[e.from] !== undefined && (e.to === src || flagT[e.to] !== undefined);
-        const hot = onPath && t >= (flagT[e.from] ?? 99) - 0.25;
-        const pts = bez(qa, pa, 24).slice(0, Math.max(2, Math.round(24 * uu)));
-        o.line(pts, hot ? 4 : 2.2, hot ? COL.amber : 'rgba(29,29,31,0.32)', gA);
-        // the pulse: a bright dot runs along each edge on the path just before its node is flagged
-        if (onPath) { const t0 = flagT[e.from] - 0.25, w = seg(t, t0, t0 + 0.25); if (w > 0 && w < 1) { const pp = bez(qa, pa, 24); const k2 = Math.floor(w * 23); o.dot(pp[k2][0], pp[k2][1], 9, COL.amber, gA); } }
-      });
-    }
-    // tags (parameter records with their values), tethered to the geometry
-    for (const id of ids) {
-      const p = pos[id], t0 = p.tag ? showT(id) : 32.6 + 0.08 * (this.lvl[id] - 2);
-      if (t < t0) continue;
-      const u = spring(seg(t, t0, t0 + 0.4)), a = gA * seg(t, t0, t0 + 0.1);
-      if (p.tag) {
-        const name = id.split(' · ')[1], pv = val[name];
-        let vtxt = pv ? (pv.unit === 'deg' ? `${mm(pv.value)}°` : `${mm(pv.value)} mm`) : '';
-        if (name === 'header_radius') vtxt = t < 35.2 ? `${mm(B.job6.corr.old)} mm` : `${mm(B.job6.corr.old)} → ${mm(Math.round(lerp(B.job6.corr.old, B.job6.corr.new, seg(t, 35.2, 35.6))))} mm`;
-        if (name === 'surface_reference' || id.startsWith('convention')) vtxt = req5.surface_reference;
-        if (name !== 'header_radius' && pv && pv.value !== req5[name]) vtxt = `${mm(req5[name])} mm`;
-        const isSrc = id === src, hl = isSrc && t >= 34.9;
-        // tether to the geometry (until the camera pulls back and the graph forms)
-        const an = anchor[id];
-        if (an && t < 40.4) { const s = this.P(an); const wpt = this.nodePort(o, p, id, V, 'in'); const ta = a * (0.55 + 0.45 * (hl ? 1 : 0)); o.line([[wpt[0], wpt[1]], [lerp(wpt[0], s[0], u), lerp(wpt[1], s[1], u)]], hl ? 3.5 : 2, hl ? COL.blue : 'rgba(10,102,255,0.55)', ta, [2, 8]); o.dot(s[0], s[1], 6, COL.blue, a); }
-        this.tagPill(o, p.x, p.y + 12 * (1 - u), name, vtxt, a, hl ? 'src' : '');
-      } else {
-        const fl = flagT[id] !== undefined && t >= flagT[id];
-        const ring = fl ? Math.exp(-5 * (t - flagT[id])) : 0;
-        o.dot(p.x, p.y, 15 * u, fl ? COL.amber : '#ffffff', a); o.ring(p.x, p.y, 15 * u, 3, fl ? COL.amber : 'rgba(29,29,31,0.55)', a);
-        if (ring > 0.02) o.ring(p.x, p.y, 15 + 40 * (1 - ring), 4, COL.amber, a * ring);
-      }
-    }
-    // the label of the record that was flagged last (one at a time)
-    const fo = B.simple.flagOrder; let cur = -1; fo.forEach((id, k) => { if (t >= flagT[id]) cur = k; });
-    if (cur >= 0 && t < 38.4) {
-      const id = fo[cur], p = pos[id], nd = B.simple.nodes.find((n) => n.id === id), s = ja ? nd.ja : nd.en;
-      const a = gA * seg(t, flagT[id], flagT[id] + 0.08);
-      const w = o.tw(s, LS, 600) + 44; const x = Math.min(1830 - w, p.x - w / 2);
-      o.pill(s, x, p.y - 58, { size: LS, weight: 600, color: COL.amberT, alpha: a, stroke: COL.amber, strokeW: 3 });
-    }
-  }
-  tagPill(o, x, cy, name, val, a, kind) {
-    const wN = o.tw(name, LS, 500, true), wV = o.tw(val, LS, 650), w = wN + wV + 26 + 44, h = 58, c = o.c;
-    c.save(); c.globalAlpha *= a; c.shadowColor = 'rgba(20,30,50,0.10)'; c.shadowBlur = 16; c.shadowOffsetY = 4;
-    c.fillStyle = kind === 'src' ? '#eaf2ff' : 'rgba(255,255,255,0.95)'; o.rr(x, cy - h / 2, w, h, 12); c.fill(); c.shadowColor = 'transparent';
-    if (kind === 'src') { c.strokeStyle = COL.blue; c.lineWidth = 3; o.rr(x, cy - h / 2, w, h, 12); c.stroke(); }
-    c.restore();
-    o.txt(name, x + 22, cy + 14, { size: LS, weight: 500, mono: true, color: COL.ink3, alpha: a });
-    o.txt(val, x + 22 + wN + 26, cy + 14, { size: LS, weight: 650, color: kind === 'src' ? COL.blueT : COL.ink, alpha: a });
-    return w;
-  }
-  nodePort(o, p, id, V, side) {
-    if (!p.tag) return [p.x, p.y];
-    // tags: their right edge (outgoing to derived records) at the vertical centre
-    const name = id.split(' · ')[1]; const w = o.tw(name, LS, 500, true) + 26 + 44 + o.tw('000 mm', LS, 650);
-    return side === 'in' ? [p.x + w, p.y] : [p.x + w, p.y];
+    if (eU > 0) B.deps.edges.forEach((e, k) => {
+      const p = P2[e.from], q = P2[e.to]; if (!p || !q) return;
+      const uu = clamp(eU * 1.6 - (k / B.deps.edges.length) * 0.6); if (uu <= 0) return;
+      const onPath = flagT[e.from] !== undefined && (e.to === src || flagT[e.to] !== undefined), hot = onPath && t >= flagT[e.from] - 0.25;
+      const pts = bez([q[0], q[1]], [p[0], p[1]], 24).slice(0, Math.max(2, Math.round(24 * uu)));
+      o.line(pts, hot ? 5 : 2.4, hot ? COL.amber : 'rgba(29,29,31,0.30)', gA);
+      if (onPath) { const w = seg(t, flagT[e.from] - 0.25, flagT[e.from]); if (w > 0 && w < 1) { const pp = bez([q[0], q[1]], [p[0], p[1]], 24); const k2 = Math.floor(w * 23); o.dot(pp[k2][0], pp[k2][1], 11, COL.amber, gA); } }
+    });
+    ids.forEach((id, k) => {
+      const [x, y, uu] = P2[id]; if (t < t0(id, k)) return;
+      const fl = flagT[id] !== undefined && t >= flagT[id], isSrc = id === src && t >= 35.0;
+      const col = fl ? COL.amber : isSrc ? COL.blue : '#ffffff', r = isSrc ? 16 : 13;
+      o.dot(x, y, r, col, gA); o.ring(x, y, r, 3, fl ? COL.amber : isSrc ? COL.blue : 'rgba(29,29,31,0.6)', gA);
+      if (fl) { const rg = Math.exp(-5 * (t - flagT[id])); if (rg > 0.02) o.ring(x, y, 13 + 40 * (1 - rg), 4, COL.amber, gA * rg); }
+      if (uu < 1) { const s0 = anS[id] || anS.centre; o.line([[s0[0], s0[1]], [x, y]], 2, 'rgba(10,102,255,0.35)', gA * (1 - uu)); }
+    });
   }
   realGraph(o, V, t) {
     const img = this.foot[V.lang].graph, c = o.c, k2 = img.width / 1920;
-    // the graph panel of the AMOEBA Control Centre, job 6 (crop along the panel border)
-    const cr = V.lang === 'ja' ? this.graphCrop.ja : this.graphCrop.en;
-    const k = 1.0 + 0.04 * smooth(seg(t, 38.4, 40.4)), w = cr.w * k, h = cr.h * k;
-    const u = spring(seg(t, 38.4, 38.85)), out = seg(t, 40.15, 40.35);
-    const X = 960 - w / 2, Y = 360 + 60 * (1 - u) + 40 * out;
-    c.save(); c.globalAlpha = seg(t, 38.4, 38.55) * (1 - out);
-    c.fillStyle = 'rgba(244,245,247,0.9)'; c.fillRect(0, 0, 1920, 1080);
-    c.shadowColor = 'rgba(20,30,50,0.18)'; c.shadowBlur = 40; c.shadowOffsetY = 12; c.fillStyle = '#fff'; o.rr(X, Y, w, h, 14); c.fill(); c.shadowColor = 'transparent';
-    o.rr(X, Y, w, h, 14); c.clip(); c.drawImage(img, cr.x * k2, cr.y * k2, cr.w * k2, cr.h * k2, X, Y, w, h); c.restore();
+    // the graph panel of the AMOEBA Control Centre (job 6), zoomed into the derived records (intersection curve, parts,
+    // interface, patterns, DXF outputs): application px x 735..1380, y 405..565
+    const z = 1.95 + 0.12 * smooth(seg(t, 38.4, 40.4)), sw = 1290 / z, sh = 300 / z, cx = 1052 + 30 * smooth(seg(t, 38.4, 40.4)), cy = 486;
+    const X = 530, Y = 680, W = 1290, H = 300;
+    const u = spring(seg(t, 38.4, 38.8)), out = seg(t, 40.15, 40.35);
+    c.save(); c.globalAlpha = seg(t, 38.4, 38.52) * (1 - out); c.translate(0, 40 * (1 - u));
+    c.shadowColor = 'rgba(20,30,50,0.18)'; c.shadowBlur = 40; c.shadowOffsetY = 12; c.fillStyle = '#fff'; o.rr(X, Y, W, H, 16); c.fill(); c.shadowColor = 'transparent';
+    o.rr(X, Y, W, H, 16); c.clip(); c.drawImage(img, (cx - sw / 2) * k2, (cy - sh / 2) * k2, sw * k2, sh * k2, X, Y, W, H); c.restore();
   }
-  get graphCrop() { return { en: { x: 256, y: 188, w: 1640, h: 580 }, ja: { x: 256, y: 188, w: 1640, h: 580 } }; }
 
   // ================================================================== 8 · 42-46 s · what it cannot confirm
   s8(t) {
@@ -682,7 +689,7 @@ export class Shots {
     this.tee({ h: 'header6', b: 'branch6' });
     st.tubes.amber6.draw(1, 1 - seg(t, 46.0, 46.4));
     const u = seg(t, 46, 50);
-    this.cam({ tx: 640, ty: 80, tz: 0, az: 44 + 14 * smooth(u), el: 16 + 6 * u, dist: 2700 - 250 * u, fov: 24, sx: -60, sy: 150 });
+    this.cam({ tx: 640, ty: 80, tz: 0, az: 44 + 14 * smooth(u), el: 16 + 6 * u, dist: 2850 - 250 * u, fov: 24, sx: -230, sy: 150 });
     return (o, V) => {
       const S = V.S;
       o.veil(0.5 * (1 - seg(t, 46.0, 46.35)));
@@ -723,22 +730,21 @@ export class Shots {
     const u = smooth(seg(t, 50, 54));
     // the tee rests small above the wordmark
     const k = 0.96 + 0.04 * quint(seg(t, 50.0, 51.0));
-    this.cam(lerpCam({ tx: 640, ty: 80, tz: 0, az: 58, el: 22, dist: 2450, fov: 24, sx: -60, sy: 150 }, { tx: 640, ty: 80, tz: 0, az: 26 + 8 * u, el: 16, dist: 6300, fov: 24, sx: 0, sy: -250 }, k));
+    this.cam(lerpCam({ tx: 640, ty: 80, tz: 0, az: 58, el: 22, dist: 2600, fov: 24, sx: -230, sy: 150 }, { tx: 640, ty: 80, tz: 0, az: 26 + 8 * u, el: 16, dist: 6800, fov: 24, sx: 0, sy: -290 }, k));
     st.setShadow({ opacity: 0.55 });
     return (o, V) => {
       const S = V.S, ja = V.lang === 'ja';
-      const a0 = seg(t, 50.05, 50.4);
-      o.block(S.brand_name, 960, 560, 0, { size: HS, weight: 700, align: 'center', track: 6 }, t, 50.0, 54.5);
-      o.block([S.brand_line], 960, 640, 0, { size: BS, weight: 500, align: 'center', color: COL.ink2 }, t, 50.5, 54.5);
-      // call to action (51.6 s, the music's cta)
-      if (t >= 51.5) { const uu = spring(seg(t, 51.5, 51.9)), c = o.c; const s = S.cta, w = o.tw(s, BS, 600) + 96, h = 92, x = 960 - w / 2, y = 690 + 10 * (1 - uu);
-        c.save(); c.globalAlpha = seg(t, 51.5, 51.62); c.fillStyle = COL.blue; o.rr(x, y, w, h, h / 2); c.fill(); c.restore();
-        o.txt(s, 960, y + 62, { size: BS, weight: 600, color: '#fff', align: 'center', alpha: seg(t, 51.5, 51.62) }); }
-      // contacts (always), under the button
-      o.block([S.contact.join('   ·   ')], 960, 860, 0, { size: LS, weight: 500, align: 'center', color: COL.ink }, t, 51.0, 54.5);
-      o.block([S.positioning], 960, 922, 0, { size: LS, weight: 500, align: 'center', color: COL.ink2 }, t, 52.6, 54.5);
+      o.block(S.brand_name, 960, 520, 0, { size: HS, weight: 700, align: 'center', track: 6 }, t, 50.0, 54.5);
+      o.block([S.brand_line], 960, 598, 0, { size: BS, weight: 500, align: 'center', color: COL.ink2 }, t, 50.15, 54.5);
+      // call to action and both addresses from 50.3 s; the button pulses once on the music's cta (51.6 s)
+      if (t >= 50.3) { const uu = spring(seg(t, 50.3, 50.7)), c = o.c, pu = 1 + 0.05 * Math.sin(Math.PI * seg(t, 51.6, 52.0));
+        const s = S.cta, w = (o.tw(s, BS, 650) + 110) * pu, h = 100 * pu, x = 960 - w / 2, y = 690 - h / 2 + 12 * (1 - uu), aa = 0.6 + 0.4 * seg(t, 50.3, 50.43);
+        c.save(); c.globalAlpha = aa; c.shadowColor = 'rgba(10,102,255,0.35)'; c.shadowBlur = 30; c.shadowOffsetY = 8; c.fillStyle = COL.blue; o.rr(x, y, w, h, h / 2); c.fill(); c.restore();
+        o.txt(s, 960, y + h / 2 + 17, { size: BS, weight: 650, color: '#fff', align: 'center', alpha: aa }); }
+      o.block([S.contact.join('  ·  ')], 960, 836, 0, { size: BS, weight: 600, align: 'center', color: COL.ink }, t, 50.3, 54.5);
+      o.block([S.positioning], 960, 910, 0, { size: LS, weight: 500, align: 'center', color: COL.ink2 }, t, 52.6, 54.5);
       if (V.labels) o.block([S.disclaimer], 960, 1046, 0, { size: LS, weight: 500, align: 'center', color: COL.ink3 }, t, 50.3, 54.5);
-      if (ja && S.credit) o.block([S.credit], 1800, 990, 0, { size: LS, weight: 500, align: 'right', color: COL.ink2 }, t, 50.3, 54.5);
+      if (ja && S.credit) o.block([S.credit], 1800, 980, 0, { size: LS, weight: 500, align: 'right', color: COL.ink2 }, t, 50.3, 54.5);
     };
   }
 }

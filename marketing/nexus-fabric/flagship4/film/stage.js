@@ -15,7 +15,6 @@ export class Stage {
     const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true, preserveDrawingBuffer: true, premultipliedAlpha: true, powerPreference: 'high-performance' });
     r.setPixelRatio(1); r.setSize(1920 * scale, 1080 * scale, false);
     r.setClearColor(0x000000, 0);
-    r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap; r.shadowMap.autoUpdate = true;
     r.toneMapping = THREE.NeutralToneMapping; r.toneMappingExposure = 1.0; r.outputColorSpace = THREE.SRGBColorSpace;
     this.r = r;
     const s = new THREE.Scene(); this.scene = s;
@@ -50,6 +49,13 @@ export class Stage {
     for (let i = 0; i < 2600; i++) { const y = rnd() * 64, l = 60 + rnd() * 500, x = rnd() * 1024, v = 110 + rnd() * 50; bx.fillStyle = `rgba(${v},${v},${v},0.35)`; bx.fillRect(x, y, l, 0.6 + rnd() * 0.8); }
     const brushed = new THREE.CanvasTexture(br); brushed.wrapS = brushed.wrapT = THREE.RepeatWrapping; brushed.colorSpace = THREE.NoColorSpace; brushed.anisotropy = 8;
     this.steel = new THREE.MeshPhysicalMaterial({ color: 0xdfe2e6, metalness: 1.0, roughness: 0.34, roughnessMap: brushed, anisotropy: 0.55, anisotropyRotation: 0, clearcoat: 0.25, clearcoatRoughness: 0.18, side: THREE.DoubleSide });
+    // the inner side of a plate (seen where the stored outward normal faces away from the camera) is darkened, so pipe
+    // interiors, the opening and any gap read as dark against the bright outer steel
+    this.steel.onBeforeCompile = (sh) => {
+      sh.fragmentShader = sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+        float nfInside = step(dot(normalize(vNormal), normalize(vViewPosition)), 0.0);
+        diffuseColor.rgb *= mix(1.0, 0.30, nfInside);`);
+    };
     this.steelFlat = this.steel;
     this.amberMat = new THREE.MeshPhysicalMaterial({ color: 0xffb340, metalness: 0.6, roughness: 0.35, side: THREE.DoubleSide, emissive: 0xff9f0a, emissiveIntensity: 0.0 });
     this.parts = {}; this.tubes = {};
@@ -149,7 +155,11 @@ export class Stage {
           const d3 = to3(q.d);                                       // 3D: the oblique-cone generator
           let x = lerp(f[0], d3[0], kappa), y = lerp(f[1], d3[1], kappa), z = lerp(f[2], d3[2], kappa); const n = Math.hypot(x, y, z) || 1;
           Pp[3 * i] = q.rho * x / n; Pp[3 * i + 1] = q.rho * y / n; Pp[3 * i + 2] = q.rho * z / n; }
-        g.attributes.position.needsUpdate = true; g.computeVertexNormals(); };
+        g.attributes.position.needsUpdate = true; g.computeVertexNormals();
+        // orient the normals outward: in the flat state the outer side faces up (+Y); the sign holds through the morph
+        if (part.flip === undefined && kappa === 0) { const mid = ((nP >> 1) * (nR + 1) + (nR >> 1)) * 3 + 1; part.flip = g.attributes.normal.array[mid] < 0; }
+        if (part.flip) { const nn = g.attributes.normal.array; for (let i = 0; i < nn.length; i++) nn[i] = -nn[i]; g.attributes.normal.needsUpdate = true; } };
+      part.set(0); part.kappa = -1;
       this.parts.ecc = part; }
   }
 

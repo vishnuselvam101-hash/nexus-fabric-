@@ -13,14 +13,12 @@
 - Review round 0 and round 1 (EN contact sheets at 1 fps) done; fixes applied: entry alpha 60 % on the bar, larger hero,
   scene 4 as hard cuts per family, app window beside a poster headline, check panel wrap, labels placement.
 
-## In progress
-- 1080p finals done (final/NEXUS-FABRIC-film4-54s-{en,ja}[-clean].mp4, second render after round-3 fix), reviewed from the MP4s:
-  1 fps sheets both languages, clean variants (labels gone, REVIEW REQUIRED / NOT RELEASED / approval line / contacts / JA credit kept),
-  stills 1, 10, 16, 23, 35, 44, 52 s, 390 px strips, 0-2.4 s strip, boundary strips (page).
-- 4K60 render of all four variants running (`--scale 2 --fps 60 --suffix -4k60`, about 4 s per frame, ~3.6 h;
-  log in the scratchpad `flagship4/render4k.log`). If interrupted: re-run
-  `NODE_PATH=/opt/node-tools/node_modules node tools/render_master.js --variants en:1,ja:1,en:0,ja:0 --scale 2 --fps 60 --suffix -4k60`.
-- After 4K: look at frames from the 4K files, ffprobe all files, fill README finals section, final report.
+## State (fix round finished, 22 Nov 2026)
+- Fix round done: must-fix list applied, three review rounds (page frames, then two rounds from the rendered MP4s).
+- final/ holds the four 1080p30 files of the last render (sizes and ffprobe figures in README "Finals").
+- 4K: the coordinator renders it (chunks with --from/--to). This session does not.
+- Nothing committed (the coordinator commits).
+- Open: native review of the NEW Japanese lines (NEW_STRINGS.md); phone legibility of 40 px captions.
 
 ## Done docs
 - README.md (concept, rebuild, scene table, real/data/illustration, labels, weaknesses, cut ideas), NEW_STRINGS.md, .gitignore.
