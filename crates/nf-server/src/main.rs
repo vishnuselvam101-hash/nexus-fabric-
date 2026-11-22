@@ -15,6 +15,14 @@
 //! - No request path unwraps a database or lock result: errors become a JSON
 //!   response (503 when the database is busy, 500 otherwise) and a log line.
 
+/// A log line on stderr that cannot panic: a closed or full stderr must not turn an answer into an empty reply (RA-011).
+macro_rules! elog {
+    ($($arg:tt)*) => {{
+        use std::io::Write as _;
+        let _ = writeln!(std::io::stderr(), $($arg)*);
+    }};
+}
+
 mod crypto;
 mod desktop;
 mod membrane;
@@ -61,6 +69,11 @@ pub(crate) struct App {
     /// Desktop mode (`--desktop`): one person on their own computer. Told to the client (task 2.4), which then shows
     /// what desktop mode does and does not protect on its first-run screen.
     desktop: bool,
+    /// Longest a request body may stall between two chunks (RA-001).
+    body_idle: Duration,
+    /// Requests one client address may have open at the same time (RA-001).
+    per_client_in_flight: usize,
+    in_flight: Mutex<std::collections::HashMap<String, usize>>,
     hash_slots: Semaphore,
     upload_slots: Semaphore,
     replay_slots: Semaphore,
@@ -72,6 +85,8 @@ pub(crate) struct App {
     convert_slots: Arc<Semaphore>,
     /// (window start, unauthenticated audit rows written, suppressed) — V-34.
     anon_audit: Mutex<(u64, u32, u32)>,
+    /// Tests pin the minute of the anonymous-audit window, so that the rate limit does not depend on the clock.
+    anon_minute: Mutex<Option<u64>>,
     /// (database data_version, jobs whose stored summary was checked against the full result at that version).
     /// (database version, job id -> findings of the full check against the records). See `calc_rows`.
     verified: Mutex<(i64, std::collections::HashMap<i64, Vec<String>>)>,
@@ -111,12 +126,33 @@ pub(crate) enum ApiError {
     Resp(Box<Response>),
     Db(rusqlite::Error),
     Internal(String),
+    /// The audit log does not end where its anchor says: nothing is written until an administrator checks it (RA-003).
+    AuditBroken(String),
+    /// A stored file could not be written because the disk is full (RA-010).
+    StorageFull(String),
 }
+
+/// Carried inside `rusqlite::Error::ToSqlConversionFailure` so that the handler can tell a broken audit chain
+/// from other database errors (RA-003). The text is for the log only; the client gets a fixed message.
+#[derive(Debug)]
+struct AuditChainBroken(String);
+impl std::fmt::Display for AuditChainBroken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+impl std::error::Error for AuditChainBroken {}
 
 type Api = Result<Response, ApiError>;
 
 impl From<rusqlite::Error> for ApiError {
     fn from(e: rusqlite::Error) -> Self {
+        if let rusqlite::Error::ToSqlConversionFailure(b) = &e
+            && let Some(broken) = b.downcast_ref::<AuditChainBroken>()
+        {
+            elog!("nf-server: audit chain refused a write: {broken}");
+            return ApiError::AuditBroken(broken.0.clone());
+        }
         ApiError::Db(e)
     }
 }
@@ -135,23 +171,39 @@ impl IntoResponse for ApiError {
         match self {
             ApiError::Resp(r) => *r,
             ApiError::Db(e) if db_is_busy(&e) => {
-                eprintln!("nf-server: database busy: {e}");
+                elog!("nf-server: database busy: {e}");
                 let mut r = (StatusCode::SERVICE_UNAVAILABLE, Json(json!({ "error": "the database is busy; nothing was changed. Retry shortly.", "retry": true }))).into_response();
                 r.headers_mut()
                     .insert(header::RETRY_AFTER, HeaderValue::from_static("2"));
                 r
             }
             ApiError::Db(e) if db_is_full(&e) => {
-                eprintln!("nf-server: STORAGE FULL: {e}");
+                elog!("nf-server: STORAGE FULL: {e}");
                 (StatusCode::INSUFFICIENT_STORAGE, Json(json!({ "error": "the server's storage is full; nothing was changed and nothing was recorded. An administrator must free space.", "storage_full": true }))).into_response()
             }
             ApiError::Db(e) => {
-                eprintln!("nf-server: database error: {e}");
+                elog!("nf-server: database error: {e}");
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "internal storage error; nothing was changed. The server log has the details." }))).into_response()
             }
             ApiError::Internal(e) => {
-                eprintln!("nf-server: internal error: {e}");
+                elog!("nf-server: internal error: {e}");
                 (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({ "error": "internal error; nothing was changed. The server log has the details." }))).into_response()
+            }
+            ApiError::AuditBroken(why) => {
+                elog!("nf-server: audit log is broken; writes refused: {why}");
+                (StatusCode::SERVICE_UNAVAILABLE, Json(json!({
+                    "error": "the audit log does not match its anchor (entries were removed or the log was replaced). Nothing was changed; an administrator must check /api/audit/verify.",
+                    "error_ja": "監査ログがアンカーと一致しません（エントリが削除されたか、ログが置き換えられた可能性があります）。何も変更されていません。管理者が /api/audit/verify を確認してください。",
+                    "audit_broken": true
+                }))).into_response()
+            }
+            ApiError::StorageFull(why) => {
+                elog!("nf-server: storage full: {why}");
+                (StatusCode::INSUFFICIENT_STORAGE, Json(json!({
+                    "error": "the server's storage is full; nothing was changed and nothing was recorded. An administrator must free space.",
+                    "error_ja": "サーバーのストレージが満杯です。何も変更・記録されていません。管理者が空き容量を確保してください。",
+                    "storage_full": true
+                }))).into_response()
             }
         }
     }
@@ -305,6 +357,33 @@ fn anchor_mac(key: &[u8; 32], head: &str, count: i64, last_id: i64) -> String {
     )
 }
 
+/// Longest a request body may stall between two chunks (RA-001). This is an idle bound, not a whole-body bound: a
+/// large upload over a slow mobile link keeps sending chunks and is not cut. A client that sends nothing for this
+/// long is answered 408 and its slot is released.
+const BODY_IDLE: Duration = Duration::from_secs(10);
+
+/// The client key of a request that reached this server through a local proxy that is not configured in
+/// NF_TRUSTED_PROXY. Every such request would share one key, so the per-address limits do not apply to it (they
+/// would otherwise lock every account and cap every client at once). Only the account gate applies.
+const UNATTRIBUTED: &str = "unattributed";
+
+/// A loopback peer that forwards a client address, while that peer is not a configured trusted proxy. This is
+/// the live deployment when NF_TRUSTED_PROXY is missing (Caddy on the same host).
+fn unattributed_peer(app: &App, peer: Option<IpAddr>, headers: &HeaderMap) -> bool {
+    peer.map(v4_of)
+        .is_some_and(|p| p.is_loopback() && !app.trusted_proxies.contains(&p))
+        && headers.contains_key("x-forwarded-for")
+}
+
+/// An IPv4 client that reaches a `[::]` listener appears as `::ffff:a.b.c.d`. It is the same client as `a.b.c.d`,
+/// so every check (loopback, trusted proxy, key) uses the IPv4 form (review item 3 residual).
+fn v4_of(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V6(v) => v.to_ipv4_mapped().map(IpAddr::V4).unwrap_or(ip),
+        IpAddr::V4(_) => ip,
+    }
+}
+
 /// Unauthenticated events written to the audit log per minute before they are
 /// counted instead of stored (V-34).
 const ANON_AUDIT_PER_MINUTE: u32 = 30;
@@ -345,35 +424,75 @@ impl App {
         action: &str,
         detail: &str,
     ) -> rusqlite::Result<()> {
+        // RA-013: an entry and its anchor are written together, also when the caller has no transaction of its
+        // own (a savepoint nests inside a transaction and is a transaction of its own otherwise).
+        db.execute_batch("SAVEPOINT nf_audit")?;
+        match self.audit_entry(db, user, action, detail) {
+            Ok(()) => db.execute_batch("RELEASE nf_audit"),
+            Err(e) => {
+                let _ = db.execute_batch("ROLLBACK TO nf_audit; RELEASE nf_audit");
+                Err(e)
+            }
+        }
+    }
+
+    fn audit_entry(
+        &self,
+        db: &Connection,
+        user: &str,
+        action: &str,
+        detail: &str,
+    ) -> rusqlite::Result<()> {
         let (user, action, detail) = (
             clip(user, MAX_USERNAME),
             clip(action, 64),
             clip(detail, 1000),
         );
-        let prev: String = db
-            .query_row("SELECT hash FROM audit ORDER BY id DESC LIMIT 1", [], |r| {
-                r.get::<_, Option<String>>(0)
-            })
-            .optional()?
-            .flatten()
-            .unwrap_or_else(|| "genesis".into());
+        // RA-003: the chain is extended only from a verified anchor that matches the newest entry. A log that was
+        // truncated (and whose anchor was therefore not updated) is refused here, never re-signed.
+        let (head, count, _last) = self.checked_chain(db)?;
         let at = now() as i64;
-        let hash = audit_hash(&prev, at, &user, &action, &detail);
+        let hash = audit_hash(&head, at, &user, &action, &detail);
         db.execute(
             "INSERT INTO audit(at, username, action, detail, prev, hash) VALUES (?,?,?,?,?,?)",
-            params![at, user, action, detail, prev, hash],
+            params![at, user, action, detail, head, hash],
         )?;
         let last_id = db.last_insert_rowid();
-        let count = storage::meta_get(db, "audit_count")?
-            .and_then(|c| c.parse::<i64>().ok())
-            .unwrap_or(-1);
-        // an unreadable counter is never guessed: recount
-        let count = if count < 0 {
-            q_count(db, "SELECT COUNT(*) FROM audit", [])?
-        } else {
-            count + 1
-        };
-        self.write_anchor(db, &hash, count, last_id)
+        self.write_anchor(db, &hash, count + 1, last_id)
+    }
+
+    /// The anchor (head, count, last id), once it is verified against the key and the log. Any mismatch is an
+    /// error that the caller's transaction turns into nothing written.
+    fn checked_chain(&self, db: &Connection) -> rusqlite::Result<(String, i64, i64)> {
+        let broken =
+            |why: String| rusqlite::Error::ToSqlConversionFailure(Box::new(AuditChainBroken(why)));
+        let anchor: Value = storage::meta_get(db, "audit_anchor")?
+            .and_then(|a| serde_json::from_str(&a).ok())
+            .ok_or_else(|| broken("the audit anchor is missing or unreadable".into()))?;
+        let head = anchor["head"].as_str().unwrap_or("").to_string();
+        let count = anchor["count"].as_i64().unwrap_or(-1);
+        let aid = anchor["last_id"].as_i64().unwrap_or(-1);
+        let mac = anchor["mac"].as_str().unwrap_or("");
+        if !crypto::constant_time_eq(mac, &anchor_mac(&self.key, &head, count, aid)) {
+            return Err(broken("the audit anchor does not verify".into()));
+        }
+        let newest: Option<(i64, Option<String>)> = db
+            .query_row(
+                "SELECT id, hash FROM audit ORDER BY id DESC LIMIT 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?;
+        let rows = q_count(db, "SELECT COUNT(*) FROM audit", [])?;
+        let (nid, nhash) = newest
+            .map(|(i, h)| (i, h.unwrap_or_default()))
+            .unwrap_or((0, "genesis".into()));
+        if head != nhash || aid != nid || count != rows {
+            return Err(broken(format!(
+                "the log ends at entry #{nid} with {rows} entries, but the anchor records entry #{aid} and {count} entries: entries were removed or the log was replaced"
+            )));
+        }
+        Ok((head, count, aid))
     }
 
     fn write_anchor(
@@ -383,7 +502,6 @@ impl App {
         count: i64,
         last_id: i64,
     ) -> rusqlite::Result<()> {
-        storage::meta_set(db, "audit_count", &count.to_string())?;
         storage::meta_set(db, "audit_anchor", &json!({ "head": head, "count": count, "last_id": last_id, "mac": anchor_mac(&self.key, head, count, last_id) }).to_string())
     }
 
@@ -397,7 +515,11 @@ impl App {
         action: &str,
         detail: &str,
     ) -> rusqlite::Result<()> {
-        let minute = now() / 60;
+        let minute = self
+            .anon_minute
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .unwrap_or(now() / 60);
         let (write, report) = {
             let mut w = self.anon_audit.lock().unwrap_or_else(|e| e.into_inner());
             let mut report = 0;
@@ -443,9 +565,12 @@ impl App {
 
     fn store_blob(&self, bytes: &[u8]) -> Result<String, ApiError> {
         let (sha, repaired) =
-            storage::store_blob(&self.data_dir, &self.key, bytes).map_err(ApiError::Internal)?;
+            storage::store_blob(&self.data_dir, &self.key, bytes).map_err(|e| match e {
+                storage::StoreError::Full(m) => ApiError::StorageFull(m),
+                storage::StoreError::Failed(m) => ApiError::Internal(m),
+            })?;
         if repaired {
-            eprintln!(
+            elog!(
                 "nf-server: stored file {sha} failed its integrity check and was rewritten from identical content"
             );
         }
@@ -555,7 +680,7 @@ fn project_guard(
             "access_denied",
             &format!("{what}: project #{project}"),
         ) {
-            eprintln!("nf-server: could not audit a refused access: {e}");
+            elog!("nf-server: could not audit a refused access: {e}");
         }
         return Err(not_found());
     }
@@ -665,6 +790,92 @@ const PER_ACCOUNT_FAILURES: i64 = 5;
 const PER_CLIENT_WINDOW: i64 = 600;
 const PER_CLIENT_FAILURES: i64 = 100;
 const SETUP_FAILURES: i64 = 10;
+/// RA-006: once an account has this many failures in the window, sign-ins from addresses that never signed in to it
+/// are admitted one at a time, `ACCOUNT_GATE_GAP_SECS` apart. Known addresses are not held back.
+const ACCOUNT_GATE_FAILURES: i64 = 20;
+const ACCOUNT_GATE_GAP_SECS: i64 = 10;
+
+fn failures_of_pair(db: &Connection, key: &str, client: &str, since: i64) -> rusqlite::Result<i64> {
+    q_count(
+        db,
+        "SELECT COUNT(*) FROM login_failures WHERE username = ? AND client = ? AND at > ?",
+        params![key, client, since],
+    )
+}
+
+/// Has this address signed in to this account before (successfully)?
+fn known_client(db: &Connection, username: &str, client: &str) -> rusqlite::Result<bool> {
+    Ok(q_count(
+        db,
+        "SELECT COUNT(*) FROM login_clients WHERE username = ? AND client = ?",
+        params![username, client],
+    )? > 0)
+}
+
+/// The sign-in throttle (RA-006). Refused attempts are recorded too (`admitted = 0`), so refusing does not make
+/// guessing free. Three rules:
+/// * the pair (account, address): 5 failures in 15 minutes lock that pair only, never the account for others.
+/// * the address: 100 failures in 10 minutes (spraying from one place).
+/// * the account gate: once 20 failures are in the window, an address that has not signed in to the account
+///   before gets one admitted attempt per 10 seconds on its own slot for that account. A second attempt from the
+///   same address inside 10 seconds is refused. Known addresses are not held back.
+///   Consequence (REVIEW_A §6, A11): a new address gets its first attempt, so the total number of guesses on one
+///   account is bounded by the number of addresses the attacker controls (about 5 per 15 minutes each), not by a
+///   constant. A slot shared by all unknown addresses was rejected: one rotating attacker would starve the owner.
+///
+/// Unattributed clients (a loopback proxy without NF_TRUSTED_PROXY) have no address of their own, so the pair and
+/// address rules are skipped for them and only the account gate applies (see REVIEW_A §6).
+///
+/// A global limit across accounts was rejected: one attacker could then deny sign-in to every account.
+fn login_throttle(
+    db: &Connection,
+    username: &str,
+    client: &str,
+    t: i64,
+) -> rusqlite::Result<Option<ApiError>> {
+    // An unattributed client (see UNATTRIBUTED) has no address of its own: only the account rules below apply.
+    let attributed = client != UNATTRIBUTED;
+    if attributed
+        && failures_of_pair(db, username, client, t - THROTTLE_WINDOW)? >= PER_ACCOUNT_FAILURES
+    {
+        return Ok(Some(fail_json(
+            StatusCode::TOO_MANY_REQUESTS,
+            json!({
+                "error": "too many failed sign-in attempts for this account from this address; try again in 15 minutes",
+                "error_ja": "このアドレスからこのアカウントへのサインイン失敗が多すぎます。15分後に再試行してください。",
+                "throttled": true
+            }),
+        )));
+    }
+    if attributed && failures_from(db, client, t - PER_CLIENT_WINDOW)? >= PER_CLIENT_FAILURES {
+        return Ok(Some(fail(
+            StatusCode::TOO_MANY_REQUESTS,
+            "too many failed sign-in attempts from this address; try again in 10 minutes",
+        )));
+    }
+    if failures_of(db, username, t - THROTTLE_WINDOW)? >= ACCOUNT_GATE_FAILURES
+        && !(attributed && known_client(db, username, client)?)
+    {
+        // A slot per (account, address): one address that rotates its attempts cannot take the slot of another.
+        // Only admitted attempts open a slot; refused ones are counted but do not move it.
+        let last: i64 = db.query_row(
+            "SELECT COALESCE(MAX(at), 0) FROM login_failures WHERE username = ? AND client = ? AND admitted = 1",
+            params![username, client],
+            |r| r.get(0),
+        )?;
+        if t - last < ACCOUNT_GATE_GAP_SECS {
+            return Ok(Some(fail_json(
+                StatusCode::TOO_MANY_REQUESTS,
+                json!({
+                    "error": "this account is under attack: sign-ins from an address that has not signed in to it before are slowed down; try again in a few seconds",
+                    "error_ja": "このアカウントは攻撃を受けています。このアカウントに以前サインインしたことのないアドレスからのサインインは速度を制限しています。数秒後に再試行してください。",
+                    "throttled": true
+                }),
+            )));
+        }
+    }
+    Ok(None)
+}
 
 fn failures_of(db: &Connection, key: &str, since: i64) -> rusqlite::Result<i64> {
     q_count(
@@ -691,7 +902,8 @@ async fn setup(
     Json(body): Json<Value>,
 ) -> Api {
     let t = now() as i64;
-    let key = "setup:";
+    // RA-009: failed setup tokens are counted per address, so one client cannot block the installer
+    let key = format!("setup:{client}");
     let (username, password) = (
         s(&body, "username").trim().to_string(),
         s(&body, "password"),
@@ -702,7 +914,7 @@ async fn setup(
         if q_count(&tx, "SELECT COUNT(*) FROM users", [])? != 0 {
             return Err(fail(StatusCode::CONFLICT, "setup already completed"));
         }
-        if failures_of(&tx, key, t - PER_CLIENT_WINDOW)? >= SETUP_FAILURES {
+        if failures_of(&tx, &key, t - PER_CLIENT_WINDOW)? >= SETUP_FAILURES {
             return Err(fail(
                 StatusCode::TOO_MANY_REQUESTS,
                 "too many setup attempts with a wrong token; try again in 10 minutes",
@@ -754,8 +966,8 @@ async fn setup(
     }
     insert_user(&tx, &username, "admin", &salt, &hash)?;
     tx.execute(
-        "DELETE FROM login_failures WHERE username = ?",
-        params![key],
+        "DELETE FROM login_failures WHERE username LIKE 'setup:%'",
+        [],
     )?;
     app.audit(
         &tx,
@@ -800,26 +1012,31 @@ async fn login(
     let username = clip(&raw_name, MAX_USERNAME);
     let plausible = valid_username(&raw_name) && password.len() <= 1024;
     let t = now() as i64;
+    // RA-002: the throttle is checked and this attempt is reserved (a failure row) in one transaction, BEFORE any
+    // hashing. Concurrent guesses then see each other's reservations; a failed attempt is never re-counted here.
     let row: Option<(i64, String, String, String)> = {
-        let db = app.db();
-        db.execute(
+        let mut db = app.db();
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        tx.execute(
             "DELETE FROM login_failures WHERE at < ?",
             params![t - THROTTLE_WINDOW],
         )?;
-        let throttled = if failures_of(&db, &username, t - THROTTLE_WINDOW)? >= PER_ACCOUNT_FAILURES
-        {
-            Some("too many failed sign-in attempts for this account; try again in 15 minutes")
-        } else if failures_from(&db, &client, t - PER_CLIENT_WINDOW)? >= PER_CLIENT_FAILURES {
-            Some("too many failed sign-in attempts from this address; try again in 10 minutes")
-        } else {
-            None
-        };
-        if let Some(msg) = throttled {
-            app.audit_anon(&db, &username, "login_throttled", &format!("from {client}"))?;
-            return Err(fail(StatusCode::TOO_MANY_REQUESTS, msg));
+        if let Some(refusal) = login_throttle(&tx, &username, &client, t)? {
+            // a refused attempt is counted too: refusing must not make guessing free
+            tx.execute(
+                "INSERT INTO login_failures(username, at, client, admitted) VALUES (?,?,?,0)",
+                params![username, t, client],
+            )?;
+            app.audit_anon(&tx, &username, "login_throttled", &format!("from {client}"))?;
+            tx.commit()?;
+            return Err(refusal);
         }
-        if plausible {
-            db.query_row(
+        tx.execute(
+            "INSERT INTO login_failures(username, at, client, admitted) VALUES (?,?,?,1)",
+            params![username, t, client],
+        )?;
+        let row = if plausible {
+            tx.query_row(
                 "SELECT id, role, salt, hash FROM users WHERE username = ? AND active = 1",
                 params![raw_name],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
@@ -827,7 +1044,9 @@ async fn login(
             .optional()?
         } else {
             None
-        }
+        };
+        tx.commit()?;
+        row
     };
     // hash even for unknown users so that timing does not reveal which names exist
     let (id, role, salt, hash) = row.unwrap_or((
@@ -844,10 +1063,7 @@ async fn login(
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     if id == 0 || !crypto::constant_time_eq(&computed, &hash) {
-        tx.execute(
-            "INSERT INTO login_failures(username, at, client) VALUES (?,?,?)",
-            params![username, t, client],
-        )?;
+        // the attempt was counted when it was reserved above
         app.audit_anon(&tx, &username, "login_failed", &format!("from {client}"))?;
         tx.commit()?;
         return Err(fail(
@@ -858,6 +1074,10 @@ async fn login(
     tx.execute(
         "DELETE FROM login_failures WHERE username = ?",
         params![username],
+    )?;
+    tx.execute(
+        "INSERT INTO login_clients(username, client, at) VALUES (?,?,?) ON CONFLICT(username, client) DO UPDATE SET at = excluded.at",
+        params![username, client, t],
     )?;
     let token = hex::encode(crypto::random_bytes::<32>());
     tx.execute("DELETE FROM sessions WHERE expires_at <= ?", params![t])?;
@@ -970,26 +1190,38 @@ async fn add_user(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value>) 
 
 /// Change one's own password. All sessions of the account are revoked.
 /// Wrong current passwords are throttled like sign-in failures (V-37).
-async fn change_password(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value>) -> Api {
+async fn change_password(
+    State(app): Ctx,
+    Extension(ClientAddr(client)): Extension<ClientAddr>,
+    headers: HeaderMap,
+    Json(body): Json<Value>,
+) -> Api {
     let (current, new) = (s(&body, "current"), s(&body, "new"));
     let t = now() as i64;
     let (u, salt, hash, key) = {
-        let db = app.db();
-        let u = auth_db(&db, &app, &headers)?;
+        let mut db = app.db();
+        let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let u = auth_db(&tx, &app, &headers)?;
         password_policy(&u.username, &new)
             .map_err(|m| fail(StatusCode::BAD_REQUEST, &format!("new {m}")))?;
         let key = format!("pwchange:{}", u.id);
-        if failures_of(&db, &key, t - THROTTLE_WINDOW)? >= PER_ACCOUNT_FAILURES {
+        if failures_of(&tx, &key, t - THROTTLE_WINDOW)? >= PER_ACCOUNT_FAILURES {
             return Err(fail(
                 StatusCode::TOO_MANY_REQUESTS,
                 "too many wrong current passwords; try again in 15 minutes",
             ));
         }
-        let (salt, hash): (String, String) = db.query_row(
+        // RA-002 / RC-04: reserved here, with the client address, before the current password is hashed
+        tx.execute(
+            "INSERT INTO login_failures(username, at, client) VALUES (?,?,?)",
+            params![key, t, client],
+        )?;
+        let (salt, hash): (String, String) = tx.query_row(
             "SELECT salt, hash FROM users WHERE id = ?",
             params![u.id],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )?;
+        tx.commit()?;
         (u, salt, hash, key)
     };
     if current.len() > 1024 {
@@ -1005,10 +1237,7 @@ async fn change_password(State(app): Ctx, headers: HeaderMap, Json(body): Json<V
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let Some(nhash) = nhash else {
-        tx.execute(
-            "INSERT INTO login_failures(username, at, client) VALUES (?,?,NULL)",
-            params![key, t],
-        )?;
+        // the attempt was counted when it was reserved above
         app.audit(&tx, &u.username, "password_change_failed", "")?;
         tx.commit()?;
         return Err(fail(StatusCode::FORBIDDEN, "current password is incorrect"));
@@ -1215,7 +1444,7 @@ async fn audit_verify(State(app): Ctx, headers: HeaderMap) -> Api {
         Err(e) if db_is_busy(&e) => Err(e.into()),
         // S-2: a log that cannot be read is not an intact log
         Err(e) => {
-            eprintln!("nf-server: audit log cannot be read: {e}");
+            elog!("nf-server: audit log cannot be read: {e}");
             ok(
                 json!({ "intact": false, "chain_intact": false, "anchor_intact": false, "database_intact": false, "entries": Value::Null, "first_broken_entry": Value::Null,
                        "database_integrity": "the audit log could not be read: the database is damaged", "anchor_problem": Value::Null }),
@@ -1956,6 +2185,12 @@ fn gate(id: &str, name: &str, result: GateResult, detail: String) -> Gate {
 fn evaluate(db: &Connection, c: &Core) -> rusqlite::Result<Eval> {
     use GateResult as R;
     let mut integrity: Vec<String> = Vec::new();
+    // RA-012: SQLite reads the first copy of a repeated key and serde the last; such a result is not trusted.
+    if c.json_ok && result_repeats_a_key(db, c.id)? {
+        integrity.push(
+            "the stored result repeats a key, so its readers could see different values".into(),
+        );
+    }
     let stored: Option<Vec<Gate>> = c
         .gates_raw
         .as_deref()
@@ -2211,7 +2446,7 @@ fn calc_rows(
                     );
                     seen.1.insert(c.id, findings);
                 }
-                Err(err) => eprintln!("nf-server: could not refresh the stored summary of job #{}: {err}", c.id),
+                Err(err) => elog!("nf-server: could not refresh the stored summary of job #{}: {err}", c.id),
             }
         }
     }
@@ -2224,7 +2459,7 @@ fn calc_rows(
                 params![e.state, nf_core::ENGINE_VERSION, c.id],
             )
         {
-            eprintln!(
+            elog!(
                 "nf-server: could not correct the stored state of job #{}: {err}",
                 c.id
             );
@@ -2252,7 +2487,7 @@ fn calc_guard(
             "access_denied",
             &format!("{what}: job #{id}"),
         ) {
-            eprintln!("nf-server: could not audit a refused access: {e}");
+            elog!("nf-server: could not audit a refused access: {e}");
         }
         return Err(not_found());
     }
@@ -2261,6 +2496,76 @@ fn calc_guard(
 }
 
 /// The stored result as JSON, or `None` if it is not a readable JSON object.
+/// Does the stored result of a job repeat a key inside an object? (RA-012)
+fn result_repeats_a_key(db: &Connection, id: i64) -> rusqlite::Result<bool> {
+    let raw: Option<String> = db
+        .query_row(
+            "SELECT result_json FROM calculations WHERE id = ?",
+            params![id],
+            |r| text_col(r, 0),
+        )
+        .optional()?
+        .flatten();
+    Ok(raw.is_some_and(|t| !json_keys_are_unique(&t)))
+}
+
+/// A JSON text in which no object repeats a key. Parsing refuses a repeated key; any other parse error also counts
+/// as "not clean", which is fine: the caller only asks about text that SQLite already accepted as JSON.
+fn json_keys_are_unique(text: &str) -> bool {
+    struct Unique;
+    impl<'de> serde::Deserialize<'de> for Unique {
+        fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            struct Visit;
+            impl<'de> serde::de::Visitor<'de> for Visit {
+                type Value = ();
+                fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    f.write_str("JSON")
+                }
+                fn visit_bool<E>(self, _: bool) -> Result<(), E> {
+                    Ok(())
+                }
+                fn visit_i64<E>(self, _: i64) -> Result<(), E> {
+                    Ok(())
+                }
+                fn visit_u64<E>(self, _: u64) -> Result<(), E> {
+                    Ok(())
+                }
+                fn visit_f64<E>(self, _: f64) -> Result<(), E> {
+                    Ok(())
+                }
+                fn visit_str<E>(self, _: &str) -> Result<(), E> {
+                    Ok(())
+                }
+                fn visit_unit<E>(self) -> Result<(), E> {
+                    Ok(())
+                }
+                fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                    self,
+                    mut seq: A,
+                ) -> Result<(), A::Error> {
+                    while seq.next_element::<Unique>()?.is_some() {}
+                    Ok(())
+                }
+                fn visit_map<A: serde::de::MapAccess<'de>>(
+                    self,
+                    mut map: A,
+                ) -> Result<(), A::Error> {
+                    let mut seen = std::collections::HashSet::new();
+                    while let Some(key) = map.next_key::<String>()? {
+                        if !seen.insert(key.clone()) {
+                            return Err(serde::de::Error::custom(format!("duplicate key {key}")));
+                        }
+                        map.next_value::<Unique>()?;
+                    }
+                    Ok(())
+                }
+            }
+            d.deserialize_any(Visit).map(|_| Unique)
+        }
+    }
+    serde_json::from_str::<Unique>(text).is_ok()
+}
+
 fn stored_result(db: &Connection, id: i64) -> rusqlite::Result<Option<Value>> {
     let raw: Option<String> = db
         .query_row(
@@ -2435,7 +2740,7 @@ async fn acknowledge_advisory(
     let u = auth_db(&db, &app, &headers)?;
     require(&u, &["admin", "engineer"])?;
     let reason = text_field(&body, "reason")?;
-    if reason.len() < 5 {
+    if reason.chars().count() < 5 {
         return Err(fail(StatusCode::BAD_REQUEST, "a reason is required"));
     }
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -2714,12 +3019,12 @@ async fn get_calc(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> A
 fn replay_child() {
     let mut input = String::new();
     if std::io::Read::read_to_string(&mut std::io::stdin(), &mut input).is_err() {
-        eprintln!("replay-check: cannot read the request");
+        elog!("replay-check: cannot read the request");
         std::process::exit(2);
     }
     let v: Value = serde_json::from_str(&input).unwrap_or(Value::Null);
     let Ok(req) = serde_json::from_value::<Request>(v["request"].clone()) else {
-        eprintln!("replay-check: unreadable request");
+        elog!("replay-check: unreadable request");
         std::process::exit(2);
     };
     let out = job::run(&req, v["entered_by"].as_str().unwrap_or(""));
@@ -2790,7 +3095,7 @@ fn replay_in_separate_process(
         let _ = e.read_to_string(&mut stderr);
     }
     if !stderr.trim().is_empty() {
-        eprintln!(
+        elog!(
             "nf-server: replay process stderr: {}",
             clip(stderr.trim(), 2000)
         );
@@ -2902,7 +3207,7 @@ async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api
     let v = match child {
         Ok(v) => v,
         Err(problem) => {
-            eprintln!("nf-server: replay of job #{id} could not be run: {problem}");
+            elog!("nf-server: replay of job #{id} could not be run: {problem}");
             app.audit(
                 &tx,
                 &u.username,
@@ -3064,7 +3369,7 @@ async fn get_dxf(
         Err(problem) => {
             // The job is deterministic: the file can be restored from the request, and only if the
             // recomputed text has exactly the recorded hash (BE-006).
-            eprintln!(
+            elog!(
                 "nf-server: DXF {sha} of job #{id} part {part}: {problem}; trying to restore it by recomputation"
             );
             let again = records
@@ -3137,6 +3442,72 @@ async fn get_dxf(
 /// stays current, no lesson is recorded (the old value was not shown to be a
 /// mistake), no obligation is raised; only the audit log keeps the attempt
 /// (BE-004). Otherwise everything is written in one transaction (BE-005).
+/// `POST /api/calculations/{id}/recompute` (RA-007): a result of a superseded engine is run again from its stored
+/// request, with the engine that runs now. The new result supersedes the old one, which stays as a record. A result
+/// that fails its integrity check is not recomputed from its own stored request (fail closed).
+async fn recompute(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api {
+    let (u, project, req) = {
+        let db = app.db();
+        let u = auth_db(&db, &app, &headers)?;
+        require(&u, &["admin", "engineer"])?;
+        let (c, e) = calc_guard(&app, &db, &u, id, "recompute")?;
+        if c.superseded_by.is_some() {
+            return Err(fail(
+                StatusCode::CONFLICT,
+                "this result is already superseded; recompute the current one",
+            ));
+        }
+        if e.engine_current {
+            return Err(fail_json(
+                StatusCode::CONFLICT,
+                json!({
+                    "error": "this result was computed by the engine that is running now; nothing to recompute",
+                    "error_ja": "この結果は現在動作中のエンジンで計算されたものです。再計算の必要はありません。"
+                }),
+            ));
+        }
+        if !e.integrity.is_empty() {
+            return Err(fail(
+                StatusCode::CONFLICT,
+                "this result failed its integrity check; its stored request cannot be trusted for a recompute",
+            ));
+        }
+        let Some(verified) = c.records.clone().filter(|r| r.findings.is_empty()) else {
+            return Err(fail(
+                StatusCode::CONFLICT,
+                "this result failed its integrity check; its stored request cannot be trusted for a recompute",
+            ));
+        };
+        let Ok(req) =
+            serde_json::from_value::<Request>(verified.request.clone().unwrap_or_default())
+        else {
+            return Err(fail_code(
+                StatusCode::CONFLICT,
+                nf_core::refusal::STORED_REQUEST_UNREADABLE,
+                &[],
+                "the stored request is unreadable",
+            ));
+        };
+        (u, c.project, req)
+    };
+    let out = job::run(&req, &u.username);
+    let mut db = app.db();
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    project_guard(&app, &tx, &u, project, "recompute")?;
+    let new_id = persist_calc(&app, &tx, project, &out, &u.username, Some(id))?;
+    app.audit(
+        &tx,
+        &u.username,
+        "recomputed",
+        &format!(
+            "calculation #{id} -> #{new_id} with engine {}",
+            nf_core::ENGINE_VERSION
+        ),
+    )?;
+    tx.commit()?;
+    ok(json!({ "id": new_id, "supersedes": id }))
+}
+
 async fn correct(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, raw: Bytes) -> Api {
     let body = request_json(&headers, &raw)?;
     let pname = clip(&s(&body, "parameter"), 64);
@@ -3170,7 +3541,7 @@ async fn correct(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, raw: 
             ));
         };
         let _ = new_value;
-        if reason.len() < 5 {
+        if reason.chars().count() < 5 {
             return Err(fail_code(
                 StatusCode::BAD_REQUEST,
                 nf_core::refusal::REASON_REQUIRED,
@@ -3414,7 +3785,7 @@ async fn resolve_obligation(
             ));
         }
     };
-    if reason.len() < 5 {
+    if reason.chars().count() < 5 {
         return Err(fail(StatusCode::BAD_REQUEST, "a reason is required"));
     }
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -3700,15 +4071,50 @@ fn origin_allowed(origin: &str, host: &str, https_listener: bool) -> bool {
     }
 }
 
-/// Host header without its port, lower case.
+/// Host header without its port, lower case. An unbracketed IPv6 address has no port: it is returned whole.
 fn host_name(host: &str) -> String {
     let h = host.trim();
     let name = if h.starts_with('[') {
         h.split_inclusive(']').next().unwrap_or(h)
+    } else if h.matches(':').count() > 1 {
+        h
     } else {
         h.rsplit_once(':').map(|(n, _)| n).unwrap_or(h)
     };
     name.to_ascii_lowercase()
+}
+
+/// One entry of NF_ALLOWED_HOSTS. An IPv6 address must be bracketed, as it is in a Host header (RA-016).
+fn allowed_host_entry(h: &str) -> Result<String, String> {
+    let h = h.trim();
+    if !h
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || ".-:[]".contains(c))
+    {
+        return Err(format!("NF_ALLOWED_HOSTS: '{h}' is not a host name"));
+    }
+    if h.matches(':').count() > 1 && !h.starts_with('[') {
+        return Err(format!(
+            "NF_ALLOWED_HOSTS: '{h}' is an IPv6 address without brackets; write it as [{h}]"
+        ));
+    }
+    Ok(host_name(h))
+}
+
+/// The key a client address is throttled under. An IPv6 client is its /64 (RA-016): one subscriber cannot take
+/// an unlimited number of keys from the 2^64 addresses of its prefix.
+fn client_key(addr: IpAddr) -> String {
+    let addr = match addr {
+        IpAddr::V6(v) => v.to_ipv4_mapped().map(IpAddr::V4).unwrap_or(addr),
+        IpAddr::V4(_) => addr,
+    };
+    match addr {
+        IpAddr::V4(v) => v.to_string(),
+        IpAddr::V6(v) => {
+            let g = v.segments();
+            format!("{:x}:{:x}:{:x}:{:x}::/64", g[0], g[1], g[2], g[3])
+        }
+    }
 }
 
 /// The client's address. X-Forwarded-For is believed only when the connection
@@ -3731,10 +4137,10 @@ fn client_address(app: &App, peer: Option<IpAddr>, headers: &HeaderMap) -> Strin
             .rev()
             .find(|ip| !app.trusted_proxies.contains(ip))
         {
-            return ip.to_string();
+            return client_key(*ip);
         }
     }
-    peer.to_string()
+    client_key(peer)
 }
 
 /// Applied to every request: Host allow-list, anti-forgery checks on
@@ -3749,8 +4155,14 @@ async fn security_layer(
         axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
     );
     let is_api = req.uri().path().starts_with("/api/");
-    let peer = req.extensions().get::<PeerAddr>().map(|p| p.0);
-    let client = ClientAddr(client_address(&app, peer, req.headers()));
+    let peer = req.extensions().get::<PeerAddr>().map(|p| v4_of(p.0));
+    let client_str = if unattributed_peer(&app, peer, req.headers()) {
+        UNATTRIBUTED.to_string()
+    } else {
+        client_address(&app, peer, req.headers())
+    };
+    let client = ClientAddr(client_str.clone());
+    let client_key = client_str;
     req.extensions_mut().insert(client);
     let host = req
         .headers()
@@ -3791,16 +4203,22 @@ async fn security_layer(
     })();
     let mut resp = match refusal {
         Some(r) => r.into_response(),
-        // S-3: a request (headers are timed by the connection, the body and the work by this) may not
-        // be held open indefinitely. Handlers write inside synchronous transactions, so a request that
-        // is abandoned here has either committed completely or not at all.
-        None => match tokio::time::timeout(app.request_timeout, next.run(req)).await {
-            Ok(r) => r,
-            Err(_) => fail(
-                StatusCode::REQUEST_TIMEOUT,
-                "the request was not completed in time and was abandoned",
+        // RA-001: a client may hold only so many requests open at once; the rest are refused at once.
+        None => match if client_key == UNATTRIBUTED {
+            Some(None)
+        } else {
+            InFlight::take(&app, &client_key).map(Some)
+        } {
+            None => fail_json(
+                StatusCode::TOO_MANY_REQUESTS,
+                json!({
+                    "error": "too many requests are open from this address; try again shortly",
+                    "error_ja": "このアドレスから開いているリクエストが多すぎます。しばらくしてから再試行してください。",
+                    "throttled": true
+                }),
             )
             .into_response(),
+            Some(_slot) => serve_one(&app, req, next).await,
         },
     };
     let h = resp.headers_mut();
@@ -3825,6 +4243,178 @@ async fn security_layer(
         set(h, "cache-control", "no-store");
     }
     resp
+}
+
+/// Aborts a task when dropped: a request that is abandoned or finished stops its helper task.
+struct AbortOnDrop(tokio::task::AbortHandle);
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+/// One open request of one client address (RA-001). Released when the request ends.
+struct InFlight {
+    app: Arc<App>,
+    key: String,
+}
+
+impl InFlight {
+    fn take(app: &Arc<App>, key: &str) -> Option<InFlight> {
+        let mut open = app.in_flight.lock().unwrap_or_else(|e| e.into_inner());
+        let n = open.entry(key.to_string()).or_insert(0);
+        if *n >= app.per_client_in_flight {
+            return None;
+        }
+        *n += 1;
+        Some(InFlight {
+            app: app.clone(),
+            key: key.to_string(),
+        })
+    }
+}
+
+impl Drop for InFlight {
+    fn drop(&mut self) {
+        let mut open = self.app.in_flight.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(n) = open.get_mut(&self.key) {
+            *n -= 1;
+            if *n == 0 {
+                open.remove(&self.key);
+            }
+        }
+    }
+}
+
+/// The request body as the handler sees it: chunks that a pump task has read, in order (RA-001).
+struct PumpedBody(tokio::sync::mpsc::Receiver<Result<Bytes, axum::Error>>);
+
+impl axum::body::HttpBody for PumpedBody {
+    type Data = Bytes;
+    type Error = axum::Error;
+    fn poll_frame(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<hyper::body::Frame<Bytes>, axum::Error>>> {
+        match self.0.poll_recv(cx) {
+            std::task::Poll::Ready(Some(Ok(chunk))) => {
+                std::task::Poll::Ready(Some(Ok(hyper::body::Frame::data(chunk))))
+            }
+            std::task::Poll::Ready(Some(Err(e))) => std::task::Poll::Ready(Some(Err(e))),
+            std::task::Poll::Ready(None) => std::task::Poll::Ready(None),
+            std::task::Poll::Pending => std::task::Poll::Pending,
+        }
+    }
+}
+
+/// The request body, read through a pump that gives up when no chunk arrives for `body_idle` (RA-001). The
+/// handler reads the pump's channel; a stalled body ends the request with 408 instead of holding it for the
+/// whole request timeout. Chunks are passed on one at a time, so a large upload is still streamed.
+fn guard_body(
+    app: &Arc<App>,
+    req: axum::extract::Request,
+) -> (
+    axum::extract::Request,
+    Option<AbortOnDrop>,
+    Arc<std::sync::atomic::AtomicBool>,
+) {
+    use axum::body::HttpBody as _;
+    use http_body_util::BodyExt as _;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let stalled = Arc::new(AtomicBool::new(false));
+    if req.body().is_end_stream() {
+        return (req, None, stalled);
+    }
+    let idle = app.body_idle;
+    let (parts, mut body) = req.into_parts();
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Bytes, axum::Error>>(2);
+    let flag = stalled.clone();
+    let pump = tokio::spawn(async move {
+        loop {
+            match tokio::time::timeout(idle, body.frame()).await {
+                Err(_) => {
+                    flag.store(true, Ordering::SeqCst);
+                    let _ = tx
+                        .send(Err(axum::Error::new(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "the request body stopped arriving",
+                        ))))
+                        .await;
+                    return;
+                }
+                Ok(None) => return,
+                Ok(Some(Err(e))) => {
+                    let _ = tx.send(Err(e)).await;
+                    return;
+                }
+                Ok(Some(Ok(frame))) => {
+                    if let Ok(data) = frame.into_data()
+                        && tx.send(Ok(data)).await.is_err()
+                    {
+                        return;
+                    }
+                }
+            }
+        }
+    });
+    (
+        axum::extract::Request::from_parts(parts, axum::body::Body::new(PumpedBody(rx))),
+        Some(AbortOnDrop(pump.abort_handle())),
+        stalled,
+    )
+}
+
+/// Runs the handler for one admitted request. Time-limited as a whole (S-3). A panicking handler answers 500
+/// and the server keeps serving (RA-011); a stalled body answers 408 (RA-001).
+async fn serve_one(
+    app: &Arc<App>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
+    use std::sync::atomic::Ordering;
+    let (req, _pump, stalled) = guard_body(app, req);
+    let handle = tokio::spawn(next.run(req));
+    // when the time limit ends the wait, the handler is stopped too: its transaction rolls back
+    let _stop = AbortOnDrop(handle.abort_handle());
+    let resp = match tokio::time::timeout(app.request_timeout, handle).await {
+        Ok(Ok(r)) => r,
+        Ok(Err(_)) => {
+            elog!("nf-server: a request handler panicked; the request was answered with 500");
+            fail_json(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!({ "error": "internal error; nothing was changed. The server log has the details." }),
+            )
+            .into_response()
+        }
+        Err(_) => fail(
+            StatusCode::REQUEST_TIMEOUT,
+            "the request was not completed in time and was abandoned",
+        )
+        .into_response(),
+    };
+    if stalled.load(Ordering::SeqCst) && resp.status().is_client_error() {
+        return fail(
+            StatusCode::REQUEST_TIMEOUT,
+            "the request body stopped arriving and the request was abandoned",
+        )
+        .into_response();
+    }
+    resp
+}
+
+/// Test-only route that panics, to check that a panicking handler cannot take the server down (RA-011).
+#[cfg(test)]
+async fn test_panic() -> &'static str {
+    panic!("the test handler panics on purpose")
+}
+
+#[cfg(test)]
+fn test_routes() -> Router<Arc<App>> {
+    Router::new().route("/api/__test_panic", get(test_panic))
+}
+#[cfg(not(test))]
+fn test_routes() -> Router<Arc<App>> {
+    Router::new()
 }
 
 pub(crate) fn router(app: Arc<App>) -> Router {
@@ -3897,6 +4487,7 @@ pub(crate) fn router(app: Arc<App>) -> Router {
         .route("/api/calculations", get(list_calcs))
         .route("/api/calculations/{id}", get(get_calc))
         .route("/api/calculations/{id}/replay", post(replay))
+        .route("/api/calculations/{id}/recompute", post(recompute))
         .route("/api/calculations/{id}/dxf/{part}", get(get_dxf))
         .route("/api/calculations/{id}/corrections", post(correct))
         .route("/api/calculations/{id}/dependencies", get(dependencies))
@@ -3910,6 +4501,7 @@ pub(crate) fn router(app: Arc<App>) -> Router {
         .route("/api/dashboard", get(dashboard))
         .route("/api/amoeba/summary", get(amoeba_summary))
         .route("/api/audit", get(audit_log))
+        .merge(test_routes())
         .layer(axum::extract::DefaultBodyLimit::max(256 * 1024))
         .layer(axum::middleware::from_fn_with_state(
             app.clone(),
@@ -3964,6 +4556,13 @@ impl Limits {
     }
 }
 
+/// How many different characters a setup token uses (RA-009: a token of one repeated character is refused).
+fn distinct_chars(t: &str) -> usize {
+    t.chars()
+        .collect::<std::collections::BTreeSet<char>>()
+        .len()
+}
+
 fn default_hosts() -> Vec<String> {
     vec!["localhost".into(), "127.0.0.1".into(), "[::1]".into()]
 }
@@ -3979,27 +4578,25 @@ impl Config {
         let mut allowed_hosts = default_hosts();
         if let Ok(v) = std::env::var("NF_ALLOWED_HOSTS") {
             for h in v.split(',').map(|h| h.trim()).filter(|h| !h.is_empty()) {
-                if !h
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || ".-:[]".contains(c))
-                {
-                    return Err(format!("NF_ALLOWED_HOSTS: '{h}' is not a host name"));
-                }
-                allowed_hosts.push(host_name(h));
+                allowed_hosts.push(allowed_host_entry(h)?);
             }
         }
         let mut trusted_proxies = Vec::new();
         if let Ok(v) = std::env::var("NF_TRUSTED_PROXY") {
             for p in v.split(',').map(|p| p.trim()).filter(|p| !p.is_empty()) {
-                trusted_proxies.push(
-                    p.parse::<IpAddr>()
-                        .map_err(|_| format!("NF_TRUSTED_PROXY: '{p}' is not an IP address"))?,
-                );
+                trusted_proxies
+                    .push(v4_of(p.parse::<IpAddr>().map_err(|_| {
+                        format!("NF_TRUSTED_PROXY: '{p}' is not an IP address")
+                    })?));
             }
         }
         let setup_token = match std::env::var("NF_SETUP_TOKEN") {
-            Ok(t) if t.trim().len() >= 16 => Some(t.trim().to_string()),
-            Ok(_) => return Err("NF_SETUP_TOKEN must have at least 16 characters".into()),
+            Ok(t) if t.trim().len() >= 16 && distinct_chars(t.trim()) >= 8 => {
+                Some(t.trim().to_string())
+            }
+            Ok(_) => {
+                return Err("NF_SETUP_TOKEN must have at least 16 characters, of which at least 8 different ones (RA-009)".into());
+            }
             Err(_) => None,
         };
         Ok(Config {
@@ -4025,6 +4622,15 @@ impl Config {
 /// Open storage and build the application state. Every failure is a message
 /// for the operator; the caller exits non-zero.
 pub(crate) fn build_app(cfg: Config) -> Result<Arc<App>, String> {
+    build_app_with(
+        cfg,
+        std::env::var("NF_ACCEPT_UNANCHORED_AUDIT").as_deref() == Ok("1"),
+    )
+}
+
+/// `accept_unanchored`: a log with entries and no anchor is accepted (and anchored now). Only for a log that
+/// predates the anchor; see the audit section of the start-up code (RA-003).
+pub(crate) fn build_app_with(cfg: Config, accept_unanchored: bool) -> Result<Arc<App>, String> {
     let (mut db, key) = storage::open_storage(&cfg.data_dir, &cfg.key_path)?;
     storage::remove_stale_temporaries(&cfg.data_dir);
     pdfconv::remove_stale_work(&cfg.data_dir);
@@ -4095,6 +4701,9 @@ pub(crate) fn build_app(cfg: Config) -> Result<Arc<App>, String> {
         replay_timeout: Duration::from_secs(60),
         request_timeout: cfg.request_timeout,
         desktop: cfg.desktop,
+        body_idle: BODY_IDLE,
+        per_client_in_flight: 32,
+        in_flight: Mutex::new(std::collections::HashMap::new()),
         hash_slots: Semaphore::new(2),
         upload_slots: Semaphore::new(4),
         replay_slots: Semaphore::new(2),
@@ -4102,6 +4711,7 @@ pub(crate) fn build_app(cfg: Config) -> Result<Arc<App>, String> {
         convert_timeout: pdfconv::DEFAULT_TIMEOUT,
         convert_slots: Arc::new(Semaphore::new(1)),
         anon_audit: Mutex::new((0, 0, 0)),
+        anon_minute: Mutex::new(None),
         verified: Mutex::new((-1, Default::default())),
         #[cfg(test)]
         fault: Mutex::new(None),
@@ -4120,6 +4730,15 @@ pub(crate) fn build_app(cfg: Config) -> Result<Arc<App>, String> {
                     )
                     .optional()?;
                 let count = q_count(&tx, "SELECT COUNT(*) FROM audit", [])?;
+                // RA-003: a log with entries and no anchor is what a truncation plus a deleted anchor looks like.
+                // It is not re-anchored silently. Only an operator who knows the log predates the anchor may accept it.
+                if count > 0 && !accept_unanchored {
+                    return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+                        AuditChainBroken(format!(
+                            "the audit log has {count} entries but no anchor: refusing to start. If this log predates the anchor, start once with NF_ACCEPT_UNANCHORED_AUDIT=1"
+                        )),
+                    )));
+                }
                 let (last_id, head) = last
                     .map(|(i, h)| (i, h.unwrap_or_default()))
                     .unwrap_or((0, "genesis".into()));
@@ -4131,8 +4750,27 @@ pub(crate) fn build_app(cfg: Config) -> Result<Arc<App>, String> {
             tx.commit()
         };
         anchor().map_err(|e| format!("cannot anchor the audit log: {e}"))?;
+        seed_known_clients(&db)
+            .map_err(|e| format!("cannot seed the known sign-in addresses: {e}"))?;
     }
     Ok(Arc::new(app))
+}
+
+/// A listener that is not on loopback answers to the names in NF_ALLOWED_HOSTS only. Without that list every
+/// public request would get 421, so the start is refused instead (RA-007).
+fn listen_needs_allowed_hosts(addr: &str, allowed_hosts: Option<&str>) -> Result<(), String> {
+    let hosts_configured =
+        allowed_hosts.is_some_and(|v| v.split(',').any(|h| !h.trim().is_empty()));
+    let loopback = match addr.parse::<std::net::SocketAddr>() {
+        Ok(sa) => sa.ip().is_loopback(),
+        Err(_) => addr.starts_with("localhost:"),
+    };
+    if loopback || hosts_configured {
+        return Ok(());
+    }
+    Err(format!(
+        "NF_LISTEN={addr} is not a loopback address, but NF_ALLOWED_HOSTS is not set: every request would be answered 421. Set NF_ALLOWED_HOSTS to the host names clients use, or listen on 127.0.0.1."
+    ))
 }
 
 /// Accept loop with the limits axum's own `serve` does not offer (S-3, S-8):
@@ -4167,7 +4805,7 @@ async fn serve(
         let (stream, addr) = match accepted {
             Ok(x) => x,
             Err(e) => {
-                eprintln!("nf-server: cannot accept a connection: {e}");
+                elog!("nf-server: cannot accept a connection: {e}");
                 tokio::time::sleep(Duration::from_millis(50)).await;
                 continue;
             }
@@ -4188,7 +4826,7 @@ async fn serve(
     );
     tokio::select! {
         _ = graceful.shutdown() => println!("nf-server: all requests finished; stopped."),
-        _ = tokio::time::sleep(limits.shutdown_grace) => eprintln!("nf-server: requests still in flight after the grace period; stopping. Their transactions are rolled back by the database."),
+        _ = tokio::time::sleep(limits.shutdown_grace) => elog!("nf-server: requests still in flight after the grace period; stopping. Their transactions are rolled back by the database."),
     }
     Ok(())
 }
@@ -4250,6 +4888,31 @@ fn stop_requested(
 }
 
 /// Remove expired sessions and sign-in failures older than the throttle window. Returns rows removed.
+/// Once per database: the addresses each account signed in from, taken from the audit log's `login` entries, become
+/// known addresses. Without this an administrator's usual network is "unknown" after an upgrade (RA-006 residual).
+/// The seeding is recorded in meta so it does not repeat.
+fn seed_known_clients(db: &Connection) -> rusqlite::Result<()> {
+    if storage::meta_get(db, "login_clients_seeded")?.is_some() {
+        return Ok(());
+    }
+    let rows: Vec<(String, String, i64)> = q_all(
+        db,
+        "SELECT username, detail, at FROM audit WHERE action = 'login' AND detail LIKE 'from %' ORDER BY id",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    )?;
+    for (user, detail, at) in rows {
+        if let Ok(ip) = detail["from ".len()..].trim().parse::<IpAddr>() {
+            db.execute(
+                "INSERT INTO login_clients(username, client, at) VALUES (?,?,?) ON CONFLICT(username, client) DO UPDATE SET at = MAX(at, excluded.at)",
+                params![user, client_key(ip), at],
+            )?;
+        }
+    }
+    storage::meta_set(db, "login_clients_seeded", "1")?;
+    Ok(())
+}
+
 fn housekeeping(app: &App) -> rusqlite::Result<usize> {
     let db = app.db();
     let t = now() as i64;
@@ -4369,7 +5032,7 @@ async fn main() {
     // data folder, a key or a setup token, and never open a port.
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mode = invocation(&args).unwrap_or_else(|e| {
-        eprintln!("nf-server: {e}");
+        elog!("nf-server: {e}");
         std::process::exit(2);
     });
     match mode {
@@ -4384,7 +5047,7 @@ async fn main() {
         Invocation::Desktop => {
             // Desktop mode is strictly opt-in: only an explicit --desktop argument selects it.
             if let Err(e) = desktop::run(&args).await {
-                eprintln!("nf-server: cannot start desktop mode: {e}");
+                elog!("nf-server: cannot start desktop mode: {e}");
                 std::process::exit(2);
             }
             return;
@@ -4392,10 +5055,12 @@ async fn main() {
         Invocation::Serve => {}
     }
     let stop = |msg: String| -> ! {
-        eprintln!("nf-server: cannot start: {msg}");
+        elog!("nf-server: cannot start: {msg}");
         std::process::exit(2);
     };
     let addr = std::env::var("NF_LISTEN").unwrap_or_else(|_| "127.0.0.1:8787".into());
+    listen_needs_allowed_hosts(&addr, std::env::var("NF_ALLOWED_HOSTS").ok().as_deref())
+        .unwrap_or_else(|e| stop(e));
     let cfg = Config::from_env().unwrap_or_else(|e| stop(e));
     let limits = Limits::from_env().unwrap_or_else(|e| stop(e));
     let app = build_app(cfg).unwrap_or_else(|e| stop(e));
@@ -4430,18 +5095,18 @@ async fn main() {
         loop {
             tick.tick().await;
             if let Err(e) = housekeeping(&keeper) {
-                eprintln!("nf-server: housekeeping failed: {e}");
+                elog!("nf-server: housekeeping failed: {e}");
             }
         }
     });
     let service = router(app.clone());
     if let Err(e) = serve(listener, service, limits, false).await {
-        eprintln!("nf-server: server error: {e}");
+        elog!("nf-server: server error: {e}");
         std::process::exit(1);
     }
     // flush: fold the write-ahead log into the database file before the process ends
     if let Err(e) = app.db().execute_batch("PRAGMA wal_checkpoint(TRUNCATE)") {
-        eprintln!("nf-server: could not checkpoint the database at shutdown: {e}");
+        elog!("nf-server: could not checkpoint the database at shutdown: {e}");
     }
 }
 

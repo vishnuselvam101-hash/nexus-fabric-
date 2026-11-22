@@ -1233,8 +1233,9 @@ async fn be011_upgrade_migration_flags_old_results_without_rewriting_them() {
         )
         .unwrap();
     t.app.db().execute_batch("ALTER TABLE calculations DROP COLUMN engine; ALTER TABLE calculations DROP COLUMN state_by; ALTER TABLE calculations DROP COLUMN core_json; ALTER TABLE calculations DROP COLUMN result_bytes; DELETE FROM meta WHERE key LIKE 'audit_%'; PRAGMA user_version = 0;").unwrap();
-    // the same data directory, opened as the upgraded server would open it
-    let app = build_app(config(&t.dir)).unwrap();
+    // the same data directory, opened as the upgraded server would open it. The audit log here has entries but no
+    // anchor (it predates the anchor), which only an explicit acceptance may anchor (RA-003)
+    let app = build_app_with(config(&t.dir), true).unwrap();
     let db = app.db();
     let (engine, state, after): (String, String, String) = db
         .query_row(
@@ -1334,6 +1335,7 @@ async fn v25_removal_of_the_newest_audit_entries_is_detected() {
         (Some(true), Some(true), Some(6))
     );
     assert!(v["limitation"].as_str().unwrap().contains("rollback"));
+    attacker_drops_triggers(&t);
     t.sql("DELETE FROM audit WHERE id > 4");
     let v = t.get("/api/audit/verify").await;
     assert_eq!(
@@ -1378,6 +1380,7 @@ async fn v25_removal_of_the_newest_audit_entries_is_detected() {
         )
         .await;
     }
+    attacker_drops_triggers(&t2);
     t2.sql("UPDATE audit SET detail = 'tampered' WHERE id = 2");
     let v = t2.get("/api/audit/verify").await;
     assert_eq!(
@@ -1517,6 +1520,8 @@ fn v33_forwarded_address_is_used_only_from_a_trusted_proxy() {
 #[tokio::test]
 async fn v34_attacker_controlled_strings_are_bounded_and_anonymous_audit_is_rate_limited() {
     let t = boot();
+    // the window is pinned: the 70 events fall into one minute whatever the clock says (no boundary flake)
+    *t.app.anon_minute.lock().unwrap() = Some(now() / 60);
     let long = "A".repeat(200_000);
     let before = t.count("SELECT COUNT(*) FROM audit");
     for _ in 0..(ANON_AUDIT_PER_MINUTE as usize + 40) {
@@ -2155,6 +2160,9 @@ async fn s2_page_corruption_is_not_reported_as_an_intact_log() {
         replay_timeout: Duration::from_secs(1),
         request_timeout: Duration::from_secs(30),
         desktop: false,
+        body_idle: Duration::from_secs(10),
+        per_client_in_flight: 32,
+        in_flight: Mutex::new(Default::default()),
         hash_slots: Semaphore::new(1),
         upload_slots: Semaphore::new(1),
         replay_slots: Semaphore::new(1),
@@ -2162,6 +2170,7 @@ async fn s2_page_corruption_is_not_reported_as_an_intact_log() {
         convert_timeout: Duration::from_secs(1),
         convert_slots: Arc::new(Semaphore::new(1)),
         anon_audit: Mutex::new((0, 0, 0)),
+        anon_minute: Mutex::new(None),
         verified: Mutex::new((-1, Default::default())),
         fault: Mutex::new(None),
     });
@@ -3267,6 +3276,7 @@ async fn rc01_stored_patterns_and_dxf_references_are_checked_against_the_records
 async fn rc01_a_damaged_or_missing_closure_record_rejects_the_job() {
     let t = boot();
     let altered = t.job(cone()).await;
+    attacker_drops_triggers(&t);
     let pattern_id: String = t
         .app
         .db()
@@ -3681,3 +3691,961 @@ fn rc01_compare_with_records_finds_every_difference() {
 }
 /// Task 3.1: PDF to DXF through the server.
 mod pdfconv;
+
+// ---------------------------------------------------------------- architecture review A (RA-001 … RA-016)
+
+/// The attacker of RA-003 has write access to the database file. Test-only: drops the append-only triggers
+/// so that the tampering a file writer could do can still be simulated (the chain check must catch it).
+fn attacker_drops_triggers(t: &T) {
+    for name in [
+        "audit_no_update",
+        "audit_no_delete",
+        "records_no_update",
+        "records_no_delete",
+    ] {
+        t.sql(&format!("DROP TRIGGER IF EXISTS {name}"));
+    }
+}
+
+/// A sign-in or password request from one peer address, through the real router.
+fn peer_request(
+    method: &str,
+    path: &str,
+    body: Value,
+    cookie: Option<&str>,
+    peer: &str,
+) -> HttpRequest<Body> {
+    let mut b = HttpRequest::builder()
+        .method(method)
+        .uri(path)
+        .header("host", "127.0.0.1:8787")
+        .header("x-nf-request", "1")
+        .header("content-type", "application/json");
+    b = b.header("cookie", cookie.unwrap_or("none=1"));
+    let mut r = b.body(Body::from(body.to_string())).unwrap();
+    r.extensions_mut().insert(PeerAddr(peer.parse().unwrap()));
+    r
+}
+
+async fn answer(app: &Arc<App>, r: HttpRequest<Body>) -> StatusCode {
+    router(app.clone()).oneshot(r).await.unwrap().status()
+}
+
+/// A session for a user created with `add_real_user`.
+fn session_for(t: &T, name: &str) -> String {
+    let db = t.app.db();
+    let uid: i64 = db
+        .query_row(
+            "SELECT id FROM users WHERE username = ?",
+            params![name],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let token = format!("token-of-{name}-real");
+    db.execute(
+        "INSERT INTO sessions(token_hash, user_id, expires_at) VALUES (?,?,?)",
+        params![
+            nf_core::sha256_hex(token.as_bytes()),
+            uid,
+            (now() + 3600) as i64
+        ],
+    )
+    .unwrap();
+    format!("nf_session={token}")
+}
+
+#[tokio::test]
+async fn ra003_a_truncated_audit_log_is_not_re_signed_by_the_next_event() {
+    let t = boot();
+    for i in 0..3 {
+        assert_eq!(
+            t.call(
+                "POST",
+                "/api/projects",
+                Some(json!({ "name": format!("q{i}") }))
+            )
+            .await
+            .0,
+            StatusCode::OK
+        );
+    }
+    // the attacker: drop the triggers, remove the newest entries, remove the counter
+    attacker_drops_triggers(&t);
+    t.sql("DELETE FROM audit WHERE id > 2");
+    t.sql("DELETE FROM meta WHERE key = 'audit_count'");
+    // the next audited event must not extend the shortened chain and sign it
+    let (st, body) = t
+        .call(
+            "POST",
+            "/api/login",
+            Some(json!({ "username": "nobody", "password": "x" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+    assert_eq!(body["audit_broken"], true);
+    assert!(body["error_ja"].as_str().is_some_and(|s| !s.is_empty()));
+    let v = t.get("/api/audit/verify").await;
+    assert_eq!(v["intact"], false, "{v}");
+    assert_eq!(v["anchor_intact"], false, "{v}");
+    assert!(v["anchor_problem"].as_str().unwrap().contains("removed"));
+}
+
+#[tokio::test]
+async fn ra003_audit_and_records_cannot_be_updated_or_deleted_through_the_schema() {
+    let t = boot();
+    t.call("POST", "/api/projects", Some(json!({ "name": "z" })))
+        .await;
+    {
+        let db = t.app.db();
+        db.execute(
+            "INSERT INTO records(id, project_id, family, kind, json) VALUES ('rec-1', 1, 'f', 'k', '{}')",
+            [],
+        )
+        .unwrap();
+        let audit_id: i64 = db
+            .query_row("SELECT MIN(id) FROM audit", [], |r| r.get(0))
+            .unwrap();
+        assert!(
+            db.execute(
+                "UPDATE audit SET detail = 'x' WHERE id = ?",
+                params![audit_id]
+            )
+            .is_err()
+        );
+        assert!(
+            db.execute("DELETE FROM audit WHERE id = ?", params![audit_id])
+                .is_err()
+        );
+        assert!(
+            db.execute(
+                "UPDATE records SET json = '{\"x\":1}' WHERE id = 'rec-1'",
+                []
+            )
+            .is_err()
+        );
+        assert!(
+            db.execute("DELETE FROM records WHERE id = 'rec-1'", [])
+                .is_err()
+        );
+    }
+    // and the application itself still appends
+    assert_eq!(
+        t.call("POST", "/api/projects", Some(json!({ "name": "y" })))
+            .await
+            .0,
+        StatusCode::OK
+    );
+}
+
+#[test]
+fn ra003_a_log_with_entries_but_no_anchor_stops_start_up() {
+    let dir = temp_dir("anchor-gone");
+    {
+        let app = build_app(config(&dir)).unwrap();
+        app.audit(&app.db(), "admin", "one", "two").unwrap();
+    }
+    {
+        let db = Connection::open(dir.join("nexus-fabric.sqlite")).unwrap();
+        db.execute("DELETE FROM meta WHERE key = 'audit_anchor'", [])
+            .unwrap();
+    }
+    match build_app(config(&dir)) {
+        Ok(_) => panic!("a log with entries and no anchor must not be re-anchored silently"),
+        Err(e) => assert!(e.contains("anchor"), "{e}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn ra002_concurrent_wrong_sign_ins_for_one_account_are_counted_before_hashing() {
+    let t = boot();
+    add_real_user(&t, "erin", "erins-long-password");
+    let mut tasks = Vec::new();
+    for i in 0..30 {
+        let app = t.app.clone();
+        tasks.push(tokio::spawn(async move {
+            answer(
+                &app,
+                peer_request(
+                    "POST",
+                    "/api/login",
+                    json!({ "username": "erin", "password": format!("wrong-{i}") }),
+                    None,
+                    "10.1.0.1",
+                ),
+            )
+            .await
+        }));
+    }
+    let mut answers = Vec::new();
+    for task in tasks {
+        answers.push(task.await.unwrap());
+    }
+    let wrong = answers
+        .iter()
+        .filter(|s| **s == StatusCode::UNAUTHORIZED)
+        .count();
+    let throttled = answers
+        .iter()
+        .filter(|s| **s == StatusCode::TOO_MANY_REQUESTS)
+        .count();
+    assert_eq!((wrong, throttled), (5, 25), "{answers:?}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn ra002_concurrent_wrong_current_passwords_are_counted_before_hashing() {
+    let t = boot();
+    add_real_user(&t, "gina", "ginas-long-password");
+    let cookie = session_for(&t, "gina");
+    let mut tasks = Vec::new();
+    for i in 0..20 {
+        let app = t.app.clone();
+        let cookie = cookie.clone();
+        tasks.push(tokio::spawn(async move {
+            answer(
+                &app,
+                peer_request(
+                    "POST",
+                    "/api/password",
+                    json!({ "current": format!("wrong-{i}"), "new": "a-brand-new-password-1" }),
+                    Some(&cookie),
+                    "10.2.0.1",
+                ),
+            )
+            .await
+        }));
+    }
+    let mut answers = Vec::new();
+    for task in tasks {
+        answers.push(task.await.unwrap());
+    }
+    let wrong = answers
+        .iter()
+        .filter(|s| **s == StatusCode::FORBIDDEN)
+        .count();
+    assert_eq!(wrong, 5, "{answers:?}");
+    assert_eq!(
+        answers
+            .iter()
+            .filter(|s| **s == StatusCode::TOO_MANY_REQUESTS)
+            .count(),
+        15
+    );
+}
+
+#[tokio::test]
+async fn ra006_a_guesser_cannot_lock_the_account_for_another_client() {
+    let t = boot();
+    add_real_user(&t, "carol", "carols-long-password");
+    for i in 0..5 {
+        assert_eq!(
+            answer(
+                &t.app,
+                peer_request(
+                    "POST",
+                    "/api/login",
+                    json!({ "username": "carol", "password": format!("g{i}") }),
+                    None,
+                    "10.3.0.1"
+                )
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    // the guesser's own address is throttled
+    assert_eq!(
+        answer(
+            &t.app,
+            peer_request(
+                "POST",
+                "/api/login",
+                json!({ "username": "carol", "password": "carols-long-password" }),
+                None,
+                "10.3.0.1"
+            )
+        )
+        .await,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    // another client signs in with the right password
+    assert_eq!(
+        answer(
+            &t.app,
+            peer_request(
+                "POST",
+                "/api/login",
+                json!({ "username": "carol", "password": "carols-long-password" }),
+                None,
+                "10.3.0.2"
+            )
+        )
+        .await,
+        StatusCode::OK,
+        "one client's guesses must not lock the account for every client"
+    );
+}
+
+#[tokio::test]
+async fn ra006_once_an_account_is_under_attack_only_known_clients_get_through_at_full_speed() {
+    let t = boot();
+    add_real_user(&t, "dan", "dans-long-password");
+    // the owner signs in from a known address first
+    assert_eq!(
+        answer(
+            &t.app,
+            peer_request(
+                "POST",
+                "/api/login",
+                json!({ "username": "dan", "password": "dans-long-password" }),
+                None,
+                "10.4.0.9"
+            )
+        )
+        .await,
+        StatusCode::OK
+    );
+    // 20 failures from 20 other addresses: the account-wide gate engages
+    for i in 0..20 {
+        assert_eq!(
+            answer(
+                &t.app,
+                peer_request(
+                    "POST",
+                    "/api/login",
+                    json!({ "username": "dan", "password": "guess" }),
+                    None,
+                    &format!("10.5.0.{}", i + 1)
+                )
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    // CHANGED (RA-006 residual, see REVIEW_A §6): the slot is per (account, address). A new address gets its own
+    // first attempt; its second attempt within 10 seconds is refused.
+    assert_eq!(
+        answer(
+            &t.app,
+            peer_request(
+                "POST",
+                "/api/login",
+                json!({ "username": "dan", "password": "guess" }),
+                None,
+                "10.6.0.1"
+            )
+        )
+        .await,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        answer(
+            &t.app,
+            peer_request(
+                "POST",
+                "/api/login",
+                json!({ "username": "dan", "password": "dans-long-password" }),
+                None,
+                "10.6.0.1"
+            )
+        )
+        .await,
+        StatusCode::TOO_MANY_REQUESTS,
+        "an unknown address is slowed down on its own slot while the account is attacked"
+    );
+    assert_eq!(
+        answer(
+            &t.app,
+            peer_request(
+                "POST",
+                "/api/login",
+                json!({ "username": "dan", "password": "dans-long-password" }),
+                None,
+                "10.4.0.9"
+            )
+        )
+        .await,
+        StatusCode::OK,
+        "the owner's known address is not held back by the gate"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ra001_a_request_body_that_stalls_is_abandoned_after_the_body_idle_limit() {
+    let dir = temp_dir("body-idle");
+    let mut app = build_app(config(&dir)).unwrap();
+    Arc::get_mut(&mut app).unwrap().body_idle = Duration::from_millis(300);
+    let started = std::time::Instant::now();
+    let req = HttpRequest::builder()
+        .method("POST")
+        .uri("/api/login")
+        .header("host", "localhost")
+        .header("x-nf-request", "1")
+        .header("content-type", "application/json")
+        .header("content-length", "1000")
+        .body(Body::from_stream(OneThenStall(false)))
+        .unwrap();
+    let resp = tokio::time::timeout(Duration::from_secs(5), router(app.clone()).oneshot(req))
+        .await
+        .expect("the stalled body held the request for more than 5 s")
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::REQUEST_TIMEOUT);
+    assert!(started.elapsed() < Duration::from_secs(5));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// One chunk of a JSON body, then nothing ever again.
+struct OneThenStall(bool);
+impl futures_core::Stream for OneThenStall {
+    type Item = Result<axum::body::Bytes, std::io::Error>;
+    fn poll_next(
+        mut self: std::pin::Pin<&mut Self>,
+        _: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        if self.0 {
+            std::task::Poll::Pending
+        } else {
+            self.0 = true;
+            std::task::Poll::Ready(Some(Ok(axum::body::Bytes::from_static(b"{\"username\":"))))
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ra001_one_client_cannot_hold_more_requests_open_than_its_share() {
+    let dir = temp_dir("per-client");
+    let mut app = build_app(config(&dir)).unwrap();
+    {
+        let a = Arc::get_mut(&mut app).unwrap();
+        a.per_client_in_flight = 2;
+        a.body_idle = Duration::from_secs(30);
+    }
+    let mut held = Vec::new();
+    for _ in 0..2 {
+        let app = app.clone();
+        held.push(tokio::spawn(async move {
+            let mut r = HttpRequest::builder()
+                .method("POST")
+                .uri("/api/login")
+                .header("host", "localhost")
+                .header("x-nf-request", "1")
+                .header("content-type", "application/json")
+                .header("content-length", "1000")
+                .body(Body::from_stream(OneThenStall(false)))
+                .unwrap();
+            r.extensions_mut()
+                .insert(PeerAddr("10.8.0.1".parse().unwrap()));
+            let _ = router(app).oneshot(r).await;
+        }));
+    }
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(
+        answer(
+            &app,
+            peer_request(
+                "POST",
+                "/api/login",
+                json!({ "username": "x", "password": "y" }),
+                None,
+                "10.8.0.1"
+            )
+        )
+        .await,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_ne!(
+        answer(
+            &app,
+            peer_request(
+                "POST",
+                "/api/login",
+                json!({ "username": "x", "password": "y" }),
+                None,
+                "10.8.0.2"
+            )
+        )
+        .await,
+        StatusCode::TOO_MANY_REQUESTS,
+        "another client is not affected"
+    );
+    for h in held {
+        h.abort();
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn ra009_setup_failures_are_counted_per_client() {
+    let dir = temp_dir("setup-client");
+    let app = build_app(config(&dir)).unwrap();
+    let setup = |token: &str, peer: &str| {
+        let mut r = peer_request(
+            "POST",
+            "/api/setup",
+            json!({ "username": "owner", "password": "owners-setup-password-1" }),
+            None,
+            peer,
+        );
+        r.headers_mut()
+            .insert("x-nf-setup-token", token.parse().unwrap());
+        r
+    };
+    for _ in 0..SETUP_FAILURES {
+        assert_eq!(
+            answer(&app, setup("wrong-token", "10.9.0.1")).await,
+            StatusCode::FORBIDDEN
+        );
+    }
+    assert_eq!(
+        answer(&app, setup("wrong-token", "10.9.0.1")).await,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(
+        answer(&app, setup(TOKEN, "10.9.0.2")).await,
+        StatusCode::OK,
+        "one client's wrong tokens must not block the installer"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn ra016_ipv6_clients_share_their_prefix_and_bracketed_host_names_parse() {
+    let t = boot();
+    let h = HeaderMap::new();
+    let a = client_address(&t.app, Some("2001:db8:1:2::1".parse().unwrap()), &h);
+    let b = client_address(&t.app, Some("2001:db8:1:2:ffff::9".parse().unwrap()), &h);
+    assert_eq!(a, b, "one /64 is one client");
+    assert_ne!(
+        a,
+        client_address(&t.app, Some("2001:db8:1:3::1".parse().unwrap()), &h)
+    );
+    assert_eq!(
+        client_address(&t.app, Some("192.0.2.7".parse().unwrap()), &h),
+        "192.0.2.7"
+    );
+    assert_eq!(host_name("[2001:db8::1]:8787"), "[2001:db8::1]");
+    assert_eq!(host_name("LocalHost:8787"), "localhost");
+    assert_eq!(host_name("[::1]"), "[::1]");
+}
+
+#[tokio::test]
+async fn ra014_a_restored_pre_upgrade_database_is_accepted_when_its_key_matches() {
+    let dir = temp_dir("restore-old");
+    {
+        let _ = build_app(config(&dir)).unwrap();
+    }
+    {
+        let db = Connection::open(dir.join("nexus-fabric.sqlite")).unwrap();
+        db.execute("DELETE FROM meta WHERE key = 'installation_id'", [])
+            .unwrap();
+    }
+    let key = dir.join("storage.key");
+    match storage::open_storage(&dir, &key) {
+        Ok(_) => {}
+        Err(e) => panic!("a restored database with the same key must start: {e}"),
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn ra013_a_failed_audit_write_leaves_no_entry_behind() {
+    let t = boot();
+    t.sql("CREATE TRIGGER block_anchor BEFORE INSERT ON meta WHEN NEW.key = 'audit_anchor' BEGIN SELECT RAISE(ABORT, 'blocked'); END");
+    let before = t.count("SELECT COUNT(*) FROM audit");
+    let res = {
+        let db = t.app.db();
+        t.app.audit(&db, "admin", "probe", "anchor write fails")
+    };
+    assert!(res.is_err());
+    t.sql("DROP TRIGGER block_anchor");
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM audit"),
+        before,
+        "no half-written entry"
+    );
+    assert_eq!(t.get("/api/audit/verify").await["intact"], true);
+}
+
+#[tokio::test]
+async fn ra011_a_panicking_handler_answers_500_and_the_server_keeps_serving() {
+    let t = boot();
+    let (st, _, _) = t.send("GET", "/api/__test_panic", None, &[]).await;
+    assert_eq!(st, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(t.call("GET", "/api/health", None).await.0, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn ra012_a_stored_result_with_a_duplicate_key_is_rejected() {
+    let t = boot();
+    let id = t.job(good_assembly()).await;
+    let raw: String = t
+        .app
+        .db()
+        .query_row(
+            "SELECT result_json FROM calculations WHERE id = ?",
+            params![id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    let engine = serde_json::from_str::<Value>(&raw).unwrap()["engine"].clone();
+    // the same key twice with the same value: SQLite and serde read it the same way, the copy is still refused
+    let dup = format!("{{\"engine\":{},{}", engine, &raw[1..]);
+    t.app
+        .db()
+        .execute(
+            "UPDATE calculations SET result_json = ? WHERE id = ?",
+            params![dup, id],
+        )
+        .unwrap();
+    let detail = t.get(&format!("/api/calculations/{id}")).await;
+    assert_eq!(detail["state"], "REJECTED", "{detail}");
+    assert_eq!(t.dxf_status(id, "shell").await, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn cli32_a_reason_is_counted_in_characters_not_bytes() {
+    let t = boot();
+    // three Japanese characters are nine bytes: refused, as a reason of fewer than five characters
+    let (st, v) = t
+        .call(
+            "POST",
+            "/api/advisories/1/acknowledge",
+            Some(json!({ "reason": "日本語" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST, "{v}");
+}
+
+#[test]
+fn ra010_a_full_file_store_is_classified_as_out_of_space() {
+    assert!(storage::is_out_of_space(
+        &std::io::Error::from_raw_os_error(28)
+    ));
+    assert!(!storage::is_out_of_space(
+        &std::io::Error::from_raw_os_error(13)
+    ));
+}
+
+#[tokio::test]
+async fn ra007_a_result_of_a_superseded_engine_is_recomputed_and_the_old_one_stays() {
+    let t = boot();
+    let old = t.job(good_assembly()).await;
+    t.sql(&format!("UPDATE calculations SET result_json = json_set(result_json, '$.engine', 'nf-core 0.1.0 / uem 0.1.0'), engine = 'nf-core 0.1.0 / uem 0.1.0' WHERE id = {old}"));
+    assert_eq!(
+        t.get(&format!("/api/calculations/{old}")).await["engine_current"],
+        false
+    );
+    let (st, v) = t
+        .call("POST", &format!("/api/calculations/{old}/recompute"), None)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let new = v["id"].as_i64().unwrap();
+    let d = t.get(&format!("/api/calculations/{new}")).await;
+    assert_eq!(d["engine_current"], true, "{d}");
+    assert_eq!(d["supersedes"], old);
+    assert_eq!(
+        t.count(&format!(
+            "SELECT COUNT(*) FROM calculations WHERE id = {old}"
+        )),
+        1
+    );
+    // a result of the running engine has nothing to recompute
+    assert_eq!(
+        t.call("POST", &format!("/api/calculations/{new}/recompute"), None)
+            .await
+            .0,
+        StatusCode::CONFLICT
+    );
+}
+
+#[test]
+fn ra007_a_non_loopback_listener_needs_the_allowed_host_list() {
+    assert!(listen_needs_allowed_hosts("127.0.0.1:8787", None).is_ok());
+    assert!(listen_needs_allowed_hosts("[::1]:8787", None).is_ok());
+    assert!(listen_needs_allowed_hosts("localhost:8787", None).is_ok());
+    assert!(listen_needs_allowed_hosts("0.0.0.0:8787", None).is_err());
+    assert!(listen_needs_allowed_hosts("0.0.0.0:8787", Some("nexus.example")).is_ok());
+    // an empty or blank list is not a list (RA-007)
+    assert!(listen_needs_allowed_hosts("0.0.0.0:8787", Some("")).is_err());
+    assert!(listen_needs_allowed_hosts("0.0.0.0:8787", Some(" , ")).is_err());
+}
+
+#[test]
+fn ra009_a_setup_token_of_one_repeated_character_is_refused() {
+    assert_eq!(distinct_chars("aaaaaaaaaaaaaaaaaaaa"), 1);
+    assert!(distinct_chars("0123456789abcdef") >= 8);
+}
+
+#[test]
+fn ra016_an_unbracketed_ipv6_allowed_host_is_refused_with_the_bracketed_form() {
+    assert_eq!(
+        allowed_host_entry("[2001:db8::1]").unwrap(),
+        "[2001:db8::1]"
+    );
+    assert_eq!(
+        allowed_host_entry("Nexus.Example").unwrap(),
+        "nexus.example"
+    );
+    let e = allowed_host_entry("2001:db8::1").unwrap_err();
+    assert!(e.contains("[2001:db8::1]"), "{e}");
+}
+
+#[test]
+fn ra016_ipv4_mapped_clients_are_keyed_as_ipv4() {
+    assert_eq!(client_key("::ffff:192.0.2.7".parse().unwrap()), "192.0.2.7");
+    assert_eq!(
+        client_key("2001:db8:1:2::1".parse().unwrap()),
+        "2001:db8:1:2::/64"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn ra001_behind_an_unconfigured_local_proxy_one_client_cannot_deny_others() {
+    // The live deployment: Caddy on the same host forwards every request from 127.0.0.1, and NF_TRUSTED_PROXY is
+    // not set. One client must not be able to take the open-request slots of everybody.
+    let dir = temp_dir("local-proxy-flight");
+    let mut app = build_app(config(&dir)).unwrap();
+    {
+        let a = Arc::get_mut(&mut app).unwrap();
+        a.per_client_in_flight = 2;
+        a.body_idle = Duration::from_secs(30);
+    }
+    let mut held = Vec::new();
+    for i in 0..3 {
+        let app = app.clone();
+        held.push(tokio::spawn(async move {
+            let r = HttpRequest::builder()
+                .method("POST")
+                .uri("/api/login")
+                .header("host", "localhost")
+                .header("x-nf-request", "1")
+                .header("x-forwarded-for", format!("198.51.100.{}", i + 1))
+                .header("content-type", "application/json")
+                .header("content-length", "1000")
+                .body(Body::from_stream(OneThenStall(false)))
+                .unwrap();
+            let mut r = r;
+            r.extensions_mut()
+                .insert(PeerAddr("127.0.0.1".parse().unwrap()));
+            let _ = router(app).oneshot(r).await;
+        }));
+    }
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let mut other = peer_request(
+        "POST",
+        "/api/login",
+        json!({ "username": "x", "password": "y" }),
+        None,
+        "127.0.0.1",
+    );
+    other
+        .headers_mut()
+        .insert("x-forwarded-for", "203.0.113.1".parse().unwrap());
+    assert_ne!(
+        answer(&app, other).await,
+        StatusCode::TOO_MANY_REQUESTS,
+        "another client behind the same proxy must not be refused"
+    );
+    for h in held {
+        h.abort();
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn ra006_behind_an_unconfigured_local_proxy_one_client_cannot_lock_another_account() {
+    let t = boot();
+    add_real_user(&t, "carol", "carols-long-password");
+    add_real_user(&t, "dan", "dans-long-password");
+    let via = |user: &str, pw: &str, xff: &str| {
+        let mut r = peer_request(
+            "POST",
+            "/api/login",
+            json!({ "username": user, "password": pw }),
+            None,
+            "127.0.0.1",
+        );
+        r.headers_mut()
+            .insert("x-forwarded-for", xff.parse().unwrap());
+        r
+    };
+    // 20 wrong guesses at carol from one local proxy: the account gate, not a lock for everyone
+    for i in 0..20 {
+        assert_eq!(
+            answer(
+                &t.app,
+                via("carol", "guess", &format!("198.51.100.{}", i + 1))
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    assert_eq!(
+        answer(&t.app, via("dan", "dans-long-password", "203.0.113.5")).await,
+        StatusCode::OK,
+        "one client must not lock another account"
+    );
+    assert_eq!(
+        answer(&t.app, via("carol", "carols-long-password", "203.0.113.6")).await,
+        StatusCode::TOO_MANY_REQUESTS,
+        "carol is slowed down while she is attacked"
+    );
+    // the slot reopens: the account is not locked
+    t.sql("UPDATE login_failures SET at = at - 20 WHERE username = 'carol'");
+    assert_eq!(
+        answer(&t.app, via("carol", "carols-long-password", "203.0.113.6")).await,
+        StatusCode::OK,
+        "carol signs in again once the slot is free"
+    );
+}
+
+#[tokio::test]
+async fn ra006_refused_attempts_are_recorded() {
+    let t = boot();
+    add_real_user(&t, "carol", "carols-long-password");
+    for i in 0..5 {
+        assert_eq!(
+            answer(
+                &t.app,
+                peer_request(
+                    "POST",
+                    "/api/login",
+                    json!({ "username": "carol", "password": format!("g{i}") }),
+                    None,
+                    "10.3.0.1"
+                )
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    let refused_before = t.count("SELECT COUNT(*) FROM login_failures WHERE admitted = 0");
+    assert_eq!(
+        answer(
+            &t.app,
+            peer_request(
+                "POST",
+                "/api/login",
+                json!({ "username": "carol", "password": "g9" }),
+                None,
+                "10.3.0.1"
+            )
+        )
+        .await,
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM login_failures WHERE admitted = 0"),
+        refused_before + 1,
+        "a refused guess is counted"
+    );
+}
+
+#[test]
+fn ra006_known_addresses_are_seeded_from_the_audit_history() {
+    let t = boot();
+    t.sql("DELETE FROM meta WHERE key = 'login_clients_seeded'");
+    t.sql("INSERT INTO audit(at, username, action, detail, prev, hash) VALUES (1, 'dan', 'login', 'from 2001:db8:1:2::77', 'genesis', 'x')");
+    let db = t.app.db();
+    seed_known_clients(&db).unwrap();
+    assert!(known_client(&db, "dan", &client_key("2001:db8:1:2::9".parse().unwrap())).unwrap());
+    assert!(!known_client(&db, "dan", "203.0.113.9").unwrap());
+}
+
+#[tokio::test]
+async fn ra003_an_anchored_log_from_an_earlier_start_passes_without_the_flag() {
+    let dir = temp_dir("anchored-restart");
+    {
+        let app = build_app(config(&dir)).unwrap();
+        let db = app.db();
+        for i in 0..3 {
+            app.audit(&db, "admin", "earlier", &format!("entry {i}"))
+                .unwrap();
+        }
+    }
+    // the upgraded server starts again with the same data and no NF_ACCEPT_UNANCHORED_AUDIT
+    let app = build_app(config(&dir)).expect("a healthy anchored log must start without the flag");
+    let v = verify_audit(&app, &app.db()).unwrap();
+    assert_eq!(
+        (v["intact"].as_bool(), v["anchor_intact"].as_bool()),
+        (Some(true), Some(true)),
+        "{v}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[tokio::test]
+async fn ra016_an_ipv4_client_on_a_mapped_loopback_listener_is_the_same_client() {
+    // item 4: `::ffff:127.0.0.1` is the loopback proxy, not a remote client
+    let t = boot();
+    let mut h = HeaderMap::new();
+    h.insert("x-forwarded-for", HeaderValue::from_static("198.51.100.4"));
+    assert!(unattributed_peer(
+        &t.app,
+        Some("::ffff:127.0.0.1".parse().unwrap()),
+        &h
+    ));
+    assert!(unattributed_peer(
+        &t.app,
+        Some("127.0.0.1".parse().unwrap()),
+        &h
+    ));
+    assert!(!unattributed_peer(
+        &t.app,
+        Some("::ffff:198.51.100.9".parse().unwrap()),
+        &h
+    ));
+}
+
+#[tokio::test]
+async fn ra006_a_remote_peer_with_a_forged_forwarded_address_is_still_limited_by_its_real_address()
+{
+    // item 5: a non-loopback peer cannot choose its key by sending X-Forwarded-For. Its key is its own address.
+    let t = boot();
+    add_real_user(&t, "carol", "carols-long-password");
+    let via = |pw: &str, peer: &str, xff: &str| {
+        let mut r = peer_request(
+            "POST",
+            "/api/login",
+            json!({ "username": "carol", "password": pw }),
+            None,
+            peer,
+        );
+        r.headers_mut()
+            .insert("x-forwarded-for", xff.parse().unwrap());
+        r
+    };
+    for i in 0..5 {
+        assert_eq!(
+            answer(
+                &t.app,
+                via("guess", "198.51.100.77", &format!("203.0.113.{}", i + 1))
+            )
+            .await,
+            StatusCode::UNAUTHORIZED
+        );
+    }
+    // a new forged address does not escape the pair limit of the real peer
+    assert_eq!(
+        answer(
+            &t.app,
+            via("carols-long-password", "198.51.100.77", "192.0.2.200")
+        )
+        .await,
+        StatusCode::TOO_MANY_REQUESTS,
+        "the forged header must not reach the unattributed branch"
+    );
+    // every refusal and failure of this peer is keyed by its real address
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM login_failures WHERE client = '198.51.100.77'"),
+        6
+    );
+    // another remote peer is not locked by it
+    assert_eq!(
+        answer(
+            &t.app,
+            via("carols-long-password", "198.51.100.78", "203.0.113.1")
+        )
+        .await,
+        StatusCode::OK
+    );
+}
