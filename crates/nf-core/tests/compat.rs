@@ -64,6 +64,11 @@
 //! This snapshot holds no verdicts, so it is unchanged by that (no state, pattern or cut geometry moved: the same 2 lines
 //! differ). The verdicts are in `fixtures/compat_verdicts.json` (test `compat_verdicts_reproduce_the_verdict_snapshot`),
 //! and there the six flipped cases are listed in docs/backend/TOLERANCE_POLICY.md section 9.
+//! Work plan task 1.5a (deliberate, `NF_WRITE_COMPAT_FIXTURE=1`, engine 0.4.7): the cylinder shell (`verify_cylinder`)
+//! and the eccentric reducer carry the `outline_counter_clockwise` guard (RC-09/RC-10, RB-006). In `fixtures/compat_verdicts.json`
+//! 75 of 335 cases gained that one check (all PASS: every corpus cylinder and eccentric outline is counter-clockwise); no
+//! existing check's verdict or reason changed, no case flipped PASS to anything else, and the cut geometry and patterns did not move.
+//! `verify_cylinder_solid` also carries the guard, but it is not part of the corpus (test-only).
 
 use nf_core::job::{Request, run};
 use serde_json::{Value, json};

@@ -483,3 +483,35 @@ eccentric-reducer results of task 1.2 (none is a branch or assembly case).
 **Not changed.** The branch's `radius_consistency` advisory for `unknown` (G02) stays; the INCONCLUSIVE checks are added
 to it, not in place of it. The surface selector and the reason rendering are web work (docs/backend/UI_CHANGES_NEEDED.md,
 row 18).
+
+## 10. Orientation guard for cylinder and eccentric (work plan task 1.5a, engine 0.4.7)
+
+Review C RC-09/RC-10 (RB-006): the cylinder and eccentric verifiers held only length and
+unsigned-magnitude area checks, every one invariant to a MIRRORED flat pattern, so a mirrored
+(wrong-handed) plate passed. The branch and header verifiers already guarded this with
+`outline_counter_clockwise` (the outer profile's signed area must have sign +1, counter-clockwise,
+Spec 02 §0.3). Engine 0.4.7 adds the same guard to `verify_cylinder`, `verify_eccentric` and
+`verify_cylinder_solid`. A genuine development is counter-clockwise and PASSes; its mirror is
+clockwise and FAILs. The check is not radius-dependent, so task 1.4's `surface_unknown` never demotes
+it (it is in neither `CYLINDER_RADIUS_CHECKS` nor `ECCENTRIC_RADIUS_CHECKS`).
+
+**Changed expectations of engine 0.4.7 (A2, measured).**
+- `verify_cylinder`: 4 checks -> 5 (added `outline_counter_clockwise`, sign test, tolerance 0.5).
+- `verify_eccentric`: 5 checks -> 6 (added `outline_counter_clockwise`, sign test, tolerance 0.5).
+- `verify_cylinder_solid`: 3 checks -> 4 (same guard; only its tests call it, so no corpus case is affected).
+- `tests/fixtures/compat_verdicts.json`: regenerated; 75 of 335 cases gained `outline_counter_clockwise` = PASS.
+  No existing check's verdict or reason changed; no case flipped PASS -> anything; patterns and cut geometry
+  are byte-identical (develop.rs unchanged).
+- Test expectations: `verify.rs` `d8_agreement_tolerance...` tolerance vector for CYL-02 gains a fifth slot
+  `0.5` for the appended check (the first four are unchanged). The RB-006 wrong-radius solid test now asserts
+  the three radius checks (`end_circle_3d_arc_length`, `end_circles_3d_arc_length_equal`,
+  `area_equals_sampled_surface_area`) FAIL and `outline_counter_clockwise` PASSes (a wrong radius is not a
+  mirror, so the guard correctly does not fire); the fault is still fully detected. A new test
+  `outline_guard_rejects_a_mirrored_cylinder_and_eccentric` proves genuine -> PASS, mirror -> FAIL.
+- Version strings `0.4.6+src.` -> `0.4.7+src.` in `crates/nf-core/tests/plate_conventions.rs` and
+  `crates/nf-server/src/tests.rs:2498` (the second is outside nf-core ownership; the same one-line change
+  as tasks 1.3/1.4).
+
+**Engine bump.** 0.4.6 -> 0.4.7: the check list of the cylinder and eccentric families changed; their verdicts
+are unchanged for every genuine development. Results of 0.4.6 are marked for recomputation (G21). Patterns and
+cut geometry are byte-identical.

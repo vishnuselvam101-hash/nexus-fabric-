@@ -87,7 +87,10 @@ use std::collections::{BTreeMap, BTreeSet};
 /// a branch stub or a header with branch change verdicts (PASS -> INCONCLUSIVE). Requests without the field keep their
 /// output, except that a branch stub without the field read `unknown` by its default and so changes in the same way.
 /// Results of 0.4.5 are REJECTED with G21 recompute.
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.6+src.", env!("NF_ENGINE_SRC_HASH"));
+/// 0.4.7 (work plan task 1.5a, RC-09/RC-10, RB-006): the cylinder shell (`verify_cylinder` and `verify_cylinder_solid`)
+/// and the eccentric reducer carry the `outline_counter_clockwise` guard as the branch and the header do: a mirrored
+/// (clockwise) development FAILs it. Geometry is unchanged; the check list changed. Results of 0.4.6 are REJECTED with G21 recompute.
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.7+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the
