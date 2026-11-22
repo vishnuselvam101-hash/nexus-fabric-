@@ -43,7 +43,10 @@ check "snapshot recorded"                         '[ -n "$(curl -s -H "X-NF-Requ
 run() { post /api/projects/1/calculations "$1" | j 'd["id"]'; }
 C1=$(run '{"family":"cone_frustum","r1":200,"r2":100,"h":300}')
 C2=$(run '{"family":"eccentric_reducer","r1":200,"r2":100,"h":300,"e":100}')
-C3=$(run '{"family":"branch_stub","header_radius":150,"branch_radius":100,"branch_dev_radius":100,"beta_deg":60,"delta":0,"s_end":400}')
+# task 1.4 (engine 0.4.6): declare the surface so the branch happy-path still verifies to all-PASS (an `unknown` surface
+# makes the radius checks INCONCLUSIVE; that path is checked below as C6 and in compat 7/157/191/196). Before 0.4.6 the
+# absent field defaulted to `unknown` and still PASSed (a G02 advisory only); 0.4.6 makes `unknown` INCONCLUSIVE.
+C3=$(run '{"family":"branch_stub","header_radius":150,"branch_radius":100,"branch_dev_radius":100,"beta_deg":60,"delta":0,"s_end":400,"surface_reference":"outside"}')
 C4=$(run '{"family":"cylinder_shell","r_dev":500,"length":1000}')
 C5=$(run '{"family":"cone_frustum","r1":200,"r2":199.99999,"h":300}')
 get() { curl -s -H "X-NF-Request: 1" -b "$JAR" "$BASE/api/calculations/$1"; }
@@ -59,13 +62,20 @@ for c in $C1 $C2 $C3 $C4; do
   fi
   check "job $c: approval gate not implemented"    '[ "$(echo "$R" | j "[g[\"result\"] for g in d[\"gates\"] if g[\"id\"]==\"G16\"][0]")" = NOT_IMPLEMENTED ]'
 done
+# task 1.4 (engine 0.4.6, RB-010): a branch stub whose surface_reference is `unknown` cannot certify its radius checks,
+# so the 9 radius-dependent checks are INCONCLUSIVE (each with a reason), the other 2 PASS, none FAIL; still REVIEW_REQUIRED.
+C6=$(run '{"family":"branch_stub","header_radius":150,"branch_radius":100,"branch_dev_radius":100,"beta_deg":60,"delta":0,"s_end":400,"surface_reference":"unknown"}')
+R6=$(get $C6)
+check "job $C6 (branch_stub, surface unknown): REVIEW_REQUIRED" '[ "$(echo "$R6" | j "d[\"state\"]")" = REVIEW_REQUIRED ]'
+check "job $C6 (branch_stub, surface unknown): 9 radius checks INCONCLUSIVE with a reason, the other 2 PASS, none FAIL" '[ "$(echo "$R6" | j "sorted(c[\"name\"] for c in d[\"checks\"] if c[\"verdict\"]==\"INCONCLUSIVE\")==[\"cut_points_on_branch_surface\",\"cut_points_on_header_surface\",\"pattern_area_equals_surface_area\",\"saddle_developed_length_equals_3d_arc_length\",\"saddle_handedness_matches_declared_side\",\"saddle_matches_3d_intersection\",\"saddle_on_the_declared_delta_side\",\"square_end_3d_arc_length\",\"square_end_equals_circumference\"] and all(c.get(\"reason\") for c in d[\"checks\"] if c[\"verdict\"]==\"INCONCLUSIVE\") and all(c[\"verdict\"]==\"PASS\" for c in d[\"checks\"] if c[\"verdict\"]!=\"INCONCLUSIVE\") and not any(c[\"verdict\"]==\"FAIL\" for c in d[\"checks\"]) and len(d[\"checks\"])==11")" = True ]'
 check "CONE-01 sector angle matches reference"    '[ "$(get $C1 | j "abs(d[\"patterns\"][0][\"quantities\"][\"sector_angle\"]-1.986917653159)<1e-11")" = True ]'
 check "ECC-01 developed angle matches reference"  '[ "$(get $C2 | j "abs(d[\"patterns\"][0][\"quantities\"][\"developed_angle\"]-1.861891289225)<1e-10")" = True ]'
 check "unsupported input: no pattern, no DXF"     '[ "$(get $C5 | j "d[\"patterns\"] == []")" = True ]'
 # BE-003: a refused request is REFUSED end to end (it used to be answered 200 and stored as REVIEW_REQUIRED)
 check "refused request: HTTP 422 with state REFUSED and a reason" '[ "$(curl -s -o "$DATA/ref.json" -w "%{http_code}" -H "X-NF-Request: 1" -b $JAR -H "Content-Type: application/json" -d "{\"family\":\"cone_frustum\",\"r1\":200,\"r2\":199.99999,\"h\":300}" $BASE/api/projects/1/calculations)" = 422 ] && [ "$(j "d[\"state\"]==\"REFUSED\" and bool(d[\"outcome\"]) and d[\"id\"]>0" < "$DATA/ref.json")" = True ]'
 check "refused request: stored state is REFUSED, never REVIEW_REQUIRED" '[ "$(get $C5 | j "d[\"state\"]")" = REFUSED ] && [ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/calculations | j "[c[\"state\"] for c in d if c[\"id\"]==$C5][0]")" = REFUSED ]'
-check "refused request: counted as refused, not as review required" '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/dashboard | j "d[\"refused\"]==2 and d[\"review_required\"]==4 and d[\"approved\"]==0")" = True ]'
+# task 1.4: C6 (branch_stub, surface unknown) adds one REVIEW_REQUIRED job, so review_required is 5 (was 4); refused unchanged.
+check "refused request: counted as refused, not as review required" '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/dashboard | j "d[\"refused\"]==2 and d[\"review_required\"]==5 and d[\"approved\"]==0")" = True ]'
 check "refused request: replay refused (409), attempt kept in the audit log" '[ "$(code -b $JAR -X POST $BASE/api/calculations/$C5/replay)" = 409 ] && [ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/audit | j "sum(1 for a in d if a[\"action\"]==\"calculation_refused\")")" = 2 ]'
 # BE-001: declared surface against the radii
 BAD='{"family":"header_with_branch","header_radius":150,"header_dev_radius":160,"header_length":1200,"branch_station":600,"branch_radius":100,"branch_dev_radius":110,"beta_deg":60,"delta":0,"s_end":400,"surface_reference":"outside"}'

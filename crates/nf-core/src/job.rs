@@ -38,17 +38,40 @@ pub enum Request {
     CylinderShell {
         r_dev: f64,
         length: f64,
+        /// Optional (work plan task 1.4): the wall surface the entered radius refers to, declared as for
+        /// `branch_stub`. Absent: not declared, and the pattern and every check are exactly as before (the entered
+        /// radius is the reference-surface radius, G06). `"unknown"`: the radius-dependent checks are INCONCLUSIVE.
+        #[serde(
+            default,
+            deserialize_with = "present_string",
+            skip_serializing_if = "Option::is_none"
+        )]
+        surface_reference: Option<String>,
     },
     ConeFrustum {
         r1: f64,
         r2: f64,
         h: f64,
+        /// Optional (task 1.4): see `CylinderShell::surface_reference`.
+        #[serde(
+            default,
+            deserialize_with = "present_string",
+            skip_serializing_if = "Option::is_none"
+        )]
+        surface_reference: Option<String>,
     },
     EccentricReducer {
         r1: f64,
         r2: f64,
         h: f64,
         e: f64,
+        /// Optional (task 1.4): see `CylinderShell::surface_reference`.
+        #[serde(
+            default,
+            deserialize_with = "present_string",
+            skip_serializing_if = "Option::is_none"
+        )]
+        surface_reference: Option<String>,
     },
     BranchStub {
         header_radius: f64,
@@ -114,9 +137,17 @@ fn coded(code: &str, fields: Vec<String>, message: impl Into<String>) -> Refusal
 
 /// The numeric and text fields of each family, as the request reads them (the same names as the form sends).
 const FAMILY_FIELDS: [(&str, &[&str], &[&str]); 5] = [
-    ("cylinder_shell", &["r_dev", "length"], &[]),
-    ("cone_frustum", &["r1", "r2", "h"], &[]),
-    ("eccentric_reducer", &["r1", "r2", "h", "e"], &[]),
+    (
+        "cylinder_shell",
+        &["r_dev", "length"],
+        &["surface_reference"],
+    ),
+    ("cone_frustum", &["r1", "r2", "h"], &["surface_reference"]),
+    (
+        "eccentric_reducer",
+        &["r1", "r2", "h", "e"],
+        &["surface_reference"],
+    ),
     (
         "branch_stub",
         &[
@@ -260,6 +291,23 @@ impl Request {
         }
         Ok(req)
     }
+    /// The surface declared for the families of task 1.4 (cylinder shell, cone, eccentric reducer); `None` when the
+    /// field is absent, and for every other family (branch and header read their own declarations in `single` and
+    /// `header_with_branch`).
+    pub fn declared_surface(&self) -> Option<&str> {
+        match self {
+            Request::CylinderShell {
+                surface_reference, ..
+            }
+            | Request::ConeFrustum {
+                surface_reference, ..
+            }
+            | Request::EccentricReducer {
+                surface_reference, ..
+            } => surface_reference.as_deref(),
+            Request::BranchStub { .. } | Request::HeaderWithBranch { .. } => None,
+        }
+    }
     pub fn family(&self) -> String {
         serde_json::to_value(self)
             .ok()
@@ -367,6 +415,9 @@ pub struct CheckView {
     pub difference: f64,
     pub tolerance: f64,
     pub verdict: String,
+    /// Why the verdict is INCONCLUSIVE, where a rule of this build sets it (task 1.4). Absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -760,6 +811,7 @@ fn check_view(scope: &str, c: &Check) -> CheckView {
         difference: c.difference,
         tolerance: c.tolerance,
         verdict: verdict_str(c.verdict).into(),
+        reason: c.reason.map(String::from),
     }
 }
 
@@ -1339,7 +1391,7 @@ fn single(
                 Request::BranchStub {
                     surface_reference, ..
                 } => Some(surface_reference.as_str()),
-                _ => None,
+                _ => req.declared_surface(),
             };
             let mut gates = evaluate_gates(
                 &b.all_checks,
@@ -1351,6 +1403,13 @@ fn single(
             if let (Some(g), Some(note)) = (gates.iter_mut().find(|g| g.id == "G02"), scrutiny) {
                 g.detail.push(' ');
                 g.detail.push_str(&note);
+            }
+            // task 1.4: an INCONCLUSIVE radius check says why, in the gate that holds it as well as in the check
+            if b.all_checks.iter().any(|c| c.reason.is_some())
+                && let Some(g) = gates.iter_mut().find(|g| g.id == "G10")
+            {
+                g.detail.push(' ');
+                g.detail.push_str(verify::SURFACE_UNKNOWN_REASON);
             }
             b.finish(req, gates, None)
         }
@@ -1556,6 +1615,19 @@ fn header_with_branch(
         bdev,
         s_end,
     ));
+    // task 1.4 (branch): each check is affected by the surface of the radius it uses. A check that uses both radii is
+    // affected when either surface is unknown. A FAIL is never changed (`surface_unknown`).
+    let either = if hsref == "unknown" || bsref == "unknown" {
+        Some("unknown")
+    } else {
+        None
+    };
+    let hc = verify::surface_unknown(hc, Some(hsref), verify::HEADER_OPENING_HEADER_CHECKS);
+    let hc = verify::surface_unknown(hc, either, verify::HEADER_OPENING_JOINT_CHECKS);
+    let bc = verify::surface_unknown(bc, Some(hsref), verify::BRANCH_PART_HEADER_CHECKS);
+    let bc = verify::surface_unknown(bc, Some(bsref), verify::BRANCH_PART_BRANCH_CHECKS);
+    let bc = verify::surface_unknown(bc, either, verify::BRANCH_PART_JOINT_CHECKS);
+    let ic = verify::surface_unknown(ic, either, verify::INTERFACE_JOINT_CHECKS);
     let all: Vec<Check> = hc.iter().chain(&bc).chain(&ic).cloned().collect();
     let cond = verify::header_with_branch_conditioning(&geo, hdev, hlen, station, bdev, s_end);
     if let Some(e) = verify::branch_angle_refusal(beta_deg, &cond, &all) {
@@ -1659,6 +1731,13 @@ fn header_with_branch(
         b.has_polyline,
         Some(surface_note.as_str()),
     );
+    // task 1.4: an INCONCLUSIVE radius check says why, in the gate that holds it as well
+    if b.all_checks.iter().any(|c| c.reason.is_some())
+        && let Some(g) = gates.iter_mut().find(|g| g.id == "G10")
+    {
+        g.detail.push(' ');
+        g.detail.push_str(verify::SURFACE_UNKNOWN_REASON);
+    }
     if let Some(g) = gates.iter_mut().find(|g| g.id == "G02") {
         g.detail.push_str(" Contact and development radii were checked against the declared surface of each part (Spec 02 §6.1): the direction is possible; no wall thickness is modelled, so its size is not checked beyond the half-radius advisory that may follow.");
         if joint.is_none() {
@@ -1838,32 +1917,87 @@ pub fn run(req: &Request, entered_by: &str) -> JobOutput {
         let rq = b.push(request_claim(req, entered_by));
         return err_output(req, b, &rq, e);
     }
+    // task 1.4: a declared surface of the cylinder shell, cone or eccentric reducer must be one of the four words
+    // (the branch families check theirs in `single` and `header_with_branch`, as before)
+    if let Some(sref) = req.declared_surface()
+        && !SURFACE_REFERENCES.contains(&sref)
+    {
+        let mut b = Builder::new();
+        let rq = b.push(request_claim(req, entered_by));
+        return err_output(
+            req,
+            b,
+            &rq,
+            uem::out_of_range(
+                crate::refusal::SURFACE_REFERENCE_INVALID,
+                "surface_reference",
+                vec!["surface_reference"],
+                format!("must be one of {SURFACE_REFERENCES:?}"),
+            ),
+        );
+    }
     match req.clone() {
-        Request::CylinderShell { r_dev, length } => single(
+        Request::CylinderShell {
+            r_dev,
+            length,
+            surface_reference,
+        } => single(
             req,
             entered_by,
             "shell",
             develop::cylinder_shell(r_dev, length).map(|p| {
                 let c = verify::verify_cylinder(&p, r_dev, length);
-                (p, c)
+                (
+                    p,
+                    verify::surface_unknown(
+                        c,
+                        surface_reference.as_deref(),
+                        verify::CYLINDER_RADIUS_CHECKS,
+                    ),
+                )
             }),
         ),
-        Request::ConeFrustum { r1, r2, h } => single(
+        Request::ConeFrustum {
+            r1,
+            r2,
+            h,
+            surface_reference,
+        } => single(
             req,
             entered_by,
             "reducer",
             develop::cone_frustum(r1, r2, h).map(|p| {
                 let c = verify::verify_cone(&p, r1, r2, h);
-                (p, c)
+                (
+                    p,
+                    verify::surface_unknown(
+                        c,
+                        surface_reference.as_deref(),
+                        verify::CONE_RADIUS_CHECKS,
+                    ),
+                )
             }),
         ),
-        Request::EccentricReducer { r1, r2, h, e } => single(
+        Request::EccentricReducer {
+            r1,
+            r2,
+            h,
+            e,
+            surface_reference,
+        } => single(
             req,
             entered_by,
             "reducer",
             develop::eccentric_reducer(r1, r2, h, e).map(|p| {
                 let c = verify::verify_eccentric(&p, r1, r2, h, e);
-                (p, c)
+                (
+                    p,
+                    verify::surface_unknown(
+                        c,
+                        surface_reference.as_deref(),
+                        verify::ECCENTRIC_RADIUS_CHECKS,
+                    ),
+                )
             }),
         ),
         Request::BranchStub {
@@ -1873,7 +2007,7 @@ pub fn run(req: &Request, entered_by: &str) -> JobOutput {
             beta_deg,
             delta,
             s_end,
-            ..
+            surface_reference,
         } => single(
             req,
             entered_by,
@@ -1894,6 +2028,12 @@ pub fn run(req: &Request, entered_by: &str) -> JobOutput {
                     delta,
                 };
                 let c = verify::verify_branch(&p, &b, branch_dev_radius, s_end);
+                // task 1.4 (branch): an `unknown` surface makes the radius checks that would PASS INCONCLUSIVE
+                let c = verify::surface_unknown(
+                    c,
+                    Some(&surface_reference),
+                    verify::BRANCH_STUB_RADIUS_CHECKS,
+                );
                 // task 1.1: a branch angle the verification cannot confirm is refused with its own code; the checks
                 // read here are exactly those gate G10 reads (see `verify::branch_angle_refusal`)
                 let cond = verify::branch_stub_conditioning(&b, branch_dev_radius, s_end);
@@ -1990,17 +2130,20 @@ mod tests {
             Request::CylinderShell {
                 r_dev: 100.0,
                 length: 250.0,
+                surface_reference: None,
             },
             Request::ConeFrustum {
                 r1: 200.0,
                 r2: 100.0,
                 h: 300.0,
+                surface_reference: None,
             },
             Request::EccentricReducer {
                 r1: 200.0,
                 r2: 100.0,
                 h: 300.0,
                 e: 100.0,
+                surface_reference: None,
             },
             Request::BranchStub {
                 header_radius: 150.0,
@@ -2025,11 +2168,16 @@ mod tests {
             );
             // the eccentric reducer's circumference checks are INCONCLUSIVE by design (its eps_rep is not certified)
             let reducer = o.patterns.iter().any(|p| p.family == "eccentric_reducer");
+            // task 1.4 (engine 0.4.6): a branch stub with an `unknown` surface has its radius checks INCONCLUSIVE, with the reason
+            let branch_unknown = matches!(&r, Request::BranchStub { surface_reference, .. } if surface_reference == "unknown");
             assert!(
                 o.checks.iter().all(|c| c.verdict == "PASS"
                     || (reducer
                         && c.verdict == "INCONCLUSIVE"
-                        && c.name.ends_with("_equals_circumference"))),
+                        && c.name.ends_with("_equals_circumference"))
+                    || (branch_unknown
+                        && c.verdict == "INCONCLUSIVE"
+                        && c.reason.as_deref() == Some(uem::verify::SURFACE_UNKNOWN_REASON))),
                 "{r:?}"
             );
             assert_eq!(
@@ -2050,7 +2198,7 @@ mod tests {
             };
             // G10 is INCONCLUSIVE for a reducer (its circumference checks, see above), PASS otherwise
             let g10 = o.gates.iter().find(|g| g.id == "G10").map(|g| g.result);
-            let g10_want = if reducer {
+            let g10_want = if reducer || branch_unknown {
                 GateResult::Inconclusive
             } else {
                 GateResult::Pass
@@ -2099,7 +2247,8 @@ mod tests {
                 &Request::ConeFrustum {
                     r1: 200.0,
                     r2: 100.0,
-                    h: 300.5
+                    h: 300.5,
+                    surface_reference: None
                 },
                 "tester"
             )
@@ -2120,6 +2269,7 @@ mod tests {
                 r1: 1e6,
                 r2: 1e6 - 1.0,
                 h: 1e6,
+                surface_reference: None,
             },
             "t",
         );
@@ -2398,6 +2548,7 @@ mod tests {
                 r1: 100000.0,
                 r2: 99999.0,
                 h,
+                surface_reference: None,
             },
             "t",
         );
@@ -2421,6 +2572,7 @@ mod tests {
                 r1: 100000.0,
                 r2: 99999.0,
                 h: 1000.9995,
+                surface_reference: None,
             },
             "t",
         );
@@ -2439,6 +2591,7 @@ mod tests {
                 r1: 300.0,
                 r2: 50.0,
                 h: 0.01,
+                surface_reference: None,
             },
             "t",
         );
@@ -2467,6 +2620,7 @@ mod tests {
                     r1: 1.0e7,
                     r2: 9.0e6,
                     h,
+                    surface_reference: None,
                 },
                 "t",
             )
@@ -2518,6 +2672,7 @@ mod tests {
                     r2: 50.0,
                     h,
                     e: 0.0,
+                    surface_reference: None,
                 },
                 "t",
             )
@@ -2566,17 +2721,20 @@ mod tests {
                 r1: 1e6,
                 r2: 1e6 - 1.0,
                 h: 1e6,
+                surface_reference: None,
             },
             Request::ConeFrustum {
                 r1: f64::NAN,
                 r2: 1.0,
                 h: 1.0,
+                surface_reference: None,
             },
             Request::EccentricReducer {
                 r1: 100.0,
                 r2: 100.0,
                 h: 300.0,
                 e: 50.0,
+                surface_reference: None,
             },
         ];
         for r in cases {
@@ -2613,19 +2771,23 @@ mod tests {
             Request::CylinderShell {
                 r_dev: 1e300,
                 length: 1e300,
+                surface_reference: None,
             },
             Request::CylinderShell {
                 r_dev: 1e-300,
                 length: 10.0,
+                surface_reference: None,
             },
             Request::CylinderShell {
                 r_dev: 100.0,
                 length: 1e9,
+                surface_reference: None,
             },
             Request::ConeFrustum {
                 r1: 200.0,
                 r2: 1e-7,
                 h: 300.0,
+                surface_reference: None,
             },
         ] {
             let o = run(&r, "t");
@@ -2643,7 +2805,8 @@ mod tests {
             run(
                 &Request::CylinderShell {
                     r_dev: 1e5,
-                    length: 1e-2
+                    length: 1e-2,
+                    surface_reference: None
                 },
                 "t"
             )
@@ -2656,11 +2819,15 @@ mod tests {
     #[test]
     fn be016_unknown_fields_are_refused() {
         let e = Request::parse_strict(&json!({ "family": "cylinder_shell", "r_dev": 100, "length": 250, "thickness": 12, "surface_reference": "outside" })).unwrap_err();
+        // task 1.4: surface_reference is a field of cylinder_shell now (it was refused here before); thickness still is not
         assert!(
             e.contains("thickness")
-                && e.contains("surface_reference")
+                && !e.contains("surface_reference")
                 && e.contains("unknown field"),
             "{e}"
+        );
+        assert!(
+            Request::parse_strict(&json!({ "family": "cylinder_shell", "r_dev": 100, "length": 250, "surface_reference": "outside" })).is_ok()
         );
         assert_eq!(
             Request::parse_strict(
@@ -2908,6 +3075,7 @@ mod tests {
                 r2: 50.0,
                 h: 150.0,
                 e: 20.0,
+                surface_reference: None,
             },
             "t",
         );
@@ -3002,6 +3170,7 @@ mod tests {
                 r1: 10_000.0,
                 r2: 5_000.0,
                 h: 10_000.0,
+                surface_reference: None,
             },
             "t",
         );
@@ -3019,6 +3188,7 @@ mod tests {
                 r1: 4e7,
                 r2: 2e7,
                 h: 4e7,
+                surface_reference: None,
             },
             "t",
         );
@@ -3079,6 +3249,7 @@ mod tests {
             &Request::CylinderShell {
                 r_dev: 100.0,
                 length: 250.0,
+                surface_reference: None,
             },
             "t",
         );
@@ -3132,6 +3303,7 @@ mod tests {
                 r2: 50.0,
                 h: 150.0,
                 e: 20.0,
+                surface_reference: None,
             },
             "t",
         );
@@ -3176,6 +3348,7 @@ mod tests {
                 r1: 200.0,
                 r2: 100.0,
                 h: 300.0,
+                surface_reference: None,
             },
             "t",
         ); // CONE-01
@@ -3539,6 +3712,7 @@ mod tests {
         let req = Request::CylinderShell {
             r_dev: 100.0,
             length: 250.0,
+            surface_reference: None,
         };
         let mut pattern = uem::develop::cylinder_shell(100.0, 250.0).unwrap();
         pattern.holes = vec![uem::Curve {
@@ -3629,6 +3803,7 @@ mod convention_withhold_tests {
                 &Request::CylinderShell {
                     r_dev: 100.0,
                     length: 250.0,
+                    surface_reference: None,
                 },
                 "t",
             ));

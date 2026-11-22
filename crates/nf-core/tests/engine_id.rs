@@ -59,6 +59,7 @@ fn engine_id_differs_from_every_superseded_engine_and_those_are_flagged() {
         &nf_core::job::Request::CylinderShell {
             r_dev: 100.0,
             length: 250.0,
+            surface_reference: None,
         },
         "t",
     );

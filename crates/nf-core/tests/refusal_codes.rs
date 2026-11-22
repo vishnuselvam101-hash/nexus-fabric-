@@ -83,6 +83,7 @@ fn non_positive_and_non_finite_values_are_refused_at_the_boundary() {
     let nan = refused_request(&Request::CylinderShell {
         r_dev: f64::NAN,
         length: 250.0,
+        surface_reference: None,
     })
     .expect("NaN refused");
     assert_eq!(
@@ -93,6 +94,7 @@ fn non_positive_and_non_finite_values_are_refused_at_the_boundary() {
     let inf = refused_request(&Request::CylinderShell {
         r_dev: 100.0,
         length: f64::INFINITY,
+        surface_reference: None,
     })
     .expect("infinity refused");
     assert_eq!(
@@ -327,7 +329,22 @@ fn accepted_and_verified(v: &Value) -> nf_core::job::JobOutput {
         .patterns
         .iter()
         .any(|p| p.eps_rep > uem::develop::MAX_CHORD_ERROR_MM);
-    let want = if coarse {
+    // Work plan task 1.4 (engine 0.4.6, RB-010; changed expectation, listed in TOLERANCE_POLICY section 9): a branch
+    // with an `unknown` surface (also the default of a branch stub without the field) has its radius checks INCONCLUSIVE
+    // with the stated reason, so G10 is INCONCLUSIVE too. Only checks that carry that reason may make G10 so; a known
+    // surface still needs G10 PASS.
+    let unknown_surface = out.checks.iter().any(|c| c.reason.is_some());
+    if unknown_surface {
+        assert!(
+            out.checks
+                .iter()
+                .filter(|c| c.reason.is_some())
+                .all(|c| c.verdict == "INCONCLUSIVE"
+                    && c.reason.as_deref() == Some(uem::verify::SURFACE_UNKNOWN_REASON)),
+            "{v}"
+        );
+    }
+    let want = if coarse || unknown_surface {
         nf_core::GateResult::Inconclusive
     } else {
         nf_core::GateResult::Pass

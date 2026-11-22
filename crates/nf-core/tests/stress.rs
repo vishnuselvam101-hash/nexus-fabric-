@@ -66,13 +66,17 @@ fn judge(req: &Request, t: &mut Tally) {
     // Task 1.2 review (work plan task 1.2, review): the representation error of an eccentric reducer is
     // not certified (its vertex term carries a quadrature estimate), so its two circumference checks are
     // INCONCLUSIVE by design, and only those. Any other non-PASS check, and any FAIL, is still a defect.
+    // Work plan task 1.4 (engine 0.4.6, RB-010): a radius check of an `unknown` surface is INCONCLUSIVE with the stated
+    // reason. The reason is set only under `unknown`, so a check that carries it is by design as well, and nothing else.
     let by_design = |c: &nf_core::job::CheckView| {
-        c.verdict == "INCONCLUSIVE"
+        (c.verdict == "INCONCLUSIVE"
             && matches!(
                 c.name.as_str(),
                 "large_edge_equals_circumference" | "small_edge_equals_circumference"
             )
-            && out.patterns.iter().any(|p| p.family == "eccentric_reducer")
+            && out.patterns.iter().any(|p| p.family == "eccentric_reducer"))
+            || (c.verdict == "INCONCLUSIVE"
+                && c.reason.as_deref() == Some(uem::verify::SURFACE_UNKNOWN_REASON))
     };
     let inconclusive_by_design = out.checks.iter().filter(|c| by_design(c)).count();
     let bad_check = out
@@ -178,6 +182,7 @@ fn stress_cylinder_and_cone() {
             &Request::CylinderShell {
                 r_dev: r,
                 length: g.log(1e-2, 1e5),
+                surface_reference: None,
             },
             &mut t,
         );
@@ -189,7 +194,15 @@ fn stress_cylinder_and_cone() {
             2 => (r1 * g.range(0.001, 0.2), r1 * g.log(1e-4, 0.05)),
             _ => (r1 * g.log(1e-6, 0.999), r1 * g.log(1e-3, 1e3)),
         };
-        judge(&Request::ConeFrustum { r1, r2, h }, &mut t);
+        judge(
+            &Request::ConeFrustum {
+                r1,
+                r2,
+                h,
+                surface_reference: None,
+            },
+            &mut t,
+        );
     }
     for bad in [f64::NAN, f64::INFINITY, -1.0, 0.0] {
         judge(
@@ -197,6 +210,7 @@ fn stress_cylinder_and_cone() {
                 r1: bad,
                 r2: 1.0,
                 h: 1.0,
+                surface_reference: None,
             },
             &mut t,
         );
@@ -204,6 +218,7 @@ fn stress_cylinder_and_cone() {
             &Request::CylinderShell {
                 r_dev: 1.0,
                 length: bad,
+                surface_reference: None,
             },
             &mut t,
         );
@@ -229,7 +244,16 @@ fn stress_eccentric_reducer() {
             2 => (r1 - r2) * g.range(0.0, 1.0),
             _ => r1 * g.log(0.01, 20.0),
         };
-        judge(&Request::EccentricReducer { r1, r2, h, e }, &mut t);
+        judge(
+            &Request::EccentricReducer {
+                r1,
+                r2,
+                h,
+                e,
+                surface_reference: None,
+            },
+            &mut t,
+        );
     }
     report("eccentric reducer", &t);
 }

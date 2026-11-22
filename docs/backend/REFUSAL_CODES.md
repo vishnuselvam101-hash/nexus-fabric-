@@ -45,7 +45,7 @@ depends on them.
 | `radius_dev_exceeds_outside` | the surface is `outside` and the development radius is larger than the contact radius (a negative wall) | the development radius, the contact radius | yes: `limit` the contact radius, `measured` the development radius |
 | `radius_dev_below_inside` | the surface is `inside` and the development radius is smaller than the contact radius (a negative wall) | the development radius, the contact radius | yes: `limit` the contact radius, `measured` the development radius |
 | `radius_neutral_mismatch` | the surface is `neutral` and the development radius differs from the contact radius | the development radius, the contact radius | yes: `limit` the contact radius, `measured` the development radius |
-| `surface_reference_invalid` | a surface reference is not `outside`, `inside`, `neutral` or `unknown` | the reference's field | no |
+| `surface_reference_invalid` | a surface reference is not `outside`, `inside`, `neutral` or `unknown` (branch stub, header with branch, and since task 1.4 cylinder shell, cone and eccentric reducer) | the reference's field | no |
 | `joint_pairing_invalid` | the joint is `set_on` but the branch surface is not `inside` or the header surface is not `outside` | `joint`, `header_surface_reference`, `branch_surface_reference` | no |
 | `joint_type_unknown` | the joint is neither absent nor `set_on` | `joint` | no |
 | `bend_angle_out_of_range` | the bend deduction is defined for 0 < theta <= 90 degrees; no request family uses it in this build | none | no |
