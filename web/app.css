@@ -520,6 +520,9 @@
   }
 }
 @layer components {
+  /* panel headers wrap on narrow screens so their actions never run off the edge */
+  .panel-h { flex-wrap: wrap; row-gap: var(--sp-3); }
+  .panel-h > * { min-width: 0; }
   .scale-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3); max-width: 520px; margin: var(--sp-4) auto 0; }
   @media (max-width: 480px) { .scale-field { grid-template-columns: 1fr; } }
   /* ---- icons ---- */
