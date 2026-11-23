@@ -23,9 +23,9 @@ seen to pass on the stated commit; "not run" is never written as passed.
 | 0.3 | The two near-tangent FAILs (D4) | done (facts) | this commit | remedy folded into 1.2 (decision under the task); regression cases land with 1.2 |
 | 1.1 | Shallow and near-180° branch angles | done | `1ec0f97` | engine 0.4.3; code `branch_angle_not_verifiable`; decision and derivation under the task, TOLERANCE_POLICY section 7 |
 | 1.2 | A true error bound everywhere | done | 2100a22 (+ uncommitted expectation fix-up) | engine 0.4.4; certified eps_rep (TOLERANCE_POLICY section 8); near-tangent FAILs resolved; changed expectations in section 8.8 and the fix-up table after it; fix-up: PRODUCT_CHECK_INCONCLUSIVE split, ui/e2e expectations, eps_num/eps_rep allow-list |
-| 1.3 | Every convention stated in the DXF and the result | done (uncommitted) | — | engine 0.4.5; 12 plate-convention keys (999 + TEXT) per family, read back by rule `convention_statement` (14 rules); RB-008 outer profile one closed polyline where the arcs allow (lines/polylines families); changed expectations and i18n keys under the task (section 1.3 result) |
-| 1.4 | Surface attribute for every family | not started | | |
-| 1.5 | Checks that do not depend on the construction | not started | | |
+| 1.3 | Every convention stated in the DXF and the result | done | `3874a79` | engine 0.4.5; 12 plate-convention keys (999 + TEXT) per family, read back by rule `convention_statement` (14 rules); RB-008 outer profile one closed polyline where the arcs allow (lines/polylines families); changed expectations and i18n keys under the task (section 1.3 result) |
+| 1.4 | Surface attribute for every family | done | `06f10d9` | engine 0.4.6; optional `surface_reference` (outside/inside/neutral/unknown) for cylinder shell, cone, eccentric reducer; `unknown` demotes radius checks to INCONCLUSIVE with a stated reason; geometry byte-identical; results in TOLERANCE_POLICY section 9 |
+| 1.5 | Checks that do not depend on the construction | in progress | `2f1262e` (1.5a) | 1.5a done: construction-independent outline orientation guard, engine 0.4.7, results in TOLERANCE_POLICY section 10; remainder: RC-09/10/13/15/16 fixes, verifier independence test, DXF-only mating test |
 | 1.6 | Sampling density | not started | | |
 | 1.7 | Set-on joint, remaining case — design note | done (design) | `2bf369a` | design only |
 | 1.8 | Validation as a permanent gate | not started | | |

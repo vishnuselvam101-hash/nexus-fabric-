@@ -84,10 +84,39 @@ fn proper_cross(a: P2, b: P2, c: P2, d: P2) -> bool {
         && o4 != 0.0
 }
 
-/// Number of proper crossings between non-adjacent edges of the closed
-/// polygon `poly`. Same predicate and same count as testing every pair, but
-/// through a uniform grid so that a polyline of tens of thousands of vertices
-/// (adaptive density, review RB-004) is checked in about linear time.
+/// Point-coincidence tolerance of the contact tests, the same as `flatten`'s (mm).
+const TOUCH_TOL: f64 = 1e-9;
+
+/// Distance from `p` to the segment `a`–`b` (0 when `p` lies on it).
+fn point_segment_distance(p: P2, a: P2, b: P2) -> f64 {
+    let (vx, vy) = (b.x - a.x, b.y - a.y);
+    let len2 = vx * vx + vy * vy;
+    if len2 <= 0.0 {
+        return p.dist(a);
+    }
+    let t = (((p.x - a.x) * vx + (p.y - a.y) * vy) / len2).clamp(0.0, 1.0);
+    p.dist(P2::new(a.x + t * vx, a.y + t * vy))
+}
+
+/// Contact that `proper_cross` does not decide (review RC-13): an endpoint of one
+/// segment lies on the other within `TOUCH_TOL`. Covers a T-touch, a crossing
+/// through a vertex, a pinch and a collinear overlap — an overlap of positive
+/// length always puts an endpoint of one segment inside the other.
+fn touch_or_overlap(a: P2, b: P2, c: P2, d: P2) -> bool {
+    [a, b]
+        .iter()
+        .any(|p| point_segment_distance(*p, c, d) <= TOUCH_TOL)
+        || [c, d]
+            .iter()
+            .any(|p| point_segment_distance(*p, a, b) <= TOUCH_TOL)
+}
+
+/// Number of crossings, touches and collinear overlaps between non-adjacent
+/// edges of the closed polygon `poly` (a touch or an overlap is a
+/// self-intersection too, review RC-13). Same predicate and same count as
+/// testing every pair, but through a uniform grid so that a polyline of tens of
+/// thousands of vertices (adaptive density, review RB-004) is checked in about
+/// linear time.
 pub fn crossings(poly: &[P2]) -> usize {
     let m = poly.len();
     if m < 4 {
@@ -113,7 +142,7 @@ pub fn crossings(poly: &[P2]) -> usize {
             for j in (i + 2)..m {
                 if !adjacent(i, j) {
                     let ((a, b), (c, d)) = (seg(i), seg(j));
-                    if proper_cross(a, b, c, d) {
+                    if proper_cross(a, b, c, d) || touch_or_overlap(a, b, c, d) {
                         n += 1;
                     }
                 }
@@ -147,11 +176,12 @@ pub fn crossings(poly: &[P2]) -> usize {
     let mut boxes: Vec<(usize, usize, usize, usize)> = Vec::with_capacity(m);
     for i in 0..m {
         let (a, b) = seg(i);
+        // grown by the contact tolerance so a point within TOUCH_TOL of a segment shares a cell with it
         let bx = (
-            cx(a.x.min(b.x)),
-            cy(a.y.min(b.y)),
-            cx(a.x.max(b.x)),
-            cy(a.y.max(b.y)),
+            cx(a.x.min(b.x) - TOUCH_TOL),
+            cy(a.y.min(b.y) - TOUCH_TOL),
+            cx(a.x.max(b.x) + TOUCH_TOL),
+            cy(a.y.max(b.y) + TOUCH_TOL),
         );
         boxes.push(bx);
         if (bx.2 - bx.0 + 1) * (bx.3 - bx.1 + 1) > limit {
@@ -173,7 +203,7 @@ pub fn crossings(poly: &[P2]) -> usize {
                 continue;
             }
             let ((a, b), (c, d)) = (seg(i), seg(j));
-            if proper_cross(a, b, c, d) {
+            if proper_cross(a, b, c, d) || touch_or_overlap(a, b, c, d) {
                 n += 1;
             }
         }
@@ -192,7 +222,7 @@ pub fn crossings(poly: &[P2]) -> usize {
                     continue;
                 }
                 let ((a, b), (c, d)) = (seg(i), seg(j));
-                if proper_cross(a, b, c, d) {
+                if proper_cross(a, b, c, d) || touch_or_overlap(a, b, c, d) {
                     n += 1;
                 }
             }
@@ -277,7 +307,9 @@ mod tests {
                     if i == 0 && j == m - 1 {
                         continue;
                     }
-                    if proper_cross(poly[i], poly[(i + 1) % m], poly[j], poly[(j + 1) % m]) {
+                    if proper_cross(poly[i], poly[(i + 1) % m], poly[j], poly[(j + 1) % m])
+                        || touch_or_overlap(poly[i], poly[(i + 1) % m], poly[j], poly[(j + 1) % m])
+                    {
                         n += 1;
                     }
                 }
@@ -329,5 +361,53 @@ mod tests {
             })
             .collect();
         assert_eq!(crossings(&dense), 0);
+    }
+
+    /// RC-13: contacts that are not proper crossings — a T-touch, a crossing
+    /// through a vertex, a pinch, a collinear overlap — are self-intersections
+    /// too. Every one of these counted 0 before the endpoint-on-segment test.
+    #[test]
+    fn touches_and_overlaps_are_self_intersections() {
+        let p = P2::new;
+        // T-touch: the vertex (5,0) lies inside the non-adjacent bottom edge
+        let t_touch = [p(0.0, 0.0), p(10.0, 0.0), p(10.0, 10.0), p(5.0, 10.0), p(5.0, 0.0)];
+        assert_eq!(crossings(&t_touch), 1);
+        // crossing through a vertex: the edge (10,0)-(0,10) runs through the vertex (5,5)
+        let through_vertex = [p(0.0, 0.0), p(5.0, 5.0), p(10.0, 0.0), p(0.0, 10.0)];
+        assert_eq!(crossings(&through_vertex), 1);
+        // pinch: two loops sharing the vertex (2,2)
+        let pinch = [p(0.0, 0.0), p(2.0, 2.0), p(4.0, 0.0), p(2.0, 2.0)];
+        assert_eq!(crossings(&pinch), 2);
+        // collinear overlap: the left edge runs back over itself between y=2 and y=8
+        let overlap = [
+            p(0.0, 0.0),
+            p(10.0, 0.0),
+            p(10.0, 10.0),
+            p(0.0, 10.0),
+            p(0.0, 2.0),
+            p(8.0, 2.0),
+            p(8.0, 8.0),
+            p(0.0, 8.0),
+        ];
+        assert_eq!(crossings(&overlap), 3);
+        // the same T-touch through check(), as G11 runs it
+        let l = |a: (f64, f64), b: (f64, f64)| Curve {
+            name: "e",
+            layer: crate::Layer::CutOuter,
+            geom: Geom::Line {
+                a: p(a.0, a.1),
+                b: p(b.0, b.1),
+            },
+        };
+        let outline = vec![
+            l((0.0, 0.0), (10.0, 0.0)),
+            l((10.0, 0.0), (10.0, 10.0)),
+            l((10.0, 10.0), (5.0, 10.0)),
+            l((5.0, 10.0), (5.0, 0.0)),
+            l((5.0, 0.0), (0.0, 0.0)),
+        ];
+        let r = check(&outline, 1e-9);
+        assert!(r.closed);
+        assert_eq!(r.self_intersections, 1);
     }
 }
