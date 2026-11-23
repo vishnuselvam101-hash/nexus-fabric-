@@ -1283,7 +1283,7 @@ fn err_output(req: &Request, mut b: Builder, about: &str, e: UemError) -> JobOut
     let f = b.push(Record::new(
         Family::Finding,
         "engineering_outcome",
-        json!({ "outcome": format!("{e:?}"), "message": e.to_string(), "critical": critical, "code": e.code(), "fields": e.fields(), "detail": detail_map(e.detail()) }),
+        json!({ "outcome": e.to_string(), "message": e.to_string(), "critical": critical, "code": e.code(), "fields": e.fields(), "detail": detail_map(e.detail()) }),
         vec![rel("about", about)],
         Some(a),
     ));

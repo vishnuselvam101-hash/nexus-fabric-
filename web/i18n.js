@@ -1259,6 +1259,8 @@ const SENT = [
   ['Someone who can write the database file AND read the storage key can rebuild the chain and the anchor without trace.', 'データベースファイルへの書き込みと、ストレージ鍵の読み取りの両方ができる者は、痕跡を残さずにチェーンとアンカーを作り直せます。'],
   ['Someone who can write the database file can also restore an older copy of the whole database together with its older anchor (rollback); that is not detected.', 'データベースファイルに書き込める者は、古いアンカーを含むデータベース全体の古いコピーを復元すること（ロールバック）もできます。これは検出されません。'],
   ['An anchor held outside this machine is not implemented.', 'このマシンの外にアンカーを保持する機能は、未実装です。'],
+  // engine 0.4.9: the surface-unknown reason arrives in English only
+  ["surface unknown: cannot tell which surface the radius is on, so the radius check cannot be confirmed.", "基準面が不明です: 半径がどの面を指すか判別できないため、半径に関する検査は確定できません。"],
 ];
 
 const WHOLE = [
