@@ -1,9 +1,9 @@
 /* NEXUS FABRIC — boot + router + chrome */
 import { api, setAuthHandler } from './api.js';
 import { getState, setState } from './store.js';
-import { initialLang, setLang, applyPage, lang } from './i18n.js';
+import { initialLang, setLang, applyPage, lang, t } from './i18n.js';
 
-const TITLES = { convert: 'Convert', login: 'Sign in', result: 'Result', workspace: 'Workspace' };
+const TITLES = { convert: 'Convert', login: 'Sign in', result: 'Result', workspace: 'Workspace', job: 'Job', math: 'New calculation', project: 'Project', account: 'Account', admin: 'Administration' };
 const THEMES = ['dark', 'light', ''];
 const LANGS = ['en', 'ja'];
 const QUICK_PROJECT = 'Quick conversions';
@@ -48,6 +48,15 @@ function resolveRoute(hash) {
   m = path.match(/^\/workspace\/([A-Za-z0-9_-]+)\/?$/);
   if (m) return { view: 'workspace', mod: './views/workspace.js', params: { tab: m[1] } };
   if (path === '/workspace') return { redirect: '#/workspace/history' };
+  m = path.match(/^\/job\/(\d+)(?:\/([a-z]+))?\/?$/);
+  if (m) return { view: 'job', mod: './views/job.js', params: { id: m[1], tab: m[2] } };
+  m = path.match(/^\/math(?:\/(\d+))?(?:\/(\d+))?\/?$/);
+  if (m) return { view: 'math', mod: './views/math.js', params: { projectId: m[1], fromId: m[2] } };
+  m = path.match(/^\/project\/(\d+)\/?$/);
+  if (m) return { view: 'project', mod: './views/project.js', params: { id: m[1] } };
+  if (path === '/account') return { view: 'account', mod: './views/account.js', params: {} };
+  m = path.match(/^\/admin(?:\/([a-z]+))?\/?$/);
+  if (m) return { view: 'admin', mod: './views/admin.js', params: { tab: m[1] } };
   return { view: 'convert', mod: './views/convert.js', params: {} };
 }
 
@@ -150,10 +159,14 @@ function toggleUserMenu() {
   who.className = 'user-menu-name';
   who.textContent = user?.name || user?.username || 'Guest';
 
+  const link = (hash, key) => { const a = document.createElement('a'); a.href = hash; a.setAttribute('role', 'menuitem'); a.textContent = t(key); a.addEventListener('click', closeMenus); return a; };
+  const acct = link('#/account', 'nav.account');
+  const adm = user?.role === 'admin' ? link('#/admin', 'nav.admin') : null;
+
   const out = document.createElement('button');
   out.type = 'button';
   out.setAttribute('role', 'menuitem');
-  out.textContent = 'Sign out';
+  out.textContent = t('common.signout');
   out.addEventListener('click', async () => {
     try { await api('/api/logout', { method: 'POST' }); } catch { /* ignore */ }
     setState({ user: null, projectId: null });
@@ -161,7 +174,7 @@ function toggleUserMenu() {
     navigate('#/login');
   });
 
-  menu.append(who, out);
+  menu.append(...[who, acct, adm, out].filter(Boolean));
   btn.insertAdjacentElement('afterend', menu);
   btn.setAttribute('aria-expanded', 'true');
 }

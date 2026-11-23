@@ -4546,6 +4546,60 @@ pub(crate) fn router(app: Arc<App>) -> Router {
             }),
         )
         .route(
+            "/js/views/job.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/job.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/job-pattern.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/job-pattern.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/math.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/math.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/project.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/project.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/account.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/account.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/admin.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/admin.js"),
+                )
+            }),
+        )
+        .route(
             "/viewer.js",
             get(|| async {
                 asset(

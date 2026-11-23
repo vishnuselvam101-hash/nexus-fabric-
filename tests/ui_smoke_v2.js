@@ -32,6 +32,20 @@ const MODULES = [
 const TABS = ['calculations', 'projects', 'amoeba', 'obligations', 'audit', 'users'];
 const DROPZONE = '#view .dropzone, #view .drop-zone';
 
+// Engineering inputs copied from the legacy browser test (tests/ui_smoke.js): the header-with-branch set the
+// engine accepts, and the cylinder magnitude the engine refuses (BH-014, magnitude_above_limit).
+const FAMILY = 'header_with_branch';
+const VALID = {
+  header_radius: '150', header_dev_radius: '150', header_length: '1200',
+  branch_station: '600', branch_radius: '100', branch_dev_radius: '100',
+  beta_deg: '60', delta: '0', s_end: '400',
+};
+const REFUSED = { family: 'cylinder_shell', r_dev: 100, length: 1e9 };
+const ADMIN_TABS = ['users', 'security', 'audit', 'lessons'];
+const RAW_ID = /\b[a-z]+(_[a-z0-9]+){2,}\b/;
+
+const decodeName = (n) => { try { return decodeURIComponent(n); } catch { return String(n ?? ''); } };
+
 let passed = 0, failed = 0;
 const check = (name, ok, detail) => {
   if (ok) { passed++; console.log('ok  - ' + name); }
@@ -51,6 +65,7 @@ async function main() {
   let loggedIn = false;
   let page = null;
   let browser = null;
+  let projectId = null, pdfName = '', jobId = null;
 
   const shot = async (name) => {
     if (!SHOT_DIR || !page) return;
@@ -211,6 +226,217 @@ async function main() {
     } catch (e) {
       await shot('04-workspace.png');
       check('workspace sidebar + all tabs render cleanly', false, msgOf(e));
+    }
+
+    /* ---- 5a. A: a new calculation through the form, with the legacy valid inputs ---- */
+    try {
+      if (!page) throw new Error("page unavailable");
+      const list = await (await page.request.get(BASE + '/api/projects', { headers: { 'X-NF-Request': '1' } })).json();
+      const projects = Array.isArray(list) ? list : (list && list.projects) || [];
+      // the project that holds the PDF uploaded above is the one the project check opens later
+      for (const p of projects) {
+        const detail = await (await page.request.get(BASE + '/api/projects/' + p.id, { headers: { 'X-NF-Request': '1' } })).json();
+        const doc = (detail.documents || []).find((d) => d.detected_type === 'pdf');
+        if (doc) { projectId = p.id; pdfName = decodeName(doc.filename); break; }
+      }
+      if (projectId === null && projects.length) projectId = projects[0].id;
+      if (projectId === null) throw new Error('no project available');
+
+      await page.goto(BASE + '/#/math', { waitUntil: 'load' });
+      await page.waitForSelector('#calc', { state: 'visible', timeout: 20000 });
+      await page.selectOption('#f_fam', FAMILY);
+      await page.selectOption('#f_project', String(projectId));
+      await page.waitForSelector('#f_header_radius', { state: 'visible', timeout: 10000 });
+      for (const [k, v] of Object.entries(VALID)) await page.fill('#f_' + k, v);
+      await page.selectOption('#f_surface_reference', 'outside');
+      await shot('07-math.png');
+
+      await page.click('#run');
+      await page.waitForFunction(() => /^#\/job\/\d+/.test(location.hash), null, { timeout: 60000 });
+      jobId = Number(/#\/job\/(\d+)/.exec(await page.evaluate(() => location.hash))[1]);
+      await page.waitForSelector('#gates li', { timeout: 20000 });
+      const stateText = (await page.locator('#view h1 .tag').first().innerText()).trim();
+      const gates = await page.locator('#gates li').count();
+      await shot('08-job.png');
+      check('A new calculation opens a job with a release state and gates',
+        Number.isInteger(jobId) && stateText.length > 0 && gates > 0,
+        'job=' + jobId + ' state=' + (stateText || 'empty') + ' gates=' + gates);
+    } catch (e) {
+      await shot('07-math.png');
+      check('A new calculation opens a job with a release state and gates', false, msgOf(e));
+    }
+
+    /* ---- 5b. B: the pattern tab draws the pattern; F fits without an error ---- */
+    try {
+      if (!jobId) throw new Error('no job from check A');
+      await page.click('#tab-pattern');
+      await page.waitForSelector('#pattern-host svg', { timeout: 20000 });
+      const curves = await page.locator('#pattern-host [data-curves] table').count();
+      const quantities = await page.locator('#pattern-host [data-quant] dl').count();
+      const errsBefore = pageErrors.length + consoleErrors.length;
+      await page.locator('#pattern-host svg').first().click({ position: { x: 5, y: 5 } });
+      await page.evaluate(() => { const s = document.querySelector('#pattern-host svg'); if (s && s.focus) s.focus(); });
+      await page.keyboard.press('f');
+      await page.waitForTimeout(300);
+      const zoomText = (await page.locator('#pattern-host [data-zoomv]').first().innerText()).trim();
+      const errsAfter = pageErrors.length + consoleErrors.length;
+      await shot('09-pattern.png');
+      check('B job pattern tab draws the pattern and fits with F',
+        curves + quantities > 0 && /\d+%/.test(zoomText) && errsAfter === errsBefore,
+        'curves=' + curves + ' quantities=' + quantities + ' zoom=' + zoomText + ' newErrors=' + (errsAfter - errsBefore));
+    } catch (e) {
+      await shot('09-pattern.png');
+      check('B job pattern tab draws the pattern and fits with F', false, msgOf(e));
+    }
+
+    /* ---- 5c. C: the details tab renders without an error alert ---- */
+    try {
+      if (!jobId) throw new Error('no job from check A');
+      await page.click('#tab-details');
+      await page.waitForSelector('#tp-details:not([hidden])', { timeout: 20000 });
+      await page.waitForSelector('#tp-details dl.kv', { timeout: 20000 });
+      await page.waitForTimeout(300);
+      const bad = await page.locator('#tp-details .alert.bad').count();
+      const txt = bad ? (await page.locator('#tp-details .alert.bad').first().innerText()).trim().replace(/\s+/g, ' ').slice(0, 160) : '';
+      check('C job details tab renders without an error alert', bad === 0, txt);
+    } catch (e) {
+      check('C job details tab renders without an error alert', false, msgOf(e));
+    }
+
+    /* ---- 5d. D (BH-014): "new from these values" of a refused job marks the field it names ---- */
+    try {
+      if (!page) throw new Error("page unavailable");
+      if (projectId === null) throw new Error('no project from check A');
+      // the refusal is provoked over the API context: the page itself never makes a failed request
+      const r = await page.request.post(BASE + '/api/projects/' + projectId + '/calculations', { headers: { 'X-NF-Request': '1' }, data: REFUSED });
+      const body = await r.json().catch(() => null);
+      const rid = body && body.id;
+      if (rid === undefined || rid === null) throw new Error('refusal not recorded: ' + r.status() + ' ' + JSON.stringify(body).slice(0, 160));
+
+      await page.goto(BASE + '/#/math/' + projectId + '/' + rid, { waitUntil: 'load' });
+      await page.waitForSelector('#calc', { state: 'visible', timeout: 20000 });
+      await page.waitForSelector('#calc [aria-invalid="true"]', { timeout: 20000 });
+      const marks = await page.evaluate(() => {
+        const out = [];
+        for (const i of document.querySelectorAll('#calc [aria-invalid="true"]')) {
+          const ids = (i.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+          const shown = ids.map((id) => document.getElementById(id))
+            .filter((m) => m && m.getClientRects().length > 0 && (m.textContent || '').trim().length > 0);
+          out.push({
+            field: i.name || i.id,
+            ids: ids.join(' '),
+            visible: shown.length,
+            text: shown.map((m) => m.textContent.trim().replace(/\s+/g, ' ').slice(0, 80)).join(' | '),
+          });
+        }
+        return out;
+      });
+      check('D BH-014 refused values mark a field with a linked visible message',
+        marks.length > 0 && marks.some((m) => m.visible > 0), JSON.stringify(marks).slice(0, 240));
+    } catch (e) {
+      check('D BH-014 refused values mark a field with a linked visible message', false, msgOf(e));
+    }
+
+    /* ---- 5e. E: the project screen lists the PDF uploaded above ---- */
+    try {
+      if (projectId === null) throw new Error('no project from check A');
+      await page.goto(BASE + '/#/project/' + projectId, { waitUntil: 'load' });
+      await page.waitForSelector('#tbl-docs', { timeout: 20000 });
+      const text = (await page.locator('#tbl-docs').innerText()).replace(/\s+/g, ' ');
+      const want = pdfName || path.basename(FIXTURE);
+      check('E project documents list contains the uploaded PDF', !!pdfName && text.includes(want),
+        'want=' + want + ' docs=' + text.slice(0, 160));
+    } catch (e) {
+      check('E project documents list contains the uploaded PDF', false, msgOf(e));
+    }
+
+    /* ---- 5f. F: the account screen shows the user and a password form (never submitted) ---- */
+    try {
+      await page.goto(BASE + '/#/account', { waitUntil: 'load' });
+      await page.waitForSelector('#pwc', { state: 'visible', timeout: 20000 });
+      const shown = await page.evaluate(() => document.body.innerText || '');
+      const fields = [];
+      for (const sel of ['#pwc', '#pwn', '#pwn2']) fields.push(await page.isVisible(sel));
+      check('F account shows the signed-in user and a password form',
+        shown.includes(USER) && fields.every(Boolean),
+        'user=' + shown.includes(USER) + ' fields=' + fields.join(','));
+    } catch (e) {
+      check('F account shows the signed-in user and a password form', false, msgOf(e));
+    }
+
+    /* ---- 5g. G: administration tabs, then the audit chain verification ---- */
+    try {
+      await page.goto(BASE + '/#/admin', { waitUntil: 'load' });
+      await page.waitForSelector('#adpanel', { timeout: 20000 });
+      const problems = [];
+      for (const k of ADMIN_TABS) {
+        const sel = '#adtab-' + k;
+        await page.waitForSelector(sel, { state: 'visible', timeout: 10000 });
+        await page.click(sel);
+        await page.waitForSelector('#adpanel .table, #adpanel .alert, #adpanel .sub', { timeout: 20000 });
+        await page.waitForTimeout(300);
+        const bad = await page.locator('#view .alert.bad').count();
+        if (bad) {
+          const txt = (await page.locator('#view .alert.bad').first().innerText()).trim();
+          problems.push(k + ': ' + txt.replace(/\s+/g, ' ').slice(0, 120));
+        }
+      }
+      await shot('10-admin.png');
+      check('G admin tabs render cleanly', problems.length === 0, problems.join('; '));
+    } catch (e) {
+      await shot('10-admin.png');
+      check('G admin tabs render cleanly', false, msgOf(e));
+    }
+
+    try {
+      await page.click('#adtab-audit');
+      await page.waitForSelector('#adm-audit', { timeout: 20000 });
+      await page.click('[data-act="verify"]');
+      await page.waitForFunction(() => {
+        const s = document.querySelector('#adm-chain');
+        return s && (s.textContent || '').trim().length > 0;
+      }, null, { timeout: 20000 });
+      const chain = (await page.locator('#adm-chain').innerText()).trim().replace(/\s+/g, ' ');
+      check('G admin audit verification reports a result', chain.length > 0, chain.slice(0, 160) || 'empty');
+    } catch (e) {
+      check('G admin audit verification reports a result', false, msgOf(e));
+    }
+
+    /* ---- 5h. H: the Japanese job screen shows no raw engine identifier ---- */
+    try {
+      if (!jobId) throw new Error('no job from check A');
+      await page.click('#btn-lang');
+      await page.waitForFunction(() => document.documentElement.lang === 'ja', null, { timeout: 15000 });
+      await page.goto(BASE + '/#/job/' + jobId, { waitUntil: 'load' });
+      await page.waitForSelector('#gates li', { timeout: 20000 });
+      await page.waitForTimeout(400);
+      const offenders = await page.evaluate(() => {
+        const re = /\b[a-z]+(_[a-z0-9]+){2,}\b/g;
+        const skip = '.mono,.id,script,style,noscript';
+        const out = [];
+        const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        let n;
+        while ((n = w.nextNode())) {
+          const el = n.parentElement;
+          if (!el || el.closest(skip) || !el.getClientRects().length) continue;
+          const found = n.textContent.match(re);
+          if (found) for (const x of found) out.push(x + ' in <' + el.tagName.toLowerCase() + '> "' + n.textContent.trim().slice(0, 40) + '"');
+        }
+        return out.slice(0, 5);
+      });
+      await shot('11-job-ja.png');
+      check('H Japanese job screen shows no raw engine identifier', offenders.length === 0, offenders.join('; '));
+    } catch (e) {
+      await shot('11-job-ja.png');
+      check('H Japanese job screen shows no raw engine identifier', false, msgOf(e));
+    } finally {
+      // the language toggle check below expects to switch English -> Japanese
+      try {
+        if (await page.evaluate(() => document.documentElement.lang === 'ja')) {
+          await page.click('#btn-lang');
+          await page.waitForFunction(() => document.documentElement.lang !== 'ja', null, { timeout: 15000 });
+        }
+      } catch { /* leave the language as it stands */ }
     }
 
     /* ---- 6. mobile: no horizontal scroll ---- */

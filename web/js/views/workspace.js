@@ -92,7 +92,7 @@ async function loadCalc(signal) {
     hd.appendChild(el('h2', null, 'Calculations'));
     const btn = el('button', 'btn pri', 'New calculation');
     btn.type = 'button';
-    btn.addEventListener('click', () => showCalcForm(signal));
+    btn.addEventListener('click', () => { window.location.hash = '#/math'; });
     hd.appendChild(btn);
     content.appendChild(hd);
 
@@ -106,7 +106,7 @@ async function loadCalc(signal) {
         (c.gates_passed != null ? c.gates_passed + '/' + c.gates_total : ''), fmtDate(c.created_at)],
     }));
     content.appendChild(table(['Job', 'Family', 'Project', 'Release', 'Gates', 'Created'], rows, (c) => {
-      window.location.hash = '#/r/' + c.id;
+      window.location.hash = '#/job/' + c.id;
     }));
   } catch (e) { if (!signal.aborted) showError(e.message); }
 }
@@ -198,7 +198,7 @@ async function showCalcForm(signal) {
         json: { family, params },
       });
       if (signal.aborted) return;
-      if (r && r.id) window.location.hash = '#/r/' + r.id;
+      if (r && r.id) window.location.hash = '#/job/' + r.id;
       else loadCalc(signal);
     } catch (err) {
       sub.disabled = false;
@@ -248,7 +248,7 @@ async function loadProjects(signal) {
         fmtDate(p.created_at)],
     }));
     content.appendChild(table(['ID', 'Name', 'Description', 'Docs', 'Calcs', 'Created'], rows, (p) => {
-      showProjectDetail(p, signal);
+      window.location.hash = '#/project/' + p.id;
     }));
   } catch (e) { if (!signal.aborted) showError(e.message); }
 }
