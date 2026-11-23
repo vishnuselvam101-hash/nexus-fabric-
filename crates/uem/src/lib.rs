@@ -68,8 +68,9 @@ pub enum Geom {
         a0: f64,
         a1: f64,
     },
-    /// Polyline approximation of an exact curve; `eps_rep` is the estimated
-    /// maximum deviation from the exact curve (mm).
+    /// Polyline approximation of an exact curve; `eps_rep` bounds the maximum
+    /// deviation from the exact curve (mm), certified where a bound can be
+    /// proved (see `Pattern::eps_rep`).
     Polyline {
         pts: Vec<P2>,
         eps_rep: f64,
@@ -148,10 +149,14 @@ pub struct Pattern {
     /// How `eps_num` was obtained (a-priori rounding bound, quadrature
     /// estimate, ...), in words that go into the result.
     pub eps_num_basis: &'static str,
-    /// Largest distance between a polyline and the exact curve it stands for
-    /// (mm), MEASURED at `develop::VERIFY_SUB - 1` interior points of every
-    /// segment after the density was chosen. 0 only for patterns made of lines
-    /// and exact arcs.
+    /// Upper bound of the largest distance between a polyline and the exact
+    /// curve it stands for (mm). Certified by outward interval arithmetic where
+    /// a bound can be proved (`develop::certified_rep`: the chord enclosure, or
+    /// the deviation measured at `develop::VERIFY_SUB - 1` interior points of
+    /// every segment if larger, plus the vertex displacement term); an
+    /// uncertified estimate otherwise (`eps_rep_certified` says which,
+    /// TOLERANCE_POLICY section 8). 0 only for patterns made of lines and exact
+    /// arcs.
     pub eps_rep: f64,
     /// How `eps_rep` was obtained and which limit the polyline density was
     /// chosen for.
