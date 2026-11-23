@@ -107,6 +107,17 @@ fn proper_cross(a: Pt, b: Pt, c: Pt, e: Pt) -> bool {
         && (o3 > 0.0) != (o4 > 0.0)
 }
 
+/// Distance from `p` to the segment `a`–`b` (0 when `p` lies on it).
+fn point_segment_distance(p: Pt, a: Pt, b: Pt) -> f64 {
+    let (vx, vy) = (b.0 - a.0, b.1 - a.1);
+    let len2 = vx * vx + vy * vy;
+    if len2 <= 0.0 {
+        return d(p, a);
+    }
+    let t = (((p.0 - a.0) * vx + (p.1 - a.1) * vy) / len2).clamp(0.0, 1.0);
+    d(p, (a.0 + t * vx, a.1 + t * vy))
+}
+
 fn sweep_of(start_deg: f64, end_deg: f64) -> f64 {
     let s = (end_deg - start_deg) % 360.0;
     if s < 0.0 { s + 360.0 } else { s }
@@ -166,8 +177,9 @@ struct Seg {
 
 /// Calls `f(i, j)` once for every pair of segments whose bounding boxes share a
 /// cell of a uniform grid (about one segment per cell); segments whose box
-/// covers very many cells are paired with every other segment.
-fn candidate_pairs(segs: &[Seg], mut f: impl FnMut(usize, usize)) {
+/// covers very many cells are paired with every other segment. Boxes are grown
+/// by `tol` so that a point within `tol` of a segment shares a cell with it.
+fn candidate_pairs(segs: &[Seg], tol: f64, mut f: impl FnMut(usize, usize)) {
     let m = segs.len();
     if m < 2 {
         return;
@@ -213,10 +225,10 @@ fn candidate_pairs(segs: &[Seg], mut f: impl FnMut(usize, usize)) {
     let mut long: Vec<usize> = Vec::new();
     for (i, s) in segs.iter().enumerate() {
         let b = (
-            cx(s.a.0.min(s.b.0)),
-            cy(s.a.1.min(s.b.1)),
-            cx(s.a.0.max(s.b.0)),
-            cy(s.a.1.max(s.b.1)),
+            cx(s.a.0.min(s.b.0) - tol),
+            cy(s.a.1.min(s.b.1) - tol),
+            cx(s.a.0.max(s.b.0) + tol),
+            cy(s.a.1.max(s.b.1) + tol),
         );
         boxes.push(b);
         if (b.2 - b.0 + 1) * (b.3 - b.1 + 1) > limit {
@@ -564,7 +576,7 @@ pub fn quality_gate_full(
     let mut crossings: Vec<(usize, usize)> = Vec::new(); // (entity, entity)
     {
         let mut overlaps: Vec<(usize, usize, f64)> = Vec::new();
-        candidate_pairs(&segs, |i, j| {
+        candidate_pairs(&segs, tol, |i, j| {
             let (s, t) = (&segs[i], &segs[j]);
             if !s.from_arc && !t.from_arc {
                 let o = overlap_length(s, t, tol);
@@ -582,9 +594,14 @@ pub fn quality_gate_full(
             if neighbours || joint_at(s, t, tol) {
                 return;
             }
+            // An endpoint lying anywhere on the other segment — not only on its end points — is a
+            // contact too: a T-touch, a crossing through a vertex, a collinear overlap (RC-13).
             let touching = [s.a, s.b]
                 .iter()
-                .any(|p| d(*p, t.a) <= tol || d(*p, t.b) <= tol);
+                .any(|p| point_segment_distance(*p, t.a, t.b) <= tol)
+                || [t.a, t.b]
+                    .iter()
+                    .any(|p| point_segment_distance(*p, s.a, s.b) <= tol);
             if touching || proper_cross(s.a, s.b, t.a, t.b) {
                 crossings.push((s.ent, t.ent));
             }
@@ -1296,6 +1313,29 @@ mod tests {
             },
         ];
         must_fail("rose curve", &write(&e), "self_intersection");
+    }
+
+    /// RC-13: the gate passed a T-touch and a crossing through a vertex on separate
+    /// LINE entities, because the contact test looked only at end points against
+    /// end points. A collinear overlap below the overlap rule's 16·tol threshold
+    /// passed as well.
+    #[test]
+    fn rule_self_intersection_touches_vertex_crossings_and_small_overlaps() {
+        // T-touch: a line ends in the middle of the bottom edge
+        let mut e = plate();
+        e.push(line(OUTER_LAYER, (50.0, 0.0), (50.0, 15.0)));
+        must_fail("T-touch on separate lines", &write(&e), "self_intersection");
+        // crossing through a vertex: a line runs through the corner (100, 0)
+        let mut e = plate();
+        e.push(line(OUTER_LAYER, (90.0, -10.0), (110.0, 10.0)));
+        must_fail("crossing through a vertex", &write(&e), "self_intersection");
+        // a collinear overlap of 2 nm, below the 16·tol overlap threshold
+        let mut e = plate();
+        e.push(line(OUTER_LAYER, (20.0, 0.0), (20.0 + 2e-9, 0.0)));
+        must_fail("nanometre collinear overlap", &write(&e), "self_intersection");
+        // joined neighbours and chain joints are still not crossings
+        assert!(quality_gate(&write(&plate())).pass);
+        assert!(quality_gate(&write(&sector())).pass);
     }
 
     #[test]
