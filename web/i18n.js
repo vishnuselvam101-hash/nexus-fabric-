@@ -1087,6 +1087,12 @@ const ID = {
     // work plan 3.3: produced by the cone verifier (verify_cone) and shown without a Japanese label until now
     large_end_3d_arc_length: [null, '大径側の端の3D円弧長'],
     small_end_3d_arc_length: [null, '小径側の端の3D円弧長'],
+    // work plan 1.5 RC-09: produced by the cylinder solid verifier (verify_cylinder_solid)
+    end_circle_3d_arc_length: [null, '端の円の3D円弧長'],
+    end_circles_3d_arc_length_equal: [null, '両端の円の3D円弧長が同じ長さ'],
+    area_equals_sampled_surface_area: [null, '展開図の面積＝サンプリングした表面積'],
+    bottom_runs_along_x: [null, '底辺がX軸に沿っていること'],
+    seam_a_runs_along_y: [null, '継目の辺AがY軸に沿っていること'],
   },
   rfamily: { source: [null, '原資料'], claim: [null, '主張'], relation: [null, '関係'], activity: [null, 'アクティビティ'], finding: [null, '所見'], assessment: [null, '評価'], attestation: [null, '証明'] },
   rkind: {
