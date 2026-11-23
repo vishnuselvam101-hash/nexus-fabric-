@@ -25,7 +25,7 @@ seen to pass on the stated commit; "not run" is never written as passed.
 | 1.2 | A true error bound everywhere | done | 2100a22 (+ uncommitted expectation fix-up) | engine 0.4.4; certified eps_rep (TOLERANCE_POLICY section 8); near-tangent FAILs resolved; changed expectations in section 8.8 and the fix-up table after it; fix-up: PRODUCT_CHECK_INCONCLUSIVE split, ui/e2e expectations, eps_num/eps_rep allow-list |
 | 1.3 | Every convention stated in the DXF and the result | done | `3874a79` | engine 0.4.5; 12 plate-convention keys (999 + TEXT) per family, read back by rule `convention_statement` (14 rules); RB-008 outer profile one closed polyline where the arcs allow (lines/polylines families); changed expectations and i18n keys under the task (section 1.3 result) |
 | 1.4 | Surface attribute for every family | done | `06f10d9` | engine 0.4.6; optional `surface_reference` (outside/inside/neutral/unknown) for cylinder shell, cone, eccentric reducer; `unknown` demotes radius checks to INCONCLUSIVE with a stated reason; geometry byte-identical; results in TOLERANCE_POLICY section 9 |
-| 1.5 | Checks that do not depend on the construction | in progress | `2f1262e` (1.5a) | 1.5a done: construction-independent outline orientation guard, engine 0.4.7, results in TOLERANCE_POLICY section 10; remainder: RC-09/10/13/15/16 fixes, verifier independence test, DXF-only mating test |
+| 1.5 | Checks that do not depend on the construction | done | `055c846` | engine 0.4.8; RC-09/10/13/15/16/29/32 fixed, verifier independence guarded (bit-equal re-derived bounds), DXF-only mating test in validation stage 0 (sensitivity-bound tolerance, six planted faults FAIL); results under the task and TOLERANCE_POLICY sections 11–13 |
 | 1.6 | Sampling density | not started | | |
 | 1.7 | Set-on joint, remaining case — design note | done (design) | `2bf369a` | design only |
 | 1.8 | Validation as a permanent gate | not started | | |
@@ -339,6 +339,47 @@ distance: no such quantity is in the pattern, and none is invented. Statements a
   them back using only the stated conventions, and confirm the two cut edges coincide. This also proves the
   convention statements of 1.3 are sufficient to build the part.
 - Keep the verifier's code free of calls into `develop.rs`; add a test that fails if it imports them.
+
+**Result (done, engine 0.4.8).**
+
+*Independence (the second bullet).* RC-15: the 3D-intersection tolerances called `develop::*_error_bound`;
+`verify.rs` now re-derives the same first-order bounds itself (`engine_*_error_bound`, same Spec 02 evaluation
+sequence and op order, local constants). `develop` keeps its copies for the reported eps_num; `Branch`,
+`ObliqueCone` and `MAX_CHORD_ERROR_MM` moved to a neutral geometry module. The guard
+`crates/uem/tests/verifier_independence.rs` checks both halves: non-test verifier code free of `develop`
+imports/calls, and the two bound copies bit-equal on 2000 seeded parameter sets. TOLERANCE_POLICY section 12.
+
+*Mating test (the first bullet).* `validation/checks/mating.py`, wired into `run_all.py` stage 0 beside the
+seeded-fault self-test (its verdict is part of `selftest_ok` and `latest.json`). From the two DXF files alone:
+an independent minimal DXF reader (the JSON curves only cross-check the DXF), fold-back re-derived from Spec 02
+section 4.4 and the stated conventions only (full derivation in the module docstring, rule A9), the vertex
+correspondence SEARCHED over both directions and all cyclic shifts, the one unstated placement (the station)
+fitted and checked against the SUBMITTED request. Scope: neutral surfaces, joint not declared (one curve of
+the entered radii); every load-bearing 999 statement parsed and cross-checked, missing/contradictory fails
+closed. Tolerance is a sensitivity bound of the three-decimal statement rounding (5D + 1e-9 x size, derived,
+not fitted; TOLERANCE_POLICY section 13). Measured on REQ (R 150 / r 100 / beta 60 / delta 20, station 500):
+residual 1.36e-4 mm <= tol 2.64e-2 mm, fitted station 500.000000 mm; a rounded-input job (all four stated
+channels rounded) exercises the bound; six planted faults — mirrored saddle, scaled opening, shifted saddle,
+and beta/delta/circumference lies written coherently into the 999 lines — all FAIL by >= 65x the bound. This
+also proves the 1.3 convention statements suffice to fold the plates back without any engine knowledge.
+
+*Review C fixes, all in engine 0.4.8 (version history in `nf-core/src/lib.rs`, one bump):*
+
+| Finding | Fix | Commit |
+|---|---|---|
+| RC-09 | cylinder pipeline runs `verify_cylinder_solid` + two plate-axis datum checks; a plate turned 90 degrees FAILs; the three solid radius checks join the unknown-surface demotion | `0ab8da0` |
+| RC-10 | cone/eccentric: exact drawn signed area against the 3D surface, directed (Kabsch) apex-free congruence, seam datums, cone CCW guard. Reducer `area` is eps_rep-based and uncertified for this family -> INCONCLUSIVE by design (FAIL stays FAIL); cone `area` gains the written-vertex term. TOLERANCE_POLICY section 11 | `409e602` |
+| RC-13 | self-intersection checks flag touching and short overlaps (endpoint-to-segment distance <= tol, both directions); strengthening only | `da43b07` |
+| RC-15 | verifier re-derives the engine-error bounds, bit-equal (above) | `7fee9e9` |
+| RC-16 | docs-only: the shared-frame convention boundary stated UNVERIFIED in THICKNESS_MODEL_DESIGN 1.4 (fold-back and Joint3 share the Spec 02 frame; a common convention error passes every interface check) | `5f287a4` |
+| RC-29 | test gap closed: a mirrored eccentric reducer now FAILs CCW, signed area, directed congruence and both seam datums; the length checks keep their genuine verdicts | `447cfd5` |
+| RC-32 | false `eps_rep` doc comments fixed (certified bound where provable, estimate otherwise; doc-only) | `6f18b26` |
+
+Changed expectations are enumerated old -> new in TOLERANCE_POLICY sections 11 and 12 (compat_verdicts:
+35 cylinder cases gain five checks, 55 cones and 40 reducers gain two each, reducer `area` PASS ->
+INCONCLUSIVE in all 40; zero removals; 335 cases). Cut geometry is byte-identical to 0.4.7 (`develop.rs`
+unchanged). Results of 0.4.7 are REJECTED with G21 recompute. The external-review loop ends with the register
+updated; remaining register rows are the fabrication-engineer questions and the stated UNVERIFIED boundary.
 
 ### 1.6 Sampling density (RB-004)
 - Place polyline vertices at tangent points and at parameter values where curvature is extreme, so the curve's
