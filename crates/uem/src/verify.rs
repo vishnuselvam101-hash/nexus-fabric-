@@ -49,7 +49,7 @@ pub struct Check {
 /// Why a radius-dependent check is INCONCLUSIVE when the surface the entered radius refers to is `unknown` (task
 /// 1.4). Bilingual on purpose: the English and the Japanese are the user-visible reason (web/i18n.js carries the
 /// Japanese as well).
-pub const SURFACE_UNKNOWN_REASON: &str = "surface unknown: cannot tell which surface the radius is on, so the radius check cannot be certified. / 基準面が不明です: 半径がどの面を指すか判別できないため、半径に関する検査は確定できません。";
+pub const SURFACE_UNKNOWN_REASON: &str = "surface unknown: cannot tell which surface the radius is on, so the radius check cannot be confirmed.";
 
 /// The checks whose REFERENCE value is computed from an entered radius (task 1.4). Their meaning depends on which
 /// wall surface the radius is on, so with an `unknown` surface they cannot certify the radius. Every other check
@@ -3425,6 +3425,7 @@ mod tests {
             }
         }
         assert!(SURFACE_UNKNOWN_REASON.starts_with("surface unknown:"));
-        assert!(SURFACE_UNKNOWN_REASON.contains('基'));
+        // engine text is English only; the client translates it (engine 0.4.9)
+        assert!(SURFACE_UNKNOWN_REASON.is_ascii());
     }
 }

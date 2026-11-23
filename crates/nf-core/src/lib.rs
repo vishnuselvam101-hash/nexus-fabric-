@@ -101,7 +101,12 @@ use std::collections::{BTreeMap, BTreeSet};
 /// checks, 55 cones and 40 reducers gain two each, the reducer `area` flips PASS -> INCONCLUSIVE in all 40);
 /// no other verdict or reason moved. Cut geometry is byte-identical to 0.4.7 (`develop.rs` unchanged).
 /// Results of 0.4.7 are REJECTED with G21 recompute.
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.8+src.", env!("NF_ENGINE_SRC_HASH"));
+/// 0.4.9 (23 Nov 2026): text the engine shows is readable and in one language. A refused request's record carried
+/// its outcome as the Rust debug form of the error (`OutOfRange { code: .. }`); it now carries the same sentence as
+/// the message. The surface-unknown reason was written in English and Japanese in one string; the engine now writes
+/// English only and the client translates it like every other engine sentence. Geometry and verdicts are unchanged;
+/// record text changed, so results of 0.4.8 are REJECTED with G21 recompute.
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.9+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the
