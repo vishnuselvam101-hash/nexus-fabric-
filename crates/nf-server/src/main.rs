@@ -4429,11 +4429,119 @@ pub(crate) fn router(app: Arc<App>) -> Router {
             }),
         )
         .route(
-            "/app.js",
+            "/app.css",
+            get(|| async {
+                asset(
+                    "text/css; charset=utf-8",
+                    include_str!("../../../web/app.css"),
+                )
+            }),
+        )
+        .route(
+            "/js/theme.js",
             get(|| async {
                 asset(
                     "text/javascript; charset=utf-8",
-                    include_str!("../../../web/app.js"),
+                    include_str!("../../../web/js/theme.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/icons.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/icons.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/i18n.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/i18n.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/api.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/api.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/store.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/store.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/ui.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/ui.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/app.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/app.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/lib/poll.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/lib/poll.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/convert.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/convert.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/login.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/login.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/result.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/result.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/workspace.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/workspace.js"),
                 )
             }),
         )
@@ -4443,24 +4551,6 @@ pub(crate) fn router(app: Arc<App>) -> Router {
                 asset(
                     "text/javascript; charset=utf-8",
                     include_str!("../../../web/viewer.js"),
-                )
-            }),
-        )
-        .route(
-            "/i18n.js",
-            get(|| async {
-                asset(
-                    "text/javascript; charset=utf-8",
-                    include_str!("../../../web/i18n.js"),
-                )
-            }),
-        )
-        .route(
-            "/styles.css",
-            get(|| async {
-                asset(
-                    "text/css; charset=utf-8",
-                    include_str!("../../../web/styles.css"),
                 )
             }),
         )
