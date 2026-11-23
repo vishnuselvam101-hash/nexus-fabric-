@@ -1946,7 +1946,14 @@ pub fn run(req: &Request, entered_by: &str) -> JobOutput {
             entered_by,
             "shell",
             develop::cylinder_shell(r_dev, length).map(|p| {
-                let c = verify::verify_cylinder(&p, r_dev, length);
+                let mut c = verify::verify_cylinder(&p, r_dev, length);
+                // RC-09: the independent solid checks (3D end circles, sampled area) and the plate-axis
+                // datum. The outline guard is already in `c`; keep one copy of it.
+                let solid: Vec<_> = verify::verify_cylinder_solid(&p, r_dev, length)
+                    .into_iter()
+                    .filter(|s| !c.iter().any(|x| x.name == s.name))
+                    .collect();
+                c.extend(solid);
                 (
                     p,
                     verify::surface_unknown(
@@ -3773,6 +3780,62 @@ mod tests {
                 .iter()
                 .any(|r| r.kind == "dxf_quality_report" && r.payload["pass"] == json!(true))
         );
+    }
+
+    /// RC-09: the cylinder pipeline calls the independent solid verifier, so its 3D end-circle, sampled-area
+    /// and plate-axis datum checks are part of the job (they were test-only before). A genuine shell passes them
+    /// all; an `unknown` surface makes the radius-dependent solid checks INCONCLUSIVE like the other radius checks.
+    #[test]
+    fn rc09_cylinder_pipeline_runs_the_solid_and_datum_checks() {
+        let req = Request::CylinderShell {
+            r_dev: 100.0,
+            length: 250.0,
+            surface_reference: None,
+        };
+        let out = run(&req, "t");
+        assert_eq!(out.outcome, None);
+        for name in [
+            "end_circle_3d_arc_length",
+            "end_circles_3d_arc_length_equal",
+            "area_equals_sampled_surface_area",
+            "bottom_runs_along_x",
+            "seam_a_runs_along_y",
+        ] {
+            let c = out.checks.iter().find(|c| c.name == name).expect(name);
+            assert_eq!(c.verdict, "PASS", "{name}");
+        }
+        // one copy of the outline guard, not two
+        assert_eq!(
+            out.checks
+                .iter()
+                .filter(|c| c.name == "outline_counter_clockwise")
+                .count(),
+            1
+        );
+        let g10 = out.gates.iter().find(|g| g.id == "G10").unwrap();
+        assert_eq!(serde_json::to_value(g10.result).unwrap(), json!("PASS"));
+        // an unknown surface flips the radius-dependent solid checks too
+        let unknown = run(
+            &Request::CylinderShell {
+                r_dev: 100.0,
+                length: 250.0,
+                surface_reference: Some("unknown".into()),
+            },
+            "t",
+        );
+        for name in [
+            "end_circle_3d_arc_length",
+            "end_circles_3d_arc_length_equal",
+            "area_equals_sampled_surface_area",
+        ] {
+            let c = unknown.checks.iter().find(|c| c.name == name).expect(name);
+            assert_eq!(c.verdict, "INCONCLUSIVE", "{name}");
+        }
+        // the datum is radius-free: it keeps its verdict under an unknown surface
+        for name in ["bottom_runs_along_x", "seam_a_runs_along_y"] {
+            let c = unknown.checks.iter().find(|c| c.name == name).expect(name);
+            assert_eq!(c.verdict, "PASS", "{name}");
+        }
     }
 }
 

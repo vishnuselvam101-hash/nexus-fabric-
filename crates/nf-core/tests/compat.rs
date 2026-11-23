@@ -69,6 +69,14 @@
 //! 75 of 335 cases gained that one check (all PASS: every corpus cylinder and eccentric outline is counter-clockwise); no
 //! existing check's verdict or reason changed, no case flipped PASS to anything else, and the cut geometry and patterns did not move.
 //! `verify_cylinder_solid` also carries the guard, but it is not part of the corpus (test-only).
+//! Work plan task 1.5 (RC-09, deliberate, `NF_WRITE_COMPAT_FIXTURE=1`, engine 0.4.8): the cylinder pipeline now
+//! calls `verify_cylinder_solid`, so its three independent solid checks (`end_circle_3d_arc_length`,
+//! `end_circles_3d_arc_length_equal`, `area_equals_sampled_surface_area`) and the two new plate-axis datum checks
+//! (`bottom_runs_along_x`, `seam_a_runs_along_y`) join every cylinder case. In `fixtures/compat_verdicts.json`
+//! 35 of 335 cases gained those five checks (all PASS: every corpus shell is genuine and sits on the datum); the
+//! duplicate `outline_counter_clockwise` guard is kept once. No existing check's verdict or reason changed, no case
+//! flipped state, and the cut geometry and patterns did not move (the main snapshot is byte-identical). The three
+//! solid radius checks join `CYLINDER_RADIUS_CHECKS`, so an `unknown` surface makes them INCONCLUSIVE like the rest.
 
 use nf_core::job::{Request, run};
 use serde_json::{Value, json};

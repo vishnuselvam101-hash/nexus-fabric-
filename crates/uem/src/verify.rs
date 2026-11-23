@@ -55,7 +55,13 @@ pub const SURFACE_UNKNOWN_REASON: &str = "surface unknown: cannot tell which sur
 /// wall surface the radius is on, so with an `unknown` surface they cannot certify the radius. Every other check
 /// compares the pattern with another curve of the same pattern or with the entered length, and is unaffected.
 /// The names are asserted against the verifier's output in the tests, so a renamed check cannot drop out silently.
-pub const CYLINDER_RADIUS_CHECKS: &[&str] = &["bottom_edge_equals_circumference", "area"];
+pub const CYLINDER_RADIUS_CHECKS: &[&str] = &[
+    "bottom_edge_equals_circumference",
+    "area",
+    "end_circle_3d_arc_length",
+    "end_circles_3d_arc_length_equal",
+    "area_equals_sampled_surface_area",
+];
 pub const CONE_RADIUS_CHECKS: &[&str] = &[
     "large_arc_equals_circumference",
     "small_arc_equals_circumference",
@@ -682,10 +688,44 @@ fn curve_len(p: &Pattern, name: &str) -> f64 {
         .sum()
 }
 
+/// RC-09 datum: the named edge must run along a plate axis. Returns the largest distance of any
+/// sampled point of the curve from the axis-parallel line through its first point (0 for a straight
+/// edge on that axis), or NaN when the curve is absent or degenerates to a point, so that a direction
+/// that cannot be measured is INCONCLUSIVE, never a pass. `along_x` selects the X-parallel line
+/// (deviation in y); otherwise the Y-parallel line (deviation in x). Translation-invariant, and a
+/// proper rotation of the plate moves an edge off its axis, which the length checks alone cannot see.
+fn axis_run(p: &Pattern, name: &str, along_x: bool) -> f64 {
+    let mut found = false;
+    let mut dev = 0.0f64;
+    let mut reach = 0.0f64;
+    for c in p.outline.iter().filter(|c| c.name == name) {
+        found = true;
+        let pts = profile::flatten(std::slice::from_ref(c), 64);
+        let Some(&q0) = pts.first() else {
+            return f64::NAN;
+        };
+        for q in &pts {
+            dev = dev.max(if along_x {
+                (q.y - q0.y).abs()
+            } else {
+                (q.x - q0.x).abs()
+            });
+            reach = reach.max(q.dist(q0));
+        }
+    }
+    if !found || reach <= 0.0 {
+        f64::NAN
+    } else {
+        dev
+    }
+}
+
 /// Independent-formulation checks of a plain shell (review RB-006): the end
-/// circle and the lateral area of the solid, sampled in 3D, against the plate.
-/// Kept apart from `verify_cylinder` so that the thresholds of the original
-/// checks stay exactly as they were (docs/backend/TOLERANCE_POLICY.md).
+/// circle and the lateral area of the solid, sampled in 3D, against the plate,
+/// plus the RC-09 plate-axis datum (`bottom` along X, `seam_a` along Y) that the
+/// length checks alone cannot see. Kept apart from `verify_cylinder` so that the
+/// thresholds of the original checks stay exactly as they were
+/// (docs/backend/TOLERANCE_POLICY.md).
 pub fn verify_cylinder_solid(p: &Pattern, r_dev: f64, length: f64) -> Vec<Check> {
     let agree = agree_tol(r_dev.max(length));
     let (circle, circle_res) = independent::circle_length(r_dev, 1024);
@@ -718,6 +758,20 @@ pub fn verify_cylinder_solid(p: &Pattern, r_dev: f64, length: f64) -> Vec<Check>
             outline.signed_area.signum(),
             1.0,
             0.5,
+        ),
+        cmp(
+            "bottom_runs_along_x",
+            "largest distance of any point of the bottom edge from the X-parallel line through its start (plate axes: X around the shell, Y along the axis)",
+            axis_run(p, "bottom", true),
+            0.0,
+            agree,
+        ),
+        cmp(
+            "seam_a_runs_along_y",
+            "largest distance of any point of the seam_a edge from the Y-parallel line through its start (seam_a is the angle datum at X = 0)",
+            axis_run(p, "seam_a", false),
+            0.0,
+            agree,
         ),
     ]
 }
@@ -2575,6 +2629,33 @@ mod tests {
             ),
             Verdict::Fail
         );
+    }
+
+    /// RC-09 reproducer: a rectangle turned 90° (a proper rotation, so still counter-clockwise) keeps every
+    /// edge length, area and handedness, so the length-only `verify_cylinder` passes it; the plate-axis datum
+    /// of `verify_cylinder_solid` is what names it — `bottom` now runs along Y and `seam_a` along X.
+    #[test]
+    fn rc09_turned_rectangle_passes_length_checks_but_fails_the_datum() {
+        let cyl = cylinder_shell(100.0, 250.0).unwrap();
+        let mut turned = cyl.clone();
+        // 90° counter-clockwise about the origin, then translated into the first quadrant: (x, y) -> (L - y, x)
+        map_points(&mut turned, |q| P2::new(250.0 - q.y, q.x));
+        // the old defect: every length, area and handedness check still passes on the turned plate
+        all_pass(&verify_cylinder(&turned, 100.0, 250.0));
+        // the genuine plate sits on the datum; the turned one does not
+        let genuine = verify_cylinder_solid(&cyl, 100.0, 250.0);
+        assert_eq!(verdict_of(&genuine, "bottom_runs_along_x"), Verdict::Pass);
+        assert_eq!(verdict_of(&genuine, "seam_a_runs_along_y"), Verdict::Pass);
+        let v = verify_cylinder_solid(&turned, 100.0, 250.0);
+        assert_eq!(verdict_of(&v, "bottom_runs_along_x"), Verdict::Fail);
+        assert_eq!(verdict_of(&v, "seam_a_runs_along_y"), Verdict::Fail);
+        // the solid's own length/area/handedness checks still pass on the turned plate: only the datum names it
+        assert_eq!(verdict_of(&v, "end_circle_3d_arc_length"), Verdict::Pass);
+        assert_eq!(
+            verdict_of(&v, "area_equals_sampled_surface_area"),
+            Verdict::Pass
+        );
+        assert_eq!(verdict_of(&v, "outline_counter_clockwise"), Verdict::Pass);
     }
 
     // ---- work plan task 1.1: the verifier's own rounding at shallow and near-180 degree branch angles
