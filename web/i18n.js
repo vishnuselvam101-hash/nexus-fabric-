@@ -922,6 +922,7 @@ const ID = {
   },
   check: {
     bottom_edge_equals_circumference: [null, '端の辺の長さ＝円周長'], seam_edges_equal_length: [null, '両方の継目の辺が同じ長さ'], seam_length_equals_input: [null, '継目の辺の長さ＝入力した長さ'],
+    seam_a_on_positive_x: [null, '継目の辺Aが＋X側にあること'], seam_b_at_development_angle: [null, '継目の辺Bが展開角の位置にあること'],
     area: [null, '面積'], large_arc_equals_circumference: [null, '大径側の円弧長＝円周長'], small_arc_equals_circumference: [null, '小径側の円弧長＝円周長'],
     seam_equals_slant_length: [null, '継目の辺の長さ＝母線長'], fold_back_radius_residual: [null, '立体に戻したときの半径の残差'], large_end_present: [null, '大径側の端があること'],
     apex_free_development_agrees: [null, '頂点を使わない展開との一致'], large_edge_equals_circumference: [null, '大径側の辺の長さ＝円周長'], small_edge_equals_circumference: [null, '小径側の辺の長さ＝円周長'],
