@@ -130,7 +130,7 @@ A conversion is **never a flat pattern and never attached to a calculation**: ca
 
 ## Dependencies and licences
 
-Fetched from crates.io and pinned in `Cargo.lock`. No network code, no OCR, no AI. The PDF parser is our own; no PDF crate is used.
+Fetched from crates.io and pinned in `Cargo.lock`. No network code, no OCR, no automated drawing reading. The PDF parser is our own; no PDF crate is used.
 
 - flate2 1.1.11, MIT OR Apache-2.0, with the pure-Rust backend miniz_oxide 0.9.1 (MIT OR Zlib OR Apache-2.0), adler2 (0BSD OR MIT OR Apache-2.0), crc32fast (MIT OR Apache-2.0), simd-adler32 (MIT).
 - sha2 0.10.9, MIT OR Apache-2.0, with digest, block-buffer, crypto-common, cpufeatures, cfg-if, generic-array (MIT), typenum (MIT OR Apache-2.0).

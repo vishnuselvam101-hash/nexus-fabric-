@@ -77,7 +77,7 @@ A case moves backwards when its evidence is withdrawn or a reviewer retracts; th
 
 All of the following, each filed with its record:
 
-1. **Authorisation** in writing from the drawing's owner, stating permitted uses (internal testing; whether external AI services may process it; whether annotation values may be stored in the repository).
+1. **Authorisation** in writing from the drawing's owner, stating permitted uses (internal testing; whether external reading services may process it; whether annotation values may be stored in the repository).
 2. **Complete provenance** for every file: origin, revision identity, how received, hash, and the relationship between files (which development and which DXF correspond to which drawing revision).
 3. **Engineer-confirmed dimensions:** every dimension on the drawing transcribed and confirmed against the original by a named person, with units, tolerances, surface reference (inside/outside/centre) and any ambiguity recorded as ambiguity.
 4. **Geometric interpretation** confirmed by a fabrication engineer: projection method, views, scale, what each component is, joint type (set-on / set-in), the surfaces that define the fit.

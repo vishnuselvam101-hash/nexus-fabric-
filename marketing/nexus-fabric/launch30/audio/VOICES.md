@@ -18,7 +18,7 @@ Licence notes
 - English text-to-phoneme inside kokoro-onnx uses espeak-ng (GPL-3.0) through `phonemizer` /
   `espeakng-loader` as an unmodified tool. It produces phoneme strings only; no espeak audio is in
   the files. Have legal confirm this is acceptable if the build pipeline itself is redistributed.
-- Round-trip checker: faster-whisper 1.2.1 (MIT) with OpenAI Whisper `small` weights (MIT). Not in the audio.
+- Round-trip checker: a speech-recognition model (MIT licence). Not in the audio.
 
 Engines considered: Piper has no Japanese voice, so one engine for both languages was preferred;
 MeloTTS and the PyTorch `kokoro` package need a ~2 GB torch install and were not needed. No

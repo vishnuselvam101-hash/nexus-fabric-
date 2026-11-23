@@ -40,7 +40,7 @@ Version 0.1 · Sources accessed 18 November 2026 · Companion to [Spec 03](../sp
 | manga-ocr | github.com/kha-white/manga-ocr | Apache-2.0 (verified, repository) | Weights/training-data terms to check | Trained for a different domain (comics); included only as a Japanese-recognition comparison point | — |
 | In-house dimension-token recogniser | — | Ours | Trained on synthetic renderings (tier S) and, with permission, tenant data | Must be built and validated | Numeric false-accept rate |
 | Vision-language models (local) | Various | Varies widely: permissive, research-only, use-restricted | Only models whose weights permit commercial redistribution | Non-determinism unless constrained; hallucinated text is a specific hazard for dimensions — restricted to origin-6 candidates | Proposal quality only; never numeric authority |
-| Cloud OCR / AI APIs | Vendors | Contract | Only under tenant AI policy; never required | Data leaves the site | Comparison where authorised |
+| Cloud OCR / reading APIs | Vendors | Contract | Only under tenant automated-reading policy; never required | Data leaves the site | Comparison where authorised |
 
 ### CAD parsing
 
@@ -57,7 +57,7 @@ Version 0.1 · Sources accessed 18 November 2026 · Companion to [Spec 03](../sp
 
 No off-the-shelf component is assumed adequate. Direction: rule-based hypothesis generation over extracted geometry/annotations, optional learned proposals (document-layout or detection models, licences per model), deterministic evaluation (Spec 03 §5.5). Published research on engineering-drawing understanding, dimension–geometry association and reconstruction from orthographic views to be surveyed (T-10).
 
-### Local AI inference runtimes
+### Local automated-reading inference runtimes
 
 | Candidate | Source | Licence | Notes |
 |---|---|---|---|

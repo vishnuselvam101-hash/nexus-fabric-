@@ -29,14 +29,14 @@ Lead: this session's model (a requested Opus lead was not possible; Opus was use
 - **Product defect (Critic B, R1):** the application's header pattern had its opening in the wrong frame. Confirmed and fixed in the product (`docs/LEARNING_AND_STRESS_TESTING.md`, Defect 002); footage recaptured.
 - Corrected: fades through black; generic typeface; slide furniture; dissolving screens; small or late "planned" marks; "computed by the product's engine" wording; mirrored branch pattern; unnatural Japanese terms; overlapping headlines; split layout grid; stray leader lines; unreadable gates beat; no wall thickness.
 - Open after R3, design: scene-2 crop cuts through text at 5.5–7.2 s; amber status tag judged too loud; end line and verb lines; matte steel; scale change in the scene 1→2 push; uneven vertical rhythm.
-- Open after R3, credibility: the voice states planned capabilities in the present tense in scenes 3 and 4 (the critic states the film cannot reach 9 with that narration); "AI-native" and "traceable" unqualified in the voice; wall thickness shown in scene 4 under "same equations as the product" although the product models none; "MANUFACTURE." slogan; "complex… hours" over a simple part.
+- Open after R3, credibility: the voice states planned capabilities in the present tense in scenes 3 and 4 (the critic states the film cannot reach 9 with that narration); the automated-intelligence claim and "traceable" unqualified in the voice; wall thickness shown in scene 4 under "same equations as the product" although the product models none; "MANUFACTURE." slogan; "complex… hours" over a simple part.
 - The two critics conflict on the status tags (A: quieter; B: must stay prominent) and on wall thickness (A: wanted; B: overstates in scene 4). Lead's ruling: tags stay prominent; thickness stays in scene 3 only (labelled as a film visualisation) and scene 4 should unroll a thin shell. The scene-4 change is not yet made.
 
 ## Implemented versus planned, as shown
 | Scene | Shown | Status on screen |
 |---|---|---|
 | 1 | Fictional drawing made for the film | Concept |
-| 2 | Real application: workspace, pattern canvas, gates | Actual software, development build; "AI drawing interpretation: planned" |
+| 2 | Real application: workspace, pattern canvas, gates | Actual software, development build; "Automated drawing reading: planned" |
 | 3 | 3D form, governing equation with live values | Film visualisation, not a product view; "Drawing reading and 3D reconstruction: planned"; pattern mathematics implemented |
 | 4 | Unroll to flat patterns, cut lengths, DXF | Same equations as the product, redrawn for the film; "Manufacturing-constraint evaluation: planned" |
 | 5 | Brand, tagline, four verbs | Product concept, not validated for manufacturing |

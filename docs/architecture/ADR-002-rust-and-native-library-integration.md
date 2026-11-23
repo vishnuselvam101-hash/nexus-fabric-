@@ -3,7 +3,7 @@
 **Status:** Proposed · 2026-11-18 · Spec: [01 §3–4](../specifications/01_SYSTEM_ARCHITECTURE_SPECIFICATION.md)
 
 ## Context
-The trusted core is intended to be Rust. The candidate geometry libraries are C++ (OCCT, CGAL); AI/OCR tooling is predominantly Python. C++ exceptions crossing FFI are undefined behaviour; kernels can abort or corrupt memory; LGPL components should remain user-replaceable.
+The trusted core is intended to be Rust. The candidate geometry libraries are C++ (OCCT, CGAL); automated-reading/OCR tooling is predominantly Python. C++ exceptions crossing FFI are undefined behaviour; kernels can abort or corrupt memory; LGPL components should remain user-replaceable.
 
 ## Options
 1. **In-process FFI via binding generators** (`cxx`, `autocxx`, bindgen). Fast calls; a native fault takes down the host; binding generators struggle with template-heavy APIs (CGAL).

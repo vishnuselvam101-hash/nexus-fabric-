@@ -10,7 +10,7 @@
    3.5078125
   ]
  },
- "binary": "/tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress7/nf-server",
+ "binary": "/tmp/build/stress7/nf-server",
  "details": {
   "real_duration_s": 300,
   "users": 4,

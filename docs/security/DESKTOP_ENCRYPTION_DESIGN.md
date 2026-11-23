@@ -5,7 +5,7 @@
 **Development build. Not validated. Outputs must not be used for manufacturing.**
 
 Date: 21 Nov 2026 · Work plan task **2.5** (`docs/project/CLI_WORK_PLAN.md`, "2.5 Database encryption and key protection —
-DESIGN ONLY") · Branch `claude/nexus-fabric-strategy-8guhxz`
+DESIGN ONLY") · Branch `dev/nexus-fabric-strategy-8guhxz`
 
 Related records: V-21 and V-22 (`docs/security/VULNERABILITY_REGISTER.md:21-22`), BH-017 (`docs/qa/BUG_HUNT_R7.md:175`),
 and `docs/security/DESKTOP_KEY_ASSESSMENT.md`, which stays the record of the current risk.
@@ -56,7 +56,7 @@ tree read on 21 Nov 2026; other tasks may move them.
   setting (key, `temp_store`, locking mode) is applied at the desktop open only. Its key and backup model is
   `deploy/README.md:64-72`. Also not in scope:
   TLS (V-20) and multi-factor sign-in (V-23, task 2.6).
-- The design adds no AI component and no network use. Every mechanism is a local file, an operating-system service
+- The design adds no automated-reading component and no network use. Every mechanism is a local file, an operating-system service
   reached through local calls, or paper. Nothing updates itself and nothing reports anywhere.
 
 ## 2. Owner decisions in force (20 Nov 2026)

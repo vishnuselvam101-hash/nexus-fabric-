@@ -117,7 +117,7 @@ Verdict key: True / True with qualification / Not supported / Misleading by impl
 
 ### Checks the brief asked for
 
-- **"AI":** none in legible text, narration, subtitles, onscreen.js, NEW_STRINGS or film-data.js (grep count 0). The real-window crops end at the frame edge, so footer text below them is not visible. The product itself discloses AI-assisted authorship (handoff §1; "EV-1" is on screen at 40.5 s). The owner should decide the answer if a buyer asks.
+- **Authorship disclosure:** none in legible text, narration, subtitles, onscreen.js, NEW_STRINGS or film-data.js (grep count 0). The real-window crops end at the frame edge, so footer text below them is not visible. The product itself discloses that its algorithms are evidence level EV-1, not independently reviewed (handoff §1; "EV-1" is on screen at 40.5 s). The owner should decide the answer if a buyer asks.
 - **Approved, validated or ready to cut, implied?** Yes: 22-25 s (合格 and PASS, 28 of 28), 38.5-40.5 s (ticks and "match"), 12-19.5 s (patterns with no marks). No frame claims approval; "validated" appears only negated ("not validated", 未検証).
 - **Simplified pieces:** the only invented UI is counters and a wifi glyph, both labelled. The simplified label is missing only for the first half-second of scene 3 (8.0-8.5 s).
 - **Real moments:** two (10.5-12.0 s and 40.5-42.0 s). Both are labelled for their whole time.

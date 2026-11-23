@@ -30,8 +30,8 @@ narration, so they are new text. The Japanese wording has **not been reviewed by
 | unit_mm | mm | mm | 6, 7 | small print | no |
 | part_header | header | 母管 | 7 | small print, under each plate | no |
 | part_branch | branch | 枝管 | 7 | small print, under each plate | no |
-| positioning | AI-native engineering platform powered by AMOEBA | AMOEBAを核とする、AIネイティブの設計基盤 | 11 | secondary, centred | no (the owner's positioning line) |
-| planned_ai | AI drawing interpretation: planned | AIによる図面解釈：計画中 | 11 | secondary, centred | yes in substance ("Reading drawings is planned"), words differ |
+| positioning | Engineering platform with automated drawing reading (not implemented), powered by AMOEBA | AMOEBAを核とする、図面の自動読み取り（未実装）を備えた設計基盤 | 11 | secondary, centred | no (the owner's positioning line) |
+| planned_ai | Automated drawing reading: planned | 図面の自動読み取り：計画中 | 11 | secondary, centred | yes in substance ("Reading drawings is planned"), words differ |
 | today | Running today | 稼働中 | 11 | small print, centred | yes in substance ("running today") |
 | today_items | Calculation · Checks · Record | 計算 · 検証 · 記録 | 11 | small print, centred | yes in substance ("the calculation, the checks, the record") |
 | brand | Engineering, Reimagined. | 設計を、再定義。 | 12 | statement, centred | yes in substance (L9 "Engineering, reimagined.") |

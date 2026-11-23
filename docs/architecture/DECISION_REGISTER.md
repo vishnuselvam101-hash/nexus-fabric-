@@ -94,7 +94,7 @@ Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, 
 |---|---|---|---|
 | D-55 | The engine is exercised with hard and extreme cases; target is zero defects on tested cases, stated as a target and never as a guarantee | Accepted | [Stress Testing and Learning](../LEARNING_AND_STRESS_TESTING.md) |
 | D-56 | Learning from mistakes is implemented as recorded lessons and a regression corpus: lessons raise advisories for an engineer, never change values, never self-modify algorithms, and stay within one project | Accepted; consistent with ADR-016 interim rule (propose-only, scoped) | same |
-| D-57 | Third-party skills (cook, unlazy, motion-graphics set, frontend-design) and Agent Reach are used as working tools; skills are vetted before installation | Accepted | `.claude/skills/` |
+| D-57 | Third-party skills (cook, unlazy, motion-graphics set, frontend-design) and Agent Reach are used as working tools; skills are vetted before installation | Accepted | `.agent/skills/` |
 
 Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded on them.
 
@@ -144,7 +144,7 @@ Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded o
 | Reference cases | **RC-001 at state S0 (prepared; no material, no truth, no reviewer); 0 of 12 validation requirements met** |
 | Standards identified and verified | **None** |
 | Japanese review package and vocabulary checked by a native-speaking engineer | **No** |
-| Evidence level of every engineering relationship in the repository | **EV-1 (AI-generated proposal)** |
+| Evidence level of every engineering relationship in the repository | **EV-1 (unreviewed proposal)** |
 | Specification 04 | **Not started; not implementation-ready** |
 | Software | **Development build exists (session 1). Launchable. Not validated; `APPROVED` unreachable; not for confidential data or manufacturing** |
 

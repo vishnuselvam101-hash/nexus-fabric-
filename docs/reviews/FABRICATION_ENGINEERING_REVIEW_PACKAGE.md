@@ -5,9 +5,9 @@ Dependency model and interface rules · Version 1.1 · 18 November 2026 · State
 ## 0. What this is — and is not
 
 - A **request for review** by a qualified fabrication engineer (steel pipe and plate fabrication; ideally with development/marking-out and welding experience in the factory concerned).
-- Every statement below was written by an AI system from general principles. **None has been checked by an engineer, against a factory's practice, or against a physical part.** The three examples are symbolic paper exercises, not factory cases.
+- Every statement below was drafted from general principles and is at evidence level EV-1, not independently reviewed. **None has been checked by an engineer, against a factory's practice, or against a physical part.** The three examples are symbolic paper exercises, not factory cases.
 - **No review has taken place.** The status column is empty on purpose. Nothing in this package may be cited as validated until a named reviewer has completed it.
-- Evidence level of every statement: **EV-1, AI-generated proposal** ([Evidence Levels](../architecture/EVIDENCE_LEVELS.md)). A returned review raises a statement to EV-2 only, for the reviewer's stated scope.
+- Evidence level of every statement: **EV-1, unreviewed proposal** ([Evidence Levels](../architecture/EVIDENCE_LEVELS.md)). A returned review raises a statement to EV-2 only, for the reviewer's stated scope.
 - **Language:** this English version is the master. A Japanese version must be translated and then independently checked by a Japanese-speaking fabrication engineer before use at the factory; **no Japanese version exists yet.**
 - The software design does not need to be understood to review this. Each statement is a plain claim about fabrication: *if X changes or is wrong, Y must be re-checked*, or *for the parts to fit, Z must be true*.
 
@@ -30,12 +30,12 @@ Also wanted throughout: **what is missing** — relationships an experienced eng
 
 ### Who should review
 
-A fabrication engineer with practical experience in: steel pipe fabrication; branch intersections and reducers; plate development and division; welding and assembly interfaces; interpretation of manufacturing drawings. Preferably **independent of whoever authored these statements** (they were written by an AI system; the reviewer should not be someone who edited them).
+A fabrication engineer with practical experience in: steel pipe fabrication; branch intersections and reducers; plate development and division; welding and assembly interfaces; interpretation of manufacturing drawings. Preferably **independent of whoever authored these statements** (they are at evidence level EV-1 and have not been independently reviewed; the reviewer should not be someone who edited them).
 
 ### Order of work
 
 1. Classify the statements in sections 2–5 **from your own knowledge first**.
-2. Only then look at Annex A (proposed consequences and severities) and correct it. Annex A is an AI-written aid for prioritising; it contains no suggested classifications, and it should not influence step 1.
+2. Only then look at Annex A (proposed consequences and severities) and correct it. Annex A is an aid for prioritising at evidence level EV-1, not independently reviewed; it contains no suggested classifications, and it should not influence step 1.
 3. Add missing relationships (section 6a).
 4. Complete the reviewer record and return the document.
 
@@ -191,7 +191,7 @@ The completed package, with the reviewer's identity and date, is the evidence th
 
 ## Annex A — Proposed engineering consequence, severity and downstream impact
 
-**Read only after classifying the statements.** AI-written (EV-1) and itself subject to review: please correct the consequence, the severity and the impact wherever they are wrong. The annex answers: *if the software lacked this relationship, or applied it wrongly, what could happen?* It is used to prioritise review by manufacturing risk rather than by count.
+**Read only after classifying the statements.** At evidence level EV-1, not independently reviewed, and itself subject to review: please correct the consequence, the severity and the impact wherever they are wrong. The annex answers: *if the software lacked this relationship, or applied it wrongly, what could happen?* It is used to prioritise review by manufacturing risk rather than by count.
 
 Proposed severity scale: **Critical** — parts likely scrapped or unable to be assembled, or a defect could leave the factory. **Major** — rework, re-cutting or significant fit-up correction. **Minor** — inconvenience, small adjustment at fit-up, or documentation only.
 

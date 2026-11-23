@@ -11,7 +11,7 @@ Outputs must be traceable, reproducible and bounded in error. Different problems
 3. **Mixed regimes with mandatory metadata:** exact predicates for decisions; exact rational constructions where linear; f64/multi-precision numerics with stated bounds elsewhere; interval enclosure for release-critical quantities; uncertainty propagation as a separate layer; process models parameterised by calibrated data.
 
 ## Decision (proposed)
-Option 3, implemented as the UEM: a pure library (no I/O, no AI, no global state) split into the components in Spec 01 §3.1. Every result carries value, unit, regime, bound/uncertainty and applicability. Verification uses separately implemented methods (Spec 01 §3.4).
+Option 3, implemented as the UEM: a pure library (no I/O, no automated interpretation, no global state) split into the components in Spec 01 §3.1. Every result carries value, unit, regime, bound/uncertainty and applicability. Verification uses separately implemented methods (Spec 01 §3.4).
 
 ## Advantages
 Guarantees matched to risk; numerical error and input uncertainty are both explicit and kept distinct; pure functions enable caching, replay and property-based testing.

@@ -9,7 +9,7 @@ Short references used below: **ARCH** = AMOEBA architecture document; **EOS**, *
 
 ## 0. Scope, method and limits of this review
 
-- This is a **document review carried out by an AI reviewer**. No software exists; nothing was executed or measured. I had no access to factory drawings, factory staff, customer data or any running system.
+- This is a **document review at evidence level EV-1 that has not been independently reviewed**. No software exists; nothing was executed or measured. I had no access to factory drawings, factory staff, customer data or any running system.
 - I did not write the reviewed documents. I read the AMOEBA documents and Spec 01 in full, and ADR-006 in full; Spec 03, the Master Plan and Spec 02 (§0, §1.2–1.3, §9–§10, §12–§14) by section, concentrating on requirements, contracts and gates. Spec 02 §7–§8 and §11 and ADR-001…005, 007 and 008 were not read beyond headings or keyword matches, so findings that depend on them are provisional. Findings about Spec 02 mathematics are out of scope.
 - Every weakness below cites the text it rests on. Where I infer a consequence, I say so.
 - Statements are tagged where it matters: **[E]** established principle, **[P]** proposed design, **[H]** unverified hypothesis. Nothing in this review is a claim of novelty; no prior-art search has been done, and several of my own proposals are well-known techniques.

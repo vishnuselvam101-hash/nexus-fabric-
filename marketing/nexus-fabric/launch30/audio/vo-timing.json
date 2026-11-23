@@ -47,7 +47,7 @@
     "natural_rate": true,
     "fits": true,
     "margin_to_next_segment": 1.11,
-    "text": "Meet NEXUS FABRIC, an AI-native engineering platform powered by AMOEBA.",
+    "text": "Meet NEXUS FABRIC, an engineering platform with automated drawing reading (not implemented), powered by AMOEBA.",
     "pauses": [
      [
       5.49,
@@ -161,7 +161,7 @@
     "start": 5.2,
     "end": 10.24,
     "lines": [
-     "Meet NEXUS FABRIC, an AI-native",
+     "Meet NEXUS FABRIC, an",
      "engineering platform powered by AMOEBA."
     ]
    },

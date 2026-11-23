@@ -1,6 +1,6 @@
 # Security Audit
 
-18 November 2026 · Scope: the whole repository as implemented (four Rust crates, web client, tests). Method: manual code review by the implementing AI system, plus the automated tests named below. **This is a self-assessment, not an independent audit or penetration test, and no certification or compliance is claimed. NEXUS FABRIC is not and cannot be "hack-proof".**
+18 November 2026 · Scope: the whole repository as implemented (four Rust crates, web client, tests). Method: manual code review by the implementer (evidence level EV-1, not independently reviewed), plus the automated tests named below. **This is a self-assessment, not an independent audit or penetration test, and no certification or compliance is claimed. NEXUS FABRIC is not and cannot be "hack-proof".**
 
 ## Summary
 
@@ -60,4 +60,4 @@ Injection: all SQL uses bound parameters; the only formatted SQL fragments are b
 
 ## Not applicable yet (no such component exists)
 
-Prompt injection and AI model security · malicious PDF/CAD parsing · computation-worker capabilities · container and network segmentation · backup encryption. Their requirements are in the threat model and release checklist so that they bind the code when it is written.
+Prompt injection and reading-model security · malicious PDF/CAD parsing · computation-worker capabilities · container and network segmentation · backup encryption. Their requirements are in the threat model and release checklist so that they bind the code when it is written.

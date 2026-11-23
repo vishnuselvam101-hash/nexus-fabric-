@@ -29,7 +29,7 @@ stored and is responsible for it under the law that applies to it.
 [COMPANY LEGAL NAME], [ADDRESS], holds the data listed below as the business handling it. [LAWYER: obligations
 under the Act on the Protection of Personal Information.]
 
-The Software contains no artificial-intelligence component; no data is sent to any AI service.
+The Software contains no automated drawing-reading component; no data is sent to any external reading service.
 
 ### 2. What the Software stores
 The Software stores the following in its own data folder (desktop mode, Windows:
@@ -103,7 +103,7 @@ The Software cannot delete a user account or remove entries from the audit log; 
 この場合、[会社の正式名称]（[住所]）が、以下に記載するデータを取り扱う事業者として保有します。
 ［弁護士確認：個人情報の保護に関する法律上の義務］
 
-本ソフトウェアは人工知能の構成要素を含まず、いかなる AI サービスにもデータを送信しません。
+本ソフトウェアは図面の自動読み取りの構成要素を含まず、いかなる外部読み取りサービスにもデータを送信しません。
 
 ### 2. 本ソフトウェアが保存する情報
 本ソフトウェアは、以下の情報を自身のデータフォルダに保存します（デスクトップモードの場合、Windows では

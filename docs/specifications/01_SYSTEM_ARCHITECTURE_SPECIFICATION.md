@@ -19,12 +19,12 @@ The architecture is organised around who is allowed to assert what.
 | Zone | Contents | May assert | May not |
 |---|---|---|---|
 | **Z0 Untrusted input** | Customer files | Nothing | Be parsed outside a sandbox |
-| **Z1 Interpretation** (non-authoritative) | OCR, vision, AI drawing interpretation, heuristics | *Proposals*: observations with provenance class and uncertainty | Write geometry, parameters or DXF coordinates |
+| **Z1 Interpretation** (non-authoritative) | OCR, vision, automated drawing reading, heuristics | *Proposals*: observations with provenance class and uncertainty | Write geometry, parameters or DXF coordinates |
 | **Z2 Deterministic engineering core** (authoritative for calculation) | UEM, reconstruction, fabrication development, DXF generation | Geometry and calculations, reproducibly | Approve its own output |
 | **Z3 Independent verification** (authoritative for evidence) | Verification engine, DXF re-import validation | Pass / fail / inconclusive evidence | Modify the thing it verifies; share calculation code with Z2 for the checked quantity |
 | **Z4 Human authority** | Authorised engineers | Engineering decisions, release approval | Bypass a failed required gate (overrides are recorded decisions with scope and reason, and only where policy allows) |
 
-- **ARCH-01** Data crosses Z1→Z2 only as typed observation records. No free-form AI output is consumed by Z2.
+- **ARCH-01** Data crosses Z1→Z2 only as typed observation records. No free-form automated-reading output is consumed by Z2.
 - **ARCH-02** Every coordinate in a released DXF must be the output of a Z2 calculation whose inputs trace to accepted observations or recorded Z4 decisions.
 - **ARCH-03** A Z3 check for a quantity must not call the Z2 implementation that produced it (see §3.4).
 
@@ -54,7 +54,7 @@ Stage outputs (each is an immutable, content-addressed record set):
 
 ### 1.4 External integrations
 
-Inbound: file upload, watched folders (on-premises), future ERP/job systems. Outbound: DXF/STEP/PDF package, CAM handoff via per-customer layer and format profiles, production feedback (measurements) returning as new observations. External AI services are optional and governed by the customer AI policy (§8).
+Inbound: file upload, watched folders (on-premises), future ERP/job systems. Outbound: DXF/STEP/PDF package, CAM handoff via per-customer layer and format profiles, production feedback (measurements) returning as new observations. External reading services are optional and governed by the customer automated-reading policy (§8).
 
 ## 2. Service architecture
 
@@ -67,7 +67,7 @@ Inbound: file upload, watched folders (on-premises), future ERP/job systems. Out
 | Image processing | Z1 | Orientation, deskew, perspective, resolution/scale estimation, denoise, line/curve detection, vectorisation; record transformation chain and scan uncertainty | OCR semantics |
 | OCR & drawing interpretation | Z1 | JA/EN text recognition; dimension, tolerance and symbol parsing; title block; view detection and classification; dimension-to-entity association; candidate interpretations with confidence | Resolving contradictions silently; filling in missing dimensions |
 | Geometry reconstruction | Z2 | Build constraint system from accepted observations; solve; report residuals, degrees of freedom, conflicts; produce 2D/3D geometry; enumerate competing interpretations | Choosing between interpretations that remain consistent with all evidence (escalates to Z4) |
-| Mathematical engineering engine (UEM) | Z2 | See §3 | Any I/O, any AI |
+| Mathematical engineering engine (UEM) | Z2 | See §3 | Any I/O, any automated interpretation |
 | Fabrication development | Z2 | Shape modules (parametric definition, applicability range, development method, verification method); development classification; plate division, seam and allowance computation; alternative strategies with cost terms | Asserting process parameters it has no calibrated data for |
 | Verification | Z3 | Run gate checks via independent methods; uncertainty vs tolerance budget; fold-back/assembly rehearsal; produce evidence | Repairing failures |
 | DXF generation & validation | Z2 + Z3 | Z2 writer: entities, layers, units, profile mapping. Z3 validator: independent parser re-import, topology, units, extents, comparison with approved geometry | CAM-specific post-processing beyond configured profiles |
@@ -80,7 +80,7 @@ Inbound: file upload, watched folders (on-premises), future ERP/job systems. Out
 
 ## 3. Universal Engineering Mathematics Engine (UEM)
 
-A library (not a network service) with no I/O, no global state and no AI dependency, consumed by reconstruction, fabrication and — through separate implementations — verification.
+A library (not a network service) with no I/O, no global state and no automated-reading dependency, consumed by reconstruction, fabrication and — through separate implementations — verification.
 
 ### 3.1 Components
 
@@ -156,7 +156,7 @@ Detail: [ADR-001](../architecture/ADR-001-application-architecture.md), [ADR-007
 - **Desktop engineering application** — full workspaces (drawing intelligence, 3D, development, verification, output). Proposed: web UI in a desktop shell talking to a backend that may be local (same workstation), on-premises server or private cloud.
 - **Tablet** — review, annotation, 3D inspection, approval.
 - **Mobile** — upload, status, previews, comments, approval actions with step-up authentication.
-- **Backend** — same artifacts in three topologies: single-node (factory workstation/server, no internet), on-premises cluster, private cloud. Feature parity for Z2/Z3 is required across topologies; Z1 capability may differ by AI policy (e.g. local models only).
+- **Backend** — same artifacts in three topologies: single-node (factory workstation/server, no internet), on-premises cluster, private cloud. Feature parity for Z2/Z3 is required across topologies; Z1 capability may differ by automated-reading policy (e.g. local models only).
 - **Offline** — clients cache jobs read-only plus annotations and draft decisions. Offline outputs are labelled *local / unsynchronised* and can never carry *Approved* status. Approval requires connection to the authoritative backend for that tenant.
 - **Synchronisation and conflict** — the truth graph is append-only and content-addressed, so sync is set-union of immutable records plus reconciliation of mutable *heads* (current revision pointers, job status). Concurrent head changes are detected and surfaced for human resolution; engineering decisions are never auto-merged. *(Proposed.)*
 
@@ -170,7 +170,7 @@ A directed acyclic graph of immutable, content-addressed records. Edges mean "wa
 
 | Record | Contents |
 |---|---|
-| SourceArtifact | Original bytes (object store), hash, format, upload identity, customer AI policy at time of upload |
+| SourceArtifact | Original bytes (object store), hash, format, upload identity, customer automated-reading policy at time of upload |
 | Observation | Value, unit, provenance class, source region (page, bbox / entity id), extractor + version, uncertainty, status (proposed / accepted / rejected / superseded) |
 | Decision | Human engineering decision: who, when, what, why, scope; signed |
 | Constraint | Relation over parameters, originating observations |
@@ -222,7 +222,7 @@ Full treatment in Specification 07. Architectural commitments:
 - **Private deployment** — fully functional with no outbound network access; updates delivered as signed offline bundles.
 - **Data retention** — per-customer retention and verifiable deletion, reconciled with reproducibility duties (ARCH-16). The conflict between "delete on request" and "regenerable for N years" is **Open** and needs customer/legal input.
 - **Secure file processing** — all Z0 files are hostile: content-based type detection, sandboxed parsing without network or filesystem access, resource limits, decompression-bomb limits, no execution of embedded scripts/macros, sanitised derived renderings for client display.
-- **Confidential drawings and AI** — customer AI policy has three levels (external AI services allowed / local models only / deterministic software only), enforced at the orchestration layer and recorded on every SourceArtifact. No customer data is used for model training without explicit recorded permission. Corrections captured for learning are stored per tenant.
+- **Confidential drawings and automated reading** — customer automated-reading policy has three levels (external reading services allowed / local models only / deterministic software only), enforced at the orchestration layer and recorded on every SourceArtifact. No customer data is used for model training without explicit recorded permission. Corrections captured for learning are stored per tenant.
 
 ## 9. API and integration architecture
 
@@ -240,7 +240,7 @@ Full treatment in Specification 07. Architectural commitments:
 
 | ID | Decision |
 |---|---|
-| C1 | AI is never the final authority for critical geometry; calculation authority is deterministic |
+| C1 | Automated drawing reading is never the final authority for critical geometry; calculation authority is deterministic |
 | C2 | Release requires independent verification evidence plus an authorised engineer |
 | C3 | Three release statuses; failed critical checks never yield a "complete" DXF |
 | C4 | Four provenance classes kept distinct; no silent guessing |
@@ -293,4 +293,4 @@ Kernel selection (§4.3); 2D profile library; exact vs filtered arithmetic costs
 
 ### Decisions requiring legal or licensing review
 
-OCCT LGPL-2.1 + exception in on-premises and (if ever) client-side distribution; any CGAL GPL package; commercial kernel terms; DWG technology and trademark; PDF library (AGPL exposure); AI model weight licences; aggregate third-party notices; export-control and customer contractual terms on drawing data; patent landscape (Document 09).
+OCCT LGPL-2.1 + exception in on-premises and (if ever) client-side distribution; any CGAL GPL package; commercial kernel terms; DWG technology and trademark; PDF library (AGPL exposure); reading-model weight licences; aggregate third-party notices; export-control and customer contractual terms on drawing data; patent landscape (Document 09).

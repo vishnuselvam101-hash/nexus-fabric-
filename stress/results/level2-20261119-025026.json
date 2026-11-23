@@ -10,7 +10,7 @@
    1.4208984375
   ]
  },
- "binary": "/tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/nf-server",
+ "binary": "/tmp/build/stress/nf-server",
  "details": {
   "project_250KB_description": 200,
   "magnitude_sweep": [
