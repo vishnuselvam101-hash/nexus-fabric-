@@ -420,13 +420,13 @@ async function main() {
       await page.waitForFunction(() => { const l = document.querySelector('#view .badge-label'); return l && l.textContent.trim().length > 0; }, null, { timeout: 15000 });
       const txt = await page.$eval('#view', (v) => v.innerText);
       check('K PDF result screen never claims approval', !/approved|承認/i.test(txt), txt.slice(0, 160));
-    } catch (e) { check('K PDF result screen never claims approval', false, msgOf(e)); }
+    } catch (e) { const seen = await page.$eval('#view', (v) => v.innerText.slice(0, 200)).catch(() => ''); check('K PDF result screen never claims approval', false, msgOf(e) + ' | hash ' + await page.evaluate(() => location.hash) + ' | view: ' + seen); }
 
     /* ---- 5g4. L: layout - every screen uses the page width and the pattern viewer is drawn ---- */
     try {
       const jid = await page.evaluate(async (b) => { const r = await fetch(b + '/api/calculations', { headers: { 'X-NF-Request': '1' } }); const j = await r.json(); const a = Array.isArray(j) ? j : (j.calculations || []); const ok = a.find((c) => c.state === 'REVIEW_REQUIRED' || c.release_state === 'REVIEW_REQUIRED'); return ok ? ok.id : (a.length ? a[0].id : null); }, BASE);
       const bad = [];
-      for (const hash of ['#/workspace/calculations', `#/job/${jid}`, `#/job/${jid}/pattern`, '#/verification', '#/amoeba', '#/admin', '#/math']) {
+      for (const hash of ['#/workspace/calculations', `#/job/${jid}`, `#/job/${jid}/pattern`, '#/verification', '#/amoeba', '#/admin', '#/math', '#/help']) {
         await page.goto(BASE + '/' + hash, { waitUntil: 'load' }); await page.waitForTimeout(1500);
         const narrow = await page.evaluate(() => { for (const el of document.querySelectorAll('#view *')) { const w = el.getBoundingClientRect().width; if (w > 0 && w < 300 && el.textContent.trim().length > 300 && !el.closest('aside,nav,.ws-sidebar,td,th,li,.chip,.btn')) return el.tagName.toLowerCase() + '.' + [...el.classList].join('.') + ' w=' + Math.round(w); } return null; });
         if (narrow) bad.push(hash + ': ' + narrow);
@@ -436,6 +436,18 @@ async function main() {
       if (!pv || pv.w < 600 || pv.h < 300 || pv.n < 5) bad.push('pattern viewer not drawn: ' + JSON.stringify(pv));
       check('L every screen uses the page width and the pattern viewer is drawn', bad.length === 0, bad);
     } catch (e) { check('L every screen uses the page width and the pattern viewer is drawn', false, msgOf(e)); }
+
+    /* ---- 5g5. M: help opens; a sample project is created through the normal API and every job is REVIEW REQUIRED ---- */
+    try {
+      await page.goto(BASE + '/#/help', { waitUntil: 'load' });
+      await page.waitForSelector('#samples button', { timeout: 15000 });
+      const before = await page.evaluate(async (b) => { const r = await fetch(b + '/api/calculations', { headers: { 'X-NF-Request': '1' } }); const j = await r.json(); return (Array.isArray(j) ? j : j.calculations || []).length; }, BASE);
+      await page.click('#samples button');
+      await page.waitForTimeout(8000);
+      const jobs = await page.evaluate(async (b) => { const r = await fetch(b + '/api/calculations', { headers: { 'X-NF-Request': '1' } }); const j = await r.json(); return (Array.isArray(j) ? j : j.calculations || []).map((c) => c.state || c.release_state); }, BASE);
+      const fresh = jobs.slice(0, Math.max(0, jobs.length - before));
+      check('M help sample project creates jobs, all REVIEW REQUIRED', jobs.length > before && jobs.slice(0, jobs.length - before).length > 0 && fresh.every((x) => x === 'REVIEW_REQUIRED'), { before, after: jobs.length, states: fresh });
+    } catch (e) { check('M help sample project creates jobs, all REVIEW REQUIRED', false, msgOf(e)); }
 
     /* ---- 5h. H: the Japanese job screen shows no raw engine identifier ---- */
     try {
@@ -567,6 +579,8 @@ async function main() {
           ['workspace/calculations', '#/workspace/calculations'],
           ['workspace/projects', '#/workspace/projects'],
           ['math', '#/math'],
+          ['help', '#/help'],
+          ['pdf result', '#/r/1'],
         ]) {
           await openScreen(hash);
           record(lang, screen, await scanScreen());

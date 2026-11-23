@@ -24,7 +24,13 @@ const SURFACES = ['unknown', 'outside', 'inside', 'neutral'];
 const DIM = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 const FW = { '．': '.', '－': '-', '−': '-', '＋': '+', 'ｅ': 'e', 'Ｅ': 'E', '，': ',' };
 const toAscii = (s) => String(s ?? '').replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/[．－−＋ｅＥ，]/g, (c) => FW[c]);
-const parseDim = (s) => { const v = toAscii(s).trim(); return DIM.test(v) ? Number(v) : NaN; };
+// Text is trimmed exactly as the server trims it (Rust str::trim, Unicode White_Space): String.trim() also trims
+// U+FEFF and keeps U+0085. This form has no free-text field, so no character length rule applies here; the
+// dimension text is read with the server's own trimming.
+const RS_WS = '\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000';
+const RS_TRIM = new RegExp(`^[${RS_WS}]+|[${RS_WS}]+$`, 'g');
+const trimRs = (v) => String(v ?? '').replace(RS_TRIM, '');
+const parseDim = (s) => { const v = trimRs(toAscii(s)); return DIM.test(v) ? Number(v) : NaN; };
 const fmt = (n) => (typeof n === 'number' ? (n === 0 ? '0' : Math.abs(n) >= 1e-3 && Math.abs(n) < 1e9 ? Number(n.toPrecision(12)).toString() : n.toExponential(3)) : String(n ?? ''));
 const nf3 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 const n3 = (v) => (v === 0 ? '0.000' : Math.abs(v) < 1e-3 || Math.abs(v) >= 1e12 ? v.toExponential(2) : nf3.format(Math.abs(v) < 5e-4 ? 0 : v));
@@ -92,6 +98,8 @@ function draftValues(d) {
 }
 
 // ---------------------------------------------------------------- field marks (BH-014)
+// A field's message is part of its accessible description: a screen reader reads it again whenever the field gets
+// focus. The ids of any other description (unit, hint) are kept.
 function markField(input, html, focus) {
   const wrap = input.closest('.field') || input.parentElement;
   const id = `${input.id || input.name}-err`;
@@ -126,22 +134,44 @@ function refusalHtml(r) {
   const text = r ? (r.message || r.error || r.code || '') : '';
   return `${kind ? `${esc(kind)}: ` : ''}${esc(text)}`;
 }
+// BH-014: mark every field a refusal names with the message of its code, in the active language. `map` turns a
+// request field into the form's control name where they differ. The fields the form has no control for are
+// returned, so the caller states them in the message area: no refusal is ever left unshown.
+function markRefusal(form, r, map = {}) {
+  const missing = []; let marked = 0;
+  if (!form || !r) return { marked, missing };
+  for (const k of r.fields || []) {
+    const i = form.elements.namedItem(map[k] || k);
+    if (i && i.nodeType === 1) { markField(i, refusalHtml(r), marked === 0); marked++; } else missing.push(String(k));
+  }
+  return { marked, missing };
+}
+// the coded refusal of a failed request (400 field_missing / field_wrong_type / field_unknown / family_unknown /
+// surface_reference_required, or a 422 of the engine), or null
+function coded(err) {
+  const d = (err && err.detail) || {};
+  if (d.refusal && typeof d.refusal === 'object') return d.refusal;
+  return typeof d.code === 'string' || Array.isArray(d.fields) ? d : null;
+}
+// a refusal in the form's message area (a live region): `lead` (HTML) or the text by code, and the fields the
+// form cannot show
+const refusalNote = (r, missing, lead) => `${lead || refusalHtml(r)}${missing.length ? ` ${h('refusal.unmapped', { fields: missing.map((f) => `<span class="mono">${esc(f)}</span>`).join(', ') })}` : ''}`;
 
 // ---------------------------------------------------------------- form fragments
 function selectField(name, label, opts, selected, hint, withKey = true) {
   const id = `f_${name}`;
   return el('div', { class: 'field' },
     el('label', { for: id }, label, withKey ? el('span', { class: 'mono' }, ` ${name}`) : null),
-    el('select', { id, name }, ...opts.map(([v, text]) => el('option', { value: v, selected: String(v) === String(selected ?? '') }, text))),
-    hint ? el('p', { class: 'sub' }, hint) : null);
+    el('select', { id, name, 'aria-describedby': hint ? `${id}_h` : null }, ...opts.map(([v, text]) => el('option', { value: v, selected: String(v) === String(selected ?? '') }, text))),
+    hint ? el('p', { class: 'sub', id: `${id}_h` }, hint) : null);
 }
 function paramField(fam, key, unit, value) {
   const id = `f_${key}`;
   return el('div', { class: 'field' },
     el('label', { for: id }, plabel(fam, key), el('span', { class: 'mono' }, ` ${key}`)),
     el('div', { class: 'row' },
-      el('input', { id, name: key, type: 'text', inputmode: 'decimal', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', 'data-dim': '1', value: String(value) }),
-      el('span', { class: 'sub' }, unitText(unit))));
+      el('input', { id, name: key, type: 'text', inputmode: 'decimal', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', 'data-dim': '1', 'aria-describedby': `u_${key}`, value: String(value) }),
+      el('span', { class: 'sub', id: `u_${key}` }, unitText(unit))));
 }
 function familyFields(fam, dv) {
   const val = (k, example) => (dv.has(k) && dv.get(k) !== '' && dv.get(k) !== null ? dv.get(k) : example);
@@ -217,7 +247,7 @@ export async function mount(container, params = {}) {
 
   const paramsBox = el('div', { class: 'calc-params', id: 'fields' }, ...familyFields(fam0, valuesFor(fam0)));
   const devNote = el('p', { class: 'sub', id: 'devnote' });
-  const msg = el('div', { id: 'cmsg' });
+  const msg = el('div', { id: 'cmsg', 'aria-live': 'polite' });
   const run = el('button', { class: 'btn pri', id: 'run', type: 'submit' }, t('math.run'));
   const projSel = selectField('project', t('math.f.project'), projects.map((p) => [p.id, `#${p.id} ${p.name}`]), pid, null, false);
   const famSel = selectField('fam', t('math.f.family'), Object.keys(F).map((k) => [k, famLabel(k)]), fam0, null, false);
@@ -261,6 +291,13 @@ export async function mount(container, params = {}) {
     devNote.hidden = !items.length;
     convSec.hidden = !/branch/.test(fam);
   };
+  // A refusal is shown on every field it names and said in the message area, with any field this form has no
+  // control for (BH-014). `lead` opens the note (the refused job of "new from these values").
+  const showRefusal = (r, lead) => {
+    const { marked, missing } = markRefusal(form, r, { family: 'fam' });
+    msg.append(el('div', { class: 'alert bad', role: 'alert', html: refusalNote(r, missing, lead) }));
+    return marked;
+  };
 
   form.elements.namedItem('fam').addEventListener('change', () => {
     paramsBox.textContent = '';
@@ -286,7 +323,7 @@ export async function mount(container, params = {}) {
     const i = e.target;
     if (!(i instanceof HTMLInputElement) || !i.hasAttribute('data-dim') || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
     const v = parseDim(i.value); if (!Number.isFinite(v)) return;
-    const dec = (/\.(\d+)$/.exec(i.value.trim()) || [, ''])[1].length;
+    const dec = (/\.(\d+)$/.exec(trimRs(i.value)) || [, ''])[1].length;
     e.preventDefault(); i.value = (v + (e.key === 'ArrowUp' ? 1 : -1)).toFixed(dec);
     i.dispatchEvent(new Event('input', { bubbles: true }));
   });
@@ -298,16 +335,10 @@ export async function mount(container, params = {}) {
       toast(t('math.toast.none', { id: d.id, why: d.outcome || t('math.why.default') }), 'err');
       location.hash = `#/job/${d.id}`; return;
     }
-    const refusal = d.refusal || (d.code || Array.isArray(d.fields) ? d : null);
-    if (refusal) {
-      const html = refusalHtml(refusal);
-      let first = true, marked = 0;
-      for (const name of (refusal.fields || [])) {
-        const i = form.elements.namedItem(name); if (!i) continue;
-        markField(i, html, first); first = false; marked++;
-      }
-      msg.append(el('div', { class: 'alert bad', role: 'alert', html }));
-      if (!marked) { const i = $('input,select', form); if (i) i.focus(); }
+    const r = coded(err);
+    if (r) {
+      clearMarks(form);
+      if (!showRefusal(r)) { const i = $('input,select', form); if (i) i.focus(); }
       return;
     }
     msg.append(el('div', { class: 'alert bad', role: 'alert' }, err instanceof ApiError ? errText(err) : errText(err)));
@@ -334,7 +365,7 @@ export async function mount(container, params = {}) {
       run.textContent = t('math.run.unusual');
       return;
     }
-    busy(run, true); run.textContent = t('math.busy');
+    busy(run, true); run.textContent = t('math.busy'); form.setAttribute('aria-busy', 'true');
     try {
       const r = await api(`/api/projects/${form.elements.namedItem('project').value}/calculations`, { method: 'POST', json: req });
       if (signal.aborted) return;
@@ -345,20 +376,17 @@ export async function mount(container, params = {}) {
     } catch (err) {
       if (!signal.aborted) fail(err);
     } finally {
+      if (form) form.removeAttribute('aria-busy');
       if (run.isConnected) { busy(run, false); run.textContent = t('math.run'); }
     }
   });
 
   paintDev();
 
-  // A job that was refused opens with every field the refusal names already marked (BH-014).
-  const refused = [];
-  if (refusal) {
-    const html = refusalHtml(refusal);
-    for (const name of (refusal.fields || [])) { const i = form.elements.namedItem(name); if (i) refused.push(i); }
-    refused.forEach((i, n) => markField(i, html, n === 0));
-  }
-  if (!refused.length) {
+  // A job that was refused opens with every field the refusal names already marked, and says so in the message
+  // area, naming any field this form has no control for (BH-014).
+  if (refusal) showRefusal(refusal, h('math.refused.note', { id: esc(fromId), why: refusalHtml(refusal) }));
+  if (!$('[aria-invalid]', form)) {
     const first = $('input[data-dim]', paramsBox);
     if (first) first.focus({ preventScroll: true });
   }

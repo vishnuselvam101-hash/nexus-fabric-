@@ -16,7 +16,8 @@ export function pollConversion(id, onUpdate, signal) {
     if (signal && signal.aborted) { cleanup(); return; }
     if (paused) return;
     try {
-      const r = await api(`/api/pdf-conversions/${id}`);
+      const res = await api(`/api/pdf-conversions/${id}`);
+      const r = (res && res.conversion) || res; // the server wraps the record: { conversion, report }
       onUpdate(r);
       if (r.status === 'converted' || r.status === 'refused' || r.status === 'limit_exceeded') {
         cleanup();

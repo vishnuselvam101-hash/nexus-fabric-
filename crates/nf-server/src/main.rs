@@ -4546,6 +4546,15 @@ pub(crate) fn router(app: Arc<App>) -> Router {
             }),
         )
         .route(
+            "/js/views/help.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/help.js"),
+                )
+            }),
+        )
+        .route(
             "/js/views/manufacturing.js",
             get(|| async {
                 asset(

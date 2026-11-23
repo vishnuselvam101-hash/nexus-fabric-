@@ -3,7 +3,7 @@ import { api, setAuthHandler } from './api.js';
 import { getState, setState } from './store.js';
 import { initialLang, setLang, applyPage, lang, t } from './i18n.js';
 
-const TITLES = { convert: 'Convert', login: 'Sign in', result: 'Result', workspace: 'Workspace', job: 'Job', math: 'New calculation', project: 'Project', account: 'Account', admin: 'Administration', manufacturing: 'Manufacturing', verification: 'Verification', amoeba: 'AMOEBA' };
+const TITLES = { convert: 'Convert', login: 'Sign in', result: 'Result', workspace: 'Workspace', job: 'Job', math: 'New calculation', project: 'Project', account: 'Account', admin: 'Administration', manufacturing: 'Manufacturing', help: 'Help', verification: 'Verification', amoeba: 'AMOEBA' };
 const THEMES = ['dark', 'light', ''];
 const LANGS = ['en', 'ja'];
 const QUICK_PROJECT = 'Quick conversions';
@@ -55,6 +55,7 @@ function resolveRoute(hash) {
   m = path.match(/^\/project\/(\d+)\/?$/);
   if (m) return { view: 'project', mod: './views/project.js', params: { id: m[1] } };
   if (path === '/account') return { view: 'account', mod: './views/account.js', params: {} };
+  if (path === '/help') return { view: 'help', mod: './views/help.js', params: {} };
   if (path === '/manufacturing') return { view: 'manufacturing', mod: './views/manufacturing.js', params: {} };
   if (path === '/verification') return { view: 'verification', mod: './views/verification.js', params: {} };
   m = path.match(/^\/amoeba(?:\/([a-z]+))?\/?$/);

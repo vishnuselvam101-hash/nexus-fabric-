@@ -2,6 +2,9 @@ import { api, esc } from '../api.js';
 import { pollConversion } from '../lib/poll.js';
 import { t } from '../i18n.js';
 
+const STAGES = ['cv2.stage.upload', 'cv2.stage.read', 'cv2.stage.write'];
+const STAGE_IDS = ['upload', 'read', 'write'];
+
 let root = null;
 let stopPolling = null;
 let listeners = [];
@@ -12,19 +15,105 @@ export async function mount(container, { id }) {
   container.appendChild(root);
 
   try {
-    const conversion = await api('/api/pdf-conversions/' + id);
-    renderConversion(conversion, id);
+    const data = await api('/api/pdf-conversions/' + id);
+    renderConversion(unwrap(data), id);
   } catch (err) {
-    showAlert(err.message || 'Failed to load conversion');
+    showAlert(err.message || t('cv2.failed'));
   }
 }
 
+/* The server wraps the record: { conversion, report }. */
+function unwrap(data) {
+  return (data && data.conversion) || data || {};
+}
+
+function stageIdx(s) {
+  if (!s || s === 'queued') return 0;
+  if (s === 'extracting' || s === 'processing') return 1;
+  if (s === 'computing' || s === 'flattening' || s === 'verifying') return 2;
+  return 3;
+}
+
+function isDone(s) {
+  return s === 'converted' || s === 'refused' || s === 'limit_exceeded' ||
+    s === 'error' || s === 'timeout';
+}
+
+/* ---- scale (shown exactly as on the convert screen) ---- */
+function scaleNumber(scale) {
+  if (!scale || scale.value == null || scale.value === '') return null;
+  const n = Number(scale.value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function scaleText(scale) {
+  const n = scaleNumber(scale);
+  if (n == null) return null;
+  return scale.kind === 'mm_per_point' ? t('cv2.unit.mmpt', { n }) : t('cv2.unit.ratio', { n });
+}
+
+function conversionScale(c) {
+  return c.scale || { kind: c.scale_kind, value: c.scale_value };
+}
+
+/* ---- small dom helpers ---- */
+function setBadge(cls, text, href, title) {
+  const badge = root.querySelector('.badge');
+  const label = root.querySelector('.badge-label');
+  const icon = root.querySelector('.badge-icon use');
+  if (badge) {
+    badge.classList.remove('warn', 'badge--refused');
+    if (cls) badge.classList.add(cls);
+  }
+  if (label) {
+    label.textContent = text;
+    if (title) label.title = title;
+  }
+  if (icon) icon.setAttribute('href', href);
+}
+
+function setLabel(node, text) {
+  const mark = node.querySelector('svg, .btn-icon');
+  node.textContent = '';
+  if (mark) node.appendChild(mark);
+  node.appendChild(document.createTextNode(text));
+}
+
+function toLink(btn, href, text) {
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = '';
+  a.className = btn.className;
+  const mark = btn.querySelector('svg, .btn-icon');
+  if (mark) a.appendChild(mark.cloneNode(true));
+  a.appendChild(document.createTextNode(text));
+  btn.replaceWith(a);
+  return a;
+}
+
+function showAlert(message) {
+  if (!root) return;
+  setBadge('badge--refused', t('cv2.failed'), '#i-cross');
+  const box = document.createElement('div');
+  box.className = 'alert bad';
+  box.setAttribute('role', 'alert');
+  const head = document.createElement('b');
+  head.textContent = t('cv2.failed');
+  const p = document.createElement('p');
+  p.textContent = message;
+  box.append(head, p);
+  const grid = root.querySelector('#checks-grid');
+  if (grid) { grid.textContent = ''; grid.appendChild(box); }
+  else root.appendChild(box);
+}
+
+/* ---- render ---- */
 function renderConversion(c, id) {
   if (!root) return;
 
   if (c.status === 'converted') {
     renderSuccess(c, id);
-  } else if (c.status === 'refused' || c.status === 'limit_exceeded') {
+  } else if (isDone(c.status)) {
     renderRefused(c);
   } else {
     renderProcessing(c, id);
@@ -35,117 +124,57 @@ function renderConversion(c, id) {
 }
 
 function renderSuccess(c, id) {
-  const badge = root.querySelector('.badge');
-  const label = root.querySelector('.badge-label');
-  const icon = root.querySelector('.badge-icon use');
+  // A PDF conversion is read and written, never verified or released; never a green badge.
+  setBadge('warn', t('cv2.label'), '#i-alert', c.label);
 
-  // A PDF conversion is never verified or released; show that, never a default verdict.
-  badge.classList.add('warn');
-  label.textContent = t('cv2.label');
-  if (c.label) label.title = c.label;
-  icon.setAttribute('href', '#i-alert');
-
-  renderChecks(c);
-  renderPatternInfo(c);
+  const grid = root.querySelector('#checks-grid');
+  if (grid) grid.textContent = '';
 
   const btnDxf = root.querySelector('#btn-dxf');
   const btnReport = root.querySelector('#btn-report');
+  if (btnDxf) toLink(btnDxf, `/api/pdf-conversions/${id}/dxf`, t('cv2.dxf'));
+  if (btnReport) toLink(btnReport, `/api/pdf-conversions/${id}/report`, t('cv2.report'));
 
-  const dxfLink = document.createElement('a');
-  dxfLink.href = `/api/pdf-conversions/${id}/dxf`;
-  dxfLink.download = '';
-  dxfLink.className = btnDxf.className;
-  dxfLink.innerHTML = btnDxf.innerHTML;
-  btnDxf.replaceWith(dxfLink);
-
-  const reportLink = document.createElement('a');
-  reportLink.href = `/api/pdf-conversions/${id}/report`;
-  reportLink.download = '';
-  reportLink.className = btnReport.className;
-  reportLink.innerHTML = btnReport.innerHTML;
-  btnReport.replaceWith(reportLink);
-
-  if (c.dxf_data || c.has_dxf) {
-    loadViewer(id);
-  }
-}
-
-function renderChecks(c) {
-  const grid = root.querySelector('#checks-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-
-  const checks = c.checks || c.verification?.checks || [];
-  for (const ch of checks) {
-    const row = document.createElement('div');
-    row.className = 'kv';
-    row.setAttribute('role', 'listitem');
-
-    const verdict = (ch.verdict || '').toUpperCase();
-    const verdictClass = verdict === 'PASS' ? 'chip--pass' :
-                         verdict === 'FAIL' ? 'chip--fail' : 'chip--warn';
-
-    row.innerHTML = `
-      <span class="kv-name">${esc(ch.name || ch.label || '')}</span>
-      <span class="kv-primary">${esc(formatVal(ch.primary))}</span>
-      <span class="kv-ref">${esc(formatVal(ch.reference))}</span>
-      <span class="kv-diff">${esc(formatVal(ch.difference))}</span>
-      <span class="kv-tol">${esc(formatVal(ch.tolerance))}</span>
-      <span class="chip ${verdictClass}">${esc(verdict || 'N/A')}</span>
-    `;
-    grid.appendChild(row);
-  }
-}
-
-function renderPatternInfo(c) {
-  const pattern = c.pattern || c.flat_pattern || {};
-  if (!pattern.family) return;
-
-  const info = document.createElement('div');
-  info.className = 'card pattern-info';
-  info.innerHTML = `
-    <h3>Pattern</h3>
-    <div class="kv"><span class="kv-name">Family</span><span>${esc(pattern.family)}</span></div>
-    ${pattern.eps_num != null ? `<div class="kv"><span class="kv-name">eps_num</span><span>${esc(String(pattern.eps_num))}</span></div>` : ''}
-    ${pattern.eps_rep != null ? `<div class="kv"><span class="kv-name">eps_rep</span><span>${esc(String(pattern.eps_rep))}</span></div>` : ''}
-    ${pattern.quantities ? `<div class="kv"><span class="kv-name">Quantities</span><span>${esc(JSON.stringify(pattern.quantities))}</span></div>` : ''}
-  `;
-  const actions = root.querySelector('.result-actions');
-  if (actions) actions.before(info);
+  if (c.dxf_data || c.has_dxf) loadViewer(id);
 }
 
 function renderRefused(c) {
-  const badge = root.querySelector('.badge');
-  const label = root.querySelector('.badge-label');
-  const icon = root.querySelector('.badge-icon use');
-
-  badge.classList.add('badge--refused');
-  label.textContent = c.status === 'limit_exceeded' ? 'LIMIT EXCEEDED' : 'REFUSED';
-  icon.setAttribute('href', '#i-cross');
+  setBadge('badge--refused', t('cv2.failed'), '#i-cross');
 
   const grid = root.querySelector('#checks-grid');
   if (grid) {
-    grid.innerHTML = '';
+    grid.textContent = '';
     const msg = document.createElement('div');
-    msg.className = 'alert';
+    msg.className = 'alert bad';
     msg.setAttribute('role', 'alert');
-    msg.textContent = c.error || c.refusal_reason || 'Conversion was refused';
-    if (c.refusal_code) {
-      const code = document.createElement('span');
-      code.className = 'chip';
-      code.textContent = c.refusal_code;
-      msg.prepend(code, ' ');
+
+    const head = document.createElement('b');
+    head.textContent = t('cv2.failed');
+    msg.appendChild(head);
+
+    const code = c.refusal_code || c.code;
+    if (code) {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.textContent = String(code);
+      msg.append(' ', chip);
     }
+
+    const p = document.createElement('p');
+    p.textContent = c.message || c.error || c.refusal_reason ||
+      (c.status === 'timeout' ? t('cv2.err.timeout') : t('cv2.failed'));
+    msg.appendChild(p);
     grid.appendChild(msg);
   }
 
   const actions = root.querySelector('.result-actions');
   if (actions) {
-    actions.innerHTML = '';
+    actions.textContent = '';
+    actions.style.display = '';
     const retryBtn = document.createElement('button');
     retryBtn.type = 'button';
     retryBtn.className = 'btn-secondary';
-    retryBtn.textContent = 'Adjust options & retry';
+    retryBtn.textContent = t('cv2.retry');
     const handler = () => { location.hash = '#/'; };
     retryBtn.addEventListener('click', handler);
     listeners.push([retryBtn, 'click', handler]);
@@ -154,43 +183,40 @@ function renderRefused(c) {
 }
 
 function renderProcessing(c, id) {
-  const badge = root.querySelector('.badge');
-  const label = root.querySelector('.badge-label');
-  const icon = root.querySelector('.badge-icon use');
-
-  badge.classList.remove('badge--refused');
-  label.textContent = 'PROCESSING';
-  icon.setAttribute('href', '#i-spinner');
+  setBadge(null, t('cv2.processing'), '#i-spinner');
 
   const grid = root.querySelector('#checks-grid');
   if (grid) {
-    grid.innerHTML = '';
+    grid.textContent = '';
+
     const bar = document.createElement('div');
-    bar.className = 'progress-bar';
+    bar.className = 'progress-bar' + (c.progress == null ? ' indeterminate' : '');
     bar.setAttribute('role', 'progressbar');
-    bar.innerHTML = '<div class="progress-fill"></div>';
+    const fill = document.createElement('div');
+    fill.className = 'progress-fill';
+    bar.appendChild(fill);
     grid.appendChild(bar);
 
     const stages = document.createElement('ol');
     stages.className = 'stage-list';
-    for (const s of ['upload', 'extract', 'pattern', 'verify']) {
+    STAGES.forEach((key, i) => {
       const li = document.createElement('li');
-      li.dataset.stage = s;
-      li.textContent = s.charAt(0).toUpperCase() + s.slice(1);
-      const done = c.completed_stages?.includes(s);
-      if (done) li.classList.add('stage-done');
+      li.dataset.stage = STAGE_IDS[i];
+      li.textContent = t(key);
       stages.appendChild(li);
-    }
+    });
     grid.appendChild(stages);
+    updateProgress(c);
   }
 
   const actions = root.querySelector('.result-actions');
   if (actions) actions.style.display = 'none';
 
+  // pollConversion already hands over the unwrapped conversion record.
   stopPolling = pollConversion(id, (updated) => {
     if (!root) return;
-    if (updated.status === 'converted' || updated.status === 'refused' || updated.status === 'limit_exceeded') {
-      root.innerHTML = '';
+    if (isDone(updated.status)) {
+      if (stopPolling) { stopPolling(); stopPolling = null; }
       const tpl = document.getElementById('t-result');
       const fresh = tpl.content.cloneNode(true).firstElementChild;
       root.replaceWith(fresh);
@@ -204,38 +230,51 @@ function renderProcessing(c, id) {
 }
 
 function updateProgress(c) {
-  const fill = root?.querySelector('.progress-fill');
+  if (!root) return;
+  const fill = root.querySelector('.progress-fill');
   if (fill && c.progress != null) {
     fill.style.width = Math.round(c.progress * 100) + '%';
   }
-  const stages = root?.querySelectorAll('.stage-list li');
-  if (stages && c.completed_stages) {
-    for (const li of stages) {
-      if (c.completed_stages.includes(li.dataset.stage)) {
-        li.classList.add('stage-done');
-      }
-    }
-  }
+  const idx = stageIdx(c.status);
+  root.querySelectorAll('.stage-list li').forEach((li, i) => {
+    li.classList.toggle('stage-done', i < idx);
+    li.classList.toggle('stage-active', i === idx && idx < STAGES.length);
+  });
 }
 
 function renderMeta(c) {
   const meta = document.createElement('div');
   meta.className = 'card result-meta';
-  const items = [];
-  if (c.converter_version) items.push(`<div class="kv"><span class="kv-name">Engine</span><span>${esc(c.converter_version)}</span></div>`);
-  if (c.created_at) items.push(`<div class="kv"><span class="kv-name">Created</span><span>${esc(fmtTime(c.created_at))}</span></div>`);
-  if (c.completed_at) items.push(`<div class="kv"><span class="kv-name">Completed</span><span>${esc(fmtTime(c.completed_at))}</span></div>`);
-  if (c.filename || c.document_name) items.push(`<div class="kv"><span class="kv-name">File</span><span>${esc(c.filename || c.document_name)}</span></div>`);
-  if (c.page_number != null) items.push(`<div class="kv"><span class="kv-name">Page</span><span>${esc(String(c.page_number))}</span></div>`);
-  if (items.length) {
-    meta.innerHTML = items.join('');
-    root.appendChild(meta);
+
+  const scale = scaleText(conversionScale(c));
+  if (scale) {
+    const p = document.createElement('p');
+    p.className = 'sub';
+    p.textContent = t('cv2.scale.meta', { scale });
+    meta.appendChild(p);
   }
+
+  const rows = [];
+  const file = c.filename || c.document_name;
+  if (file) rows.push([null, String(file)]);
+  if (c.page_number != null) rows.push([t('cv2.page'), String(c.page_number)]);
+  if (c.converter_version) rows.push([null, String(c.converter_version)]);
+
+  for (const [label, value] of rows) {
+    const row = document.createElement('div');
+    row.className = 'kv';
+    row.innerHTML = (label ? `<span class="kv-name">${esc(label)}</span>` : '') +
+      `<span>${esc(value)}</span>`;
+    meta.appendChild(row);
+  }
+
+  if (meta.childNodes.length) root.appendChild(meta);
 }
 
 function bindAnother() {
   const btn = root.querySelector('#btn-another');
   if (!btn) return;
+  setLabel(btn, t('cv2.another'));
   const handler = () => { location.hash = '#/'; };
   btn.addEventListener('click', handler);
   listeners.push([btn, 'click', handler]);
@@ -252,16 +291,6 @@ async function loadViewer(id) {
     if (viewer.render) viewer.render(container, id);
     else if (viewer.default) viewer.default(container, id);
   } catch { /* viewer optional */ }
-}
-
-function formatVal(v) {
-  if (v == null) return '-';
-  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(6);
-  return String(v);
-}
-
-function fmtTime(ts) {
-  try { return new Date(ts).toLocaleString(); } catch { return String(ts); }
 }
 
 export function unmount() {
