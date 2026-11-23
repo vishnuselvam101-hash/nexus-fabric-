@@ -25,7 +25,7 @@ seen to pass on the stated commit; "not run" is never written as passed.
 | 1.2 | A true error bound everywhere | done | 2100a22 (+ uncommitted expectation fix-up) | engine 0.4.4; certified eps_rep (TOLERANCE_POLICY section 8); near-tangent FAILs resolved; changed expectations in section 8.8 and the fix-up table after it; fix-up: PRODUCT_CHECK_INCONCLUSIVE split, ui/e2e expectations, eps_num/eps_rep allow-list |
 | 1.3 | Every convention stated in the DXF and the result | done | `3874a79` | engine 0.4.5; 12 plate-convention keys (999 + TEXT) per family, read back by rule `convention_statement` (14 rules); RB-008 outer profile one closed polyline where the arcs allow (lines/polylines families); changed expectations and i18n keys under the task (section 1.3 result) |
 | 1.4 | Surface attribute for every family | done | `06f10d9` | engine 0.4.6; optional `surface_reference` (outside/inside/neutral/unknown) for cylinder shell, cone, eccentric reducer; `unknown` demotes radius checks to INCONCLUSIVE with a stated reason; geometry byte-identical; results in TOLERANCE_POLICY section 9 |
-| 1.5 | Checks that do not depend on the construction | done | `055c846` | engine 0.4.8; RC-09/10/13/15/16/29/32 fixed, verifier independence guarded (bit-equal re-derived bounds), DXF-only mating test in validation stage 0 (sensitivity-bound tolerance, six planted faults FAIL); results under the task and TOLERANCE_POLICY sections 11–13 |
+| 1.5 | Checks that do not depend on the construction | done | `055c846`, `d73ae87` | engine 0.4.8; RC-09/10/13/15/16/29/32 fixed, verifier independence guarded (bit-equal re-derived bounds), DXF-only mating test in validation stage 0 (sensitivity-bound tolerance, six planted faults FAIL); results under the task and TOLERANCE_POLICY sections 11–13; JA labels for the seven new checks; §B green on the merged tree at `d73ae87` (logs `eng-1.5-merged`) |
 | 1.6 | Sampling density | not started | | |
 | 1.7 | Set-on joint, remaining case — design note | done (design) | `2bf369a` | design only |
 | 1.8 | Validation as a permanent gate | in progress (cloud session) | `72312a6`, `6193c3b` | done: `run_all.py` always stops its server (try/finally; shown with a planted exception), `exact_onsurface_check.py` takes a free port; quick corpus after the fix 177 cases, 0 disagree, PASS; FULL corpus as a nightly + manual workflow `geometry-validation-full.yml` (not run yet; a schedule runs only from the default branch). Open: the 2e-9 scale-tolerance decision (left to the other engineer; unchanged), corpus cases for the phase-1 rules, the `vertex_dev` correction from 0.3 |
@@ -380,6 +380,18 @@ Changed expectations are enumerated old -> new in TOLERANCE_POLICY sections 11 a
 INCONCLUSIVE in all 40; zero removals; 335 cases). Cut geometry is byte-identical to 0.4.7 (`develop.rs`
 unchanged). Results of 0.4.7 are REJECTED with G21 recompute. The external-review loop ends with the register
 updated; remaining register rows are the fabrication-engineer questions and the stated UNVERIFIED boundary.
+
+*§B verification (merged tree).* The cloud session's tasks 4.1/1.8/4.3/3.2/3.3/3.5 (already on origin) were merged
+into this branch at `cc5821b`; the `run_all.py` conflict kept both sides (mating inside the new try/finally, still
+part of `selftest_ok`). The first `nf-verify --full` at `394ddb6` failed two suites: fmt (one rustfmt wrap) and ui
+(2 of 247 — the two new seam datum checks had no Japanese label). Fixed by `9cdff26` (rustfmt + the two seam
+labels) and `d73ae87` (the five RC-09 cylinder solid labels, required by the merged 3.3 `labels.rs` test, which
+runs a cylinder job and demands a JA label for every check name); all seven listed for native review in
+LOCALISATION.md (`866c77b`). No test or tolerance was weakened; no expectation changed. `nf-verify --full` at
+`d73ae87`, logs `/root/nf-logs/eng-1.5-merged`: build/test/clippy/fmt rc=0 (35 test binaries ok, incl. `labels.rs`
+and `wording.rs`), e2e 91/0, security 66/0, ui 340/0, desktop 22/0, offline rc=0 (dynamic part disabled on this
+host), i18n 1013 keys/language 0 missing, notices ok; validation quick 177 cases and FULL 1398 cases, 0 disagree,
+0 wrongly accepted, 0 wrongly refused, mating 8/8 ok in stage 0 of both, verdict PASS.
 
 ### 1.6 Sampling density (RB-004)
 - Place polyline vertices at tangent points and at parameter values where curvature is extreme, so the curve's
