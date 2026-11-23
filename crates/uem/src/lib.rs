@@ -18,6 +18,7 @@
 
 pub mod curve_bound;
 pub mod develop;
+pub mod geometry;
 pub mod independent;
 pub mod interval;
 pub mod profile;
