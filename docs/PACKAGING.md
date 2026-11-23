@@ -93,7 +93,8 @@ mentions the desktop setup link.
 | `packaging/NOTICE.txt` | Notice shipped in every package. |
 | `packaging/THIRD_PARTY_NOTICES.txt` | Licence texts of the compiled Rust crates, shipped in every package. Regenerate with `packaging/generate_notices.sh` (cargo-about, config `packaging/about.toml`, template `packaging/about.hbs`); `tests/notices_check.sh` builds the Linux package and fails if it lacks the file, or if the notices list does not match `cargo tree -e normal,build` of `nf-server` for both packaged targets (it runs in the `quality-gate.yml` software job as `bash tests/notices_check.sh target/release/nf-server cargo`). It does not check the installed Windows file: `packaging/verify/windows_checks.sh` checks that `THIRD_PARTY_NOTICES.txt` is present in the installed Windows folder. |
 | `packaging/INSTALL.md` | Install guide, English and Japanese. |
-| `.github/workflows/release.yml` | Builds the packages on a `v*` tag or manually; uploads workflow artefacts only. |
+| `.github/workflows/release.yml` | Builds the packages on a manual run only (Linux runner: all packages; Windows runner: native Windows packages); uploads workflow artefacts only. |
+| `packaging/reproducible.sh` | Shared by the build scripts: fixed times (`SOURCE_DATE_EPOCH`), order, owner and permissions in the archives; Rust and C flags that keep build-folder paths and link times out of the programs (task 4.1; `docs/release/REPRODUCIBILITY.md`). |
 | `tests/desktop_smoke.js` | Browser test of desktop mode (see below). |
 
 The installer:
@@ -133,17 +134,31 @@ Output in `dist/` (ignored by git, as are `*.exe` and binaries in general):
 
 Check: `cd dist && sha256sum -c SHA256SUMS`.
 
-Cross-compilation note: the Windows exe is built with `CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=x86_64-w64-mingw32-gcc`
-(set by `build_all.sh`). `rusqlite` uses its bundled SQLite, so no SQLite DLL is needed.
+Cross-compilation note: the Windows exe is linked by `x86_64-w64-mingw32-gcc`, run through
+`packaging/windows/link-wrapper.sh` (set by `build_all.sh` as `CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER`; it keeps the
+build folder out of the order of the import tables, task 4.1). `rusqlite` uses its bundled SQLite, so no SQLite DLL is needed.
 
 ## Release workflow
 
-`.github/workflows/release.yml` runs on a `v*` tag or manually. On `ubuntu-latest` it
-runs `cargo test --workspace --locked` and builds the Linux packages; on
-`windows-latest` it runs the same tests, installs NSIS if missing, and builds the
-Windows exe, installer and zip natively. Each job checks `SHA256SUMS` and uploads
-its files as a workflow artefact. **It does not create a GitHub release and does not
-publish anything**; the owner decides whether and when to publish.
+`.github/workflows/release.yml` runs on a manual run only (`workflow_dispatch`); it has no tag
+trigger. The `linux` job (`ubuntu-24.04`) installs mingw-w64, NSIS and zip, runs
+`cargo test --workspace --locked` and `packaging/build_all.sh`: the Linux package and the
+cross-built Windows exe, portable zip and installer. The `windows` job (`windows-2025`, Git
+Bash) runs the same tests, installs NSIS (and zip) if missing and builds the Windows packages
+natively (`x86_64-pc-windows-msvc`). Each job checks `SHA256SUMS`, records the SHA-256 of the
+programs in `BINARIES.SHA256SUMS` and uploads its files as a workflow artefact. **It does not
+create a GitHub release or a tag and does not publish anything**; the token is read-only, and
+the owner decides whether and when to publish. Not run yet (task 4.3).
+
+## Reproducible builds
+
+Two builds of one commit give the same SHA-256 values for the three packages and the four
+programs, whatever folder they are built in (task 4.1, shown on a Linux host; see
+`docs/release/REPRODUCIBILITY.md` for the causes removed, the two-build comparison and what
+is not covered). Every time stored is `SOURCE_DATE_EPOCH`: by default the commit time of
+`HEAD`; in a copy without `.git`, set it to the commit time
+(`SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)`), otherwise the build warns and uses the time
+of `Cargo.toml`.
 
 ## Release verification
 
