@@ -800,6 +800,53 @@
   .pattern-info .kv:last-child, .result-meta .kv:last-child { border-bottom: 0; }
   .result-actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
   .viewer-container { min-height: 240px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-inset); overflow: hidden; }
+  /* Flat-pattern viewer (viewer.js draws an SVG with class pv into the host). Rules carried over from the old
+     stylesheet; its colour names are mapped onto this theme's tokens so the viewer follows light and dark. */
+  .viewer-container, .pv-host {
+    --cv: var(--bg-inset); --cv-grid: color-mix(in srgb, var(--border) 55%, transparent); --cv-grid-2: var(--border);
+    --frame: var(--border-strong); --plate: var(--bg-card); --signal: var(--accent); --cut: var(--accent);
+    --mark: var(--text-3); --dim: var(--text-2); --ink: var(--text-1); --ink-2: var(--text-2); --ink-3: var(--text-3);
+    --rule-2: var(--border-strong); --sans: var(--font-sans); --mono: var(--font-mono); --t-s: var(--fs-xs); --t-m: var(--fs-sm);
+    position: relative; height: clamp(320px, 55vh, 640px);
+  }
+  .pv-host{flex:1;min-height:0;position:relative;overflow:hidden}
+  .pv-host>.empty{height:100%}
+  .pv{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none;user-select:none}
+  .pv:focus-visible{outline:2px solid var(--signal);outline-offset:-2px}
+  .pv.panning{cursor:grabbing}
+  .pv .frame{fill:none;stroke:var(--frame);stroke-width:1}
+  .pv .g-minor{stroke:var(--cv-grid);stroke-width:1;fill:none;shape-rendering:crispEdges}
+  .pv .g-major{stroke:var(--cv-grid-2);stroke-width:1;fill:none;shape-rendering:crispEdges}
+  .pv .g-axis{stroke:var(--mark);stroke-width:1;stroke-dasharray:10 3 2 3;fill:none;opacity:.5}
+  .pv .ruler{fill:var(--cv)}
+  .pv .ruler-line{stroke:var(--rule-2);stroke-width:1}
+  .pv .ruler-tick{stroke:var(--mark);stroke-width:1;fill:none;shape-rendering:crispEdges;opacity:.7}
+  .pv .ruler-cur{stroke:var(--signal);stroke-width:1;fill:none;shape-rendering:crispEdges}
+  .pv text{font:400 var(--t-s) var(--sans);font-variant-numeric:tabular-nums;fill:var(--ink-3)}
+  .pv .ruler-unit{fill:var(--ink-3)}
+  .pv .fill{fill:var(--plate);stroke:none}
+  .pv .c{fill:none;stroke:var(--cut);stroke-width:2.25;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+  .pv .c.inner{stroke:var(--cut)}
+  .pv .c.hov{stroke-width:3}
+  .pv .c.sel{stroke-width:3.5}
+  .pv .hit{fill:none;stroke:transparent;stroke-width:13;vector-effect:non-scaling-stroke;pointer-events:stroke;cursor:pointer}
+  .pv .hit.halo{stroke:var(--signal);stroke-opacity:.3}
+  .pv .ghost{fill:none;stroke:var(--ink-3);stroke-width:1.2;stroke-dasharray:6 4;vector-effect:non-scaling-stroke}
+  .pv .dim{stroke:var(--dim);stroke-width:.75;fill:none}
+  .pv .dimh{fill:var(--dim);stroke:none}
+  .pv .dimt{font:400 var(--t-m) var(--sans);fill:var(--dim);paint-order:stroke;stroke:var(--cv);stroke-width:4px;stroke-linejoin:round}
+  .pv .name{font:400 var(--t-s) var(--mono);fill:var(--ink-2);paint-order:stroke;stroke:var(--cv);stroke-width:3.5px;stroke-linejoin:round}
+  .pv .name.inner{fill:var(--ink-2)}
+  .pv .name.sel{fill:var(--ink);font-weight:600}
+  .pv .seam{stroke:var(--mark);stroke-width:1;fill:none;opacity:.8}
+  .pv .snap{fill:var(--cv);stroke:var(--ink);stroke-width:1.5}
+  .pv .endp{fill:var(--ink);stroke:var(--cv);stroke-width:1}
+  .pv .meas{stroke:var(--ink);stroke-width:1;stroke-dasharray:5 3;fill:none}
+  .pv .measp{fill:var(--ink);stroke:var(--cv);stroke-width:1}
+  .pv .meast{fill:var(--ink);font:600 var(--t-s) var(--sans);paint-order:stroke;stroke:var(--cv);stroke-width:4px;stroke-linejoin:round}
+  .pv .scale{stroke:var(--mark);stroke-width:1;fill:none}
+  .pv .scale-bg{fill:var(--cv)}
+
 
   /* ---- tables ---- */
   .ws-content { overflow-x: auto; }
@@ -824,7 +871,9 @@
   .ws-sidebar button[aria-selected="true"], .ws-sidebar button.is-active {
     color: var(--accent); background: var(--accent-soft); border-left-color: var(--accent);
   }
-  .ws-content { display: grid; gap: var(--sp-4); align-content: start; min-width: 0; }
+  .ws-content { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); align-content: start; min-width: 0; }
+  /* screens that reuse the workspace frame without a sidebar (job, AMOEBA, verification, admin) take the full width */
+  .workspace:not(:has(> .ws-sidebar)) { grid-template-columns: minmax(0, 1fr); }
   .ws-content > h2 { margin: 0; font-size: var(--fs-lg); }
   .ws-content > h3 { margin: var(--sp-3) 0 0; font-size: var(--fs-sm); color: var(--text-3); text-transform: uppercase; letter-spacing: .08em; }
 

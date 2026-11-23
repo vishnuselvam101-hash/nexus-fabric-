@@ -422,6 +422,21 @@ async function main() {
       check('K PDF result screen never claims approval', !/approved|承認/i.test(txt), txt.slice(0, 160));
     } catch (e) { check('K PDF result screen never claims approval', false, msgOf(e)); }
 
+    /* ---- 5g4. L: layout - every screen uses the page width and the pattern viewer is drawn ---- */
+    try {
+      const jid = await page.evaluate(async (b) => { const r = await fetch(b + '/api/calculations', { headers: { 'X-NF-Request': '1' } }); const j = await r.json(); const a = Array.isArray(j) ? j : (j.calculations || []); const ok = a.find((c) => c.state === 'REVIEW_REQUIRED' || c.release_state === 'REVIEW_REQUIRED'); return ok ? ok.id : (a.length ? a[0].id : null); }, BASE);
+      const bad = [];
+      for (const hash of ['#/workspace/calculations', `#/job/${jid}`, `#/job/${jid}/pattern`, '#/verification', '#/amoeba', '#/admin', '#/math']) {
+        await page.goto(BASE + '/' + hash, { waitUntil: 'load' }); await page.waitForTimeout(1500);
+        const narrow = await page.evaluate(() => { for (const el of document.querySelectorAll('#view *')) { const w = el.getBoundingClientRect().width; if (w > 0 && w < 300 && el.textContent.trim().length > 300 && !el.closest('aside,nav,.ws-sidebar,td,th,li,.chip,.btn')) return el.tagName.toLowerCase() + '.' + [...el.classList].join('.') + ' w=' + Math.round(w); } return null; });
+        if (narrow) bad.push(hash + ': ' + narrow);
+      }
+      await page.goto(BASE + `/#/job/${jid}/pattern`, { waitUntil: 'load' }); await page.waitForTimeout(1500);
+      const pv = await page.evaluate(() => { const s = document.querySelector('svg.pv'); if (!s) return null; const r = s.getBoundingClientRect(); return { w: r.width, h: r.height, n: s.querySelectorAll('path,polyline,line').length }; });
+      if (!pv || pv.w < 600 || pv.h < 300 || pv.n < 5) bad.push('pattern viewer not drawn: ' + JSON.stringify(pv));
+      check('L every screen uses the page width and the pattern viewer is drawn', bad.length === 0, bad);
+    } catch (e) { check('L every screen uses the page width and the pattern viewer is drawn', false, msgOf(e)); }
+
     /* ---- 5h. H: the Japanese job screen shows no raw engine identifier ---- */
     try {
       if (!jobId) throw new Error('no job from check A');
