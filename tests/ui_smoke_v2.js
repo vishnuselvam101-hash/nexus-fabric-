@@ -402,6 +402,16 @@ async function main() {
       check('G admin audit verification reports a result', false, msgOf(e));
     }
 
+    /* ---- 5g2. I: the reference screens (verification, manufacturing, AMOEBA) render without an error ---- */
+    for (const [hash, name] of [['#/verification', 'verification'], ['#/manufacturing', 'manufacturing'], ['#/amoeba', 'AMOEBA']]) {
+      try {
+        await page.goto(BASE + '/' + hash, { waitUntil: 'load' });
+        await page.waitForFunction(() => { const v = document.querySelector('#view'); return v && v.textContent.trim().length > 40; }, null, { timeout: 15000 });
+        const bad = await page.$$eval('#view .alert.bad', (a) => a.map((x) => x.textContent.trim().slice(0, 120)));
+        check(`I ${name} screen renders without an error`, bad.length === 0, bad);
+      } catch (e) { check(`I ${name} screen renders without an error`, false, msgOf(e)); }
+    }
+
     /* ---- 5h. H: the Japanese job screen shows no raw engine identifier ---- */
     try {
       if (!jobId) throw new Error('no job from check A');
