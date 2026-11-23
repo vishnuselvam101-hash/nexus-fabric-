@@ -15,6 +15,10 @@ use crate::{
 use crate::{not_developable, out_of_range, out_of_range_with, refusal};
 use std::f64::consts::PI;
 
+// Part geometry and the chord-error limit are shared with the verifier and live in `geometry`
+// (neutral ground, work plan task 1.5 RC-15); re-exported here so the established paths keep working.
+pub use crate::geometry::{Branch, MAX_CHORD_ERROR_MM, ObliqueCone};
+
 const ASSUME_REF: &str = "Radii are taken as reference-surface (neutral) radii exactly as entered; thickness, neutral-factor, weld gap, shrinkage and kerf are not modelled.";
 const ASSUME_MODEL: &str = "Mathematical model from Specification 02 (provisional; not independently reviewed; evidence level EV-1).";
 
@@ -46,13 +50,6 @@ pub const SEAM_RESOLUTION_MM: f64 = 1e-9;
 
 // ---------------------------------------------------------------- polyline density (review RB-004)
 
-/// Largest distance between a polyline and the exact curve it stands for that this build accepts,
-/// in millimetres. The number of segments of every polyline is doubled from its base value until
-/// the measured distance is at or below this value. IMPLEMENTATION LIMIT pending engineering
-/// review: the specification (ALG-07, §7.4) asks for a budget derived from the tolerance of the
-/// part, which this build does not have. A part that cannot be represented within the limit with
-/// `MAX_SEGMENTS` segments is refused, not drawn coarser.
-pub const MAX_CHORD_ERROR_MM: f64 = 0.01;
 /// Base number of segments of a branch saddle and of a header opening (uniform in the angle phi).
 pub const SEGMENTS: usize = 720;
 /// Base number of segments of each end curve of an oblique cone (uniform in the angle theta).
@@ -404,41 +401,6 @@ pub fn cone_frustum(r1: f64, r2: f64, h: f64) -> Result<Pattern, UemError> {
     })
 }
 
-/// Geometry of an oblique circular cone frustum between parallel planes.
-#[derive(Clone, Copy, Debug)]
-pub struct ObliqueCone {
-    pub r1: f64,
-    pub r2: f64,
-    pub h: f64,
-    pub e: f64,
-}
-
-impl ObliqueCone {
-    /// Apex (a, 0, hh).
-    pub fn apex(&self) -> (f64, f64) {
-        let k = self.r1 / (self.r1 - self.r2);
-        (self.e * k, self.h * k)
-    }
-    /// rho², written without cancellation: (r1 − a)² + H² + 4·a·r1·sin²(theta/2). Every term is
-    /// non-negative. (The expanded form r1² − 2·a·r1·cos(theta) + a² + H² loses digits when the apex
-    /// lies close to the rim; independent validation measured twice the stated error there, D4.)
-    fn rho2(&self, th: f64) -> f64 {
-        let (a, hh) = self.apex();
-        let s = (0.5 * th).sin();
-        (self.r1 - a) * (self.r1 - a) + hh * hh + 4.0 * a * self.r1 * s * s
-    }
-    pub fn rho(&self, th: f64) -> f64 {
-        self.rho2(th).sqrt()
-    }
-    /// d(psi)/d(theta), Spec 02 eq. (4.1).
-    pub fn dpsi(&self, th: f64) -> f64 {
-        let (a, hh) = self.apex();
-        let s = (0.5 * th).sin();
-        let x = (self.r1 - a) + 2.0 * a * s * s; // r1 − a·cos(theta)
-        self.r1 * hh.hypot(x) / self.rho2(th)
-    }
-}
-
 /// Developed samples of the oblique cone: (theta, rho, psi) on a uniform grid with `steps`
 /// intervals, plus the quadrature error estimate (sum over all panels of the difference between the
 /// last two refinement levels of the adaptive rule). The running sum is compensated, so its rounding
@@ -661,36 +623,6 @@ pub fn eccentric_reducer(r1: f64, r2: f64, h: f64, e: f64) -> Result<Pattern, Ue
             "Seam placed at theta = 0; no seam-placement rule applied.",
         ],
     })
-}
-
-/// Cylinder-on-cylinder branch, upper sheet. Spec 02 eq. (4.3).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Branch {
-    /// Header contact radius.
-    pub big_r: f64,
-    /// Branch contact radius.
-    pub r: f64,
-    /// Angle between axes (rad), 0 < beta < pi.
-    pub beta: f64,
-    /// Offset of branch axis from header axis.
-    pub delta: f64,
-}
-
-impl Branch {
-    pub fn s(&self, phi: f64) -> f64 {
-        let y = self.delta + self.r * phi.cos();
-        ((self.big_r * self.big_r - y * y).sqrt() - self.r * phi.sin() * self.beta.cos())
-            / self.beta.sin()
-    }
-    /// 3D point on the branch surface (header axis = x axis).
-    pub fn point(&self, phi: f64, s: f64) -> [f64; 3] {
-        let (sb, cb) = self.beta.sin_cos();
-        [
-            s * cb - self.r * phi.sin() * sb,
-            self.delta + self.r * phi.cos(),
-            s * sb + self.r * phi.sin() * cb,
-        ]
-    }
 }
 
 /// A-PRIORI BOUND on the rounding error of s(phi) as `Branch::s` evaluates it, for every phi

@@ -16,7 +16,7 @@
 //! I-I/I-L) does not exist yet and the evidence says so.
 
 use crate::curve_bound::{CurveBound, OpeningCurve, SaddleCurve, length_excess_bound};
-use crate::develop::{self, Branch, MAX_CHORD_ERROR_MM, ObliqueCone};
+use crate::geometry::{Branch, MAX_CHORD_ERROR_MM, ObliqueCone};
 use crate::independent::{self, Joint3, V3};
 #[cfg(test)]
 use crate::{Curve, Layer};
@@ -183,8 +183,9 @@ pub fn agree_tol(size: f64) -> f64 {
 // The three 3D-intersection checks of a branch joint (`saddle_matches_3d_intersection`,
 // `opening_matches_3d_intersection` and the two checks of `verify_joint`) compare the pattern with the numerical
 // intersection of `independent::Joint3`. Their tolerance is `agree_tol(size) + 4·bound`, where `bound` is the
-// engine's a-priori error bound of the compared vertices (`develop::saddle_error_bound`,
-// `develop::opening_error_bound`). The threshold says nothing about the verifier's own rounding, which grows as
+// engine's a-priori error bound of the compared vertices, re-derived by the verifier itself
+// (`engine_saddle_error_bound`, `engine_opening_error_bound` below; work plan task 1.5, RC-15). The threshold
+// says nothing about the verifier's own rounding, which grows as
 // 1/sin²(beta) (the root search divides an error of the order u·s by the slope sin(beta)·cos(omega), with s itself of
 // the order (R + r)/sin(beta)). A correct pattern is GUARANTEED to pass a check only when
 //
@@ -193,11 +194,15 @@ pub fn agree_tol(size: f64) -> f64 {
 // with F the a-priori bound below. Where F exceeds that, the check can neither confirm a correct pattern nor tell
 // it from a wrong one, so the engine refuses the angle with its own code (`branch_angle_not_verifiable`) instead
 // of accepting a job that its own verification then fails (G10). Derivation in docs/backend/TOLERANCE_POLICY.md
-// section 7. First-order analysis like `develop::s_error_bound`; u = 2^-53.
+// section 7 (the verifier's rounding) and section 11 (the re-derived engine bound); u = 2^-53.
 // ------------------------------------------------------------------------------------------------------------
 
-/// Unit roundoff.
-const U: f64 = develop::U;
+/// Unit roundoff of binary64.
+const U: f64 = f64::EPSILON / 2.0;
+/// Relative accuracy assumed for sin, cos and asin of the platform mathematical library: one unit
+/// in the last place. The same ASSUMPTION the engine's bounds state, re-stated here so the verifier's
+/// re-derivation needs no import from the engine's code.
+const TRIG: f64 = 2.0 * U;
 /// Largest defect of the stored constants of the tilted frame from an orthonormal frame: |ex·ex − 1| = 1.0 u,
 /// |ey·ey − 1| = 0.47 u, |ez·ez − 1| = 0.28 u, |ex·ez| = 0.17 u, ex·ey = ey·ez = 0 (exact rational evaluation of
 /// the binary64 constants, asserted by `frame_defect_is_at_most_one_unit_roundoff`).
@@ -325,9 +330,91 @@ impl Conditioning {
     }
 }
 
+// ------------------------------------------------------------------------------------------------------------
+// The ENGINE's vertex error, re-derived by the verifier (work plan task 1.5, RC-15).
+//
+// The 3D-intersection checks compare the pattern's vertices with the independent formulation. A correct
+// pattern can differ from the exact curve by the rounding error of the engine's own evaluation, so the
+// tolerance must cover that error. The bounds below are derived from the INPUTS alone, by a first-order
+// rounding analysis of the evaluation sequence Spec 02 documents for the engine (eq. 4.3 and the header
+// chart) — the same sequence the engine implements and bounds for its reported eps_num. The verifier owns
+// this copy and calls nothing in the engine's development code; the two copies are cross-checked against
+// each other on seeded parameter sets, bit for bit (tests/verifier_independence.rs). Derivation and the
+// validation of the engine's copy: docs/backend/TOLERANCE_POLICY.md sections 8.2 and 11.
+// ------------------------------------------------------------------------------------------------------------
+
+/// A-priori bound on the rounding error of the engine's s(phi) (Spec 02 eq. 4.3), re-derived by the
+/// verifier from the inputs. First-order analysis, u = 2^-53, t = 2u the assumed relative error of sin
+/// and cos (one unit in the last place):
+///
+///   y  = fl(delta + fl(r·cos phi))            |dy| <= r·(t + u) + u·|y|
+///   D  = fl(fl(R·R) − fl(y·y))                |dD| <= 4u·R² + 2·R·r·(t + u) + u·D
+///   q  = fl(sqrt(D))                          |dq| <= |dD| / (2·sqrt(D)) + u·sqrt(D)
+///   p  = fl(fl(r·sin phi)·cos beta)           |dp| <= r·(2t + 2u)
+///   s  = fl(fl(q − p) / sin beta)             |ds| <= (|dq| + |dp| + u·|q − p|) / sin beta + |s|·(t + u)
+///
+/// With sqrt(D) <= R, |q − p| <= R + r and D >= R² − (|delta| + r)² this gives the first term below: the
+/// cancellation in R² − y² amplified by the square root, dominant next to tangency. The last term carries
+/// the rounding of the angle itself, beta = fl(beta_deg·fl(pi/180)), |d beta| <= 2u·beta, through
+/// |ds/d beta| = |r sin phi − s cot beta| <= r + (R + r)·|cos beta|/sin² beta: dominant near 0 and 180 degrees.
+/// Second-order terms are below 1e-9 of the bound inside the accepted range. Not an interval evaluation.
+pub fn engine_s_error_bound(b: &Branch) -> f64 {
+    let y_max = b.delta.abs() + b.r;
+    let root = (b.big_r * b.big_r - y_max * y_max).sqrt();
+    let sb = b.beta.sin().abs();
+    ((2.0 * U * b.big_r * b.big_r + b.big_r * b.r * (TRIG + U)) / root
+        + 1.5 * U * b.big_r
+        + b.r * (2.0 * TRIG + 2.0 * U)
+        + (b.big_r + b.r) * (TRIG + 2.0 * U))
+        / sb
+        + engine_ds_dbeta_max(b) * 2.0 * U * b.beta.abs()
+}
+
+/// Upper bound of |ds/d beta| = |r sin phi − s cot beta| over phi (see `engine_s_error_bound`).
+fn engine_ds_dbeta_max(b: &Branch) -> f64 {
+    let sb = b.beta.sin().abs();
+    b.r + (b.big_r + b.r) * b.beta.cos().abs() / (sb * sb)
+}
+
+/// A-priori bound on the distance of a vertex of the developed saddle (r_dev·phi, s) from the exact
+/// developed curve: the bound on s, the rounding of the product r_dev·phi, and the closing vertex,
+/// which is placed at u = fl(2·pi·r_dev) with the height of phi = 0 (|ds/dphi| = r·|cot beta| there).
+pub fn engine_saddle_error_bound(b: &Branch, r_dev: f64) -> f64 {
+    engine_s_error_bound(b) + 2.0 * U * TAU * r_dev + 4.0 * U * TAU * b.r / b.beta.sin().abs()
+}
+
+/// A-priori bound on the distance of a vertex of the developed header opening from the exact point
+/// for the ideal parameter phi_i = 2·pi·i/n. x = station + s·cos beta − r·sin phi·sin beta carries the
+/// bound on s; v = R_dev·(asin(y/R) + pi) carries the conditioning of the arcsine, R/sqrt(R² − y²).
+/// The parameter itself carries three roundings, and a point moves by at most |dP/dphi| times that:
+/// |ds/dphi| <= (R + r)/sin beta and |d(omega)/dphi| <= 1 for every phi.
+pub fn engine_opening_error_bound(b: &Branch, r_dev_header: f64, station: f64) -> f64 {
+    let (sb, cb) = (b.beta.sin().abs(), b.beta.cos().abs());
+    let y_max = b.delta.abs() + b.r;
+    let root = (b.big_r * b.big_r - y_max * y_max).sqrt();
+    let s_abs = (b.big_r + b.r) / sb;
+    let d_phi = 4.0 * U * TAU;
+    // the rounding of beta moves x = station + s·cos beta − r·sin phi·sin beta by at most
+    // |ds/d beta|·cos beta + s·sin beta + r times 2u·beta
+    let bound_beta = 2.0 * U * b.beta.abs() * (engine_ds_dbeta_max(b) * cb + (b.big_r + b.r) + b.r);
+    let bound_x = engine_s_error_bound(b) * cb
+        + bound_beta
+        + s_abs * cb * (TRIG + U)
+        + b.r * (2.0 * TRIG + 2.0 * U)
+        + U * (s_abs * cb + b.r)
+        + U * (station.abs() + s_abs * cb + b.r)
+        + (s_abs * cb + b.r) * d_phi;
+    let d_y = b.r * (TRIG + U) + U * y_max;
+    let d_omega = (d_y + U * b.big_r) / root + TRIG * 0.5 * std::f64::consts::PI;
+    // the constant pi of binary64 is 1.3e-16 below pi; the sum omega + pi and the product add one rounding each
+    let bound_v =
+        r_dev_header * (d_omega + 1.3e-16 + 3.0 * U * std::f64::consts::PI) + r_dev_header * d_phi;
+    bound_x + bound_v
+}
+
 /// The conditioning of the 3D-intersection check of a branch stub (`verify_branch`).
 pub fn branch_stub_conditioning(b: &Branch, r_dev: f64, s_end: f64) -> Vec<Conditioning> {
-    let saddle = develop::saddle_error_bound(b, r_dev);
+    let saddle = engine_saddle_error_bound(b, r_dev);
     vec![Conditioning {
         checks: &["saddle_matches_3d_intersection"],
         rounding: saddle_check_rounding(b),
@@ -346,8 +433,8 @@ pub fn header_with_branch_conditioning(
     r_dev_branch: f64,
     s_end: f64,
 ) -> Vec<Conditioning> {
-    let open = develop::opening_error_bound(b, r_dev_header, station);
-    let saddle = develop::saddle_error_bound(b, r_dev_branch);
+    let open = engine_opening_error_bound(b, r_dev_header, station);
+    let saddle = engine_saddle_error_bound(b, r_dev_branch);
     let mut v = branch_stub_conditioning(b, r_dev_branch, s_end);
     v.push(Conditioning {
         checks: &["opening_matches_3d_intersection"],
@@ -999,7 +1086,7 @@ pub fn verify_branch(p: &Pattern, b: &Branch, r_dev: f64, s_end: f64) -> Vec<Che
     // The rounding bound of the closed form is computed here from the INPUTS (not read from the pattern):
     // near tangency both methods are equally ill-conditioned, and the threshold may not be below that.
     let j = Joint3::new(b.big_r, b.r, b.beta, b.delta, 0.0);
-    let bound = develop::saddle_error_bound(b, r_dev);
+    let bound = engine_saddle_error_bound(b, r_dev);
     let tol3 = agree + 4.0 * bound;
     let n = cut.len().saturating_sub(1);
     let usable = n >= 8 && n.is_multiple_of(4);
@@ -1245,7 +1332,7 @@ pub fn verify_header_opening(
     // The polyline declares uniform sampling in the branch angle; which way round it runs is not assumed:
     // both directions are tried and the better one counts (a mirrored opening matches neither).
     let j = Joint3::new(b.big_r, b.r, b.beta, b.delta, station);
-    let tol3 = agree + 4.0 * develop::opening_error_bound(b, r_dev_header, station);
+    let tol3 = agree + 4.0 * engine_opening_error_bound(b, r_dev_header, station);
     let n = pts.len().saturating_sub(1);
     let usable = n >= 8 && n.is_multiple_of(4);
     let plate_at = |phi: f64| -> Option<P2> {
@@ -1553,8 +1640,8 @@ pub fn verify_joint(
     let jb = Joint3::in_frame(frame, bb.big_r, bb.r, bb.beta, bb.delta, station);
     let tol = agree
         + 4.0
-            * (develop::opening_error_bound(hb, r_dev_header, station)
-                + develop::saddle_error_bound(bb, r_dev_branch));
+            * (engine_opening_error_bound(hb, r_dev_header, station)
+                + engine_saddle_error_bound(bb, r_dev_branch));
     // opening vertices on the header surface the opening was cut to
     let open3: Vec<V3> = hole_points(header)
         .iter()
@@ -1591,10 +1678,11 @@ pub fn verify_joint(
         }
         worst
     };
-    // The two folded polylines are the same polygon when both parts share one sampling (develop::*_min), so a
-    // comparison of their 3D lengths adds nothing to the two point checks above; and the 3D length of a
-    // near-tangent curve cannot be resolved to the 1e-5 that cmp_resolved requires, so that check was INCONCLUSIVE
-    // for valid near-tangent joints. It is removed (review RB-001; validation run of 20 Nov 2026).
+    // The two folded polylines are the same polygon when both parts share one sampling (the engine's
+    // minimum-density builders), so a comparison of their 3D lengths adds nothing to the two point
+    // checks above; and the 3D length of a near-tangent curve cannot be resolved to the 1e-5 that
+    // cmp_resolved requires, so that check was INCONCLUSIVE for valid near-tangent joints. It is
+    // removed (review RB-001; validation run of 20 Nov 2026).
     vec![
         cmp(
             "opening_on_intersection_of_branch_geometry",
