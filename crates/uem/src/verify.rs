@@ -2914,11 +2914,11 @@ mod tests {
         };
         let n = pts.len() - 1;
         let pivot = pts[0];
-        for i in 1..n {
+        for (i, q) in pts.iter_mut().enumerate().take(n).skip(1) {
             let ang = eps * (std::f64::consts::PI * i as f64 / n as f64).sin();
             let (s, c) = ang.sin_cos();
-            let d = P2::new(pts[i].x - pivot.x, pts[i].y - pivot.y);
-            pts[i] = P2::new(pivot.x + c * d.x - s * d.y, pivot.y + s * d.x + c * d.y);
+            let d = P2::new(q.x - pivot.x, q.y - pivot.y);
+            *q = P2::new(pivot.x + c * d.x - s * d.y, pivot.y + s * d.x + c * d.y);
         }
         // the old distance-only comparison: every distance from outer[0] is unchanged, so it passes
         let g = ObliqueCone { r1, r2, h, e };
@@ -2981,6 +2981,48 @@ mod tests {
         assert_eq!(verdict_of(&v, "outline_counter_clockwise"), Verdict::Pass);
         assert_eq!(verdict_of(&v, "seam_edges_equal_length"), Verdict::Pass);
         assert_eq!(verdict_of(&v, "seam_equals_3d_ruling"), Verdict::Pass);
+    }
+
+    /// RC-29: the verifiers were never given a mirrored reducer. Before 0.4.7 every
+    /// eccentric check was invariant to a mirror of the whole plate (lengths, unsigned area, seam-point
+    /// distances), so a wrong-handed plate passed. The register's verdict on the test gap is that it hides no
+    /// defect beyond RC-10: this test pins that the mirror is now named, and by which checks. The mirror is an
+    /// isometry, so every length check keeps its verdict (the two circumference checks stay INCONCLUSIVE by
+    /// design, 8.2); the handedness-sensitive checks are what fail. The open large-end curve alone is not
+    /// proper-rotation-congruent to its mirror either — the directed check names it without closing the outline.
+    #[test]
+    fn rc29_mirrored_reducer_is_named_by_every_handedness_sensitive_check() {
+        let (r1, r2, h, e) = (200.0, 100.0, 300.0, 100.0);
+        let p = eccentric_reducer(r1, r2, h, e).unwrap();
+        assert!(
+            !verify_eccentric(&p, r1, r2, h, e)
+                .iter()
+                .any(|c| c.verdict == Verdict::Fail),
+            "the genuine development must not fail"
+        );
+        let mut m = p.clone();
+        mirror_x(&mut m);
+        let v = verify_eccentric(&m, r1, r2, h, e);
+        // handedness and datums: the mirror flips the orientation, the signed area and both seam rays
+        assert_eq!(verdict_of(&v, "outline_counter_clockwise"), Verdict::Fail);
+        assert_eq!(verdict_of(&v, "area"), Verdict::Fail);
+        assert_eq!(
+            verdict_of(&v, "apex_free_development_agrees"),
+            Verdict::Fail
+        );
+        assert_eq!(verdict_of(&v, "seam_a_on_positive_x"), Verdict::Fail);
+        assert_eq!(verdict_of(&v, "seam_b_at_development_angle"), Verdict::Fail);
+        // lengths are mirror-invariant: their verdicts are exactly those of the genuine plate
+        assert_eq!(verdict_of(&v, "seam_edges_equal_length"), Verdict::Pass);
+        assert_eq!(verdict_of(&v, "seam_equals_3d_ruling"), Verdict::Pass);
+        assert_eq!(
+            verdict_of(&v, "large_edge_equals_circumference"),
+            Verdict::Inconclusive
+        );
+        assert_eq!(
+            verdict_of(&v, "small_edge_equals_circumference"),
+            Verdict::Inconclusive
+        );
     }
 
     /// RC-09 reproducer: a rectangle turned 90° (a proper rotation, so still counter-clockwise) keeps every
