@@ -124,8 +124,9 @@
 <template id="t-result">
   <section class="result" aria-labelledby="result-heading">
     <div class="badge" role="status">
-      <svg class="icon icon-xl badge-icon" aria-hidden="true"><use href="#i-check"/></svg>
-      <h1 id="result-heading" class="badge-label" data-i18n="result.approved">APPROVED</h1>
+      <svg class="icon icon-xl badge-icon" aria-hidden="true"><use href="#i-file"/></svg>
+      <!-- filled by the result view from the server's state; never a default verdict -->
+      <h1 id="result-heading" class="badge-label"></h1>
     </div>
     <div id="checks-grid" class="checks-grid" role="list" aria-label="Verification checks"></div>
     <div class="result-actions">

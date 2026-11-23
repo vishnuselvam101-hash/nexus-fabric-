@@ -1759,6 +1759,8 @@ const SENT = [
   ["Surface reference declared by the user as '{t}'.", "半径の基準面は、ユーザーにより「{1}」と宣言されています。"],
   ["Thickness is not modelled and no k is assumed; an engineer must confirm the radii before use.", "板厚はモデル化しておらず、`k` も仮定していません。使用する前に、技術者が半径を確認する必要があります。"],
   ["{w} = {n} is at most half the outside contact radius {w} = {n}: the reference surface r_dev = r_i + k*t, 0 < k <= 0.5 (Spec 02 §6.1) then needs an inner radius below {n} and a wall thicker than {n} - {n}, and a neutral surface at mid-thickness (k = 0.5) is impossible; the radii are consistent only for k <= 0.25.", "`{1}` = {2} は、外面の取合い半径 `{3}` = {4} の半分以下です。基準面 `r_dev = r_i + k*t`（0 < k <= 0.5、仕様書02 §6.1）では、内半径が {5} 未満、板厚が {6} - {7} より厚い必要があり、板厚中央の中立面（k = 0.5）は成り立ちません。半径が整合するのは k <= 0.25 の場合だけです。"],
+  // engine 0.4.9: the surface-unknown reason arrives in English only
+  ["surface unknown: cannot tell which surface the radius is on, so the radius check cannot be confirmed.", "基準面が不明です: 半径がどの面を指すか判別できないため、半径に関する検査は確定できません。"],
 ];
 
 const WHOLE = [
@@ -1878,7 +1880,7 @@ const WHOLE = [
   ["saddle cut (bottom edge, fits the header) and square end (top edge, Y = {n} mm)", "相貫切断線（下辺、母管に合う）と直切り端（上辺、Y = {1} mm）"],
   ["seam_a and seam_b, the two edges parallel to X at Y = {n} and Y = {n} mm; the seam is diametrically opposite the branch", "`seam_a` と `seam_b`：Y = {1} と Y = {2} mm にある、Xに平行な2本の辺です。継目は枝管の正反対の位置です"],
   ["seam_a and seam_b, the two edges parallel to Y at X = {n} and X = {n} mm", "`seam_a` と `seam_b`：X = {1} と X = {2} mm にある、Yに平行な2本の辺です"],
-  ["surface unknown: cannot tell which surface the radius is on, so the radius check cannot be certified. / 基準面が不明です: 半径がどの面を指すか判別できないため、半径に関する検査は確定できません。", "基準面が不明です：半径がどの面を指すか判別できないため、半径に関する検査は確定できません。"],
+  ["surface unknown: cannot tell which surface the radius is on, so the radius check cannot be confirmed. / 基準面が不明です: 半径がどの面を指すか判別できないため、半径に関する検査は確定できません。", "基準面が不明です：半径がどの面を指すか判別できないため、半径に関する検査は確定できません。"],
   ["theta = X / R_dev, R_dev = {n} mm: theta = 0 at the seam (X = 0), increasing with X; counter-clockwise seen from the end Y = {n} mm looking toward Y = 0", "`theta` = X / `R_dev`、`R_dev` = {1} mm：`theta` = 0 は継目（X = 0）で、Xとともに増えます。Y = {2} mm の端から Y = 0 の方向を見て反時計回りです"],
   ["A branch whose outside surface is the contact would have its opening cut at the outside diameter, so it would pass through the hole; this build has no wall thickness from which the bore could be derived", "外面を取合いとする枝管では、開口が外径で切断されるため、枝管が穴を通過してしまいます。このビルドには板厚がなく、内径を導くことができません"],
   ["A branch whose outside surface is the contact would have its opening cut at the outside diameter, so it would pass through the hole; this build has no wall thickness from which the bore could be derived\", detail: [] }", "外面を取合いとする枝管では、開口が外径で切断されるため、枝管が穴を通過してしまいます。このビルドには板厚がなく、内径を導くことができません\", detail: [] }"],

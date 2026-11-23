@@ -412,6 +412,16 @@ async function main() {
       } catch (e) { check(`I ${name} screen renders without an error`, false, msgOf(e)); }
     }
 
+    /* ---- 5g3. K: the PDF result screen never claims approval ---- */
+    try {
+      const rid = await page.evaluate(() => { try { const r = JSON.parse(localStorage.getItem('nf_recent') || '[]'); return r.length ? r[0].id : null; } catch { return null; } });
+      if (rid == null) throw new Error('no conversion id in the recent list');
+      await page.goto(BASE + '/#/r/' + rid, { waitUntil: 'load' });
+      await page.waitForFunction(() => { const l = document.querySelector('#view .badge-label'); return l && l.textContent.trim().length > 0; }, null, { timeout: 15000 });
+      const txt = await page.$eval('#view', (v) => v.innerText);
+      check('K PDF result screen never claims approval', !/approved|承認/i.test(txt), txt.slice(0, 160));
+    } catch (e) { check('K PDF result screen never claims approval', false, msgOf(e)); }
+
     /* ---- 5h. H: the Japanese job screen shows no raw engine identifier ---- */
     try {
       if (!jobId) throw new Error('no job from check A');

@@ -1,5 +1,6 @@
 import { api, esc } from '../api.js';
 import { pollConversion } from '../lib/poll.js';
+import { t } from '../i18n.js';
 
 let root = null;
 let stopPolling = null;
@@ -38,23 +39,12 @@ function renderSuccess(c, id) {
   const label = root.querySelector('.badge-label');
   const icon = root.querySelector('.badge-icon use');
 
-  const state = c.release_state || 'APPROVED';
-  if (state === 'APPROVED') {
-    badge.classList.add('badge--approved');
-    label.textContent = state;
-    icon.setAttribute('href', '#i-check');
-  } else if (state === 'REVIEW_REQUIRED') {
-    badge.classList.remove('badge--approved');
-    label.textContent = 'REVIEW REQUIRED';
-    icon.setAttribute('href', '#i-alert');
-  } else if (state === 'REFUSED' || state === 'SUPERSEDED') {
-    badge.classList.add('badge--refused');
-    label.textContent = state;
-    icon.setAttribute('href', '#i-cross');
-  } else {
-    badge.classList.add('badge--approved');
-    label.textContent = state;
-  }
+  // A PDF conversion is never verified or released; show that, never a default verdict.
+  badge.classList.remove('badge--approved');
+  badge.classList.add('warn');
+  label.textContent = t('cv2.label');
+  if (c.label) label.title = c.label;
+  icon.setAttribute('href', '#i-alert');
 
   renderChecks(c);
   renderPatternInfo(c);
