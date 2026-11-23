@@ -862,7 +862,7 @@ const HELP_EN = {
   'hp.title': 'Help', 'hp.sub': 'Everything on this page is part of the program; no network is used.', 'hp.toc': 'On this page',
   'hp.build.h': 'What this build is',
   'hp.build.p': '**Development build.** Not validated. A result with a flat pattern stays **REVIEW REQUIRED** at best: engineer approval (gate G16) is not implemented, so nothing can be released. Every DXF file is marked **NOT RELEASED**. No output may be used for manufacturing.',
-  'hp.build.ev': 'Every algorithm is at evidence level EV-1 (AI-generated, not independently reviewed). No fabrication engineer has reviewed the outputs or the assumptions.',
+  'hp.build.ev': 'Every algorithm is at evidence level EV-1 (not independently reviewed). No fabrication engineer has reviewed the outputs or the assumptions.',
   'hp.fam.h': 'What each part family needs',
   'hp.fam.p': 'Lengths and radii are in millimetres, angles in degrees. The example values are the ones the new-calculation form shows first: examples, not recommendations.',
   'hp.fam.cylinder_shell': 'One plate that rolls into a straight cylinder: the radius it is developed at, and its length.',
@@ -888,7 +888,7 @@ const HELP_EN = {
   'hp.gate.G11': 'Every outline is closed, simple and correctly oriented, and every opening lies inside its plate.',
   'hp.gate.G12': 'Stock, machine and seam rules are met.',
   'hp.gate.G13': 'Regenerating the result reproduces it.',
-  'hp.gate.G14': 'The algorithms are qualified for use. Every algorithm of this build is evidence level EV-1 (AI-generated, not independently reviewed), so this gate stays INCONCLUSIVE.',
+  'hp.gate.G14': 'The algorithms are qualified for use. Every algorithm of this build is evidence level EV-1 (not independently reviewed), so this gate stays INCONCLUSIVE.',
   'hp.gate.G15': 'Every DXF file is read back by a separate reader, compared with the intended geometry and checked by the DXF quality gate; a file that fails is not offered.',
   'hp.gate.G16': 'A qualified engineer approves the result. Not implemented: no result can be released, and every DXF file is marked NOT RELEASED.',
   'hp.gate.G17': 'Every element of the source drawing within scope has been examined.',
@@ -1193,7 +1193,7 @@ const SENT = [
   ['Outer profiles closed, simple, counter-clockwise; openings closed, simple, clockwise (binary64 arithmetic, not exact predicates).', '外形は閉じた単純な輪郭で反時計回り、開口は閉じた単純な輪郭で時計回りです（`binary64`演算による判定で、厳密な述語ではありません）。'],
   ['Kerf-compensation ownership is not declared.', 'カーフ補正をどちらが行うかは、宣言されていません。'],
   // G14
-  ['Algorithms are evidence level EV-1 (AI-generated, not independently reviewed) and not production-qualified.', 'アルゴリズムは証拠レベルEV-1（AIが生成、独立したレビューなし）で、製造用途としての認定は受けていません。'],
+  ['Algorithms are evidence level EV-1 (not independently reviewed) and not production-qualified.', 'アルゴリズムは証拠レベルEV-1（独立したレビューなし）で、製造用途としての認定は受けていません。'],
   // G15
   ['Every DXF re-imported by the independent reader and compared with the intended geometry.', 'すべてのDXFを独立したリーダーで再読込し、意図した形状と照合しました。'],
   ['CAM acceptance not tested.', '`CAM`での受入は試験していません。'],

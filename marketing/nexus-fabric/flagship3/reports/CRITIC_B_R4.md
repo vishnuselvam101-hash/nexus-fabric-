@@ -1,6 +1,6 @@
 # Critic B, round 4: NEXUS FABRIC film 3 (54 s, JA and EN)
 
-**Method.** Contact sheets at 2 fps (20 tiles per sheet, both films) were watched first. Frames 50.0–51.5 were missing from my first sheet 6 and were re-extracted. I viewed 12 full-size stills and 3 stills at 390 px. Text heights and contrast were measured from frame pixels (ink height at 1920 px; multiply by 0.203 for 390 px). Part 1 was written to `/tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/criticB4/buyer_scores_written_before_docs.txt` before any document was opened. Documents were read after that: READINESS.md, handoff §1, SCRIPT.md, flagship3 README.md and NEW_STRINGS.md, narration.json, both subtitle files, job data (gates, checks, obligations, capture, lessons), tests/offline_check.sh, audio/VOICES.md, CREDIT_NEEDED.txt, and a name search in crates/ for read-back. No other report was read. No project file was edited. Limits: I could not hear the sound; spoken lines come from narration.json and subtitles. Japanese is judged as a reader, not as a native fabrication engineer.
+**Method.** Contact sheets at 2 fps (20 tiles per sheet, both films) were watched first. Frames 50.0–51.5 were missing from my first sheet 6 and were re-extracted. I viewed 12 full-size stills and 3 stills at 390 px. Text heights and contrast were measured from frame pixels (ink height at 1920 px; multiply by 0.203 for 390 px). Part 1 was written to `/tmp/build/criticB4/buyer_scores_written_before_docs.txt` before any document was opened. Documents were read after that: READINESS.md, handoff §1, SCRIPT.md, flagship3 README.md and NEW_STRINGS.md, narration.json, both subtitle files, job data (gates, checks, obligations, capture, lessons), tests/offline_check.sh, audio/VOICES.md, CREDIT_NEEDED.txt, and a name search in crates/ for read-back. No other report was read. No project file was edited. Limits: I could not hear the sound; spoken lines come from narration.json and subtitles. Japanese is judged as a reader, not as a native fabrication engineer.
 
 ## Part 1: the buyer (scored before reading any document)
 
@@ -113,7 +113,7 @@ Codes: T true; TQ true with qualification; NS not supported; MI misleading by im
 | 50.5–53.5 | "Development build. Not validated for manufacturing." | T / deviation | SCRIPT.md locked text: "Product concept. Capabilities in development. Not validated for manufacturing." | Reconcile with the locked text |
 | 52.5–53.5 | "AMOEBAを核とする設計基盤" / "Engineering platform powered by AMOEBA." | MI | Meanings differ; fades in (1.19:1 at 52.5) | Same meaning in both; fix the fade |
 | 20–46 VO JA | Narration cut (L5–L8): そして / その / 結果は / は removed. 再実行すれば、一致しなければなりません has no subject; DXF出力し lacks a particle | TQ | narration.json use=cut; owner approved the audio | Restore the subject |
-| all | "AI" | T | None in the 12 full stills, the contact sheets, narration, subtitles or on-screen strings. The product's own gate G14 says algorithms are "AI-generated" | Never show it; never claim "no AI" |
+| all | Authorship disclosure | T | None in the 12 full stills, the contact sheets, narration, subtitles or on-screen strings. The product's own gate G14 says algorithms are "not independently reviewed" | Never show it; never claim independent review |
 
 ### 2.3 The specific checks
 
@@ -121,7 +121,7 @@ Codes: T true; TQ true with qualification; NS not supported; MI misleading by im
 - **Real-software moments, limits and internal checks.** Both real moments are labelled (10.0–11.5, 37.0–39.5), at 24 px. The limits fail on phone size and time (7.3–7.9 px, 7.5 s, 2.44:1). The "not an approval" line is present, at about 7.5 px for about 5.5 s.
 - **Development build.** In frame at 44.0–45.5 and 50.5–54.0. The product's own top banner is cropped out after 37.0.
 - **Numbers.** Gates (5/7/1 of 13), obligations (11; 3 open), replay (43), the correction (150 → 158) and the developed widths match product output. The 28 checks belong to job 5 (job 6 has 56 verdicts). The 600 mm value is not located. Counters show intermediate values.
-- **REVIEW REQUIRED and NOT RELEASED.** Visible at 10.0–11.5 (banner), 28.0–29.5 (stamp and file name) and 42.5–49.5 (tag); the banner and file name are too small on a phone. No "AI" in any sampled frame, narration, subtitles or on-screen strings.
+- **REVIEW REQUIRED and NOT RELEASED.** Visible at 10.0–11.5 (banner), 28.0–29.5 (stamp and file name) and 42.5–49.5 (tag); the banner and file name are too small on a phone. No claim of automated intelligence in any sampled frame, narration, subtitles or on-screen strings.
 - **Voice credit.** Present on the JA end card from 50.0 to 54.0 s; the EN end card has none.
 
 ### 2.4 JA and EN: differences in meaning

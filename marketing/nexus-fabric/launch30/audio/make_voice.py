@@ -34,7 +34,7 @@ PAUSE_CAPS = [None, 0.34, 0.26, 0.22]                # optional tightening of in
 
 # Text normalisation for the synthesiser only (subtitles keep the script text).
 EN_SAY = [("NEXUS FABRIC", "Nexus Fabric"), ("AMOEBA", "Amoeba")]
-JA_SAY = [("NEXUS FABRIC", "ネクサス・ファブリック"), ("AMOEBA", "アメーバ"), ("AI", "エーアイ"),
+JA_SAY = [("NEXUS FABRIC", "ネクサス・ファブリック"), ("AMOEBA", "アメーバ"),
           ("3D", "スリーディー"), ("CAD", "キャド")]
 
 

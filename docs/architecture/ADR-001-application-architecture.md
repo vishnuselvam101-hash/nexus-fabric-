@@ -8,7 +8,7 @@ The product must run as a single factory server with no internet, as an on-premi
 ## Options
 1. **Monolith** — one process. Simple to ship on-premises; no isolation of parsers/native code; trust zones are only module boundaries.
 2. **Microservices** — one deployable per service. Good isolation and scaling; heavy to operate on a single factory machine; distributed-systems failure modes from day one.
-3. **Modular core + isolated workers** — one backend deployable containing orchestration, data access and APIs, with contract-defined modules; untrusted parsing, AI inference and native geometry run as separate sandboxed worker processes pulled from a durable job queue. The same workers can be spread across machines in larger deployments.
+3. **Modular core + isolated workers** — one backend deployable containing orchestration, data access and APIs, with contract-defined modules; untrusted parsing, automated-reading inference and native geometry run as separate sandboxed worker processes pulled from a durable job queue. The same workers can be spread across machines in larger deployments.
 
 ## Decision (proposed)
 Option 3.

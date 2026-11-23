@@ -99,14 +99,14 @@ PDF files may embed fonts with their own licences; we extract and render for int
 
 **Open decision:** DWG path — (a) ODA membership, (b) DXF-only at first with DWG converted by the customer, (c) GPL tool as an isolated optional component subject to counsel. Recommendation pending cost and legal input: (b) for the first pilot unless the factory's inputs are predominantly DWG (**factory information required**).
 
-## 7. OCR and AI models
+## 7. OCR and automated-reading models
 
 | Component | Licence | Notes | Source |
 |---|---|---|---|
 | Tesseract | Apache-2.0 | Trained data files licensed separately (TBV) | github.com/tesseract-ocr/tesseract LICENSE |
 | PaddleOCR | Apache-2.0 (secondary sources; TBV from repository) | Model weights and training-data terms must be checked individually | — |
 | Other vision / layout / VLM models | Varies widely (permissive, research-only, RAIL-type use restrictions) | **Code licence ≠ weights licence ≠ training-data terms** | — |
-| External AI APIs | Contract terms | Data retention, training use, region of processing; must satisfy customer AI policy | — |
+| External reading APIs | Contract terms | Data retention, training use, region of processing; must satisfy customer automated-reading policy | — |
 
 **Rules proposed**
 
@@ -141,7 +141,7 @@ Nothing is adopted yet. Process to put in place before the first line of product
 3. Whether process separation changes the copyleft analysis for GPL/AGPL components.
 4. DWG: technology choice, format and trademark issues.
 5. PDF library choice (AGPL/GPL exposure); embedded fonts.
-6. AI model weights and datasets; external AI service contracts; customer-data training permissions.
+6. Reading-model weights and datasets; external reading-service contracts; customer-data training permissions.
 7. Allow-list of licences for automated gating; treatment of MPL/LGPL crates.
 8. Export-control classification and Japanese-law considerations for customer drawing data.
 9. Patent landscape and freedom to operate (Document 09).

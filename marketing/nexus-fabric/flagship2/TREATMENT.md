@@ -21,7 +21,7 @@ Everything on a product screen is the application running, photographed frame by
 | 8 | Reading drawings is planned. The calculation, the checks, the record: running today. | 図面の読み取りは計画中。計算・検証・記録は、いま動いています。 |
 | 9 | NEXUS FABRIC. Engineering, reimagined. | NEXUS FABRIC。設計を、再定義。 |
 
-What the voice never says: AI doing anything, drawings being read, 3D reconstruction, manufacturing constraints, nesting, CNC, approval, thickness, "zero errors", customers. The one planned item (reading drawings) is said once, as planned, in line 8, and is on screen as "AI drawing interpretation: planned" for exactly as long as the owner's positioning line is.
+What the voice never says: automated intelligence doing anything, drawings being read, 3D reconstruction, manufacturing constraints, nesting, CNC, approval, thickness, "zero errors", customers. The one planned item (reading drawings) is said once, as planned, in line 8, and is on screen as "Automated drawing reading: planned" for exactly as long as the owner's positioning line is.
 
 ## Shot list
 
@@ -40,7 +40,7 @@ Times are those of the locked voice slots (`audio/vo-timing.json`); the film pag
 | 8 | 24.3–27.8 | 5 | The pointer presses "Run replay audit". The Records tab answers REPLAY MATCH; the list of records; one record opened to its stored payload. | Live [records]; record count and closure hash from the job. | Implemented: record of every step, replay |
 | 9 | 27.8–32.8 | 6 | Gates tab. The summary as the application shows it (5 pass · 7 inconclusive · 1 not implemented), down the list to "human approval — NOT IMPLEMENTED", up to the job's state tag: REVIEW REQUIRED. | Live [gates], captured after the replay so the summary is the complete one. | Implemented: gates · engineer approval is not implemented and is shown as such |
 | 10 | 32.8–38.2 | 7 | The pointer presses "DXF · not released". The real file streams past as text; its own coordinates are read back and drawn over the pattern; the file's NOT RELEASED annotation and its name stay. | Live [dxf]; the DXF downloaded in that capture, parsed in the page. | Implemented: DXF written, re-read, compared, marked not released |
-| 11 | 38.2–44.4 | 8 | The drawn curve tightens into the product's mark; the wordmark sets beside it. The owner's positioning line appears once, with "AI drawing interpretation: planned" at the same size beside it for the same time. Three words — calculation, checks, record — are ticked as running. | The application's own mark glyph. | Planned: AI drawing interpretation (once, on screen and in the voice) |
+| 11 | 38.2–44.4 | 8 | The drawn curve tightens into the product's mark; the wordmark sets beside it. The owner's positioning line appears once, with "Automated drawing reading: planned" at the same size beside it for the same time. Three words — calculation, checks, record — are ticked as running. | The application's own mark glyph. | Planned: automated drawing reading (once, on screen and in the voice) |
 | 12 | 44.4–50.0 | 9 | End card: NEXUS FABRIC — Engineering, Reimagined. · Request a demonstration · the disclaimer, legible from the first frame of the end card (38.2 s) to the last. | — | Product concept. Capabilities in development. Not validated for manufacturing. |
 
 ## Continuity (how each shot hands over)

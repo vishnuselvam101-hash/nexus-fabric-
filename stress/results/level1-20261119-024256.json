@@ -10,7 +10,7 @@
    0.67138671875
   ]
  },
- "binary": "/tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/nf-server",
+ "binary": "/tmp/build/stress/nf-server",
  "details": {
   "workload": "single admin user: project, 5 families (calc, get, DXF), replay every 5th, correction, listings, audit verify",
   "fails": []

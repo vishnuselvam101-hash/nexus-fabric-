@@ -6,7 +6,7 @@
 
 We are designing software that turns fabrication drawings into cutting files and checks its own work. To do that it must know **which things depend on which** in a fabricated assembly: if a header diameter was misunderstood, what else is now wrong?
 
-We wrote 56 short statements of such relationships for three situations. **They were written by an AI system, not by an engineer. None has been checked.** We need someone who has actually built these parts to tell us which are right, which are wrong, and what is missing.
+We wrote 56 short statements of such relationships for three situations. **They are at evidence level EV-1 and have not been independently reviewed; they were not written by an engineer.** We need someone who has actually built these parts to tell us which are right, which are wrong, and what is missing.
 
 You do not need to know anything about the software.
 

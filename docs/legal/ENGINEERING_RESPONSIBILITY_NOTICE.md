@@ -21,7 +21,7 @@ advice; not in force. The facts below follow `docs/project/READINESS.md` and `do
 NEXUS FABRIC computes flat patterns and writes DXF files from dimensions entered by its user. It is a
 **development build**:
 - It is not validated. No qualified fabrication engineer has reviewed its engineering rules or its outputs
-  (0 of 56 engineering statements reviewed). Its engineering rules were written with AI assistance and have
+  (0 of 56 engineering statements reviewed). Its engineering rules are evidence level EV-1 and have
   not been independently reviewed.
 - An independent check of the geometry exists and is still in progress; passing the automated software checks
   does not mean the geometry or the fabrication rules are right.
@@ -71,13 +71,13 @@ warning.]
 NEXUS FABRIC は、利用者が入力した寸法から展開図を計算し、DXF ファイルを出力するソフトウェアです。本ソフトウェアは
 **開発版**です。
 - 妥当性確認は行われていません。資格を有する製缶・板金技術者による技術規則及び出力の審査は行われていません
-  （56 項目の技術的記述のうち審査済みは 0 項目）。技術規則は AI の支援を受けて作成されたものであり、独立した審査を
+  （56 項目の技術的記述のうち審査済みは 0 項目）。技術規則は証拠レベル EV-1 で、独立した審査を
   受けていません。
 - 形状の独立検証は存在しますが、まだ完了していません。自動ソフトウェア検査に合格したことは、形状や製作上の規則が
   正しいことを意味しません。
 - **いかなる結果も APPROVED（承認済み）の状態には到達しません。** 技術者による承認機能は実装されていません。
   すべての DXF ファイルには **NOT RELEASED（未リリース）** の表示が付されます。
-- 本ソフトウェアは人工知能の構成要素を含みません。完全にオフラインで動作し、自動更新も行いません。
+- 本ソフトウェアは図面の自動読み取りの構成要素を含みません。完全にオフラインで動作し、自動更新も行いません。
 
 ### 2. 本ソフトウェアがモデル化していない事項
 本ソフトウェアは、次の事項をモデル化して**いません**。
@@ -120,8 +120,8 @@ NEXUS FABRIC は、利用者が入力した寸法から展開図を計算し、D
 2. Can "review by a qualified engineer before any use" be made a binding obligation of the customer organisation,
    and what follows if the customer's staff ignore it? ／ 「使用前の技術者確認」を顧客組織の拘束力ある義務にできるか。
    従業員が無視した場合の帰結。
-3. How must the fact that the engineering rules were written with AI assistance and are unreviewed be disclosed?
-   ／ 技術規則が AI 支援で作成され未審査であることの開示方法。
+3. How must the fact that the engineering rules are evidence level EV-1 and are unreviewed be disclosed?
+   ／ 技術規則が証拠レベル EV-1 で独立した審査を受けていないことの開示方法。
 4. Is "qualified engineer" sufficiently defined, or should the notice name a qualification? (None is named here;
    the owner and a fabrication engineer must decide.) ／ 「資格を有する技術者」の定義は十分か。特定の資格を
    明記すべきか（本書では明記していません）。

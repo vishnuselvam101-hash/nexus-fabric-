@@ -8,7 +8,7 @@ Scope: brief items A to I (AMOEBA Control Centre, corrections and obligations, j
 - Main test server: 127.0.0.1:8881, fresh data folder, seeded with `docs/design/tools/seed_demo.js`, then about 190 jobs added by the tests (projects 1 to 11). Empty server: 127.0.0.1:8882 (zero-job checks). Desktop mode: 127.0.0.1:8883, stopped by its 60 s timeout. Both 8881 and 8882 were stopped with SIGTERM at the end.
 - Browser: Playwright Chromium with no options; viewport 1440x900 unless stated; locales en-US and ja-JP where stated.
 - Accounts: admin / correct-horse-9, engineer1 / engineer-pass-1, viewer1 / read-only-pass.
-- Scratch folder (scripts, shots, dxf, run logs): `/tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/bughunt/`.
+- Scratch folder (scripts, shots, dxf, run logs): `/tmp/build/bughunt/`.
 
 ## 2. Summary
 
@@ -261,7 +261,7 @@ Each entry gives: severity, where, steps, expected, actual, evidence, and how of
 
 ## 7. Evidence index
 
-- Scratch root: `/tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/bughunt/`
+- Scratch root: `/tmp/build/bughunt/`
 - Screenshots (opened and looked at): `shots/graph-job8-en-dark.png`, `shots/corr1-job.png`, `shots/motion-fit-job9.png`, `shots/card-light-job9.png`, `shots/card-ja-job60.png`, `shots/amoeba-activities-en-dark.png`, `shots/dxfui-job5-light.png`, `shots/dxfui-job6-light.png`, `shots/theme-toggle-job62.png`, `shots/robust-projects-long.png`.
 - DXF files: `dxf/job1-reducer.dxf`, `dxf/job2-reducer.dxf`, `dxf/job3-branch.dxf`, `dxf/job4-shell.dxf`, `dxf/job9-header.dxf`, `dxf/job9-branch.dxf`, `dxf/job16-header.dxf`, `dxf/job16-branch.dxf`.
 - Scripts: `scripts/` (for example `joint_matrix.js`, `seton.js`, `edge_cmp2.js`, `validator_client.js`, `comma_repro.js`, `second_repro.js`, `stale_repro.js`, `counts.js`, `dxfcheck.js`, `lang_err.js`).

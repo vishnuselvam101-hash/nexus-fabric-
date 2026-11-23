@@ -1,7 +1,7 @@
 # NEXUS FABRIC — full work plan for the CLI
 
 Written 21 Nov 2026 by the cloud session's lead. State it starts from: branch
-`claude/nexus-fabric-strategy-8guhxz`, engine 0.4.2 (commit `ed4a5fb`), docs commit `ccaa7f2`.
+`dev/nexus-fabric-strategy-8guhxz`, engine 0.4.2 (commit `ed4a5fb`), docs commit `ccaa7f2`.
 Read `docs/project/NEXUS_FABRIC_COMPLETE_HANDOFF.md` first; this plan replaces its section 10.
 
 Save this file in the repository as `docs/project/CLI_WORK_PLAN.md` and keep the status column of each task current.
@@ -67,12 +67,12 @@ give (rule 4).
 2. Never weaken, skip, delete or loosen a test or a tolerance. Every changed expectation is listed with old value,
    new value and reason.
 3. Nothing reaches `APPROVED`. Every DXF stays NOT RELEASED. Never write approved, certified, validated,
-   production-ready, secure, hack-proof, error-free or AI-native.
+   production-ready, secure, hack-proof, error-free, or claims of automated intelligence.
 4. Invent no number: no dimension, process value, clearance, K-factor, tolerance from a standard, benchmark or
    accuracy figure. If a rule needs a value nobody has, record it as a question for a fabrication engineer.
 5. Thickness, bend allowance, weld gap and kerf are not modelled. Say nothing that suggests otherwise.
 6. A new parser runs isolated, without network, with resource limits, and has fuzz tests.
-7. Records are append-only. No AI in the product. Fully offline: no network call, telemetry, CDN or auto-update.
+7. Records are append-only. No automated drawing reading in the product. Fully offline: no network call, telemetry, CDN or auto-update.
 8. Only one change to the pattern mathematics at a time; cut geometry stays byte-identical unless the task says it
    changes, and then the engine version is bumped and older results are marked for recomputation (gate G21).
 9. The independent reference in `validation/` is changed only with a derivation from the specification or first
@@ -145,16 +145,16 @@ log per suite; its validation output goes to the log folder, never over `validat
 | `tests/e2e_smoke.sh` (`NF_TEST_PORT`) | 8791 | **taken** by another service (`vnxco.web`) |
 | `tests/security_smoke.sh` (`NF_TEST_PORT`) | 8792 | **the live port on this host**: the live service was installed by hand on 8792 instead of the product default 8787 |
 | `tests/ui_smoke.js` (`NF_BASE`), fresh server | 8793 | free |
-| `tests/desktop_smoke.js` | 8860–8869 (plan: 8861) | 8861 and 8857 **taken** (AI-OS application servers) |
+| `tests/desktop_smoke.js` | 8860–8869 (plan: 8861) | 8861 and 8857 **taken** (other application's servers) |
 | `tests/security_r6.sh` (`NF_TEST_PORT`) | 8820 | free |
 | `tests/release_verify.js`, `packaging/verify/*` | 8870–8879 | free |
 | `tests/offline_check.sh`, dynamic part | 8791, 8793, 8867 in its own namespace | not run on this host |
 | `validation/run_all.py`, `validation/seeded_faults.py` | 8802 | free |
 | `validation/exact_onsurface_check.py` | was 8856, fixed; now a free port chosen by the system (task 1.8, cloud session) | — |
 | `stress/run.py` / `stress/bottleneck.py` | 8810–8819 / 8816 | never run on this host |
-| `docs/design/tools/seed_demo.js`, `capture_screens.js` | 8787 | **taken** by AI-OS |
+| `docs/design/tools/seed_demo.js`, `capture_screens.js` | 8787 | **taken** by the other local application |
 | `docs/design/tools/capture_r3.js` | 8880, 8881 | free |
-| `nf-server --desktop` default | 8787, then any free port | **taken** by AI-OS |
+| `nf-server --desktop` default | 8787, then any free port | **taken** by the other local application |
 | Rust tests (`cargo test`) | `127.0.0.1:0` (ephemeral) or no socket at all | — |
 
 Other listeners in 8700–8899 on the host: 8800 (VNX cloud). **Proof that no suite reaches the live port:** every suite
@@ -508,7 +508,7 @@ host), i18n 1013 keys/language 0 missing, notices ok; validation quick 177 cases
 - A test that fails if the interface, packages or install texts contain any word of rule A.3.
 - Confirm every gate G00–G22, every check name, every refusal code and every record kind has a Japanese label;
   the Japanese walk in `tests/ui_smoke.js` fails on any untranslated identifier outside the documented list.
-- Keep the disclosure "EV-1 (AI-generated, not independently reviewed)".
+- Keep the disclosure "EV-1 (not independently reviewed)".
 
 ### 3.4 Speed and scale — measure before and after, no behaviour change
 - Listing endpoints grow with the total number of jobs: add pagination with indexed queries.
@@ -588,7 +588,7 @@ host), i18n 1013 keys/language 0 missing, notices ok; validation quick 177 cases
 ## PHASE 6 — What only people can supply (track, do not attempt)
 
 - A fabrication engineer: the questions in task 0.2, and a real cut part compared with a pattern.
-- A lawyer admitted in Japan: terms, liability limits, privacy, status of AI-assisted code; a trademark search
+- A lawyer admitted in Japan: terms, liability limits, privacy, ownership status of the code; a trademark search
   for "NEXUS FABRIC" and "AMOEBA".
 - A person at a real Windows PC and a real Mac.
 - A native-speaking engineer's review of every Japanese text.

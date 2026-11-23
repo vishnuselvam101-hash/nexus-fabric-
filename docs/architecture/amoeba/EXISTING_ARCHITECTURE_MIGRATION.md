@@ -66,7 +66,7 @@ Coherent. Proposed amendments (not applied):
 | Reconciliation RC-01…15 | 7 | `reconcile.rules`; `reconcile.investigate` directs probes at the regions of a conflict | 6 | immune response, chemotaxis | Issues |
 | REVIEW REQUIRED triggers | 7.3 | Issues + coverage states → gates | 6/9 | immune | — |
 | Multi-document relationships, revisions | 8 | `relate.documents`, `maintain.revision_diff` | 5/11 | signalling, regeneration | D1, D6, D8 |
-| AI/human boundaries | 9.1 | Zone + schema permissions per process type | all | — | — |
+| Automated/human boundaries | 9.1 | Zone + schema permissions per process type | all | — | — |
 | Human review workflow | 9.2 | Review phase; queue ordered by priority function | 7 | chemotaxis (ordering only) | — |
 | Output contract | 10 | `review.sign_view` → signed EOS view | 7 | — | — |
 | Security | 11 | Membrane + sandboxed decomposition + quarantine | 1/3 | immune | — |

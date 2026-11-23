@@ -1,4 +1,4 @@
-# NEXUS FABRIC — hand-off of the coding work to Claude Code on the owner's machine
+# NEXUS FABRIC — hand-off of the coding work to the CLI session on the owner's machine
 
 Written 20 Nov 2026 by the cloud session's lead. Start here:
 
@@ -13,7 +13,7 @@ Engineering software that computes flat plate patterns and R12 DXF files for ste
 market: Japan). Rust workspace: `crates/uem` (pattern mathematics), `crates/nf-dxf` (DXF writer, reader, quality
 gate), `crates/nf-core` (jobs, records, gates), `crates/nf-server` (axum server, SQLite, sessions; the web client in
 `web/` is embedded with `include_str!`, so rebuild after any change there). Runs fully offline; desktop mode is
-`nf-server --desktop`. "AMOEBA" is the record, dependency, correction and replay layer. **The product contains no AI
+`nf-server --desktop`. "AMOEBA" is the record, dependency, correction and replay layer. **The product contains no automated drawing reading
 and none is to be added unless the owner asks.**
 
 ## 2. Rules that are never broken
@@ -23,16 +23,16 @@ and none is to be added unless the owner asks.**
 2. Never weaken, skip, delete or loosen a test or a tolerance to get a pass. A changed expectation is listed with old
    value, new value and the engineering reason.
 3. `APPROVED` must stay unreachable. Every DXF stays marked NOT RELEASED. Never write approved, certified, validated,
-   verified for manufacturing, production-ready, secure, hack-proof, error-free, or "AI-native" anywhere.
+   verified for manufacturing, production-ready, secure, hack-proof, error-free, or claims of automated intelligence anywhere.
 4. Never invent dimensions, process parameters, standards, tolerances from standards, customers, prices, benchmarks
    or accuracy figures. Thickness, bend allowance, weld gap and kerf are NOT modelled: say nothing that suggests
    otherwise.
 5. No parser is merged unless it runs in an isolated, network-less, resource-limited process and has fuzz tests.
 6. Records are append-only. Never delete or rewrite one.
 7. No network calls, telemetry, CDN or auto-update in the product (`tests/offline_check.sh` enforces this).
-8. Branch `claude/nexus-fabric-strategy-8guhxz` only. Commit in logical increments and push. **Do not open, merge or
+8. Branch `dev/nexus-fabric-strategy-8guhxz` only. Commit in logical increments and push. **Do not open, merge or
    close a pull request. Do not create tags or releases.**
-9. Do not touch the live server (fabric.vsnexustechnologies.com). Its own Claude updates it by pulling.
+9. Do not touch the live server (fabric.vsnexustechnologies.com). Its own CLI session updates it by pulling.
 10. Confidential factory drawings never go to any external service.
 11. Report honestly: a failing test is reported with its output; "not run" is never written as "passed".
 
@@ -107,7 +107,7 @@ task below says "after A-n lands", check `git log`):
 - **D1. Third-party notices:** generate THIRD_PARTY_NOTICES (name, version, licence, licence text) from the exact
   build and ship it in every package; add a test that fails if a package lacks it.
 - **D2. Words test:** a test that fails if the interface, packages or install texts contain untrue marketing words
-  (rule 3 list). Remove leftover AI wording: interface "planned" lists that announce drawing reading by AI, and the old
+  (rule 3 list). Remove leftover automated-intelligence wording: interface "planned" lists that announce automated drawing reading, and the old
   positioning line quoted in `docs/project/MASTER_GOAL.md`.
 - **D3. Windows native verification:** `docs/release/HANDOFF_WINDOWS_VERIFICATION.md` (only on a real Windows PC).
 - **D4. Release-candidate report:** `docs/release/RC1_REPORT.md` with source commit, artefacts and SHA-256, every

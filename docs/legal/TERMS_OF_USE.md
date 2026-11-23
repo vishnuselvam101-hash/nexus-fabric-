@@ -30,7 +30,7 @@ accepting these terms confirms that they may bind that organisation.
 
 ### 2. Status of the Software
 2.1 The Software is a **development build**. It is not validated, and no qualified fabrication engineer has
-reviewed its engineering rules or its outputs. Its engineering rules were written with AI assistance and have
+reviewed its engineering rules or its outputs. Its engineering rules are evidence level EV-1 and have
 not been independently reviewed. No result produced by the Software can reach the APPROVED state; every DXF
 file it writes is marked NOT RELEASED.
 2.2 The Software does not model material thickness, bend allowance, weld gap or cutting kerf. Flat patterns and
@@ -127,12 +127,12 @@ These terms are made in English and Japanese. [WHICH VERSION PREVAILS — lawyer
 
 ### 第2条（本ソフトウェアの位置付け）
 1. 本ソフトウェアは**開発版**である。妥当性確認は行われておらず、資格を有する製缶・板金技術者による技術規則及び出力の
-   審査も行われていない。技術規則は AI の支援を受けて作成されたものであり、独立した審査を受けていない。
+   審査も行われていない。技術規則は証拠レベル EV-1 で、独立した審査を受けていない。
    本ソフトウェアのいかなる結果も APPROVED（承認済み）の状態には到達せず、出力されるすべての DXF ファイルには
    NOT RELEASED（未リリース）の表示が付される。
 2. 本ソフトウェアは、板厚、曲げ伸び（ベンドアローワンス）、溶接ギャップ及び切断代（カーフ）をモデル化していない。
    展開図及び DXF ファイルはこれらを考慮していない。
-3. 本ソフトウェアは人工知能の構成要素を含まない。完全にオフラインで動作し、当社又は第三者へのネットワーク接続、
+3. 本ソフトウェアは図面の自動読み取りの構成要素を含まない。完全にオフラインで動作し、当社又は第三者へのネットワーク接続、
    テレメトリの送信、外部サーバからの読み込み及び自動更新を一切行わない。
 4. デスクトップモードにおいて、本ソフトウェアはデータベース及びデータフォルダ全体を暗号化しない。保存ファイルには個別の
    暗号化が施されているが、これによりデータ全体が暗号化されるものではない。データの保護は、コンピュータ及びその設定に
@@ -216,8 +216,8 @@ These terms are made in English and Japanese. [WHICH VERSION PREVAILS — lawyer
 5. Whether incorporating the responsibility notice and privacy statement by reference is effective, and how
    acceptance is recorded (the Software has no acceptance screen today). ／ 告知・プライバシーステートメントの
    組み入れの有効性と、同意の記録方法（現在、同意画面はありません）。
-6. Ownership and registrability of code written with AI assistance, and how to state it to customers
-   (LEGAL_READINESS item 10). ／ AI 支援で作成したコードの権利帰属と顧客への説明方法。
+6. Ownership and registrability of code at evidence level EV-1 (not independently reviewed), and how to state it to customers
+   (LEGAL_READINESS item 10). ／ 証拠レベル EV-1 で独立した審査を受けていないコードの権利帰属と顧客への説明方法。
 7. Export control: is any notification needed for the cryptography when distributing outside Japan?
    ／ 日本国外への頒布時の暗号に関する届出の要否。
 8. Confidentiality terms for the hosted evaluation server, and whether customers' drawings may be put on it at

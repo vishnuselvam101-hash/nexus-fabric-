@@ -7,7 +7,7 @@
 Date: 21 Nov 2026 · Work plan task **1.7** (set-on joint, remaining case, RB-001) in `docs/project/CLI_WORK_PLAN.md`;
 of phase 5 item 1 only the wall thickness and neutral surface of the header–branch joint are designed here, and bend
 allowance, weld gap and kerf compensation are not (section 7) ·
-Starting point: engine `nf-engine 0.4.2` (`crates/nf-core/src/lib.rs:57`), branch `claude/nexus-fabric-strategy-8guhxz`.
+Starting point: engine `nf-engine 0.4.2` (`crates/nf-core/src/lib.rs:57`), branch `dev/nexus-fabric-strategy-8guhxz`.
 
 Nothing in this document is implemented. Today wall thickness, the neutral factor, bend allowance, weld gap and kerf
 are not modelled (`crates/uem/src/develop.rs:1-3`, `:17`; `crates/nf-core/src/job.rs:861`), and that stays true until
@@ -17,7 +17,7 @@ Specification 02 (section and line), or is written as an open decision for the o
 engineer. The only exceptions are three illustrations computed for this document from cited inputs (sections 0.1 and
 3.1), each labelled as such: they are not product outputs, not dimensions and not acceptance values. Line numbers of
 files refer to commit `b032c7d`. Nothing in this design needs a network call, telemetry, a CDN, a cloud service, an
-update service or any AI: every input is typed by a person or recorded as a fabrication value, and every computation is
+update service or any automated drawing reading: every input is typed by a person or recorded as a fabrication value, and every computation is
 local and deterministic.
 
 Short names: `develop.rs` = `crates/uem/src/develop.rs`; `verify.rs` = `crates/uem/src/verify.rs`; `job.rs` =

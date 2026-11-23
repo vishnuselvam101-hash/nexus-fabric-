@@ -15,7 +15,7 @@
 
 ## Visual direction for the final film
 
-Steel blue-black backgrounds; cool white linework; one accent blue for computed geometry; amber only for attention and for "concept / planned" labels. Photorealistic steel under a single key light; restrained camera moves; no science-fiction effects, no glowing "AI brains". AMOEBA is shown as what it is — connections between parts and records, and items being checked — not as a creature.
+Steel blue-black backgrounds; cool white linework; one accent blue for computed geometry; amber only for attention and for "concept / planned" labels. Photorealistic steel under a single key light; restrained camera moves; no science-fiction effects, no glowing "automated-intelligence brains". AMOEBA is shown as what it is — connections between parts and records, and items being checked — not as a creature.
 
 Real-screen scenes need **close crops** of the application (pattern, one table at a time): the draft shows that full-window captures are too small to read at video size.
 

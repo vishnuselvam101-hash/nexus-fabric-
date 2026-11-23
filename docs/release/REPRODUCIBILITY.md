@@ -1,6 +1,6 @@
 # Reproducible builds (work plan task 4.1)
 
-Date: 2026-11-22. Cloud session, branch `claude/nf-repro-ci-4.1-4.3` (from `claude/nexus-fabric-strategy-8guhxz` at
+Date: 2026-11-22. Cloud session, branch `dev/nf-repro-ci-4.1-4.3` (from `dev/nexus-fabric-strategy-8guhxz` at
 `fd96174`). Development build. Not validated. Outputs must not be used for manufacturing.
 
 **Result:** on a Linux host, three builds of commit `ca9a561` in three different folders give bit-identical
@@ -40,7 +40,7 @@ Tools: rustc 1.97.0 (2d8144b78 2026-07-07), cargo 1.97.0, x86_64-w64-mingw32-gcc
 
 | Build | Folder | Source | `SOURCE_DATE_EPOCH` |
 |---|---|---|---|
-| W | `/home/user/nexus-fabric-/.claude/worktrees/agent-…` | git checkout, target folder reused from earlier builds | from git: 1795363516 |
+| W | `/home/user/nexus-fabric-/.agent/worktrees/agent-…` | git checkout, target folder reused from earlier builds | from git: 1795363516 |
 | A | `/home/user/nf41-copy-a` | `git archive ca9a561`, empty target folder | given: 1795363516 |
 | B | `<scratch>/nf41/copy-two/with-a-much-longer-folder-name/b` (under `/tmp`) | `git archive ca9a561`, empty target folder | not set: warning, time of `Cargo.toml` = 1795363516 |
 

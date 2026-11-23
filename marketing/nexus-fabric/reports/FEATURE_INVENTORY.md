@@ -18,7 +18,7 @@
 | "Investigate design inconsistencies" | **In development** | Interface check and obligations exist; hypothesis-driven investigation does not |
 | AMOEBA architecture as a whole | **In development** | Records, edges, obligations, gates, replay built; scheduler, exploration, coverage, lanes not |
 | Understand engineering drawings (PDF, scans, CAD), dimensions, annotations | **Designed, not implemented** | Specification 03 only |
-| AI drawing intelligence, OCR (Japanese/English) | **Designed, not implemented** | No technology selected |
+| Automated drawing reading, OCR (Japanese/English) | **Designed, not implemented** | No technology selected |
 | 2D-to-3D geometry reconstruction | **Designed, not implemented** | — |
 | 3D visualisation | **Planned** | 2D pattern preview only |
 | Rectangular-to-round and irregular transitions | **Designed, not implemented** | Specification 02 |
@@ -33,6 +33,6 @@
 
 1. Scenes for the first eight rows may use **real screen recordings**.
 2. Everything else must be visibly marked as concept ("in development" / "planned") — in picture, not only in a closing line.
-3. Six of the sixteen requested feature films are about capabilities that are not implemented (AI Drawing Intelligence; PDF and CAD Ingestion beyond storage; 2D-to-3D Reconstruction; Plate Division and Seam Planning; Manufacturing Intelligence; and most of Reducer *and Transition* Development). They can only be concept films, or should wait.
+3. Six of the sixteen requested feature films are about capabilities that are not implemented (Automated Drawing Reading; PDF and CAD Ingestion beyond storage; 2D-to-3D Reconstruction; Plate Division and Seam Planning; Manufacturing Intelligence; and most of Reducer *and Transition* Development). They can only be concept films, or should wait.
 4. Of the ten how-to videos, which must use real screens, five can be recorded now (creating a project; uploading a PDF — storage only; starting an engineering job; generating and inspecting DXF; understanding verification results). Five cannot: reviewing extracted dimensions, AMOEBA investigations, inspecting 3D geometry, exporting *approved* deliverables, and reviewing mathematical calculations beyond the result tables.
 5. Never state or imply: customers, testimonials, performance figures, certification, guaranteed accuracy, manufacturing validation, prices.

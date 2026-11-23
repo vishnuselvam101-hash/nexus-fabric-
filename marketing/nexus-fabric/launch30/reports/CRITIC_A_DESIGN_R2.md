@@ -8,7 +8,7 @@ I extracted new frames at 2 fps from both files across the full 30 s, contact-sh
 - JA: 6.5, 23.5 and 28.5 s, plus transition stills at 5.07 and 11.1 s.
 
 I also made 10 fps burst contact sheets of both languages at 4.3–6.3, 10.0–12.0, 17.2–19.2 and 24.0–26.0 s.
-Frames are in /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/criticA/r2/
+Frames are in /tmp/build/criticA/r2/
 
 ## Deliberate decisions (judged on execution only)
 - **Amber "planned" marks beside headlines.** These are executed cleanly as one coloured line with a square bullet. However, they use the same size and weight as the subtitle, so in scenes 3 and 4 the amber line reads as the scene's subhead. See defect N4.
@@ -64,7 +64,7 @@ Fix: put the content on the same 12-column grid. Either start each content block
 Fix: one leader per callout, each ending on the label's text baseline, using elbow (orthogonal) leaders. Anchor the interface check to the saddle contour and the hole contour together, for example as a bracket. Remove the orphan line.
 
 **N4. The amber "planned" line competes with the headline system. Medium. EN and JA, 5.5–24.5.**
-- In scene 2 it sits on the subtitle line at the same size, so the eye reads "…powered by AMOEBA ■ AI drawing interpretation: planned" as one sentence.
+- In scene 2 it sits on the subtitle line at the same size, so the eye reads "…powered by AMOEBA ■ Automated drawing reading: planned" as one sentence.
 - In scenes 3 and 4 it is the only line under the headline, so it becomes the subhead.
 
 Fix: set it as a caption (about 15–16 px, medium weight, amber about 80%) on its own line about 14 px below the subhead, or in the headline's top-right as a tag. Keep it visible but secondary.

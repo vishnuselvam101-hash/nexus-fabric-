@@ -1,6 +1,6 @@
 # NEXUS FABRIC promo, built on real application screens (30 s, EN and JA)
 
-Made by applying the "SaaS promo" recipe from the guide *Motion graphics with Claude Code* (D. Caudullo): open with a short hook, show each real screen and move in on the part that matters with one short line, bold words between the screens on a steady beat, end on the logo, one line and a call to action. The guide's renderer (HyperFrames) was not installed; this uses the project's existing equivalent (Chromium frames joined by FFmpeg).
+Made by applying the "SaaS promo" recipe from the motion-graphics guide by D. Caudullo: open with a short hook, show each real screen and move in on the part that matters with one short line, bold words between the screens on a steady beat, end on the logo, one line and a call to action. The guide's renderer (HyperFrames) was not installed; this uses the project's existing equivalent (Chromium frames joined by FFmpeg).
 
 **Status: draft for the owner's review. Not reviewed by the independent critics. Nobody has listened to the soundtrack. The Japanese text was written by the lead, not by the localisation specialist.**
 
@@ -25,7 +25,7 @@ Made by applying the "SaaS promo" recipe from the guide *Motion graphics with Cl
 | 25–30 | end card | NEXUS FABRIC · Engineering, Reimagined. · Request a demonstration · disclaimer |
 
 ## Decisions and limits
-- Only implemented capabilities are shown, so no "planned" marks are needed; the owner's positioning line ("AI-native engineering platform powered by AMOEBA") is **not** in this cut because nothing on these screens is AI.
+- Only implemented capabilities are shown, so no "planned" marks are needed; the owner's positioning line (the engineering platform with automated drawing reading, powered by AMOEBA) is **not** in this cut because nothing on these screens is automated drawing reading.
 - Every screen carries "Actual software · development build"; the application's own "not validated" banner and "NOT RELEASED · REVIEW REQUIRED" watermark stay visible where the camera passes them.
 - The job shown is the idealised zero-thickness reference case; the gate summary in frame (5 pass, 7 inconclusive, 1 not implemented) is the product's own.
 - While the camera is moving, panel text at the frame edge is cut, as in any move across a screen; each resting frame was set on panel boundaries.

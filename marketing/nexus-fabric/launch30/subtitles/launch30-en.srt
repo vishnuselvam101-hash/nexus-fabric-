@@ -9,7 +9,7 @@ Hours of engineering work.
 
 3
 00:00:05,200 --> 00:00:10,240
-Meet NEXUS FABRIC, an AI-native
+Meet NEXUS FABRIC, an
 engineering platform powered by AMOEBA.
 
 4

@@ -78,10 +78,10 @@ const Q = new URLSearchParams(location.search), lang = Q.get('lang') === 'ja' ? 
 const $ = (id) => document.getElementById(id);
 const C = { g0: '#0E1116', g1: '#171B21', line: '#2A313A', t1: '#8E969F', t2: '#C9CED4', w: '#F5F7FA', blue: '#2F7DF6', amber: '#E8A33D' };
 // strings written for the picture only (everything else comes from script/narration.json; JA per script/onscreen-ja-review.json)
-const X = { en: { c3: 'Interface check between parts', unit: 'units: mm', sub: 'AI-native engineering platform powered by AMOEBA' },
+const X = { en: { c3: 'Interface check between parts', unit: 'units: mm', sub: 'Engineering platform with automated drawing reading (not implemented), powered by AMOEBA' },
             ja: { c3: '部材間の取合い確認', unit: '単位：mm', sub: 'AMOEBAを核とする、AIネイティブの設計基盤' } }[lang];
 const FALLBACK = { headline: ['Hours of engineering work', 'Meet NEXUS FABRIC', 'Understand. Reconstruct. Calculate.', 'Plate developments. DXF output.', ''],
-  labels: { fictional: 'Fictional drawing made for this film', actual_only: 'Actual software · development build', film_vis: 'Visualisation made for this film · not a product view', same_equations: 'Same equations as the product · redrawn for this film', planned_ai: 'AI drawing interpretation: planned', verification: 'Verification checks', disclaimer: 'Product concept. Capabilities in development. Not validated for manufacturing.', planned_reading: 'Drawing reading and 3D reconstruction: planned', planned_constraints: 'Manufacturing-constraint evaluation: planned', dxf_checked: 'DXF written, re-read and compared' },
+  labels: { fictional: 'Fictional drawing made for this film', actual_only: 'Actual software · development build', film_vis: 'Visualisation made for this film · not a product view', same_equations: 'Same equations as the product · redrawn for this film', planned_ai: 'Automated drawing reading: planned', verification: 'Verification checks', disclaimer: 'Product concept. Capabilities in development. Not validated for manufacturing.', planned_reading: 'Drawing reading and 3D reconstruction: planned', planned_constraints: 'Manufacturing-constraint evaluation: planned', dxf_checked: 'DXF written, re-read and compared' },
   slogan: 'UNDERSTAND. RECONSTRUCT. VERIFY. MANUFACTURE.', brand: 'NEXUS FABRIC — Engineering, Reimagined.' };
 let L = FALLBACK;
 

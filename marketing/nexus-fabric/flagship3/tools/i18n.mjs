@@ -409,7 +409,7 @@ const EN = {
   'adm.chain': 'Chain check: {state}', 'adm.chain.ok': 'INTACT', 'adm.chain.bad': 'BROKEN at entry {n}', 'adm.chain.over': 'over {n} entries.',
   'adm.chain.t.ok': 'Audit chain intact over {n} entries.', 'adm.chain.t.bad': 'Audit chain BROKEN at entry {n}.',
   'adm.planned.1': 'Multi-factor authentication, single sign-on', 'adm.planned.2': 'Built-in TLS, database encryption at rest, key rotation', 'adm.planned.3': 'Backup and restore tooling, retention policies',
-  'adm.planned.4': 'AI/model configuration, engineering standards and factory rule management', 'adm.planned.5': 'Separate tenants (isolation is per project within one installation)',
+  'adm.planned.4': 'Automated-reading/model configuration, engineering standards and factory rule management', 'adm.planned.5': 'Separate tenants (isolation is per project within one installation)',
 };
 
 // ---------------------------------------------------------------- 日本語
@@ -740,7 +740,7 @@ const JA = {
   'adm.chain': 'チェーンの検証：{state}', 'adm.chain.ok': '改ざんなし', 'adm.chain.bad': 'エントリー{n}で破損', 'adm.chain.over': '（{n}件）',
   'adm.chain.t.ok': '監査チェーンに改ざんはありません（{n}件）。', 'adm.chain.t.bad': '監査チェーンが、エントリー{n}で破損しています。',
   'adm.planned.1': '多要素認証、シングルサインオン', 'adm.planned.2': '`TLS`の内蔵、データベースの保存時暗号化、鍵のローテーション', 'adm.planned.3': 'バックアップと復元のツール、保存期間のポリシー',
-  'adm.planned.4': 'AI・モデルの設定、技術基準と工場ルールの管理', 'adm.planned.5': 'テナントの分離（現在の分離は、1つのインストール内のプロジェクト単位です）',
+  'adm.planned.4': '図面の自動読み取り・モデルの設定、技術基準と工場ルールの管理', 'adm.planned.5': 'テナントの分離（現在の分離は、1つのインストール内のプロジェクト単位です）',
 };
 
 const MSG = { en: EN, ja: JA };
@@ -902,7 +902,7 @@ const SENT = [
   ['Outer profiles closed, simple, counter-clockwise; openings closed, simple, clockwise (binary64 arithmetic, not exact predicates).', '外形は閉じた単純な輪郭で反時計回り、開口は閉じた単純な輪郭で時計回りです（`binary64`演算による判定で、厳密な述語ではありません）。'],
   ['Kerf-compensation ownership is not declared.', 'カーフ補正をどちらが行うかは、宣言されていません。'],
   // G14
-  ['Algorithms are evidence level EV-1 (AI-generated, not independently reviewed) and not production-qualified.', 'アルゴリズムは証拠レベルEV-1（AIが生成、独立したレビューなし）で、製造用途としての認定は受けていません。'],
+  ['Algorithms are evidence level EV-1 (not independently reviewed) and not production-qualified.', 'アルゴリズムは証拠レベルEV-1（独立したレビューなし）で、製造用途としての認定は受けていません。'],
   // G15
   ['Every DXF re-imported by the independent reader and compared with the intended geometry.', 'すべてのDXFを独立したリーダーで再読込し、意図した形状と照合しました。'],
   ['CAM acceptance not tested.', '`CAM`での受入は試験していません。'],

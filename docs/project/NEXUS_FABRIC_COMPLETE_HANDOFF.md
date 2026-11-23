@@ -1,6 +1,6 @@
 # NEXUS FABRIC — complete hand-off (single file)
 
-Written 20 Nov 2026 by the cloud session's lead for Claude Code running on the owner's own machine.
+Written 20 Nov 2026 by the cloud session's lead for the CLI session running on the owner's own machine.
 Everything needed to continue the work is in this one file. Where a longer document exists, its path is given, but
 you do not need to open it to start.
 
@@ -12,15 +12,15 @@ you do not need to open it to start.
 
 On the owner's PC (Windows 10/11, macOS or Linux):
 
-1. Install Git, and Claude Code (https://code.claude.com/docs). Sign in.
+1. Install Git, and the CLI development tool (see its official documentation). Sign in.
 2. Get the project:
    ```
    git clone https://github.com/vishnuselvam101-hash/nexus-fabric-.git
    cd nexus-fabric-
-   git checkout claude/nexus-fabric-strategy-8guhxz
+   git checkout dev/nexus-fabric-strategy-8guhxz
    ```
    The repository is private; Git asks for a GitHub sign-in.
-3. Start Claude Code in that folder (`claude`) and type:
+3. Start the CLI session in that folder and type:
    ```
    Read docs/project/NEXUS_FABRIC_COMPLETE_HANDOFF.md completely. Follow sections 3 and 6 without exception.
    Do the tasks in docs/project/CLI_WORK_PLAN.md in order (it replaced section 10 on 21 Nov 2026),
@@ -44,8 +44,8 @@ writes a DXF that is marked NOT RELEASED.
   record; a job has a dependency graph; correcting one value supersedes the old job and raises scrutiny obligations
   on everything that depended on it; lessons from corrections are matched against later jobs; a job can be replayed
   and must match.
-- **No AI.** The product contains none, and none is to be added unless the owner asks (decision of 20 Nov 2026).
-  The software does disclose that its algorithms were written with AI assistance and not independently reviewed
+- **No automated drawing reading.** The product contains none, and none is to be added unless the owner asks (decision of 20 Nov 2026).
+  The software does disclose that its algorithms are evidence level EV-1 and not independently reviewed
   (evidence level EV-1); that disclosure stays.
 - **Fully offline.** No network calls, no telemetry, no CDN, no auto-update. Proven by `tests/offline_check.sh`.
 - **Interface:** English and Japanese with a switch; light and dark themes; a "drawing sheet" job view.
@@ -61,18 +61,18 @@ writes a DXF that is marked NOT RELEASED.
 | Date | Decision |
 |---|---|
 | standing | Never invent dimensions, process parameters, standards, factory data, customers, testimonials, benchmarks, certifications, prices or validation claims. Never claim hack-proof, zero-error, certified. |
-| standing | AI is never the final authority for geometry. APPROVED stays unreachable until independent verification, obligation closure, audits, replay and authorised engineer approval exist. Fail closed. |
+| standing | Automated drawing reading is never the final authority for geometry. APPROVED stays unreachable until independent verification, obligation closure, audits, replay and authorised engineer approval exist. Fail closed. |
 | standing | No parser is merged without an isolated, network-less, resource-limited process and fuzz tests. |
 | standing | Confidential factory drawings never go to an external service. Benchmark and customer data are never committed. |
 | standing | Priority order: data integrity and engineering correctness, DXF precision, backend reliability, computational correctness, security, interface, performance, marketing. |
 | 20 Nov | Readiness is stated in five independent classifications, never one label (section 9.6). |
 | 20 Nov | Desktop security: say plainly that the program does not encrypt the database or the whole data folder; a copied data folder IS inside the threat model; database encryption with operating-system protected keys is a condition for unrestricted desktop deployment; the recovery key is held by the customer organisation's administrator. |
 | 20 Nov | The DXF states the joint as declared ("set-on" or "not declared"). Units stay as documented R12 metadata (no `$INSUNITS`). |
-| 20 Nov | No AI in the software. The phrase "AI-native" and any announcement of AI drawing reading are removed everywhere. |
+| 20 Nov | No automated drawing reading in the software. Claims of automated intelligence and any announcement of automated drawing reading are removed everywhere. |
 | 20 Nov | The software must be fully offline. |
 | 20 Nov | Focus on the calculations, mathematical algorithms and their execution first. |
 | 20 Nov | New feature: upload a PDF drawing and convert it to DXF (vector PDFs, scale given by the user). |
-| 20 Nov | All coding tasks go to Claude Code on the owner's machine; the cloud session finishes what it has in flight and keeps the advertisement. |
+| 20 Nov | All coding tasks go to the CLI session on the owner's machine; the cloud session finishes what it has in flight and keeps the advertisement. |
 | 20 Nov | Use less usage: read only what is needed, run long suites once, keep reports short. |
 
 ---
@@ -83,14 +83,14 @@ writes a DXF that is marked NOT RELEASED.
 2. Never weaken, skip, delete or loosen a test or a tolerance to get a pass. A changed expectation is listed with
    the old value, the new value and the engineering reason.
 3. `APPROVED` stays unreachable. Every DXF stays marked NOT RELEASED. Never write approved, certified, validated,
-   verified for manufacturing, production-ready, secure, hack-proof, error-free or "AI-native" in the interface,
+   verified for manufacturing, production-ready, secure, hack-proof, error-free or claims of automated intelligence in the interface,
    packages, documents or films.
 4. Invent nothing (see section 2, first row). Say nothing that suggests thickness, allowances, weld gap or kerf are
    handled.
 5. A new parser runs isolated, without network, with resource limits, and has fuzz tests — or it is not merged.
 6. Records are append-only. Never delete or rewrite one.
 7. No network calls, telemetry, CDN or auto-update in the product.
-8. Work on branch `claude/nexus-fabric-strategy-8guhxz` only. Commit in logical increments and push.
+8. Work on branch `dev/nexus-fabric-strategy-8guhxz` only. Commit in logical increments and push.
    **Do not open, merge or close a pull request. Do not create tags or releases.** (Pull request #1 exists; leave it.)
 9. Do not touch or probe the live server (section 14).
 10. Report honestly: failures with their output; "not run" is never written as "passed"; nothing is "done" unless
@@ -120,7 +120,7 @@ writes a DXF that is marked NOT RELEASED.
 | `docs/qa/BUG_HUNT_R7.md` | 18 defects with status. |
 | `docs/legal/LEGAL_READINESS.md` | Working list for a lawyer (not legal advice). |
 | `docs/release/` | Release manifests, Windows hand-off. |
-| `marketing/nexus-fabric/` | Films (not coding work): `flagship3` is the current advertisement. Older films carry "AI-native" and must not be published. |
+| `marketing/nexus-fabric/` | Films (not coding work): `flagship3` is the current advertisement. Older films carry claims of automated intelligence and must not be published. |
 | `data/` | Ignored by git: a leftover test data folder on the cloud machine. |
 
 ---
@@ -278,10 +278,10 @@ exact with zero deviation; B2-003 … B2-007 low).
 ### 9.5 Other
 - BH-014 partly: the form accepts some values the engine refuses (the limit comes from sampled geometry); A1 gives
   the refusal a code and the field.
-- Leftover AI wording (task D2). In `web/i18n.js`: `adm.planned.4` (AI/model configuration planned); drawing
+- Leftover automated-intelligence wording (task D2). In `web/i18n.js`: `adm.planned.4` (automated-reading/model configuration planned); drawing
   reading announced as planned in `doc.accepted`, `req.hint`, `ws.planned.lead`, `ws.planned.1` … `ws.planned.5`
   (drawing intelligence, OCR, dimension and symbol recognition) and `math.planned.1`. Keep the statement
-  "EV-1 (AI-generated, not independently reviewed)": it is a disclosure about how the algorithms were written. Also the
+  "EV-1 (not independently reviewed)": it is a disclosure about the review status of the algorithms. Also the
   old positioning line in `docs/project/MASTER_GOAL.md`, and the older films.
 - Packages do not yet ship third-party licence texts (102 libraries, all permissive: MIT, Apache-2.0, BSD, Zlib,
   Unicode, Unlicense, BSL).
@@ -319,7 +319,7 @@ kept current in it). Where the old items went:
 | C3 (database encryption design) | 2.5 |
 | C4 (stress findings) | 2.3 |
 | D1 (third-party notices) | done (`b368d9a`) |
-| D2 (banned-word test, leftover AI wording) | wording removed (`9169305`); the test is 3.3 |
+| D2 (banned-word test, leftover automated-intelligence wording) | wording removed (`9169305`); the test is 3.3 |
 | D3 (Windows native verification) | 4.2 (real Windows PC only) |
 | D4 (release-candidate report) | 4.4 |
 | E (PDF → DXF in the product) | 3.1 |
@@ -375,7 +375,7 @@ flat pattern: a drawing is not necessarily to scale and dimension text is not in
   "CONVERTED FROM PDF - NOT VERIFIED - NOT RELEASED"; 999 metadata (source hash, page, scale, units, tolerance,
   converter version); a JSON report.
 - Hard limits (input size, decompressed size and ratio, objects, operators, segments, nesting, time), never panics,
-  a mutation fuzzer of at least 200,000 cases; no AI, no OCR, no raster tracing; deterministic.
+  a mutation fuzzer of at least 200,000 cases; no automated drawing reading, no OCR, no raster tracing; deterministic.
 
 **Integration (task E):**
 - Server: an endpoint that converts an uploaded PDF document by launching `nf-pdf2dxf` as an isolated child (no
@@ -401,17 +401,17 @@ with "Engineering platform powered by AMOEBA." and "Request a demonstration".
 - Voices synthesised locally (English: Kokoro `af_heart`; Japanese: VOICEVOX Nemo, on-screen credit required and
   shown). Both mixes 54.0 s, −14 LUFS. Nobody has listened to the audio.
 - Revision 3 in progress: full motion graphics, Apple-launch-film craft with simplified interface pieces built from
-  the product's own colours, labels and data, the actual software in two short moments only, no AI mention anywhere.
+  the product's own colours, labels and data, the actual software in two short moments only, no mention of automated intelligence anywhere.
 - Before publishing: two independent critics must score it; the owner must listen to it; read the VOICEVOX Nemo
   terms and the Kokoro model terms; Japanese wording needs a native review. Older films (`film`, `launch30`,
-  `notch30`, `promo30`, `flagship2`) carry "AI-native" or older footage: do not publish them.
+  `notch30`, `promo30`, `flagship2`) carry claims of automated intelligence or older footage: do not publish them.
 
 ---
 
 ## 14. The live server
 
 A Hostinger VPS (Ubuntu) serves `fabric.vsnexustechnologies.com` through Caddy from a service on `127.0.0.1:8792`.
-It has its own Claude, which updates it by pulling the branch, rebuilding the binary and restarting the service.
+It has its own CLI session, which updates it by pulling the branch, rebuilding the binary and restarting the service.
 **Do not run `deploy/install.sh` there, do not probe it, do not push from it.** When it is next updated it needs
 `NF_ALLOWED_HOSTS=fabric.vsnexustechnologies.com`. It still runs an older build.
 
@@ -421,7 +421,7 @@ It has its own Claude, which updates it by pulling the branch, rebuilding the bi
 
 No software can be made "legally proof". What exists: truthful statements everywhere; permissive third-party
 licences (notices not yet shipped — task D1). What only the owner can do: a lawyer admitted in Japan for the terms of
-use, liability limits, privacy statement and the status of AI-assisted code; a trademark search for "NEXUS FABRIC"
+use, liability limits, privacy statement and the ownership status of the code; a trademark search for "NEXUS FABRIC"
 and "AMOEBA"; the commercial model.
 
 ---

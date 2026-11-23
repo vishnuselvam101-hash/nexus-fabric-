@@ -1,6 +1,6 @@
 //! Universal Engineering Mathematics engine (UEM) — first implemented subset.
 //!
-//! Pure library: no I/O, no global state, no AI. Implements parts of
+//! Pure library: no I/O, no global state, no automated interpretation. Implements parts of
 //! Specification 02 (which is PROVISIONAL and not independently reviewed):
 //! cylinder shell, right cone frustum, oblique cone frustum (eccentric
 //! reducer), cylinder-on-cylinder branch, press-brake bend formulas, and the

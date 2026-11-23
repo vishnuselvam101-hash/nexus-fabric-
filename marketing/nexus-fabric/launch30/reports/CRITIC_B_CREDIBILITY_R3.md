@@ -14,7 +14,7 @@ Same role and strictness. Date: 2026-11-19. Films: `final/NEXUS-FABRIC-launch-30
 | Time | On screen | Check |
 |---|---|---|
 | 3.5 s | Drawing: 1200, 600, 400, ⌀300, ⌀200, 60°, title block R150 / r100 / 60° | to scale, unchanged from round 2 |
-| 6.5 s | App: plate 1,200.000 × 942.478, branch_opening 701.663, area 1,130,973.355; boxed tag "AI DRAWING INTERPRETATION: PLANNED" | correct |
+| 6.5 s | App: plate 1,200.000 × 942.478, branch_opening 701.663, area 1,130,973.355; boxed tag "AUTOMATED DRAWING READING: PLANNED" | correct |
 | 8.5 s | Gates crop: 5 PASS, 7 INCONCLUSIVE, 1 NOT IMPLEMENTED; G01 "drawing intelligence is not implemented", G02, G05 | readable at normal size |
 | 15.5 s | φ = 153.1°, s(φ) = 113.15 mm; R = 150, r = 100, β = 60°, δ = 0 | 113.15, correct |
 | 19.5 s | 3D parts separating, opening outlined | opening shape and position plausible |
@@ -48,7 +48,7 @@ Tag timing (EN strip): the boxed amber tag is on every sampled frame of scene 2 
 | 3 | Differentiator silent and brief | **Partly.** Gates crop is readable and the interface pairing is on screen; still not narrated. |
 | 4 | Slogan "…MANUFACTURE." | **Not fixed.** |
 | 5 | "Complex… hours" over one lateral | **Not fixed.** |
-| 6 | AI tag narrower than the fact | **Not fixed** in wording; **better** in prominence. |
+| 6 | Automated-reading tag narrower than the fact | **Not fixed** in wording; **better** in prominence. |
 | 7 | Engine version string on screen | **Fixed in the film**: the status bar is cropped out at 6.5 s. BE-011 itself is a product matter. |
 | 8 | Stray curve at 24.5 s | **Fixed.** |
 | 9 | Japanese: 設計基盤, ⌀ | **Not fixed.** Low. |
@@ -56,7 +56,7 @@ Tag timing (EN strip): the boxed amber tag is on every sampled frame of scene 2 
 ## Remaining defects, worst first
 
 1. **Narration contradicts the tags (11.2–15.5 s, 18.2–24.5 s, both languages). High.** Voice: "Understand complex drawings. Reconstruct 3D geometry." Screen: "DRAWING READING AND 3D RECONSTRUCTION: PLANNED". A viewer hears one thing and reads the opposite.
-2. **"AI-native" spoken without a qualifier (5.2–10.2 s). Medium.** Honest on screen; not in the room.
+2. **The automated-intelligence claim spoken without a qualifier (5.2–10.2 s). Medium.** Honest on screen; not in the room.
 3. **"Traceable CAD deliverables" spoken (EN 21.9–24.5 s, JA 22.1–24.7 s). Medium.**
 4. **New: wall thickness on the 3D model (11–22 s, both). Medium-low.** The pipes now have a visible wall. The product calculates one reference surface; gate G06 says thickness is not modelled. In scene 3 the footer says "not a product view", which covers it. In scene 4 the footer says "Same equations as the product" over a thick-walled part, which invites the question "inside, outside or neutral?" and the product has no answer. Fix: return to a thin shell in scene 4, or add "reference surface only · thickness not modelled" to the footer.
 5. **Slogan (27.5–30 s). Medium-low.**
@@ -84,6 +84,6 @@ Narration I would accept (same five segments, same lengths):
 4. 「展開図。取合いを相互に照合。DXFは出力後に再読込して照合。」
 5. 「すべての計算を記録。レビューなしでは出図しない。NEXUS FABRIC。」
 
-If the owner keeps "AI-native": I would accept "…an AI-native engineering platform **in development**, powered by AMOEBA" / 「開発中の、AIネイティブの設計基盤」 in segment 2, provided segments 3 and 4 use the lines above. With the owner's current segments 3 and 4 unchanged, the film cannot reach 9.
+If the owner keeps the automated-intelligence positioning: I would accept "…an engineering platform with automated drawing reading **in development**, powered by AMOEBA" / 「開発中の、図面の自動読み取りを備えた設計基盤」 in segment 2, provided segments 3 and 4 use the lines above. With the owner's current segments 3 and 4 unchanged, the film cannot reach 9.
 
 End slogan for a 9: "CALCULATE. VERIFY. RECORD." / 「計算する。検証する。記録する。」, or keep the four verbs with "ROADMAP" / 「ロードマップ」 in front.

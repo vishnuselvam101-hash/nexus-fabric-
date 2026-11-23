@@ -2,7 +2,7 @@
 //! docs/architecture/amoeba/DEPENDENCY_MODEL.md).
 //!
 //! The *mechanism* is implemented here. The *rule table* (which check a change
-//! requires) is PROVISIONAL: it is an AI-written proposal, evidence level EV-1,
+//! requires) is PROVISIONAL: it is a proposal that has not been independently reviewed, evidence level EV-1,
 //! and none of it has been reviewed by a fabrication engineer (0/56).
 
 use crate::job::JobOutput;

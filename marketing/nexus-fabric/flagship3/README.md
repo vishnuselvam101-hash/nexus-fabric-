@@ -1,6 +1,6 @@
 # NEXUS FABRIC film 3 (flagship3), revision 5
 
-54.0 s, English and Japanese, identical picture timing. The picture is one canvas drawn by `window.seek(t)` (`film.html`, `film/*.js`). `tools/render_master.js` draws each frame and pipes it straight into ffmpeg (no frames stored on disk); it makes every final and master below. `render.js` is the earlier screenshot path and is kept for reference. The product contains no AI and the film does not say it does. Revision 5 changed the picture only: `audio/` (mixes and `timing.js`), `subtitles/` and `script/narration.json` are untouched.
+54.0 s, English and Japanese, identical picture timing. The picture is one canvas drawn by `window.seek(t)` (`film.html`, `film/*.js`). `tools/render_master.js` draws each frame and pipes it straight into ffmpeg (no frames stored on disk); it makes every final and master below. `render.js` is the earlier screenshot path and is kept for reference. The product contains no automated drawing reading and the film does not say it does. Revision 5 changed the picture only: `audio/` (mixes and `timing.js`), `subtitles/` and `script/narration.json` are untouched.
 
 ## Finals (`final/`)
 - `NEXUS-FABRIC-film3-54s-en.mp4`: 10,444,271 bytes. `NEXUS-FABRIC-film3-54s-ja.mp4`: 10,478,711 bytes.

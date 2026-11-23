@@ -13,7 +13,7 @@
 | Owner of the drawing (company; and end customer if different) | |
 | Authorising person, role, date | |
 | Authorisation document reference (stored where) | |
-| Permitted uses: internal testing / annotation values in repository / external AI services / use for tuning / sharing with reviewers | |
+| Permitted uses: internal testing / annotation values in repository / external reading services / use for tuning / sharing with reviewers | |
 | Restrictions, expiry, deletion requirement | |
 
 ## Files (one row per file; originals are never altered)

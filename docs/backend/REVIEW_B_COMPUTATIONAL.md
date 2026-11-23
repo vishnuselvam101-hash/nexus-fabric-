@@ -102,13 +102,13 @@ The errors below are measured against mpmath at 50 digits, at every product vert
 **Genuinely independent:** a generic ruled-surface developer (geodesic curvature, DOP853) instead of the apex integral; an oblique world frame; intersection by bisection; an mpmath tier; ezdxf plus its own parser; rigid fitting with and without mirroring. This is real independence of *numerics*, and it found D1.
 
 **Shared with the product, taken rather than derived:**
-1. Input meaning comes from Spec 02 and the product's input sketch: δ sign, φ datum, station as the axis work point, s from the common perpendicular. Spec 02 is itself AI-written and unreviewed (EV-1). A common-mode misreading of the specification, or a specification that misdescribes workshop practice, would pass both. The report says so in §8.
+1. Input meaning comes from Spec 02 and the product's input sketch: δ sign, φ datum, station as the axis work point, s from the common perpendicular. Spec 02 is itself at evidence level EV-1 and has not been independently reviewed. A common-mode misreading of the specification, or a specification that misdescribes workshop practice, would pass both. The report says so in §8.
 2. Seam placement is adopted from the product's assumptions.
 3. The joint model is the same: one (R, r) pair defines both the opening and the cut, so RB-001 cannot appear as a defect. It was recorded only as an observation.
 4. The accept/refuse oracle encodes the product's own declared limits (`oracle.py` cites LEARNING_AND_STRESS_TESTING.md and `web/app.js`). It checks that the product does what it says, not that the limits are right; for example the 1e-6 R tangency limit, where ε_rep reaches 2.4 mm at R = 1000.
 5. Mapping "for every admissible labelling of seam edges and plate ends" makes the comparison blind, by design, to the fact that the DXF doesn't say which edges are seams (RB-003).
 6. Its float reference is less accurate than the product near tangency (5.8e-11 vs 1.0e-11 mm), so float-tier ε_num verdicts there are not meaningful.
-7. It was built by the same organisation and AI tooling, on the same day, from the same documents.
+7. It was built by the same organisation and the same tooling, on the same day, from the same documents; it is at evidence level EV-1 and has not been independently reviewed.
 
 **What would make it stronger:** derive input semantics from physical reference drawings with engineer-confirmed ground truth (the intake specification already exists); model wall thickness and joint type (set-on / set-in) in the reference, so that contact-surface errors become visible; make the oracle's limits come from an engineering budget (ε_rep against a stated T), not from product documentation; add the DXF-only mating test; read the files with a CAD/CAM program (ODA/Teigha, a nesting package) rather than only Python; use interval arithmetic for the high-precision tier; have a different team or person own it.
 

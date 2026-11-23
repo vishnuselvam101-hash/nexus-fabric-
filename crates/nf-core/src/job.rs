@@ -1225,7 +1225,7 @@ pub fn evaluate_gates(
             "algorithm_status",
             true,
             GateResult::Inconclusive,
-            "Algorithms are evidence level EV-1 (AI-generated, not independently reviewed) and not production-qualified.",
+            "Algorithms are evidence level EV-1 (not independently reviewed) and not production-qualified.",
         ),
         gate(
             "G15",

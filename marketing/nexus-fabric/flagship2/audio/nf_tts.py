@@ -4,7 +4,7 @@
 Everything runs on this machine. No text or audio is sent to any speech service.
 Engines:  Kokoro-82M v1.0 (kokoro-onnx, Apache-2.0)            English, Japanese
           VOICEVOX CORE 0.16.3 (MIT) + VOICEVOX voice models    Japanese, with Open JTalk pitch accent
-Checker:  faster-whisper (MIT code, OpenAI Whisper weights MIT) speech-recognition round trip
+Checker:  a speech-recognition model (MIT licence) speech-recognition round trip
 """
 import io, os, re
 import numpy as np

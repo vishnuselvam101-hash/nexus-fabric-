@@ -30,7 +30,7 @@ Supporting notes: [EOS](../architecture/amoeba/ENGINEERING_ORGANISM_STATE.md) ·
 
 There is no engineering computation outside an AMOEBA process and no engineering fact outside the EOS (AMB-01). AMOEBA is therefore not a module beside the pipeline of Specs 01–03: it replaces "pipeline" as the organising concept. The earlier stage diagram (Spec 01 §1.3) becomes one typical *path* through the lifecycle rather than the architecture itself.
 
-What AMOEBA does **not** change: the trust zones Z0–Z4, the rule that AI produces only candidates, deterministic calculation authority, independent verification, human release authority, immutability and reproducibility. These are the constraints *within which* AMOEBA operates; where an AMOEBA mechanism and one of these rules could conflict, the rule wins (AMB-02).
+What AMOEBA does **not** change: the trust zones Z0–Z4, the rule that automated drawing reading produces only candidates, deterministic calculation authority, independent verification, human release authority, immutability and reproducibility. These are the constraints *within which* AMOEBA operates; where an AMOEBA mechanism and one of these rules could conflict, the rule wins (AMB-02).
 
 ## 2. Structure
 
@@ -65,7 +65,7 @@ The EOS is the tuple
 
 | Component | Contents |
 |---|---|
-| **Snapshot** | Immutable set of all source artifacts of the project at engulfment (hash tree), with declared roles, tenant, AI policy. Later uploads create a new snapshot linked to its predecessor |
+| **Snapshot** | Immutable set of all source artifacts of the project at engulfment (hash tree), with declared roles, tenant, automated-reading policy. Later uploads create a new snapshot linked to its predecessor |
 | **Records** | All truth-graph records of Spec 01 §6.1 and observations of Spec 03 §6: source documents and revisions; pages, views, regions; text, symbols, dimensions; geometric observations and reconstructed objects; constraints and relationships; materials and manufacturing information; uncertainties; calculations; evidence; decisions; approvals |
 | **RegionTree** | Containment hierarchy: project → document → sheet/page → region (title block, view, table, notes) → element (text group, entity, symbol) — and, on the engineering side, project → assembly → part → surface/feature → pattern → profile |
 | **Issues** | Open and closed conflicts, gaps, ambiguities, unresolved questions, quarantines — each with affected records and state |

@@ -117,7 +117,7 @@ Also: near-empty frames at slot changes are filled by the six-frame dissolve plu
 - Demonstration address or URL (the end card has none).
 - Native review of the Japanese (list above; also the Japanese narration cuts, `use: cut`, awaiting the lead).
 - EN voice credit: the model terms are not verified here.
-- Scratch clean-up: review frames, contact sheets and two MP4 copies under /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/flagship3/ (about 2.3 GB) are left for the owner to remove; a removal was blocked by the safety check and was not retried.
+- Scratch clean-up: review frames, contact sheets and two MP4 copies under /tmp/build/flagship3/ (about 2.3 GB) are left for the owner to remove; a removal was blocked by the safety check and was not retried.
 
 ### Known weaknesses (picture)
 - 40 px labels are about 8 px at 390 px wide.

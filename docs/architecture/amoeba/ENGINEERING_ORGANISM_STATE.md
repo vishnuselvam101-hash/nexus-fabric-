@@ -11,7 +11,7 @@ Version 0.1 · 18 November 2026 · Supporting note to the [AMOEBA architecture](
 ## 2. Components
 
 ### Snapshot
-- Hash tree over all SourceArtifacts in the project at engulfment, with: declared role per file (assembly, detail, reference, specification, model), tenant, AI policy level, uploader, time.
+- Hash tree over all SourceArtifacts in the project at engulfment, with: declared role per file (assembly, detail, reference, specification, model), tenant, automated-reading policy level, uploader, time.
 - Immutable. New or replaced files ⇒ new Snapshot with `predecessor`; the difference drives revision handling (Spec 03 §8.3).
 - Also stores the **enumeration**: the countable source elements that form the coverage denominators (see Coverage Model).
 

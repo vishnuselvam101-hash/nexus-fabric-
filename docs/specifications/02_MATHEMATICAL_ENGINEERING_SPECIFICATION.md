@@ -38,7 +38,7 @@ Every surface region submitted for development receives exactly one class, recor
 
 Orthogonal to the class, every output curve carries a **representation error** $\varepsilon_{rep}$ (part of $\varepsilon_{mod}$): the exact developed curve of a class-E surface is generally transcendental (e.g. a sinusoid) and cannot be represented exactly by DXF lines and arcs.
 
-- **MATH-01** Class is assigned by the surface-type constructor or by ALG-05, never by AI and never by a sampled curvature test alone.
+- **MATH-01** Class is assigned by the surface-type constructor or by ALG-05, never by automated drawing reading and never by a sampled curvature test alone.
 - **MATH-02** A result's class can only be weakened downstream (E→A→X), never strengthened.
 
 ### 0.3 Conventions
@@ -96,7 +96,7 @@ EngineeringOutcome = OutOfRange{model, param, range} | Ambiguous{solutions} | Un
 - **MATH-05** No function returns a bare number for a physical quantity (ARCH-06/07).
 - **MATH-06** `EngineeringOutcome` values are results, not exceptions; they propagate and force a non-APPROVED state (§10).
 
-### 1.3 The AI boundary
+### 1.3 The automated-reading boundary
 
 The UEM has no input type that an interpretation service can populate directly with geometry. Its only entry points take (a) accepted `Observation` records with provenance class, (b) `Decision` records, (c) `ProcessData` records. Model confidence scores are not a field of any UEM input type and so cannot influence a calculation or a gate (MATH-07). An interpretation service may *propose* which shape module applies; the proposal becomes an Observation of class *inferred* that must be accepted, and the module's own constraints must then be satisfied by the dimensional evidence.
 
