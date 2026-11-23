@@ -102,8 +102,8 @@ message `refusal.reason_required` said "five bytes" and was corrected in both la
 
 ## New Japanese strings — native review needed
 
-Added or changed on 22 Nov 2026 (work plan 3.2, 3.3, 3.5). None has been reviewed by a native-speaking fabrication
-engineer.
+Added or changed on 22 Nov 2026 (work plan 3.2, 3.3, 3.5) and 23 Nov 2026 (work plan 1.5). None has been reviewed by a
+native-speaking fabrication engineer.
 
 Changed refusal messages (their English said something the engine no longer measures, or "bytes"):
 
@@ -126,6 +126,13 @@ New identifier labels (`ID` in `web/i18n.js`):
 | gate | G17 | 網羅性（提案のみ） |
 | check | `large_end_3d_arc_length` | 大径側の端の3D円弧長 |
 | check | `small_end_3d_arc_length` | 小径側の端の3D円弧長 |
+| check | `seam_a_on_positive_x` | 継目の辺Aが＋X側にあること |
+| check | `seam_b_at_development_angle` | 継目の辺Bが展開角の位置にあること |
+| check | `end_circle_3d_arc_length` | 端の円の3D円弧長 |
+| check | `end_circles_3d_arc_length_equal` | 両端の円の3D円弧長が同じ長さ |
+| check | `area_equals_sampled_surface_area` | 展開図の面積＝サンプリングした表面積 |
+| check | `bottom_runs_along_x` | 底辺がX軸に沿っていること |
+| check | `seam_a_runs_along_y` | 継目の辺AがY軸に沿っていること |
 | record kind | `verify.dxf_quality` | DXF品質ゲートの検査 |
 | PDF counter | `annotations` | 注釈 |
 | PDF counter | `clip_operators` | クリップ演算子 |
