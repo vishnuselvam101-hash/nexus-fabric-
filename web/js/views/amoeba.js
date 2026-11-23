@@ -27,7 +27,7 @@ const jaHtml = (s) => esc(s).replace(/`([^`]+)`/g, '<span class="mono">$1</span>
 // engine/server prose: translated only when the whole statement is a known template, never in part
 const eng = (text, key = 'eng.tag') => {
   const s = String(text ?? ''); if (!s) return '';
-  if (!ja()) return esc(s);
+  if (!ja()) return `<span class="eng" lang="en">${esc(s)}</span>`;
   const j = engineJaSafe(s);
   return j ? `<span title="${esc(s)}">${jaHtml(j)}</span>` : `${tag('na', t(key))} <span lang="en">${esc(s)}</span>`;
 };
@@ -35,7 +35,7 @@ const srv = (text) => eng(text, 'srv.tag');
 let engineJaSafe = () => null;
 const nodeParts = (l) => { const i = l.indexOf(' · '); return i < 0 ? ['', l] : [l.slice(0, i), l.slice(i + 3)]; };
 const nodeName = (kind, name) => (ja() ? (kind === 'parameter' || kind === 'convention' ? idLabel('param', name) : kind ? idLabel('part', name) : null) || idLabel('dlabel', name) || idLabel('rkind', name) : null);
-const nodeLabel = (l) => { const [k, n] = nodeParts(l); if (!ja()) return esc(l); const jn = nodeName(k, n); return `${k ? `${labelled('rkind', k)} · ` : ''}${jn ? `${esc(jn)} ` : ''}${mono(n)}`; };
+const nodeLabel = (l) => { const [k, n] = nodeParts(l); if (!ja()) return mono(l); const jn = nodeName(k, n); return `${k ? `${labelled('rkind', k)} · ` : ''}${jn ? `${esc(jn)} ` : ''}${mono(n)}`; };
 const oblSubject = (o) => `${labelled('rkind', o.kind)} · ${ja() && nodeName(o.kind, o.label) ? `${esc(nodeName(o.kind, o.label))} ` : ''}${mono(o.label)}`;
 const oblNote = (o) => (o.resolved_by ? ud(o.note) : eng(o.note));
 const OBL = ['open', 'discharged', 'discharged_by_decision', 'waived'];

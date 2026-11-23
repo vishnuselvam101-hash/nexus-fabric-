@@ -23,7 +23,7 @@ const jaHtml = (s) => esc(s).replace(/`([^`]+)`/g, '<span class="mono">$1</span>
 // Prose the engine wrote: reviewed translation when the whole text is known, otherwise the original, marked as English.
 const eng = (text) => {
   const s = String(text ?? ''); if (!s) return '';
-  if (!ja()) return esc(s);
+  if (!ja()) return `<span class="eng" lang="en">${esc(s)}</span>`;
   const j = engineJa(s);
   return j ? `<span lang="ja" title="${esc(s)}">${jaHtml(j)}</span>` : `<span lang="en">${esc(s)}</span>`;
 };

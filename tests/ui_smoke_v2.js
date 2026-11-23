@@ -449,6 +449,158 @@ async function main() {
       } catch { /* leave the language as it stands */ }
     }
 
+    /* ---- 5i. J: every screen, in both languages, shows translated text (no message keys) ---- */
+    const setLang = async (lang) => {
+      const cur = await page.evaluate(() => document.documentElement.lang || '');
+      if (cur === lang) return;
+      try {
+        await page.click('#btn-lang');
+        await page.waitForFunction((l) => document.documentElement.lang === l, lang, { timeout: 15000 });
+        return;
+      } catch { /* fall back to the stored preference */ }
+      await page.evaluate((l) => { try { localStorage.setItem('nf.lang', l); } catch { /* ignore */ } }, lang);
+      await page.reload({ waitUntil: 'load' });
+      await page.waitForFunction((l) => document.documentElement.lang === l, lang, { timeout: 15000 });
+    };
+
+    const openScreen = async (hash) => {
+      await page.goto(BASE + '/' + hash, { waitUntil: 'load' });
+      await page.waitForSelector('#view', { timeout: 20000 });
+      await page.waitForTimeout(400);
+    };
+
+    // visible text + aria-label/title/placeholder inside #view and the top bar; dotted tokens that are
+    // not numbers, file names, domains or versions are treated as untranslated message keys
+    const scanScreen = () => page.evaluate(() => {
+      const RE = /\b[a-z][a-z0-9]*(?:\.[a-zA-Z0-9_-]+){1,4}\b/g;
+      const NUM = /^\d+(\.\d+)*$/;
+      const VERSION = /^v?\d+(\.\d+)+$/i;
+      const FILE = /\.(pdf|dxf|json|js|css|html)$/i;
+      const DOMAIN = /^(www\.|https?\.)/i;
+      const TLD = /\.(com|org|net|io|dev|app|ai|edu|gov|co|uk|jp|local|localhost|test|example|internal|lan)$/i;
+      const SKIP = '.mono,.id,.eng,[lang="en"],script,style,noscript'; // engine output is English by rule, marked as such
+      const TOPBAR = 'header,.topbar,#topbar,.top-bar,.appbar,#appbar,.app-header,#app-header,.navbar,#navbar';
+      const roots = [document.querySelector('#view')]
+        .concat(Array.from(document.querySelectorAll(TOPBAR)))
+        .filter(Boolean);
+      const visible = (el) => !!el && !el.closest(SKIP) && el.getClientRects().length > 0 &&
+        getComputedStyle(el).visibility !== 'hidden';
+      const seen = new Set();
+      const tokens = [];
+      const take = (text, where) => {
+        const found = String(text || '').match(RE) || [];
+        for (const raw of found) {
+          const t = raw.replace(/[.,]+$/, '');
+          if (!t || seen.has(t)) continue;
+          if (NUM.test(t) || VERSION.test(t) || FILE.test(t) || DOMAIN.test(t) || TLD.test(t)) continue;
+          seen.add(t);
+          tokens.push(t + ' ' + where);
+        }
+      };
+      for (const root of roots) {
+        const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        let n;
+        while ((n = w.nextNode())) {
+          const el = n.parentElement;
+          if (!visible(el)) continue;
+          take(n.textContent, 'in <' + el.tagName.toLowerCase() + '> "' + n.textContent.trim().replace(/\s+/g, ' ').slice(0, 40) + '"');
+        }
+        const nodes = [root].concat(Array.from(root.querySelectorAll('[aria-label],[title],[placeholder]')));
+        for (const el of nodes) {
+          if (!visible(el)) continue;
+          for (const a of ['aria-label', 'title', 'placeholder']) {
+            if (el.hasAttribute(a)) take(el.getAttribute(a), 'in @' + a + ' of <' + el.tagName.toLowerCase() + '>');
+          }
+        }
+      }
+      const view = document.querySelector('#view');
+      return { tokens, empty: !view || (view.innerText || '').trim().length === 0 };
+    });
+
+    try {
+      const problems = [];
+      const record = (lang, screen, res) => {
+        if (res.empty) problems.push(lang + ' ' + screen + ': empty view (missing text)');
+        for (const t of res.tokens) problems.push(lang + ' ' + screen + ': ' + t);
+      };
+
+      for (const lang of ['en', 'ja']) {
+        await setLang(lang);
+
+        await openScreen('#/');
+        record(lang, 'convert', await scanScreen());
+        if (lang === 'ja') {
+          const english = await page.evaluate(() => {
+            const v = document.querySelector('#view');
+            const t = (v && v.innerText) || '';
+            return Array.from(new Set(t.match(/\bverified\b|\bVerify\b/g) || [])).slice(0, 4);
+          });
+          if (english.length) problems.push('ja convert: English wording ' + english.join(', '));
+        }
+
+        for (const [screen, hash] of [
+          ['workspace/calculations', '#/workspace/calculations'],
+          ['workspace/projects', '#/workspace/projects'],
+          ['math', '#/math'],
+        ]) {
+          await openScreen(hash);
+          record(lang, screen, await scanScreen());
+        }
+
+        if (jobId) {
+          await openScreen('#/job/' + jobId);
+          record(lang, 'job', await scanScreen());
+          for (const [tab, sel, wait] of [
+            ['pattern', '#tab-pattern', '#pattern-host'],
+            ['details', '#tab-details', '#tp-details:not([hidden])'],
+          ]) {
+            await page.click(sel);
+            await page.waitForSelector(wait, { timeout: 20000 });
+            await page.waitForTimeout(300);
+            record(lang, 'job/' + tab, await scanScreen());
+          }
+        }
+
+        if (projectId !== null) {
+          await openScreen('#/project/' + projectId);
+          record(lang, 'project', await scanScreen());
+        }
+
+        await openScreen('#/account');
+        record(lang, 'account', await scanScreen());
+
+        await openScreen('#/admin');
+        await page.waitForSelector('#adpanel', { timeout: 20000 });
+        record(lang, 'admin', await scanScreen());
+        for (const k of ADMIN_TABS) {
+          await page.waitForSelector('#adtab-' + k, { state: 'visible', timeout: 10000 });
+          await page.click('#adtab-' + k);
+          await page.waitForSelector('#adpanel', { timeout: 20000 });
+          await page.waitForTimeout(400);
+          record(lang, 'admin/' + k, await scanScreen());
+        }
+
+        for (const [screen, hash] of [
+          ['verification', '#/verification'],
+          ['manufacturing', '#/manufacturing'],
+          ['amoeba', '#/amoeba'],
+        ]) {
+          await openScreen(hash);
+          record(lang, screen, await scanScreen());
+        }
+      }
+
+      await shot('12-i18n-keys.png');
+      check('J no message key or missing text shown on any screen', problems.length === 0,
+        problems.slice(0, 8).join('; '));
+    } catch (e) {
+      await shot('12-i18n-keys.png');
+      check('J no message key or missing text shown on any screen', false, msgOf(e));
+    } finally {
+      // the mobile + toggle checks below start from English
+      try { await setLang('en'); } catch { /* leave the language as it stands */ }
+    }
+
     /* ---- 6. mobile: no horizontal scroll ---- */
     try {
       await page.setViewportSize({ width: 390, height: 844 });

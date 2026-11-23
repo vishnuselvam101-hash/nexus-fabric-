@@ -30,7 +30,7 @@ const oblSubject = (o) => `${labelled('rkind', o.kind)} · ${nodeName(o.kind, o.
 // prose the engine or the server wrote: reviewed translation when known, otherwise the original, marked as such
 const eng = (text) => {
   const s = String(text ?? ''); if (!s) return '';
-  if (!ja()) return esc(s);
+  if (!ja()) return `<span class="eng" lang="en">${esc(s)}</span>`;
   const j = engineJa(s);
   if (j) return `<span lang="ja" title="${esc(s)}">${jaText(j)}</span>`;
   return `${tagHtml('', t('eng.tag'))} <span lang="en">${esc(s)}</span>`;

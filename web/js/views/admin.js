@@ -26,7 +26,7 @@ const roleText = (r) => (['admin', 'engineer', 'viewer'].includes(r) ? t(`role.$
 const advText = (s) => (['open', 'acknowledged'].includes(s) ? t(`adv.${s}`) : String(s ?? '').replaceAll('_', ' '));
 const srvText = (v) => (ja() ? `<span lang="en">${esc(v ?? '')}</span>` : esc(v ?? ''));
 const srvHead = (key) => `${esc(t(key))}${ja() ? ` ${tg('', t('srv.tag'))}` : ''}`;
-const eng = (s) => { const v = String(s ?? ''); if (!v) return ''; if (!ja()) return esc(v); const j = engineJa(v); return j ? `${esc(j)} <span class="sub" lang="en">${esc(v)}</span>` : `${tg('', t('srv.tag'))} <span lang="en">${esc(v)}</span>`; };
+const eng = (s) => { const v = String(s ?? ''); if (!v) return ''; if (!ja()) return `<span class="eng" lang="en">${esc(v)}</span>`; const j = engineJa(v); return j ? `${esc(j)} <span class="sub" lang="en">${esc(v)}</span>` : `${tg('', t('srv.tag'))} <span lang="en">${esc(v)}</span>`; };
 const errText = (e) => String((e && e.message) || e || '');
 const rowsOf = (v) => (Array.isArray(v) ? v : (v && (v.entries || v.advisories || v.lessons || v.items)) || []);
 const jobLink = (id) => (id === undefined || id === null ? '—' : `<a href="#/job/${esc(id)}">${esc(t('job.n', { id }))}</a>`);

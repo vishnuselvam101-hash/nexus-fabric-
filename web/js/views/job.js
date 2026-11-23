@@ -30,7 +30,7 @@ const plabel = (fam, key) => idLabel('param', `${fam}.${key}`) || idLabel('param
 const jaHtml = (s) => esc(s).replace(/`([^`]+)`/g, '<span class="mono">$1</span>');
 function eng(text, key = 'eng.tag') {
   const s = String(text ?? ''); if (!s) return '';
-  if (!ja()) return esc(s);
+  if (!ja()) return `<span class="eng" lang="en">${esc(s)}</span>`;
   const j = engineJa(s);
   if (j) return `<span lang="ja" title="${esc(s)}">${jaHtml(j)}</span>`;
   return `${tag('na', t(key))} <span lang="en">${esc(s)}</span>`;
@@ -54,7 +54,7 @@ const advText = (s) => (['open', 'acknowledged'].includes(s) ? t(`adv.${s}`) : S
 const dirText = (d) => (['downstream', 'lateral', 'common_cause'].includes(d) ? t(`dir.${d}`) : String(d));
 const nodeParts = (l) => { const i = l.indexOf(' · '); return i < 0 ? ['', l] : [l.slice(0, i), l.slice(i + 3)]; };
 const nodeName = (k, n) => (ja() ? (k === 'parameter' || k === 'convention' ? idLabel('param', n) : k ? idLabel('part', n) : null) || idLabel('dlabel', n) || idLabel('rkind', n) : null);
-const nodeLabel = (l) => { const [k, n] = nodeParts(l); if (!ja()) return esc(l); const jn = nodeName(k, n); return `${k ? `${labelled('rkind', k)} · ` : ''}${jn ? `${esc(jn)} ` : ''}${mono(n)}`; };
+const nodeLabel = (l) => { const [k, n] = nodeParts(l); if (!ja()) return mono(l); const jn = nodeName(k, n); return `${k ? `${labelled('rkind', k)} · ` : ''}${jn ? `${esc(jn)} ` : ''}${mono(n)}`; };
 const oblSubject = (o) => `${labelled('rkind', o.kind)} · ${ja() && nodeName(o.kind, o.label) ? `${esc(nodeName(o.kind, o.label))} ` : ''}${mono(o.label)}`;
 const DIM = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 const toAscii = (s) => String(s ?? '').replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0)).replace(/[．－−＋ｅＥ]/g, (ch) => ({ '．': '.', '－': '-', '−': '-', '＋': '+', 'ｅ': 'e', 'Ｅ': 'E' }[ch]));
