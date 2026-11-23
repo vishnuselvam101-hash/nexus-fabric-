@@ -4,7 +4,7 @@
   python3 validation/run_all.py --url http://127.0.0.1:8802 --user U --password P
   python3 validation/run_all.py --spawn /path/to/nf-server            # private server on a temp data dir, port 8802
 
-Stages: 0 reference self-test · 1 corpus · 2 seeded random sweep · 3 synthetic workload · 4 numerical stability.
+Stages: 0 reference self-test, seeded faults, DXF-only mating (task 1.5) · 1 corpus · 2 seeded random sweep · 3 synthetic workload · 4 numerical stability.
 Prints a summary, writes validation/results/latest.json, exits non-zero on any mismatch or defect finding.
 """
 import argparse
@@ -454,6 +454,14 @@ def main():
     for ln in sf_lines:
         if not ln.startswith('ok'):
             print('    ' + ln)
+    # work plan task 1.5: the two DXF files of a one-curve joint must mate from the files alone (fold-back derived
+    # from Spec 02 section 4.4, correspondence searched); the correct joint must mate and every planted fault must FAIL
+    from checks import mating
+    mt_ok, mt_lines = mating.run(client)
+    print(f'[0] DXF-only mating (task 1.5): {"mates, all faults detected" if mt_ok else "FAIL"}')
+    for ln in mt_lines:
+        if not ln.startswith('ok'):
+            print('    ' + ln)
     cases = corpus_cases(a.quick)
     cases += random_cases(a.seed, 5 if a.quick else a.random)
     cases += workload_cases(24 if a.quick else a.workload, a.seed)
@@ -500,12 +508,12 @@ def main():
         for r in bad[:60]:
             print(f'  [{r["class"]}] {r["id"]}: {r["issues"][0][:230] if r["issues"] else ""}')
             print(f'      request: {json.dumps(r["request"])[:300]}')
-    selftest_ok = all(r['ok'] for r in st) and sf_ok
+    selftest_ok = all(r['ok'] for r in st) and sf_ok and mt_ok
     engines = sorted({r.get('engine') for r in results if r.get('engine')})
     ok = selftest_ok and not bad and not any(c in DEFECT_CODES for c in fcount)
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     with open(a.out, 'w') as fh:
-        json.dump({'when': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'url': a.url, 'engine': engines, 'mode': 'quick' if a.quick else 'full', 'seeded_faults': sf_lines, 'seed': a.seed, 'elapsed_s': round(time.time() - t0, 1), 'verdict': 'PASS' if ok else 'FAIL', 'server_restarts_during_run': restarts,
+        json.dump({'when': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'url': a.url, 'engine': engines, 'mode': 'quick' if a.quick else 'full', 'seeded_faults': sf_lines, 'mating': mt_lines, 'seed': a.seed, 'elapsed_s': round(time.time() - t0, 1), 'verdict': 'PASS' if ok else 'FAIL', 'server_restarts_during_run': restarts,
                    'selftest': st, 'summary': {'groups': groups, 'total': total}, 'findings_by_code': fcount, 'results': results}, fh, indent=1, default=str)
     print(f'\n{"PASS" if ok else "FAIL"}  ({time.time() - t0:.0f} s)  ->  {a.out}')
     sys.exit(0 if ok else 1)
