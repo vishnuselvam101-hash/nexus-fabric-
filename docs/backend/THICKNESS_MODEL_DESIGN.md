@@ -164,6 +164,15 @@ No thickness, k or thickness range is assumed (`job.rs:1392-1396`).
 - The interface checks take the header geometry and the branch geometry as separate arguments (`verify.rs:938-956`,
   `:1009-1025`), but the job passes the same value twice (`job.rs:1302-1321`). Both checks require the folded opening
   and the folded saddle to be one curve (`verify.rs:984-1006`, `:1074-1089`).
+- **Unverified convention boundary (external review C, RC-16, `REVIEW_C_EXTERNAL.md:35`).** The fold-back functions
+  (`fold_header`, `fold_branch`) and `Joint3` share the frame of Spec 02 §4.4. The interface checks therefore confirm
+  that the two parts agree WITH EACH OTHER in that frame, not that the frame itself matches the physical forming
+  convention: a convention error common to both sides passes every check. Likewise a mirrored part of a
+  mirror-symmetric joint (the centred perpendicular tee) is the same part, so no interface check can name that mirror.
+  This boundary is stated as UNVERIFIED until a fabrication engineer confirms the frame and the marking-side
+  convention (section 6; the marking side is already declared not reviewed, `uem/src/lib.rs`, `MarkingSide`). Passing
+  the same geometry as `hb` and `bb` is correct for today's zero-thickness single-curve model (1.5); once thickness
+  exists the two geometries are derived separately per part and stay distinct (4.3).
 
 ### 1.5 Which set-on pairing works today, and why the other does not
 
@@ -582,7 +591,8 @@ that the contact faces stated in each file equal the faces whose radii produced 
   azimuth (2.4), and the azimuth sampling carries a proved resolution or the check is INCONCLUSIVE; (iv) the gap and
   interference profile is stated, not judged, until question T6 is answered. The job then passes geometries derived
   separately per part (today it passes the same value twice, `job.rs:1302-1321`; external review C, RC-16,
-  `REVIEW_C_EXTERNAL.md:35`).
+  `REVIEW_C_EXTERNAL.md:35`). Separate geometries close the shared-input gap, not the shared-frame convention
+  boundary of 1.4: that stays UNVERIFIED until a fabrication engineer confirms the frame.
 - `validation/reference/families.py` shares the single-curve joint model (REVIEW_B:107). It is extended first, from a
   written derivation, never from `develop.rs` (work plan rule A.9 and task 1.5).
 - The 3D mating check of the validation harness also assumes one curve: "the folded header opening and the folded
