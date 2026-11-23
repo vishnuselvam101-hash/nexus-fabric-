@@ -5,13 +5,13 @@ Reviewer stance: independent creative director, design only (engineering credibi
 ## Method
 - Frames extracted at 2 fps from both files across the full 30 s (60 frames each), contact sheets of both, and full-resolution reads of at least two frames per scene per language (EN 3.0, 5.5, 7.0, 9.0, 10.0, 11.5, 15.0, 19.5, 23.5, 28.5; JA 3.0, 7.0, 15.5, 23.5, 28.5).
 - 10 fps bursts as contact sheets over 4.5–5.9, 10.5–12.0, 17.5–19.0, 24.5–26.5 s (EN and JA).
-- Files: /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/criticA/
+- Files: /tmp/build/criticA/
 
 ## Structure observed
 | Time | Scene | Content |
 |---|---|---|
 | 0.0–4.7 | 01/05 | Line drawing of a 60 deg pipe branch builds on, inside a title-block frame. "Hours of engineering work" / 膨大な設計工数 |
-| 4.7–10.6 | 02/05 | Real UI screenshot (workspace, gates panel), crop-zooms to the canvas, crossfade to developed-pattern view, then crossfade to a "Records by family and kind" table. "Meet NEXUS FABRIC / AI-native engineering platform powered by AMOEBA" |
+| 4.7–10.6 | 02/05 | Real UI screenshot (workspace, gates panel), crop-zooms to the canvas, crossfade to developed-pattern view, then crossfade to a "Records by family and kind" table. "Meet NEXUS FABRIC / engineering platform with automated drawing reading (not implemented), powered by AMOEBA" |
 | 10.6–17.7 | 03/05 | Dip to black, drawing redraws, extrudes into a grey 3D tee; formula left, parameter table right. "Understand. Reconstruct. Calculate." |
 | 17.7–24.7 | 04/05 | Tee rotates, separates, both parts unroll to flat patterns, then become 2D dimensioned DXF-style outlines plus an "IMPLEMENTED" bullet list. "Traceable CAD deliverables" |
 | 24.7–30.0 | end | Line sweeps in, wordmark NEXUS FABRIC, "Engineering, Reimagined.", "Drawings to manufacturing intelligence", "UNDERSTAND. RECONSTRUCT. VERIFY. MANUFACTURE.", disclaimer |

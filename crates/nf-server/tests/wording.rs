@@ -195,7 +195,12 @@ fn no_forbidden_claim_in_the_interface_package_or_install_texts() {
             if p.is_dir() {
                 dirs.push(p);
             } else if p.extension().is_some_and(|x| x == "js") {
-                modules.push(p.strip_prefix(root()).unwrap().to_string_lossy().replace('\\', "/"));
+                modules.push(
+                    p.strip_prefix(root())
+                        .unwrap()
+                        .to_string_lossy()
+                        .replace('\\', "/"),
+                );
             }
         }
     }

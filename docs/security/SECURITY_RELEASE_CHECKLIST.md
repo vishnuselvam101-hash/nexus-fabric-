@@ -16,7 +16,7 @@
 | # | Merge conditions that bind future code | Now |
 |---|---|---|
 | M1 | **No file parser (PDF, image, CAD, STEP) is merged unless it runs in a separate, network-less, resource-limited process per file, with fuzz tests and malformed-file tests** | No parser exists |
-| M2 | No AI/OCR component is merged with write access to authoritative records, with tools, or with network access; document text is treated as data, never as instructions; tests include injected instructions in drawing text | None exists |
+| M2 | No automated-reading/OCR component is merged with write access to authoritative records, with tools, or with network access; document text is treated as data, never as instructions; tests include injected instructions in drawing text | None exists |
 | M3 | No approval workflow is merged without per-user signing over the release-closure hash, obligation and audit gates, and separation of preparer and approver | Not built |
 | M4 | No external service call is added without the tenant's recorded authorisation and an audit entry | None exists |
 | M5 | Every new endpoint has a membership check and a negative test | Enforced for current endpoints |

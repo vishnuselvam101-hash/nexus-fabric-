@@ -16,7 +16,7 @@
 
 ## Trust boundaries
 
-B1 browser ↔ server · B2 server ↔ storage (database, blobs, key file) · B3 server ↔ replay child process · B4 uploaded file ↔ any parser *(future)* · B5 trusted core ↔ AI/OCR workers *(future)* · B6 experimental ↔ production lanes *(future)* · B7 installation ↔ outside network (updates, optional external AI) *(future)*
+B1 browser ↔ server · B2 server ↔ storage (database, blobs, key file) · B3 server ↔ replay child process · B4 uploaded file ↔ any parser *(future)* · B5 trusted core ↔ automated-reading/OCR workers *(future)* · B6 experimental ↔ production lanes *(future)* · B7 installation ↔ outside network (updates, optional external reading services) *(future)*
 
 ## Actors
 
@@ -40,7 +40,7 @@ External attacker (network) · malicious authenticated user · compromised user 
 | T12 | B2 | I | Key disclosure | File mode 600; separable location | Single key, no rotation (V-22) |
 | T13 | B3 | E/T | Replay child influenced by environment | Receives only the request; result compared, never trusted to repair | Same privileges as the server (V-30) |
 | T14 | B4 *(future)* | E/D | Malicious PDF/CAD exploits a parser or exhausts resources | **Today: nothing is parsed** — membership check, type sniffing, size limit, encrypted storage only | Becomes the top risk when parsing starts (V-26): requires an isolated, resource-limited, network-less worker per file and fuzzing before merge |
-| T15 | B5 *(future)* | T/I | Text inside a drawing instructs an AI component (prompt injection); model output leaks data or triggers actions | Architectural rule: AI output is typed candidate data only, has no tools, no write access to authoritative records, no network (Spec 03 §9; AMOEBA safety rules) | To be enforced in code and tested when the components exist |
+| T15 | B5 *(future)* | T/I | Text inside a drawing instructs an automated-reading component (prompt injection); model output leaks data or triggers actions | Architectural rule: automated-reading output is typed candidate data only, has no tools, no write access to authoritative records, no network (Spec 03 §9; AMOEBA safety rules) | To be enforced in code and tested when the components exist |
 | T16 | B5/B7 *(future)* | T | Compromised model weights or runtime | Weights identified by hash; no code-executing model formats; licence and source recorded | Not implemented |
 | T17 | B6 *(future)* | E | Experimental algorithm or rule reaches production or steers it | Lane overlays; promotion only by signed human decision | Not implemented; today every algorithm is marked not production-qualified and no result can be approved |
 | T18 | B7 | T | Compromised dependency (supply chain) | Lock file committed; `cargo audit` | No vendoring, review or reproducible builds (V-32) |
@@ -53,4 +53,4 @@ External attacker (network) · malicious authenticated user · compromised user 
 
 1. **Malicious PDF/CAD protection (T14).** Currently satisfied only because no file is opened. The release checklist forbids adding any parser without the isolation controls.
 2. **Engineering-data integrity (T10, T19; finding V-28).** Content-addressed records, supersession and replay give tamper *evidence*; signing and an external anchor are needed for stronger guarantees.
-3. **AMOEBA isolation (T15, T17).** Defined in the architecture; not yet exercised because no AI worker or experimental lane exists in code.
+3. **AMOEBA isolation (T15, T17).** Defined in the architecture; not yet exercised because no automated-reading worker or experimental lane exists in code.

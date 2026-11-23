@@ -23,7 +23,7 @@ Updated 18 November 2026
 | Deterministic replay before release | Separate process, same machine and build |
 | Authorised engineer approval (G16) | Not implemented |
 | Explicit uncertainty and calibration handling | Missing calibration forces REVIEW REQUIRED (gate G06); no uncertainty analysis |
-| AI confidence never used as approval | Holds trivially: no AI component exists; gate function has no such input |
+| Automated-reading confidence never used as approval | Holds trivially: no automated-reading component exists; gate function has no such input |
 
 ## Security gaps that block use with confidential data
 

@@ -48,12 +48,12 @@ Order of development for the remaining specifications, with dependencies and rev
 ## 03 — Drawing Intelligence and Ingestion Specification
 
 - **Purpose:** define how files become typed observations.
-- **Scope:** the four pipelines; observation schema; provenance classes; reconciliation rules (written vs measured vs scale); view detection; dimension-to-entity association; JA/EN vocabulary; AI-policy modes; sandboxing.
+- **Scope:** the four pipelines; observation schema; provenance classes; reconciliation rules (written vs measured vs scale); view detection; dimension-to-entity association; JA/EN vocabulary; automated-reading policy modes; sandboxing.
 - **Dependencies:** 01; observation consumers defined in 02.
 - **Required research:** PDF library evaluation; OCR/vision model evaluation on Japanese engineering drawings; vectorisation methods and their error behaviour; JIS drawing conventions (projection method, symbols, weld symbols); handwriting/stamp handling.
 - **Deliverables:** schema; pipeline stage contracts; uncertainty model for scanned measurements; list of unsupported input conditions with required system behaviour.
 - **Acceptance:** schema exercised against a sample of authorised drawings; every stage has metrics defined in Spec 10; every ambiguity class has a defined escalation path.
-- **Open requirements:** FR-03-1 sample drawings (authorised); FR-03-2 proportion of vector PDF / scan / photo / DWG / DXF inputs; FR-03-3 typical scan quality; FR-03-4 first- or third-angle projection and house drawing standards; FR-03-5 customer restrictions on external AI; FR-03-6…12 as listed in Spec 03 §15.
+- **Open requirements:** FR-03-1 sample drawings (authorised); FR-03-2 proportion of vector PDF / scan / photo / DWG / DXF inputs; FR-03-3 typical scan quality; FR-03-4 first- or third-angle projection and house drawing standards; FR-03-5 customer restrictions on external reading services; FR-03-6…12 as listed in Spec 03 §15.
 
 ## 04 — Geometry Reconstruction and Fabrication Specification
 
@@ -88,7 +88,7 @@ Order of development for the remaining specifications, with dependencies and rev
 ## 07 — Security and Deployment Specification
 
 - **Purpose:** define security controls and deployment topologies.
-- **Scope:** threat model; tenant isolation; identity, roles, MFA; key management; audit log; file sandboxing; AI-policy enforcement; single-node / cluster / cloud topologies; offline updates; backup, recovery, retention and deletion.
+- **Scope:** threat model; tenant isolation; identity, roles, MFA; key management; audit log; file sandboxing; automated-reading policy enforcement; single-node / cluster / cloud topologies; offline updates; backup, recovery, retention and deletion.
 - **Dependencies:** 01 (ADR-006, ADR-008).
 - **Required research:** customer security requirements in Japanese manufacturing supply chains; applicable Japanese data-protection and export-control considerations (legal input); sandboxing technologies per OS.
 - **Deliverables:** threat model; control catalogue mapped to tests; deployment guides outline; retention policy options.

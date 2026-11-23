@@ -63,8 +63,8 @@
       "part_header": "header",
       "part_branch": "branch",
       "dxf_reread": "read back from the file",
-      "positioning": "AI-native engineering platform powered by AMOEBA",
-      "planned_ai": "AI drawing interpretation: planned",
+      "positioning": "Engineering platform with automated drawing reading (not implemented), powered by AMOEBA",
+      "planned_ai": "Automated drawing reading: planned",
       "today": "Running today",
       "today_items": [
         "Calculation",

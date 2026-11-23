@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Round-trip check: transcribe vo-en.wav / vo-ja.wav with a local Whisper model
-(faster-whisper, MIT; weights openai/whisper-small, MIT) and print per-segment text."""
+(a speech-recognition model, MIT licence) and print per-segment text."""
 import json, os, sys
 import soundfile as sf
 from scipy.signal import resample_poly

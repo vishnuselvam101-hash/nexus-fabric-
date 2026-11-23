@@ -24,7 +24,7 @@
   "en": {
     "vo": [
       "Complex engineering drawings. Difficult geometry. Hours of engineering work.",
-      "Meet NEXUS FABRIC, an AI-native engineering platform powered by AMOEBA.",
+      "Meet NEXUS FABRIC, an engineering platform with automated drawing reading (not implemented), powered by AMOEBA.",
       "Understand complex drawings. Reconstruct 3D geometry. Perform advanced engineering calculations.",
       "Calculate plate developments, evaluate manufacturing constraints and generate traceable CAD deliverables.",
       "From drawings to manufacturing intelligence. NEXUS FABRIC. Engineering, reimagined."
@@ -50,7 +50,7 @@
       "actual_only": "Actual software · development build",
       "film_vis": "Visualisation made for this film · not a product view",
       "same_equations": "Same equations as the product · redrawn for this film",
-      "planned_ai": "AI drawing interpretation: planned",
+      "planned_ai": "Automated drawing reading: planned",
       "verification": "Verification checks"
     },
     "slogan": "UNDERSTAND. RECONSTRUCT. VERIFY. MANUFACTURE.",

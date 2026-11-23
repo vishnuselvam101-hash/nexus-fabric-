@@ -273,7 +273,7 @@
   },
   {
    "critical": true,
-   "detail": "Algorithms are evidence level EV-1 (AI-generated, not independently reviewed) and not production-qualified.",
+   "detail": "Algorithms are evidence level EV-1 (not independently reviewed) and not production-qualified.",
    "id": "G14",
    "name": "algorithm_status",
    "result": "INCONCLUSIVE"
@@ -13411,7 +13411,7 @@
      },
      {
       "critical": true,
-      "detail": "Algorithms are evidence level EV-1 (AI-generated, not independently reviewed) and not production-qualified.",
+      "detail": "Algorithms are evidence level EV-1 (not independently reviewed) and not production-qualified.",
       "id": "G14",
       "name": "algorithm_status",
       "result": "INCONCLUSIVE"

@@ -802,7 +802,7 @@ const EN = {
   "hp.toc": "On this page",
   "hp.build.h": "What this build is",
   "hp.build.p": "**Development build.** Not validated. A result with a flat pattern stays **REVIEW REQUIRED** at best: engineer approval (gate G16) is not implemented, so nothing can be released. Every DXF file is marked **NOT RELEASED**. No output may be used for manufacturing.",
-  "hp.build.ev": "Every algorithm is at evidence level EV-1 (AI-generated, not independently reviewed). No fabrication engineer has reviewed the outputs or the assumptions.",
+  "hp.build.ev": "Every algorithm is at evidence level EV-1 (not independently reviewed). No fabrication engineer has reviewed the outputs or the assumptions.",
   "hp.fam.h": "What each part family needs",
   "hp.fam.p": "Lengths and radii are in millimetres, angles in degrees. The example values are the ones the new-calculation form shows first: examples, not recommendations.",
   "hp.th.input": "Input",
@@ -1786,7 +1786,7 @@ const SENT = [
   ['No separately implemented verifier or external kernel cross-check exists yet.', '別に実装された検証器や、外部カーネルとの突き合わせは、まだありません。'],
   ['Outer profiles closed, simple, counter-clockwise; openings closed, simple, clockwise (binary64 arithmetic, not exact predicates).', '外形は閉じた単純な輪郭で反時計回り、開口は閉じた単純な輪郭で時計回りです（`binary64`演算による判定で、厳密な述語ではありません）。'],
   ['Kerf-compensation ownership is not declared.', 'カーフ補正をどちらが行うかは、宣言されていません。'],
-  ['Algorithms are evidence level EV-1 (AI-generated, not independently reviewed) and not production-qualified.', 'アルゴリズムは証拠レベルEV-1（AIが生成、独立したレビューなし）で、製造用途としての認定は受けていません。'],
+  ['Algorithms are evidence level EV-1 (not independently reviewed) and not production-qualified.', 'アルゴリズムは証拠レベルEV-1（独立したレビューなし）で、製造用途としての認定は受けていません。'],
   ['Every DXF re-imported by the independent reader and compared with the intended geometry.', 'すべてのDXFを独立したリーダーで再読込し、意図した形状と照合しました。'],
   ['CAM acceptance not tested.', '`CAM`での受入は試験していません。'],
   ['Engineer approval workflow is not implemented.', '技術者承認のワークフローは未実装です。'],
@@ -1989,6 +1989,12 @@ const WHOLE = [
   ["out of range ({w}): a set-on joint (Spec 02 section 4.4) needs the branch INSIDE surface on the header OUTSIDE surface: {w} \"{w}\" and {w} \"{w}\". Declared: header \"{w}\", branch \"{w}\". A branch whose outside surface is the contact would have its opening cut at the outside diameter, so it would pass through the hole; this build has no wall thickness from which the bore could be derived", "範囲外（`{1}`）：セットオンの取合い（仕様書02 4.4節）には、母管の外面に枝管の内面が必要です：`{2}` は「`{3}`」、`{4}` は「`{5}`」。宣言：母管「`{6}`」、枝管「`{7}`」。外面を取合いとする枝管では、開口が外径で切断されるため、枝管が穴を通過してしまいます。このビルドには板厚がなく、内径を導くことができません"],
   ["invalid request: unknown field(s) {w}, {w} for family '{w}'. Nothing is ignored silently; remove them or use a family that has them", "リクエストが不正です：形状種別「`{3}`」に、不明な欄 `{1}`、`{2}` があります。暗黙に無視される項目はありません。該当する項目を削除するか、それらに対応した形状種別を使用してください"],
   ["invalid request: unknown field(s) {w} for family '{w}'. Nothing is ignored silently; remove them or use a family that has them", "リクエストが不正です：形状種別「`{2}`」に、不明な欄 `{1}` があります。暗黙に無視される項目はありません。該当する項目を削除するか、それらに対応した形状種別を使用してください"],
+  // engine 0.4.8 cylinder solid checks (task 1.5 RC-09)
+  ["3D chord sums of the end circle of the shell in a tilted frame, taken to the limit (no 2*pi*r)", "傾いた座標系における、胴の端円の3D弦長の和の極限（`2*pi*r` は用いない）"],
+  ["3D circle length (chord sums) times the shell length against the signed area of the plate outline", "3Dの円周長（弦長の和）に胴の長さを掛けた値を、板の外形の符号付き面積と比較"],
+  ["developed length of the other shell end against the same 3D circle", "もう一方の胴の端の展開長を、同じ3Dの円と比較"],
+  ["largest distance of any point of the {w} edge from the X-parallel line through its start (plate axes: X around the shell, Y along the axis)", "`{1}` の辺の各点から、その始点を通るXに平行な直線までの距離の最大値（板の軸：Xは胴の周方向、Yは軸方向）"],
+  ["largest distance of any point of the {w} edge from the Y-parallel line through its start ({w} is the angle datum at X = {n})", "`{1}` の辺の各点から、その始点を通るYに平行な直線までの距離の最大値（`{2}` は X = {3} における角度の基準）"],
 ];
 
 const REASON = [

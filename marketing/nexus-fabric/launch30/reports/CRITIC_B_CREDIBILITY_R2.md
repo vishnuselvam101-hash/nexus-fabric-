@@ -47,7 +47,7 @@ Same role and strictness as round 1. Date: 2026-11-19. Films: `final/NEXUS-FABRI
 | # | Defect | Status | Evidence |
 |---|---|---|---|
 | 1 | Header opening transposed against the plate | **Fixed** | Code, tests and the 5.5–10.5 s captures; see above. |
-| 2 | "AI-native" presented as implemented | **Partly** | 5.5–10.5 s: amber "AI drawing interpretation: planned" / "AIによる図面解釈：計画中" beside the line at the same size; tag now reads "Actual software · development build" with no "Implemented". Judgement below. |
+| 2 | The automated-intelligence claim presented as implemented | **Partly** | 5.5–10.5 s: amber "Automated drawing reading: planned" / 「図面の自動読み取り：計画中」 beside the line at the same size; tag now reads "Actual software · development build" with no "Implemented". Judgement below. |
 | 3 | Narration states planned capabilities; marks small, late, with gaps | **Partly** | Marks present at 11.0 s and 18.0 s (first frame of each scene), about 20 px, under the headline. No gaps. Narration text unchanged. |
 | 4 | "Computed by the product's mathematics engine" | **Fixed** | 11–18 s "Visualisation made for this film · not a product view"; 18–24.5 s "Same equations as the product · redrawn for this film". |
 | 5 | Branch pattern mirrored | **Fixed** | 23 s onward. |
@@ -58,13 +58,13 @@ Same role and strictness as round 1. Date: 2026-11-19. Films: `final/NEXUS-FABRI
 
 Round-1 items 10–12: "zero offset" fixed (δ = 0); gates text fixed (large and legible at 8.5 s); Japanese mostly fixed.
 
-## Is the "AI-native" line honest enough?
+## Is the automated-intelligence positioning line honest enough?
 
 On screen: acceptable, narrowly. The amber mark sits beside the claim at equal size for the whole scene, the gates panel under it says "drawing intelligence is not implemented", and the request panel says "ENTERED MANUALLY". A reader is not misled.
 
 Two reservations:
-- The mark says AI *drawing interpretation* is planned. The repository says no AI component of any kind exists. The mark is true but narrower than the fact. "AI components: planned" would be exact.
-- A listener who is not reading hears "an AI-native engineering platform" with no qualifier. For a film that will be played in rooms, that is the remaining honesty gap.
+- The mark says automated *drawing reading* is planned. The repository says no automated-reading component of any kind exists. The mark is true but narrower than the fact. "Automated-reading components: planned" would be exact.
+- A listener who is not reading hears the positioning line calling it an engineering platform with automated drawing reading, with no qualifier. For a film that will be played in rooms, that is the remaining honesty gap.
 
 I would not block release on it. I would not call it a 9.
 

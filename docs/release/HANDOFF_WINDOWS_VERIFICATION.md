@@ -1,16 +1,16 @@
 # Hand-off: verify NEXUS FABRIC on a real Windows PC
 
-For a Claude Code session running **on a Windows 10 or 11 PC** (not in the cloud). The cloud build machine is Linux and
+For a CLI session running **on a Windows 10 or 11 PC** (not in the cloud). The cloud build machine is Linux and
 could only try the Windows files under an emulator, which is not evidence that they work on Windows. This file is the
-complete instruction; paste the block below into Claude Code on the Windows PC.
+complete instruction; paste the block below into the CLI session on the Windows PC.
 
 Development build. Not validated. Outputs must not be used for manufacturing.
 
-## What to paste into Claude Code on the Windows PC
+## What to paste into the CLI session on the Windows PC
 
 ```
 You are verifying the Windows package of NEXUS FABRIC on this real Windows PC. Repository:
-vishnuselvam101-hash/nexus-fabric-, branch claude/nexus-fabric-strategy-8guhxz. You verify and report; you do NOT
+vishnuselvam101-hash/nexus-fabric-, branch dev/nexus-fabric-strategy-8guhxz. You verify and report; you do NOT
 change product code (crates/, web/). If something is broken, describe it exactly; do not fix it here.
 
 1. Get the code: clone the repository (or `git pull` if it exists) and check out the branch. Record the full commit hash.

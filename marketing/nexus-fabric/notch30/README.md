@@ -17,7 +17,7 @@ Built with the `apple-launch-film` skill: the notch at the top centre of the scr
 |---|---|---|---|
 | 0–3.2 | "hello", written in one line | none | none |
 | 3.2–7.0 | a fictional drawing of the joint | One joint. One curve to find. | Fictional drawing made for this film |
-| 7.0–10.8 | the real application, then its pattern canvas | Meet NEXUS FABRIC. | Actual software · development build; "AI drawing interpretation: planned" beside the positioning line |
+| 7.0–10.8 | the real application, then its pattern canvas | Meet NEXUS FABRIC. | Actual software · development build; "Automated drawing reading: planned" beside the positioning line |
 | 10.8–14.6 | the governing equation with a live read-out | Every curve, from an equation. | Implemented · pattern mathematics |
 | 14.6–18.4 | the two flat patterns, plotted from the product's vertices | Rolled steel, developed flat. | Actual product output · development build |
 | 18.4–21.7 | the product's 16 checks and its gate summary | Checked, part against part. | Actual product output · 7 gates inconclusive · engineer approval not implemented |
@@ -27,7 +27,7 @@ Built with the `apple-launch-film` skill: the notch at the top centre of the scr
 ## Decisions taken while building (for the owner to confirm or change)
 - **Menu bar has no words.** Menu titles and status items are grey placeholder lines and the left-most glyph is the NEXUS FABRIC mark. A named Mac menu bar would imply a native Mac application, which does not exist, and no Apple logo or trademark is used. The "hello" is the lead's own lettering.
 - **Opening caption changed** from "Complex engineering drawings. Hours of engineering work." to "One joint. One curve to find.": the earlier reviewers found the first claim unsupported over a simple joint.
-- **No voice-over.** Captions carry the film; planned capabilities are not voiced or shown as present. The only planned item named is AI drawing interpretation, marked as planned beside the owner's positioning line.
+- **No voice-over.** Captions carry the film; planned capabilities are not voiced or shown as present. The only planned item named is automated drawing reading, marked as planned beside the owner's positioning line.
 - **Wallpaper colours** are new (one hue per scene, as the skill's format asks); the Round 6 film's graphite-only palette is unchanged in `../launch30`.
 - **Words on screen that are not product output or approved labels**, listed for approval: the six captions above; "Written / Re-read / Compared" (出力 / 再読込 / 照合); "engine", "marking side", "units", "outside · provisional" (エンジン, けがき面, 単位, 外面・暫定); "Implemented · pattern mathematics"; "Actual product output"; "7 gates inconclusive · engineer approval not implemented"; "not released".
 

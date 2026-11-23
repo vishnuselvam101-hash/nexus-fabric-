@@ -10,7 +10,7 @@
    1.82373046875
   ]
  },
- "binary": "/tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/nf-server",
+ "binary": "/tmp/build/stress/nf-server",
  "fault_injection": {
   "kill9": {
    "repetitions": 25,
@@ -149,7 +149,7 @@
     },
     "new_calc": 200,
     "server_alive_after": true,
-    "log_tail": "0.1:8815  (data: /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+    "log_tail": "0.1:8815  (data: /tmp/build/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
    },
    "truncate_0": {
     "starts": true,
@@ -169,7 +169,7 @@
     },
     "new_calc": 401,
     "server_alive_after": true,
-    "log_tail": "0.1:8815  (data: /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+    "log_tail": "0.1:8815  (data: /tmp/build/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
    },
    "truncate_4096": {
     "starts": true,
@@ -189,7 +189,7 @@
     },
     "new_calc": 401,
     "server_alive_after": true,
-    "log_tail": "0.1:8815  (data: /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+    "log_tail": "0.1:8815  (data: /tmp/build/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
    },
    "garbage_header": {
     "starts": true,
@@ -212,7 +212,7 @@
     },
     "new_calc": 200,
     "server_alive_after": true,
-    "log_tail": "0.1:8815  (data: /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+    "log_tail": "0.1:8815  (data: /tmp/build/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
    },
    "delete_db_keep_blobs": {
     "starts": true,
@@ -232,7 +232,7 @@
     },
     "new_calc": 401,
     "server_alive_after": true,
-    "log_tail": "0.1:8815  (data: /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+    "log_tail": "0.1:8815  (data: /tmp/build/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
    },
    "corrupt_middle_page": {
     "starts": true,
@@ -255,7 +255,7 @@
     },
     "new_calc": 200,
     "server_alive_after": true,
-    "log_tail": "0.1:8815  (data: /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+    "log_tail": "0.1:8815  (data: /tmp/build/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
    },
    "delete_wal_midwrite": {
     "starts": true,
@@ -278,7 +278,7 @@
     },
     "new_calc": 200,
     "server_alive_after": true,
-    "log_tail": "0.1:8815  (data: /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+    "log_tail": "0.1:8815  (data: /tmp/build/stress/w6/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
    }
   },
   "disk_full": {

@@ -35,7 +35,7 @@ Proposed product strategy · Version 1.0 · 18 November 2026
 
 **Objective:** convert engineering drawings supplied as PDFs, images, scanned documents and CAD files into mathematically verified, manufacturing-ready DXF drawings, with traceable engineering decisions and measurable accuracy.
 
-This is not a PDF converter, OCR application, CAD editor or AI chatbot. It is an **Engineering Drawing-to-Manufacturing Geometry System**.
+This is not a PDF converter, OCR application, CAD editor or chatbot. It is an **Engineering Drawing-to-Manufacturing Geometry System**.
 
 | | |
 |---|---|
@@ -46,13 +46,13 @@ This is not a PDF converter, OCR application, CAD editor or AI chatbot. It is an
 
 ### The fundamental principle
 
-1. AI interprets the drawing.
+1. Automated drawing reading interprets the drawing (not implemented).
 2. Mathematical and geometric engines calculate the result.
 3. Independent verification engines challenge that result.
 4. Manufacturing rules determine whether it can be produced.
 5. Engineers authorise release.
 
-**AI must never be the final authority for critical geometry.**
+**Automated drawing reading must never be the final authority for critical geometry.**
 
 ### What we can and cannot promise
 
@@ -78,7 +78,7 @@ The product must not stop at the first DXF export. It must preserve the relation
 
 Two particularly relevant competitors (to be re-verified hands-on):
 
-- **Unfoldo AI** accepts PDF, DXF and photos, identifies supported sheet-metal shapes, reads dimensions and generates flat patterns, with DXF, STEP and PDF outputs.
+- **Unfoldo** accepts PDF, DXF and photos, identifies supported sheet-metal shapes, reads dimensions and generates flat patterns, with DXF, STEP and PDF outputs.
 - **CUTL** has a PDF-to-STEP beta producing a 3D model, flat-pattern DXF and preview. Its documentation describes restrictions including vector PDFs, one sheet-metal part per drawing and supported-geometry limits.
 
 These are meaningful competitors and should not be dismissed.
@@ -89,7 +89,7 @@ These are meaningful competitors and should not be dismissed.
 |---|---|
 | Shape catalogue dependency | Parametric geometry plus a general constrained-geometry framework |
 | Narrow set of supported drawings | Multiple input pipelines and an explicit unsupported-geometry workflow |
-| AI guesses missing dimensions | No silent guessing; source traceability and uncertainty tracking |
+| Automated reading guesses missing dimensions | No silent guessing; source traceability and uncertainty tracking |
 | One PDF page treated as one part | Multi-page, multi-view, multi-part drawing relationships |
 | Flat pattern without sufficient validation | Independent verification before release |
 | One file conversion is the whole product | Complete engineering job, revision, approval and manufacturing workflow |
@@ -97,7 +97,7 @@ These are meaningful competitors and should not be dismissed.
 | No learning from production | Capture approved corrections and measured manufacturing feedback |
 | Mobile is an afterthought | Mobile, tablet and desktop interfaces over one engineering platform |
 
-The differentiation is not more AI features. It is an engineering system that can explain why it generated a geometry, prove which inputs support it, show its uncertainty and refuse unsafe output.
+The differentiation is not more automated-reading features. It is an engineering system that can explain why it generated a geometry, prove which inputs support it, show its uncertainty and refuse unsafe output.
 
 ### Four prioritised innovations
 
@@ -451,7 +451,7 @@ A single engineering platform across devices, not separate products with separat
 | Desktop / engineering workstation | Full drawing processing, 3D CAD, calculations, fabrication planning, DXF editing, verification and approval |
 | Tablet | 3D inspection, drawing annotation, comparison, measurement review, collaboration and engineering approval |
 | Mobile | Upload drawings, job status, 2D/3D previews, alerts, comments, approval requests and authorised release actions |
-| Engineering compute infrastructure | Heavy geometry, AI inference, batch processing, verification, data storage and integrations |
+| Engineering compute infrastructure | Heavy geometry, automated-reading inference, batch processing, verification, data storage and integrations |
 
 ### Recommended architecture
 
@@ -483,7 +483,7 @@ Internet availability cannot be assumed for industrial customers:
 | Core calculation engine | Rust | Deterministic engineering services |
 | CAD geometry kernel | Open CASCADE Technology | B-rep, surfaces, solids and CAD exchange |
 | Computational geometry | CGAL | Selected robust geometric operations |
-| AI services | Python | OCR, vision, drawing interpretation and orchestration |
+| Automated reading services | Python | OCR, vision, drawing interpretation and orchestration |
 | Application backend | Rust services | APIs, jobs, permissions and workflow |
 | Database | PostgreSQL | Projects, geometry metadata, revisions and approvals |
 | Object storage | S3-compatible storage | Original drawings, CAD files and outputs |
@@ -496,7 +496,7 @@ Internet availability cannot be assumed for industrial customers:
 - **Why Open CASCADE:** B-rep geometry, modelling algorithms, STEP/IGES exchange and shape healing.
 - **Why CGAL:** geometric kernels with different exactness/performance trade-offs. Benchmark selected operations rather than making every calculation use exact constructions.
 
-**Architecture decision:** Rust as the core application and calculation layer; established CAD libraries integrated through well-defined interfaces; the AI interpretation layer isolated from the trusted engineering calculation layer.
+**Architecture decision:** Rust as the core application and calculation layer; established CAD libraries integrated through well-defined interfaces; the automated drawing-reading layer isolated from the trusted engineering calculation layer.
 
 Do not build a CAD kernel from scratch.
 
@@ -552,7 +552,7 @@ Manufacturers supply confidential customer drawings, dimensions, material specif
 - Backup and recovery.
 - No use of confidential customer drawings for model training without explicit permission.
 
-**Customer-controlled AI policy:** customers decide whether drawing data can be processed by external AI services, local AI models or only deterministic software.
+**Customer-controlled automated-reading policy:** customers decide whether drawing data can be processed by external reading services, local reading models or only deterministic software.
 
 ## 14. VNX-DNA reuse
 
@@ -625,7 +625,7 @@ Not all 14 modules at once. Each phase produces a testable engineering capabilit
 
 ## 17. Commercial approach to competitors
 
-Compete on five measurable capabilities, not on "more AI":
+Compete on five measurable capabilities, not on "more automated reading":
 
 1. **Drawing coverage** — how many real factory drawing types can we process?
 2. **Engineering reliability** — how often do outputs pass independent engineering review?
@@ -641,7 +641,7 @@ Compete on five measurable capabilities, not on "more AI":
 | PDF-to-CAD converters | Extract or convert geometry | Reconstruct and validate engineering intent |
 | General CAD systems | Create and edit models | Automate drawing-to-fabrication engineering |
 | Sheet-metal CAD/CAM | Design and manufacture sheet-metal components | Connect interpretation, development, verification and production |
-| AI drawing tools | Read technical documents | Generate auditable manufacturing geometry |
+| Automated drawing-reading tools | Read technical documents | Generate auditable manufacturing geometry |
 
 The market gap is a hypothesis until tested. Conduct hands-on evaluations of Unfoldo, CUTL, FastSHAPES/FastCAM and relevant Japanese CAD/CAM systems against the same authorised benchmark jobs.
 
@@ -715,7 +715,7 @@ Three tightly connected foundations:
 
 Output: verified DXF, plus 3D model, engineering report and manufacturing package.
 
-**Make the verification system — not the AI model — the heart of the company.** AI models will improve and competitors can adopt similar models. A mature engineering system with a large validated dataset, proven geometry algorithms, customer-specific manufacturing rules, independent verification, physical production feedback and deep factory integration is much harder to reproduce.
+**Make the verification system — not the reading model — the heart of the company.** Reading models will improve and competitors can adopt similar models. A mature engineering system with a large validated dataset, proven geometry algorithms, customer-specific manufacturing rules, independent verification, physical production feedback and deep factory integration is much harder to reproduce.
 
 The first commercial product should be narrow enough to validate rigorously, on a platform designed to expand.
 
@@ -724,7 +724,7 @@ The first commercial product should be narrow enough to validate rigorously, on 
 | Decision | Recommendation |
 |---|---|
 | Product identity | NEXUS FABRIC (working name) |
-| Product category | AI-assisted manufacturing engineering platform |
+| Product category | Manufacturing engineering platform |
 | Core input | PDF, image, scanned drawing and CAD |
 | Primary output | Verified DXF |
 | Additional outputs | STEP, PDF, reports and manufacturing packages |
@@ -732,7 +732,7 @@ The first commercial product should be narrow enough to validate rigorously, on 
 | First market | Japan |
 | Languages | Japanese and English |
 | Core implementation | Rust + established CAD/geometry libraries |
-| AI role | Drawing interpretation and engineering assistance |
+| Automated drawing reading role | Drawing interpretation and engineering assistance (not implemented) |
 | Calculation authority | Deterministic mathematical engine |
 | Release authority | Independent verification plus authorised engineer |
 | Deployment | Cloud, private cloud and on-premises |
@@ -742,4 +742,4 @@ The first commercial product should be narrow enough to validate rigorously, on 
 
 ### Immediate next step
 
-Establish the authorised factory benchmark and complete the ten engineering specifications before starting the main implementation. The first coding milestone is a working drawing-ingestion and provenance pipeline, not a dashboard or an AI-generated DXF.
+Establish the authorised factory benchmark and complete the ten engineering specifications before starting the main implementation. The first coding milestone is a working drawing-ingestion and provenance pipeline, not a dashboard or an automatically generated DXF.

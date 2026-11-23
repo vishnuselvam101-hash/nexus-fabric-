@@ -209,7 +209,7 @@ Trade-off: O2 + O4 gives a clean counterparty, limited liability and a Japanese 
 | 2 | Decide the entity and the adult signatories (§6) | **FOUNDER DECISION** | Option chosen in writing; lawyer/CA engaged |
 | 3 | Incorporate or register the chosen entity; open the business bank account | Founder + guardian/directors | Registration documents and account confirmed by the bank |
 | 4 | Engage a lawyer admitted in Japan; hand over the three DRAFT documents | Founder | Engagement letter; review started on terms, privacy, engineering-responsibility notice |
-| 5 | Ask the lawyer the open questions already listed (liability cap, 定型約款, no-erasure of audit data, unencrypted desktop DB, export of cryptography, AI-assisted code ownership → rephrase as "code ownership and disclosure") | Founder + lawyer | Written answers; placeholders in the drafts filled |
+| 5 | Ask the lawyer the open questions already listed (liability cap, 定型約款, no-erasure of audit data, unencrypted desktop DB, export of cryptography, code ownership → rephrase as "code ownership and disclosure") | Founder + lawyer | Written answers; placeholders in the drafts filled |
 | 6 | Order the trademark search for the product name in Japan | **FOUNDER DECISION** | Search report; registration decision |
 | 7 | Decide the price list and the launch discount (§3) | **FOUNDER DECISION** | Signed internal price sheet, tax status stated |
 | 8 | Decide the payment route (§5) and, if R4, disclose the conflict and get Chuo-Sogo board approval | **FOUNDER DECISION** | Route chosen; disclosure minuted |

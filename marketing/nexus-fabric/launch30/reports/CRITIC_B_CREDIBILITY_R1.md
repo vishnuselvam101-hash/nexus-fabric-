@@ -34,12 +34,12 @@ The film's own mathematics is right. The defects are elsewhere.
 | Criterion | Score | Justification |
 |---|---|---|
 | Technical correctness | 7 | Every number the film draws recomputes, but the real-software shot shows a header plate whose opening is transposed against its outline, and the redrawn branch pattern is mirrored against the product's. |
-| Honesty, implemented versus planned | 5 | Planned marks exist and are mostly on time, but "AI-native" sits under an IMPLEMENTED tag while the repository states "no AI component exists", and the marks are about 13 px against 50 px headlines. |
+| Honesty, implemented versus planned | 5 | Planned marks exist and are mostly on time, but the automated-intelligence positioning line sits under an IMPLEMENTED tag while the repository states "no automated-reading component exists", and the marks are about 13 px against 50 px headlines. |
 | Authenticity of application footage | 7 | Real captures that honestly show REVIEW REQUIRED, INCONCLUSIVE and NOT IMPLEMENTED, but the text is about 11 px for 2 s per screen and the JA film shows an English interface without saying so. |
 | Engineering geometry | 6 | The film's drawing, 3D model and patterns are dimensionally exact, but the product output on screen at 6–8 s is geometrically wrong and everything is zero-thickness reference surface. |
 | Mathematical accuracy | 9 | Formula and all read-outs are correct to the printed digit; "zero offset" is ambiguous. |
 | Storytelling | 5 | A stranger learns "drawing in, flat pattern out", which is the part that does not exist; the part that exists (verified patterns with a record trail) gets a 3-second bullet list and no narration. |
-| Communicates a real differentiated product | 4 | The narration is generic AI-platform copy; the actual differentiator (independent checks, interface check, DXF round trip, gates that refuse release) is never spoken. |
+| Communicates a real differentiated product | 4 | The narration is generic automated-intelligence platform copy; the actual differentiator (independent checks, interface check, DXF round trip, gates that refuse release) is never spoken. |
 | Japanese correctness and naturalness | 6 | Grammatical and readable, but several terms are translated rather than shop-floor Japanese, and voice and screen disagree on the tagline. |
 
 **Overall: 5 / 10.** Plausible but unconvincing. I would believe the mathematics and not the product description. The one thing that would make me want a demonstration (results that check themselves and refuse release) is on screen but illegible.
@@ -56,11 +56,11 @@ The film's own mathematics is right. The defects are elsewhere.
 - **Fix:** Fix the product first (make outline and hole share one axis convention; add a check that the opening's axial extent equals `opening_x_min/max` on the length axis). Recapture scene 2. Until then, do not show the header capture and do not claim the DXF check for this part.
 - **Confidence:** High on the code reading; the frame measurement agrees with it.
 
-### 2. "AI-native engineering platform" shown as implemented; no AI exists
-- **Time / language:** 5.0–11.0 s, EN ("AI-native engineering platform powered by AMOEBA") and JA ("AMOEBAを核とする、AIネイティブの設計基盤"). Spoken and on screen, with the tag "IMPLEMENTED · ACTUAL SOFTWARE · DEVELOPMENT BUILD" / "実装済み".
-- **What is wrong:** `docs/RELEASE_READINESS.md`: "no AI component exists". AMOEBA in the build is a record store with dependency edges; scheduler, probes, coverage ledger and lanes are NOT STARTED. The only AI on screen is gate G14: "Algorithms are evidence level EV-1 (AI-generated, not independently reviewed)" — which a careful viewer will read as the opposite of a selling point.
+### 2. The automated-intelligence positioning line shown as implemented; no automated drawing reading exists
+- **Time / language:** 5.0–11.0 s, EN (the positioning line calling it an engineering platform with automated drawing reading, powered by AMOEBA) and JA (the same positioning line in Japanese). Spoken and on screen, with the tag "IMPLEMENTED · ACTUAL SOFTWARE · DEVELOPMENT BUILD" / 「実装済み」.
+- **What is wrong:** `docs/RELEASE_READINESS.md`: "no automated component exists". AMOEBA in the build is a record store with dependency edges; scheduler, probes, coverage ledger and lanes are NOT STARTED. The only authorship disclosure on screen is gate G14: "Algorithms are evidence level EV-1 (not independently reviewed)" — which a careful viewer will read as the opposite of a selling point.
 - **Severity:** High.
-- **Fix:** Drop "AI-native" from scene 2, or move it to a line marked planned. Suggested: "Meet NEXUS FABRIC — verified plate development with a full record trail" / "検証付きの板展開と、すべての計算記録".
+- **Fix:** Drop the automated-intelligence claim from scene 2, or move it to a line marked planned. Suggested: "Meet NEXUS FABRIC — verified plate development with a full record trail" / 「検証付きの板展開と、すべての計算記録」.
 
 ### 3. Narration states planned capabilities as present tense; the qualifier is small and silent
 - **Time / language:** 11.2–15.3 s EN ("Understand complex drawings. Reconstruct 3D geometry."), 11.2–15.5 s JA; 20–22 s both ("evaluate manufacturing constraints" / "製造制約の評価"); 24.6–27 s ("From drawings to manufacturing intelligence").

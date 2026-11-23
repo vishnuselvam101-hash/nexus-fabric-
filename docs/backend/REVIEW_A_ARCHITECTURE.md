@@ -333,7 +333,7 @@ Evidence: `nf-sandbox cargo test -p nf-server` gives 103 unit tests and 8 integr
 
 ### Review round 3 (rebased onto 556b7c3)
 
-Branch rebased onto origin `claude/nexus-fabric-strategy-8guhxz` (556b7c3, engine 0.4.4). Added: `ra016_an_ipv4_client_on_a_mapped_loopback_listener_is_the_same_client` (`::ffff:127.0.0.1` is the loopback proxy, mapped before every check), `ra006_a_remote_peer_with_a_forged_forwarded_address_is_still_limited_by_its_real_address` (a remote peer's forged X-Forwarded-For does not reach the unattributed branch; this one is a regression guard and was not red before). `v34_…` now pins its anonymous-audit minute (`App::anon_minute`, test-only), so the per-minute limit no longer depends on the wall clock. The v34 assertion is unchanged.
+Branch rebased onto origin `dev/nexus-fabric-strategy-8guhxz` (556b7c3, engine 0.4.4). Added: `ra016_an_ipv4_client_on_a_mapped_loopback_listener_is_the_same_client` (`::ffff:127.0.0.1` is the loopback proxy, mapped before every check), `ra006_a_remote_peer_with_a_forged_forwarded_address_is_still_limited_by_its_real_address` (a remote peer's forged X-Forwarded-For does not reach the unattributed branch; this one is a regression guard and was not red before). `v34_…` now pins its anonymous-audit minute (`App::anon_minute`, test-only), so the per-minute limit no longer depends on the wall clock. The v34 assertion is unchanged.
 
 ### Unattributed clients (finding of the adversarial review)
 

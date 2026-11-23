@@ -8,7 +8,7 @@ Every engineering relationship, rule, model and parameter in NEXUS FABRIC carrie
 
 | Level | Name | Meaning | Minimum record required | What it does **not** establish |
 |---|---|---|---|---|
-| **EV-1** | AI-generated proposal | Written by an AI system (or by anyone) from general principles, without review | Author, date, document | Anything about real fabrication practice |
+| **EV-1** | Unreviewed proposal | Written by anyone from general principles, without review | Author, date, document | Anything about real fabrication practice |
 | **EV-2** | Engineer-reviewed relationship | A named, qualified engineer examined the statement and classified it, with reasoning | Reviewer name, qualifications, date, classification, reasoning; the returned review document | That it holds in a particular factory, or that it has been observed or tested |
 | **EV-3** | Factory-observed relationship | Seen in a specific factory's actual practice, drawings, procedures or historical jobs | Factory, source (document, job, procedure, interview), date, observer, scope | That it is universal, or that it is physically correct beyond that practice |
 | **EV-4** | Experimentally validated relationship | Tested by a defined experiment or trial with measured results (benchmark, physical trial, measured part) | Protocol, data, result, measurement uncertainty, scope of validity | Validity outside the tested range |
@@ -21,7 +21,7 @@ Every engineering relationship, rule, model and parameter in NEXUS FABRIC carrie
 3. **EV-5 applies only to parameters**; EV-2 to EV-4 apply to relationships, rules and models.
 4. **Scope is part of the evidence.** EV-2 classifications *universal / process-specific / factory-specific / needs calibration* and the factory, process and range named in EV-3 to EV-5 limit where the claim may be used.
 5. **Disagreement is kept.** Two reviewers or two factories may classify the same statement differently; both records stand.
-6. **No level may be recorded without the evidence document filed in the repository** (returned review, factory record, experiment report, calibration record). An AI system cannot raise a level by itself.
+6. **No level may be recorded without the evidence document filed in the repository** (returned review, factory record, experiment report, calibration record). An automated system cannot raise a level by itself.
 7. **Evidence can be withdrawn** (reviewer retracts, trial invalidated); the withdrawal is recorded and the level reverts.
 8. Relation to software lanes ([ADR-013](ADR-013-lanes-quarantine-retirement.md)): lanes describe the qualification state of *software artefacts*; evidence levels describe the support for *engineering knowledge*. A production-lane rule table whose rules are only EV-1 would be a contradiction — what minimum evidence each kind of rule needs before production use is a Specification 05 decision.
 

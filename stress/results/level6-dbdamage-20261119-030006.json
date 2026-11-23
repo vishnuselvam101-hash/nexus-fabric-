@@ -10,7 +10,7 @@
    2.77392578125
   ]
  },
- "binary": "/tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/nf-server",
+ "binary": "/tmp/build/stress/nf-server",
  "db_damage": {
   "truncate_half": {
    "starts": false,
@@ -38,7 +38,7 @@
    },
    "new_calc": 401,
    "server_alive_after": true,
-   "log_tail": ".1:8815  (data: /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/w6b/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+   "log_tail": ".1:8815  (data: /tmp/build/stress/w6b/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
   },
   "truncate_4096": {
    "starts": false,
@@ -72,7 +72,7 @@
    },
    "new_calc": 401,
    "server_alive_after": true,
-   "log_tail": ".1:8815  (data: /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/w6b/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+   "log_tail": ".1:8815  (data: /tmp/build/stress/w6b/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
   },
   "corrupt_middle_page": {
    "starts": true,
@@ -95,7 +95,7 @@
    },
    "new_calc": 200,
    "server_alive_after": true,
-   "log_tail": ".1:8815  (data: /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/w6b/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+   "log_tail": ".1:8815  (data: /tmp/build/stress/w6b/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
   },
   "delete_wal_midwrite": {
    "starts": true,
@@ -118,7 +118,7 @@
    },
    "new_calc": 200,
    "server_alive_after": true,
-   "log_tail": ".1:8815  (data: /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/stress/w6b/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+   "log_tail": ".1:8815  (data: /tmp/build/stress/w6b/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
   }
  },
  "wall_s": 0

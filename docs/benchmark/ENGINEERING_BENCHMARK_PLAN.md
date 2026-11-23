@@ -71,7 +71,7 @@ The headline safety metrics are **false-accept rate** (extraction) and **false-r
 
 ## 7. Governance
 
-- Authorisation register: owner, scope of permitted use (internal testing / external AI services / competitor tools), expiry.
+- Authorisation register: owner, scope of permitted use (internal testing / external reading services / competitor tools), expiry.
 - Benchmark data stored under the same security controls as customer data; not used for model training unless the authorisation says so; never committed to this repository.
 - Corpus is versioned; results always cite the corpus version.
 - Held-out access is restricted and logged.

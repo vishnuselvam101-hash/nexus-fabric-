@@ -9,7 +9,7 @@ Film: NEXUS FABRIC launch 30s, picture-only revision (EN + JA), 1920x1080 @30fps
 - Made 30 fps strips of the headline zone (crop 1100x260) across each headline change: 4.95–5.35, 10.85–11.3 and 17.8–18.25, for both EN and JA.
 - Made a 15 fps strip of the end transition at 24.3–26.1 s for both languages.
 
-Frames are in /tmp/claude-0/-home-user-nexus-fabric-/7d5fb6f5-1c9e-5151-ae27-9132ba7d2536/scratchpad/criticA/r3/
+Frames are in /tmp/build/criticA/r3/
 
 ## Scores (1–10)
 | Criterion | R1 | R2 | R3 | Justification |
