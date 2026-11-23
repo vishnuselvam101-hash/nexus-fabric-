@@ -778,8 +778,8 @@ const REFUSAL_EN = {
   'refusal.magnitude_above_limit': '`{fields}` is {measured} mm, above {limit} mm, the largest size this build has been exercised with. This is an implementation limit, not an engineering rule.',
   'refusal.dimension_below_limit': '`{fields}` is {measured} mm, below {limit} mm, the smallest dimension this build has been exercised with. This is an implementation limit, not an engineering rule.',
   'refusal.reducer_radii_order': '`r1` must be greater than `r2`: the large end comes first.',
-  'refusal.reducer_near_cylindrical': 'The radii are nearly equal (the sine of the half-angle is {measured}, below {limit}); this build does not implement the apex-free method for that case.',
-  'refusal.developed_angle_overlaps': 'The developed angle is {measured} rad, so the sector would overlap itself (the limit is {limit} rad).',
+  'refusal.reducer_near_cylindrical': 'The radii are so nearly equal that the apex of the cone lies {measured} mm away, beyond {limit} mm, the largest size this build has been exercised with. This is an implementation limit, not an engineering rule.',
+  'refusal.developed_angle_overlaps': 'The seam gap at the small end would be {measured} mm, at or below {limit} mm, the closure resolution of the profile check: the two seam edges cannot be told apart. This is an implementation limit, not an engineering rule.',
   'refusal.branch_angle_out_of_range': 'The angle between the axes (`beta_deg`) must lie strictly between 0 and 180 degrees, and the developed branch must not be longer than 1e8 mm, the largest size this build is exercised with.',
   'refusal.branch_angle_not_verifiable': 'At this angle between the axes (`beta_deg`) the independent verification cannot confirm the pattern: its own rounding grows as `1/sin²(beta)` near 0 and 180 degrees and is no longer bounded inside its tolerance (bound {measured} mm, tolerance left {limit} mm), and its check fails. Nothing is offered. A limit of the verification in this build, not an engineering rule.',
   'refusal.branch_tangent_or_partial': 'The branch must be smaller than the header: `delta` plus `branch_radius` must stay below `header_radius` (measured {measured}, limit {limit}). Tangent and partial intersections, including the equal-diameter tee, are not built.',
@@ -793,7 +793,7 @@ const REFUSAL_EN = {
   'refusal.joint_pairing_invalid': 'A set-on joint needs the branch surface `inside` and the header surface `outside`.',
   'refusal.joint_type_unknown': 'The joint must be left out, or be `set_on`.',
   'refusal.bend_angle_out_of_range': 'The bend deduction is defined for angles above zero and up to 90 degrees.',
-  'refusal.reason_required': 'Every correction needs a reason of at least five bytes (a Japanese character counts as three bytes).',
+  'refusal.reason_required': 'Every correction needs a reason of at least 5 characters. Every character counts as one, a Japanese character too; spaces at either end are not counted.',
   'refusal.reason_too_long': 'The reason is too long: at most 2000 characters.',
   'refusal.correction_not_for_family': 'Corrections with propagation are made for header-with-branch jobs only.',
   'refusal.correction_unknown_parameter': 'That is not a numeric parameter of this job.',
@@ -822,8 +822,8 @@ const REFUSAL_JA = {
   'refusal.magnitude_above_limit': '`{fields}`は{measured}mmで、このビルドで検証した最大寸法{limit}mmを超えています。これは実装上の上限であり、工学上の規則ではありません。',
   'refusal.dimension_below_limit': '`{fields}`は{measured}mmで、このビルドで検証した最小寸法{limit}mmを下回っています。これは実装上の下限であり、工学上の規則ではありません。',
   'refusal.reducer_radii_order': '`r1`は`r2`より大きくなければなりません（大きい方の端を先に入力します）。',
-  'refusal.reducer_near_cylindrical': '半径がほぼ等しく（半頂角の正弦は{measured}で、{limit}未満）、このビルドでは、その場合の頂点を使わない方法を実装していません。',
-  'refusal.developed_angle_overlaps': '展開角は{measured}radで、扇形が自身と重なります（限界は{limit}rad）。',
+  'refusal.reducer_near_cylindrical': '半径がほぼ等しいため、円錐の頂点までの距離が{measured} mmとなり、このビルドで扱った最大寸法{limit} mmを超えます。これは実装上の上限であり、工学上の規則ではありません。',
+  'refusal.developed_angle_overlaps': '小径側の継目の隙間が{measured} mmとなり、輪郭検査の閉合分解能{limit} mm以下です。2本の継目の辺を区別できません。これは実装上の限界であり、工学上の規則ではありません。',
   'refusal.branch_angle_out_of_range': '軸の間の角度（`beta_deg`）は0度より大きく180度より小さくなければなりません。また、展開した枝管の長さは、このビルドで扱った最大寸法の1e8 mmを超えてはなりません。',
   'refusal.branch_angle_not_verifiable': 'この軸間角度（`beta_deg`）では、独立した検証で型紙を確認できません。検証自身の丸め誤差は0度と180度の近くで`1/sin²(beta)`に比例して大きくなり、許容値の内側に収まる保証がなくなります（上界{measured} mm、残りの許容値{limit} mm）。さらに、その検証で不合格になりました。何も提供しません。これはこのビルドの検証上の限界であり、技術上の規則ではありません。',
   'refusal.branch_tangent_or_partial': '枝管は母管より小さくなければなりません。`delta`と`branch_radius`の和は`header_radius`を下回る必要があります（測定値{measured}、限界{limit}）。接する交差と部分的な交差（等径のティーを含む）は作図していません。',
@@ -837,7 +837,7 @@ const REFUSAL_JA = {
   'refusal.joint_pairing_invalid': 'セットオンの取合いには、枝管の基準面`inside`と母管の基準面`outside`が必要です。',
   'refusal.joint_type_unknown': '取合いは省くか、`set_on`としてください。',
   'refusal.bend_angle_out_of_range': '曲げ控除は、0度より大きく90度以下の角度について定義されています。',
-  'refusal.reason_required': '訂正には理由が必要です（5バイト以上。日本語の1文字は3バイトとして数えます）。',
+  'refusal.reason_required': '訂正には5文字以上の理由が必要です。日本語の文字も含め、1文字を1文字として数えます。前後の空白は数えません。',
   'refusal.reason_too_long': '理由が長すぎます（2000文字以内）。',
   'refusal.correction_not_for_family': '伝播を伴う訂正は、母管と枝管の組合せの計算だけで行えます。',
   'refusal.correction_unknown_parameter': 'この計算の数値パラメータではありません。',
@@ -854,6 +854,139 @@ const REFUSAL_JA = {
 };
 Object.assign(EN, REFUSAL_EN);
 Object.assign(JA, REFUSAL_JA);
+// Work plan 3.2, 3.3 and 3.5: the offline help page, the sample projects, the refusal note of the form and the length
+// rules counted in characters. The help page reads the gate labels from ID.gate and the refusal texts from REFUSAL_EN /
+// REFUSAL_JA above: the same texts the job view and the form show, so the help cannot drift from them.
+const HELP_EN = {
+  'nav.help': 'Help',
+  'hp.title': 'Help', 'hp.sub': 'Everything on this page is part of the program; no network is used.', 'hp.toc': 'On this page',
+  'hp.build.h': 'What this build is',
+  'hp.build.p': '**Development build.** Not validated. A result with a flat pattern stays **REVIEW REQUIRED** at best: engineer approval (gate G16) is not implemented, so nothing can be released. Every DXF file is marked **NOT RELEASED**. No output may be used for manufacturing.',
+  'hp.build.ev': 'Every algorithm is at evidence level EV-1 (AI-generated, not independently reviewed). No fabrication engineer has reviewed the outputs or the assumptions.',
+  'hp.fam.h': 'What each part family needs',
+  'hp.fam.p': 'Lengths and radii are in millimetres, angles in degrees. The example values are the ones the new-calculation form shows first: examples, not recommendations.',
+  'hp.fam.cylinder_shell': 'One plate that rolls into a straight cylinder: the radius it is developed at, and its length.',
+  'hp.fam.cone_frustum': 'One plate that rolls into a concentric reducer (a right cone frustum): the large-end radius `r1`, the small-end radius `r2` (`r1` must be the larger) and the axial height.',
+  'hp.fam.eccentric_reducer': 'One plate for an eccentric reducer (an oblique cone frustum): the inputs of the concentric reducer, and the offset `e` of the small end (zero or more).',
+  'hp.fam.header_with_branch': 'Two parts and one joint: the header shell with its opening, and the branch. Contact radii (where the pipes meet), development radii (where each plate is developed), the header length, the branch position, the angle between the axes, the axis offset and the branch square end. The surface the radii refer to is declared (it may be declared unknown); a set-on joint may be declared.',
+  'hp.fam.branch_stub': 'One branch plate cut to fit a cylindrical header: the header contact radius, the branch contact and development radii, the angle between the axes, the axis offset and the square end. The surface the radii refer to is declared (unknown unless you choose).',
+  'hp.th.input': 'Input', 'hp.th.key': 'Key', 'hp.th.unit': 'Unit', 'hp.th.example': 'Example value', 'hp.optional': 'optional',
+  'hp.gate.h': 'What each gate means',
+  'hp.gate.p': 'A gate is one condition for release. Each job lists the gates it evaluates, each with its result and the reason the engine or the server gives. The names below are the labels the job view shows.',
+  'hp.th.gate': 'Gate', 'hp.th.name': 'Name', 'hp.th.means': 'What it means',
+  'hp.gate.G00': 'The result is the current one. It fails when a correction has superseded the job; a superseded result must not be used.',
+  'hp.gate.G01': 'Every parameter traces to a confirmed source. Parameters are entered by hand and are not linked to a drawing, so this gate stays INCONCLUSIVE.',
+  'hp.gate.G02': 'No ambiguity is left open, such as the marking side or the wall surface the radii refer to. An engineer must settle what it lists.',
+  'hp.gate.G03': 'The dimensions determine the geometry exactly, without contradiction.',
+  'hp.gate.G04': 'No unresolved difference between a dimension written on a drawing and a measured one.',
+  'hp.gate.G05': 'Each part has a development class (exact in closed form, or exact and evaluated numerically).',
+  'hp.gate.G06': 'Every assumption is backed by calibrated process data. None exists in this build, so this gate stays INCONCLUSIVE.',
+  'hp.gate.G07': 'An approximate development stays within its distortion budget, accepted by a recorded decision.',
+  'hp.gate.G08': 'The numerical error (eps_num) and the curve representation error (eps_rep) are stated and within their allocation.',
+  'hp.gate.G09': 'The total error stays within the error budget.',
+  'hp.gate.G10': 'Every independent check the part family requires agrees with the pattern within its tolerance, and none fails.',
+  'hp.gate.G11': 'Every outline is closed, simple and correctly oriented, and every opening lies inside its plate.',
+  'hp.gate.G12': 'Stock, machine and seam rules are met.',
+  'hp.gate.G13': 'Regenerating the result reproduces it.',
+  'hp.gate.G14': 'The algorithms are qualified for use. Every algorithm of this build is evidence level EV-1 (AI-generated, not independently reviewed), so this gate stays INCONCLUSIVE.',
+  'hp.gate.G15': 'Every DXF file is read back by a separate reader, compared with the intended geometry and checked by the DXF quality gate; a file that fails is not offered.',
+  'hp.gate.G16': 'A qualified engineer approves the result. Not implemented: no result can be released, and every DXF file is marked NOT RELEASED.',
+  'hp.gate.G17': 'Every element of the source drawing within scope has been examined.',
+  'hp.gate.G18': 'Every scrutiny obligation raised by a correction is resolved, by evidence or by an engineer\'s recorded decision.',
+  'hp.gate.G19': 'A replay audit reproduces the stored result. NOT RUN until someone runs the replay audit.',
+  'hp.gate.G20': 'The job does not repeat a mistake recorded as a lesson in this project, or an engineer has acknowledged each match with a reason.',
+  'hp.gate.G21': 'The result was computed by the running engine build; a result of any other build must be recomputed.',
+  'hp.gate.G22': 'The stored result passes its integrity check; if it does not, nothing of the job may be used.',
+  'hp.gate.na': 'Defined in Specification 02; not evaluated by this build.',
+  'hp.gate.proposed': 'Proposed in the AMOEBA architecture; not part of Specification 02 and not evaluated by this build.',
+  'hp.ref.h': 'What each refusal code means',
+  'hp.ref.p': 'A refused request is answered with one of these codes and the names of the fields it concerns. A refused job keeps them, and "New from these values" marks those fields with the same text. Nothing is computed for a refused request.',
+  'hp.th.code': 'Code', 'hp.th.message': 'What it means',
+  'hp.ph.fields': 'the named field', 'hp.ph.limit': 'the limit', 'hp.ph.measured': 'the measured value',
+  'hp.nm.h': 'What is not modelled',
+  'hp.nm.p': 'A flat pattern is the exact development of the surface you entered, and nothing more. Not modelled:',
+  'hp.nm.1': 'Plate thickness: every radius is used exactly as entered, as the radius of the surface you declare (outside, inside, neutral or unknown).',
+  'hp.nm.2': 'Bend allowance and roll allowance.',
+  'hp.nm.3': 'Weld gap.',
+  'hp.nm.4': 'Kerf (the width of the cut).',
+  'hp.nm.5': 'Engineering rules and process values from a standard or a workshop. The limits named in the refusal codes are implementation limits of this build, not engineering rules.',
+  'hp.smp.h': 'Sample projects',
+  'hp.smp.p': 'Each sample creates a project and computes its jobs through the normal engine, with the example values of the new-calculation form. They are recorded and audited like any job, and every sample job ends **REVIEW REQUIRED**. If the sample project already exists, it is opened instead.',
+  'hp.smp.viewer': 'A viewer cannot create projects. Ask an engineer or an administrator to create a sample project.',
+  'hp.smp.jobs': 'Jobs: {list}',
+  'smp.1.name': 'Sample 1: cylindrical shell', 'smp.2.name': 'Sample 2: concentric and eccentric reducers', 'smp.3.name': 'Sample 3: header with branch and branch stub',
+  'smp.desc': 'Sample project made from the example values of the new-calculation form; not a real part. Development build: every result stays REVIEW REQUIRED.',
+  'smp.btn.aria': 'Open or create {name}', 'smp.busy': 'Computing…', 'smp.done': 'Sample project #{id} created; {n} jobs computed.', 'smp.go': 'Open the sample projects',
+  'math.refused.note': 'Job {id} was refused: {why} The fields it names are marked.',
+  'refusal.unmapped': 'This form has no field for {fields}.',
+  'v.text.long': 'Too long: at most {max} characters ({n} now).',
+};
+const HELP_JA = {
+  'nav.help': 'ヘルプ',
+  'hp.title': 'ヘルプ', 'hp.sub': 'このページの内容はすべてプログラムに含まれており、ネットワークは使用しません。', 'hp.toc': 'このページの内容',
+  'hp.build.h': 'このビルドについて',
+  'hp.build.p': '**開発版です。** 検証されていません。展開図のある結果は、最良でも**要レビュー**のままです。技術者承認（ゲート`G16`）は実装されていないため、何もリリースできません。すべてのDXFファイルには**未リリース**と表示されます。いかなる出力も製造に使用してはなりません。',
+  'hp.build.ev': 'すべてのアルゴリズムは証拠レベルEV-1（AIが生成、独立したレビューなし）です。製作技術者による出力と前提条件のレビューは行われていません。',
+  'hp.fam.h': '形状種別ごとに必要な入力',
+  'hp.fam.p': '長さと半径の単位はmm、角度の単位は度です。例の値は、新規計算フォームに最初に表示される値です。推奨値ではありません。',
+  'hp.fam.cylinder_shell': '直円筒に巻く板1枚：展開する半径と、長さ。',
+  'hp.fam.cone_frustum': '同心レジューサ（直円錐台）に巻く板1枚：大径側半径`r1`、小径側半径`r2`（`r1`の方が大きいこと）、軸方向高さ。',
+  'hp.fam.eccentric_reducer': '偏心レジューサ（斜円錐台）の板1枚：同心レジューサの入力に加え、小径側の偏心量`e`（0以上）。',
+  'hp.fam.header_with_branch': '2部材と取合い1箇所：開口付きの母管胴と、枝管。取合い半径（管が交わる面）、展開半径（各板を展開する面）、母管の長さ、枝管の位置、両軸のなす角、軸オフセット、枝管の直切り端。半径の基準面を宣言します（不明と宣言することもできます）。セットオンの取合いを宣言することもできます。',
+  'hp.fam.branch_stub': '円筒母管に合わせて切断する枝管の板1枚：母管の取合い半径、枝管の取合い半径と展開半径、両軸のなす角、軸オフセット、直切り端。半径の基準面を宣言します（選ばない場合は不明）。',
+  'hp.th.input': '入力項目', 'hp.th.key': 'キー', 'hp.th.unit': '単位', 'hp.th.example': '例の値', 'hp.optional': '省略可',
+  'hp.gate.h': '各ゲートの意味',
+  'hp.gate.p': 'ゲートは、リリースの条件の1つです。各計算は評価したゲートを、その結果と、エンジンまたはサーバーが示す理由とともに一覧表示します。下の名称は、計算画面に表示されるラベルです。',
+  'hp.th.gate': 'ゲート', 'hp.th.name': '名称', 'hp.th.means': '意味',
+  'hp.gate.G00': '結果が現行のものであること。訂正によって差し替えられた計算では不合格になります。差し替え済みの結果は使用してはなりません。',
+  'hp.gate.G01': 'すべてのパラメータが、確認済みの出典にたどれること。パラメータは手入力で図面と結び付いていないため、このゲートは未確定のままです。',
+  'hp.gate.G02': 'けがき面や半径の基準面など、未解決の曖昧さがないこと。挙げられた事項は技術者が確定する必要があります。',
+  'hp.gate.G03': '寸法によって、形状が矛盾なく一意に定まること。',
+  'hp.gate.G04': '図面に記載された寸法と、測定した寸法の間に未解決の差がないこと。',
+  'hp.gate.G05': '各部材に展開クラス（厳密・閉形式、または厳密・数値評価）が割り当てられていること。',
+  'hp.gate.G06': 'すべての前提条件が、校正された加工データで裏付けられていること。このビルドにはそのデータがないため、このゲートは未確定のままです。',
+  'hp.gate.G07': '近似による展開の歪みが許容範囲内にあり、記録された判断によって受け入れられていること。',
+  'hp.gate.G08': '数値誤差（`eps_num`）と曲線表現誤差（`eps_rep`）が示され、割当ての範囲内であること。',
+  'hp.gate.G09': '誤差の合計が、誤差予算の範囲内にあること。',
+  'hp.gate.G10': '形状種別ごとに必要な独立した検査が、すべて許容値の範囲で展開図と一致し、不合格がないこと。',
+  'hp.gate.G11': 'すべての輪郭が閉じた単純な形で正しい向きであり、すべての開口が板の内側にあること。',
+  'hp.gate.G12': '材料・機械・継目の規則を満たすこと。',
+  'hp.gate.G13': '結果を再生成すると、同じ結果が得られること。',
+  'hp.gate.G14': 'アルゴリズムが使用に適格と認められていること。このビルドのアルゴリズムはすべて証拠レベルEV-1（AIが生成、独立したレビューなし）のため、このゲートは未確定のままです。',
+  'hp.gate.G15': 'すべてのDXFファイルを別の読込み処理で読み戻し、意図した形状と照合し、DXF品質ゲートで検査すること。不合格のファイルは提供しません。',
+  'hp.gate.G16': '資格のある技術者が結果を承認すること。未実装のため、どの結果もリリースできず、すべてのDXFファイルに未リリースと表示されます。',
+  'hp.gate.G17': '対象範囲内の原図の要素が、すべて調べられていること。',
+  'hp.gate.G18': '訂正によって生じた要精査項目が、根拠または技術者の記録された判断によって、すべて解消されていること。',
+  'hp.gate.G19': '再実行監査で、保存済みの結果が再現されること。再実行監査を実行するまでは未実行です。',
+  'hp.gate.G20': 'この計算が、このプロジェクトで教訓として記録された誤りを繰り返していないこと。一致した場合は、技術者が理由を付けてそれぞれ確認していること。',
+  'hp.gate.G21': '結果が、現在のエンジンのビルドで計算されていること。ほかのビルドの結果は再計算が必要です。',
+  'hp.gate.G22': '保存済みの結果が整合性の検査に合格すること。合格しない場合、その計算は何も使用してはなりません。',
+  'hp.gate.na': '仕様書02で定義されていますが、このビルドでは評価しません。',
+  'hp.gate.proposed': 'AMOEBAのアーキテクチャで提案されたもので、仕様書02には含まれず、このビルドでは評価しません。',
+  'hp.ref.h': '各拒否コードの意味',
+  'hp.ref.p': '拒否された依頼には、これらのコードの1つと、対象の項目名が返されます。拒否された計算はそれを保持し、「この値で新規計算」ではその項目に同じ文で印を付けます。拒否された依頼では何も計算しません。',
+  'hp.th.code': 'コード', 'hp.th.message': '意味',
+  'hp.ph.fields': '該当する項目', 'hp.ph.limit': '限界値', 'hp.ph.measured': '測定値',
+  'hp.nm.h': 'モデル化していないもの',
+  'hp.nm.p': '展開図は入力した面の厳密な展開であり、それ以上のものではありません。次のものはモデル化していません。',
+  'hp.nm.1': '板厚：半径はすべて入力したとおりに、宣言した面（外面・内面・中立面・不明）の半径として使用します。',
+  'hp.nm.2': '曲げ代と、ロール曲げの代。',
+  'hp.nm.3': '溶接の隙間（ルートギャップ）。',
+  'hp.nm.4': '切断幅（カーフ）。',
+  'hp.nm.5': '規格や工場の技術上の規則と加工値。拒否コードに示す限界は、このビルドの実装上の限界であり、技術上の規則ではありません。',
+  'hp.smp.h': 'サンプルプロジェクト',
+  'hp.smp.p': '各サンプルはプロジェクトを作成し、新規計算フォームの例の値を使って、通常のエンジンで計算を行います。ほかの計算と同じく記録・監査され、サンプルの計算はすべて**要レビュー**で終わります。サンプルプロジェクトがすでにある場合は、作成せずに開きます。',
+  'hp.smp.viewer': '閲覧者はプロジェクトを作成できません。技術者または管理者に、サンプルプロジェクトの作成を依頼してください。',
+  'hp.smp.jobs': '計算：{list}',
+  'smp.1.name': 'サンプル1：円筒胴', 'smp.2.name': 'サンプル2：同心レジューサと偏心レジューサ', 'smp.3.name': 'サンプル3：母管＋枝管と枝管スタブ',
+  'smp.desc': '新規計算フォームの例の値で作成したサンプルプロジェクトで、実在の部材ではありません。開発版：すべての結果は要レビューのままです。',
+  'smp.btn.aria': '{name}を開く、または作成する', 'smp.busy': '計算中…', 'smp.done': 'サンプルプロジェクト#{id}を作成し、{n}件の計算を行いました。', 'smp.go': 'サンプルプロジェクトを開く',
+  'math.refused.note': '計算{id}は入力拒否されました：{why} 対象の項目に印を付けています。',
+  'refusal.unmapped': 'このフォームには{fields}の項目がありません。',
+  'v.text.long': '長すぎます（{max}文字以内。現在{n}文字）。',
+};
+Object.assign(EN, HELP_EN);
+Object.assign(JA, HELP_JA);
 export const CATALOGUE = MSG;
 
 // ---------------------------------------------------------------- identifiers the engine and the server send
@@ -915,13 +1048,21 @@ const ID = {
   side: { outside: ['outside', '外面'], inside: ['inside', '内面'] },
   sref: { unknown: [null, '不明'], outside: [null, '外面'], inside: [null, '内面'], neutral: [null, '中立面'] },
   joint: { set_on: ['Set-on', 'セットオン'] },
+  // Every gate G00-G22 of Specification 02 (and G17, proposed for AMOEBA). The English label is the gate's machine
+  // name in words; the job view shows the server's own name in English, so the English label is read by the help
+  // page only. The gates this build does not evaluate are listed in GATES_NOT_EVALUATED below (work plan 3.3, 3.5).
   gate: {
-    G00: [null, '現行版であること'], G01: [null, '来歴の完全性'], G02: [null, '未解決の曖昧さがないこと'], G05: [null, '展開クラスの割当て'], G06: [null, '前提条件の裏付け'],
-    G08: [null, '数値誤差の限界'], G10: [null, '検証'], G11: [null, '輪郭の位相'], G14: [null, 'アルゴリズムの評価状況'], G15: [null, '出力の完全性'], G16: [null, '技術者承認'],
-    G18: [null, '要精査項目の解消'], G19: [null, '自己整合性'], G20: [null, '既知の誤りとの照合'], G21: [null, 'エンジンが現行版であること'], G22: [null, '保存済み結果の完全性'],
+    G00: ['Current revision', '現行版であること'], G01: ['Provenance complete', '来歴の完全性'], G02: ['No open ambiguity', '未解決の曖昧さがないこと'],
+    G03: ['Constraints determined', '拘束条件の確定'], G04: ['Written against measured', '図面記載値と実測値の一致'],
+    G05: ['Class assigned', '展開クラスの割当て'], G06: ['Assumptions backed', '前提条件の裏付け'], G07: ['Distortion accepted', '近似による歪みの受入れ'],
+    G08: ['Numeric bounds', '数値誤差の限界'], G09: ['Budget', '誤差予算'], G10: ['Verification', '検証'], G11: ['Profile topology', '輪郭の位相'],
+    G12: ['Process constraints', '加工上の制約'], G13: ['Reproducibility', '再現性'], G14: ['Algorithm status', 'アルゴリズムの評価状況'], G15: ['Output integrity', '出力の完全性'],
+    G16: ['Human approval', '技術者承認'], G17: ['Coverage complete (proposed)', '網羅性（提案のみ）'], G18: ['Obligation closure', '要精査項目の解消'],
+    G19: ['Self-consistency', '自己整合性'], G20: ['Known mistakes', '既知の誤りとの照合'], G21: ['Engine current', 'エンジンが現行版であること'], G22: ['Stored result integrity', '保存済み結果の完全性'],
   },
   check: {
     bottom_edge_equals_circumference: [null, '端の辺の長さ＝円周長'], seam_edges_equal_length: [null, '両方の継目の辺が同じ長さ'], seam_length_equals_input: [null, '継目の辺の長さ＝入力した長さ'],
+    seam_a_on_positive_x: [null, '継目の辺Aが＋X側にあること'], seam_b_at_development_angle: [null, '継目の辺Bが展開角の位置にあること'],
     area: [null, '面積'], large_arc_equals_circumference: [null, '大径側の円弧長＝円周長'], small_arc_equals_circumference: [null, '小径側の円弧長＝円周長'],
     seam_equals_slant_length: [null, '継目の辺の長さ＝母線長'], fold_back_radius_residual: [null, '立体に戻したときの半径の残差'], large_end_present: [null, '大径側の端があること'],
     apex_free_development_agrees: [null, '頂点を使わない展開との一致'], large_edge_equals_circumference: [null, '大径側の辺の長さ＝円周長'], small_edge_equals_circumference: [null, '小径側の辺の長さ＝円周長'],
@@ -943,11 +1084,21 @@ const ID = {
     saddle_developed_length_equals_3d_arc_length: [null, '相貫切断線の展開長＝3Dの円弧長'],
     pattern_area_equals_surface_area: [null, '展開図の面積＝表面積'],
     square_end_3d_arc_length: [null, '直切り端の3D円弧長'],
+    // work plan 3.3: produced by the cone verifier (verify_cone) and shown without a Japanese label until now
+    large_end_3d_arc_length: [null, '大径側の端の3D円弧長'],
+    small_end_3d_arc_length: [null, '小径側の端の3D円弧長'],
+    // work plan 1.5 RC-09: produced by the cylinder solid verifier (verify_cylinder_solid)
+    end_circle_3d_arc_length: [null, '端の円の3D円弧長'],
+    end_circles_3d_arc_length_equal: [null, '両端の円の3D円弧長が同じ長さ'],
+    area_equals_sampled_surface_area: [null, '展開図の面積＝サンプリングした表面積'],
+    bottom_runs_along_x: [null, '底辺がX軸に沿っていること'],
+    seam_a_runs_along_y: [null, '継目の辺AがY軸に沿っていること'],
   },
   rfamily: { source: [null, '原資料'], claim: [null, '主張'], relation: [null, '関係'], activity: [null, 'アクティビティ'], finding: [null, '所見'], assessment: [null, '評価'], attestation: [null, '証明'] },
   rkind: {
     dxf_quality_report: [null, 'DXF品質ゲートの報告'],
     'build.develop': [null, '展開計算'], 'build.dxf': [null, 'DXF出力'], 'build.intersect': [null, '相貫線の計算'], 'verify.family': [null, '形状種別ごとの検証'], 'verify.interface': [null, '取合いの検証'],
+    'verify.dxf_quality': [null, 'DXF品質ゲートの検査'], // work plan 3.3: produced by the engine, shown without a label until now
     'verify.profile': [null, '輪郭の検査'], 'verify.reimport': [null, '再読込と照合'], gate_evaluation: [null, 'ゲート評価'], interface_evidence: [null, '取合いの検証結果'], profile_report: [null, '輪郭検査の報告'],
     reimport_report: [null, '再読込・照合の報告'], replay_audit: [null, '再実行監査'], verification_evidence: [null, '検証結果'], correction: [null, '訂正'], obligation_resolution: [null, '要精査項目の解消'],
     advisory_acknowledgement: [null, '注意喚起の確認'], convention: [null, '規約'], development_request: [null, '展開計算の依頼'], dxf_output: [null, 'DXF出力'], interface: [null, '取合い'],
@@ -975,6 +1126,16 @@ const ID = {
     password_hashing: [null, 'パスワードのハッシュ化'], project_isolation: [null, 'プロジェクト間の分離'], sandboxed_parsers: [null, 'パーサーのサンドボックス化'],
     session_lifetime_hours: [null, 'セッションの有効時間（時間）'], storage_key_outside_data_directory: [null, 'ストレージ鍵をデータディレクトリの外に置く'], transport: [null, '通信路'],
   },
+  // work plan 3.3: the counters and the skip reasons of the PDF converter's report (crates/nf-pdf/src), shown on the
+  // conversion screen. English keeps the identifier as it always did.
+  pdfcount: {
+    annotations: [null, '注釈'], clip_operators: [null, 'クリップ演算子'], dash_pieces: [null, '破線の線分'], dashed_subpaths: [null, '破線のサブパス'],
+    degenerate_subpaths: [null, '退化したサブパス'], fill_subpaths: [null, '塗りのサブパス'], forms: [null, 'フォーム外部オブジェクト'], images: [null, '画像'],
+    path_segments: [null, 'パスの線分'], pattern_fills: [null, 'パターン塗り'], shadings: [null, 'シェーディング'], stroke_subpaths: [null, '線のサブパス'],
+    text_chars_drawing_symbol: [null, '図面記号として読んだ文字'], text_chars_normalised: [null, '正規化した文字'], text_chars_replaced: [null, '置き換えた文字'],
+    text_items: [null, '文字列の項目'], text_items_skipped: [null, '出力しなかった文字列の項目'], text_written: [null, '出力した文字列'], unknown_operators: [null, '不明な演算子'],
+  },
+  pdfskip: { degenerate_size: [null, '大きさが0に近い文字'], no_font: [null, 'フォントがない'], undecodable_encoding: [null, '解読できない文字符号化'] },
   // names the engine gives to records in the dependency graph
   dlabel: { 'header-branch joint': [null, '母管と枝管の取合い'], intersection_curve: [null, '相貫線'], surface_reference: [null, '半径の基準面'] },
 };
@@ -982,6 +1143,11 @@ const ID = {
 export const idLabel = (kind, id) => { const e = ID[kind] && ID[kind][id]; return (e && e[cur === 'ja' ? 1 : 0]) || null; };
 export const quantityUnit = (k) => (ID.quantity[k] ? ID.quantity[k][2] : null);
 export const ID_TABLE = ID;
+// Gates of Specification 02 (G03, G04, G07, G09, G12, G13) and the AMOEBA proposal (G17) that no part of this build
+// evaluates: the help page says so. crates/nf-server/tests/labels.rs checks this list against the sources.
+export const GATES_NOT_EVALUATED = ['G03', 'G04', 'G07', 'G09', 'G12', 'G13', 'G17'];
+export const GATE_IDS = Object.keys(ID.gate);
+export const REFUSAL_CODES = Object.keys(REFUSAL_EN).map((k) => k.slice('refusal.'.length));
 
 // ---------------------------------------------------------------- prose the engine and the server write
 // A text is translated only if it is made of known templates from its first to its last character.
@@ -1093,6 +1259,8 @@ const SENT = [
   ['Someone who can write the database file AND read the storage key can rebuild the chain and the anchor without trace.', 'データベースファイルへの書き込みと、ストレージ鍵の読み取りの両方ができる者は、痕跡を残さずにチェーンとアンカーを作り直せます。'],
   ['Someone who can write the database file can also restore an older copy of the whole database together with its older anchor (rollback); that is not detected.', 'データベースファイルに書き込める者は、古いアンカーを含むデータベース全体の古いコピーを復元すること（ロールバック）もできます。これは検出されません。'],
   ['An anchor held outside this machine is not implemented.', 'このマシンの外にアンカーを保持する機能は、未実装です。'],
+  // engine 0.4.9: the surface-unknown reason arrives in English only
+  ["surface unknown: cannot tell which surface the radius is on, so the radius check cannot be confirmed.", "基準面が不明です: 半径がどの面を指すか判別できないため、半径に関する検査は確定できません。"],
 ];
 
 const WHOLE = [

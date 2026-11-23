@@ -6,7 +6,7 @@
 //! that are themselves checked by the argument of `chord_error_bound`.
 
 use crate::P2;
-use crate::develop::{Branch, ObliqueCone};
+use crate::geometry::{Branch, ObliqueCone};
 use crate::interval::Iv;
 
 /// The exact curve of one family, as far as the chord bound needs it. `t` is the parameter of the

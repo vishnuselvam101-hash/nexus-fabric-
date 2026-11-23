@@ -1,53 +1,112 @@
 name: release-packages
-# Builds the downloadable packages on a version tag (v*) or on a manual run.
+# Builds the downloadable packages, on a manual run only (task 4.3).
 # Development build. Not validated. Outputs must not be used for manufacturing.
-# This workflow only uploads workflow artefacts. It does NOT create a release or publish anything.
+# This workflow only uploads workflow artefacts. It does NOT create a release, a tag or publish anything,
+# and it has no permission to: the token is read-only.
+#   linux:   Linux tar.gz, and the Windows exe, portable zip and installer cross-built with mingw-w64 and NSIS
+#            (packaging/build_all.sh), reproducible: the same commit gives the same SHA-256 values (task 4.1).
+#   windows: a native Windows build (x86_64-pc-windows-msvc) of nf-server and nf-pdf2dxf, the portable zip and
+#            the NSIS installer (packaging/build_all.sh under Git Bash). Its programs are built by a different
+#            compiler target and linker than the cross-built ones, so their checksums differ from the Linux job's.
+# Only actions/checkout and actions/upload-artifact are used, pinned to a commit; Rust comes from the runner's rustup.
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  packages:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build tools (mingw-w64, NSIS, zip)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mingw-w64 nsis zip
+          x86_64-w64-mingw32-gcc --version | head -1
+          makensis -VERSION
+      - name: Rust toolchain (stable, with the x86_64-pc-windows-gnu target)
+        run: |
+          rustup toolchain install stable --profile minimal --target x86_64-pc-windows-gnu
+          rustup default stable
+          rustc --version
+          cargo --version
+      - name: Unit tests
+        run: cargo test --workspace --locked
+      - name: Build all packages (Linux, and Windows cross-built)
+        run: packaging/build_all.sh
+      - name: Check the checksums and record the programs' checksums
+        run: |
+          cd dist
+          sha256sum -c SHA256SUMS
+          sha256sum ../target/release/nf-server ../target/release/nf-pdf2dxf \
+            ../target/x86_64-pc-windows-gnu/release/nf-server.exe ../target/x86_64-pc-windows-gnu/release/nf-pdf2dxf.exe \
+            | sed 's#\.\./target/##' > BINARIES.SHA256SUMS
+          cat BINARIES.SHA256SUMS
+      - name: Upload packages (workflow artefacts only)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: nexus-fabric-packages-linux-host
+          path: |
+            dist/nexus-fabric-*
+            dist/SHA256SUMS
+            dist/BINARIES.SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+  windows:
+    runs-on: windows-2025
+    timeout-minutes: 90
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Unit tests
-        run: cargo test --workspace --locked
-      - name: PDF to DXF converter (task 3.1)
-        # Compiled and tested on both systems: `cargo test --workspace` above runs the nf-pdf tests (the isolation
-        # tests are Linux-only; on Windows the worker's Job Object is compiled and the converter's other tests run).
-        # Not yet in the packages: THIRD_PARTY_NOTICES.txt is generated from nf-server's dependency graph only.
-        run: cargo build --release --locked -p nf-pdf --bin nf-pdf2dxf
-      - name: Install NSIS (Windows)
-        if: runner.os == 'Windows'
+      - name: Keep line endings as committed
+        # Without this, Git on the Windows runner may convert text files to CRLF: the packaged README and notices
+        # would differ from the Linux packages, and the engine identifier (a hash of the engine source bytes,
+        # crates/nf-core/build.rs) would differ from the Linux build's.
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust toolchain (stable, the runner's native MSVC target)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc -vV
+          cargo --version
+      - name: NSIS and zip
         run: |
           if ! command -v makensis >/dev/null 2>&1; then
             choco install nsis --no-progress -y
           fi
+          for d in "/c/Program Files (x86)/NSIS" "/c/Program Files/NSIS"; do
+            if [ -x "$d/makensis.exe" ]; then cygpath -w "$d" >> "$GITHUB_PATH"; fi
+          done
+          if ! command -v zip >/dev/null 2>&1; then
+            choco install zip --no-progress -y || echo "zip not installed: the portable zip falls back to Compress-Archive (not reproducible)"
+          fi
+      - name: Tool versions
+        run: |
           makensis -VERSION
-      - name: Build all packages
-        # Linux runner: Linux packages only. Windows runner: the Windows exe, installer and zip, built natively.
-        run: packaging/build_all.sh ${{ runner.os == 'Linux' && '--linux-only' || '' }}
-      - name: Check the checksums
-        run: cd dist && sha256sum -c SHA256SUMS
+          if command -v zip >/dev/null 2>&1; then zip -v | head -2; else echo "zip: not found"; fi
+      - name: Unit tests
+        run: cargo test --workspace --locked
+      - name: Build the Windows packages natively
+        run: packaging/build_all.sh
+      - name: Check the checksums and record the programs' checksums
+        run: |
+          cd dist
+          sha256sum -c SHA256SUMS
+          sha256sum ../target/release/nf-server.exe ../target/release/nf-pdf2dxf.exe \
+            | sed 's#\.\./target/##' > BINARIES.SHA256SUMS
+          cat BINARIES.SHA256SUMS
       - name: Upload packages (workflow artefacts only)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: nexus-fabric-packages-${{ runner.os }}
+          name: nexus-fabric-packages-windows-host
           path: |
             dist/nexus-fabric-*
             dist/SHA256SUMS
+            dist/BINARIES.SHA256SUMS
           if-no-files-found: error
           retention-days: 14

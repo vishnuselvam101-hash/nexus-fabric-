@@ -1,0 +1,44 @@
+name: geometry-validation-full
+# The FULL validation corpus (task 1.8): the product against the independent reference, every case.
+# The quick corpus runs on every push in quality-gate.yml (job geometry-validation); this workflow runs the
+# full corpus every night and on a manual run. It changes no tolerance and no case: it runs
+# validation/run_all.py as it is in the commit. Its result file is kept as a workflow artefact only.
+# Development build. Not validated. Outputs must not be used for manufacturing.
+on:
+  schedule:
+    # 02:17 UTC every day (minute chosen off the hour, when scheduled runs are less often delayed).
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: geometry-validation-full-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  geometry-validation-full:
+    runs-on: ubuntu-24.04
+    # The full corpus took 17 to 25 minutes on the development host (work plan, task 0.1); a margin is left.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust toolchain (stable, through the runner's rustup)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustc --version
+          cargo --version
+      - name: Build
+        run: cargo build --release --workspace --locked
+      - name: Independent computational and DXF validation, full corpus
+        run: |
+          python3 -m pip install -r validation/requirements.txt
+          mkdir -p "$RUNNER_TEMP/validation"
+          python3 validation/run_all.py --spawn target/release/nf-server --out "$RUNNER_TEMP/validation/full.json"
+      - name: Keep the result file (workflow artefact only)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: geometry-validation-full-${{ github.sha }}
+          path: ${{ runner.temp }}/validation/full.json
+          if-no-files-found: warn
+          retention-days: 30

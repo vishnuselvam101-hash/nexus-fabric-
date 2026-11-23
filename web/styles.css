@@ -711,3 +711,11 @@ dialog form{margin:0}
 .cpv path{fill:none;stroke:var(--ink-2);stroke-width:1}
 .cpv path.l-pdf_dashed{stroke-dasharray:4 3}
 .cpv path.l-pdf_fill{stroke:var(--ink-3)}
+/* offline help page (work plan 3.5): contents links, one panel per section, tables that scroll inside their box */
+.help-toc ul{list-style:none;padding:0;margin:0 0 var(--s4)}
+.help-sec{margin-bottom:var(--s4)}
+.help-sec h3{margin:var(--s4) 0 var(--s2)}
+.help-sec h2:focus{outline:none}
+.help-sec h2:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.help-sec td{vertical-align:top}
+.help-sec ul:not(.il){padding-left:1.2em}

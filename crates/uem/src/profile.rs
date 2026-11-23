@@ -370,7 +370,13 @@ mod tests {
     fn touches_and_overlaps_are_self_intersections() {
         let p = P2::new;
         // T-touch: the vertex (5,0) lies inside the non-adjacent bottom edge
-        let t_touch = [p(0.0, 0.0), p(10.0, 0.0), p(10.0, 10.0), p(5.0, 10.0), p(5.0, 0.0)];
+        let t_touch = [
+            p(0.0, 0.0),
+            p(10.0, 0.0),
+            p(10.0, 10.0),
+            p(5.0, 10.0),
+            p(5.0, 0.0),
+        ];
         assert_eq!(crossings(&t_touch), 1);
         // crossing through a vertex: the edge (10,0)-(0,10) runs through the vertex (5,5)
         let through_vertex = [p(0.0, 0.0), p(5.0, 5.0), p(10.0, 0.0), p(0.0, 10.0)];

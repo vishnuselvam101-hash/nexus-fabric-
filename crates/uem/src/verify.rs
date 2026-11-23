@@ -15,12 +15,12 @@
 //! were written by the same author; a separately owned implementation (class
 //! I-I/I-L) does not exist yet and the evidence says so.
 
-use crate::curve_bound::{CurveBound, OpeningCurve, SaddleCurve, length_excess_bound};
-use crate::develop::{self, Branch, MAX_CHORD_ERROR_MM, ObliqueCone};
-use crate::independent::{self, Joint3, V3};
 #[cfg(test)]
-use crate::{Curve, Layer};
-use crate::{Geom, P2, Pattern, TAU, ViewSide, gauss, profile};
+use crate::Layer;
+use crate::curve_bound::{CurveBound, OpeningCurve, SaddleCurve, length_excess_bound};
+use crate::geometry::{Branch, MAX_CHORD_ERROR_MM, ObliqueCone};
+use crate::independent::{self, Joint3, V3};
+use crate::{Compensated, Curve, Geom, P2, Pattern, TAU, ViewSide, gauss, profile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Verdict {
@@ -49,13 +49,19 @@ pub struct Check {
 /// Why a radius-dependent check is INCONCLUSIVE when the surface the entered radius refers to is `unknown` (task
 /// 1.4). Bilingual on purpose: the English and the Japanese are the user-visible reason (web/i18n.js carries the
 /// Japanese as well).
-pub const SURFACE_UNKNOWN_REASON: &str = "surface unknown: cannot tell which surface the radius is on, so the radius check cannot be certified. / 基準面が不明です: 半径がどの面を指すか判別できないため、半径に関する検査は確定できません。";
+pub const SURFACE_UNKNOWN_REASON: &str = "surface unknown: cannot tell which surface the radius is on, so the radius check cannot be confirmed.";
 
 /// The checks whose REFERENCE value is computed from an entered radius (task 1.4). Their meaning depends on which
 /// wall surface the radius is on, so with an `unknown` surface they cannot certify the radius. Every other check
 /// compares the pattern with another curve of the same pattern or with the entered length, and is unaffected.
 /// The names are asserted against the verifier's output in the tests, so a renamed check cannot drop out silently.
-pub const CYLINDER_RADIUS_CHECKS: &[&str] = &["bottom_edge_equals_circumference", "area"];
+pub const CYLINDER_RADIUS_CHECKS: &[&str] = &[
+    "bottom_edge_equals_circumference",
+    "area",
+    "end_circle_3d_arc_length",
+    "end_circles_3d_arc_length_equal",
+    "area_equals_sampled_surface_area",
+];
 pub const CONE_RADIUS_CHECKS: &[&str] = &[
     "large_arc_equals_circumference",
     "small_arc_equals_circumference",
@@ -71,6 +77,9 @@ pub const ECCENTRIC_RADIUS_CHECKS: &[&str] = &[
     "small_edge_equals_circumference",
     "seam_equals_3d_ruling",
     "area",
+    // RC-10: the developed angle Psi = integral of dpsi depends on the entered radii, so the seam_b datum is
+    // radius-dependent (seam_a on +X is a fixed direction and is not).
+    "seam_b_at_development_angle",
 ];
 
 /// Branch stub (task 1.4, `verify_branch`): the request declares ONE surface for its contact radii, so every check
@@ -183,8 +192,9 @@ pub fn agree_tol(size: f64) -> f64 {
 // The three 3D-intersection checks of a branch joint (`saddle_matches_3d_intersection`,
 // `opening_matches_3d_intersection` and the two checks of `verify_joint`) compare the pattern with the numerical
 // intersection of `independent::Joint3`. Their tolerance is `agree_tol(size) + 4·bound`, where `bound` is the
-// engine's a-priori error bound of the compared vertices (`develop::saddle_error_bound`,
-// `develop::opening_error_bound`). The threshold says nothing about the verifier's own rounding, which grows as
+// engine's a-priori error bound of the compared vertices, re-derived by the verifier itself
+// (`engine_saddle_error_bound`, `engine_opening_error_bound` below; work plan task 1.5, RC-15). The threshold
+// says nothing about the verifier's own rounding, which grows as
 // 1/sin²(beta) (the root search divides an error of the order u·s by the slope sin(beta)·cos(omega), with s itself of
 // the order (R + r)/sin(beta)). A correct pattern is GUARANTEED to pass a check only when
 //
@@ -193,11 +203,15 @@ pub fn agree_tol(size: f64) -> f64 {
 // with F the a-priori bound below. Where F exceeds that, the check can neither confirm a correct pattern nor tell
 // it from a wrong one, so the engine refuses the angle with its own code (`branch_angle_not_verifiable`) instead
 // of accepting a job that its own verification then fails (G10). Derivation in docs/backend/TOLERANCE_POLICY.md
-// section 7. First-order analysis like `develop::s_error_bound`; u = 2^-53.
+// section 7 (the verifier's rounding) and section 11 (the re-derived engine bound); u = 2^-53.
 // ------------------------------------------------------------------------------------------------------------
 
-/// Unit roundoff.
-const U: f64 = develop::U;
+/// Unit roundoff of binary64.
+const U: f64 = f64::EPSILON / 2.0;
+/// Relative accuracy assumed for sin, cos and asin of the platform mathematical library: one unit
+/// in the last place. The same ASSUMPTION the engine's bounds state, re-stated here so the verifier's
+/// re-derivation needs no import from the engine's code.
+const TRIG: f64 = 2.0 * U;
 /// Largest defect of the stored constants of the tilted frame from an orthonormal frame: |ex·ex − 1| = 1.0 u,
 /// |ey·ey − 1| = 0.47 u, |ez·ez − 1| = 0.28 u, |ex·ez| = 0.17 u, ex·ey = ey·ez = 0 (exact rational evaluation of
 /// the binary64 constants, asserted by `frame_defect_is_at_most_one_unit_roundoff`).
@@ -325,9 +339,91 @@ impl Conditioning {
     }
 }
 
+// ------------------------------------------------------------------------------------------------------------
+// The ENGINE's vertex error, re-derived by the verifier (work plan task 1.5, RC-15).
+//
+// The 3D-intersection checks compare the pattern's vertices with the independent formulation. A correct
+// pattern can differ from the exact curve by the rounding error of the engine's own evaluation, so the
+// tolerance must cover that error. The bounds below are derived from the INPUTS alone, by a first-order
+// rounding analysis of the evaluation sequence Spec 02 documents for the engine (eq. 4.3 and the header
+// chart) — the same sequence the engine implements and bounds for its reported eps_num. The verifier owns
+// this copy and calls nothing in the engine's development code; the two copies are cross-checked against
+// each other on seeded parameter sets, bit for bit (tests/verifier_independence.rs). Derivation and the
+// validation of the engine's copy: docs/backend/TOLERANCE_POLICY.md sections 8.2 and 11.
+// ------------------------------------------------------------------------------------------------------------
+
+/// A-priori bound on the rounding error of the engine's s(phi) (Spec 02 eq. 4.3), re-derived by the
+/// verifier from the inputs. First-order analysis, u = 2^-53, t = 2u the assumed relative error of sin
+/// and cos (one unit in the last place):
+///
+///   y  = fl(delta + fl(r·cos phi))            |dy| <= r·(t + u) + u·|y|
+///   D  = fl(fl(R·R) − fl(y·y))                |dD| <= 4u·R² + 2·R·r·(t + u) + u·D
+///   q  = fl(sqrt(D))                          |dq| <= |dD| / (2·sqrt(D)) + u·sqrt(D)
+///   p  = fl(fl(r·sin phi)·cos beta)           |dp| <= r·(2t + 2u)
+///   s  = fl(fl(q − p) / sin beta)             |ds| <= (|dq| + |dp| + u·|q − p|) / sin beta + |s|·(t + u)
+///
+/// With sqrt(D) <= R, |q − p| <= R + r and D >= R² − (|delta| + r)² this gives the first term below: the
+/// cancellation in R² − y² amplified by the square root, dominant next to tangency. The last term carries
+/// the rounding of the angle itself, beta = fl(beta_deg·fl(pi/180)), |d beta| <= 2u·beta, through
+/// |ds/d beta| = |r sin phi − s cot beta| <= r + (R + r)·|cos beta|/sin² beta: dominant near 0 and 180 degrees.
+/// Second-order terms are below 1e-9 of the bound inside the accepted range. Not an interval evaluation.
+pub fn engine_s_error_bound(b: &Branch) -> f64 {
+    let y_max = b.delta.abs() + b.r;
+    let root = (b.big_r * b.big_r - y_max * y_max).sqrt();
+    let sb = b.beta.sin().abs();
+    ((2.0 * U * b.big_r * b.big_r + b.big_r * b.r * (TRIG + U)) / root
+        + 1.5 * U * b.big_r
+        + b.r * (2.0 * TRIG + 2.0 * U)
+        + (b.big_r + b.r) * (TRIG + 2.0 * U))
+        / sb
+        + engine_ds_dbeta_max(b) * 2.0 * U * b.beta.abs()
+}
+
+/// Upper bound of |ds/d beta| = |r sin phi − s cot beta| over phi (see `engine_s_error_bound`).
+fn engine_ds_dbeta_max(b: &Branch) -> f64 {
+    let sb = b.beta.sin().abs();
+    b.r + (b.big_r + b.r) * b.beta.cos().abs() / (sb * sb)
+}
+
+/// A-priori bound on the distance of a vertex of the developed saddle (r_dev·phi, s) from the exact
+/// developed curve: the bound on s, the rounding of the product r_dev·phi, and the closing vertex,
+/// which is placed at u = fl(2·pi·r_dev) with the height of phi = 0 (|ds/dphi| = r·|cot beta| there).
+pub fn engine_saddle_error_bound(b: &Branch, r_dev: f64) -> f64 {
+    engine_s_error_bound(b) + 2.0 * U * TAU * r_dev + 4.0 * U * TAU * b.r / b.beta.sin().abs()
+}
+
+/// A-priori bound on the distance of a vertex of the developed header opening from the exact point
+/// for the ideal parameter phi_i = 2·pi·i/n. x = station + s·cos beta − r·sin phi·sin beta carries the
+/// bound on s; v = R_dev·(asin(y/R) + pi) carries the conditioning of the arcsine, R/sqrt(R² − y²).
+/// The parameter itself carries three roundings, and a point moves by at most |dP/dphi| times that:
+/// |ds/dphi| <= (R + r)/sin beta and |d(omega)/dphi| <= 1 for every phi.
+pub fn engine_opening_error_bound(b: &Branch, r_dev_header: f64, station: f64) -> f64 {
+    let (sb, cb) = (b.beta.sin().abs(), b.beta.cos().abs());
+    let y_max = b.delta.abs() + b.r;
+    let root = (b.big_r * b.big_r - y_max * y_max).sqrt();
+    let s_abs = (b.big_r + b.r) / sb;
+    let d_phi = 4.0 * U * TAU;
+    // the rounding of beta moves x = station + s·cos beta − r·sin phi·sin beta by at most
+    // |ds/d beta|·cos beta + s·sin beta + r times 2u·beta
+    let bound_beta = 2.0 * U * b.beta.abs() * (engine_ds_dbeta_max(b) * cb + (b.big_r + b.r) + b.r);
+    let bound_x = engine_s_error_bound(b) * cb
+        + bound_beta
+        + s_abs * cb * (TRIG + U)
+        + b.r * (2.0 * TRIG + 2.0 * U)
+        + U * (s_abs * cb + b.r)
+        + U * (station.abs() + s_abs * cb + b.r)
+        + (s_abs * cb + b.r) * d_phi;
+    let d_y = b.r * (TRIG + U) + U * y_max;
+    let d_omega = (d_y + U * b.big_r) / root + TRIG * 0.5 * std::f64::consts::PI;
+    // the constant pi of binary64 is 1.3e-16 below pi; the sum omega + pi and the product add one rounding each
+    let bound_v =
+        r_dev_header * (d_omega + 1.3e-16 + 3.0 * U * std::f64::consts::PI) + r_dev_header * d_phi;
+    bound_x + bound_v
+}
+
 /// The conditioning of the 3D-intersection check of a branch stub (`verify_branch`).
 pub fn branch_stub_conditioning(b: &Branch, r_dev: f64, s_end: f64) -> Vec<Conditioning> {
-    let saddle = develop::saddle_error_bound(b, r_dev);
+    let saddle = engine_saddle_error_bound(b, r_dev);
     vec![Conditioning {
         checks: &["saddle_matches_3d_intersection"],
         rounding: saddle_check_rounding(b),
@@ -346,8 +442,8 @@ pub fn header_with_branch_conditioning(
     r_dev_branch: f64,
     s_end: f64,
 ) -> Vec<Conditioning> {
-    let open = develop::opening_error_bound(b, r_dev_header, station);
-    let saddle = develop::saddle_error_bound(b, r_dev_branch);
+    let open = engine_opening_error_bound(b, r_dev_header, station);
+    let saddle = engine_saddle_error_bound(b, r_dev_branch);
     let mut v = branch_stub_conditioning(b, r_dev_branch, s_end);
     v.push(Conditioning {
         checks: &["opening_matches_3d_intersection"],
@@ -595,10 +691,170 @@ fn curve_len(p: &Pattern, name: &str) -> f64 {
         .sum()
 }
 
+/// RC-09 datum: the named edge must run along a plate axis. Returns the largest distance of any
+/// sampled point of the curve from the axis-parallel line through its first point (0 for a straight
+/// edge on that axis), or NaN when the curve is absent or degenerates to a point, so that a direction
+/// that cannot be measured is INCONCLUSIVE, never a pass. `along_x` selects the X-parallel line
+/// (deviation in y); otherwise the Y-parallel line (deviation in x). Translation-invariant, and a
+/// proper rotation of the plate moves an edge off its axis, which the length checks alone cannot see.
+fn axis_run(p: &Pattern, name: &str, along_x: bool) -> f64 {
+    let mut found = false;
+    let mut dev = 0.0f64;
+    let mut reach = 0.0f64;
+    for c in p.outline.iter().filter(|c| c.name == name) {
+        found = true;
+        let pts = profile::flatten(std::slice::from_ref(c), 64);
+        let Some(&q0) = pts.first() else {
+            return f64::NAN;
+        };
+        for q in &pts {
+            dev = dev.max(if along_x {
+                (q.y - q0.y).abs()
+            } else {
+                (q.x - q0.x).abs()
+            });
+            reach = reach.max(q.dist(q0));
+        }
+    }
+    if !found || reach <= 0.0 {
+        f64::NAN
+    } else {
+        dev
+    }
+}
+
+/// Dekker split of a binary64 number into two 27-bit halves whose sum is exact (2^27 + 1).
+fn split27(a: f64) -> (f64, f64) {
+    const SPLIT: f64 = 134217729.0; // 2^27 + 1
+    let t = SPLIT * a;
+    let hi = t - (t - a);
+    (hi, a - hi)
+}
+
+/// Error-free product: hi + lo = a*b exactly (Dekker, no FMA dependency). Lets exact_signed_area keep the
+/// rounding of each huge Green's-theorem term instead of losing it before the cancellation-prone sum.
+fn two_product(a: f64, b: f64) -> (f64, f64) {
+    let p = a * b;
+    let (ah, al) = split27(a);
+    let (bh, bl) = split27(b);
+    let e = ((ah * bh - p) + ah * bl + al * bh) + al * bl;
+    (p, e)
+}
+
+/// Accumulate sign*a*b into the hi/lo Neumaier pair with an error-free product (sign is +/-0.5, exact).
+fn area_product(hi: &mut Compensated, lo: &mut Compensated, a: f64, b: f64, sign: f64) {
+    let (p, e) = two_product(a, b);
+    hi.add(sign * p);
+    lo.add(sign * e);
+}
+
+/// Exact signed area of a closed outline by Green's theorem (RC-10): the shoelace sum for lines and polylines
+/// and the closed-form arc integral for arcs, so no flattening chord deficit enters. Positive for a
+/// counter-clockwise outline. Unlike `profile::check`'s flattened-polygon area this is the area of the figure
+/// as drawn (arcs exact), which is what the area checks compare against the 3D surface.
+///
+/// Every algebraic term (shoelace products, the arc's r^2*(a1-a0) sector) is accumulated as an error-free
+/// product hi + lo through a Neumaier sum, because the terms can be huge and cancel: the B2-005 cone near the
+/// apex limit develops to a 1e8 mm radius, its two arc sectors are ~3e13 mm^2 each, and rounding them to
+/// binary64 before subtracting would leave ~0.004 mm^2 of noise against a 0.001 mm^2 tolerance. The arc
+/// endpoint sines/cosines carry their own f64 rounding (they multiply the centre coordinates, zero for an
+/// apex-centred sector); the final hi + lo addition rounds once.
+fn exact_signed_area(outline: &[Curve]) -> f64 {
+    let mut hi = Compensated::default();
+    let mut lo = Compensated::default();
+    for c in outline {
+        match &c.geom {
+            Geom::Line { a: p, b: q } => {
+                area_product(&mut hi, &mut lo, p.x, q.y, 0.5);
+                area_product(&mut hi, &mut lo, q.x, p.y, -0.5);
+            }
+            Geom::Polyline { pts, .. } => {
+                for w in pts.windows(2) {
+                    area_product(&mut hi, &mut lo, w[0].x, w[1].y, 0.5);
+                    area_product(&mut hi, &mut lo, w[1].x, w[0].y, -0.5);
+                }
+            }
+            Geom::Arc { c: ctr, r, a0, a1 } => {
+                area_product(&mut hi, &mut lo, ctr.x, r * (a1.sin() - a0.sin()), 0.5);
+                area_product(&mut hi, &mut lo, ctr.y, r * (a1.cos() - a0.cos()), -0.5);
+                // r^2*(a1-a0) with r^2 kept exact: the dominant term of an apex-centred sector
+                let (r2h, r2l) = two_product(*r, *r);
+                let (p, e) = two_product(r2h, a1 - a0);
+                hi.add(0.5 * p);
+                lo.add(0.5 * (e + r2l * (a1 - a0)));
+            }
+        }
+    }
+    hi.value() + lo.value()
+}
+
+/// Worst point distance between two equally ordered point sets after the best proper rotation and translation
+/// (Kabsch, RC-10). The angle is atan2 of the cross/dot sums of the centred corresponding points, so it is
+/// always a proper rotation (det +1): a mirror image cannot be aligned, and a non-rigid shape change leaves a
+/// residual. NaN when the sets are empty or differ in length, so a congruence that cannot be measured is
+/// INCONCLUSIVE, never a pass. Translation- and rotation-invariant.
+fn kabsch_residual(drawn: &[P2], reference: &[P2]) -> f64 {
+    let m = drawn.len();
+    if m == 0 || m != reference.len() {
+        return f64::NAN;
+    }
+    let mf = m as f64;
+    let cd = P2::new(
+        drawn.iter().map(|q| q.x).sum::<f64>() / mf,
+        drawn.iter().map(|q| q.y).sum::<f64>() / mf,
+    );
+    let cr = P2::new(
+        reference.iter().map(|q| q.x).sum::<f64>() / mf,
+        reference.iter().map(|q| q.y).sum::<f64>() / mf,
+    );
+    let (mut sxx, mut sxy) = (0.0f64, 0.0f64);
+    for i in 0..m {
+        let f = P2::new(reference[i].x - cr.x, reference[i].y - cr.y);
+        let o = P2::new(drawn[i].x - cd.x, drawn[i].y - cd.y);
+        sxx += f.x * o.x + f.y * o.y;
+        sxy += f.x * o.y - f.y * o.x;
+    }
+    let (s, c) = sxy.atan2(sxx).sin_cos();
+    let mut worst = 0.0f64;
+    for i in 0..m {
+        let f = P2::new(reference[i].x - cr.x, reference[i].y - cr.y);
+        let rot = P2::new(cd.x + c * f.x - s * f.y, cd.y + s * f.x + c * f.y);
+        worst = worst.max(rot.dist(drawn[i]));
+    }
+    worst
+}
+
+/// RC-10 angular datum: the named edge must lie on the ray at `angle` from the apex (the pattern origin).
+/// Returns the largest distance of any sampled point of the curve from that ray (0 for an edge on it). A point
+/// whose projection on the ray is negative lies behind the apex and counts its full distance from the origin.
+/// NaN when the curve is absent, so a datum that cannot be measured is INCONCLUSIVE, never a pass. A proper
+/// rotation of the plate about the apex moves the edge off its ray, which the length checks alone cannot see.
+fn ray_run(p: &Pattern, name: &str, angle: f64) -> f64 {
+    let (s, c) = angle.sin_cos();
+    let u = P2::new(c, s);
+    let mut found = false;
+    let mut dev = 0.0f64;
+    for cu in p.outline.iter().filter(|x| x.name == name) {
+        found = true;
+        for q in profile::flatten(std::slice::from_ref(cu), 64) {
+            let proj = q.x * u.x + q.y * u.y;
+            let d = if proj >= 0.0 {
+                P2::new(q.x - proj * u.x, q.y - proj * u.y).dist(P2::new(0.0, 0.0))
+            } else {
+                q.dist(P2::new(0.0, 0.0))
+            };
+            dev = dev.max(d);
+        }
+    }
+    if found { dev } else { f64::NAN }
+}
+
 /// Independent-formulation checks of a plain shell (review RB-006): the end
-/// circle and the lateral area of the solid, sampled in 3D, against the plate.
-/// Kept apart from `verify_cylinder` so that the thresholds of the original
-/// checks stay exactly as they were (docs/backend/TOLERANCE_POLICY.md).
+/// circle and the lateral area of the solid, sampled in 3D, against the plate,
+/// plus the RC-09 plate-axis datum (`bottom` along X, `seam_a` along Y) that the
+/// length checks alone cannot see. Kept apart from `verify_cylinder` so that the
+/// thresholds of the original checks stay exactly as they were
+/// (docs/backend/TOLERANCE_POLICY.md).
 pub fn verify_cylinder_solid(p: &Pattern, r_dev: f64, length: f64) -> Vec<Check> {
     let agree = agree_tol(r_dev.max(length));
     let (circle, circle_res) = independent::circle_length(r_dev, 1024);
@@ -631,6 +887,20 @@ pub fn verify_cylinder_solid(p: &Pattern, r_dev: f64, length: f64) -> Vec<Check>
             outline.signed_area.signum(),
             1.0,
             0.5,
+        ),
+        cmp(
+            "bottom_runs_along_x",
+            "largest distance of any point of the bottom edge from the X-parallel line through its start (plate axes: X around the shell, Y along the axis)",
+            axis_run(p, "bottom", true),
+            0.0,
+            agree,
+        ),
+        cmp(
+            "seam_a_runs_along_y",
+            "largest distance of any point of the seam_a edge from the Y-parallel line through its start (seam_a is the angle datum at X = 0)",
+            axis_run(p, "seam_a", false),
+            0.0,
+            agree,
         ),
     ]
 }
@@ -709,12 +979,18 @@ pub fn verify_cone(p: &Pattern, r1: f64, r2: f64, h: f64) -> Vec<Check> {
             s,
             agree,
         ),
+        // The drawn outline is the exact development rounded to binary64: every written vertex and arc
+        // parameter carries at most the pattern's declared eps_num (a-priori bound, EPS_NUM_BASIS_EXACT).
+        // Displacing the boundary by delta changes the area by at most delta times the perimeter
+        // (first-order shape derivative), hence the eps_num*perimeter allowance. Near the apex limit it
+        // dominates agree*s: B2-005 develops to l1 ~ 1e8 mm, where a ~1e-7 mm radius rounding becomes
+        // ~2e-3 mm^2 of area through the ~1.3e6 mm perimeter. For ordinary parts the term is ~1e-9 mm^2.
         cmp(
             "area",
-            "lateral area pi*(r1+r2)*s of the 3D frustum",
-            p.quantity("area").unwrap_or(f64::NAN),
+            "exact signed area of the drawn outline (Green's theorem, arcs in closed form) against the lateral area pi*(r1+r2)*s of the 3D frustum",
+            exact_signed_area(&p.outline),
             std::f64::consts::PI * (r1 + r2) * s,
-            agree * s,
+            agree * s + p.eps_num * p.outline.iter().map(profile::length).sum::<f64>(),
         ),
     ];
     for (name, check, r) in [
@@ -746,6 +1022,22 @@ pub fn verify_cone(p: &Pattern, r1: f64, r2: f64, h: f64) -> Vec<Check> {
         "fold_back_radius_residual",
         "implicit taper equation of the frustum evaluated at folded-back arcs",
         worst,
+        0.0,
+        agree,
+    ));
+    // Handedness and angular datum (RC-10): the cone had neither. A genuine sector is counter-clockwise with
+    // seam_a on the +X ray from the apex; a mirror flips the sign and a proper rotation moves seam_a off +X.
+    v.push(cmp(
+        "outline_counter_clockwise",
+        "sign of the exact signed area of the outline (Green's theorem): outer profiles are counter-clockwise in the pattern frame (Spec 02 section 0.3)",
+        exact_signed_area(&p.outline).signum(),
+        1.0,
+        0.5,
+    ));
+    v.push(cmp(
+        "seam_a_on_positive_x",
+        "largest distance of any point of the seam_a edge from the +X ray from the apex (stated datum: seam_a on +X)",
+        ray_run(p, "seam_a", 0.0),
         0.0,
         agree,
     ));
@@ -823,20 +1115,23 @@ pub fn verify_eccentric(p: &Pattern, r1: f64, r2: f64, h: f64, e: f64) -> Vec<Ch
         ));
         return v;
     }
-    // (1) Two developments of the same curve are congruent: compare distances from the seam point.
+    // (1) Two developments of the same curve are congruent. Distances from the seam point alone leave n-2 shape
+    // degrees of freedom free (RC-10): compare directed coordinates after the best proper rotation and translation
+    // (Kabsch), so a mirror or a non-rigid bulge of the large end is named, not just a radius error.
     let fine = geodesic_development(&g, 16 * n);
     let coarse = geodesic_development(&g, 8 * n);
-    let (mut worst, mut ver_err): (f64, f64) = (0.0, 0.0);
+    // the quadrature error estimate stays the fine/coarse distance difference (a scalar, frame-independent)
+    let mut ver_err = 0.0f64;
     for i in 1..=n {
-        let d_primary = outer[i].dist(outer[0]);
         let d_ref = fine[16 * i].dist(fine[0]);
-        worst = worst.max((d_primary - d_ref).abs());
         ver_err = ver_err.max((d_ref - coarse[8 * i].dist(coarse[0])).abs());
     }
+    let reference: Vec<P2> = (0..=n).map(|i| fine[16 * i]).collect();
+    let worst = kabsch_residual(&outer, &reference);
     let tol = agree.max(p.eps_num + 10.0 * ver_err);
     v.push(cmp(
         "apex_free_development_agrees",
-        "geodesic-curvature integration of the large end circle (no apex), RK4",
+        "directed congruence with an apex-free geodesic-curvature development (RK4): best proper rotation + translation (Kabsch), worst point residual",
         worst,
         0.0,
         tol,
@@ -900,20 +1195,49 @@ pub fn verify_eccentric(p: &Pattern, r1: f64, r2: f64, h: f64, e: f64) -> Vec<Ch
         };
         gauss(&inner, 0.0, TAU, 360).0
     };
-    v.push(cmp(
-        "area",
-        "surface integral of |S_theta x S_lambda| over the 3D ruled surface",
-        p.quantity("area").unwrap_or(f64::NAN),
-        surf,
-        1e-6 * surf.max(1.0),
+    // (4) Area: exact signed area of the drawn outline (Green's theorem, arcs in closed form) against the 3D
+    // ruled-surface integral. The previous primary was the pattern's own "area" quantity — the same integral
+    // computed by the constructor — so it could not see a wrong outline (RC-10). The drawn polyline chords
+    // shorten the figure; each chord's sagitta is at most eps_rep, bounding the area deficit by eps_rep times
+    // the perimeter, hence the tolerance. eps_rep is uncertified for this family, so a genuine PASS becomes
+    // INCONCLUSIVE through rep_check (TOLERANCE_POLICY section 8.2).
+    let perimeter: f64 = p.outline.iter().map(profile::length).sum();
+    v.push(rep_check(
+        cmp(
+            "area",
+            "exact signed area of the drawn outline (Green's theorem) against the surface integral of |S_theta x S_lambda| over the 3D ruled surface",
+            exact_signed_area(&p.outline),
+            surf,
+            p.eps_rep * perimeter + 1e-9 * surf.max(1.0),
+        ),
+        p.eps_rep_certified,
+        p.eps_rep,
     ));
     // (5) Handedness: a mirrored development is clockwise, so the sign of the outline's signed area flips.
     v.push(cmp(
         "outline_counter_clockwise",
-        "sign of the signed area of the outline: outer profiles are counter-clockwise in the pattern frame (Spec 02 section 0.3)",
-        profile::check(&p.outline, 1e-9).signed_area.signum(),
+        "sign of the exact signed area of the outline (Green's theorem): outer profiles are counter-clockwise in the pattern frame (Spec 02 section 0.3)",
+        exact_signed_area(&p.outline).signum(),
         1.0,
         0.5,
+    ));
+    // (6) Angular datums (RC-10): the stated development places seam_a on +X and seam_b at the developed angle
+    // Psi = integral of dpsi over a full turn. Length checks alone cannot see a rotation of the plate about
+    // the apex, which moves the seams off their rays while every edge length stays the same.
+    v.push(cmp(
+        "seam_a_on_positive_x",
+        "largest distance of any point of the seam_a edge from the +X ray from the apex (stated datum: seam_a on +X)",
+        ray_run(p, "seam_a", 0.0),
+        0.0,
+        agree,
+    ));
+    let psi = crate::gauss_adaptive(&|t| g.dpsi(t), 0.0, TAU, 1e-13, 14).0;
+    v.push(cmp(
+        "seam_b_at_development_angle",
+        "largest distance of any point of the seam_b edge from the ray at Psi = integral of dpsi over a full turn (stated datum)",
+        ray_run(p, "seam_b", psi),
+        0.0,
+        agree,
     ));
     v
 }
@@ -999,7 +1323,7 @@ pub fn verify_branch(p: &Pattern, b: &Branch, r_dev: f64, s_end: f64) -> Vec<Che
     // The rounding bound of the closed form is computed here from the INPUTS (not read from the pattern):
     // near tangency both methods are equally ill-conditioned, and the threshold may not be below that.
     let j = Joint3::new(b.big_r, b.r, b.beta, b.delta, 0.0);
-    let bound = develop::saddle_error_bound(b, r_dev);
+    let bound = engine_saddle_error_bound(b, r_dev);
     let tol3 = agree + 4.0 * bound;
     let n = cut.len().saturating_sub(1);
     let usable = n >= 8 && n.is_multiple_of(4);
@@ -1245,7 +1569,7 @@ pub fn verify_header_opening(
     // The polyline declares uniform sampling in the branch angle; which way round it runs is not assumed:
     // both directions are tried and the better one counts (a mirrored opening matches neither).
     let j = Joint3::new(b.big_r, b.r, b.beta, b.delta, station);
-    let tol3 = agree + 4.0 * develop::opening_error_bound(b, r_dev_header, station);
+    let tol3 = agree + 4.0 * engine_opening_error_bound(b, r_dev_header, station);
     let n = pts.len().saturating_sub(1);
     let usable = n >= 8 && n.is_multiple_of(4);
     let plate_at = |phi: f64| -> Option<P2> {
@@ -1553,8 +1877,8 @@ pub fn verify_joint(
     let jb = Joint3::in_frame(frame, bb.big_r, bb.r, bb.beta, bb.delta, station);
     let tol = agree
         + 4.0
-            * (develop::opening_error_bound(hb, r_dev_header, station)
-                + develop::saddle_error_bound(bb, r_dev_branch));
+            * (engine_opening_error_bound(hb, r_dev_header, station)
+                + engine_saddle_error_bound(bb, r_dev_branch));
     // opening vertices on the header surface the opening was cut to
     let open3: Vec<V3> = hole_points(header)
         .iter()
@@ -1591,10 +1915,11 @@ pub fn verify_joint(
         }
         worst
     };
-    // The two folded polylines are the same polygon when both parts share one sampling (develop::*_min), so a
-    // comparison of their 3D lengths adds nothing to the two point checks above; and the 3D length of a
-    // near-tangent curve cannot be resolved to the 1e-5 that cmp_resolved requires, so that check was INCONCLUSIVE
-    // for valid near-tangent joints. It is removed (review RB-001; validation run of 20 Nov 2026).
+    // The two folded polylines are the same polygon when both parts share one sampling (the engine's
+    // minimum-density builders), so a comparison of their 3D lengths adds nothing to the two point
+    // checks above; and the 3D length of a near-tangent curve cannot be resolved to the 1e-5 that
+    // cmp_resolved requires, so that check was INCONCLUSIVE for valid near-tangent joints. It is
+    // removed (review RB-001; validation run of 20 Nov 2026).
     vec![
         cmp(
             "opening_on_intersection_of_branch_geometry",
@@ -1632,10 +1957,11 @@ mod tests {
     }
 
     /// The eccentric reducer's representation error is not certified (its vertex term carries the quadrature
-    /// estimate, TOLERANCE_POLICY 8.2): its two circumference checks are INCONCLUSIVE and every other check PASSes.
+    /// estimate, TOLERANCE_POLICY 8.2): its two circumference checks and the drawn-area check (RC-10, whose
+    /// chord-deficit allowance is eps_rep times the perimeter) are INCONCLUSIVE and every other check PASSes.
     fn pass_but_uncertified_circumferences(v: &[Check]) {
         for c in v {
-            let want = if c.name.ends_with("_equals_circumference") {
+            let want = if c.name.ends_with("_equals_circumference") || c.name == "area" {
                 Verdict::Inconclusive
             } else {
                 Verdict::Pass
@@ -1856,6 +2182,49 @@ mod tests {
                 }
                 Geom::Polyline { pts, .. } => pts.iter_mut().for_each(|q| *q = f(*q)),
                 Geom::Arc { .. } => {}
+            }
+        }
+    }
+
+    /// Mirror every curve in x (RC-10), arcs included: a point (x, y) goes to (-x, y); an arc keeps its
+    /// traversal order with the centre's x negated and both angles a -> pi - a, so the outline stays closed
+    /// and its orientation flips. `map_points` alone skips arcs and would tear a cone outline open.
+    fn mirror_x(p: &mut Pattern) {
+        for c in p.outline.iter_mut().chain(p.holes.iter_mut()) {
+            match &mut c.geom {
+                Geom::Line { a, b } => {
+                    a.x = -a.x;
+                    b.x = -b.x;
+                }
+                Geom::Polyline { pts, .. } => pts.iter_mut().for_each(|q| q.x = -q.x),
+                Geom::Arc { c: ctr, a0, a1, .. } => {
+                    ctr.x = -ctr.x;
+                    let pi = std::f64::consts::PI;
+                    *a0 = pi - *a0;
+                    *a1 = pi - *a1;
+                }
+            }
+        }
+    }
+
+    /// Rotate every curve about the origin by `ang` (RC-10), arcs included: a proper rotation, so every
+    /// length, the area and the handedness are unchanged; an arc keeps its radius and sweep with the centre
+    /// rotated and both angles shifted. Moves the seams off their stated rays without touching any length.
+    fn rotate_about_origin(p: &mut Pattern, ang: f64) {
+        let (s, co) = ang.sin_cos();
+        let rot = |q: P2| P2::new(co * q.x - s * q.y, s * q.x + co * q.y);
+        for c in p.outline.iter_mut().chain(p.holes.iter_mut()) {
+            match &mut c.geom {
+                Geom::Line { a, b } => {
+                    *a = rot(*a);
+                    *b = rot(*b);
+                }
+                Geom::Polyline { pts, .. } => pts.iter_mut().for_each(|q| *q = rot(*q)),
+                Geom::Arc { c: ctr, a0, a1, .. } => {
+                    *ctr = rot(*ctr);
+                    *a0 += ang;
+                    *a1 += ang;
+                }
             }
         }
     }
@@ -2447,15 +2816,20 @@ mod tests {
         all_pass(&verify_cylinder(&tiny, 1e-4, 1e-3));
     }
 
-    /// Handedness guard of the plain shell and the eccentric reducer (review RC-09/RC-10, RB-006): a genuine
-    /// development is counter-clockwise and passes `outline_counter_clockwise`; its mirror image (every x negated) is
-    /// clockwise and fails it. The mirror passes every length check, so this guard is the only one that names it.
+    /// Handedness guard of the plain shell, the cone and the eccentric reducer (review RC-09/RC-10, RB-006): a
+    /// genuine development is counter-clockwise and passes `outline_counter_clockwise`; its mirror image (every
+    /// x negated, arcs included) is clockwise and fails it. The mirror passes every length check. Since RC-10
+    /// the eccentric's directed congruence check names the mirror too (a proper rotation cannot align it), and
+    /// the cone's seam_a datum names it as well (the seam lands on -X).
     #[test]
     fn outline_guard_rejects_a_mirrored_cylinder_and_eccentric() {
         let guard = "outline_counter_clockwise";
         let cyl = cylinder_shell(100.0, 250.0).unwrap();
         let mut cyl_mirror = cyl.clone();
         map_points(&mut cyl_mirror, |q| P2::new(-q.x, q.y));
+        let cone = cone_frustum(200.0, 100.0, 300.0).unwrap();
+        let mut cone_mirror = cone.clone();
+        mirror_x(&mut cone_mirror);
         let ecc = eccentric_reducer(200.0, 100.0, 300.0, 100.0).unwrap();
         let mut ecc_mirror = ecc.clone();
         map_points(&mut ecc_mirror, |q| P2::new(-q.x, q.y));
@@ -2466,6 +2840,10 @@ mod tests {
         );
         assert_eq!(
             verdict_of(&verify_cylinder_solid(&cyl, 100.0, 250.0), guard),
+            Verdict::Pass
+        );
+        assert_eq!(
+            verdict_of(&verify_cone(&cone, 200.0, 100.0, 300.0), guard),
             Verdict::Pass
         );
         assert_eq!(
@@ -2481,12 +2859,197 @@ mod tests {
             Verdict::Fail
         );
         assert_eq!(
+            verdict_of(&verify_cone(&cone_mirror, 200.0, 100.0, 300.0), guard),
+            Verdict::Fail
+        );
+        assert_eq!(
             verdict_of(
                 &verify_eccentric(&ecc_mirror, 200.0, 100.0, 300.0, 100.0),
                 guard
             ),
             Verdict::Fail
         );
+        // RC-10: the mirror is not proper-rotation-congruent with the apex-free development, and the mirrored
+        // cone's seam_a lies on -X, off its stated +X ray. Both name the mirror beyond the handedness guard.
+        assert_eq!(
+            verdict_of(
+                &verify_eccentric(&ecc, 200.0, 100.0, 300.0, 100.0),
+                "apex_free_development_agrees"
+            ),
+            Verdict::Pass
+        );
+        assert_eq!(
+            verdict_of(
+                &verify_eccentric(&ecc_mirror, 200.0, 100.0, 300.0, 100.0),
+                "apex_free_development_agrees"
+            ),
+            Verdict::Fail
+        );
+        assert_eq!(
+            verdict_of(
+                &verify_cone(&cone_mirror, 200.0, 100.0, 300.0),
+                "seam_a_on_positive_x"
+            ),
+            Verdict::Fail
+        );
+    }
+
+    /// RC-10 reproducer: the old check (1) compared only distances from the seam point outer[0], leaving n-2
+    /// shape degrees of freedom free. Rotating each interior large-end vertex about outer[0] by eps*sin(pi*i/n)
+    /// preserves every one of those distances exactly (the end vertices do not move), so the old check passes;
+    /// the directed Kabsch congruence sees the bulge and fails.
+    #[test]
+    fn rc10_distance_preserving_bulge_passes_the_old_check_but_fails_the_directed_one() {
+        let (r1, r2, h, e) = (200.0, 100.0, 300.0, 100.0);
+        let p = eccentric_reducer(r1, r2, h, e).unwrap();
+        let mut bulged = p.clone();
+        let eps = 1e-4f64;
+        let outer = bulged
+            .outline
+            .iter_mut()
+            .find(|c| c.name == "large_end")
+            .unwrap();
+        let Geom::Polyline { pts, .. } = &mut outer.geom else {
+            panic!("large_end must be a polyline");
+        };
+        let n = pts.len() - 1;
+        let pivot = pts[0];
+        for (i, q) in pts.iter_mut().enumerate().take(n).skip(1) {
+            let ang = eps * (std::f64::consts::PI * i as f64 / n as f64).sin();
+            let (s, c) = ang.sin_cos();
+            let d = P2::new(q.x - pivot.x, q.y - pivot.y);
+            *q = P2::new(pivot.x + c * d.x - s * d.y, pivot.y + s * d.x + c * d.y);
+        }
+        // the old distance-only comparison: every distance from outer[0] is unchanged, so it passes
+        let g = ObliqueCone { r1, r2, h, e };
+        let fine = geodesic_development(&g, 16 * n);
+        let pts_now: Vec<P2> = bulged
+            .outline
+            .iter()
+            .find(|c| c.name == "large_end")
+            .and_then(|c| {
+                if let Geom::Polyline { pts, .. } = &c.geom {
+                    Some(pts.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let mut old_worst = 0.0f64;
+        for i in 1..=n {
+            old_worst =
+                old_worst.max((pts_now[i].dist(pts_now[0]) - fine[16 * i].dist(fine[0])).abs());
+        }
+        assert!(old_worst < 1e-9, "old check would pass: {old_worst:e}");
+        // the new directed check names the bulge
+        assert_eq!(
+            verdict_of(
+                &verify_eccentric(&bulged, r1, r2, h, e),
+                "apex_free_development_agrees"
+            ),
+            Verdict::Fail
+        );
+    }
+
+    /// RC-10 angular datums: a proper rotation of the whole plate about the apex keeps every length, the area,
+    /// the handedness and the directed congruence (Kabsch absorbs the rotation), but moves seam_a off +X and
+    /// seam_b off Psi. The datum checks are what name it, for the cone and the eccentric reducer alike.
+    #[test]
+    fn rc10_turned_plate_passes_lengths_but_fails_the_angular_datums() {
+        let cone = cone_frustum(200.0, 100.0, 300.0).unwrap();
+        let mut cone_turned = cone.clone();
+        rotate_about_origin(&mut cone_turned, 0.01);
+        let v = verify_cone(&cone_turned, 200.0, 100.0, 300.0);
+        assert_eq!(verdict_of(&v, "seam_a_on_positive_x"), Verdict::Fail);
+        assert_eq!(verdict_of(&v, "outline_counter_clockwise"), Verdict::Pass);
+        assert_eq!(verdict_of(&v, "area"), Verdict::Pass);
+        assert_eq!(
+            verdict_of(&v, "large_arc_equals_circumference"),
+            Verdict::Pass
+        );
+
+        let ecc = eccentric_reducer(200.0, 100.0, 300.0, 100.0).unwrap();
+        let mut ecc_turned = ecc.clone();
+        rotate_about_origin(&mut ecc_turned, 0.01);
+        let v = verify_eccentric(&ecc_turned, 200.0, 100.0, 300.0, 100.0);
+        assert_eq!(verdict_of(&v, "seam_a_on_positive_x"), Verdict::Fail);
+        assert_eq!(verdict_of(&v, "seam_b_at_development_angle"), Verdict::Fail);
+        assert_eq!(
+            verdict_of(&v, "apex_free_development_agrees"),
+            Verdict::Pass
+        );
+        assert_eq!(verdict_of(&v, "outline_counter_clockwise"), Verdict::Pass);
+        assert_eq!(verdict_of(&v, "seam_edges_equal_length"), Verdict::Pass);
+        assert_eq!(verdict_of(&v, "seam_equals_3d_ruling"), Verdict::Pass);
+    }
+
+    /// RC-29: the verifiers were never given a mirrored reducer. Before 0.4.7 every
+    /// eccentric check was invariant to a mirror of the whole plate (lengths, unsigned area, seam-point
+    /// distances), so a wrong-handed plate passed. The register's verdict on the test gap is that it hides no
+    /// defect beyond RC-10: this test pins that the mirror is now named, and by which checks. The mirror is an
+    /// isometry, so every length check keeps its verdict (the two circumference checks stay INCONCLUSIVE by
+    /// design, 8.2); the handedness-sensitive checks are what fail. The open large-end curve alone is not
+    /// proper-rotation-congruent to its mirror either — the directed check names it without closing the outline.
+    #[test]
+    fn rc29_mirrored_reducer_is_named_by_every_handedness_sensitive_check() {
+        let (r1, r2, h, e) = (200.0, 100.0, 300.0, 100.0);
+        let p = eccentric_reducer(r1, r2, h, e).unwrap();
+        assert!(
+            !verify_eccentric(&p, r1, r2, h, e)
+                .iter()
+                .any(|c| c.verdict == Verdict::Fail),
+            "the genuine development must not fail"
+        );
+        let mut m = p.clone();
+        mirror_x(&mut m);
+        let v = verify_eccentric(&m, r1, r2, h, e);
+        // handedness and datums: the mirror flips the orientation, the signed area and both seam rays
+        assert_eq!(verdict_of(&v, "outline_counter_clockwise"), Verdict::Fail);
+        assert_eq!(verdict_of(&v, "area"), Verdict::Fail);
+        assert_eq!(
+            verdict_of(&v, "apex_free_development_agrees"),
+            Verdict::Fail
+        );
+        assert_eq!(verdict_of(&v, "seam_a_on_positive_x"), Verdict::Fail);
+        assert_eq!(verdict_of(&v, "seam_b_at_development_angle"), Verdict::Fail);
+        // lengths are mirror-invariant: their verdicts are exactly those of the genuine plate
+        assert_eq!(verdict_of(&v, "seam_edges_equal_length"), Verdict::Pass);
+        assert_eq!(verdict_of(&v, "seam_equals_3d_ruling"), Verdict::Pass);
+        assert_eq!(
+            verdict_of(&v, "large_edge_equals_circumference"),
+            Verdict::Inconclusive
+        );
+        assert_eq!(
+            verdict_of(&v, "small_edge_equals_circumference"),
+            Verdict::Inconclusive
+        );
+    }
+
+    /// RC-09 reproducer: a rectangle turned 90° (a proper rotation, so still counter-clockwise) keeps every
+    /// edge length, area and handedness, so the length-only `verify_cylinder` passes it; the plate-axis datum
+    /// of `verify_cylinder_solid` is what names it — `bottom` now runs along Y and `seam_a` along X.
+    #[test]
+    fn rc09_turned_rectangle_passes_length_checks_but_fails_the_datum() {
+        let cyl = cylinder_shell(100.0, 250.0).unwrap();
+        let mut turned = cyl.clone();
+        // 90° counter-clockwise about the origin, then translated into the first quadrant: (x, y) -> (L - y, x)
+        map_points(&mut turned, |q| P2::new(250.0 - q.y, q.x));
+        // the old defect: every length, area and handedness check still passes on the turned plate
+        all_pass(&verify_cylinder(&turned, 100.0, 250.0));
+        // the genuine plate sits on the datum; the turned one does not
+        let genuine = verify_cylinder_solid(&cyl, 100.0, 250.0);
+        assert_eq!(verdict_of(&genuine, "bottom_runs_along_x"), Verdict::Pass);
+        assert_eq!(verdict_of(&genuine, "seam_a_runs_along_y"), Verdict::Pass);
+        let v = verify_cylinder_solid(&turned, 100.0, 250.0);
+        assert_eq!(verdict_of(&v, "bottom_runs_along_x"), Verdict::Fail);
+        assert_eq!(verdict_of(&v, "seam_a_runs_along_y"), Verdict::Fail);
+        // the solid's own length/area/handedness checks still pass on the turned plate: only the datum names it
+        assert_eq!(verdict_of(&v, "end_circle_3d_arc_length"), Verdict::Pass);
+        assert_eq!(
+            verdict_of(&v, "area_equals_sampled_surface_area"),
+            Verdict::Pass
+        );
+        assert_eq!(verdict_of(&v, "outline_counter_clockwise"), Verdict::Pass);
     }
 
     // ---- work plan task 1.1: the verifier's own rounding at shallow and near-180 degree branch angles
@@ -2862,6 +3425,7 @@ mod tests {
             }
         }
         assert!(SURFACE_UNKNOWN_REASON.starts_with("surface unknown:"));
-        assert!(SURFACE_UNKNOWN_REASON.contains('基'));
+        // engine text is English only; the client translates it (engine 0.4.9)
+        assert!(SURFACE_UNKNOWN_REASON.is_ascii());
     }
 }

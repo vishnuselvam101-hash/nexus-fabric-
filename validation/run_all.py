@@ -4,7 +4,7 @@
   python3 validation/run_all.py --url http://127.0.0.1:8802 --user U --password P
   python3 validation/run_all.py --spawn /path/to/nf-server            # private server on a temp data dir, port 8802
 
-Stages: 0 reference self-test · 1 corpus · 2 seeded random sweep · 3 synthetic workload · 4 numerical stability.
+Stages: 0 reference self-test, seeded faults, DXF-only mating (task 1.5) · 1 corpus · 2 seeded random sweep · 3 synthetic workload · 4 numerical stability.
 Prints a summary, writes validation/results/latest.json, exits non-zero on any mismatch or defect finding.
 """
 import argparse
@@ -441,36 +441,52 @@ def main():
         a.url = server.url
         a.setup_token = server.token
     t0 = time.time()
-    st = selftest()
-    print(f'[0] reference self-test: {sum(r["ok"] for r in st)}/{len(st)} ok')
-    for r in st:
-        if not r['ok']:
-            print('    FAIL', r)
-    client = Client(a.url).connect(a.user, a.password, a.setup_token)
-    # the validator validates itself against the live build: planted faults (Defect 002 among them) must be reported
-    import seeded_faults
-    sf_ok, sf_lines = seeded_faults.run(client)
-    print(f'[0] seeded faults (incl. Defect 002 and DXF tampering): {"all detected" if sf_ok else "NOT ALL DETECTED"}')
-    for ln in sf_lines:
-        if not ln.startswith('ok'):
-            print('    ' + ln)
-    cases = corpus_cases(a.quick)
-    cases += random_cases(a.seed, 5 if a.quick else a.random)
-    cases += workload_cases(24 if a.quick else a.workload, a.seed)
-    stab = stability_cases()
-    cases += [c for i, c in enumerate(stab) if i % 12 == 0 or c['id'] in ('N-tangent-r-b45-g1.1e-06', 'N-tangent-d-b90-g2e-06', 'N-aspect-cone-flat-h0.01')] if a.quick else stab
-    if a.only:
-        cases = [c for c in cases if c['group'] in a.only.split(',')]
-    print(f'[1-4] {len(cases)} cases against {a.url} (health reports engine {client.engine}), project {client.project}')
-    with mp_.Pool(a.workers, initializer=_init, initargs=(a.url, a.user, a.password, client.project)) as pool:
-        results = []
-        for i, r in enumerate(pool.imap(run_case, cases, chunksize=1)):
-            results.append(r)
-            if (i + 1) % 100 == 0:
-                print(f'    {i + 1}/{len(cases)}  ({time.time() - t0:.0f} s)', flush=True)
-    restarts = server.restarts if server else 0
-    if server:
-        server.stop()
+    # The spawned server is stopped however this block ends: an exception in the self-test, the planted-fault
+    # stage or the corpus run must not leave it running (task 1.8).
+    try:
+        st = selftest()
+        print(f'[0] reference self-test: {sum(r["ok"] for r in st)}/{len(st)} ok')
+        for r in st:
+            if not r['ok']:
+                print('    FAIL', r)
+        client = Client(a.url).connect(a.user, a.password, a.setup_token)
+        # the validator validates itself against the live build: planted faults (Defect 002 among them) must be reported
+        import seeded_faults
+        sf_ok, sf_lines = seeded_faults.run(client)
+        print(f'[0] seeded faults (incl. Defect 002 and DXF tampering): {"all detected" if sf_ok else "NOT ALL DETECTED"}')
+        for ln in sf_lines:
+            if not ln.startswith('ok'):
+                print('    ' + ln)
+        # work plan task 1.5: the two DXF files of a one-curve joint must mate from the files alone (fold-back derived
+        # from Spec 02 section 4.4, correspondence searched); the correct joint must mate and every planted fault must FAIL
+        from checks import mating
+        mt_ok, mt_lines = mating.run(client)
+        print(f'[0] DXF-only mating (task 1.5): {"mates, all faults detected" if mt_ok else "FAIL"}')
+        for ln in mt_lines:
+            if not ln.startswith('ok'):
+                print('    ' + ln)
+        cases = corpus_cases(a.quick)
+        cases += random_cases(a.seed, 5 if a.quick else a.random)
+        cases += workload_cases(24 if a.quick else a.workload, a.seed)
+        stab = stability_cases()
+        cases += [c for i, c in enumerate(stab) if i % 12 == 0 or c['id'] in ('N-tangent-r-b45-g1.1e-06', 'N-tangent-d-b90-g2e-06', 'N-aspect-cone-flat-h0.01')] if a.quick else stab
+        if a.only:
+            cases = [c for c in cases if c['group'] in a.only.split(',')]
+        print(f'[1-4] {len(cases)} cases against {a.url} (health reports engine {client.engine}), project {client.project}')
+        with mp_.Pool(a.workers, initializer=_init, initargs=(a.url, a.user, a.password, client.project)) as pool:
+            results = []
+            for i, r in enumerate(pool.imap(run_case, cases, chunksize=1)):
+                results.append(r)
+                if (i + 1) % 100 == 0:
+                    print(f'    {i + 1}/{len(cases)}  ({time.time() - t0:.0f} s)', flush=True)
+        restarts = server.restarts if server else 0
+    finally:
+        if server:
+            server.stop()
+            try:
+                server.proc.wait(timeout=10)
+            except Exception:
+                server.proc.kill()
     # ---- summary
     classes = ['agree', 'disagree', 'refused_correctly', 'wrongly_accepted', 'wrongly_refused', 'error']
     groups = {}
@@ -500,12 +516,12 @@ def main():
         for r in bad[:60]:
             print(f'  [{r["class"]}] {r["id"]}: {r["issues"][0][:230] if r["issues"] else ""}')
             print(f'      request: {json.dumps(r["request"])[:300]}')
-    selftest_ok = all(r['ok'] for r in st) and sf_ok
+    selftest_ok = all(r['ok'] for r in st) and sf_ok and mt_ok
     engines = sorted({r.get('engine') for r in results if r.get('engine')})
     ok = selftest_ok and not bad and not any(c in DEFECT_CODES for c in fcount)
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     with open(a.out, 'w') as fh:
-        json.dump({'when': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'url': a.url, 'engine': engines, 'mode': 'quick' if a.quick else 'full', 'seeded_faults': sf_lines, 'seed': a.seed, 'elapsed_s': round(time.time() - t0, 1), 'verdict': 'PASS' if ok else 'FAIL', 'server_restarts_during_run': restarts,
+        json.dump({'when': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'url': a.url, 'engine': engines, 'mode': 'quick' if a.quick else 'full', 'seeded_faults': sf_lines, 'mating': mt_lines, 'seed': a.seed, 'elapsed_s': round(time.time() - t0, 1), 'verdict': 'PASS' if ok else 'FAIL', 'server_restarts_during_run': restarts,
                    'selftest': st, 'summary': {'groups': groups, 'total': total}, 'findings_by_code': fcount, 'results': results}, fh, indent=1, default=str)
     print(f'\n{"PASS" if ok else "FAIL"}  ({time.time() - t0:.0f} s)  ->  {a.out}')
     sys.exit(0 if ok else 1)

@@ -69,6 +69,24 @@
 //! 75 of 335 cases gained that one check (all PASS: every corpus cylinder and eccentric outline is counter-clockwise); no
 //! existing check's verdict or reason changed, no case flipped PASS to anything else, and the cut geometry and patterns did not move.
 //! `verify_cylinder_solid` also carries the guard, but it is not part of the corpus (test-only).
+//! Work plan task 1.5 (RC-09, deliberate, `NF_WRITE_COMPAT_FIXTURE=1`, engine 0.4.8): the cylinder pipeline now
+//! calls `verify_cylinder_solid`, so its three independent solid checks (`end_circle_3d_arc_length`,
+//! `end_circles_3d_arc_length_equal`, `area_equals_sampled_surface_area`) and the two new plate-axis datum checks
+//! (`bottom_runs_along_x`, `seam_a_runs_along_y`) join every cylinder case. In `fixtures/compat_verdicts.json`
+//! 35 of 335 cases gained those five checks (all PASS: every corpus shell is genuine and sits on the datum); the
+//! duplicate `outline_counter_clockwise` guard is kept once. No existing check's verdict or reason changed, no case
+//! flipped state, and the cut geometry and patterns did not move (the main snapshot is byte-identical). The three
+//! solid radius checks join `CYLINDER_RADIUS_CHECKS`, so an `unknown` surface makes them INCONCLUSIVE like the rest.
+//! Work plan task 1.5 (RC-10, deliberate, `NF_WRITE_COMPAT_FIXTURE=1`, engine 0.4.8): the cone and eccentric reducer
+//! `area` checks now compare the exact signed area of the DRAWN outline against the 3D surface (the primary was the
+//! pattern's own `area` quantity, a self-comparison), and both families gain handedness and seam-datum checks. In
+//! `fixtures/compat_verdicts.json` 55 of 335 cases (the cones) gain `outline_counter_clockwise` and
+//! `seam_a_on_positive_x`, and 40 (the eccentric reducers) gain `seam_a_on_positive_x` and
+//! `seam_b_at_development_angle` — all PASS. The reducer's `area` flips PASS to INCONCLUSIVE in all 40 of its cases:
+//! its chord-deficit allowance is eps_rep times the perimeter and this family's eps_rep is not certified (rep_check,
+//! TOLERANCE_POLICY section 8.2). The cone's area allowance gains the written-vertex term eps_num times the perimeter
+//! (first-order boundary displacement; it dominates near the apex limit, test B2-005). No other verdict or reason
+//! changed, no case flipped state, and the cut geometry and patterns did not move (the main snapshot is byte-identical).
 
 use nf_core::job::{Request, run};
 use serde_json::{Value, json};

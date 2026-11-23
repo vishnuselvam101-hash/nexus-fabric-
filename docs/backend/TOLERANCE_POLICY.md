@@ -20,8 +20,8 @@ Two binary64 evaluations of the same quantity by different formulations are comp
 |---|---|---|---|---|
 | `AGREE_ABS` | 1e-6 mm | Absolute, for parts whose largest dimension is 1 mm or more | `uem/src/verify.rs`, `agree_tol` | One nanometre: ten orders of magnitude above rounding error at 100 mm, three or more below any fabrication tolerance. Unchanged from earlier builds |
 | `agree_tol(size)` below 1 mm | 1e-6 × size | Relative | same | **New (D8).** An absolute 1e-6 mm is as large as a part of 1e-6 mm; below 1 mm the threshold now shrinks with the part so that it stays one millionth of it. `size` is the largest input dimension of the part (for example max(r_dev, length)) |
-| Area checks | `agree_tol` × (r + L), or × slant length; 1e-6 × area for the oblique cone | Relative to a length of the part | same | An area error is a length error times a length |
-| Oblique cone outline | max(`agree_tol`, eps_num + 10 × verifier quadrature estimate) | Absolute or estimate-driven | `verify_eccentric` | Both sides are numerical integrals; the threshold may not be below their own estimated error |
+| Area checks | `agree_tol` × (r + L), or × slant length + eps_num × perimeter (right cone); eps_rep × perimeter + 1e-9 × area (oblique cone) | Relative to a length of the part | same | An area error is a boundary displacement times a length of the boundary (8.4, 11) |
+| Oblique cone outline | max(`agree_tol`, eps_num + 10 × verifier quadrature estimate), on the directed (Kabsch) residual | Absolute or estimate-driven | `verify_eccentric` | Both sides are numerical integrals; the threshold may not be below their own estimated error. The comparison is directed since RC-10 (11) |
 | Saddle handedness | `agree_tol` + 2 × eps_rep | Absolute plus representation estimate | `verify_branch` | The two heights are read off a polyline |
 | Yes/no checks (profile orientation, same marking side, opening inside the shell) | 0.5 on a value that is exactly 0, 1 or -1 | n/a | same | Encoded booleans |
 
@@ -244,9 +244,10 @@ every check that uses `eps_rep` contains 1 or 2 times that value. A certified bo
 requires, `MAX_CHORD_ERROR_MM` = 0.01 mm (`develop.rs:55`, the chord limit of section 5), would let almost any pattern
 pass. Such a check is therefore INCONCLUSIVE, never PASS, whenever `eps_rep > MAX_CHORD_ERROR_MM` (`verify::rep_check`,
 `verify.rs:348`; NaN is treated as coarse). A measured difference beyond the tolerance stays FAIL. Applies to the
-circumference checks of the reducer, the 3D checks of the branch saddle and the header opening, and the interface checks
-of the header with a branch. Cone and cylinder have `eps_rep = 0` (exact arcs) and no check that uses it. The check
-verdicts change, not the state, the outcome or the cut geometry. Counts: section 8.8.
+circumference checks and the drawn-area check of the reducer (the area check since RC-10, section 11), the 3D checks of
+the branch saddle and the header opening, and the interface checks of the header with a branch. Cone and cylinder have
+`eps_rep = 0` (exact arcs) and no check that uses it. The check verdicts change, not the state, the outcome or the cut
+geometry. Counts: section 8.8.
 
 *Density unchanged.* `choose_density` still decides the number of segments from the MEASURED value (as before), so the
 cut geometry is byte-identical. The reported value is the certified bound (about 1 % above the measured one at the
@@ -261,7 +262,8 @@ near-tangent case: 0.0096380 mm against a measured 0.0095979 mm; true 0.0096085 
 - Eccentric reducer: NOT a bound. Its quadrature term (`qerr`, the difference of the last two refinement levels of the
   adaptive rule) is an estimate (`EPS_NUM_BASIS_CONE`). The reducer's `eps_rep` adds this estimate, so it is NOT certified
   (`eps_rep_certified` false, 8.1). Open item for a later task: proving the quadrature error.
-- Right cone and cylinder shell: exact arcs and straight edges, eps_rep = 0.
+- Right cone and cylinder shell: exact arcs and straight edges, eps_rep = 0. The cone's eps_num (a-priori bound,
+  `l1·U·(16 + 8Φ)`) feeds its drawn-area tolerance since RC-10: eps_num × perimeter (section 11).
 
 ### 8.3 Developed length of a branch saddle and of a header opening: `length_enclosure`
 
@@ -430,8 +432,8 @@ check cannot escape the rule.
 | family | radius-dependent (INCONCLUSIVE with `unknown` when PASS) | not radius-dependent |
 |---|---|---|
 | cylinder shell | `bottom_edge_equals_circumference`, `area` | `seam_edges_equal_length`, `seam_length_equals_input` |
-| cone frustum | `large_arc_equals_circumference`, `small_arc_equals_circumference`, `seam_equals_slant_length`, `area`, `large_end_3d_arc_length`, `small_end_3d_arc_length`, `fold_back_radius_residual` | `seam_edges_equal_length` |
-| eccentric reducer | `apex_free_development_agrees`, `large_edge_equals_circumference`, `small_edge_equals_circumference`, `seam_equals_3d_ruling`, `area` | `seam_edges_equal_length` |
+| cone frustum | `large_arc_equals_circumference`, `small_arc_equals_circumference`, `seam_equals_slant_length`, `area`, `large_end_3d_arc_length`, `small_end_3d_arc_length`, `fold_back_radius_residual` | `seam_edges_equal_length`, `outline_counter_clockwise`, `seam_a_on_positive_x` (RC-10) |
+| eccentric reducer | `apex_free_development_agrees`, `large_edge_equals_circumference`, `small_edge_equals_circumference`, `seam_equals_3d_ruling`, `area`, `seam_b_at_development_angle` (RC-10: Psi depends on the entered radii) | `seam_edges_equal_length`, `outline_counter_clockwise` (0.4.7), `seam_a_on_positive_x` (RC-10: a fixed direction) |
 | branch stub (one declaration for both contact radii) | `cut_points_on_header_surface`, `cut_points_on_branch_surface`, `saddle_handedness_matches_declared_side`, `square_end_equals_circumference`, `saddle_matches_3d_intersection`, `saddle_on_the_declared_delta_side`, `saddle_developed_length_equals_3d_arc_length`, `pattern_area_equals_surface_area`, `square_end_3d_arc_length` | `outline_counter_clockwise`, `seam_edges_equal_length` |
 | header with branch, branch part | header radius only: `cut_points_on_header_surface` (header surface); branch radius only: `cut_points_on_branch_surface`, `saddle_handedness_matches_declared_side`, `square_end_equals_circumference`, `square_end_3d_arc_length` (branch surface); both radii: `saddle_matches_3d_intersection`, `saddle_on_the_declared_delta_side`, `saddle_developed_length_equals_3d_arc_length`, `pattern_area_equals_surface_area` (either surface) | `outline_counter_clockwise`, `seam_edges_equal_length` |
 | header with branch, header part | header radius only: `outline_extent_around_header`, `shell_edge_equals_circumference`, `opening_closed_simple_inside_shell`, `header_circle_3d_arc_length` (header surface); both: `opening_points_on_branch_surface`, `opening_centre_on_the_declared_delta_side`, `opening_matches_3d_intersection`, `opening_developed_length_equals_3d_arc_length`, `opening_area_equals_surface_area` (either surface) | `outline_extent_along_header_axis`, `seam_edges_equal_length`, `outline_counter_clockwise` |
@@ -515,3 +517,161 @@ it (it is in neither `CYLINDER_RADIUS_CHECKS` nor `ECCENTRIC_RADIUS_CHECKS`).
 **Engine bump.** 0.4.6 -> 0.4.7: the check list of the cylinder and eccentric families changed; their verdicts
 are unchanged for every genuine development. Results of 0.4.6 are marked for recomputation (G21). Patterns and
 cut geometry are byte-identical.
+
+## 11. Directed outline, drawn area against the surface, seam datums (work plan task 1.5, RC-10, engine 0.4.8)
+
+Review C RC-10 named three gaps in the cone and eccentric verifiers, and engine 0.4.8 closes all three.
+`develop.rs` is unchanged: the verifier re-derives every reference itself (the independence guard
+`crates/uem/tests/verifier_independence.rs` still passes), and the cut geometry and patterns are byte-identical.
+
+**(1) Directed congruence.** `apex_free_development_agrees` compared distances from the seam point, which are
+invariant to a mirror and leave n-2 shape degrees of freedom free (a bulge that preserves those distances passes).
+It now compares DIRECTED coordinates after the best proper rotation and translation (Kabsch, `kabsch_residual`):
+a mirror or a non-rigid bulge is named. The name and the tolerance are unchanged,
+max(`agree_tol`, eps_num + 10 x verifier quadrature estimate); the quadrature estimate stays the fine/coarse
+distance difference (a scalar, frame-independent). Measured: a genuine development's residual ~1e-12 mm, its
+mirror ~1e2 mm. A length-mismatched or empty point list gives NaN -> INCONCLUSIVE (fail closed).
+
+**(2) The `area` check compares the DRAWN outline against the 3D surface.** The old primary was the pattern's
+own `area` quantity — a self-comparison that can never fail. The primary is now `exact_signed_area` of the drawn
+outline: Dekker error-free products (`split27`, `two_product`) and hi/lo Neumaier compensated accumulation remove
+the arithmetic noise entirely, so what remains is geometry, not rounding. The sign matters: a mirrored outline has
+negative area and FAILs. The reference stays the surface integral (the cone's closed form pi(r1+r2)s, the
+reducer's surface integral); develop's `area` QUANTITY keeps its surface-integral value, unchanged.
+
+**Cone area tolerance (old -> new):** `agree_tol x s` -> `agree_tol x s + eps_num x perimeter`.
+Derivation (plan rule A9): the written vertices are binary64 roundings of the exact development; the cone's
+eps_num = l1 U (16 + 8 Phi) is the A-PRIORI bound of that displacement (`develop.rs`, `EPS_NUM_BASIS_EXACT` —
+a bound, not an estimate, so no INCONCLUSIVE demotion). The first-order shape derivative of area under a boundary
+displacement gives |dA| <= displacement x perimeter, so eps_num x perimeter bounds the area effect of the written
+rounding. Near the apex limit this term dominates: test B2-005 (r1 = 1e5, r2 = 99999 mm, apex radius ~1e8 mm)
+has l1 ~ 9.99e7 mm, Phi ~ 6.283e-3, eps_num ~ 1.8e-7 mm, perimeter ~ 1.258e6 mm, allowance ~ 0.22 mm^2. The
+measured exact-minus-closed-form residual there is 0.0021646 mm^2 (old tolerance 0.000999 mm^2 FAILed it); with
+the arithmetic noise removed by `exact_signed_area` this residual is the rounding of the WRITTEN radii, an input
+effect, not an arithmetic error. For ordinary cones the allowance is ~1e-9 mm^2 and the residual <= 2.2e-11 mm^2.
+A wrong-radius fault (residual ~200 mm^2) still FAILs (`seeded_fault_wrong_radius_reference`).
+
+**Eccentric area tolerance (old -> new):** `1e-6 x max(area, 1)` -> `eps_rep x perimeter + 1e-9 x max(area, 1)`,
+wrapped in `rep_check`. Derivation: the drawn polyline is inscribed in the exact curve; each segment's sagitta is
+<= eps_rep (8.1), so the chord deficit of the area is <= eps_rep x perimeter by the same first-order boundary
+argument. Measured deficits on the corpus reducers: 1.418 / 0.829 / 0.323 mm^2, against allowances of ~10.4 mm^2
+and smaller (eps_rep 4.24e-3 / 2.76e-3 / 1.21e-3 mm, uncertified). Because this family's eps_rep is NOT certified
+(8.2), `rep_check` turns a genuine PASS into INCONCLUSIVE by design — the same treatment as its two circumference
+checks since task 1.2. A measured difference beyond the tolerance stays FAIL.
+
+**(3) Handedness and seam datums.** New checks (all with `agree_tol`, the sign test with 0.5):
+- cone: `outline_counter_clockwise` (the eccentric and cylinder got it in 0.4.7, section 10) and
+  `seam_a_on_positive_x`;
+- eccentric: `seam_a_on_positive_x` and `seam_b_at_development_angle`.
+`ray_run` measures the largest distance of any point of the named seam edge from the stated ray from the apex:
+seam_a on +X (a fixed direction, NOT radius-dependent), seam_b at Psi = integral of dpsi over a full turn
+(radius-dependent, so it joins `ECCENTRIC_RADIUS_CHECKS` and `surface_unknown` demotes it). A missing seam edge
+gives NaN -> INCONCLUSIVE. The CCW and seam_a checks are not radius-dependent and are never demoted.
+
+**Changed test expectations (A2, old -> new; no validation threshold weakened, no planted fault removed).**
+
+| Test | Old expectation | New expectation | Reason |
+|---|---|---|---|
+| `verify.rs`, cone `area` | primary = pattern's own `area` quantity; tol `agree_tol x s` | primary = exact signed area of the drawn outline; tol `agree_tol x s + eps_num x perimeter` | self-comparison replaced by the surface integral; written-vertex rounding allowance (above). B2-005 now PASSes with state ReviewRequired and the quantity within 1e-3 of pi(r1+r2)s |
+| `verify.rs`, eccentric `area` | primary = pattern's own `area` quantity; tol `1e-6 x max(area,1)` | primary = exact signed area; tol `eps_rep x perimeter + 1e-9 x max(area,1)`, wrapped in `rep_check` | chord-deficit allowance (above); genuine reducers are INCONCLUSIVE by design |
+| `verify.rs`, `apex_free_development_agrees` | seam-point distances | directed Kabsch residual (name and tolerance unchanged) | (1) above |
+| `nf-core/src/job.rs`, `jobs_run_verify_and_never_approve` | only the two circumference checks may be INCONCLUSIVE on a reducer | the reducer's `area` joins them | `rep_check` demotes it by design (8.2) |
+| `nf-core/tests/stress.rs`, `by_design` | INCONCLUSIVE allowed only for the two circumference checks (+ unknown-surface radius checks) | the reducer's `area` joins the list | same; FAIL stays a defect everywhere |
+| `nf-core/tests/fixtures/compat_verdicts.json` | 0.4.7 verdicts | regenerated (`NF_WRITE_COMPAT_FIXTURE=1`): 55 cone cases gain `outline_counter_clockwise` and `seam_a_on_positive_x` PASS; 95 cases gain `seam_a_on_positive_x` PASS; 40 reducer cases gain `seam_b_at_development_angle` PASS; the reducer `area` flips PASS -> INCONCLUSIVE in all 40 of its cases. No removal, no reason change, no cone flip, no state flip | enumerated against the pre-RC-10 snapshot; header note in `compat.rs` |
+| `tests/e2e_smoke.sh`, reducer job C2 | exactly the two circumference checks INCONCLUSIVE | exactly `area`, `large_edge_equals_circumference`, `small_edge_equals_circumference` INCONCLUSIVE, all others PASS, none FAIL | `rep_check` demotes the area check by design (8.2); the list is asserted by name, not counted |
+| `tests/ui_smoke.js`, `INCONCLUSIVE_CHECKS` | reducer: the two circumference names | the same two plus `area` | same; the walk compares sorted names and counts, so nothing else moves |
+
+New tests: a distance-preserving bulge (eps = 1e-4 sin(pi i/n), old seam-distance residual < 1e-9) now FAILs the
+directed check; a turned plate (0.01 rad) FAILs the datums while lengths, CCW and the directed check PASS;
+mirrored and wrong-radius faults still FAIL. The cylinder verifier and its pinned d8 tolerance vector are
+untouched. The verifier stays free of `develop.rs` calls (independence guard).
+
+**Engine bump.** 0.4.7 -> 0.4.8 (recorded once, with the other task 1.5 results, in the version history of
+`crates/nf-core/src/lib.rs`): check lists and verdicts change as enumerated above; patterns and cut geometry are
+byte-identical. Results of 0.4.7 are marked for recomputation (G21).
+
+## 12. Cylinder solid verifier, self-intersection contact, verifier independence (work plan task 1.5, RC-09/RC-13/RC-15, engine 0.4.8)
+
+**RC-09: the cylinder pipeline runs the solid verifier and plate-axis datums.** `verify_cylinder_solid` was
+test-only; the pipeline called just `verify_cylinder`, whose length/area checks pass a rectangle turned 90 degrees
+with the edge names swapped. The pipeline now calls both and keeps ONE copy of the shared `outline_counter_clockwise`
+guard. New checks and tolerances (all `agree = agree_tol(max(r_dev, length))`, section 2):
+
+| Check | Measured | Reference | Tolerance |
+|---|---|---|---|
+| `end_circle_3d_arc_length` | developed length of `bottom` | 3D chord sums of the end circle in a tilted frame, taken to the limit (no 2*pi*r) | `agree + circle_res` |
+| `end_circles_3d_arc_length_equal` | developed length of `top` | the same 3D circle | `agree + circle_res` |
+| `area_equals_sampled_surface_area` | signed area of the plate outline | 3D circle length x shell length | `agree x (r_dev + length) + circle_res x length` |
+| `bottom_runs_along_x` | largest distance of any point of `bottom` from the X-parallel line through its start | 0 | `agree` |
+| `seam_a_runs_along_y` | the same for `seam_a` and the Y-parallel line | 0 | `agree` |
+
+`circle_res` is the chord-sum limit's own residual estimate. An absent or degenerate named edge gives NaN ->
+INCONCLUSIVE, never a pass. The three solid radius checks join `CYLINDER_RADIUS_CHECKS`, so an `unknown` surface
+makes them INCONCLUSIVE like the rest (section 9). Reproducer: a proper 90-degree turn still passes
+`verify_cylinder` but FAILs the datums.
+
+**RC-13: self-intersection checks flag touching and small overlaps.** `profile.rs` and `quality.rs` used strict
+crossing tests: an endpoint lying on a non-adjacent segment, or an overlap shorter than the old length gate,
+passed. Both directions of endpoint-to-segment distance <= tol now count as self-intersection (profile: fixed
+`TOUCH_TOL` 1e-9, matching the flatten dedup tolerance, grid boxes grown by tol; quality: the existing tol,
+`candidate_pairs` tol-aware). Grid and brute-force references use the same predicate. This only ever turns a
+would-be PASS into a FAIL (fail closed); reproducer tests pin the old blind spots (G11 check path, DXF gate).
+
+**RC-15: the verifier re-derives the engine-error bounds itself.** The 3D-intersection tolerances called
+`develop::{s,saddle,opening}_error_bound`. `verify.rs` now owns `engine_*_error_bound`: the same first-order
+analysis of the Spec 02 evaluation sequence, re-derived from the inputs with local U/TRIG constants, matching the
+engine's op order exactly. `develop` keeps its bounds for the reported eps_num. `Branch`, `ObliqueCone` and
+`MAX_CHORD_ERROR_MM` move to a neutral geometry module, re-exported from `develop`.
+`crates/uem/tests/verifier_independence.rs` guards both halves: non-test verifier code free of `develop`
+imports/calls, and the two bound copies bit-equal on 2000 seeded parameter sets (near-tangent, shallow, obtuse).
+
+**Changed test expectations (A2, old -> new; no validation threshold weakened, no planted fault removed).**
+
+| Test | Old expectation | New expectation | Reason |
+|---|---|---|---|
+| `nf-core/tests/fixtures/compat_verdicts.json` | 0.4.7 verdicts (after RC-10) | 35 cylinder cases gain the five solid/datum checks, all PASS; no existing verdict, reason or state changed, patterns and cut geometry byte-identical | RC-09; enumerated against the pre-RC-09 snapshot; header note in `compat.rs` |
+| `uem/src/verify.rs`, unknown-surface cylinder | the radius checks of `verify_cylinder` demoted | the three solid radius checks demoted too (`CYLINDER_RADIUS_CHECKS`) | RC-09; section 9 treatment extended to the new checks |
+| self-intersection (G11, DXF quality gate) | a T-touch or an overlap shorter than the length gate passes | both FAIL | RC-13; strengthening only, new reproducer tests, no existing expectation moved |
+| 3D-intersection tolerances | `develop::*_error_bound` | `verify::engine_*_error_bound`, bit-equal | RC-15; no expectation change (2000 seeded sets) |
+
+## 13. The DXF-only mating test (work plan task 1.5, validation)
+
+`validation/checks/mating.py`, wired into `run_all.py` stage 0 beside the seeded-fault self-test: the validator
+validates itself. Two plates that the product says form one joint must, from the two DXF files ALONE, fold back
+into 3D and meet cut-edge to cut-edge. The verifier calls no development code and reads no result geometry: the
+fold-back is re-derived from Spec 02 section 4.4 and the conventions the files state (the full derivation, plan
+rule A9, is the module docstring), and the vertex correspondence is SEARCHED (both directions x all n cyclic
+shifts), not assumed. This also proves the task 1.3 convention statements suffice to build the part.
+
+**Scope stated by the files.** The test requires `NF-HEADER-SURFACE` = `NF-BRANCH-SURFACE` = `neutral` (then the
+stated developed radius IS the contact radius, BE-001) and `NF-JOINT` = `not declared` (then both cuts lie on ONE
+curve of the entered radii, the zero-thickness idealisation the file states). A set-on joint cuts the opening at
+the branch bore, a different curve, and is outside this test. Every load-bearing statement is parsed and
+cross-checked (the circumference in two keys, the half-circumference datum, R_dev against the branch
+circumference, delta and beta equal in both files); a missing, unreadable or contradictory statement raises
+(fail closed).
+
+**The one unstated placement.** The station is a translation along the header axis that the files do not state.
+It is fitted per alignment (t = mean(x_H - x_B); y and z must coincide with no fit) and then checked against the
+SUBMITTED `branch_station` — a test input, not an engine output.
+
+**Tolerance (a sensitivity bound, not a fitted number).** The convention sentences write lengths and angles with
+at most three decimals (DXF_METADATA.md), so each true value lies within +/-0.0005 mm / +/-0.0005 deg of the
+stated one; the drawn vertices are exact round-trip decimals. Perturb each stated scalar the fold-back uses
+(header circumference, branch R_dev, delta, beta) by +/- half a unit of the last place, re-fold, take the largest
+vertex displacement per channel and sum the four -> D. Each coordinate of either fold differs from the true-value
+fold by at most D, a paired vertex by at most 2D per coordinate; the mean-t fit subtracts a mean within +/-2D, so
+the x residual is at most 4D and y, z at most 2D: residual <= sqrt(24) D < 5D, fitted station error <= 2D.
+The bound is `5D + 1e-9 x size` (the floor covers binary64 arithmetic and the perturbation's second-order terms,
+<= ~1e-7 mm at these sizes).
+
+**Measured (engine 0.4.8, REQ R 150 / r 100 / beta 60 / delta 20, station 500, s_end 400, neutral, joint not
+declared; 720 vertices, 1440 alignments searched).** Correct joint: residual 1.36e-4 mm <= tol 2.64e-2 mm, fitted
+station 500.000000 mm. A second job whose inputs are NOT exact at three decimals (beta 60.0004, delta 20.0004,
+r 100.0004) exercises all four rounding channels at once: residual 2.67e-3 mm <= the same bound, fitted station
+499.999095 mm. Six planted faults must FAIL and do, each by >= 65x the bound: mirrored branch saddle
+(residual 114 mm), header opening scaled x1.02 (2.55 mm), saddle shifted +2 mm along the branch axis (1.73 mm),
+stated beta +2 deg (6.97 mm), stated delta +3 mm (3.00 mm), stated header circumference +1 % (6.26 mm). The
+stated-value faults are planted by rewriting the 999 lines of the DXF text and re-reading them (the file itself
+carries the wrong statement, coherently: the circumference fault rewrites the datum too); the geometry faults are
+planted in the DXF-derived geometry, the seeded_faults idiom. A fault that cannot be planted fails the self-test.

@@ -49,10 +49,10 @@ const controlProbe = () => {
 
 (async () => {
   const browser = await chromium.launch();
-  const errs = []; let expected401 = 0, allow401 = false, expected422 = 0, allow422 = false, dialogs = 0, approveControls = 0, approvedTags = 0;
+  const errs = []; let expected401 = 0, allow401 = false, expected422 = 0, allow422 = false, expected400 = 0, allow400 = false, dialogs = 0, approveControls = 0, approvedTags = 0;
   const watch = (page, who) => {
     page.on('pageerror', (e) => errs.push(`${who} pageerror: ${e.message}`));
-    page.on('console', (m) => { if (m.type() !== 'error') return; if (allow401 && /401/.test(m.text())) expected401++; else if (allow422 && /422/.test(m.text())) expected422++; else errs.push(`${who} console: ${m.text()}`); });
+    page.on('console', (m) => { if (m.type() !== 'error') return; if (allow401 && /401/.test(m.text())) expected401++; else if (allow422 && /422/.test(m.text())) expected422++; else if (allow400 && /400/.test(m.text())) expected400++; else errs.push(`${who} console: ${m.text()}`); });
     page.on('dialog', (d) => { dialogs++; d.dismiss(); }); // the client must never use blocking dialogs; one would also reveal script injection
   };
   const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, acceptDownloads: true, deviceScaleFactor: SHOTS ? 2 : 1 });
@@ -67,7 +67,10 @@ const controlProbe = () => {
   const p = await ctx.newPage(); watch(p, 'admin');
   const apiGet = async (path) => (await ctx.request.get(B + path, { headers: { 'X-NF-Request': '1' } })).json();
   // navigation is complete when the client marks the view with the hash it rendered
-  const go = async (hash, sel) => { await p.goto(`${B}/#/${hash}`); await p.waitForFunction((h) => { const v = document.querySelector('#view'); return v && v.dataset.hash === h; }, `#/${hash}`); await p.waitForSelector(sel || '#view h1'); };
+  // goOn: the same wait for any page (work plan 3.5: the role checks of section 13 waited on '#view h1', which the previous
+  // view still matched after a hash-only navigation; that was the intermittent failure)
+  const goOn = async (pg, hash, sel, opt) => { await pg.goto(`${B}/#/${hash}`); await pg.waitForFunction((h) => { const v = document.querySelector('#view'); return v && v.dataset.hash === h; }, `#/${hash}`); await pg.waitForSelector(sel || '#view h1', opt); };
+  const go = (hash, sel) => goOn(p, hash, sel);
   const sweepControls = async () => { const c = await p.evaluate(controlProbe); approveControls += c.approve; approvedTags += c.approvedTags; return c; };
   const vpos = (ci, vi) => p.evaluate(([c, v]) => { const pl = document.querySelector(`.pv .hit[data-ci="${c}"]`), q = pl.points[v], m = pl.getScreenCTM(); return [q.x * m.a + q.y * m.c + m.e, q.x * m.b + q.y * m.d + m.f]; }, [ci, vi]);
   const transform = () => p.evaluate(() => document.querySelector('.pv g[transform]').getAttribute('transform'));
@@ -109,9 +112,11 @@ const controlProbe = () => {
 
   // ---- 3. every calculation family, through the form
   const FAMILIES = [['cylinder_shell', 1, 4], ['cone_frustum', 1, 4], ['eccentric_reducer', 1, 4], ['header_with_branch', 2, 5], ['branch_stub', 1, 4]];
-  // task 1.2 (review; TOLERANCE_POLICY section 8.2): the only INCONCLUSIVE product checks are the eccentric reducer's two
+  // task 1.2 (review; TOLERANCE_POLICY section 8.2): the INCONCLUSIVE product checks are the eccentric reducer's two
   // circumference checks, whose eps_rep is not certified. Every other check of every family must be PASS; none may FAIL.
-  const INCONCLUSIVE_CHECKS = { eccentric_reducer: ['large_edge_equals_circumference', 'small_edge_equals_circumference'] };
+  // RC-10 (engine 0.4.8, TOLERANCE_POLICY section 11): the reducer's drawn-area check joins them (chord-deficit
+  // allowance eps_rep x perimeter, rep_check demotes it the same way).
+  const INCONCLUSIVE_CHECKS = { eccentric_reducer: ['large_edge_equals_circumference', 'small_edge_equals_circumference', 'area'] };
   // task 1.2: the error wording is per family, as job.rs eps_assumption states it and the page shows it in #assume.
   // The sentences are copied from job.rs (EPS_NUM_BOUND, EPS_NUM_REDUCER, EPS_REP_CERTIFIED, EPS_REP_NOT_CERTIFIED).
   const EPS_NUM_SENTENCE = 'eps_num is an a-priori rounding bound, not interval-certified.';
@@ -466,21 +471,21 @@ const controlProbe = () => {
   // ---- 13. role restrictions (API sign-in first, so that no page ever provokes a refused request)
   const role = async (cred) => { const c = await browser.newContext({ viewport: { width: 1366, height: 768 } }); await c.request.post(`${B}/api/login`, { headers: { 'X-NF-Request': '1' }, data: cred }); const pg = await c.newPage(); watch(pg, cred.username); return [c, pg]; };
   const [vctx, v] = await role({ username: 'viewer1', password: 'read-only-pass' });
-  await v.goto(`${B}/#/dashboard`); await v.waitForSelector('.stats');
+  await goOn(v, 'dashboard', '.stats');
   const vDash = { newCalc: await v.locator('#view a:has-text("New calculation")').count(), adminNav: await v.locator('.rail a[data-nav=admin]').count() };
-  await v.goto(`${B}/#/math/1`); await v.waitForSelector('#view h1'); const vMath = await v.textContent('#view');
-  await v.goto(`${B}/#/calc/${N}`); await v.waitForSelector('.pv .c', { state: 'attached' }); await v.click('#tab-ws-scrutiny');
+  await goOn(v, 'math/1'); const vMath = await v.textContent('#view');
+  await goOn(v, `calc/${N}`, '.pv .c', { state: 'attached' }); await v.click('#tab-ws-scrutiny');
   const vJob = { replay: await v.locator('#replay').count(), corr: await v.locator('#corr-open, [data-correct]').count(), resolve: await v.locator('[data-resolve]').count(), obligations: await v.locator('#obls > li').count(), dxf: await v.locator('#dxf').count() };
-  await v.goto(`${B}/#/admin`); await v.waitForSelector('#view h1'); const vAdmin = await v.textContent('#view');
-  await v.goto(`${B}/#/projects`); await v.waitForSelector('#view h1'); const vProj = await v.locator('#np').count();
+  await goOn(v, 'admin'); const vAdmin = await v.textContent('#view');
+  await goOn(v, 'projects'); const vProj = await v.locator('#np').count();
   check('viewer: can read results, but sees no way to calculate, correct, decide, replay or administer', vDash.newCalc === 0 && vDash.adminNav === 0 && /can view results but not run calculations/.test(vMath) && vJob.replay === 0 && vJob.corr === 0 && vJob.resolve === 0 && vJob.obligations >= 9 && vJob.dxf === 1 && /Administrator role required/.test(vAdmin) && vProj === 0, { vDash, vJob, vProj });
   const post = (c, path, data) => c.request.post(B + path, { headers: { 'X-NF-Request': '1' }, data });
   check('viewer: server refuses calculation, decision and audit log', (await post(vctx, '/api/projects/1/calculations', { family: 'cylinder_shell', r_dev: 1, length: 1 })).status() === 403 && (await post(vctx, '/api/obligations/1/resolve', { decision: 'waived', reason: 'viewer attempt' })).status() === 403 && (await vctx.request.get(`${B}/api/audit`, { headers: { 'X-NF-Request': '1' } })).status() === 403);
   await vctx.close();
   const [ectx, e] = await role({ username: 'engineer1', password: 'engineer-pass-1' });
-  await e.goto(`${B}/#/math/1`); await e.waitForSelector('#view h1'); const eCalc = await e.locator('#calc').count();
-  await e.goto(`${B}/#/calc/${N}`); await e.waitForSelector('.pv .c', { state: 'attached' }); const eReplay = await e.locator('#replay').count();
-  await e.goto(`${B}/#/admin`); await e.waitForSelector('#view h1');
+  await goOn(e, 'math/1'); const eCalc = await e.locator('#calc').count();
+  await goOn(e, `calc/${N}`, '.pv .c', { state: 'attached' }); const eReplay = await e.locator('#replay').count();
+  await goOn(e, 'admin');
   check('engineer: can calculate and audit, cannot administer', eCalc === 1 && eReplay === 1 && /Administrator role required/.test(await e.textContent('#view')) && (await e.locator('.rail a[data-nav=admin]').count()) === 0 && (await ectx.request.get(`${B}/api/users`, { headers: { 'X-NF-Request': '1' } })).status() === 403);
   await ectx.close();
   check('deactivated user cannot sign in', (await (await browser.newContext()).request.post(`${B}/api/login`, { headers: { 'X-NF-Request': '1' }, data: { username: 'temp1', password: 'temporary-pass' } })).status() === 401);
@@ -571,7 +576,41 @@ const controlProbe = () => {
     return out;
   };
   const JA_TEXT = /[぀-ヿ一-鿿]/;
-  const jaScreen = async (label) => { const found = await p.evaluate(jaWalk, JA_ALLOW); check(`ja: ${label}: no English word of three or more letters outside the allow-list`, found.length === 0, found.slice(0, 6)); };
+  // Work plan 3.3: an identifier the engine or the server sends (gate, check, record kind, relation, parameter, quantity,
+  // curve ...) is shown in Japanese with its label and the identifier beside it (.idk), never alone. The probe reads every
+  // visible monospace element that is not beside a label, whose text is shaped like an identifier (lower-case words joined
+  // by '_' or '.', or a gate id), and fails on any that has no Japanese label in the client's identifier table and is not
+  // in JA_IDENT_ALLOW: identifiers deliberately shown without a label, each documented in docs/design/LOCALISATION.md
+  // ("Identifiers shown without a Japanese label").
+  const JA_IDENT_ALLOW = [
+    // the two error quantities: deliberate technical names, shown identically in both languages (as in JA_ALLOW)
+    'eps_num', 'eps_rep',
+    // warning codes of the PDF converter: each is shown with the converter's own message beside it (crates/nf-pdf)
+    'annotations_not_converted', 'clipping_not_applied', 'cropbox_outside_mediabox', 'ext_gstate_missing', 'font_missing', 'invalid_dash',
+    'optional_content_ignored', 'pattern_fill_outline_only', 'rotate_invalid', 'shading_not_converted', 'text_chars_replaced', 'unbalanced_restore',
+    'unknown_operator', 'userunit_invalid', 'xobject_ignored', 'xobject_missing',
+    // the kind of replay audit, quoted as an identifier inside the server's G19 sentence (translated by template)
+    'separate_process_replay',
+  ];
+  const jaIdents = async (allow) => {
+    const m = await import('/i18n.js'); const known = new Set();
+    for (const kind of Object.values(m.ID_TABLE)) for (const [k, v] of Object.entries(kind)) if (v && v[1]) known.add(k);
+    const out = [];
+    for (const el of document.querySelectorAll('#app .mono:not(.idk), #app .idk')) {
+      // the gate's machine name, in the expanded gate row under the gate's Japanese label (`名称 provenance_complete`)
+      // and the refusal codes of the help page, each in the row of its Japanese message
+      if (!el.getClientRects().length || el.closest('pre,.hash,script,style,li[data-gate] .g-meta,#help-refusals td:first-child')) continue;
+      const text = el.textContent.trim();
+      if (!/^(?:[a-z][a-z0-9]*(?:[_.][a-z0-9]+)+|G\d\d)$/.test(text)) continue;
+      if (el.classList.contains('idk')) { if (!known.has(text) && !allow.includes(text)) out.push(`${text} (beside a label that is not in the table)`); continue; }
+      if (!known.has(text) && !allow.includes(text)) out.push(text);
+    }
+    return [...new Set(out)];
+  };
+  const jaScreen = async (label) => {
+    const found = await p.evaluate(jaWalk, JA_ALLOW); check(`ja: ${label}: no English word of three or more letters outside the allow-list`, found.length === 0, found.slice(0, 6));
+    const ids = await p.evaluate(jaIdents, JA_IDENT_ALLOW); check(`ja: ${label}: no identifier without a Japanese label outside the documented list`, ids.length === 0, ids.slice(0, 8));
+  };
   const errsBeforeJa = errs.length;
 
   // the language switch on the sign-in screen: Japanese at once, the same document (no reload)
@@ -640,6 +679,7 @@ const controlProbe = () => {
   await jaScreen('job view, undeclared joint');
   await go(`calc/${J}`, '.pv'); await p.waitForSelector('.pv .c', { state: 'attached' }); await jaScreen('job view, pattern');
   for (const k of ['gates', 'checks', 'scrutiny', 'graph', 'history', 'records']) { await p.click(`#tab-ws-${k}`); await jaScreen(`job view, ${k} tab`); if (k === 'gates' || k === 'checks') await rawLabelsJa(`job view, ${k} tab`); }
+  await go(`calc/${jobs.cone_frustum}`, '.pv'); await p.waitForSelector('.pv .c', { state: 'attached' }); await p.click('#tab-ws-checks'); await jaScreen('job view, concentric reducer, checks tab'); await rawLabelsJa('job view, concentric reducer, checks tab');
   await go(`calc/${N}`, '.pv'); await p.waitForSelector('.pv .c', { state: 'attached' }); await p.click('#tab-ws-changes'); await jaScreen('job view, changes tab');
   await p.click('#tab-ws-records'); await p.click('#tp-ws-records .rec >> nth=0'); await p.waitForSelector('#tp-ws-records .rec[open] pre'); await jaScreen('job view, a record opened');
   await p.click('#corr-open'); await p.waitForSelector('#corrdlg[open]'); await jaScreen('correction dialog'); await p.keyboard.press('Escape');
@@ -951,6 +991,310 @@ const controlProbe = () => {
     const chips = await p.evaluate(() => [...document.querySelectorAll('#view .idk')].map((el) => { const r = el.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), el.textContent.trim(), r.width > 0 && el.getClientRects().length > 0]; }).filter((c) => c[3]));
     check('#13 phone, Japanese: the English identifier chips on screen stay inside the 16 px gutter', chips.length > 0 && chips.every(([l, r]) => l >= 15 && r <= 375), chips.slice(0, 6));
     await p.setViewportSize({ width: 1366, height: 768 });
+    await p.goto(`${B}/?lang=en#/dashboard`); await p.waitForSelector('.stats');
+  }
+
+  // ---- 14g. work plan 3.2: BH-014 for every refusal code that names a field. A refused job, opened with "New from these
+  // values", marks every field the refusal names with the message of its code, in English and in Japanese; a field the
+  // form has no control for is named in the form's message area. The requests are those of crates/nf-core/tests/
+  // refusal_codes.rs (no new value). The expected text is the catalogue's own message with the refusal's values.
+  {
+    const CAT = await p.evaluate(async () => { const m = await import('/i18n.js'); return { en: m.CATALOGUE.en, ja: m.CATALOGUE.ja, codes: m.REFUSAL_CODES }; });
+    const plain = (lang, key, params) => String(CAT[lang][key] || '').replace(/\{(\w+)\}/g, (x, k) => (k in params ? params[k] : x)).replace(/\*\*/g, '').replace(/`/g, '').trim();
+    const refusalText = (lang, r) => plain(lang, `refusal.${r.code}`, { fields: (r.fields || []).join(', '), limit: r.detail && r.detail.limit !== undefined ? String(r.detail.limit) : '', measured: r.detail && r.detail.measured !== undefined ? String(r.detail.measured) : '' });
+    const post = async (body) => {
+      allow422 = true;
+      const r = await p.evaluate(async (b) => { const res = await fetch('/api/projects/1/calculations', { method: 'POST', headers: { 'content-type': 'application/json', 'x-nf-request': '1' }, body: JSON.stringify(b) }); return { st: res.status, v: await res.json() }; }, body);
+      await p.waitForTimeout(100); allow422 = false;
+      return r;
+    };
+    const stub = (x) => ({ family: 'branch_stub', header_radius: 150, branch_radius: 100, branch_dev_radius: 100, beta_deg: 60, delta: 0, s_end: 400, ...x });
+    const hwb = (x) => ({ family: 'header_with_branch', header_radius: 161.95, header_dev_radius: 156.795, header_length: 1200, branch_station: 600, branch_radius: 84.15, branch_dev_radius: 80.6, beta_deg: 90, delta: 0, s_end: 400, surface_reference: 'unknown', ...x });
+    const so = (hs, bs, j) => ({ family: 'header_with_branch', header_radius: 161.95, header_dev_radius: 156.795, header_length: 1200, branch_station: 600, branch_radius: 77.095, branch_dev_radius: 80.6, beta_deg: 90, delta: 0, s_end: 400, header_surface_reference: hs, branch_surface_reference: bs, joint: j });
+    const CASES = [
+      ['value_not_positive', { family: 'cylinder_shell', r_dev: 0, length: 250 }],
+      ['magnitude_above_limit', { family: 'cylinder_shell', r_dev: 100, length: 1e8 * 1.0001 }],
+      ['dimension_below_limit', { family: 'cylinder_shell', r_dev: 5e-7, length: 250 }],
+      ['offset_negative', { family: 'eccentric_reducer', r1: 200, r2: 100, h: 300, e: -5 }],
+      ['reducer_radii_order', { family: 'cone_frustum', r1: 100, r2: 200, h: 300 }],
+      ['reducer_near_cylindrical', { family: 'cone_frustum', r1: 1e6, r2: 1e6 - 1, h: 1e6 }],
+      ['developed_angle_overlaps', { family: 'cone_frustum', r1: 300, r2: 50, h: 1e-5 }],
+      ['branch_angle_out_of_range', stub({ beta_deg: 0 })],
+      ['branch_angle_not_verifiable', stub({ beta_deg: 0.002, s_end: Math.ceil(250 / Math.sin(0.002 * Math.PI / 180) + 150) })],
+      ['branch_tangent_or_partial', stub({ branch_radius: 150, branch_dev_radius: 150 })],
+      ['square_end_too_short', stub({ s_end: 0.5 })],
+      ['opening_outside_shell', hwb({ branch_station: 1199.9 })],
+      ['chord_error_unreachable', { family: 'branch_stub', header_radius: 1e6, branch_radius: 1e6 * (1 - 1.1e-6), branch_dev_radius: 1e6 * (1 - 1.1e-6), beta_deg: 15, delta: 0, s_end: 1e7 }],
+      ['radius_dev_exceeds_outside', stub({ surface_reference: 'outside', branch_dev_radius: 100.5 })],
+      ['radius_dev_below_inside', stub({ surface_reference: 'inside', branch_dev_radius: 99.5 })],
+      ['radius_neutral_mismatch', stub({ surface_reference: 'neutral', branch_dev_radius: 100.5 })],
+      ['surface_reference_invalid', stub({ surface_reference: 'bogus' })],
+      // the form of a cylindrical shell has no surface selector (UI_CHANGES_NEEDED item 18): the field is named in the message area
+      ['surface_reference_invalid', { family: 'cylinder_shell', r_dev: 500, length: 1000, surface_reference: 'bogus' }],
+      ['joint_pairing_invalid', so('inside', 'inside', 'set_on')],
+      ['joint_type_unknown', so('outside', 'inside', 'set-on')],
+    ];
+    const seen = new Set();
+    for (const [code, body] of CASES) {
+      const r = await post(body);
+      const ok0 = r.st === 422 && r.v.code === code && r.v.state === 'REFUSED' && Number.isInteger(r.v.id) && r.v.fields.length > 0;
+      const got = {};
+      for (const lang of ['en', 'ja']) {
+        await p.goto(`${B}/?lang=${lang}#/math/1/${r.v.id}`);
+        await p.waitForFunction((h) => { const v = document.querySelector('#view'); return v && v.dataset.hash === h; }, `#/math/1/${r.v.id}`); await p.waitForSelector('#calc');
+        got[lang] = await p.evaluate((fields) => {
+          const form = document.querySelector('#calc'), names = { family: 'fam' };
+          return {
+            fields: fields.map((f) => { const el = form.elements.namedItem(names[f] || f); if (!el) return { f, control: false }; const m = el.closest('.field') && el.closest('.field').querySelector('.field-err'); const ids = (el.getAttribute('aria-describedby') || '').split(' '); return { f, control: true, aria: el.getAttribute('aria-invalid'), msg: m ? m.textContent.trim() : '', described: !!m && ids.includes(m.id) }; }),
+            note: (document.querySelector('#cmsg [role=alert]') || {}).textContent || '',
+          };
+        }, r.v.fields);
+      }
+      const want = { en: refusalText('en', r.v), ja: refusalText('ja', r.v) };
+      const okLang = (lang) => got[lang].fields.every((x) => (x.control ? x.aria === 'true' && x.msg === want[lang] && x.described : got[lang].note.includes(x.f)))
+        && got[lang].note.includes(want[lang]) && got[lang].note.includes(String(r.v.id));
+      const unmapped = got.en.fields.filter((x) => !x.control).map((x) => x.f);
+      seen.add(code);
+      check(`BH-014 ${code}${unmapped.length ? ` (no control for ${unmapped.join(', ')})` : ''}: New from these values marks ${r.v.fields.join(', ')} with the message of the code, in English and in Japanese, and says so in the message area`,
+        ok0 && okLang('en') && okLang('ja') && /[぀-ヿ一-鿿]/.test(want.ja), { st: r.st, code: r.v.code, want, got });
+    }
+    // every code of the build that a stored job can carry with a field is in the list above (the others are refused
+    // before a job exists: 400, below; or concern a correction: the dialog, below)
+    const NOT_STORED = ['request_not_object', 'request_malformed', 'family_unknown', 'field_missing', 'field_wrong_type', 'field_unknown', 'surface_reference_required', 'value_not_finite', 'bend_angle_out_of_range', 'no_pattern_produced'];
+    const CORRECTION = CAT.codes.filter((c) => c.startsWith('correction_') || c.startsWith('reason_') || c.startsWith('stored_') || c === 'corrected_result_failed_verification');
+    const uncovered = CAT.codes.filter((c) => !seen.has(c) && !NOT_STORED.includes(c) && !CORRECTION.includes(c));
+    check('BH-014: every stored refusal code of the build is exercised above (catalogue codes minus the 400 and correction codes)', uncovered.length === 0 && CAT.codes.length === 42, uncovered);
+
+    // refusals answered before a job exists (400): the form marks the named field, or names it in the message area.
+    // The request is changed on its way to the server, as only the API can send it.
+    const sendChanged = async (fam, change, lang = 'en') => {
+      await p.goto(`${B}/?lang=${lang}#/math/1`); await p.waitForFunction(() => document.querySelector('#view') && document.querySelector('#view').dataset.hash === '#/math/1'); await p.waitForSelector('#calc');
+      await p.selectOption('select[name=fam]', fam);
+      await p.route('**/api/projects/1/calculations', async (route) => { const b = JSON.parse(route.request().postData()); change(b); await route.continue({ postData: JSON.stringify(b) }); }, { times: 1 });
+      allow400 = true; await p.click('#run'); await p.waitForSelector('#cmsg [role=alert]'); await p.waitForTimeout(100); allow400 = false;
+      await p.unroute('**/api/projects/1/calculations');
+      return p.evaluate(() => ({ marked: [...document.querySelectorAll('#calc [aria-invalid="true"]')].map((e) => [e.name, (e.closest('.field').querySelector('.field-err') || {}).textContent || '']), note: document.querySelector('#cmsg [role=alert]').textContent, url: location.hash }));
+    };
+    const before400 = (await apiGet('/api/calculations')).length;
+    const u = await sendChanged('cylinder_shell', (b) => { b.thickness = 12; });
+    check('BH-014 field_unknown (400): the field the form does not have is named in the message area; nothing is marked, nothing is stored', u.marked.length === 0 && u.note.includes(plain('en', 'refusal.field_unknown', { fields: 'thickness' })) && u.note.includes('thickness') && u.url === '#/math/1', u);
+    const m = await sendChanged('cylinder_shell', (b) => { delete b.length; });
+    check('BH-014 field_missing (400): the length field is marked with the message of the code', m.marked.length === 1 && m.marked[0][0] === 'length' && m.marked[0][1] === plain('en', 'refusal.field_missing', { fields: 'length' }), m);
+    const w = await sendChanged('cylinder_shell', (b) => { b.r_dev = 'abc'; });
+    check('BH-014 field_wrong_type (400): the r_dev field is marked with the message of the code', w.marked.length === 1 && w.marked[0][0] === 'r_dev' && w.marked[0][1] === plain('en', 'refusal.field_wrong_type', { fields: 'r_dev' }), w);
+    const fu = await sendChanged('cylinder_shell', (b) => { b.family = 'teapot'; }, 'ja');
+    check('BH-014 family_unknown (400), Japanese: the family selector is marked with the Japanese message of the code', fu.marked.length === 1 && fu.marked[0][0] === 'fam' && fu.marked[0][1] === plain('ja', 'refusal.family_unknown', { fields: 'family' }), fu);
+    const sr = await sendChanged('header_with_branch', (b) => { delete b.surface_reference; });
+    check('BH-014 surface_reference_required (400): the three surface selectors are marked', sr.marked.map((x) => x[0]).sort().join() === 'branch_surface_reference,header_surface_reference,surface_reference' && sr.marked.every((x) => x[1] === plain('en', 'refusal.surface_reference_required', {})), sr);
+    check('BH-014: a request refused before a job exists stores no job', (await apiGet('/api/calculations')).length === before400);
+  }
+
+  // ---- 14h. work plan 3.2: every length rule counts characters, as the server does (Unicode scalar values after the
+  // server's trim): a two-character Japanese reason, a reason of three characters outside the BMP (six UTF-16 units)
+  // and a reason of ideographic spaces around two characters are refused in the form; a five-character Japanese reason
+  // passes, and so does a project name of 150 characters outside the BMP (300 UTF-16 units, above the old maxlength).
+  // A coded refusal of the correction (reason_required, correction_unknown_parameter) marks the field it names.
+  {
+    const hb = { family: 'header_with_branch', header_radius: 150, header_dev_radius: 150, header_length: 1200, branch_station: 600, branch_radius: 100, branch_dev_radius: 100, beta_deg: 60, delta: 0, s_end: 400, surface_reference: 'outside' };
+    const created = await p.evaluate(async (b) => (await (await fetch('/api/projects/1/calculations', { method: 'POST', headers: { 'content-type': 'application/json', 'x-nf-request': '1' }, body: JSON.stringify(b) })).json()).id, hb);
+    const corrections = async () => (await apiGet('/api/calculations')).length;
+    await p.goto(`${B}/?lang=en#/calc/${created}`); await p.waitForFunction((h) => document.querySelector('#view') && document.querySelector('#view').dataset.hash === h, `#/calc/${created}`); await p.waitForSelector('#corr-open');
+    const n0 = await corrections();
+    const tryReason = async (reason) => {
+      await p.click('#corr-open'); await p.waitForSelector('#corrdlg[open]');
+      await p.selectOption('#corr select[name=p]', 'header_radius'); await p.fill('#corr input[name=v]', '150.5'); await p.fill('#corr input[name=r]', reason); await p.click('#corr-go');
+      await p.waitForSelector('#corr .field-err');
+      const r = await p.evaluate(() => { const el = document.querySelector('#corrr'); const m = el.closest('.field').querySelector('.field-err'); return { aria: el.getAttribute('aria-invalid'), msg: m ? m.textContent : '', described: !!m && (el.getAttribute('aria-describedby') || '').split(' ').includes(m.id) }; });
+      await p.keyboard.press('Escape');
+      return r;
+    };
+    const ja2 = await tryReason('日本');
+    const astral3 = await tryReason('𠮷𠮷𠮷');
+    const spaced = await tryReason('　　日本　　');
+    check('3.2 lengths: a reason of 2 Japanese characters, of 3 characters outside the BMP (6 UTF-16 units) and of 2 characters between ideographic spaces is refused in the form, linked to the field, nothing sent',
+      [ja2, astral3, spaced].every((x) => x.aria === 'true' && /at least 5 characters/.test(x.msg) && x.described) && (await corrections()) === n0, { ja2, astral3, spaced });
+    // the server's own refusal of a reason, by code: the field it names is marked (the request is changed on its way)
+    const coded = async (change, sel) => {
+      await p.click('#corr-open'); await p.waitForSelector('#corrdlg[open]');
+      await p.selectOption('#corr select[name=p]', 'header_radius'); await p.fill('#corr input[name=v]', '150.5'); await p.fill('#corr input[name=r]', '図面寸法を確認した');
+      await p.route(`**/api/calculations/${created}/corrections`, async (route) => { const b = JSON.parse(route.request().postData()); change(b); await route.continue({ postData: JSON.stringify(b) }); }, { times: 1 });
+      allow400 = true; allow422 = true; await p.click('#corr-go'); await p.waitForSelector('#corrmsg [role=alert]'); await p.waitForTimeout(100); allow400 = false; allow422 = false;
+      await p.unroute(`**/api/calculations/${created}/corrections`);
+      const r = await p.evaluate((s) => { const el = document.querySelector(s); const m = el.closest('.field').querySelector('.field-err'); return { aria: el.getAttribute('aria-invalid'), msg: m ? m.textContent : '', note: document.querySelector('#corrmsg').textContent }; }, sel);
+      await p.keyboard.press('Escape');
+      return r;
+    };
+    const rq = await coded((b) => { b.reason = 'abc'; }, '#corrr');
+    const up = await coded((b) => { b.parameter = 'teapot'; }, '#corrp');
+    check('3.2/BH-014: the server refusals reason_required and correction_unknown_parameter mark the reason and the parameter fields with their messages',
+      rq.aria === 'true' && /at least 5 characters/.test(rq.msg) && /Every character counts as one/.test(rq.msg) && up.aria === 'true' && /not a numeric parameter of this job/.test(up.msg) && (await corrections()) === n0, { rq, up });
+    // five Japanese characters are enough for the client and for the server: the correction is made
+    await p.click('#corr-open'); await p.waitForSelector('#corrdlg[open]');
+    await p.selectOption('#corr select[name=p]', 'header_radius'); await p.fill('#corr input[name=v]', '150.5'); await p.fill('#corr input[name=r]', '図面を確認');
+    await p.click('#corr-go'); await p.waitForURL((x) => /#\/calc\/\d+$/.test(x.hash) && !x.hash.endsWith(`/${created}`));
+    const corrected = Number(p.url().split('/').pop());
+    check('3.2 lengths: a reason of exactly 5 Japanese characters is accepted by the form and by the server', corrected > created && (await corrections()) === n0 + 1, { corrected });
+    // an obligation reason of 2 Japanese characters is refused in the form; the obligation stays open
+    await p.waitForSelector('#tp-ws-changes:not([hidden]), #obls'); await p.click('#tab-ws-scrutiny'); await p.waitForSelector('#obls');
+    const oid = await p.getAttribute('[data-reason]', 'data-reason');
+    await p.fill(`#reason${oid}`, '日本'); await p.click(`[data-resolve="${oid}"][data-decision=confirmed]`); await p.waitForSelector(`#reason${oid}[aria-invalid=true]`);
+    const obl = (await apiGet('/api/obligations')).find((o) => String(o.id) === String(oid));
+    check('3.2 lengths: an obligation reason of 2 Japanese characters is refused in the form, and the obligation stays open', obl && obl.state === 'open', obl);
+    // project name: 150 characters outside the BMP are 300 UTF-16 units; the server's limit is 200 characters
+    await p.goto(`${B}/?lang=en#/projects`); await p.waitForSelector('#np');
+    await p.fill('#np input[name=n]', '日'.repeat(201)); await p.click('#np button'); await p.waitForSelector('#np .field-err');
+    const longName = await p.textContent('#np .field-err');
+    const projectsBefore = (await apiGet('/api/projects')).length;
+    await p.fill('#np input[name=n]', '𠮷'.repeat(150)); await p.click('#np button'); await p.waitForURL(/#\/project\/\d+$/);
+    const projectsAfter = await apiGet('/api/projects');
+    check('3.2 lengths: a project name of 201 characters is refused in the form (200 at most); one of 150 characters outside the BMP (300 UTF-16 units) is created',
+      /at most 200 characters \(201 now\)/.test(longName) && projectsAfter.length === projectsBefore + 1 && projectsAfter.some((x) => x.name === '𠮷'.repeat(150)), { longName });
+  }
+
+  // ---- 14i. work plan 3.5: keyboard and screen reader on the new-calculation form, the job tabs and the PDF conversion
+  // screen: every control named, units and hints in the description, a visible focus on every stop, the focus order of
+  // the page, no keyboard trap, live regions for refusals and results.
+  {
+    const focusWalk = async (start, stopSel, max = 60) => {
+      // reach the first stop by the keyboard (Shift+Tab, Tab), so that the browser shows focus as it does for a keyboard user
+      await p.focus(start); await p.keyboard.down('Shift'); await p.keyboard.press('Tab'); await p.keyboard.up('Shift'); await p.keyboard.press('Tab');
+      const stops = [];
+      for (let i = 0; i < max; i++) {
+        const s = await p.evaluate((stop) => {
+          const el = document.activeElement; const cs = getComputedStyle(el);
+          const visible = (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0) || cs.boxShadow !== 'none';
+          return { id: el.id || el.getAttribute('name') || el.tagName.toLowerCase(), tag: el.tagName.toLowerCase(), visible, inStop: !!el.closest(stop) };
+        }, stopSel);
+        stops.push(s);
+        if (!s.inStop) break;
+        await p.keyboard.press('Tab');
+      }
+      return stops;
+    };
+    await p.goto(`${B}/?lang=en#/math/1`); await p.waitForFunction(() => document.querySelector('#view') && document.querySelector('#view').dataset.hash === '#/math/1'); await p.waitForSelector('#calc');
+    await p.selectOption('select[name=fam]', 'header_with_branch');
+    const named = await p.evaluate(() => [...document.querySelectorAll('#calc input, #calc select, #calc button')].map((el) => {
+      const desc = (el.getAttribute('aria-describedby') || '').split(' ').filter(Boolean).map((id) => (document.getElementById(id) || {}).textContent || '').join(' ').trim();
+      return { name: el.name || el.id, labelled: (el.labels && el.labels.length > 0) || !!el.getAttribute('aria-label') || (el.tagName === 'BUTTON' && !!el.textContent.trim()), dim: el.hasAttribute('data-dim'), desc };
+    }));
+    check('3.5 form: every control of the new-calculation form has a label; every dimension field has its unit in its description', named.length > 10 && named.every((x) => x.labelled) && named.filter((x) => x.dim).every((x) => /^(mm|degrees|deg|°)$/.test(x.desc)), named.filter((x) => !x.labelled || (x.dim && !x.desc)));
+    const walk = await focusWalk('#f_project', '#calc');
+    const order = walk.filter((s) => s.inStop && ['input', 'select', 'button'].includes(s.tag)).map((s) => s.id);
+    const domOrder = await p.evaluate(() => [...document.querySelectorAll('#calc input, #calc select, #calc button')].map((el) => el.id || el.name));
+    check('3.5 form: Tab visits every control in the order of the page, each with a visible focus, and leaves the form after the run button (no trap)',
+      order.join() === domOrder.join() && walk.every((s) => s.visible || !s.inStop) && !walk[walk.length - 1].inStop, { order, domOrder, invisible: walk.filter((s) => !s.visible && s.inStop).map((s) => s.id) });
+    await p.keyboard.down('Shift'); await p.keyboard.press('Tab'); await p.keyboard.up('Shift');
+    check('3.5 form: Shift+Tab from the next stop returns into the form', await p.evaluate(() => !!document.activeElement.closest('#calc')));
+    await p.fill('#f_header_radius', '-1'); await p.click('#run'); await p.waitForSelector('#cmsg [role=alert]');
+    const live = await p.evaluate(() => { const el = document.querySelector('#f_header_radius'); const m = el.closest('.field').querySelector('.field-err'); return { alert: !!document.querySelector('#cmsg [role=alert]'), described: !!m && el.getAttribute('aria-describedby').split(' ').includes(m.id) && el.getAttribute('aria-describedby').split(' ').includes('u_header_radius'), focused: document.activeElement === el, toasts: document.querySelector('#toasts').getAttribute('aria-live') };
+    });
+    check('3.5 form: a refused value is announced (role alert), the message joins the unit in the field description, focus moves to the field; results are announced in the polite toast region', live.alert && live.described && live.focused && live.toasts === 'polite', live);
+
+    // the job tabs: a tab list with arrow keys, Home and End; each tab controls its panel; Tab moves from the list into the panel
+    await p.goto(`${B}/?lang=en#/calc/${J}`); await p.waitForFunction((h) => document.querySelector('#view') && document.querySelector('#view').dataset.hash === h, `#/calc/${J}`); await p.waitForSelector('.pv .c', { state: 'attached' });
+    await p.focus('#tab-ws-gates');
+    const tabState = () => p.evaluate(() => { const a = document.activeElement; const panel = a && document.getElementById(a.getAttribute('aria-controls')); const cs = getComputedStyle(a); return { id: a.id, selected: a.getAttribute('aria-selected'), panelShown: !!panel && !panel.hidden, labelled: !!panel && panel.getAttribute('aria-labelledby') === a.id, visible: cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) > 0 }; });
+    await p.keyboard.press('ArrowRight'); const right = await tabState();
+    await p.keyboard.press('End'); const end = await tabState();
+    await p.keyboard.press('Home'); const home = await tabState();
+    await p.keyboard.press('Tab'); const intoPanel = await p.evaluate(() => document.activeElement.getAttribute('role') === 'tabpanel' && !document.activeElement.hidden);
+    check('3.5 job tabs: arrow keys, End and Home move and select the tab with a visible focus; each tab controls a labelled panel; Tab enters the shown panel',
+      right.id === 'tab-ws-checks' && right.selected === 'true' && right.panelShown && right.labelled && right.visible && end.id === 'tab-ws-records' && end.panelShown && home.id === 'tab-ws-gates' && home.panelShown && intoPanel, { right, end, home, intoPanel });
+    const seps = await p.evaluate(() => [...document.querySelectorAll('#view [role=separator][tabindex="0"]')].map((s) => ({ now: Number(s.getAttribute('aria-valuenow')), min: Number(s.getAttribute('aria-valuemin')), max: Number(s.getAttribute('aria-valuemax')), label: !!s.getAttribute('aria-label') })));
+    await p.focus('#view [role=separator][data-split=l]'); const w0 = Number(await p.getAttribute('#view [role=separator][data-split=l]', 'aria-valuenow'));
+    await p.keyboard.press('ArrowRight'); const w1 = Number(await p.getAttribute('#view [role=separator][data-split=l]', 'aria-valuenow'));
+    await p.keyboard.press('ArrowLeft');
+    check('3.5 job view: each panel divider is a labelled separator that states its value, and the arrow keys change it', seps.length === 2 && seps.every((s) => s.label && s.now > 0 && s.min <= s.now && s.now <= s.max) && w1 > w0, { seps, w0, w1 });
+
+    // the PDF conversion screen
+    const doc = (await apiGet('/api/projects/1')).documents.filter((d) => d.detected_type === 'pdf').pop();
+    await p.goto(`${B}/?lang=en#/convert/1/${doc.id}`); await p.waitForSelector('#cv');
+    const cvNamed = await p.evaluate(() => [...document.querySelectorAll('#cv input, #cv select, #cv button')].map((el) => ({ name: el.name || el.tagName, labelled: (el.labels && el.labels.length > 0) || (el.tagName === 'BUTTON' && !!el.textContent.trim()), desc: (el.getAttribute('aria-describedby') || '').split(' ').filter(Boolean).map((id) => (document.getElementById(id) || {}).textContent || '').join(' ') })));
+    const cvWalk = await focusWalk('#cv_page', '#cv');
+    const cvOrder = cvWalk.filter((s) => s.inStop).map((s) => s.id);
+    check('3.5 conversion: every control labelled, the scale and tolerance hints in their descriptions; Tab visits page, scale kind, scale, tolerance, the two options and the button, each with a visible focus, then leaves the form',
+      cvNamed.every((x) => x.labelled) && cvNamed.find((x) => x.name === 'scale').desc.length > 10 && cvNamed.find((x) => x.name === 'tol').desc.length > 10
+        && cvOrder.join() === 'cv_page,cv_kind,cv_scale,cv_tol,fill,text,button' && cvWalk.filter((s) => s.inStop).every((s) => s.visible) && !cvWalk[cvWalk.length - 1].inStop, { cvNamed, cvOrder, cvWalk });
+    await p.click('#cv button.pri'); await p.waitForSelector('#cvmsg [role=alert]');
+    const cvErr = await p.evaluate(() => { const el = document.querySelector('#cv_scale'); const m = el.closest('.field').querySelector('.field-err'); const ids = el.getAttribute('aria-describedby').split(' '); return { aria: el.getAttribute('aria-invalid'), focused: document.activeElement === el, described: !!m && ids.includes(m.id) && ids.includes('cv_scale_h'), alert: document.querySelector('#cvmsg [role=alert]').textContent }; });
+    check('3.5 conversion: a missing scale is announced in the message area, marks the scale field (message and hint in its description) and takes the focus there', cvErr.aria === 'true' && cvErr.focused && cvErr.described && cvErr.alert.length > 0, cvErr);
+  }
+
+  // ---- 14j. work plan 3.5: the offline help, in English and in Japanese. Its inputs are the form's own fields, its gate
+  // names the labels of the job view and its refusal texts the messages of a refused field; it says what is not
+  // modelled and that every result stays REVIEW REQUIRED and every DXF NOT RELEASED; it asks nothing of the network.
+  {
+    const CAT = await p.evaluate(async () => { const m = await import('/i18n.js'); return { en: m.CATALOGUE.en, ja: m.CATALOGUE.ja, codes: m.REFUSAL_CODES, gates: m.GATE_IDS, ids: m.ID_TABLE }; });
+    const requests = []; const onReq = (r) => requests.push(r.url()); p.on('request', onReq);
+    await p.goto(`${B}/?lang=en#/help`); await p.waitForFunction(() => document.querySelector('#view') && document.querySelector('#view').dataset.hash === '#/help'); await p.waitForSelector('#help-gates');
+    const helpEn = await p.evaluate(() => ({
+      text: document.querySelector('#view').textContent.replace(/\s+/g, ' '),
+      fams: Object.fromEntries([...document.querySelectorAll('table[id^=help-fam-]')].map((tb) => [tb.id.slice(9), [...tb.querySelectorAll('tbody tr td:nth-child(2)')].map((td) => td.textContent.trim())])),
+      gates: [...document.querySelectorAll('#help-gates tbody tr')].map((tr) => [tr.cells[0].textContent.trim(), tr.cells[1].textContent.trim()]),
+      refusals: [...document.querySelectorAll('#help-refusals tbody tr')].map((tr) => [tr.cells[0].textContent.trim(), tr.cells[1].textContent.trim()]),
+      nav: !!document.querySelector('.rail a[data-nav=help][aria-current=page]'),
+    }));
+    // the form's own fields, family by family
+    const formFields = {};
+    await p.goto(`${B}/?lang=en#/math/1`); await p.waitForFunction(() => document.querySelector('#view') && document.querySelector('#view').dataset.hash === '#/math/1'); await p.waitForSelector('#calc');
+    for (const fam of ['cylinder_shell', 'cone_frustum', 'eccentric_reducer', 'header_with_branch', 'branch_stub']) { await p.selectOption('select[name=fam]', fam); formFields[fam] = await p.evaluate(() => [...document.querySelectorAll('#fields input, #fields select')].map((el) => el.name)); }
+    p.off('request', onReq);
+    const ph = { fields: 'the named field', limit: 'the limit', measured: 'the measured value' };
+    const refText = (code) => String(CAT.en[`refusal.${code}`]).replace(/\{(\w+)\}/g, (x, k) => ph[k]).replace(/\*\*/g, '').replace(/`/g, '');
+    check('3.5 help: the help is a page of the program (Help in the navigation), and its inputs are exactly the fields of the new-calculation form, family by family',
+      helpEn.nav && Object.keys(formFields).every((f) => JSON.stringify(helpEn.fams[f]) === JSON.stringify(formFields[f])), { fams: helpEn.fams, formFields });
+    check('3.5 help: every gate G00 to G22 is listed with the name the job view uses; G03, G04, G07, G09, G12, G13 and G17 are marked as not evaluated by this build',
+      helpEn.gates.map((g) => g[0]).join() === Array.from({ length: 23 }, (_, i) => `G${String(i).padStart(2, '0')}`).join() && helpEn.gates.every(([id, name]) => name === CAT.ids.gate[id][0])
+        && (helpEn.text.match(/not evaluated by this build/g) || []).length === 7, helpEn.gates);
+    check('3.5 help: every refusal code of the build is listed with the message a refused field shows (one source)', helpEn.refusals.length === CAT.codes.length && helpEn.refusals.every(([code, text], i) => code === CAT.codes[i] && text === refText(code)), helpEn.refusals.filter(([code, text]) => text !== refText(code)).slice(0, 3));
+    check('3.5 help: it says what is not modelled (thickness, bend allowance, weld gap, kerf), that it is a development build, that results stay REVIEW REQUIRED and DXF files NOT RELEASED, and keeps the EV-1 disclosure',
+      /Plate thickness/.test(helpEn.text) && /Bend allowance/.test(helpEn.text) && /Weld gap/.test(helpEn.text) && /Kerf/.test(helpEn.text) && /Development build\./.test(helpEn.text) && /REVIEW REQUIRED/.test(helpEn.text) && /NOT RELEASED/.test(helpEn.text) && /EV-1 \(AI-generated, not independently reviewed\)/.test(helpEn.text), helpEn.text.slice(0, 300));
+    const external = requests.filter((u) => !u.startsWith(B) && !u.startsWith('data:'));
+    check('3.5 help: no request leaves the program (every request of the help page is to the program itself)', requests.length > 0 && external.length === 0, external);
+    await p.goto(`${B}/?lang=ja#/help`); await p.waitForFunction(() => document.querySelector('#view') && document.querySelector('#view').dataset.hash === '#/help'); await p.waitForSelector('#help-gates');
+    const helpJa = await p.evaluate(() => ({ gates: [...document.querySelectorAll('#help-gates tbody tr')].map((tr) => tr.cells[1].textContent.trim()), h1: document.querySelector('#view h1').textContent }));
+    check('3.5 help ja: the page is in Japanese, with the Japanese gate labels of the job view', /ヘルプ/.test(helpJa.h1) && helpJa.gates.length === 23 && helpJa.gates.every((g, i) => g === CAT.ids.gate[CAT.gates[i]][1]), helpJa);
+    await jaScreen('help');
+    await p.goto(`${B}/?lang=ja#/help/refusals`); await p.waitForSelector('#help-refusals');
+    const focusedSection = await p.waitForFunction(() => document.activeElement && document.activeElement.id === 'help-refusals-h', null, { timeout: 5000 }).then(() => true, () => false);
+    check('3.5 help: a section named in the address takes the focus (keyboard and screen reader)', focusedSection, await p.evaluate(() => document.activeElement && document.activeElement.id));
+  }
+
+  // ---- 14k. work plan 3.5: three sample projects, each opened or created with one action. Each computes the example
+  // values of the new-calculation form through the normal engine path, is recorded and audited like any job, and ends
+  // REVIEW REQUIRED. A second action opens the same project. A viewer is offered no action.
+  {
+    const formExamples = {};
+    await p.goto(`${B}/?lang=en#/math/1`); await p.waitForFunction(() => document.querySelector('#view') && document.querySelector('#view').dataset.hash === '#/math/1'); await p.waitForSelector('#calc');
+    for (const fam of ['cylinder_shell', 'cone_frustum', 'eccentric_reducer', 'header_with_branch', 'branch_stub']) {
+      await p.selectOption('select[name=fam]', fam);
+      formExamples[fam] = await p.evaluate(() => Object.fromEntries([...document.querySelectorAll('#fields input')].map((el) => [el.name, Number(el.value)]).concat([...document.querySelectorAll('#fields select[name=surface_reference]')].map((el) => [el.name, el.value]))));
+    }
+    const results = [];
+    for (const [n, fams] of [[1, ['cylinder_shell']], [2, ['cone_frustum', 'eccentric_reducer']], [3, ['header_with_branch', 'branch_stub']]]) {
+      await p.goto(`${B}/?lang=en#/help/samples`); await p.waitForSelector(`[data-sample="${n}"]`);
+      const label = await p.getAttribute(`[data-sample="${n}"]`, 'aria-label');
+      await p.click(`[data-sample="${n}"]`); await p.waitForURL(/#\/project\/\d+$/, { timeout: 60000 });
+      const pid = Number(p.url().split('/').pop());
+      const proj = await apiGet(`/api/projects/${pid}`);
+      const jobs = await Promise.all(proj.calculations.map((c) => apiGet(`/api/calculations/${c.id}`)));
+      const sameValues = jobs.length === fams.length && fams.every((fam) => { const j = jobs.find((x) => x.request.family === fam); const want = { family: fam, ...formExamples[fam] }; return !!j && JSON.stringify(Object.keys(want).sort().map((k) => [k, want[k]])) === JSON.stringify(Object.keys(j.request).sort().map((k) => [k, j.request[k]])); });
+      results.push({ n, pid, name: proj.name, label, states: jobs.map((j) => j.state), sameValues, patterns: jobs.map((j) => j.patterns.length) });
+    }
+    check('3.5 samples: three sample projects, each created with one action, compute the example values of the form through the engine and every job ends REVIEW REQUIRED with a pattern',
+      results.length === 3 && results.every((r) => r.sameValues && r.states.every((s) => s === 'REVIEW_REQUIRED') && r.patterns.every((x) => x > 0) && /^Sample [123]: /.test(r.name) && /^Open or create Sample/.test(r.label)), results);
+    const audit = await apiGet('/api/audit?limit=1000');
+    const audited = results.map((r) => ({ project: audit.filter((a) => a.action === 'project_created' && a.detail.startsWith(`#${r.pid} `)).length, jobs: audit.filter((a) => a.action === 'calculation' && a.detail.includes(` project #${r.pid} -> REVIEW_REQUIRED`)).length }));
+    check('3.5 samples: they are audited like any job (one project creation, and one calculation entry per job)', audited.every((a, i) => a.project === 1 && a.jobs === [1, 2, 2][i]), audited);
+    const projectsBefore = (await apiGet('/api/projects')).length;
+    await p.goto(`${B}/?lang=ja#/help/samples`); await p.waitForSelector('[data-sample="2"]');
+    await p.click('[data-sample="2"]'); await p.waitForURL(/#\/project\/\d+$/);
+    check('3.5 samples: the action on an existing sample opens it (in either language) and creates nothing', Number(p.url().split('/').pop()) === results[1].pid && (await apiGet('/api/projects')).length === projectsBefore);
+    const [sctx, sv] = await role({ username: 'viewer1', password: 'read-only-pass' });
+    await goOn(sv, 'help/samples', '#samples');
+    const vSamples = { buttons: await sv.locator('[data-sample]').count(), note: await sv.textContent('#help-samples') };
+    check('3.5 samples: a viewer is offered no sample action and is told who can create one', vSamples.buttons === 0 && /viewer cannot create projects/.test(vSamples.note), vSamples);
+    await sctx.close();
     await p.goto(`${B}/?lang=en#/dashboard`); await p.waitForSelector('.stats');
   }
 

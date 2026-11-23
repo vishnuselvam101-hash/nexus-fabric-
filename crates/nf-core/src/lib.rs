@@ -90,7 +90,23 @@ use std::collections::{BTreeMap, BTreeSet};
 /// 0.4.7 (work plan task 1.5a, RC-09/RC-10, RB-006): the cylinder shell (`verify_cylinder` and `verify_cylinder_solid`)
 /// and the eccentric reducer carry the `outline_counter_clockwise` guard as the branch and the header do: a mirrored
 /// (clockwise) development FAILs it. Geometry is unchanged; the check list changed. Results of 0.4.6 are REJECTED with G21 recompute.
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.7+src.", env!("NF_ENGINE_SRC_HASH"));
+/// 0.4.8 (22 Nov 2026): work plan task 1.5, Review C fixes. The cylinder pipeline runs the solid verifier and two
+/// plate-axis datum checks, so a plate turned 90 degrees FAILs (RC-09); the cone and eccentric `area` checks compare
+/// the exact signed area of the DRAWN outline against the 3D surface, the apex-free congruence is directed (Kabsch,
+/// a mirror or distance-preserving bulge is named), and both families gain seam datums, the cone also the CCW guard
+/// (RC-10); the self-intersection checks flag touching and short overlaps (RC-13); the verifier re-derives the
+/// engine-error bounds itself, bit-equal (RC-15). The reducer's area allowance is eps_rep-based and this family's
+/// eps_rep is uncertified, so genuine reducers are INCONCLUSIVE by design (a FAIL stays FAIL); the cone's area
+/// allowance gains the written-vertex term. The check list changed (compat_verdicts: 35 cylinder cases gain five
+/// checks, 55 cones and 40 reducers gain two each, the reducer `area` flips PASS -> INCONCLUSIVE in all 40);
+/// no other verdict or reason moved. Cut geometry is byte-identical to 0.4.7 (`develop.rs` unchanged).
+/// Results of 0.4.7 are REJECTED with G21 recompute.
+/// 0.4.9 (23 Nov 2026): text the engine shows is readable and in one language. A refused request's record carried
+/// its outcome as the Rust debug form of the error (`OutOfRange { code: .. }`); it now carries the same sentence as
+/// the message. The surface-unknown reason was written in English and Japanese in one string; the engine now writes
+/// English only and the client translates it like every other engine sentence. Geometry and verdicts are unchanged;
+/// record text changed, so results of 0.4.8 are REJECTED with G21 recompute.
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.9+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the
