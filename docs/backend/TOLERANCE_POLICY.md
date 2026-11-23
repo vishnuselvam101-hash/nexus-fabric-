@@ -589,3 +589,89 @@ untouched. The verifier stays free of `develop.rs` calls (independence guard).
 **Engine bump.** 0.4.7 -> 0.4.8 (recorded once, with the other task 1.5 results, in the version history of
 `crates/nf-core/src/lib.rs`): check lists and verdicts change as enumerated above; patterns and cut geometry are
 byte-identical. Results of 0.4.7 are marked for recomputation (G21).
+
+## 12. Cylinder solid verifier, self-intersection contact, verifier independence (work plan task 1.5, RC-09/RC-13/RC-15, engine 0.4.8)
+
+**RC-09: the cylinder pipeline runs the solid verifier and plate-axis datums.** `verify_cylinder_solid` was
+test-only; the pipeline called just `verify_cylinder`, whose length/area checks pass a rectangle turned 90 degrees
+with the edge names swapped. The pipeline now calls both and keeps ONE copy of the shared `outline_counter_clockwise`
+guard. New checks and tolerances (all `agree = agree_tol(max(r_dev, length))`, section 2):
+
+| Check | Measured | Reference | Tolerance |
+|---|---|---|---|
+| `end_circle_3d_arc_length` | developed length of `bottom` | 3D chord sums of the end circle in a tilted frame, taken to the limit (no 2*pi*r) | `agree + circle_res` |
+| `end_circles_3d_arc_length_equal` | developed length of `top` | the same 3D circle | `agree + circle_res` |
+| `area_equals_sampled_surface_area` | signed area of the plate outline | 3D circle length x shell length | `agree x (r_dev + length) + circle_res x length` |
+| `bottom_runs_along_x` | largest distance of any point of `bottom` from the X-parallel line through its start | 0 | `agree` |
+| `seam_a_runs_along_y` | the same for `seam_a` and the Y-parallel line | 0 | `agree` |
+
+`circle_res` is the chord-sum limit's own residual estimate. An absent or degenerate named edge gives NaN ->
+INCONCLUSIVE, never a pass. The three solid radius checks join `CYLINDER_RADIUS_CHECKS`, so an `unknown` surface
+makes them INCONCLUSIVE like the rest (section 9). Reproducer: a proper 90-degree turn still passes
+`verify_cylinder` but FAILs the datums.
+
+**RC-13: self-intersection checks flag touching and small overlaps.** `profile.rs` and `quality.rs` used strict
+crossing tests: an endpoint lying on a non-adjacent segment, or an overlap shorter than the old length gate,
+passed. Both directions of endpoint-to-segment distance <= tol now count as self-intersection (profile: fixed
+`TOUCH_TOL` 1e-9, matching the flatten dedup tolerance, grid boxes grown by tol; quality: the existing tol,
+`candidate_pairs` tol-aware). Grid and brute-force references use the same predicate. This only ever turns a
+would-be PASS into a FAIL (fail closed); reproducer tests pin the old blind spots (G11 check path, DXF gate).
+
+**RC-15: the verifier re-derives the engine-error bounds itself.** The 3D-intersection tolerances called
+`develop::{s,saddle,opening}_error_bound`. `verify.rs` now owns `engine_*_error_bound`: the same first-order
+analysis of the Spec 02 evaluation sequence, re-derived from the inputs with local U/TRIG constants, matching the
+engine's op order exactly. `develop` keeps its bounds for the reported eps_num. `Branch`, `ObliqueCone` and
+`MAX_CHORD_ERROR_MM` move to a neutral geometry module, re-exported from `develop`.
+`crates/uem/tests/verifier_independence.rs` guards both halves: non-test verifier code free of `develop`
+imports/calls, and the two bound copies bit-equal on 2000 seeded parameter sets (near-tangent, shallow, obtuse).
+
+**Changed test expectations (A2, old -> new; no validation threshold weakened, no planted fault removed).**
+
+| Test | Old expectation | New expectation | Reason |
+|---|---|---|---|
+| `nf-core/tests/fixtures/compat_verdicts.json` | 0.4.7 verdicts (after RC-10) | 35 cylinder cases gain the five solid/datum checks, all PASS; no existing verdict, reason or state changed, patterns and cut geometry byte-identical | RC-09; enumerated against the pre-RC-09 snapshot; header note in `compat.rs` |
+| `uem/src/verify.rs`, unknown-surface cylinder | the radius checks of `verify_cylinder` demoted | the three solid radius checks demoted too (`CYLINDER_RADIUS_CHECKS`) | RC-09; section 9 treatment extended to the new checks |
+| self-intersection (G11, DXF quality gate) | a T-touch or an overlap shorter than the length gate passes | both FAIL | RC-13; strengthening only, new reproducer tests, no existing expectation moved |
+| 3D-intersection tolerances | `develop::*_error_bound` | `verify::engine_*_error_bound`, bit-equal | RC-15; no expectation change (2000 seeded sets) |
+
+## 13. The DXF-only mating test (work plan task 1.5, validation)
+
+`validation/checks/mating.py`, wired into `run_all.py` stage 0 beside the seeded-fault self-test: the validator
+validates itself. Two plates that the product says form one joint must, from the two DXF files ALONE, fold back
+into 3D and meet cut-edge to cut-edge. The verifier calls no development code and reads no result geometry: the
+fold-back is re-derived from Spec 02 section 4.4 and the conventions the files state (the full derivation, plan
+rule A9, is the module docstring), and the vertex correspondence is SEARCHED (both directions x all n cyclic
+shifts), not assumed. This also proves the task 1.3 convention statements suffice to build the part.
+
+**Scope stated by the files.** The test requires `NF-HEADER-SURFACE` = `NF-BRANCH-SURFACE` = `neutral` (then the
+stated developed radius IS the contact radius, BE-001) and `NF-JOINT` = `not declared` (then both cuts lie on ONE
+curve of the entered radii, the zero-thickness idealisation the file states). A set-on joint cuts the opening at
+the branch bore, a different curve, and is outside this test. Every load-bearing statement is parsed and
+cross-checked (the circumference in two keys, the half-circumference datum, R_dev against the branch
+circumference, delta and beta equal in both files); a missing, unreadable or contradictory statement raises
+(fail closed).
+
+**The one unstated placement.** The station is a translation along the header axis that the files do not state.
+It is fitted per alignment (t = mean(x_H - x_B); y and z must coincide with no fit) and then checked against the
+SUBMITTED `branch_station` — a test input, not an engine output.
+
+**Tolerance (a sensitivity bound, not a fitted number).** The convention sentences write lengths and angles with
+at most three decimals (DXF_METADATA.md), so each true value lies within +/-0.0005 mm / +/-0.0005 deg of the
+stated one; the drawn vertices are exact round-trip decimals. Perturb each stated scalar the fold-back uses
+(header circumference, branch R_dev, delta, beta) by +/- half a unit of the last place, re-fold, take the largest
+vertex displacement per channel and sum the four -> D. Each coordinate of either fold differs from the true-value
+fold by at most D, a paired vertex by at most 2D per coordinate; the mean-t fit subtracts a mean within +/-2D, so
+the x residual is at most 4D and y, z at most 2D: residual <= sqrt(24) D < 5D, fitted station error <= 2D.
+The bound is `5D + 1e-9 x size` (the floor covers binary64 arithmetic and the perturbation's second-order terms,
+<= ~1e-7 mm at these sizes).
+
+**Measured (engine 0.4.8, REQ R 150 / r 100 / beta 60 / delta 20, station 500, s_end 400, neutral, joint not
+declared; 720 vertices, 1440 alignments searched).** Correct joint: residual 1.36e-4 mm <= tol 2.64e-2 mm, fitted
+station 500.000000 mm. A second job whose inputs are NOT exact at three decimals (beta 60.0004, delta 20.0004,
+r 100.0004) exercises all four rounding channels at once: residual 2.67e-3 mm <= the same bound, fitted station
+499.999095 mm. Six planted faults must FAIL and do, each by >= 65x the bound: mirrored branch saddle
+(residual 114 mm), header opening scaled x1.02 (2.55 mm), saddle shifted +2 mm along the branch axis (1.73 mm),
+stated beta +2 deg (6.97 mm), stated delta +3 mm (3.00 mm), stated header circumference +1 % (6.26 mm). The
+stated-value faults are planted by rewriting the 999 lines of the DXF text and re-reading them (the file itself
+carries the wrong statement, coherently: the circumference fault rewrites the datum too); the geometry faults are
+planted in the DXF-derived geometry, the seeded_faults idiom. A fault that cannot be planted fails the self-test.
