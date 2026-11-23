@@ -66,13 +66,15 @@ fn judge(req: &Request, t: &mut Tally) {
     // Task 1.2 review (work plan task 1.2, review): the representation error of an eccentric reducer is
     // not certified (its vertex term carries a quadrature estimate), so its two circumference checks are
     // INCONCLUSIVE by design, and only those. Any other non-PASS check, and any FAIL, is still a defect.
+    // RC-10 (engine 0.4.8): the reducer's drawn-area check joins them — its chord-deficit allowance is
+    // eps_rep times the perimeter, so rep_check downgrades a genuine PASS the same way.
     // Work plan task 1.4 (engine 0.4.6, RB-010): a radius check of an `unknown` surface is INCONCLUSIVE with the stated
     // reason. The reason is set only under `unknown`, so a check that carries it is by design as well, and nothing else.
     let by_design = |c: &nf_core::job::CheckView| {
         (c.verdict == "INCONCLUSIVE"
             && matches!(
                 c.name.as_str(),
-                "large_edge_equals_circumference" | "small_edge_equals_circumference"
+                "large_edge_equals_circumference" | "small_edge_equals_circumference" | "area"
             )
             && out.patterns.iter().any(|p| p.family == "eccentric_reducer"))
             || (c.verdict == "INCONCLUSIVE"
