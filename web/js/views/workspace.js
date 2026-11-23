@@ -30,7 +30,6 @@ function fmtDate(d) {
 }
 
 function stateCls(s) {
-  if (s === 'APPROVED') return 't-ok';
   if (s === 'REVIEW_REQUIRED') return 't-warn';
   return 't-bad';
 }

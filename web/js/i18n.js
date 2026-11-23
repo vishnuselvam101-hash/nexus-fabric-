@@ -101,8 +101,7 @@ const EN = {
   'proc.upload': 'Upload', 'proc.extract': 'Extract', 'proc.pattern': 'Pattern', 'proc.verify': 'Verify',
   'proc.cancel': 'Cancel',
 
-  // result page
-  'result.approved': 'APPROVED', 'result.another': 'Convert another',
+  // result page 'result.another': 'Convert another',
   'result.dxf': 'Download DXF', 'result.report': 'Download Report',
   'result.retry': 'Adjust options & retry',
 
@@ -126,8 +125,7 @@ const EN = {
   // toasts
   'toast.saved': 'Saved', 'toast.error': 'Error', 'toast.created': 'Created', 'toast.ok': 'Done',
 
-  // badges
-  'badge.approved': 'APPROVED', 'badge.review': 'REVIEW REQUIRED', 'badge.rejected': 'REJECTED',
+  // badges 'badge.review': 'REVIEW REQUIRED', 'badge.rejected': 'REJECTED',
   'badge.refused': 'REFUSED', 'badge.converted': 'CONVERTED — NOT VERIFIED — NOT RELEASED',
   'badge.error': 'ERROR', 'badge.processing': 'PROCESSING', 'badge.limitExceeded': 'LIMIT EXCEEDED',
 
@@ -843,9 +841,7 @@ const JA = {
 
   'proc.title': '処理中',
   'proc.upload': 'アップロード', 'proc.extract': '抽出', 'proc.pattern': '展開図', 'proc.verify': '検証',
-  'proc.cancel': 'キャンセル',
-
-  'result.approved': '承認済み', 'result.another': '別のファイルを変換',
+  'proc.cancel': 'キャンセル', 'result.another': '別のファイルを変換',
   'result.dxf': 'DXFをダウンロード', 'result.report': 'レポートをダウンロード',
   'result.retry': 'オプションを変更して再試行',
 
@@ -863,9 +859,7 @@ const JA = {
   'error.convert': '変換に失敗しました', 'error.refused': '変換が拒否されました',
   'error.timeout': 'リクエストがタイムアウトしました', 'error.pdfonly': 'PDFファイルのみ受け付けます',
 
-  'toast.saved': '保存しました', 'toast.error': 'エラー', 'toast.created': '作成しました', 'toast.ok': '完了',
-
-  'badge.approved': '承認済み', 'badge.review': '要レビュー', 'badge.rejected': '却下',
+  'toast.saved': '保存しました', 'toast.error': 'エラー', 'toast.created': '作成しました', 'toast.ok': '完了', 'badge.review': '要レビュー', 'badge.rejected': '却下',
   'badge.refused': '拒否', 'badge.converted': 'PDFから変換・未検証・未リリース',
   'badge.error': 'エラー', 'badge.processing': '処理中', 'badge.limitExceeded': '上限超過',
 

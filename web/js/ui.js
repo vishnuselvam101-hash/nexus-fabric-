@@ -65,7 +65,6 @@ export function toast(message, type = 'ok') {
 }
 
 const BADGES = {
-  APPROVED: { icon: 'check', label: 'Approved' },
   REVIEW_REQUIRED: { icon: 'alert', label: 'Review required' },
   REFUSED: { icon: 'cross', label: 'Refused' },
   SUPERSEDED: { icon: 'clock', label: 'Superseded' },

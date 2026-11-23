@@ -41,7 +41,7 @@ function stageIdx(s) {
   if (!s || s === 'queued') return 0; if (s === 'extracting' || s === 'processing') return 1;
   if (s === 'computing' || s === 'flattening' || s === 'verifying') return 2; return 3;
 }
-/* A PDF conversion is never approved: no green badge, ever. */
+/* A PDF conversion has no release state: never a green badge. */
 function badgeCls(s) { return s === 'converted' ? 'badge warn' : 'badge bad'; }
 function isTerminal(s) { return s === 'converted' || s === 'refused' || s === 'limit_exceeded'; }
 

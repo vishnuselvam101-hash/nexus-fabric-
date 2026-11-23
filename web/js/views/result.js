@@ -40,7 +40,6 @@ function renderSuccess(c, id) {
   const icon = root.querySelector('.badge-icon use');
 
   // A PDF conversion is never verified or released; show that, never a default verdict.
-  badge.classList.remove('badge--approved');
   badge.classList.add('warn');
   label.textContent = t('cv2.label');
   if (c.label) label.title = c.label;
@@ -159,7 +158,7 @@ function renderProcessing(c, id) {
   const label = root.querySelector('.badge-label');
   const icon = root.querySelector('.badge-icon use');
 
-  badge.classList.remove('badge--approved', 'badge--refused');
+  badge.classList.remove('badge--refused');
   label.textContent = 'PROCESSING';
   icon.setAttribute('href', '#i-spinner');
 

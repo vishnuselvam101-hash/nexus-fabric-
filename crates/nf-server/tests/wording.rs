@@ -185,7 +185,23 @@ fn covering(text: &str, s: usize, e: usize) -> Vec<usize> {
 fn no_forbidden_claim_in_the_interface_package_or_install_texts() {
     let mut bad = Vec::new();
     let mut used = vec![false; ALLOWED.len()];
-    for f in FILES {
+    // the fixed files plus every module of the client under web/js, so a new screen is covered without editing this list
+    let mut files: Vec<String> = FILES.iter().map(|f| f.to_string()).collect();
+    let mut dirs = vec![root().join("web/js")];
+    let mut modules = Vec::new();
+    while let Some(d) = dirs.pop() {
+        for e in std::fs::read_dir(&d).unwrap_or_else(|e| panic!("{}: {e}", d.display())) {
+            let p = e.unwrap().path();
+            if p.is_dir() {
+                dirs.push(p);
+            } else if p.extension().is_some_and(|x| x == "js") {
+                modules.push(p.strip_prefix(root()).unwrap().to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+    modules.sort();
+    files.extend(modules);
+    for f in &files {
         let path = root().join(f);
         let text =
             std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
