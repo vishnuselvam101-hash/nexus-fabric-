@@ -2173,7 +2173,9 @@ mod tests {
                 !o.patterns.is_empty() && o.dxf.len() == o.patterns.len(),
                 "{r:?}"
             );
-            // the eccentric reducer's circumference checks are INCONCLUSIVE by design (its eps_rep is not certified)
+            // the eccentric reducer's circumference checks are INCONCLUSIVE by design (its eps_rep is not
+            // certified); since RC-10 its drawn-area check is too (the chord-deficit allowance is eps_rep
+            // times the perimeter, so rep_check downgrades it the same way)
             let reducer = o.patterns.iter().any(|p| p.family == "eccentric_reducer");
             // task 1.4 (engine 0.4.6): a branch stub with an `unknown` surface has its radius checks INCONCLUSIVE, with the reason
             let branch_unknown = matches!(&r, Request::BranchStub { surface_reference, .. } if surface_reference == "unknown");
@@ -2181,7 +2183,7 @@ mod tests {
                 o.checks.iter().all(|c| c.verdict == "PASS"
                     || (reducer
                         && c.verdict == "INCONCLUSIVE"
-                        && c.name.ends_with("_equals_circumference"))
+                        && (c.name.ends_with("_equals_circumference") || c.name == "area"))
                     || (branch_unknown
                         && c.verdict == "INCONCLUSIVE"
                         && c.reason.as_deref() == Some(uem::verify::SURFACE_UNKNOWN_REASON))),
@@ -2203,7 +2205,7 @@ mod tests {
                     .iter()
                     .any(|g| g.id == id && g.result == GateResult::Pass)
             };
-            // G10 is INCONCLUSIVE for a reducer (its circumference checks, see above), PASS otherwise
+            // G10 is INCONCLUSIVE for a reducer (its circumference and drawn-area checks, see above), PASS otherwise
             let g10 = o.gates.iter().find(|g| g.id == "G10").map(|g| g.result);
             let g10_want = if reducer || branch_unknown {
                 GateResult::Inconclusive

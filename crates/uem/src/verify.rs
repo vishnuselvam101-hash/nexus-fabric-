@@ -15,12 +15,12 @@
 //! were written by the same author; a separately owned implementation (class
 //! I-I/I-L) does not exist yet and the evidence says so.
 
+#[cfg(test)]
+use crate::Layer;
 use crate::curve_bound::{CurveBound, OpeningCurve, SaddleCurve, length_excess_bound};
 use crate::geometry::{Branch, MAX_CHORD_ERROR_MM, ObliqueCone};
 use crate::independent::{self, Joint3, V3};
-#[cfg(test)]
-use crate::{Curve, Layer};
-use crate::{Geom, P2, Pattern, TAU, ViewSide, gauss, profile};
+use crate::{Compensated, Curve, Geom, P2, Pattern, TAU, ViewSide, gauss, profile};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Verdict {
@@ -77,6 +77,9 @@ pub const ECCENTRIC_RADIUS_CHECKS: &[&str] = &[
     "small_edge_equals_circumference",
     "seam_equals_3d_ruling",
     "area",
+    // RC-10: the developed angle Psi = integral of dpsi depends on the entered radii, so the seam_b datum is
+    // radius-dependent (seam_a on +X is a fixed direction and is not).
+    "seam_b_at_development_angle",
 ];
 
 /// Branch stub (task 1.4, `verify_branch`): the request declares ONE surface for its contact radii, so every check
@@ -720,6 +723,132 @@ fn axis_run(p: &Pattern, name: &str, along_x: bool) -> f64 {
     }
 }
 
+/// Dekker split of a binary64 number into two 27-bit halves whose sum is exact (2^27 + 1).
+fn split27(a: f64) -> (f64, f64) {
+    const SPLIT: f64 = 134217729.0; // 2^27 + 1
+    let t = SPLIT * a;
+    let hi = t - (t - a);
+    (hi, a - hi)
+}
+
+/// Error-free product: hi + lo = a*b exactly (Dekker, no FMA dependency). Lets exact_signed_area keep the
+/// rounding of each huge Green's-theorem term instead of losing it before the cancellation-prone sum.
+fn two_product(a: f64, b: f64) -> (f64, f64) {
+    let p = a * b;
+    let (ah, al) = split27(a);
+    let (bh, bl) = split27(b);
+    let e = ((ah * bh - p) + ah * bl + al * bh) + al * bl;
+    (p, e)
+}
+
+/// Accumulate sign*a*b into the hi/lo Neumaier pair with an error-free product (sign is +/-0.5, exact).
+fn area_product(hi: &mut Compensated, lo: &mut Compensated, a: f64, b: f64, sign: f64) {
+    let (p, e) = two_product(a, b);
+    hi.add(sign * p);
+    lo.add(sign * e);
+}
+
+/// Exact signed area of a closed outline by Green's theorem (RC-10): the shoelace sum for lines and polylines
+/// and the closed-form arc integral for arcs, so no flattening chord deficit enters. Positive for a
+/// counter-clockwise outline. Unlike `profile::check`'s flattened-polygon area this is the area of the figure
+/// as drawn (arcs exact), which is what the area checks compare against the 3D surface.
+///
+/// Every algebraic term (shoelace products, the arc's r^2*(a1-a0) sector) is accumulated as an error-free
+/// product hi + lo through a Neumaier sum, because the terms can be huge and cancel: the B2-005 cone near the
+/// apex limit develops to a 1e8 mm radius, its two arc sectors are ~3e13 mm^2 each, and rounding them to
+/// binary64 before subtracting would leave ~0.004 mm^2 of noise against a 0.001 mm^2 tolerance. The arc
+/// endpoint sines/cosines carry their own f64 rounding (they multiply the centre coordinates, zero for an
+/// apex-centred sector); the final hi + lo addition rounds once.
+fn exact_signed_area(outline: &[Curve]) -> f64 {
+    let mut hi = Compensated::default();
+    let mut lo = Compensated::default();
+    for c in outline {
+        match &c.geom {
+            Geom::Line { a: p, b: q } => {
+                area_product(&mut hi, &mut lo, p.x, q.y, 0.5);
+                area_product(&mut hi, &mut lo, q.x, p.y, -0.5);
+            }
+            Geom::Polyline { pts, .. } => {
+                for w in pts.windows(2) {
+                    area_product(&mut hi, &mut lo, w[0].x, w[1].y, 0.5);
+                    area_product(&mut hi, &mut lo, w[1].x, w[0].y, -0.5);
+                }
+            }
+            Geom::Arc { c: ctr, r, a0, a1 } => {
+                area_product(&mut hi, &mut lo, ctr.x, r * (a1.sin() - a0.sin()), 0.5);
+                area_product(&mut hi, &mut lo, ctr.y, r * (a1.cos() - a0.cos()), -0.5);
+                // r^2*(a1-a0) with r^2 kept exact: the dominant term of an apex-centred sector
+                let (r2h, r2l) = two_product(*r, *r);
+                let (p, e) = two_product(r2h, a1 - a0);
+                hi.add(0.5 * p);
+                lo.add(0.5 * (e + r2l * (a1 - a0)));
+            }
+        }
+    }
+    hi.value() + lo.value()
+}
+
+/// Worst point distance between two equally ordered point sets after the best proper rotation and translation
+/// (Kabsch, RC-10). The angle is atan2 of the cross/dot sums of the centred corresponding points, so it is
+/// always a proper rotation (det +1): a mirror image cannot be aligned, and a non-rigid shape change leaves a
+/// residual. NaN when the sets are empty or differ in length, so a congruence that cannot be measured is
+/// INCONCLUSIVE, never a pass. Translation- and rotation-invariant.
+fn kabsch_residual(drawn: &[P2], reference: &[P2]) -> f64 {
+    let m = drawn.len();
+    if m == 0 || m != reference.len() {
+        return f64::NAN;
+    }
+    let mf = m as f64;
+    let cd = P2::new(
+        drawn.iter().map(|q| q.x).sum::<f64>() / mf,
+        drawn.iter().map(|q| q.y).sum::<f64>() / mf,
+    );
+    let cr = P2::new(
+        reference.iter().map(|q| q.x).sum::<f64>() / mf,
+        reference.iter().map(|q| q.y).sum::<f64>() / mf,
+    );
+    let (mut sxx, mut sxy) = (0.0f64, 0.0f64);
+    for i in 0..m {
+        let f = P2::new(reference[i].x - cr.x, reference[i].y - cr.y);
+        let o = P2::new(drawn[i].x - cd.x, drawn[i].y - cd.y);
+        sxx += f.x * o.x + f.y * o.y;
+        sxy += f.x * o.y - f.y * o.x;
+    }
+    let (s, c) = sxy.atan2(sxx).sin_cos();
+    let mut worst = 0.0f64;
+    for i in 0..m {
+        let f = P2::new(reference[i].x - cr.x, reference[i].y - cr.y);
+        let rot = P2::new(cd.x + c * f.x - s * f.y, cd.y + s * f.x + c * f.y);
+        worst = worst.max(rot.dist(drawn[i]));
+    }
+    worst
+}
+
+/// RC-10 angular datum: the named edge must lie on the ray at `angle` from the apex (the pattern origin).
+/// Returns the largest distance of any sampled point of the curve from that ray (0 for an edge on it). A point
+/// whose projection on the ray is negative lies behind the apex and counts its full distance from the origin.
+/// NaN when the curve is absent, so a datum that cannot be measured is INCONCLUSIVE, never a pass. A proper
+/// rotation of the plate about the apex moves the edge off its ray, which the length checks alone cannot see.
+fn ray_run(p: &Pattern, name: &str, angle: f64) -> f64 {
+    let (s, c) = angle.sin_cos();
+    let u = P2::new(c, s);
+    let mut found = false;
+    let mut dev = 0.0f64;
+    for cu in p.outline.iter().filter(|x| x.name == name) {
+        found = true;
+        for q in profile::flatten(std::slice::from_ref(cu), 64) {
+            let proj = q.x * u.x + q.y * u.y;
+            let d = if proj >= 0.0 {
+                P2::new(q.x - proj * u.x, q.y - proj * u.y).dist(P2::new(0.0, 0.0))
+            } else {
+                q.dist(P2::new(0.0, 0.0))
+            };
+            dev = dev.max(d);
+        }
+    }
+    if found { dev } else { f64::NAN }
+}
+
 /// Independent-formulation checks of a plain shell (review RB-006): the end
 /// circle and the lateral area of the solid, sampled in 3D, against the plate,
 /// plus the RC-09 plate-axis datum (`bottom` along X, `seam_a` along Y) that the
@@ -850,12 +979,18 @@ pub fn verify_cone(p: &Pattern, r1: f64, r2: f64, h: f64) -> Vec<Check> {
             s,
             agree,
         ),
+        // The drawn outline is the exact development rounded to binary64: every written vertex and arc
+        // parameter carries at most the pattern's declared eps_num (a-priori bound, EPS_NUM_BASIS_EXACT).
+        // Displacing the boundary by delta changes the area by at most delta times the perimeter
+        // (first-order shape derivative), hence the eps_num*perimeter allowance. Near the apex limit it
+        // dominates agree*s: B2-005 develops to l1 ~ 1e8 mm, where a ~1e-7 mm radius rounding becomes
+        // ~2e-3 mm^2 of area through the ~1.3e6 mm perimeter. For ordinary parts the term is ~1e-9 mm^2.
         cmp(
             "area",
-            "lateral area pi*(r1+r2)*s of the 3D frustum",
-            p.quantity("area").unwrap_or(f64::NAN),
+            "exact signed area of the drawn outline (Green's theorem, arcs in closed form) against the lateral area pi*(r1+r2)*s of the 3D frustum",
+            exact_signed_area(&p.outline),
             std::f64::consts::PI * (r1 + r2) * s,
-            agree * s,
+            agree * s + p.eps_num * p.outline.iter().map(profile::length).sum::<f64>(),
         ),
     ];
     for (name, check, r) in [
@@ -887,6 +1022,22 @@ pub fn verify_cone(p: &Pattern, r1: f64, r2: f64, h: f64) -> Vec<Check> {
         "fold_back_radius_residual",
         "implicit taper equation of the frustum evaluated at folded-back arcs",
         worst,
+        0.0,
+        agree,
+    ));
+    // Handedness and angular datum (RC-10): the cone had neither. A genuine sector is counter-clockwise with
+    // seam_a on the +X ray from the apex; a mirror flips the sign and a proper rotation moves seam_a off +X.
+    v.push(cmp(
+        "outline_counter_clockwise",
+        "sign of the exact signed area of the outline (Green's theorem): outer profiles are counter-clockwise in the pattern frame (Spec 02 section 0.3)",
+        exact_signed_area(&p.outline).signum(),
+        1.0,
+        0.5,
+    ));
+    v.push(cmp(
+        "seam_a_on_positive_x",
+        "largest distance of any point of the seam_a edge from the +X ray from the apex (stated datum: seam_a on +X)",
+        ray_run(p, "seam_a", 0.0),
         0.0,
         agree,
     ));
@@ -964,20 +1115,23 @@ pub fn verify_eccentric(p: &Pattern, r1: f64, r2: f64, h: f64, e: f64) -> Vec<Ch
         ));
         return v;
     }
-    // (1) Two developments of the same curve are congruent: compare distances from the seam point.
+    // (1) Two developments of the same curve are congruent. Distances from the seam point alone leave n-2 shape
+    // degrees of freedom free (RC-10): compare directed coordinates after the best proper rotation and translation
+    // (Kabsch), so a mirror or a non-rigid bulge of the large end is named, not just a radius error.
     let fine = geodesic_development(&g, 16 * n);
     let coarse = geodesic_development(&g, 8 * n);
-    let (mut worst, mut ver_err): (f64, f64) = (0.0, 0.0);
+    // the quadrature error estimate stays the fine/coarse distance difference (a scalar, frame-independent)
+    let mut ver_err = 0.0f64;
     for i in 1..=n {
-        let d_primary = outer[i].dist(outer[0]);
         let d_ref = fine[16 * i].dist(fine[0]);
-        worst = worst.max((d_primary - d_ref).abs());
         ver_err = ver_err.max((d_ref - coarse[8 * i].dist(coarse[0])).abs());
     }
+    let reference: Vec<P2> = (0..=n).map(|i| fine[16 * i]).collect();
+    let worst = kabsch_residual(&outer, &reference);
     let tol = agree.max(p.eps_num + 10.0 * ver_err);
     v.push(cmp(
         "apex_free_development_agrees",
-        "geodesic-curvature integration of the large end circle (no apex), RK4",
+        "directed congruence with an apex-free geodesic-curvature development (RK4): best proper rotation + translation (Kabsch), worst point residual",
         worst,
         0.0,
         tol,
@@ -1041,20 +1195,49 @@ pub fn verify_eccentric(p: &Pattern, r1: f64, r2: f64, h: f64, e: f64) -> Vec<Ch
         };
         gauss(&inner, 0.0, TAU, 360).0
     };
-    v.push(cmp(
-        "area",
-        "surface integral of |S_theta x S_lambda| over the 3D ruled surface",
-        p.quantity("area").unwrap_or(f64::NAN),
-        surf,
-        1e-6 * surf.max(1.0),
+    // (4) Area: exact signed area of the drawn outline (Green's theorem, arcs in closed form) against the 3D
+    // ruled-surface integral. The previous primary was the pattern's own "area" quantity — the same integral
+    // computed by the constructor — so it could not see a wrong outline (RC-10). The drawn polyline chords
+    // shorten the figure; each chord's sagitta is at most eps_rep, bounding the area deficit by eps_rep times
+    // the perimeter, hence the tolerance. eps_rep is uncertified for this family, so a genuine PASS becomes
+    // INCONCLUSIVE through rep_check (TOLERANCE_POLICY section 8.2).
+    let perimeter: f64 = p.outline.iter().map(profile::length).sum();
+    v.push(rep_check(
+        cmp(
+            "area",
+            "exact signed area of the drawn outline (Green's theorem) against the surface integral of |S_theta x S_lambda| over the 3D ruled surface",
+            exact_signed_area(&p.outline),
+            surf,
+            p.eps_rep * perimeter + 1e-9 * surf.max(1.0),
+        ),
+        p.eps_rep_certified,
+        p.eps_rep,
     ));
     // (5) Handedness: a mirrored development is clockwise, so the sign of the outline's signed area flips.
     v.push(cmp(
         "outline_counter_clockwise",
-        "sign of the signed area of the outline: outer profiles are counter-clockwise in the pattern frame (Spec 02 section 0.3)",
-        profile::check(&p.outline, 1e-9).signed_area.signum(),
+        "sign of the exact signed area of the outline (Green's theorem): outer profiles are counter-clockwise in the pattern frame (Spec 02 section 0.3)",
+        exact_signed_area(&p.outline).signum(),
         1.0,
         0.5,
+    ));
+    // (6) Angular datums (RC-10): the stated development places seam_a on +X and seam_b at the developed angle
+    // Psi = integral of dpsi over a full turn. Length checks alone cannot see a rotation of the plate about
+    // the apex, which moves the seams off their rays while every edge length stays the same.
+    v.push(cmp(
+        "seam_a_on_positive_x",
+        "largest distance of any point of the seam_a edge from the +X ray from the apex (stated datum: seam_a on +X)",
+        ray_run(p, "seam_a", 0.0),
+        0.0,
+        agree,
+    ));
+    let psi = crate::gauss_adaptive(&|t| g.dpsi(t), 0.0, TAU, 1e-13, 14).0;
+    v.push(cmp(
+        "seam_b_at_development_angle",
+        "largest distance of any point of the seam_b edge from the ray at Psi = integral of dpsi over a full turn (stated datum)",
+        ray_run(p, "seam_b", psi),
+        0.0,
+        agree,
     ));
     v
 }
@@ -1774,10 +1957,11 @@ mod tests {
     }
 
     /// The eccentric reducer's representation error is not certified (its vertex term carries the quadrature
-    /// estimate, TOLERANCE_POLICY 8.2): its two circumference checks are INCONCLUSIVE and every other check PASSes.
+    /// estimate, TOLERANCE_POLICY 8.2): its two circumference checks and the drawn-area check (RC-10, whose
+    /// chord-deficit allowance is eps_rep times the perimeter) are INCONCLUSIVE and every other check PASSes.
     fn pass_but_uncertified_circumferences(v: &[Check]) {
         for c in v {
-            let want = if c.name.ends_with("_equals_circumference") {
+            let want = if c.name.ends_with("_equals_circumference") || c.name == "area" {
                 Verdict::Inconclusive
             } else {
                 Verdict::Pass
@@ -1998,6 +2182,49 @@ mod tests {
                 }
                 Geom::Polyline { pts, .. } => pts.iter_mut().for_each(|q| *q = f(*q)),
                 Geom::Arc { .. } => {}
+            }
+        }
+    }
+
+    /// Mirror every curve in x (RC-10), arcs included: a point (x, y) goes to (-x, y); an arc keeps its
+    /// traversal order with the centre's x negated and both angles a -> pi - a, so the outline stays closed
+    /// and its orientation flips. `map_points` alone skips arcs and would tear a cone outline open.
+    fn mirror_x(p: &mut Pattern) {
+        for c in p.outline.iter_mut().chain(p.holes.iter_mut()) {
+            match &mut c.geom {
+                Geom::Line { a, b } => {
+                    a.x = -a.x;
+                    b.x = -b.x;
+                }
+                Geom::Polyline { pts, .. } => pts.iter_mut().for_each(|q| q.x = -q.x),
+                Geom::Arc { c: ctr, a0, a1, .. } => {
+                    ctr.x = -ctr.x;
+                    let pi = std::f64::consts::PI;
+                    *a0 = pi - *a0;
+                    *a1 = pi - *a1;
+                }
+            }
+        }
+    }
+
+    /// Rotate every curve about the origin by `ang` (RC-10), arcs included: a proper rotation, so every
+    /// length, the area and the handedness are unchanged; an arc keeps its radius and sweep with the centre
+    /// rotated and both angles shifted. Moves the seams off their stated rays without touching any length.
+    fn rotate_about_origin(p: &mut Pattern, ang: f64) {
+        let (s, co) = ang.sin_cos();
+        let rot = |q: P2| P2::new(co * q.x - s * q.y, s * q.x + co * q.y);
+        for c in p.outline.iter_mut().chain(p.holes.iter_mut()) {
+            match &mut c.geom {
+                Geom::Line { a, b } => {
+                    *a = rot(*a);
+                    *b = rot(*b);
+                }
+                Geom::Polyline { pts, .. } => pts.iter_mut().for_each(|q| *q = rot(*q)),
+                Geom::Arc { c: ctr, a0, a1, .. } => {
+                    *ctr = rot(*ctr);
+                    *a0 += ang;
+                    *a1 += ang;
+                }
             }
         }
     }
@@ -2589,15 +2816,20 @@ mod tests {
         all_pass(&verify_cylinder(&tiny, 1e-4, 1e-3));
     }
 
-    /// Handedness guard of the plain shell and the eccentric reducer (review RC-09/RC-10, RB-006): a genuine
-    /// development is counter-clockwise and passes `outline_counter_clockwise`; its mirror image (every x negated) is
-    /// clockwise and fails it. The mirror passes every length check, so this guard is the only one that names it.
+    /// Handedness guard of the plain shell, the cone and the eccentric reducer (review RC-09/RC-10, RB-006): a
+    /// genuine development is counter-clockwise and passes `outline_counter_clockwise`; its mirror image (every
+    /// x negated, arcs included) is clockwise and fails it. The mirror passes every length check. Since RC-10
+    /// the eccentric's directed congruence check names the mirror too (a proper rotation cannot align it), and
+    /// the cone's seam_a datum names it as well (the seam lands on -X).
     #[test]
     fn outline_guard_rejects_a_mirrored_cylinder_and_eccentric() {
         let guard = "outline_counter_clockwise";
         let cyl = cylinder_shell(100.0, 250.0).unwrap();
         let mut cyl_mirror = cyl.clone();
         map_points(&mut cyl_mirror, |q| P2::new(-q.x, q.y));
+        let cone = cone_frustum(200.0, 100.0, 300.0).unwrap();
+        let mut cone_mirror = cone.clone();
+        mirror_x(&mut cone_mirror);
         let ecc = eccentric_reducer(200.0, 100.0, 300.0, 100.0).unwrap();
         let mut ecc_mirror = ecc.clone();
         map_points(&mut ecc_mirror, |q| P2::new(-q.x, q.y));
@@ -2608,6 +2840,10 @@ mod tests {
         );
         assert_eq!(
             verdict_of(&verify_cylinder_solid(&cyl, 100.0, 250.0), guard),
+            Verdict::Pass
+        );
+        assert_eq!(
+            verdict_of(&verify_cone(&cone, 200.0, 100.0, 300.0), guard),
             Verdict::Pass
         );
         assert_eq!(
@@ -2623,12 +2859,128 @@ mod tests {
             Verdict::Fail
         );
         assert_eq!(
+            verdict_of(&verify_cone(&cone_mirror, 200.0, 100.0, 300.0), guard),
+            Verdict::Fail
+        );
+        assert_eq!(
             verdict_of(
                 &verify_eccentric(&ecc_mirror, 200.0, 100.0, 300.0, 100.0),
                 guard
             ),
             Verdict::Fail
         );
+        // RC-10: the mirror is not proper-rotation-congruent with the apex-free development, and the mirrored
+        // cone's seam_a lies on -X, off its stated +X ray. Both name the mirror beyond the handedness guard.
+        assert_eq!(
+            verdict_of(
+                &verify_eccentric(&ecc, 200.0, 100.0, 300.0, 100.0),
+                "apex_free_development_agrees"
+            ),
+            Verdict::Pass
+        );
+        assert_eq!(
+            verdict_of(
+                &verify_eccentric(&ecc_mirror, 200.0, 100.0, 300.0, 100.0),
+                "apex_free_development_agrees"
+            ),
+            Verdict::Fail
+        );
+        assert_eq!(
+            verdict_of(
+                &verify_cone(&cone_mirror, 200.0, 100.0, 300.0),
+                "seam_a_on_positive_x"
+            ),
+            Verdict::Fail
+        );
+    }
+
+    /// RC-10 reproducer: the old check (1) compared only distances from the seam point outer[0], leaving n-2
+    /// shape degrees of freedom free. Rotating each interior large-end vertex about outer[0] by eps*sin(pi*i/n)
+    /// preserves every one of those distances exactly (the end vertices do not move), so the old check passes;
+    /// the directed Kabsch congruence sees the bulge and fails.
+    #[test]
+    fn rc10_distance_preserving_bulge_passes_the_old_check_but_fails_the_directed_one() {
+        let (r1, r2, h, e) = (200.0, 100.0, 300.0, 100.0);
+        let p = eccentric_reducer(r1, r2, h, e).unwrap();
+        let mut bulged = p.clone();
+        let eps = 1e-4f64;
+        let outer = bulged
+            .outline
+            .iter_mut()
+            .find(|c| c.name == "large_end")
+            .unwrap();
+        let Geom::Polyline { pts, .. } = &mut outer.geom else {
+            panic!("large_end must be a polyline");
+        };
+        let n = pts.len() - 1;
+        let pivot = pts[0];
+        for i in 1..n {
+            let ang = eps * (std::f64::consts::PI * i as f64 / n as f64).sin();
+            let (s, c) = ang.sin_cos();
+            let d = P2::new(pts[i].x - pivot.x, pts[i].y - pivot.y);
+            pts[i] = P2::new(pivot.x + c * d.x - s * d.y, pivot.y + s * d.x + c * d.y);
+        }
+        // the old distance-only comparison: every distance from outer[0] is unchanged, so it passes
+        let g = ObliqueCone { r1, r2, h, e };
+        let fine = geodesic_development(&g, 16 * n);
+        let pts_now: Vec<P2> = bulged
+            .outline
+            .iter()
+            .find(|c| c.name == "large_end")
+            .and_then(|c| {
+                if let Geom::Polyline { pts, .. } = &c.geom {
+                    Some(pts.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+        let mut old_worst = 0.0f64;
+        for i in 1..=n {
+            old_worst =
+                old_worst.max((pts_now[i].dist(pts_now[0]) - fine[16 * i].dist(fine[0])).abs());
+        }
+        assert!(old_worst < 1e-9, "old check would pass: {old_worst:e}");
+        // the new directed check names the bulge
+        assert_eq!(
+            verdict_of(
+                &verify_eccentric(&bulged, r1, r2, h, e),
+                "apex_free_development_agrees"
+            ),
+            Verdict::Fail
+        );
+    }
+
+    /// RC-10 angular datums: a proper rotation of the whole plate about the apex keeps every length, the area,
+    /// the handedness and the directed congruence (Kabsch absorbs the rotation), but moves seam_a off +X and
+    /// seam_b off Psi. The datum checks are what name it, for the cone and the eccentric reducer alike.
+    #[test]
+    fn rc10_turned_plate_passes_lengths_but_fails_the_angular_datums() {
+        let cone = cone_frustum(200.0, 100.0, 300.0).unwrap();
+        let mut cone_turned = cone.clone();
+        rotate_about_origin(&mut cone_turned, 0.01);
+        let v = verify_cone(&cone_turned, 200.0, 100.0, 300.0);
+        assert_eq!(verdict_of(&v, "seam_a_on_positive_x"), Verdict::Fail);
+        assert_eq!(verdict_of(&v, "outline_counter_clockwise"), Verdict::Pass);
+        assert_eq!(verdict_of(&v, "area"), Verdict::Pass);
+        assert_eq!(
+            verdict_of(&v, "large_arc_equals_circumference"),
+            Verdict::Pass
+        );
+
+        let ecc = eccentric_reducer(200.0, 100.0, 300.0, 100.0).unwrap();
+        let mut ecc_turned = ecc.clone();
+        rotate_about_origin(&mut ecc_turned, 0.01);
+        let v = verify_eccentric(&ecc_turned, 200.0, 100.0, 300.0, 100.0);
+        assert_eq!(verdict_of(&v, "seam_a_on_positive_x"), Verdict::Fail);
+        assert_eq!(verdict_of(&v, "seam_b_at_development_angle"), Verdict::Fail);
+        assert_eq!(
+            verdict_of(&v, "apex_free_development_agrees"),
+            Verdict::Pass
+        );
+        assert_eq!(verdict_of(&v, "outline_counter_clockwise"), Verdict::Pass);
+        assert_eq!(verdict_of(&v, "seam_edges_equal_length"), Verdict::Pass);
+        assert_eq!(verdict_of(&v, "seam_equals_3d_ruling"), Verdict::Pass);
     }
 
     /// RC-09 reproducer: a rectangle turned 90° (a proper rotation, so still counter-clockwise) keeps every

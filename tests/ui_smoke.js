@@ -109,9 +109,11 @@ const controlProbe = () => {
 
   // ---- 3. every calculation family, through the form
   const FAMILIES = [['cylinder_shell', 1, 4], ['cone_frustum', 1, 4], ['eccentric_reducer', 1, 4], ['header_with_branch', 2, 5], ['branch_stub', 1, 4]];
-  // task 1.2 (review; TOLERANCE_POLICY section 8.2): the only INCONCLUSIVE product checks are the eccentric reducer's two
+  // task 1.2 (review; TOLERANCE_POLICY section 8.2): the INCONCLUSIVE product checks are the eccentric reducer's two
   // circumference checks, whose eps_rep is not certified. Every other check of every family must be PASS; none may FAIL.
-  const INCONCLUSIVE_CHECKS = { eccentric_reducer: ['large_edge_equals_circumference', 'small_edge_equals_circumference'] };
+  // RC-10 (engine 0.4.8, TOLERANCE_POLICY section 11): the reducer's drawn-area check joins them (chord-deficit
+  // allowance eps_rep x perimeter, rep_check demotes it the same way).
+  const INCONCLUSIVE_CHECKS = { eccentric_reducer: ['large_edge_equals_circumference', 'small_edge_equals_circumference', 'area'] };
   // task 1.2: the error wording is per family, as job.rs eps_assumption states it and the page shows it in #assume.
   // The sentences are copied from job.rs (EPS_NUM_BOUND, EPS_NUM_REDUCER, EPS_REP_CERTIFIED, EPS_REP_NOT_CERTIFIED).
   const EPS_NUM_SENTENCE = 'eps_num is an a-priori rounding bound, not interval-certified.';

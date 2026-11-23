@@ -56,7 +56,9 @@ for c in $C1 $C2 $C3 $C4; do
   if [ "$c" = "$C2" ]; then
     # task 1.2 (review; TOLERANCE_POLICY section 8.2): the eccentric reducer's two circumference checks are INCONCLUSIVE
     # (its eps_rep is not certified); every other check is PASS; none may FAIL. This replaces the old all-PASS expectation.
-    check "job $c (eccentric reducer): circumference checks INCONCLUSIVE, all others PASS, none FAIL" '[ "$(echo "$R" | j "sorted(c[\"name\"] for c in d[\"checks\"] if c[\"verdict\"]==\"INCONCLUSIVE\")==[\"large_edge_equals_circumference\",\"small_edge_equals_circumference\"] and all(c[\"verdict\"]==\"PASS\" for c in d[\"checks\"] if c[\"name\"] not in [\"large_edge_equals_circumference\",\"small_edge_equals_circumference\"]) and len(d[\"checks\"])>=4")" = True ]'
+    # RC-10 (engine 0.4.8, TOLERANCE_POLICY section 11): the reducer's drawn-area check joins them — its chord-deficit
+    # allowance is eps_rep times the perimeter, so rep_check demotes it the same way. The set is now three names.
+    check "job $c (eccentric reducer): circumference and area checks INCONCLUSIVE, all others PASS, none FAIL" '[ "$(echo "$R" | j "sorted(c[\"name\"] for c in d[\"checks\"] if c[\"verdict\"]==\"INCONCLUSIVE\")==[\"area\",\"large_edge_equals_circumference\",\"small_edge_equals_circumference\"] and all(c[\"verdict\"]==\"PASS\" for c in d[\"checks\"] if c[\"name\"] not in [\"area\",\"large_edge_equals_circumference\",\"small_edge_equals_circumference\"]) and len(d[\"checks\"])>=4")" = True ]'
   else
     check "job $c: all verification checks PASS"     '[ "$(echo "$R" | j "all(c[\"verdict\"]==\"PASS\" for c in d[\"checks\"]) and len(d[\"checks\"])>=4")" = True ]'
   fi
