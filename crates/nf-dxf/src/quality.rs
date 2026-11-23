@@ -1332,7 +1332,11 @@ mod tests {
         // a collinear overlap of 2 nm, below the 16·tol overlap threshold
         let mut e = plate();
         e.push(line(OUTER_LAYER, (20.0, 0.0), (20.0 + 2e-9, 0.0)));
-        must_fail("nanometre collinear overlap", &write(&e), "self_intersection");
+        must_fail(
+            "nanometre collinear overlap",
+            &write(&e),
+            "self_intersection",
+        );
         // joined neighbours and chain joints are still not crossings
         assert!(quality_gate(&write(&plate())).pass);
         assert!(quality_gate(&write(&sector())).pass);
