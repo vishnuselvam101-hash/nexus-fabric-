@@ -18,7 +18,7 @@ void main(){
     float sweep = exp(-pow((uv.x - (fract(uT * 0.07) * 2.4 - 1.2)) * 3.0, 2.0));
     col = mix(col, uAcc, ln * sweep * fade * 0.85);
   }
-  col *= smoothstep(1.25, 0.25, length(uv * vec2(0.8, 1.0)));
+  col = mix(uBg, col, smoothstep(1.25, 0.25, length(uv * vec2(0.8, 1.0))));   // vignette fades to the background, not to black
   gl_FragColor = vec4(col, 1.0);
 }`;
 
