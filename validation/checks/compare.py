@@ -110,6 +110,67 @@ def _exact_pair(ref, curve, tol, onsurf, on_tol):
 
 
 # ------------------------------------------------------------------ 1. DXF round trip
+def outline_checks(part, issues, tol, m):
+    """Checks that need only the outline and the openings: the drawn coordinates that the JSON states exactly, so they also
+    run on a withheld part (no file).  Closure and orientation of the outer loop, closure and orientation of the openings,
+    polygon validity with an independent geometry kernel."""
+    # closure and orientation of the outer loop
+    gaps = []
+    for a, b in zip(part.outline, part.outline[1:] + part.outline[:1]):
+        gaps.append(min(np.linalg.norm(p - q) for p in (a.start, a.end) for q in (b.start, b.end)))
+    m['outline_max_gap'] = float(max(gaps))
+    if max(gaps) > max(tol * 1e3, 1e-12):
+        issues.append(f'{part.name}: outline not closed, gap {max(gaps):.3e}')
+    sa = part.loop_area(part.outline)
+    m['outline_signed_area'] = float(sa)
+    if not sa > 0:
+        issues.append(f'{part.name}: outer profile is not counter-clockwise (signed area {sa:.6g})')
+    for h in part.holes:
+        if np.linalg.norm(h.start - h.end) > tol:
+            issues.append(f'{part.name}/{h.name}: opening polyline not closed')
+        if not h.area_term() < 0:
+            issues.append(f'{part.name}/{h.name}: opening is not clockwise')
+    # polygon validity with an independent geometry kernel
+    try:
+        segs = []
+        for c, start in _chain(part.outline):
+            d = c.dense(513)
+            if np.linalg.norm(d[0] - start) > np.linalg.norm(d[-1] - start):
+                d = d[::-1]
+            if segs:
+                d = d[1:]            # the shared corner is taken once (corner gaps are tested separately above)
+            segs.append(d)
+        ring = np.concatenate(segs)[:-1]
+        poly = shapely.Polygon(ring, [h.pts for h in part.holes])
+        m['polygon_valid'] = bool(poly.is_valid)
+        if not poly.is_valid:
+            issues.append(f'{part.name}: outline/opening do not form a valid polygon ({shapely.is_valid_reason(poly)})')
+        if part.holes:
+            outer = shapely.Polygon(ring)
+            hole = shapely.Polygon(part.holes[0].pts)
+            m['hole_edge_clearance'] = float(outer.exterior.distance(hole))
+            if not outer.contains(hole):
+                issues.append(f'{part.name}: opening is not inside the plate outline')
+    except Exception as ex:  # degenerate geometry
+        issues.append(f'{part.name}: polygon construction failed: {ex}')
+
+
+def json_geometry(part, issues):
+    """The geometry-only checks of a withheld part, whose file is not served (the round trip cannot run): finite coordinates,
+    the length each curve states, and outline_checks.  The same tolerances as dxf_roundtrip."""
+    scale = max(part.extent(), 1e-300)
+    tol = 1e-12 * scale
+    jc = part.view['curves'] + part.view['holes']
+    m = {'entities': len(part.ents)}
+    for e, c in zip(part.ents, jc):
+        if abs(e.length() - c['length']) > 1e-9 * scale:
+            issues.append(f"{part.name}/{c['name']}: length JSON {c['length']} vs drawn {e.length()}")
+        if not np.all(np.isfinite(e.pts)):
+            issues.append(f"{part.name}/{c['name']}: non-finite coordinates in the result")
+    outline_checks(part, issues, tol, m)
+    return m
+
+
 def dxf_roundtrip(part, issues):
     v = part.view
     scale = max(part.extent(), 1e-300)
@@ -164,45 +225,7 @@ def dxf_roundtrip(part, issues):
             issues.append(f"{part.name}/{c['name']}: length JSON {c['length']} vs DXF {e.length()}")
         if not np.all(np.isfinite(e.pts)):
             issues.append(f"{part.name}/{c['name']}: non-finite coordinates in DXF")
-    # closure and orientation of the outer loop
-    gaps = []
-    for a, b in zip(part.outline, part.outline[1:] + part.outline[:1]):
-        gaps.append(min(np.linalg.norm(p - q) for p in (a.start, a.end) for q in (b.start, b.end)))
-    m['outline_max_gap'] = float(max(gaps))
-    if max(gaps) > max(tol * 1e3, 1e-12):
-        issues.append(f'{part.name}: outline not closed, gap {max(gaps):.3e}')
-    sa = part.loop_area(part.outline)
-    m['outline_signed_area'] = float(sa)
-    if not sa > 0:
-        issues.append(f'{part.name}: outer profile is not counter-clockwise (signed area {sa:.6g})')
-    for h in part.holes:
-        if np.linalg.norm(h.start - h.end) > tol:
-            issues.append(f'{part.name}/{h.name}: opening polyline not closed')
-        if not h.area_term() < 0:
-            issues.append(f'{part.name}/{h.name}: opening is not clockwise')
-    # polygon validity with an independent geometry kernel
-    try:
-        segs = []
-        for c, start in _chain(part.outline):
-            d = c.dense(513)
-            if np.linalg.norm(d[0] - start) > np.linalg.norm(d[-1] - start):
-                d = d[::-1]
-            if segs:
-                d = d[1:]            # the shared corner is taken once (corner gaps are tested separately above)
-            segs.append(d)
-        ring = np.concatenate(segs)[:-1]
-        poly = shapely.Polygon(ring, [h.pts for h in part.holes])
-        m['polygon_valid'] = bool(poly.is_valid)
-        if not poly.is_valid:
-            issues.append(f'{part.name}: outline/opening do not form a valid polygon ({shapely.is_valid_reason(poly)})')
-        if part.holes:
-            outer = shapely.Polygon(ring)
-            hole = shapely.Polygon(part.holes[0].pts)
-            m['hole_edge_clearance'] = float(outer.exterior.distance(hole))
-            if not outer.contains(hole):
-                issues.append(f'{part.name}: opening is not inside the plate outline')
-    except Exception as ex:  # degenerate geometry
-        issues.append(f'{part.name}: polygon construction failed: {ex}')
+    outline_checks(part, issues, tol, m)
     # header data of the file
     mm = part.meta_min
     m['units_declared'] = ('comment' if any('millimetre' in c.lower() for c in mm['comment']) else 'none') + ('+text' if any('MILLIMETRE' in getattr(e, 'text', '').upper() for e in part.other) else '')
@@ -500,19 +523,27 @@ def mating(req, hpart, bpart, href, bref, hev, bev):
 
 
 def declared_side(part, pr, issues, findings, chiral):
-    """The result and the DXF must declare a marking side, the same one, and the geometry must really be drawn from it."""
+    """The result and the DXF must declare a marking side, the same one, and the geometry must really be drawn from it.
+    A withheld part has no file to read the marking text from: that half of the check is recorded not-applicable
+    (never silently dropped); the result-side declaration and the drawn-side test still run on the JSON geometry."""
     side = part.view.get('marking_side')
     pr['marking_side_declared'] = side
-    texts = [getattr(e, 'text', '').upper() for e in part.other if e.kind == 'text']
-    dxf_side = next(('outside' if 'OUTSIDE' in t else 'inside' if 'INSIDE' in t else None for t in texts if 'MARKING SIDE' in t), None)
-    pr['marking_side_in_dxf'] = dxf_side
+    if part.from_file:
+        texts = [getattr(e, 'text', '').upper() for e in part.other if e.kind == 'text']
+        dxf_side = next(('outside' if 'OUTSIDE' in t else 'inside' if 'INSIDE' in t else None for t in texts if 'MARKING SIDE' in t), None)
+        pr['marking_side_in_dxf'] = dxf_side
+    else:
+        dxf_side = None
+        pr['marking_side_in_dxf'] = None
+        pr.setdefault('not_applicable', []).append('marking side text in the DXF (file withheld)')
     if side not in ('outside', 'inside'):
         findings.append({'code': 'MARKING_SIDE_UNDECLARED', 'detail': f'{part.name}: the result declares no marking side (Spec 02 0.3)'})
         return
-    if dxf_side is None:
-        findings.append({'code': 'MARKING_SIDE_UNDECLARED', 'detail': f'{part.name}: the DXF file does not state the marking side'})
-    elif dxf_side != side:
-        issues.append(f'{part.name}: DXF states marking side {dxf_side}, result states {side}')
+    if part.from_file:
+        if dxf_side is None:
+            findings.append({'code': 'MARKING_SIDE_UNDECLARED', 'detail': f'{part.name}: the DXF file does not state the marking side'})
+        elif dxf_side != side:
+            issues.append(f'{part.name}: DXF states marking side {dxf_side}, result states {side}')
     views = pr.get('views_matching')
     if views is not None and side not in views:
         issues.append(f'{part.name}: declared as drawn from the {side.upper()}, but the geometry matches the reference only as seen from the {"/".join(views) or "?"}')
@@ -551,6 +582,9 @@ def seam_resolution_check(fam, name, pr, job, issues):
     q = pv.get('quantities', {})
     eps_num = pv.get('eps_num', 0.0)
     part = job.parts[name]
+    # extent of the written coordinates: from the DXF entities, or — for a withheld part — from the JSON vertices,
+    # which are the same drawn coordinates (a withheld part carries no arc, whose exact geometry the JSON omits),
+    # so the eps_num floor below is unchanged and the check still runs
     eps_floor = HALF_ULP * part.extent()
     if eps_num < eps_floor:
         issues.append(f'{name}: reported eps_num {eps_num:.3g} mm is below the rounding of the largest written coordinate ({eps_floor:.3g} mm)')
@@ -578,12 +612,68 @@ def compare_job(req, job, ndense=6001, dxf=True):
     dxf=False skips the DXF round trip (used only by the seeded-fault tests, which plant geometry, not files)."""
     issues, findings, rep = [], [], {'parts': {}}
     fam = req['family']
+    for name, why in job.unbuilt.items():
+        # a part the job could not build from the result is never compared, and never passes silently
+        issues.append(f'{name}: cannot be compared against the reference: {why}')
     for name, part in job.parts.items():
-        pr = {'dxf': dxf_roundtrip(part, issues) if dxf else {}}
+        if dxf and part.from_file:
+            pr = {'dxf': dxf_roundtrip(part, issues)}
+        elif dxf:
+            # the file is withheld (INCONCLUSIVE checks on the cut geometry): the round trip against the file and the
+            # other file-level checks cannot run.  The geometry-only checks still run on the JSON points (json_geometry),
+            # and the geometry comparison runs below on the part built from the JSON curves.
+            pr = {'dxf': json_geometry(part, issues),
+                  'not_applicable': ['DXF round trip against the file (JSON points vs DXF vertices, entity kinds and layers, entity list, units / header)',
+                                     'served DXF hash against dxf_sha256',
+                                     'extents header ($EXTMIN/$EXTMAX) against the true extents',
+                                     'ezdxf and the minimal reader agreement']}
+        else:
+            pr = {'dxf': {}}
         rep['parts'][name] = pr
+    # A withheld file must be withheld ONLY because checks on that part's cut geometry are INCONCLUSIVE: the result
+    # must list the part in dxf_withheld, every listed check must be INCONCLUSIVE in the part's or the interface
+    # scope, and the 409 must name exactly the listed checks.  Anything else is a defect (a file held back for a
+    # wrong reason, or a mismatch between the result and the served refusal).
+    withhold_ok = {}
+    listed_map = (job.result.get('dxf_withheld') or {}) if job.result else {}
+    for name in job.withheld:
+        listed = set(listed_map.get(name, []))
+        scoped = [c for c in job.checks() if c.get('scope') in (name, 'interface')]
+        unsure = {c['name'] for c in scoped if c.get('verdict') == 'INCONCLUSIVE'}
+        served = {c.get('name') for c in job.withheld[name].checks}
+        reasons = []
+        if name not in listed_map:
+            reasons.append('the result does not list this part in dxf_withheld')
+        elif not listed:
+            reasons.append('the result lists this part in dxf_withheld with no check: a file held back for no stated reason')
+        if not listed <= unsure:
+            reasons.append(f'listed checks not INCONCLUSIVE in the part/interface scope: {sorted(listed - unsure)}')
+        if served != listed:
+            reasons.append(f'the 409 names {sorted(served)} but the result lists {sorted(listed)}')
+        if served != unsure:
+            reasons.append(f'the 409 names {sorted(served)} but the INCONCLUSIVE checks in the part/interface scope are {sorted(unsure)}')
+        withhold_ok[name] = not reasons
+        rep.setdefault('withheld_checks', {})[name] = {
+            'name': 'dxf withheld only because of INCONCLUSIVE checks',
+            'result': 'PASS' if not reasons else 'FAIL',
+            'listed': sorted(listed), 'served_409': sorted(served),
+            **({'reasons': reasons} if reasons else {})}
+        if reasons:
+            issues.append(f'{name}: dxf withheld only because of INCONCLUSIVE checks: FAIL ({"; ".join(reasons)})')
+    for name in listed_map:
+        # the reverse of the rule above: a part the result lists as withheld must actually have been withheld (409)
+        if name not in job.withheld:
+            issues.append(f'{name}: the result lists this part in dxf_withheld, but its DXF was not withheld (DXF status {job.dxf_status.get(name)})')
     for name, st in job.dxf_status.items():
-        if st != 200:
+        # a 409 is excused only for a part whose withhold check above PASSES; every other non-200 stays an issue
+        if st != 200 and not withhold_ok.get(name):
             issues.append(f'{name}: DXF endpoint returned {st} for an accepted job')
+        # the reverse rule: a part with ANY INCONCLUSIVE check in its own or the interface scope must be withheld;
+        # a served DXF (200, part not withheld) means the engine broke the withhold rule
+        if st == 200 and name not in job.withheld:
+            unsure = sorted({c['name'] for c in job.checks() if c.get('scope') in (name, 'interface') and c.get('verdict') == 'INCONCLUSIVE'})
+            if unsure:
+                issues.append(f'{name}: DXF served although checks {unsure} are INCONCLUSIVE')
     try:
         if fam == 'cylinder_shell':
             r, _ = cmp_cylinder(req, job.parts['shell'], issues)
@@ -648,6 +738,11 @@ def compare_job(req, job, ndense=6001, dxf=True):
     for name, pr in rep['parts'].items():
         declared_side(job.parts[name], pr, issues, findings, rep.get('chiral', False))
         sides[name] = pr.get('marking_side_declared')
+    # the file-level checks skipped for a withheld part (round trip, hash, extents header, reader agreement, and the
+    # marking-side text), collected per part so the report shows exactly what was not applicable and why
+    na = {name: pr['not_applicable'] for name, pr in rep['parts'].items() if pr.get('not_applicable')}
+    if na:
+        rep['not_applicable'] = na
     if len(set(sides.values())) > 1:
         issues.append(f'parts of one job declare different marking sides: {sides}')
     if fam == 'header_with_branch' and 'mating_3d' in rep and len(set(sides.values())) == 1 and list(sides.values())[0] in ('outside', 'inside'):
@@ -689,7 +784,16 @@ def compare_scaled(job, j2, k, other, dxf=True):
         below the chord-error budget (for example a relative 1e-6 fault, far below k * eps_rep for these patterns).
     Returns (type_issues, deviations, findings, info); the caller decides whether deviations are issues or defects."""
     type_issues, devs, info, worst = [], [], {}, 0.0
+    missing = info['scale_missing_parts'] = []
     for name, p1 in job.parts.items():
+        if name not in j2.parts:
+            # the scaled job did not build this part (its DXF was neither served nor withheld for INCONCLUSIVE
+            # checks, or the part cannot be built from the JSON): record it visibly, never silently skip.  It is an
+            # issue of its own, listed in info['scale_missing_parts'], and is never counted as a detected scale fault.
+            msg = f'scale x{k}: {name} has no part in the scaled job (DXF status {j2.dxf_status.get(name)}; {j2.unbuilt.get(name, "no part built")})'
+            type_issues.append(msg)
+            missing.append(msg)
+            continue
         p2 = j2.parts[name]
         sc2 = max(p2.extent(), 1e-300)
         num = 1e-11 * sc2

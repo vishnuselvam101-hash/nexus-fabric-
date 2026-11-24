@@ -15,7 +15,7 @@ import numpy as np
 import shapely
 from checks.client import Client, USER, PASSWORD
 from checks.product import Job, Part
-from checks.compare import cmp_header, cmp_branch, compare_job, seam_resolution_check, dxf_roundtrip, declared_side, compare_scaled, scale_request, rel_tol
+from checks.compare import cmp_header, cmp_branch, cmp_cone, cmp_eccentric, compare_job, seam_resolution_check, dxf_roundtrip, declared_side, compare_scaled, scale_request, rel_tol
 from reference import families as RF
 from stability import _asm
 
@@ -40,12 +40,38 @@ def main():
     sys.exit(0 if ok else 1)
 
 
+class UnbuiltPart(RuntimeError):
+    """The job could not build a part a seeded fault needs (Job.unbuilt): one explicit FAIL line, never a crash."""
+
+
+def _guarded(label, stage, cl):
+    """A stage that cannot run to its end is one explicit FAIL line: the run goes on and no pass is reported for it."""
+    try:
+        return stage(cl)
+    except Exception as ex:
+        return False, [f'FAIL {label}: {type(ex).__name__}: {ex}']
+
+
 def run(cl):
+    ok, lines = _guarded('header and DXF faults', header_faults, cl)
+    for label, stage in (('near-tangent and scale faults', near_tangent_and_scale), ('seam faults', seam_faults),
+                         ('regime faults', regime_faults), ('verdict faults', verdict_faults)):
+        ok_s, lines_s = _guarded(label, stage, cl)
+        ok &= ok_s
+        lines += lines_s
+    lines.append('SUMMARY: verdict ' + ('PASS' if ok else 'FAIL'))
+    return ok, lines
+
+
+def header_faults(cl):
     lines = []
     W, L = 2 * math.pi * 150, 1200.0
 
     def fresh():
-        return Job(cl, cl.calculate(REQ))
+        j = Job(cl, cl.calculate(REQ))
+        if j.unbuilt:
+            raise UnbuiltPart(f'the result has a part that cannot be built: {j.unbuilt}')
+        return j
 
     def defect_002(j):
         h = j.parts['header']
@@ -108,12 +134,18 @@ def run(cl):
     j = fresh()
     h = j.parts['header']
     text = h.dxf_text
-    v = h.curve('branch_opening').pts[5]
-    old = repr(float(v[0]))
-    extra = lambda layer: text.replace('  0\nENDSEC\n  0\nEOF', f'  0\nLINE\n  8\n{layer}\n 10\n1.0\n 20\n1.0\n 11\n50.0\n 21\n60.0\n  0\nENDSEC\n  0\nEOF')
-    tamper = [('one vertex of the opening moved by 1e-6 mm in the DXF', text.replace(old, repr(float(v[0]) + 1e-6), 1) if old in text else None),
-              ('extra LINE added on CUT_INNER', extra('CUT_INNER')), ('extra LINE hidden on the NF_NOT_RELEASED layer', extra('NF_NOT_RELEASED')), ('extra LINE on a new layer', extra('SCRIBE')),
-              ('opening moved to the CUT_OUTER layer', text.replace('CUT_INNER', 'CUT_OUTER'))]
+    if text is None:
+        # a withheld header has no file to tamper with: a clear FAIL, never an exception (and never a pass)
+        ok = False
+        lines.append('FAIL DXF tampering: the header DXF is withheld, no file to plant the faults into')
+        tamper = []
+    else:
+        v = h.curve('branch_opening').pts[5]
+        old = repr(float(v[0]))
+        extra = lambda layer: text.replace('  0\nENDSEC\n  0\nEOF', f'  0\nLINE\n  8\n{layer}\n 10\n1.0\n 20\n1.0\n 11\n50.0\n 21\n60.0\n  0\nENDSEC\n  0\nEOF')
+        tamper = [('one vertex of the opening moved by 1e-6 mm in the DXF', text.replace(old, repr(float(v[0]) + 1e-6), 1) if old in text else None),
+                  ('extra LINE added on CUT_INNER', extra('CUT_INNER')), ('extra LINE hidden on the NF_NOT_RELEASED layer', extra('NF_NOT_RELEASED')), ('extra LINE on a new layer', extra('SCRIBE')),
+                  ('opening moved to the CUT_OUTER layer', text.replace('CUT_INNER', 'CUT_OUTER'))]
     for name, t in tamper:
         if t is None or t == text:
             ok = False
@@ -126,11 +158,7 @@ def run(cl):
             issues.append(f'reader failed: {ex}')
         ok &= bool(issues)
         lines.append(('ok  ' if issues else 'MISS') + f' DXF: {name}: ' + (issues[0][:150] if issues else 'not detected'))
-    ok2, lines2 = near_tangent_and_scale(cl)
-    ok3, lines3 = seam_faults(cl)
-    ok4, lines4 = regime_faults(cl)
-    ok5, lines5 = verdict_faults(cl)
-    return ok and ok2 and ok3 and ok4 and ok5, lines + lines2 + lines3 + lines4 + lines5
+    return ok, lines
 
 
 def verdict_faults(cl):
@@ -228,10 +256,24 @@ def seam_faults(cl):
 
     def seam_issues(req, plant):
         j = Job(cl, cl.calculate(req))
-        pre = compare_job(req, j)
-        pr = pre['parts']['reducer']
-        if pre['issues']:
-            return None, pre['issues']
+        if 'reducer' not in j.parts:
+            # the reducer cannot be built from the result (e.g. withheld with an arc, whose exact geometry the JSON does
+            # not state): the seam faults cannot be planted, so the case is an explicit FAIL, never a pass
+            return None, [f'the reducer cannot be built from the result: {j.unbuilt.get("reducer", j.refusal_text()[:120] or "no part")}']
+        if 'reducer' in j.withheld:
+            # The reducer file is withheld (its cut-geometry checks are INCONCLUSIVE by design).  These seam faults
+            # plant into the JSON/report, not the file, so they need only the geometry report and seam_resolution_check,
+            # neither of which reads the file.  Build that report straight from the family comparator on the part the
+            # Job constructed from the JSON curves, so the faults stay applicable without the served DXF.
+            issues = []
+            cmp = cmp_eccentric if req['family'] == 'eccentric_reducer' else cmp_cone
+            pr, _ = cmp(req, j.parts['reducer'], issues)
+        else:
+            pre = compare_job(req, j)
+            pr = pre['parts']['reducer']
+            issues = pre['issues']
+        if issues:
+            return None, issues
         plant(j)
         out = []
         seam_resolution_check(req['family'], 'reducer', pr, j, out)
@@ -253,6 +295,10 @@ def seam_faults(cl):
     def cone_old_floor_g11_pass(j):
         cone_old_floor(j)
         g11_pass(j)
+    # Every one of these faults plants into the JSON/report (the G11 gate verdict, the reported seam_gap, eps_num),
+    # never into the DXF file, so each stays applicable while the eccentric reducer file is withheld: seam_issues
+    # builds the geometry from the JSON curves.  None needs the released reducer file, so none is moved to another
+    # case and none is not applicable: no fault is dropped.
     for name, req, plant in (('reducer: seam gap below 2 eps_rep reported with G11 PASS', red, g11_pass),
                              ('reducer: reported seam_gap 100 x the real one', red, gap_x100),
                              ('cone: resolution left at the bare 1e-9 mm where 2 eps_num is far above it', cone, cone_old_floor),
@@ -372,15 +418,23 @@ def near_tangent_and_scale(cl):
     out.append(('ok  ' if not (t_i or devs) else 'FAIL') + f' control: unmodified pattern at scale {K} passes the scale relation' + ('' if not (t_i or devs) else ': ' + (t_i + devs)[0][:170]))
     j2 = Job(cl, cl.calculate(other))
     _scale_entities(j2, 1 + 1e-6)
-    t_i, devs, _, _ = compare_scaled(base, j2, K, other, dxf=False)
-    report(f'scale relation: pattern at scale {K} multiplied by {K} x (1 + 1e-6)', bool(t_i or devs), (t_i + devs)[0] if (t_i or devs) else '')
+    t_i, devs, _, info = compare_scaled(base, j2, K, other, dxf=False)
+    # a part missing from the scaled job is not a detection of the planted fault: it is reported on its own
+    real = [s for s in t_i if s not in info['scale_missing_parts']] + devs
+    report(f'scale relation: pattern at scale {K} multiplied by {K} x (1 + 1e-6)', bool(real), real[0] if real else '')
+    if info['scale_missing_parts']:
+        ok = False
+        out.append(f'FAIL scale relation: {info["scale_missing_parts"][0]} (a missing part is not a detected fault)')
     # polylines only (lines and arcs exact): the chord-error test cannot see a relative 1e-6 change of the polylines, so
     # this fault must be caught by the exact reference comparison of the scaled pattern
     j3 = Job(cl, cl.calculate(other))
     _scale_entities(j3, 1 + 1e-6, kinds=('polyline',))
-    t_i, devs, _, _ = compare_scaled(base, j3, K, other, dxf=False)
+    t_i, devs, _, info = compare_scaled(base, j3, K, other, dxf=False)
     exact_msgs = [s for s in devs if 'exact reference comparison' in s]
     report(f'scale relation: polylines only multiplied by {K} x (1 + 1e-6), caught by the exact reference comparison', bool(exact_msgs), exact_msgs[0] if exact_msgs else '')
+    if info['scale_missing_parts']:
+        ok = False
+        out.append(f'FAIL scale relation: {info["scale_missing_parts"][0]} (a missing part is not a detected fault)')
     return ok, out
 
 

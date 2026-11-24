@@ -238,6 +238,8 @@ const factsCache = new Map();
 const summarise = (c) => ({
   id: c.id, outcome: c.outcome, noResult: !c.patterns.length, superseded_by: c.superseded_by, supersedes: c.supersedes, state: c.state,
   parts: c.patterns.map((p) => ({ part: p.part, cls: p.class, sha: p.dxf_sha256, ...extent(p), curves: p.curves.length, holes: p.holes.length })),
+  // the parts whose DXF the server withholds while a check on their cut geometry is INCONCLUSIVE (part -> check names)
+  withheld: c.dxf_withheld || {},
   gates: ['PASS', 'INCONCLUSIVE', 'FAIL', 'NOT_IMPLEMENTED', 'NOT_RUN'].map((r) => c.gates.filter((g) => g.result === r).length),
   checks: [c.checks.filter((k) => k.verdict === 'PASS').length, c.checks.length],
   advOpen: c.advisories.filter((a) => a.state === 'open').length, replay: c.replay ? c.replay.matches : null,
@@ -1434,8 +1436,12 @@ const views = {
           $('#assume').innerHTML = `<ul>${p.assumptions.map((a) => `<li>${eng(a)}</li>`).join('')}</ul>`;
           const seams = all.filter(isSeam).map((k) => k.name);
           $('#cnotes').innerHTML = `<span class="cn" id="pv-side"><span>${p.marking_side ? h('cn.side', { side: esc(sideText(p.marking_side)) }) : esc(t('cn.side.none'))}</span></span><span class="cn"><span>${esc(t('cn.not'))}</span></span>${seams.length ? `<span class="cn" title="${esc(t('cn.seams.tip'))}"><span>${h('cn.seams', { names: seams.map(mono).join(', ') })}</span></span>` : ''}`;
-          $('#dxfseg').innerHTML = blocked ? tag('na', t('dxf.withheld')) : `<a class="btn" id="dxf" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}" download aria-label="${esc(t('dxf.aria', { part: partText(p.part) }))}" data-tip="${esc(t('dxf.tip', { part: partText(p.part) }))}" data-tip-pos="end">${ic('download')}${esc(t('dxf.btn'))}</a>${c.patterns.length > 1 ? `<button id="dxf-all" aria-label="${esc(t('dxf.all.aria', { n: c.patterns.length }))}" data-tip="${esc(t('dxf.all.tip'))}" data-tip-pos="end">${esc(t('dxf.all', { n: c.patterns.length }))}</button>` : ''}`;
-          const all2 = $('#dxf-all'); if (all2) all2.onclick = async () => { for (const q of c.patterns) { const a = document.createElement('a'); a.href = `/api/calculations/${c.id}/dxf/${encodeURIComponent(q.part)}`; a.download = ''; document.body.append(a); a.click(); a.remove(); await new Promise((res) => setTimeout(res, 350)); } toast(() => esc(t('dxf.all.toast', { n: c.patterns.length })), 'warn'); };
+          // a part whose cut-geometry checks are INCONCLUSIVE gets no file: the tag names those checks, and
+          // "all parts" offers only the parts whose checks are all decided, so no withheld file is requested
+          const wh = (c.dxf_withheld && c.dxf_withheld[p.part]) || [];
+          const dl = c.patterns.filter((q) => !(c.dxf_withheld && c.dxf_withheld[q.part] && c.dxf_withheld[q.part].length));
+          $('#dxfseg').innerHTML = blocked || wh.length ? `${tag('na', t('dxf.withheld'))}${wh.length ? `<span class="sub">${h('dxf.withheld.why', { names: wh.map((n) => named('check', n)).join(', ') })}</span>` : ''}` : `<a class="btn" id="dxf" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}" download aria-label="${esc(t('dxf.aria', { part: partText(p.part) }))}" data-tip="${esc(t('dxf.tip', { part: partText(p.part) }))}" data-tip-pos="end">${ic('download')}${esc(t('dxf.btn'))}</a>${dl.length > 1 ? `<button id="dxf-all" aria-label="${esc(t('dxf.all.aria', { n: dl.length }))}" data-tip="${esc(t('dxf.all.tip'))}" data-tip-pos="end">${esc(t('dxf.all', { n: dl.length }))}</button>` : ''}`;
+          const all2 = $('#dxf-all'); if (all2) all2.onclick = async () => { for (const q of dl) { const a = document.createElement('a'); a.href = `/api/calculations/${c.id}/dxf/${encodeURIComponent(q.part)}`; a.download = ''; document.body.append(a); a.click(); a.remove(); await new Promise((res) => setTimeout(res, 350)); } toast(() => esc(t('dxf.all.toast', { n: dl.length })), 'warn'); };
           $('#tblock').innerHTML = [[t('tb.part'), partName(p.part)], [t('tb.job'), `<span class="mono">#${c.id}</span>`], [t('tb.engine'), `<span class="mono">${esc(c.engine)}</span>`], [t('tb.side'), p.marking_side ? esc(sideText(p.marking_side)) : esc(t('tb.side.none'))], [t('tb.status'), `<span class="tag t-warn">${esc(t('tb.nr'))}</span>${stateTag(state)}`]].map(([k, v]) => `<span class="tb"><span class="k">${esc(k)}</span><span class="v">${v}</span></span>`).join('');
           viewer.setPattern(p); showSel(null);
           viewer.setGhost(wsState.ghost && prev ? prev.patterns.find((x) => x.part === p.part) || null : null);
@@ -1463,7 +1469,7 @@ const views = {
     render({ all }) {
       const rows = all.filter((c) => c.facts && !c.facts.noResult).flatMap((c) => c.facts.parts.map((p) => ({ c, p })));
       const refused = all.filter((c) => c.facts && c.facts.noResult).length;
-      const dxfCell = ({ c, p }) => { const s = effState(c); return s === 'SUPERSEDED' ? `<span class="sub">${c.facts.superseded_by ? h('mfg.w.sup.by', { job: `<a href="#/calc/${c.facts.superseded_by}">#${c.facts.superseded_by}</a>` }) : esc(t('mfg.w.sup'))}</span>` : s === 'REJECTED' ? `<span class="sub">${esc(t('mfg.w.rej'))}</span>` : `<a class="btn" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}" download aria-label="${esc(t('mfg.dl.aria', { id: c.id, part: partText(p.part) }))}">${ic('download')}${esc(t('mfg.dl'))}</a>`; };
+      const dxfCell = ({ c, p }) => { const s = effState(c); const wh = (c.facts.withheld && c.facts.withheld[p.part]) || []; return s === 'SUPERSEDED' ? `<span class="sub">${c.facts.superseded_by ? h('mfg.w.sup.by', { job: `<a href="#/calc/${c.facts.superseded_by}">#${c.facts.superseded_by}</a>` }) : esc(t('mfg.w.sup'))}</span>` : s === 'REJECTED' ? `<span class="sub">${esc(t('mfg.w.rej'))}</span>` : wh.length ? `<span class="sub">${esc(t('mfg.w.inc'))}</span>` : `<a class="btn" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}" download aria-label="${esc(t('mfg.dl.aria', { id: c.id, part: partText(p.part) }))}">${ic('download')}${esc(t('mfg.dl'))}</a>`; };
       return {
         title: t('nav.manufacturing'), crumbs: [[t('nav.manufacturing')]],
         html: `<div class="page">${ph(esc(t('nav.manufacturing')), esc(t('mfg.sub')))}

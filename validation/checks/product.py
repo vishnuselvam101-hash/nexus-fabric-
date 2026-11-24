@@ -7,6 +7,8 @@ import math
 import numpy as np
 import shapely
 
+from .client import Withheld, DxfError
+
 try:
     import ezdxf
     HAVE_EZDXF = True
@@ -197,27 +199,48 @@ def split_grouped_outline(ents, curves):
 
 
 class Part:
-    def __init__(self, view, dxf_text):
+    def __init__(self, view, dxf_text=None):
         self.view = view
         self.name = view['part']
         self.family = view['family']
         self.q = view['quantities']
         self.eps_num, self.eps_rep = view['eps_num'], view['eps_rep']
-        self.dxf_text = dxf_text
-        self.all_min, self.meta_min = read_dxf_minimal(dxf_text)
-        self.all, self.meta = (read_dxf_ezdxf(dxf_text) if HAVE_EZDXF else (self.all_min, self.meta_min))
-        self.all_min = split_grouped_outline(self.all_min, view['curves'])
-        self.all = split_grouped_outline(self.all, view['curves'])
-        # geometry that would be cut: everything on a CUT_* layer.  Anything else is kept separately and policed
-        # by the round-trip check (only non-cutting TEXT on NF_NOT_RELEASED is tolerated).
-        is_cut = lambda e: e.layer.startswith('CUT')
-        self.ents = [e for e in self.all if is_cut(e)]
-        self.ents_min = [e for e in self.all_min if is_cut(e)]
-        self.other = [e for e in self.all if not is_cut(e)]
+        self.from_file = dxf_text is not None
         jc = view['curves'] + view['holes']
         self.n_outline = len(view['curves'])
-        for e, c in zip(self.ents, jc):
-            e.name = c['name']
+        if self.from_file:
+            self.dxf_text = dxf_text
+            self.all_min, self.meta_min = read_dxf_minimal(dxf_text)
+            self.all, self.meta = (read_dxf_ezdxf(dxf_text) if HAVE_EZDXF else (self.all_min, self.meta_min))
+            self.all_min = split_grouped_outline(self.all_min, view['curves'])
+            self.all = split_grouped_outline(self.all, view['curves'])
+            # geometry that would be cut: everything on a CUT_* layer.  Anything else is kept separately and policed
+            # by the round-trip check (only non-cutting TEXT on NF_NOT_RELEASED is tolerated).
+            is_cut = lambda e: e.layer.startswith('CUT')
+            self.ents = [e for e in self.all if is_cut(e)]
+            self.ents_min = [e for e in self.all_min if is_cut(e)]
+            self.other = [e for e in self.all if not is_cut(e)]
+            for e, c in zip(self.ents, jc):
+                e.name = c['name']
+        else:
+            # JSON-only part (the file is withheld): the drawn vertices of lines and polylines are exact in the
+            # result, so the geometry is compared without the file.  An arc carries only a display polyline in the
+            # JSON, not its exact centre/radius/angles; it cannot be reconstructed, so refuse rather than approximate.
+            self.dxf_text = None
+            self.all = self.all_min = self.meta = self.meta_min = self.other = None
+            self.ents = []
+            for i, c in enumerate(jc):
+                if c['kind'] == 'arc':
+                    raise ValueError(f"{self.name}/{c['name']}: a withheld part carries an arc, whose exact geometry the JSON does not state")
+                pts = c['points']
+                # An opening is a closed profile: the DXF writes the closed flag WITHOUT repeating the first vertex,
+                # and the JSON drops that repeated closing vertex (the round-trip convention, compare.py dxf_roundtrip).
+                # Both DXF readers re-append it; do the same here, or the polyline is missing its closing segment and
+                # the reference curve is not covered across that gap.  Outline curves are open chains, never closed.
+                if i >= self.n_outline and c['kind'] == 'polyline' and pts and pts[0] != pts[-1]:
+                    pts = pts + [pts[0]]
+                self.ents.append(PCurve(c['kind'], c['layer'], pts, name=c['name']))
+            self.ents_min = self.ents
         self.outline = self.ents[:self.n_outline]
         self.holes = self.ents[self.n_outline:]
 
@@ -286,6 +309,8 @@ class Job:
         self.result = submitted['result']
         self.parts = {}
         self.dxf_status = {}
+        self.withheld = {}
+        self.unbuilt = {}      # part -> why the part cannot be built from the result (compare_job reports it as an issue)
         r = self.result
         self.outcome = r.get('outcome') if r else None
         self.state = r.get('state') if r else None
@@ -297,10 +322,22 @@ class Job:
         self.refusal_code = submitted.get('code') or ((r or {}).get('refusal') or {}).get('code')
         if r and self.accepted:
             for pv in r['patterns']:
-                st, text = client.dxf(self.id, pv['part'])
+                try:
+                    st, payload = client.dxf(self.id, pv['part'])
+                except DxfError as ex:
+                    self.dxf_status[pv['part']] = ex.status      # not served and not the withhold marker
+                    continue
                 self.dxf_status[pv['part']] = st
-                if st == 200:
-                    self.parts[pv['part']] = Part(pv, text)
+                try:
+                    if st == 200:
+                        self.parts[pv['part']] = Part(pv, payload)
+                    elif isinstance(payload, Withheld):
+                        self.withheld[pv['part']] = payload
+                        self.parts[pv['part']] = Part(pv)        # JSON-only: the geometry comparison still runs
+                except ValueError as ex:
+                    # a part that cannot be represented (a withheld part with an arc: its exact geometry is not in the
+                    # JSON, and is not approximated) is recorded, never raised: the run goes on and compare_job reports it
+                    self.unbuilt[pv['part']] = str(ex)
 
     @property
     def refused(self):

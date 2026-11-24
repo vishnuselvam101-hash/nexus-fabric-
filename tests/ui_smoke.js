@@ -221,7 +221,11 @@ const controlProbe = () => {
   await go('workspace'); const wsRow = await p.locator('#jobs-all tbody tr', { hasText: `Job #${R}` }).textContent();
   await go('verification'); const verRow = await p.locator('#jobs-ver tbody tr', { hasText: `Job #${R}` }).textContent();
   check('refusal: absent from DXF outputs, labelled NO RESULT in the job lists', (await (async () => { await go('manufacturing'); return p.locator('#tbl-dxf tbody tr', { hasText: `Job #${R}` }).count(); })()) === 0 && /1 job produced no pattern/.test(mfg) && /No result/.test(wsRow) && /No result/.test(verRow) && /none run/.test(verRow), { wsRow, verRow });
-  check('manufacturing: one row per part with extents, hash and download', (await p.locator('#tbl-dxf tbody tr').count()) === 6 && (await p.locator('#tbl-dxf a[href*="/dxf/"]').count()) === 6 && /CUT_OUTER/.test(mfg));
+  // The reducer's file is withheld (its cut-geometry checks are INCONCLUSIVE by design): its row stays, with the
+  // withheld note in place of the link, so 5 of the 6 parts offer a download.
+  const mfgRed = p.locator('#tbl-dxf tbody tr', { hasText: `Job #${jobs.eccentric_reducer}` });
+  const mfgRedCell = (await mfgRed.count()) === 1 ? (await mfgRed.locator('td').last().textContent()).trim() : '';
+  check('manufacturing: one row per part with extents, hash and download; the withheld reducer offers no file', (await p.locator('#tbl-dxf tbody tr').count()) === 6 && (await p.locator('#tbl-dxf a[href*="/dxf/"]').count()) === 5 && (await mfgRed.count()) === 1 && (await mfgRed.locator('a[href*="/dxf/"]').count()) === 0 && /withheld/i.test(mfgRedCell) && /CUT_OUTER/.test(mfg), { mfgRedCell });
 
   // ---- 4. pattern viewer on the eccentric reducer: real geometry read-out, selection, zoom, pan, fit, measure
   const J = jobs.eccentric_reducer;
@@ -261,10 +265,20 @@ const controlProbe = () => {
   check('quantities: every value has a unit, angles in degrees, one precision', new RegExp(`Developed angle ?developed_angle ?${n3(data.patterns[0].quantities.developed_angle * 180 / Math.PI)} ° \\(${n3(data.patterns[0].quantities.developed_angle)} rad\\)`).test(quant) && quant.includes(`${n3(data.patterns[0].quantities.area)} mm²`) && !/unit not stated/.test(quant), quant);
   check('viewer: canvas exposes an accessible description', /Flat pattern of reducer: 4 curves, extents/.test(await p.getAttribute('.pv', 'aria-label')));
 
-  // ---- 5. DXF download
+  // ---- 5. DXF download. The reducer's file is withheld: eps_rep is not certified, so its two edge-circumference
+  // checks and its area check are INCONCLUSIVE by design and the server answers 409. The job view must say so and
+  // offer no file; the download itself is asserted on the cylinder shell, whose checks are all decided.
+  const whNames = (data.dxf_withheld || {})[data.patterns[0].part] || [];
+  const segText = (await p.textContent('#dxfseg')).replace(/\s+/g, ' ');
+  check('DXF withheld: the reducer shows the withheld tag naming its INCONCLUSIVE checks, and offers no download',
+    whNames.length > 0 && (await p.locator('#dxfseg .tag:text-is("DXF withheld")').count()) === 1 &&
+    segText.includes('INCONCLUSIVE') && whNames.every((n) => segText.includes(n.replaceAll('_', ' '))) &&
+    (await p.locator('#dxf, #dxf-all, a[href*="/dxf/"]').count()) === 0, { whNames, segText });
+  await go(`calc/${jobs.cylinder_shell}`, '.pv'); await p.waitForSelector('.pv .c', { state: 'attached' });
   const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#dxf')]);
   const dxf = fs.readFileSync(await dl.path(), 'utf8');
   check('DXF: downloads, file name marked NOT-RELEASED, content ends with EOF', dl.suggestedFilename().startsWith('NOT-RELEASED_REVIEW_REQUIRED') && dxf.trimEnd().endsWith('EOF') && dxf.length > 1000, dl.suggestedFilename());
+  await go(`calc/${J}`, '.pv'); await p.waitForSelector('.pv .c', { state: 'attached' });
 
   // ---- 6. replay audit
   await p.click('#replay'); await p.waitForSelector('#tp-ws-records:not([hidden]) >> text=stored records checked');

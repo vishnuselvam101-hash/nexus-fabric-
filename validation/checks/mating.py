@@ -274,7 +274,13 @@ def run(cl):
         j = Job(cl, cl.calculate(req))
         if not j.accepted or 'header' not in j.parts or 'branch' not in j.parts:
             ok = False
-            lines.append(f'FAIL mating ({label}): the joint was not accepted with both files: {j.refusal_text()[:160]}')
+            why = ('the joint was not accepted with both files: ' + j.refusal_text()[:160]) if not j.accepted else f'a part cannot be built from the result: {str(j.unbuilt)[:200]}'
+            lines.append(f'FAIL mating ({label}): {why}')
+            continue
+        if not (j.parts['header'].from_file and j.parts['branch'].from_file):
+            # a withheld part has no file (meta_min / dxf_text are None): the DXF-only test cannot run on it
+            ok = False
+            lines.append(f'FAIL mating ({label}): a part DXF is withheld ({sorted(j.withheld)}); the DXF-only mating test needs both files')
             continue
         try:
             st = stated_values(j.parts['header'].meta_min['comment'], j.parts['branch'].meta_min['comment'])

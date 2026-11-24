@@ -23,7 +23,7 @@ sys.path.insert(0, HERE)
 import numpy as np
 import shapely
 
-from checks.client import Client, SpawnedServer, USER, PASSWORD, SETUP_TOKEN_ENV
+from checks.client import Client, SpawnedServer, USER, PASSWORD, SETUP_TOKEN_ENV, DxfError
 from checks.product import Job
 from checks.compare import compare_job, compare_scaled, rel_tol, scale_request
 from checks.oracle import classify
@@ -172,8 +172,17 @@ def check_relation(case, job, issues, findings, info):
             i = t.index('  2\nENTITIES\n')
             k = t.find('  0\nTEXT\n', i)
             return t[i:k if k >= 0 else len(t)]
-        if cut(job.parts['branch'].dxf_text) != cut(j2.parts['branch'].dxf_text):
-            issues.append('branch_stub DXF differs from the branch part of the assembly')
+        b1, b2 = job.parts['branch'], j2.parts['branch']
+        if b1.from_file and b1.dxf_text is not None and b2.from_file and b2.dxf_text is not None:
+            if cut(b1.dxf_text) != cut(b2.dxf_text):
+                issues.append('branch_stub DXF differs from the branch part of the assembly')
+        else:
+            # a withheld branch has no file: the byte comparison is NOT APPLICABLE (recorded, never a pass);
+            # the drawn entities are compared instead (the JSON vertices of a withheld part are exact)
+            missing = [n for n, b in (('assembly branch', b1), ('stub', b2)) if not (b.from_file and b.dxf_text is not None)]
+            info['stub_byte_compare'] = 'NOT APPLICABLE: DXF withheld for ' + ' and '.join(missing)
+            if len(b1.ents) != len(b2.ents) or any(e1.kind != e2.kind or e1.layer != e2.layer or e1.pts.shape != e2.pts.shape or np.abs(e1.pts - e2.pts).max() > 0 for e1, e2 in zip(b1.ents, b2.ents)):
+                issues.append('branch_stub pattern differs from the branch part of the assembly (entity kinds, layers and points compared; DXF byte comparison NOT APPLICABLE)')
     elif t == 'equivalent_outline':
         j2 = submit(rel['other'])
         if j2.refused:
@@ -200,9 +209,13 @@ def check_refusal(case, job, findings):
         if job.state == 'APPROVED':
             findings.append({'code': 'REFUSAL_NOT_CLEAN', 'detail': 'refused job is in state APPROVED'})
         for part in PARTS.get(fam, []):
-            st, _ = _client.dxf(job.id, part)
-            if st == 200:
-                findings.append({'code': 'REFUSAL_NOT_CLEAN', 'detail': f'refused job serves a DXF for part {part}'})
+            try:
+                st, _ = _client.dxf(job.id, part)
+            except DxfError as e:
+                st = e.status
+            # only 404 (no file) holds: a 200 serves a DXF, and a 409 (withheld) is still a file the refused job answered for
+            if st != 404:
+                findings.append({'code': 'REFUSAL_NOT_CLEAN', 'detail': f'DXF request for part {part} of a refused job answered HTTP {st}, expected 404'})
         if not job.outcome:
             findings.append({'code': 'REFUSAL_NOT_CLEAN', 'detail': 'refused job has no stated outcome'})
     if exp.get('kind') == 'malformed' and job.http != 400:

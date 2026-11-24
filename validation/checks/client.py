@@ -12,6 +12,24 @@ USER, PASSWORD = 'validator', 'independent-check-7'
 SETUP_TOKEN_ENV = 'NF_SETUP_TOKEN'
 
 
+class Withheld:
+    """The server's 409 marker: the DXF is withheld because verification checks on the cut geometry are INCONCLUSIVE."""
+
+    def __init__(self, checks, error):
+        self.checks, self.error = checks, error      # checks: the list of {name, reason} dicts the server names
+
+    def __repr__(self):
+        return f'Withheld({[c.get("name") for c in self.checks]!r})'
+
+
+class DxfError(RuntimeError):
+    """A DXF request that was neither served (200) nor withheld for INCONCLUSIVE checks (the 409 withhold code)."""
+
+    def __init__(self, status, body):
+        super().__init__(f'DXF endpoint returned {status}')
+        self.status, self.body = status, body
+
+
 class Client:
     def __init__(self, base):
         self.base = base.rstrip('/')
@@ -88,7 +106,17 @@ class Client:
 
     def dxf(self, calc_id, part):
         st, b = self.raw('GET', f'/api/calculations/{calc_id}/dxf/{part}')
-        return st, b.decode('utf-8', 'replace')
+        if st == 200:
+            return st, b.decode('utf-8', 'replace')
+        if st == 409:
+            try:
+                r = json.loads(b)
+            except Exception:
+                r = {}
+            # the withhold marker: the file is held back only because a check on the cut geometry is INCONCLUSIVE
+            if r.get('code') == 'dxf_withheld_inconclusive':
+                return st, Withheld(r.get('checks', []), r.get('error', ''))
+        raise DxfError(st, b)
 
 
 class SpawnedServer:
