@@ -790,8 +790,8 @@ const JA = {
   'lic.f.from': '有効開始', 'lic.f.until': '有効終了', 'lic.f.grace': '猶予期限', 'lic.f.days': '評価版の残り日数',
   'lic.f.issuer': '発行者', 'lic.f.key': '発行者鍵', 'lic.f.rollback': '時計の巻き戻し', 'lic.f.contact': '更新窓口',
   'lic.ed.pilot': 'パイロット', 'lic.ed.standard': 'スタンダード', 'lic.ed.site': 'サイト', 'lic.none': 'なし',
-  'lic.install.h': 'ライセンスキーファイル（.nflic）のインストール', 'lic.install.go': 'インストール', 'lic.install.busy': 'インストール中…',
-  'lic.install.done': 'ライセンスをインストールしました — 状態：{state}。', 'lic.install.none': '.nflicファイルを選択してください。',
+  'lic.install.h': 'ライセンスキーファイル（`.nflic`）のインストール', 'lic.install.go': 'インストール', 'lic.install.busy': 'インストール中…',
+  'lic.install.done': 'ライセンスをインストールしました — 状態：{state}。', 'lic.install.none': '`.nflic`ファイルを選択してください。',
   'lic.install.foot': 'ファイルは、このビルドに組み込まれた発行者鍵でオフライン検証されます。月次のキーは中部総合が発行します。インストールによって削除されるものはありません。',
 };
 
