@@ -16,7 +16,7 @@ Specification 02 (EV-1: not independently reviewed). Every number here is taken 
 Specification 02 (section and line), or is written as an open decision for the owner or a question for a fabrication
 engineer. The only exceptions are three illustrations computed for this document from cited inputs (sections 0.1 and
 3.1), each labelled as such: they are not product outputs, not dimensions and not acceptance values. Line numbers of
-files refer to commit `b032c7d`. Nothing in this design needs a network call, telemetry, a CDN, a cloud service, an
+files refer to commit `a92de8a`. Nothing in this design needs a network call, telemetry, a CDN, a cloud service, an
 update service or any automated drawing reading: every input is typed by a person or recorded as a fabrication value, and every computation is
 local and deterministic.
 

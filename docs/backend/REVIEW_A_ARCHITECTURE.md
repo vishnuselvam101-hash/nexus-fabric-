@@ -1,6 +1,6 @@
 # Review A: architecture, reliability, security and maintainability of the two fix passes
 
-Reviewer A (independent). 19 November 2026. Reviewed tree: `a447b0a` (fix passes `4fa1893` and `469c6d9`). I did not change any product code, test or other document. Everything below was checked by reading the code and by running it. I built `nf-server` from this tree in my scratch directory (engine `nf-engine 0.3.0+src.51e755711d5e5d55`), ran copies on ports 8840 to 8852 with temporary data directories, and changed databases only in those directories. Mutation tests ran in a scratch copy of the repository.
+Reviewer A (independent). 19 November 2026. Reviewed tree: `3b222bc` (fix passes `0c0a577` and `4c05456`). I did not change any product code, test or other document. Everything below was checked by reading the code and by running it. I built `nf-server` from this tree in my scratch directory (engine `nf-engine 0.3.0+src.51e755711d5e5d55`), ran copies on ports 8840 to 8852 with temporary data directories, and changed databases only in those directories. Mutation tests ran in a scratch copy of the repository.
 
 Commands and scripts I used (all in the scratchpad `reviewA/`): `start.sh` and `lib.sh` (start a server and call it), `tamper.py` (edits stored results), `burst.py` (simultaneous sign-ins), `slow.py` (slow connections), `gen.py` (bulk jobs), `mutate.py` (reverts a fix and runs its test).
 
@@ -113,7 +113,7 @@ Problems in `.github/workflows/quality-gate.yml`, checked against the repository
 
 1. **The last step fails deterministically.** `python3 validation/run_all.py --spawn target/release/nf-server --quick` against this build exits **1**: "FAIL (126 s) … EPS_NUM_EXCEEDED 2 DEFECT e.g. N-tangent-d-b90-g2e-06". Quick mode deliberately includes `N-tangent-d-b90-g2e-06`, which checks D4/BE-038, a defect that is still open. The committed `validation/results/latest.json` says `"verdict": "FAIL"`. So no change can merge, or the gate gets bypassed.
 2. `python3 -m pip install -r validation/requirements.txt` uses the system Python on `ubuntu-24.04`. PEP 668 ("externally-managed-environment") may refuse this. I could not run Actions to confirm. Use `actions/setup-python` or a virtual environment.
-3. **Browser tests are flaky.** The commit message of `469c6d9` admits `tests/ui_smoke.js` "obligation: waived" failed 1 run in 4. The server is started with `&` and `sleep 2` instead of polling health.
+3. **Browser tests are flaky.** The commit message of `4c05456` admits `tests/ui_smoke.js` "obligation: waived" failed 1 run in 4. The server is started with `&` and `sleep 2` instead of polling health.
 4. **Steps that do pass locally:**
    - `cargo build --release --locked`, `cargo clippy --all-targets --locked -D warnings`, `cargo test --workspace` (98 tests);
    - `tests/e2e_smoke.sh` (89/89) and `tests/security_smoke.sh` (66/66), run in a scratch copy.
@@ -311,7 +311,7 @@ Running the validation suite created untracked `validation/**/__pycache__/` dire
 
 ## 6. Status after the builder pass (22 November 2026, branch wt/server-sec)
 
-Evidence: `nf-sandbox cargo test -p nf-server` gives 103 unit tests and 8 integration tests passing (baseline at 363d7de: 76 and 8; the 7 PDF-converter tests need `cargo build -p nf-pdf --bins` first). `cargo clippy -p nf-server --all-targets -- -D warnings` and `cargo fmt -p nf-server -- --check` are clean. The tests named below were run red against the code before their fix, except where noted: `ra007_*`, `ra009_a_setup_token_*`, `ra016_*`, `ra010_*`, `ra006_known_addresses_*`, `ra003_an_anchored_log_*` and the `ra003` startup/restart checks were written after their fixes. The two `behind_an_unconfigured_local_proxy` tests were checked red by disabling the rule (`unattributed_peer` forced to false).
+Evidence: `nf-sandbox cargo test -p nf-server` gives 103 unit tests and 8 integration tests passing (baseline at f403297: 76 and 8; the 7 PDF-converter tests need `cargo build -p nf-pdf --bins` first). `cargo clippy -p nf-server --all-targets -- -D warnings` and `cargo fmt -p nf-server -- --check` are clean. The tests named below were run red against the code before their fix, except where noted: `ra007_*`, `ra009_a_setup_token_*`, `ra016_*`, `ra010_*`, `ra006_known_addresses_*`, `ra003_an_anchored_log_*` and the `ra003` startup/restart checks were written after their fixes. The two `behind_an_unconfigured_local_proxy` tests were checked red by disabling the rule (`unattributed_peer` forced to false).
 
 | Item | Status | Where (crates/nf-server/src) | Test(s) | Behaviour old → new |
 |---|---|---|---|---|
@@ -331,9 +331,9 @@ Evidence: `nf-sandbox cargo test -p nf-server` gives 103 unit tests and 8 integr
 | RC-20 | partly | `storage.rs` `TRIGGERS` | as RA-003 | Triggers stop code and accidental edits; a file writer is detected by the anchor. |
 | RC-21, RC-31 | left | — | — | Need `project_records` and schema v4 (task 3.4). |
 
-### Review round 3 (rebased onto 556b7c3)
+### Review round 3 (rebased onto 05d81cf)
 
-Branch rebased onto origin `dev/nexus-fabric-strategy-8guhxz` (556b7c3, engine 0.4.4). Added: `ra016_an_ipv4_client_on_a_mapped_loopback_listener_is_the_same_client` (`::ffff:127.0.0.1` is the loopback proxy, mapped before every check), `ra006_a_remote_peer_with_a_forged_forwarded_address_is_still_limited_by_its_real_address` (a remote peer's forged X-Forwarded-For does not reach the unattributed branch; this one is a regression guard and was not red before). `v34_…` now pins its anonymous-audit minute (`App::anon_minute`, test-only), so the per-minute limit no longer depends on the wall clock. The v34 assertion is unchanged.
+Branch rebased onto origin `dev/nexus-fabric-strategy-8guhxz` (05d81cf, engine 0.4.4). Added: `ra016_an_ipv4_client_on_a_mapped_loopback_listener_is_the_same_client` (`::ffff:127.0.0.1` is the loopback proxy, mapped before every check), `ra006_a_remote_peer_with_a_forged_forwarded_address_is_still_limited_by_its_real_address` (a remote peer's forged X-Forwarded-For does not reach the unattributed branch; this one is a regression guard and was not red before). `v34_…` now pins its anonymous-audit minute (`App::anon_minute`, test-only), so the per-minute limit no longer depends on the wall clock. The v34 assertion is unchanged.
 
 ### Unattributed clients (finding of the adversarial review)
 

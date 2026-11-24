@@ -1,6 +1,6 @@
 # Backend Architecture (as built)
 
-Audit date 19 November 2026 · source of truth: `crates/` at commit `8f352ef` (release binary built 02:31 from a clean tree) · companion documents: [BACKEND_AUDIT.md](BACKEND_AUDIT.md), [DEFECT_REGISTER.md](DEFECT_REGISTER.md), [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md).
+Audit date 19 November 2026 · source of truth: `crates/` at commit `284a5bb` (release binary built 02:31 from a clean tree) · companion documents: [BACKEND_AUDIT.md](BACKEND_AUDIT.md), [DEFECT_REGISTER.md](DEFECT_REGISTER.md), [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md).
 
 This document describes what exists, not what the specifications plan. Everything here runs in **one operating-system process** (`nf-server`), plus a short-lived copy of the same executable started for each replay audit.
 

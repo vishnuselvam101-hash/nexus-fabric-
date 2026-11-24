@@ -1,7 +1,7 @@
 # NEXUS FABRIC — full work plan for the CLI
 
 Written 21 Nov 2026 by the cloud session's lead. State it starts from: branch
-`dev/nexus-fabric-strategy-8guhxz`, engine 0.4.2 (commit `ed4a5fb`), docs commit `ccaa7f2`.
+`dev/nexus-fabric-strategy-8guhxz`, engine 0.4.2 (commit `c4b9406`), docs commit `9047032`.
 Read `docs/project/NEXUS_FABRIC_COMPLETE_HANDOFF.md` first; this plan replaces its section 10.
 
 Save this file in the repository as `docs/project/CLI_WORK_PLAN.md` and keep the status column of each task current.
@@ -18,34 +18,34 @@ seen to pass on the stated commit; "not run" is never written as passed.
 
 | Task | Subject | Status | Commit | Note |
 |---|---|---|---|---|
-| 0.1 | Working on the live server made safe | done | `36072a1` | facts under the task; `nf-sandbox` + `nf-verify` |
+| 0.1 | Working on the live server made safe | done | `8cdf771` | facts under the task; `nf-sandbox` + `nf-verify` |
 | 0.2 | Readiness and registers tell the truth | done | this commit | READINESS geometry row, RB-011, B2-001…007 rows, fabrication questions (10), hand-off section 6 |
 | 0.3 | The two near-tangent FAILs (D4) | done (facts) | this commit | remedy folded into 1.2 (decision under the task); regression cases land with 1.2 |
-| 1.1 | Shallow and near-180° branch angles | done | `1ec0f97` | engine 0.4.3; code `branch_angle_not_verifiable`; decision and derivation under the task, TOLERANCE_POLICY section 7 |
+| 1.1 | Shallow and near-180° branch angles | done | `b79f344` | engine 0.4.3; code `branch_angle_not_verifiable`; decision and derivation under the task, TOLERANCE_POLICY section 7 |
 | 1.2 | A true error bound everywhere | done | 2100a22 (+ uncommitted expectation fix-up) | engine 0.4.4; certified eps_rep (TOLERANCE_POLICY section 8); near-tangent FAILs resolved; changed expectations in section 8.8 and the fix-up table after it; fix-up: PRODUCT_CHECK_INCONCLUSIVE split, ui/e2e expectations, eps_num/eps_rep allow-list |
-| 1.3 | Every convention stated in the DXF and the result | done | `3874a79` | engine 0.4.5; 12 plate-convention keys (999 + TEXT) per family, read back by rule `convention_statement` (14 rules); RB-008 outer profile one closed polyline where the arcs allow (lines/polylines families); changed expectations and i18n keys under the task (section 1.3 result) |
-| 1.4 | Surface attribute for every family | done | `06f10d9` | engine 0.4.6; optional `surface_reference` (outside/inside/neutral/unknown) for cylinder shell, cone, eccentric reducer; `unknown` demotes radius checks to INCONCLUSIVE with a stated reason; geometry byte-identical; results in TOLERANCE_POLICY section 9 |
-| 1.5 | Checks that do not depend on the construction | done | `055c846`, `d73ae87` | engine 0.4.8; RC-09/10/13/15/16/29/32 fixed, verifier independence guarded (bit-equal re-derived bounds), DXF-only mating test in validation stage 0 (sensitivity-bound tolerance, six planted faults FAIL); results under the task and TOLERANCE_POLICY sections 11–13; JA labels for the seven new checks; §B green on the merged tree at `d73ae87` (logs `eng-1.5-merged`) |
+| 1.3 | Every convention stated in the DXF and the result | done | `d126da9` | engine 0.4.5; 12 plate-convention keys (999 + TEXT) per family, read back by rule `convention_statement` (14 rules); RB-008 outer profile one closed polyline where the arcs allow (lines/polylines families); changed expectations and i18n keys under the task (section 1.3 result) |
+| 1.4 | Surface attribute for every family | done | `58da284` | engine 0.4.6; optional `surface_reference` (outside/inside/neutral/unknown) for cylinder shell, cone, eccentric reducer; `unknown` demotes radius checks to INCONCLUSIVE with a stated reason; geometry byte-identical; results in TOLERANCE_POLICY section 9 |
+| 1.5 | Checks that do not depend on the construction | done | `7160a6e`, `2c539c2` | engine 0.4.8; RC-09/10/13/15/16/29/32 fixed, verifier independence guarded (bit-equal re-derived bounds), DXF-only mating test in validation stage 0 (sensitivity-bound tolerance, six planted faults FAIL); results under the task and TOLERANCE_POLICY sections 11–13; JA labels for the seven new checks; §B green on the merged tree at `2c539c2` (logs `eng-1.5-merged`) |
 | 1.6 | Sampling density | not started | | |
-| 1.7 | Set-on joint, remaining case — design note | done (design) | `2bf369a` | design only |
-| 1.8 | Validation as a permanent gate | in progress (cloud session) | `72312a6`, `6193c3b` | done: `run_all.py` always stops its server (try/finally; shown with a planted exception), `exact_onsurface_check.py` takes a free port; quick corpus after the fix 177 cases, 0 disagree, PASS; FULL corpus as a nightly + manual workflow `geometry-validation-full.yml` (not run yet; a schedule runs only from the default branch). Open: the 2e-9 scale-tolerance decision (left to the other engineer; unchanged), corpus cases for the phase-1 rules, the `vertex_dev` correction from 0.3 |
+| 1.7 | Set-on joint, remaining case — design note | done (design) | `b4db4c1` | design only |
+| 1.8 | Validation as a permanent gate | in progress (cloud session) | `4c9316e`, `64ac3ce` | done: `run_all.py` always stops its server (try/finally; shown with a planted exception), `exact_onsurface_check.py` takes a free port; quick corpus after the fix 177 cases, 0 disagree, PASS; FULL corpus as a nightly + manual workflow `geometry-validation-full.yml` (not run yet; a schedule runs only from the default branch). Open: the 2e-9 scale-tolerance decision (left to the other engineer; unchanged), corpus cases for the phase-1 rules, the `vertex_dev` correction from 0.3 |
 | 1.9 | Third independent review | not started | | after 1.1–1.6 |
 | 2.1 | The five failing audit checks | done | this commit | security_r6 40/40; V-45 + V-44 here, V-47 from `95927a7` (RC-08); installer test `tests/install_check.sh` 67/67 (strict sandbox only); Caddy repository key still fetched without a fingerprint check (V-44 open item) |
 | 2.2 | Architecture review findings RA-001 … RA-017 | not started | | |
 | 2.3 | Stress findings | not on this host | | needs a non-live machine |
 | 2.4 | Desktop security wording | done | this commit | `/api/health` says `mode` (desktop/server); first-run screen in desktop mode (EN + JA), `packaging/INSTALL.md`, `packaging/README.txt`; "secure backups" written as "protected backups" |
-| 2.5 | Database encryption — design | done (design) | `2bf369a` | design only |
-| 2.6 | Sign-in hardening — design note | done (design) | `2bf369a` | design only |
-| 3.1 | PDF → DXF inside the product | done | `a12dec4` | reviewed (2 rounds + installer delta). Open: converter not in the downloadable packages; Windows not run; prebuilt `NF_BINARY` install does not install/verify `nf-pdf2dxf` (prints a note) — add `NF_PDF2DXF_BINARY` + `NF_PDF2DXF_SHA256` (task 4.2); rollback-restores-converter test |
-| 3.2 | Forms and refusals | done | `0d946d7` | cloud session (22 Nov 2026). BH-014: "New from these values" marks every field of each of the 19 stored refusal codes that names a field, and the 400 and correction codes, with the message of the code in EN + JA, linked to the field, with a note in a live region naming any field the form lacks (cylinder `surface_reference`: UI_CHANGES item 18 still open); 2 stale messages corrected (`reducer_near_cylindrical`, `developed_angle_overlaps`). Lengths: the server already counted characters (since `9bda4ba`), docs and the message said bytes, the client counted UTF-16 units; now all count Unicode scalar values after Rust's trim (reasons, project name and description, passwords). Tests: server `length_rules_count_characters_not_bytes_or_utf16_units`, ui_smoke 14g/14h. Totals: 409 / 91 / 66 / 340 / 22 |
-| 3.3 | Words and language | done | `0d946d7` | cloud session. `crates/nf-server/tests/wording.rs` (rule A.3 words in web/, package and install texts; 23 exact-phrase allow-list, an unused entry fails) and `labels.rs` (refusal codes, G00–G22, checks, record kinds/families, relations from the build), both run by `cargo test`; labels added (G03, G04, G07, G09, G12, G13, G17, 2 cone checks, `verify.dxf_quality`, PDF counters); the Japanese walk fails on an unlabelled identifier outside the list in LOCALISATION.md; new JA strings there await native review. EV-1 disclosure kept (and repeated on the help page) |
+| 2.5 | Database encryption — design | done (design) | `b4db4c1` | design only |
+| 2.6 | Sign-in hardening — design note | done (design) | `b4db4c1` | design only |
+| 3.1 | PDF → DXF inside the product | done | `162e467` | reviewed (2 rounds + installer delta). Open: converter not in the downloadable packages; Windows not run; prebuilt `NF_BINARY` install does not install/verify `nf-pdf2dxf` (prints a note) — add `NF_PDF2DXF_BINARY` + `NF_PDF2DXF_SHA256` (task 4.2); rollback-restores-converter test |
+| 3.2 | Forms and refusals | done | `9a4a584` | cloud session (22 Nov 2026). BH-014: "New from these values" marks every field of each of the 19 stored refusal codes that names a field, and the 400 and correction codes, with the message of the code in EN + JA, linked to the field, with a note in a live region naming any field the form lacks (cylinder `surface_reference`: UI_CHANGES item 18 still open); 2 stale messages corrected (`reducer_near_cylindrical`, `developed_angle_overlaps`). Lengths: the server already counted characters (since `868402d`), docs and the message said bytes, the client counted UTF-16 units; now all count Unicode scalar values after Rust's trim (reasons, project name and description, passwords). Tests: server `length_rules_count_characters_not_bytes_or_utf16_units`, ui_smoke 14g/14h. Totals: 409 / 91 / 66 / 340 / 22 |
+| 3.3 | Words and language | done | `9a4a584` | cloud session. `crates/nf-server/tests/wording.rs` (rule A.3 words in web/, package and install texts; 23 exact-phrase allow-list, an unused entry fails) and `labels.rs` (refusal codes, G00–G22, checks, record kinds/families, relations from the build), both run by `cargo test`; labels added (G03, G04, G07, G09, G12, G13, G17, 2 cone checks, `verify.dxf_quality`, PDF counters); the Japanese walk fails on an unlabelled identifier outside the list in LOCALISATION.md; new JA strings there await native review. EV-1 disclosure kept (and repeated on the help page) |
 | 3.4 | Speed and scale | not started | | |
-| 3.5 | Interface quality | done | `c4e32fc`, `0d946d7` | cloud session. Race: the role checks waited on `#view h1`, which the previous view still matched after a hash-only goto (20/20 stale with API answers delayed 150 ms; 0/20 with the fix); now `#view[data-hash]`. Keyboard/screen reader on the form, the job tabs and the PDF conversion: ui_smoke 14i. Offline help `#/help` (EN/JA, from the label sources) and three sample projects from the form's example values through the normal API (no server change): 14j/14k. ui_smoke run 3 times, 340/0 each (twice directly, once inside offline_check) |
-| 4.1 | Reproducible builds | done on a Linux host (cloud session) | `7df9955`, `fa505f6`, `ca9a561` | three builds of `ca9a561` in three folders: the 3 packages and the 4 programs bit-identical (`docs/release/REPRODUCIBILITY.md`). Open: the native MSVC build's flags (`-Brepro`, `-PDBALTPATH`) and the Windows-runner packages not checked (no Windows host); identical only with the same tool versions |
+| 3.5 | Interface quality | done | `d977781`, `9a4a584` | cloud session. Race: the role checks waited on `#view h1`, which the previous view still matched after a hash-only goto (20/20 stale with API answers delayed 150 ms; 0/20 with the fix); now `#view[data-hash]`. Keyboard/screen reader on the form, the job tabs and the PDF conversion: ui_smoke 14i. Offline help `#/help` (EN/JA, from the label sources) and three sample projects from the form's example values through the normal API (no server change): 14j/14k. ui_smoke run 3 times, 340/0 each (twice directly, once inside offline_check) |
+| 4.1 | Reproducible builds | done on a Linux host (cloud session) | `525093f`, `2dd37ef`, `8a86d54` | three builds of `8a86d54` in three folders: the 3 packages and the 4 programs bit-identical (`docs/release/REPRODUCIBILITY.md`). Open: the native MSVC build's flags (`-Brepro`, `-PDBALTPATH`) and the Windows-runner packages not checked (no Windows host); identical only with the same tool versions |
 | 4.2 | Release verification | not started | | Windows part needs a real Windows PC |
-| 4.3 | Continuous integration | in progress (cloud session) | `6193c3b` | `release.yml`: manual trigger only; Linux runner (all packages, Windows cross-built) + Windows runner (native MSVC build, NSIS, zip); artefacts only; valid YAML, correct by inspection, **not run**. Open: run it once by manual trigger; both quality-gate jobs green on GitHub (not checked from here) |
+| 4.3 | Continuous integration | in progress (cloud session) | `64ac3ce` | `release.yml`: manual trigger only; Linux runner (all packages, Windows cross-built) + Windows runner (native MSVC build, NSIS, zip); artefacts only; valid YAML, correct by inspection, **not run**. Open: run it once by manual trigger; both quality-gate jobs green on GitHub (not checked from here) |
 | 4.4 | Release-candidate report | not started | | |
-| 4.5 | Legal drafts | done | `011b061` | |
+| 4.5 | Legal drafts | done | `d3a7bc3` | |
 | 4.6 | The live server | not started | | only when the owner says so |
 | RC | External review C (RC-01 … RC-33): verify every finding, fix what is real | in progress | | register: `docs/backend/REVIEW_C_EXTERNAL.md`; fixes tracked to the tasks named there; RC-01/RC-08/RC-22 fixed |
 | 5.x | Later work | not started | | the owner asked on 21 Nov 2026 for the complete software: taken up after phase 4 |
@@ -87,7 +87,7 @@ give (rule 4).
 `node tests/ui_smoke.js` (fresh server) · `node tests/desktop_smoke.js target/release/nf-server 8861` ·
 `bash tests/offline_check.sh` · `node docs/design/tools/i18n_check.mjs` · `bash tests/notices_check.sh` ·
 `python3 validation/run_all.py --spawn target/release/nf-server --quick`; the FULL corpus whenever the engine or
-the reference changed. Totals at `ed4a5fb`: 263 / 89 / 66 / 194 / 18; quick 155 cases, full 1392 cases, 0 disagree.
+the reference changed. Totals at `c4b9406`: 263 / 89 / 66 / 194 / 18; quick 155 cases, full 1392 cases, 0 disagree.
 
 After each task: what changed, exact totals, changed expectations, what is unfinished; update the register the
 task belongs to; then push.
@@ -194,7 +194,7 @@ working hours of the live server's users if the owner wants that — Japanese wo
   every B2-00n finding a row with its status and test name. Add a section "Questions for a fabrication engineer"
   with: minimum K-factor; minimum seam clearance in the flat pattern; practical minimum and maximum branch angle;
   justification of the 0.01 mm chord limit; marking side, offset sign, rolling axis and seam conventions.
-- `docs/project/NEXUS_FABRIC_COMPLETE_HANDOFF.md` section 6 heading still names commit `2894cc5`: correct it.
+- `docs/project/NEXUS_FABRIC_COMPLETE_HANDOFF.md` section 6 heading still names commit `58a82fe`: correct it.
 
 ### 0.3 The two near-tangent FAILs (item D4)
 - **Why:** you report 0 disagreements but 2 FAILs. If a job is accepted with an error bound that is not a true
@@ -203,7 +203,7 @@ working hours of the live server's users if the owner wants that — Japanese wo
   ends in and whether a DXF is offered. If a file is offered while the bound is exceeded: make the job REJECTED
   (bound gate fails) until the bound is fixed in task 1.2. Add a regression case for each.
 
-#### 0.3 — facts (CLI, 21 Nov 2026; engine `nf-engine 0.4.2+src.7d97912629c96ba8`, the build of `ed4a5fb`)
+#### 0.3 — facts (CLI, 21 Nov 2026; engine `nf-engine 0.4.2+src.7d97912629c96ba8`, the build of `c4b9406`)
 
 Both cases were replayed on a private server; the true errors were measured twice, independently (a first-principles
 derivation at 50 digits; the repository's 3D reference at 40 digits), and an adversarial check per case re-measured
@@ -367,13 +367,13 @@ also proves the 1.3 convention statements suffice to fold the plates back withou
 
 | Finding | Fix | Commit |
 |---|---|---|
-| RC-09 | cylinder pipeline runs `verify_cylinder_solid` + two plate-axis datum checks; a plate turned 90 degrees FAILs; the three solid radius checks join the unknown-surface demotion | `0ab8da0` |
-| RC-10 | cone/eccentric: exact drawn signed area against the 3D surface, directed (Kabsch) apex-free congruence, seam datums, cone CCW guard. Reducer `area` is eps_rep-based and uncertified for this family -> INCONCLUSIVE by design (FAIL stays FAIL); cone `area` gains the written-vertex term. TOLERANCE_POLICY section 11 | `409e602` |
-| RC-13 | self-intersection checks flag touching and short overlaps (endpoint-to-segment distance <= tol, both directions); strengthening only | `da43b07` |
-| RC-15 | verifier re-derives the engine-error bounds, bit-equal (above) | `7fee9e9` |
-| RC-16 | docs-only: the shared-frame convention boundary stated UNVERIFIED in THICKNESS_MODEL_DESIGN 1.4 (fold-back and Joint3 share the Spec 02 frame; a common convention error passes every interface check) | `5f287a4` |
-| RC-29 | test gap closed: a mirrored eccentric reducer now FAILs CCW, signed area, directed congruence and both seam datums; the length checks keep their genuine verdicts | `447cfd5` |
-| RC-32 | false `eps_rep` doc comments fixed (certified bound where provable, estimate otherwise; doc-only) | `6f18b26` |
+| RC-09 | cylinder pipeline runs `verify_cylinder_solid` + two plate-axis datum checks; a plate turned 90 degrees FAILs; the three solid radius checks join the unknown-surface demotion | `c6d679f` |
+| RC-10 | cone/eccentric: exact drawn signed area against the 3D surface, directed (Kabsch) apex-free congruence, seam datums, cone CCW guard. Reducer `area` is eps_rep-based and uncertified for this family -> INCONCLUSIVE by design (FAIL stays FAIL); cone `area` gains the written-vertex term. TOLERANCE_POLICY section 11 | `7e56c25` |
+| RC-13 | self-intersection checks flag touching and short overlaps (endpoint-to-segment distance <= tol, both directions); strengthening only | `8b56032` |
+| RC-15 | verifier re-derives the engine-error bounds, bit-equal (above) | `91462ea` |
+| RC-16 | docs-only: the shared-frame convention boundary stated UNVERIFIED in THICKNESS_MODEL_DESIGN 1.4 (fold-back and Joint3 share the Spec 02 frame; a common convention error passes every interface check) | `f62c161` |
+| RC-29 | test gap closed: a mirrored eccentric reducer now FAILs CCW, signed area, directed congruence and both seam datums; the length checks keep their genuine verdicts | `fb5c93d` |
+| RC-32 | false `eps_rep` doc comments fixed (certified bound where provable, estimate otherwise; doc-only) | `8052b43` |
 
 Changed expectations are enumerated old -> new in TOLERANCE_POLICY sections 11 and 12 (compat_verdicts:
 35 cylinder cases gain five checks, 55 cones and 40 reducers gain two each, reducer `area` PASS ->
@@ -382,13 +382,13 @@ unchanged). Results of 0.4.7 are REJECTED with G21 recompute. The external-revie
 updated; remaining register rows are the fabrication-engineer questions and the stated UNVERIFIED boundary.
 
 *§B verification (merged tree).* The cloud session's tasks 4.1/1.8/4.3/3.2/3.3/3.5 (already on origin) were merged
-into this branch at `cc5821b`; the `run_all.py` conflict kept both sides (mating inside the new try/finally, still
-part of `selftest_ok`). The first `nf-verify --full` at `394ddb6` failed two suites: fmt (one rustfmt wrap) and ui
-(2 of 247 — the two new seam datum checks had no Japanese label). Fixed by `9cdff26` (rustfmt + the two seam
-labels) and `d73ae87` (the five RC-09 cylinder solid labels, required by the merged 3.3 `labels.rs` test, which
+into this branch at `7841a55`; the `run_all.py` conflict kept both sides (mating inside the new try/finally, still
+part of `selftest_ok`). The first `nf-verify --full` at `5d99e3b` failed two suites: fmt (one rustfmt wrap) and ui
+(2 of 247 — the two new seam datum checks had no Japanese label). Fixed by `6f194b4` (rustfmt + the two seam
+labels) and `2c539c2` (the five RC-09 cylinder solid labels, required by the merged 3.3 `labels.rs` test, which
 runs a cylinder job and demands a JA label for every check name); all seven listed for native review in
-LOCALISATION.md (`866c77b`). No test or tolerance was weakened; no expectation changed. `nf-verify --full` at
-`d73ae87`, logs `/root/nf-logs/eng-1.5-merged`: build/test/clippy/fmt rc=0 (35 test binaries ok, incl. `labels.rs`
+LOCALISATION.md (`3298675`). No test or tolerance was weakened; no expectation changed. `nf-verify --full` at
+`2c539c2`, logs `/root/nf-logs/eng-1.5-merged`: build/test/clippy/fmt rc=0 (35 test binaries ok, incl. `labels.rs`
 and `wording.rs`), e2e 91/0, security 66/0, ui 340/0, desktop 22/0, offline rc=0 (dynamic part disabled on this
 host), i18n 1013 keys/language 0 missing, notices ok; validation quick 177 cases and FULL 1398 cases, 0 disagree,
 0 wrongly accepted, 0 wrongly refused, mating 8/8 ok in stage 0 of both, verdict PASS.
@@ -532,7 +532,7 @@ host), i18n 1013 keys/language 0 missing, notices ok; validation quick 177 cases
 - Two builds of one commit give different checksums. Remove the causes (timestamps in the zip and the
   installer, path prefixes, non-deterministic ordering) so a checksum identifies a commit; if one cause cannot
   be removed, the manifest says which.
-- State (cloud session, 22 Nov 2026): done on a Linux host. Ten causes removed; three builds of `ca9a561` in three
+- State (cloud session, 22 Nov 2026): done on a Linux host. Ten causes removed; three builds of `8a86d54` in three
   folders are bit-identical (three packages, four programs). Causes, SHA-256 values and what is not covered:
   `docs/release/REPRODUCIBILITY.md`. Open: the native Windows (MSVC) build is unchecked.
 

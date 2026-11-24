@@ -1,6 +1,6 @@
 # Wine verification of the Windows build (work plan 4.2, Windows part; open item 3.1 "Windows not run")
 
-Date: 2026-11-22. Branch `wt/wine` (worktree `/root/nf-wt-sec`), base `363d7de`.
+Date: 2026-11-22. Branch `wt/wine` (worktree `/root/nf-wt-sec`), base `f403297`.
 Development build. Not validated. Outputs must not be used for manufacturing.
 
 **What this is:** the Windows binaries built with the MinGW cross-compiler and run under Wine on the Linux build

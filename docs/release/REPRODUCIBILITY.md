@@ -1,11 +1,11 @@
 # Reproducible builds (work plan task 4.1)
 
 Date: 2026-11-22. Cloud session, branch `dev/nf-repro-ci-4.1-4.3` (from `dev/nexus-fabric-strategy-8guhxz` at
-`fd96174`). Development build. Not validated. Outputs must not be used for manufacturing.
+`4d2d00e`). Development build. Not validated. Outputs must not be used for manufacturing.
 
-**Result:** on a Linux host, three builds of commit `ca9a561` in three different folders give bit-identical
+**Result:** on a Linux host, three builds of commit `8a86d54` in three different folders give bit-identical
 SHA-256 values for all three packages and all four programs. Before this task, two builds of one commit gave
-different values for every package (`docs/release/MANIFEST-16d97dc.md`, section "Reproducibility").
+different values for every package (`docs/release/MANIFEST-cc89368.md`, section "Reproducibility").
 A checksum therefore identifies a commit, **for the same tool versions** (listed below). The native Windows
 build (MSVC, Windows runner) and its packages have not been checked: there is no Windows host here.
 
@@ -33,7 +33,7 @@ Linux programs: the linker's build-id is a hash of the content, so it is reprodu
 further change was needed. No committed `.cargo/config` was added: developer builds (`cargo build`) are unchanged;
 the flags apply only to `packaging/build_all.sh`.
 
-## Proof: three builds of `ca9a561`
+## Proof: three builds of `8a86d54`
 
 Tools: rustc 1.97.0 (2d8144b78 2026-07-07), cargo 1.97.0, x86_64-w64-mingw32-gcc 13-win32, GNU ld 2.41.90.20240122
 (mingw), makensis v3.09-4, Zip 3.0, GNU tar 1.35, gzip 1.12; host Linux 6.18.44 x86_64, 4 CPUs.
@@ -41,8 +41,8 @@ Tools: rustc 1.97.0 (2d8144b78 2026-07-07), cargo 1.97.0, x86_64-w64-mingw32-gcc
 | Build | Folder | Source | `SOURCE_DATE_EPOCH` |
 |---|---|---|---|
 | W | `/home/user/nexus-fabric-/.agent/worktrees/agent-…` | git checkout, target folder reused from earlier builds | from git: 1795363516 |
-| A | `/home/user/nf41-copy-a` | `git archive ca9a561`, empty target folder | given: 1795363516 |
-| B | `<scratch>/nf41/copy-two/with-a-much-longer-folder-name/b` (under `/tmp`) | `git archive ca9a561`, empty target folder | not set: warning, time of `Cargo.toml` = 1795363516 |
+| A | `/home/user/nf41-copy-a` | `git archive 8a86d54`, empty target folder | given: 1795363516 |
+| B | `<scratch>/nf41/copy-two/with-a-much-longer-folder-name/b` (under `/tmp`) | `git archive 8a86d54`, empty target folder | not set: warning, time of `Cargo.toml` = 1795363516 |
 
 | Artefact | Size (bytes) | SHA-256 (W = A = B) | W, A, B |
 |---|---|---|---|
@@ -58,17 +58,17 @@ Tools: rustc 1.97.0 (2d8144b78 2026-07-07), cargo 1.97.0, x86_64-w64-mingw32-gcc
 The programs unpacked from A's tar.gz and zip have the same SHA-256 values as the programs in the table. The
 package contents are unchanged: Linux `nexus-fabric`, `nf-pdf2dxf`, `nexus-fabric.sh`, `nexus-fabric.desktop`,
 `README.txt`, `NOTICE.txt`, `THIRD_PARTY_NOTICES.txt`; Windows `nexus-fabric.exe`, `nf-pdf2dxf.exe` and the three
-text files. These SHA-256 values hold for `ca9a561` only: a later commit has a later commit time, which is stored
+text files. These SHA-256 values hold for `8a86d54` only: a later commit has a later commit time, which is stored
 in every package.
 
 How the causes were found (each round built the packages again from fresh copies):
 
 | Round | Commit | Linux programs and tar.gz | Windows programs, zip, installer | Cause found |
 |---|---|---|---|---|
-| 1 | `6193c3b` | identical (2 copies) | different | 8: random temporary-folder names in the COFF symbol table |
-| 2 | `fa505f6` | identical (3 builds) | identical in the 2 copies under `/tmp`, different in the worktree | 9: import directory order follows the build path |
-| 3 | `76ea841` | identical | as round 2 (a dlltool wrapper did not help; removed in `ca9a561`) | 9 confirmed: the order follows the rlib archive path |
-| 4 | `ca9a561` | identical (3 builds) | identical (3 builds) | none |
+| 1 | `64ac3ce` | identical (2 copies) | different | 8: random temporary-folder names in the COFF symbol table |
+| 2 | `2dd37ef` | identical (3 builds) | identical in the 2 copies under `/tmp`, different in the worktree | 9: import directory order follows the build path |
+| 3 | `5a988b3` | identical | as round 2 (a dlltool wrapper did not help; removed in `8a86d54`) | 9 confirmed: the order follows the rlib archive path |
+| 4 | `8a86d54` | identical (3 builds) | identical (3 builds) | none |
 
 ## What this does not cover
 

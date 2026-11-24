@@ -164,7 +164,7 @@ Packages: `bash packaging/build_all.sh` → `dist/` (never committed). Release v
 
 ## 6. How to verify (run before every push)
 
-| Command | Expected at commit `ed4a5fb` (engine 0.4.2) |
+| Command | Expected at commit `c4b9406` (engine 0.4.2) |
 |---|---|
 | `cargo build --release` | builds |
 | `cargo test --workspace` | 263 pass (engine 0.4.2) |
@@ -181,7 +181,7 @@ Packages: `bash packaging/build_all.sh` → `dist/` (never committed). Release v
 | `bash tests/security_r6.sh` | 35 pass, 5 fail (section 9.3) |
 
 
-Engine 0.4.3 (work plan task 1.1, working tree on `011b061`, clean `nf-verify --full` 21 Nov 2026, log `/root/nf-logs/task-1.1-final-20261121T141553Z`, results in `validation/results/latest.json`): build, clippy, fmt clean; `cargo test` 269 pass; e2e 89; security 66; browser 197; desktop 18; offline (static part), i18n, notices ok; quick 177 cases: 116 agree, 61 refused, 0 disagree; FULL 1398 cases: 977 agree, 421 refused, 0 disagree, 0 wrongly accepted, 0 wrongly refused, 0 errors; 33/33 seeded faults detected (27 + 6 inside the task 1.1 regime); verdict FAIL only from the 2 pre-existing near-tangent findings (D4, task 1.2).
+Engine 0.4.3 (work plan task 1.1, working tree on `d3a7bc3`, clean `nf-verify --full` 21 Nov 2026, log `/root/nf-logs/task-1.1-final-20261121T141553Z`, results in `validation/results/latest.json`): build, clippy, fmt clean; `cargo test` 269 pass; e2e 89; security 66; browser 197; desktop 18; offline (static part), i18n, notices ok; quick 177 cases: 116 agree, 61 refused, 0 disagree; FULL 1398 cases: 977 agree, 421 refused, 0 disagree, 0 wrongly accepted, 0 wrongly refused, 0 errors; 33/33 seeded faults detected (27 + 6 inside the task 1.1 regime); verdict FAIL only from the 2 pre-existing near-tangent findings (D4, task 1.2).
 
 Fresh server for the browser suite:
 `NF_SETUP_TOKEN=ui-smoke-setup-token NF_DATA_DIR=$(mktemp -d) NF_LISTEN=127.0.0.1:8793 target/release/nf-server &`
@@ -191,11 +191,11 @@ Shell scripts need Git Bash or WSL on Windows; say which suites you could not ru
 the work in section 8 lands: use the totals stated in the newest commit message.
 
 GitHub runs the same checks on every push in two jobs: `software` and `geometry-validation` (the quick corpus). Both
-passed on `ed4a5fb` and `ccaa7f2` (20 Nov 2026). The full corpus is not yet run by CI (work plan task 1.8).
+passed on `c4b9406` and `9047032` (20 Nov 2026). The full corpus is not yet run by CI (work plan task 1.8).
 
 ---
 
-## 7. Done and pushed (as of commit `9fbbfe4`)
+## 7. Done and pushed (as of commit `c69a5e8`)
 
 - Five part families; engine 0.4.0: set-on joint for the specification's pairing (each part on its own contact
   surface), DXF quality gate (a failing file is withheld and the job rejected), independent 3D joint checks, shared
@@ -209,7 +209,7 @@ passed on `ed4a5fb` and `ccaa7f2` (20 Nov 2026). The full corpus is not yet run 
 - Stress test on engine 0.4.0, all six levels: no server errors; after 25 forced kills all acknowledged operations
   present, database consistent, audit chain intact, replays match. Weaknesses in section 9.4.
 - Bug hunt: 18 defects; 15 fixed, 1 partly, 3 were owner decisions (now decided: section 2).
-- Release-verification tool and first manifest (`docs/release/MANIFEST-16d97dc.md`): Linux checks 5 of 5 native;
+- Release-verification tool and first manifest (`docs/release/MANIFEST-cc89368.md`): Linux checks 5 of 5 native;
   Windows checks not run (emulator could not start); the build is NOT bit-for-bit reproducible.
 - Quality gate split into `software` and `geometry-validation`.
 - Documents: readiness classifications, desktop key assessment, legal readiness list, Windows hand-off.
@@ -220,10 +220,10 @@ passed on `ed4a5fb` and `ccaa7f2` (20 Nov 2026). The full corpus is not yet run 
 
 | Id | Work | Files being changed |
 |---|---|---|
-| A1 | LANDED 20 Nov (commit 2894cc5). Engine 0.4.1: DXF states the joint as declared; structured refusal codes (41 codes, `docs/backend/REFUSAL_CODES.md`); geometry proven unchanged against a 335-request snapshot | `crates/*`, `web/`, `tests/` |
+| A1 | LANDED 20 Nov (commit 58a82fe). Engine 0.4.1: DXF states the joint as declared; structured refusal codes (41 codes, `docs/backend/REFUSAL_CODES.md`); geometry proven unchanged against a 335-request snapshot | `crates/*`, `web/`, `tests/` |
 | A2 | LANDED 20 Nov. Validation tool fix | `validation/` |
 | A3 | LANDED 20 Nov. Second independent mathematical review | `docs/backend/REVIEW_B2_COMPUTATIONAL.md` |
-| A4 | LANDED 20 Nov (merge b96a1de). PDF → DXF converter crate; see `docs/backend/PDF_TO_DXF.md` | `crates/nf-pdf` |
+| A4 | LANDED 20 Nov (merge 5ea0c0e). PDF → DXF converter crate; see `docs/backend/PDF_TO_DXF.md` | `crates/nf-pdf` |
 | A5 | Advertisement film, revision 3 (section 13) | `marketing/nexus-fabric/flagship3` |
 
 The lead verifies each one (all suites) before pushing and will say when each has landed.
@@ -293,7 +293,7 @@ exact with zero deviation; B2-003 … B2-007 low).
 
 | Classification | Status |
 |---|---|
-| Software verified | Holds for `cd452de` |
+| Software verified | Holds for `b27683f` |
 | Security reviewed | Does not hold (9.3) |
 | Geometry verified | Does not hold (9.2) |
 | Fabrication reviewed | Does not hold: 0 of 56 engineering statements reviewed by a fabrication engineer |
@@ -311,15 +311,15 @@ kept current in it). Where the old items went:
 
 | Old item | Now |
 |---|---|
-| B1 (review B2 findings) | done in engine 0.4.2 (`ed4a5fb`); remainder in 1.2 and 1.6 |
+| B1 (review B2 findings) | done in engine 0.4.2 (`c4b9406`); remainder in 1.2 and 1.6 |
 | B2 (conventions in the DXF and the result) | 1.3 and 1.4 |
 | B3 (validation, D4, chord limit) | 0.3, 1.2, 1.6, 1.8 |
 | C1 (five failing audit checks) | 2.1 |
 | C2 (desktop security wording) | 2.4 |
 | C3 (database encryption design) | 2.5 |
 | C4 (stress findings) | 2.3 |
-| D1 (third-party notices) | done (`b368d9a`) |
-| D2 (banned-word test, leftover automated-intelligence wording) | wording removed (`9169305`); the test is 3.3 |
+| D1 (third-party notices) | done (`b022025`) |
+| D2 (banned-word test, leftover automated-intelligence wording) | wording removed (`23ce500`); the test is 3.3 |
 | D3 (Windows native verification) | 4.2 (real Windows PC only) |
 | D4 (release-candidate report) | 4.4 |
 | E (PDF → DXF in the product) | 3.1 |

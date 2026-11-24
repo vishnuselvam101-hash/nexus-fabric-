@@ -1,6 +1,6 @@
 # Security Audit — Round 6
 
-19 November 2026 · Scope: whole repository at commit `8f352ef` plus the uncommitted working tree, with special attention to today's rewritten client (`web/app.js`, `web/viewer.js`, `web/styles.css`, `web/index.html`, new static route `/viewer.js`) and the new deployment recipe (`deploy/`). Method: manual code review plus black-box and grey-box testing of a **local, disposable** instance (a copy of `target/release/nf-server` built 19 Nov 02:31, on `127.0.0.1:8820`, temporary data directories). The live VPS instance and every external host were **not** touched or probed.
+19 November 2026 · Scope: whole repository at commit `284a5bb` plus the uncommitted working tree, with special attention to today's rewritten client (`web/app.js`, `web/viewer.js`, `web/styles.css`, `web/index.html`, new static route `/viewer.js`) and the new deployment recipe (`deploy/`). Method: manual code review plus black-box and grey-box testing of a **local, disposable** instance (a copy of `target/release/nf-server` built 19 Nov 02:31, on `127.0.0.1:8820`, temporary data directories). The live VPS instance and every external host were **not** touched or probed.
 
 **This is a self-assessment at evidence level EV-1 that has not been independently reviewed, not an independent penetration test. No certification or compliance is claimed. NEXUS FABRIC is not "hack-proof"; finding no critical issue in one review is not evidence that none exist.**
 

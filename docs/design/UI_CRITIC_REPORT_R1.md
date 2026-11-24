@@ -1,6 +1,6 @@
 # UI Critic Report — Round 1
 
-19 November 2026 · Independent review of the redesigned NEXUS FABRIC web client (commit `36d9d4b`). The reviewer did not build this client.
+19 November 2026 · Independent review of the redesigned NEXUS FABRIC web client (commit `ee3db2d`). The reviewer did not build this client.
 
 ## Method
 
