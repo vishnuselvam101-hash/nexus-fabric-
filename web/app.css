@@ -11,28 +11,28 @@
   :root {
     color-scheme: dark;
 
-    --bg: #0E1116;
-    --bg-raised: #151A21;
-    --bg-card: #171D25;
-    --bg-inset: #0A0D12;
+    --bg: #0E1013;
+    --bg-raised: #161A1F;
+    --bg-card: #1A1E23;
+    --bg-inset: #090B0E;
 
-    --text-1: #E6EDF3;
-    --text-2: #A7B4C2;
-    --text-3: #8593A3;
+    --text-1: #E8ECEF;
+    --text-2: #B3BCC5;
+    --text-3: #8E99A4;
 
-    --border: #26303B;
-    --border-strong: #384553;
+    --border: #2A3038;
+    --border-strong: #3B434D;
 
-    --accent: #35B6E8;
-    --accent-soft: rgba(53, 182, 232, .14);
+    --accent: #FF6A1A;
+    --accent-soft: rgba(255, 106, 26, .14);
     --ok: #3FB950;
     --ok-soft: rgba(63, 185, 80, .14);
-    --warn: #D9A227;
-    --warn-soft: rgba(217, 162, 39, .15);
-    --bad: #F0554D;
-    --bad-soft: rgba(240, 85, 77, .14);
+    --warn: #E0A526;
+    --warn-soft: rgba(224, 165, 38, .15);
+    --bad: #FF6B63;
+    --bad-soft: rgba(255, 107, 99, .14);
 
-    --on-accent: #04141C;
+    --on-accent: #0E1013;
 
     --sp-1: 4px;
     --sp-2: 8px;
@@ -79,26 +79,26 @@
   [data-theme="light"] {
     color-scheme: light;
 
-    --bg: #F4F6F8;
+    --bg: #F2F4F6;
     --bg-raised: #FFFFFF;
     --bg-card: #FFFFFF;
-    --bg-inset: #EBEFF3;
+    --bg-inset: #E6EAEE;
 
-    --text-1: #10161D;
-    --text-2: #47555F;
-    --text-3: #5C6976;
+    --text-1: #111418;
+    --text-2: #3E4852;
+    --text-3: #5B6670;
 
-    --border: #D3DAE1;
-    --border-strong: #B4BEC8;
+    --border: #CDD3DA;
+    --border-strong: #A9B2BC;
 
-    --accent: #076F94;
-    --accent-soft: rgba(7, 111, 148, .10);
-    --ok: #1E7B34;
-    --ok-soft: rgba(30, 123, 52, .11);
-    --warn: #96650A;
-    --warn-soft: rgba(150, 101, 10, .12);
-    --bad: #C0342C;
-    --bad-soft: rgba(192, 52, 44, .10);
+    --accent: #B53F05;
+    --accent-soft: rgba(181, 63, 5, .10);
+    --ok: #17702C;
+    --ok-soft: rgba(23, 112, 44, .11);
+    --warn: #8A5A00;
+    --warn-soft: rgba(138, 90, 0, .12);
+    --bad: #B42318;
+    --bad-soft: rgba(180, 35, 24, .10);
 
     --on-accent: #FFFFFF;
 
@@ -111,26 +111,26 @@
     :root:not([data-theme="dark"]):not([data-theme="light"]) {
       color-scheme: light;
 
-      --bg: #F4F6F8;
+      --bg: #F2F4F6;
       --bg-raised: #FFFFFF;
       --bg-card: #FFFFFF;
-      --bg-inset: #EBEFF3;
+      --bg-inset: #E6EAEE;
 
-      --text-1: #10161D;
-      --text-2: #47555F;
-      --text-3: #5C6976;
+      --text-1: #111418;
+      --text-2: #3E4852;
+      --text-3: #5B6670;
 
-      --border: #D3DAE1;
-      --border-strong: #B4BEC8;
+      --border: #CDD3DA;
+      --border-strong: #A9B2BC;
 
-      --accent: #076F94;
-      --accent-soft: rgba(7, 111, 148, .10);
-      --ok: #1E7B34;
-      --ok-soft: rgba(30, 123, 52, .11);
-      --warn: #96650A;
-      --warn-soft: rgba(150, 101, 10, .12);
-      --bad: #C0342C;
-      --bad-soft: rgba(192, 52, 44, .10);
+      --accent: #B53F05;
+      --accent-soft: rgba(181, 63, 5, .10);
+      --ok: #17702C;
+      --ok-soft: rgba(23, 112, 44, .11);
+      --warn: #8A5A00;
+      --warn-soft: rgba(138, 90, 0, .12);
+      --bad: #B42318;
+      --bad-soft: rgba(180, 35, 24, .10);
 
       --on-accent: #FFFFFF;
 
@@ -931,6 +931,7 @@
   /* ---- stage 1: home scene (lib/hero.js), display type, sign-in, More menu ---- */
   .drop-stage { position: relative; isolation: isolate; overflow: hidden; border-radius: var(--radius-lg); background: var(--bg-inset); }
   .drop-stage .hero-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; display: block; }
+  .drop-stage.no-gl .hero-canvas { display: none; }
   .drop-stage.no-gl {
     background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
     background-size: 40px 40px; background-position: center;

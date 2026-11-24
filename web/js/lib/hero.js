@@ -22,7 +22,7 @@ void main(){
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-const FALLBACK = { bg: [0.055, 0.067, 0.086], line: [0.35, 0.42, 0.5], acc: [0.21, 0.71, 0.91] };
+const FALLBACK = { bg: [0.055, 0.063, 0.075], line: [0.23, 0.26, 0.30], acc: [1.0, 0.42, 0.10] };
 
 function rgb(css, fb) {
   const m = /#([0-9a-f]{6})/i.exec(String(css).trim());
@@ -80,9 +80,17 @@ export function startHero(canvas) {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   };
   const t0 = performance.now();
+  // weak GPU: if most frames of a 120-frame window take over 50 ms, the scene is dropped for the static grid
+  let last = 0, n = 0, slow = 0;
   const frame = (now) => {
     raf = 0;
     if (!canvas.isConnected) return;               // the view was left: stop the loop
+    if (last) { n++; if (now - last > 50) slow++; }
+    last = now;
+    if (n >= 120) {
+      if (slow > 40) { canvas.hidden = true; canvas.parentElement?.classList.add('no-gl'); return; }
+      n = 0; slow = 0;
+    }
     draw((now - t0) / 1000);
     if (!reduce && !document.hidden) raf = requestAnimationFrame(frame);
   };
