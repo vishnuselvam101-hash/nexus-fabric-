@@ -12,7 +12,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-pub const SCHEMA_VERSION: i64 = 3;
+pub const SCHEMA_VERSION: i64 = 4;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS login_failures(username TEXT NOT NULL, at INTEGER NOT
 CREATE TABLE IF NOT EXISTS login_clients(username TEXT NOT NULL, client TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(username, client));
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS pdf_conversions(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, source_document INTEGER NOT NULL, page INTEGER NOT NULL, scale_kind TEXT NOT NULL, scale_value REAL NOT NULL, tolerance_mm REAL, include_fill INTEGER NOT NULL, include_text INTEGER NOT NULL, status TEXT NOT NULL, code TEXT, limit_name TEXT, message TEXT, converter_version TEXT, source_sha256 TEXT NOT NULL, dxf_sha256 TEXT, report_sha256 TEXT, record_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS amoeba_digests(id INTEGER PRIMARY KEY, calc_id INTEGER NOT NULL, part TEXT NOT NULL, dxf_sha256 TEXT NOT NULL, inputs_sha256 TEXT NOT NULL, engine TEXT NOT NULL, verdict TEXT NOT NULL, checks_json TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE(calc_id, part));
 ";
 
 /// Columns added after the first schema. Each is added only if absent, and a
@@ -61,6 +62,8 @@ CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit BEGIN SELECT
 CREATE TRIGGER IF NOT EXISTS audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT, 'the audit log is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS records_no_update BEFORE UPDATE ON records BEGIN SELECT RAISE(ABORT, 'records are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS records_no_delete BEFORE DELETE ON records BEGIN SELECT RAISE(ABORT, 'records are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS amoeba_no_update BEFORE UPDATE ON amoeba_digests BEGIN SELECT RAISE(ABORT, 'AMOEBA snapshots are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS amoeba_no_delete BEFORE DELETE ON amoeba_digests BEGIN SELECT RAISE(ABORT, 'AMOEBA snapshots are immutable'); END;
 ";
 
 const INDEXES: &str = "

@@ -801,6 +801,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "nf-core",
+ "nf-digest",
  "nf-licence",
  "rand",
  "rusqlite",

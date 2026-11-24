@@ -1257,8 +1257,8 @@ const controlProbe = () => {
     const refText = (code) => String(CAT.en[`refusal.${code}`]).replace(/\{(\w+)\}/g, (x, k) => ph[k]).replace(/\*\*/g, '').replace(/`/g, '');
     check('3.5 help: the help is a page of the program (Help in the navigation), and its inputs are exactly the fields of the new-calculation form, family by family',
       helpEn.nav && Object.keys(formFields).every((f) => JSON.stringify(helpEn.fams[f]) === JSON.stringify(formFields[f])), { fams: helpEn.fams, formFields });
-    check('3.5 help: every gate G00 to G22 is listed with the name the job view uses; G03, G04, G07, G09, G12, G13 and G17 are marked as not evaluated by this build',
-      helpEn.gates.map((g) => g[0]).join() === Array.from({ length: 23 }, (_, i) => `G${String(i).padStart(2, '0')}`).join() && helpEn.gates.every(([id, name]) => name === CAT.ids.gate[id][0])
+    check('3.5 help: every gate G00 to G23 is listed with the name the job view uses; G03, G04, G07, G09, G12, G13 and G17 are marked as not evaluated by this build',
+      helpEn.gates.map((g) => g[0]).join() === Array.from({ length: 24 }, (_, i) => `G${String(i).padStart(2, '0')}`).join() && helpEn.gates.every(([id, name]) => name === CAT.ids.gate[id][0])
         && (helpEn.text.match(/not evaluated by this build/g) || []).length === 7, helpEn.gates);
     check('3.5 help: every refusal code of the build is listed with the message a refused field shows (one source)', helpEn.refusals.length === CAT.codes.length && helpEn.refusals.every(([code, text], i) => code === CAT.codes[i] && text === refText(code)), helpEn.refusals.filter(([code, text]) => text !== refText(code)).slice(0, 3));
     check('3.5 help: it says what is not modelled (thickness, bend allowance, weld gap, kerf), that it is a development build, that results stay REVIEW REQUIRED and DXF files NOT RELEASED, and keeps the EV-1 disclosure',

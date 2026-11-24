@@ -1,4 +1,4 @@
-//! Work plan 3.3: every gate G00-G22, every check name, every refusal code and every record kind has a Japanese label
+//! Work plan 3.3: every gate G00-G23, every check name, every refusal code and every record kind has a Japanese label
 //! (or message) in the client's catalogue `web/i18n.js`, and every gate and refusal code has its text on the offline
 //! help page (3.5). The lists come from the build itself: the refusal codes from `nf_core::refusal::ALL`, the gate ids
 //! from the engine and server sources, the check names, record kinds, record families and relations from jobs the
@@ -141,12 +141,12 @@ fn gates_in_sources() -> BTreeSet<String> {
 }
 
 #[test]
-fn every_gate_g00_to_g22_has_a_label_and_a_help_text_in_both_languages() {
+fn every_gate_g00_to_g23_has_a_label_and_a_help_text_in_both_languages() {
     let src = i18n();
     let gates = id_entries(&src, "gate");
     let ids: Vec<String> = gates.iter().map(|g| g.0.clone()).collect();
-    let all: Vec<String> = (0..=22).map(|i| format!("G{i:02}")).collect();
-    assert_eq!(ids, all, "the gate table lists G00 to G22 in order");
+    let all: Vec<String> = (0..=23).map(|i| format!("G{i:02}")).collect();
+    assert_eq!(ids, all, "the gate table lists G00 to G23 in order");
     for (id, en, ja) in &gates {
         assert!(
             en.as_deref().is_some_and(|e| !e.is_empty()),
