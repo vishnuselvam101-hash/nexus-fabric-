@@ -1,7 +1,7 @@
 # Interface round 3 — progress
 
 Working file of the frontend lead for round 3 (English and Japanese; premium workstation design). Branch
-`worktree-agent-a67576d456572b8c9`, on top of `14e4442` (the round-3 client, before this pass). Updated at the
+`worktree-agent-a67576d456572b8c9`, on top of `f52d8d3` (the round-3 client, before this pass). Updated at the
 commit that ends this pass, so that an interrupted session can be resumed from the repository alone.
 
 ## Done
@@ -11,7 +11,7 @@ commit that ends this pass, so that an interrupted session can be resumed from t
 | Read the design system, the architecture audit, critic report R1, the engine and server text sources | done |
 | BEFORE screenshots, English, 1920 and 1366 (138 files): `docs/design/screenshots/before-r3/` | done (earlier commit) |
 | Message catalogue, English and Japanese, 803 keys each, placeholders equal (`web/i18n.js`) | done |
-| Client on the catalogue: every string through `t`/`h`; the engine and server text through exact templates | done (`14e4442`) |
+| Client on the catalogue: every string through `t`/`h`; the engine and server text through exact templates | done (`f52d8d3`) |
 | `#/` and an empty hash open the dashboard (they showed "page does not exist") | done; browser check added |
 | Japanese checks in `tests/ui_smoke.js`, section 14b: switch without reload, `<html lang>`, persistence, `?lang=`, the empty route, 32 Japanese states walked for English words, `missing()` empty, overflow at 1366/1024/768, console errors | done |
 | Defects the Japanese walk found, fixed: identifiers now monospace (sketch symbols, curve names, quantity keys, part classes, record kinds, gate IDs); engine templates with bare identifiers marked; user names in breadcrumbs wrapped; engine sentences with `eps_num`, `binary64`, `theta`, `phi`, `CAM` and similar marked | done |

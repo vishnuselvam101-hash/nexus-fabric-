@@ -1,6 +1,6 @@
 # Critic B — engineering and product credibility, round 3
 
-Same role and strictness. Date: 2026-11-19. Films: `final/NEXUS-FABRIC-launch-30s-{en,ja}.mp4` (revision 3, commit 36b729f). Picture-only revision; narration and subtitles unchanged.
+Same role and strictness. Date: 2026-11-19. Films: `final/NEXUS-FABRIC-launch-30s-{en,ja}.mp4` (revision 3, commit e10ee29). Picture-only revision; narration and subtitles unchanged.
 
 ## Method
 

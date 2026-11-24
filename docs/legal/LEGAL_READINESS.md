@@ -53,7 +53,7 @@ brackets mark what only the owner or the lawyer can supply; nothing in them was 
 | `PRIVACY_STATEMENT.md` | 8 | company legal name, address, contact, effective date, hosted-server address, hosting provider and location, legal exceptions to sharing, proxy-log retention, OS-log retention, whether the hosted server uses `deploy/nf-backup.sh`, procedure for deletion requests, change procedure |
 | `ENGINEERING_RESPONSIBILITY_NOTICE.md` | 3 | company legal name, address, contact, effective date, how the vendor responds to reported errors |
 
-Facts in the privacy statement were checked against the code on base `2bf369a` (re-check on the release commit):
+Facts in the privacy statement were checked against the code on base `b4db4c1` (re-check on the release commit):
 tables `crates/nf-server/src/storage.rs:18-30`; sessions 12 h (`main.rs:854`, cookie `main.rs:859-860`, HttpOnly,
 SameSite=Strict); failed sign-ins (user name, time, client address) removed after 15 min (`main.rs:648`, `791`,
 `3775-3785`, hourly at `3952`); client address recorded in the audit detail of sign-in events (`main.rs:803`, `836`,

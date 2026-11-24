@@ -1,7 +1,7 @@
 # Review B2 — computational review of the pattern engine
 
 Reviewer: independent computational reviewer (applied mathematics, fabrication geometry).
-Scope: the frozen copy of commit 4b4221a (git worktree, removed at the end). Engine: `crates/uem` (`develop.rs`, `profile.rs`, `lib.rs`; `verify.rs` and `independent.rs` not used as evidence), gates and JSON in `crates/nf-core/src/job.rs`, DXF output of `nf-dxf`. The main tree's engine was not read. Derivations were written before reading the review documents; those documents were read afterwards for comparison only.
+Scope: the frozen copy of commit 09dab50 (git worktree, removed at the end). Engine: `crates/uem` (`develop.rs`, `profile.rs`, `lib.rs`; `verify.rs` and `independent.rs` not used as evidence), gates and JSON in `crates/nf-core/src/job.rs`, DXF output of `nf-dxf`. The main tree's engine was not read. Derivations were written before reading the review documents; those documents were read afterwards for comparison only.
 
 Method in one line: release build of the frozen copy, `nf-server` started from it on 127.0.0.1:8840 and 8841 with fresh data directories, requests submitted through the HTTP API, results compared with my own closed forms and quadratures (numpy, and mpmath at 50 digits for spot checks). Scripts and raw results are listed in section 10.
 

@@ -1,11 +1,11 @@
 # Critic B — engineering and product credibility, round 2
 
-Same role and strictness as round 1. Date: 2026-11-19. Films: `final/NEXUS-FABRIC-launch-30s-{en,ja}.mp4` (revision 2, commit 45ec342).
+Same role and strictness as round 1. Date: 2026-11-19. Films: `final/NEXUS-FABRIC-launch-30s-{en,ja}.mp4` (revision 2, commit 5a6ca85).
 
 ## Method
 
 - Fresh frames every 0.5 s from both films (60 each) at 1920x1080. Read 14 EN and 4 JA frames at full size, plus a strip of the bottom status band for all 60 frames in each language.
-- Recomputed the numbers shown. Read `crates/uem/src/develop.rs` and `verify.rs` after commit dac9018 and ran `cargo test -p uem` (18 pass, including `header_outline_and_opening_share_one_frame`).
+- Recomputed the numbers shown. Read `crates/uem/src/develop.rs` and `verify.rs` after commit 8978f62 and ran `cargo test -p uem` (18 pass, including `header_outline_and_opening_share_one_frame`).
 - Read `docs/LEARNING_AND_STRESS_TESTING.md` (Defect 002) and `docs/backend/DEFECT_REGISTER.md` (BE-001 to BE-034).
 - Audio not heard; narration judged from `narration.json` and the SRT timings.
 - Not read at full size: the transition frames between those examined, and the branch-pattern capture in scene 2 if it is still used (I did not land on it).

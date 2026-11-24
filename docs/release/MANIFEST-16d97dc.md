@@ -1,8 +1,8 @@
-# NEXUS FABRIC release verification: 16d97dc
+# NEXUS FABRIC release verification: cc89368
 
 > Development build. Not validated. Outputs must not be used for manufacturing.
 
-- Source commit: `16d97dc54c9c6262dfbdeea580da216936acd140`
+- Source commit: `cc893687f7579a34c2274d1a9a9823ae9d0772e7`
 - Commit date: 2026-11-20T13:24:49+00:00
 - Subject: Release verification: wine start-up failure and missing Windows engine recorded as not run, not failed
 - Tree SHA: `6005e2640b3b4c93fd37bbe6e55078f6724eef2e`

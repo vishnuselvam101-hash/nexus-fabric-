@@ -1,6 +1,6 @@
 # Review B — computational engineering, conventions, numerics and DXF
 
-19 November 2026 · engine `nf-engine 0.3.0` (commit a447b0a) · reviewer B (independent; wrote none of the product, the specification or `validation/`).
+19 November 2026 · engine `nf-engine 0.3.0` (commit 3b222bc) · reviewer B (independent; wrote none of the product, the specification or `validation/`).
 
 Standing position, unchanged by this review: **nothing produced by this software is validated for manufacturing. 0 of 56 engineering statements have been reviewed by a fabrication engineer.** Everything below concerns whether the mathematics, the conventions and the files are internally right and stated; it cannot establish that any part is right in a workshop.
 

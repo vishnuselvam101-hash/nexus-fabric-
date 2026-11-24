@@ -36,7 +36,7 @@ and none is to be added unless the owner asks.**
 10. Confidential factory drawings never go to any external service.
 11. Report honestly: a failing test is reported with its output; "not run" is never written as "passed".
 
-## 3. How to verify (run all before every push; totals at commit `cd452de`)
+## 3. How to verify (run all before every push; totals at commit `b27683f`)
 
 | Command | Expected |
 |---|---|

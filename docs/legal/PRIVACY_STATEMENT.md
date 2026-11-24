@@ -4,7 +4,7 @@
 
 Working draft for the owner's lawyer (work plan task 4.5, `docs/legal/LEGAL_READINESS.md` item 8). Not legal
 advice; not in force. Every statement about what the Software stores was checked against the source code of the
-development build (`crates/nf-server`, `web/`, `deploy/`) on branch `work/legal-drafts` (base `2bf369a`); it
+development build (`crates/nf-server`, `web/`, `deploy/`) on branch `work/legal-drafts` (base `b4db4c1`); it
 must be re-checked against the release commit before publication. Text in square brackets is for the owner or
 the lawyer. **The Japanese text (Part B) needs review by a native-speaking lawyer admitted in Japan.**
 

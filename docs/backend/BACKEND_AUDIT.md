@@ -4,7 +4,7 @@ Audit date: 19 November 2026. Scope: `crates/uem`, `crates/nf-dxf`, `crates/nf-c
 
 Method:
 - Read every line of the four crates (3,734 lines).
-- Ran a private copy of the release binary (`target/release/nf-server`, sha256 `e1e69f98…f1e6cf`, built 02:31 from a clean tree at `8f352ef`) on `127.0.0.1:8801` with a scratch data directory.
+- Ran a private copy of the release binary (`target/release/nf-server`, sha256 `e1e69f98…f1e6cf`, built 02:31 from a clean tree at `284a5bb`) on `127.0.0.1:8801` with a scratch data directory.
 - Drove it with curl, observed it with `strace`, and inspected and altered its scratch SQLite file with Python's `sqlite3`.
 - Unless stated otherwise, every request below was sent with `X-NF-Request: 1` and an admin session.
 
@@ -272,8 +272,8 @@ GET /api/health issued 0.2 s after a dashboard request: 0.891 s (blocked on the 
   - The next identical request (job #13) received the advisory "This exact request produced a stored result that failed its integrity check".
   - Separately, if the replacement binary *does* start, the replay runs a different build, while the stored limitation text says "same machine with the same build".
 - **Engine provenance** (BE-011):
-  - `ENGINE_VERSION = "nf-core 0.1.0 / uem 0.1.0"` (`lib.rs:27`) has not changed since the first commit (`git log -S'ENGINE_VERSION: &str'` shows only `1465b3d`).
-  - Commit `dac9018` changed the header-with-branch geometry ("outline and opening now share one frame").
+  - `ENGINE_VERSION = "nf-core 0.1.0 / uem 0.1.0"` (`lib.rs:27`) has not changed since the first commit (`git log -S'ENGINE_VERSION: &str'` shows only `f1ba9c0`).
+  - Commit `8978f62` changed the header-with-branch geometry ("outline and opening now share one frame").
   - Header jobs stored before and after that fix carry the same engine string. Nothing in the database identifies results produced by the defective build, and no mechanism flags or recalls them.
 
 ## 6. Concurrency and resource use

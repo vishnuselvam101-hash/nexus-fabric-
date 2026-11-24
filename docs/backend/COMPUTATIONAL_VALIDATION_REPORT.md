@@ -1,6 +1,6 @@
 # Computational validation report
 
-## 0. Re-run on engine `nf-engine 0.3.0` (commit 469c6d9), 19 November 2026
+## 0. Re-run on engine `nf-engine 0.3.0` (commit 4c05456), 19 November 2026
 
 Sections 1–8 below describe the first run, against the build of 02:38. This section is the current state. The reference (`validation/reference/`) was **not changed** between runs: it draws every pattern as seen from outside by construction (pattern normal = outward surface normal), and the product is mapped onto it with and without mirroring. Only the harness was adapted to the new contract.
 
@@ -258,7 +258,7 @@ Status (superseded by section 10): the harness was corrected in the pass describ
 
 ## 10. Harness correction on engine `nf-engine 0.4.0` (this pass)
 
-Engine: `nf-engine 0.4.0+src.e3c264333b691c19`, built in a clean worktree of commit a7b440d. The validated product is that committed engine; uncommitted edits present in the main tree (other workers' changes under `crates/`, `web/`, `tests/`, `docs/qa/`, `docs/design/`, and two new files in `docs/backend/`) were neither built nor validated here, and this pass did not touch them. This pass changed only `validation/` and this report.
+Engine: `nf-engine 0.4.0+src.e3c264333b691c19`, built in a clean worktree of commit b5ebd82. The validated product is that committed engine; uncommitted edits present in the main tree (other workers' changes under `crates/`, `web/`, `tests/`, `docs/qa/`, `docs/design/`, and two new files in `docs/backend/`) were neither built nor validated here, and this pass did not touch them. This pass changed only `validation/` and this report.
 
 ### 10.1 Diagnoses, confirmed
 
