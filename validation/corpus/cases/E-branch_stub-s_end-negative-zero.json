@@ -1,0 +1,24 @@
+{
+ "id": "E-branch_stub-s_end-negative-zero",
+ "group": "refusal",
+ "title": "branch_stub: s_end = -0.0",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 150,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 60,
+  "delta": 20,
+  "s_end": -0.0
+ },
+ "expect": "refuse",
+ "derivation": "s_end must be a finite positive length; -0.0 describes no part.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "s_end",
+   "radius",
+   "> 0"
+  ]
+ }
+}

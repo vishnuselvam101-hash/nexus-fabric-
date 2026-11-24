@@ -1,0 +1,64 @@
+name: quality-gate
+# Every change must pass BOTH jobs before it may be merged. A failing or skipped step is a failed gate.
+# The jobs are separate so that a result says which readiness classification failed (docs/project/READINESS.md):
+#   software            -> "Software verified"
+#   geometry-validation -> "Geometry verified" (the product against the independent reference)
+# Passing one never implies the other, and neither replaces review by a fabrication engineer.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  software:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release --workspace --locked
+      - name: Third-party notices match the release dependency graph
+        run: bash tests/notices_check.sh target/release/nf-server cargo
+      - name: Lint (warnings are errors)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Unit, property, stress, regression and command-line tests
+        run: cargo test --workspace --locked
+      - name: Dependency vulnerabilities
+        run: cargo install cargo-audit --locked && cargo audit
+      - name: End-to-end API tests
+        run: bash tests/e2e_smoke.sh
+      - name: Security tests
+        run: bash tests/security_smoke.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Browser workflow tests (English and Japanese)
+        run: |
+          npm install --no-save playwright@1 && npx playwright install --with-deps chromium
+          NF_SETUP_TOKEN=ui-smoke-setup-token NF_DATA_DIR="$(mktemp -d)" NF_LISTEN=127.0.0.1:8793 target/release/nf-server &
+          sleep 2
+          node tests/ui_smoke.js
+      - name: Desktop mode tests
+        run: node tests/desktop_smoke.js target/release/nf-server 8861
+      - name: Offline check (static part; the no-network run needs root and is skipped here with a message)
+        run: bash tests/offline_check.sh
+  geometry-validation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release --workspace --locked
+      - name: Independent computational and DXF validation
+        # Quick corpus on every push. The FULL corpus runs nightly and on a manual run in
+        # geometry-validation-full.yml (task 1.8).
+        run: |
+          python3 -m pip install -r validation/requirements.txt
+          python3 validation/run_all.py --spawn target/release/nf-server --quick

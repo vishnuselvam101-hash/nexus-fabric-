@@ -1,0 +1,57 @@
+[Unit]
+Description=NEXUS FABRIC server (development build)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=nexusfabric
+Group=nexusfabric
+Environment=NF_LISTEN=127.0.0.1:8787
+Environment=NF_DATA_DIR=/var/lib/nexus-fabric
+Environment=NF_KEY_FILE=/etc/nexus-fabric/master.key
+Environment=NF_COOKIE_SECURE=1
+# The public host name(s) the proxy forwards (install.sh fills this in). Other Host values are refused (DNS rebinding).
+Environment=NF_ALLOWED_HOSTS=app.example.com
+# The reverse proxy on this machine: only its X-Forwarded-For is believed, so sign-in throttling sees real client addresses.
+Environment=NF_TRUSTED_PROXY=127.0.0.1
+ExecStart=/usr/local/bin/nf-server
+Restart=on-failure
+RestartSec=3
+# SIGTERM: the server stops accepting, lets requests in flight finish (NF_SHUTDOWN_GRACE_SECS, default 20) and exits
+TimeoutStopSec=30
+UMask=0077
+# sandboxing
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+ProtectProc=invisible
+ProtectKernelLogs=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+# the service only ever talks to the reverse proxy on this machine
+IPAddressDeny=any
+IPAddressAllow=localhost
+MemoryDenyWriteExecute=true
+SystemCallFilter=@system-service
+# The PDF to DXF converter (nf-pdf2dxf, started by the server) isolates its worker process with Landlock and a
+# seccomp filter (docs/backend/PDF_TO_DXF.md). Their system calls are in @sandbox; allowed explicitly so the
+# conversion does not depend on which calls a systemd version puts into @system-service. Without them a
+# conversion fails closed (exit 70, SIGSYS) and nothing is stored.
+SystemCallFilter=@sandbox
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/nexus-fabric
+MemoryMax=1G
+# An OOM kill of the converter's worker (a child process) must not stop the whole server: continue, not stop.
+OOMPolicy=continue
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,125 @@
+{
+ "level": 6,
+ "started": "20261119-030006",
+ "machine": {
+  "cores": 4,
+  "ram_mb": 16087,
+  "loadavg": [
+   4.8740234375,
+   4.21826171875,
+   2.77392578125
+  ]
+ },
+ "binary": "/tmp/build/stress/nf-server",
+ "db_damage": {
+  "truncate_half": {
+   "starts": false,
+   "db_bytes": 1646592,
+   "exit_code": 101,
+   "log_tail": "block_on<nf_server::main::{closure#0}>::{closure#0}, ()>\n   5: <tokio::runtime::runtime::Runtime>::block_on::<nf_server::main::{closure#0}>\n   6: nf_server::main\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+  },
+  "truncate_0": {
+   "starts": true,
+   "db_bytes": 1646592,
+   "health": 200,
+   "setup_required": true,
+   "unauthenticated_POST_setup_status": 200,
+   "old_blobs_still_in_data_dir": 30,
+   "endpoints": {
+    "/api/calculations": 401,
+    "/api/dashboard": 401,
+    "/api/audit/verify": 401,
+    "/api/projects": 401,
+    "/api/amoeba/summary": 401,
+    "/api/calculations/5": 401
+   },
+   "audit_verify": {
+    "error": "not signed in"
+   },
+   "new_calc": 401,
+   "server_alive_after": true,
+   "log_tail": ".1:8815  (data: /tmp/build/stress/w6b/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+  },
+  "truncate_4096": {
+   "starts": false,
+   "db_bytes": 1646592,
+   "exit_code": 101,
+   "log_tail": "block_on<nf_server::main::{closure#0}>::{closure#0}, ()>\n   5: <tokio::runtime::runtime::Runtime>::block_on::<nf_server::main::{closure#0}>\n   6: nf_server::main\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+  },
+  "garbage_header": {
+   "starts": false,
+   "db_bytes": 1646592,
+   "exit_code": 101,
+   "log_tail": "block_on<nf_server::main::{closure#0}>::{closure#0}, ()>\n   5: <tokio::runtime::runtime::Runtime>::block_on::<nf_server::main::{closure#0}>\n   6: nf_server::main\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+  },
+  "delete_db_keep_blobs": {
+   "starts": true,
+   "db_bytes": 1646592,
+   "health": 200,
+   "setup_required": true,
+   "unauthenticated_POST_setup_status": 200,
+   "old_blobs_still_in_data_dir": 30,
+   "endpoints": {
+    "/api/calculations": 401,
+    "/api/dashboard": 401,
+    "/api/audit/verify": 401,
+    "/api/projects": 401,
+    "/api/amoeba/summary": 401,
+    "/api/calculations/5": 401
+   },
+   "audit_verify": {
+    "error": "not signed in"
+   },
+   "new_calc": 401,
+   "server_alive_after": true,
+   "log_tail": ".1:8815  (data: /tmp/build/stress/w6b/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+  },
+  "corrupt_middle_page": {
+   "starts": true,
+   "db_bytes": 1646592,
+   "health": 200,
+   "setup_required": false,
+   "endpoints": {
+    "/api/calculations": 200,
+    "/api/dashboard": 200,
+    "/api/audit/verify": 200,
+    "/api/projects": 200,
+    "/api/amoeba/summary": 200,
+    "/api/calculations/5": 200
+   },
+   "audit_verify": {
+    "entries": 34,
+    "first_broken_entry": null,
+    "intact": true,
+    "limitation": "Detects alteration or removal of entries inside the chain. Someone with write access to the database file could rebuild the whole chain or truncate its tail; an external anchor for the latest hash is not implemented."
+   },
+   "new_calc": 200,
+   "server_alive_after": true,
+   "log_tail": ".1:8815  (data: /tmp/build/stress/w6b/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+  },
+  "delete_wal_midwrite": {
+   "starts": true,
+   "db_bytes": 1179648,
+   "health": 200,
+   "setup_required": false,
+   "endpoints": {
+    "/api/calculations": 200,
+    "/api/dashboard": 200,
+    "/api/audit/verify": 200,
+    "/api/projects": 200,
+    "/api/amoeba/summary": 200,
+    "/api/calculations/5": 200
+   },
+   "audit_verify": {
+    "entries": 24,
+    "first_broken_entry": null,
+    "intact": true,
+    "limitation": "Detects alteration or removal of entries inside the chain. Someone with write access to the database file could rebuild the whole chain or truncate its tail; an external anchor for the latest hash is not implemented."
+   },
+   "new_calc": 200,
+   "server_alive_after": true,
+   "log_tail": ".1:8815  (data: /tmp/build/stress/w6b/dbdmg/data)\nNOT VALIDATED - no output of this software may be used for manufacturing.\n"
+  }
+ },
+ "wall_s": 0
+}

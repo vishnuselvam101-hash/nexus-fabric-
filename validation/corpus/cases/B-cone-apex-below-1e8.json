@@ -1,0 +1,41 @@
+{
+ "id": "B-cone-apex-below-1e8",
+ "group": "closed_form",
+ "title": "cone r1=1e5 r2=99999 h=998.9994994993741: apex radius 9.99e+07 mm, 1 % below the 1e8 mm limit",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 100000,
+  "r2": 99999,
+  "h": 998.9994994993741
+ },
+ "expect": "accept",
+ "derivation": "Apex radius L1 = r1 hypot(h, r1 - r2)/(r1 - r2) = 9.99e+07 mm (1 % below the 1e8 mm developed-size limit); closed forms from the mpmath tier.",
+ "quantities": {
+  "reducer": {
+   "slant_length": [
+    999.0,
+    9.989999999999999e-09
+   ],
+   "sin_half_angle": [
+    0.001001001001001001,
+    1e-12
+   ],
+   "apex_radius_large": [
+    99900000.0,
+    0.0009989999999999999
+   ],
+   "apex_radius_small": [
+    99899001.0,
+    0.00099899001
+   ],
+   "sector_angle": [
+    0.006289474781961548,
+    1e-12
+   ],
+   "area": [
+    627687073.7361797,
+    0.006276870737361797
+   ]
+  }
+ }
+}

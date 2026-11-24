@@ -1,0 +1,32 @@
+{
+ "id": "B-br-chord-cap-inside",
+ "group": "closed_form",
+ "title": "Branch stub R=6750000 r=4500000 beta=90: chord error 9.4e-3 mm with 46 080 segments (just inside the 0.01 mm cap)",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 6750000,
+  "branch_radius": 4500000,
+  "branch_dev_radius": 4500000,
+  "beta_deg": 90,
+  "delta": 0,
+  "s_end": 7000000.0
+ },
+ "expect": "accept",
+ "derivation": "The chord error of the saddle with 46 080 uniform segments is 2.0787e-7 K = 0.00935 mm (reference polyline, 6.5 % under the 0.01 mm limit): accepted.",
+ "quantities": {
+  "branch": {
+   "s_at_0": [
+    5031152.949374527,
+    5.031152949374526e-05
+   ],
+   "s_at_90": [
+    6750000.0,
+    6.75e-05
+   ],
+   "developed_width": [
+    28274333.882308137,
+    0.00028274333882308137
+   ]
+  }
+ }
+}

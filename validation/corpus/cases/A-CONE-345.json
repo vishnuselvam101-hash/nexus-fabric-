@@ -1,0 +1,69 @@
+{
+ "id": "A-CONE-345",
+ "group": "closed_form",
+ "title": "Right cone on a 3-4-5 triangle: sector angle 1.2*pi",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 400,
+  "r2": 100,
+  "h": 400
+ },
+ "expect": "accept",
+ "derivation": "r1-r2=300, h=400, s=500, sin(alpha)=3/5, sector = 2*pi*3/5 = 216 deg. L1=400/0.6=666.666..., L2=166.666.... Area = pi*(r1+r2)*s = 250000*pi. Sector > 180 deg: bounding box width = 2*L1, height = L1 + L1*sin(36 deg).",
+ "quantities": {
+  "reducer": {
+   "sector_angle": [
+    3.7699111843077517,
+    3.769911184307751e-11
+   ],
+   "slant_length": [
+    500.0,
+    5e-09
+   ],
+   "sin_half_angle": [
+    0.6,
+    5.9999999999999995e-12
+   ],
+   "apex_radius_large": [
+    666.6666666666666,
+    6.666666666666666e-09
+   ],
+   "apex_radius_small": [
+    166.66666666666666,
+    1.6666666666666665e-09
+   ],
+   "area": [
+    785398.1633974483,
+    7.853981633974482e-06
+   ],
+   "chord_large_arc": [
+    1268.0753550602049,
+    1.2680753550602048e-08
+   ]
+  }
+ },
+ "measures": {
+  "reducer": {
+   "outline_area": [
+    785398.1633974483,
+    7.853981633974483e-05
+   ],
+   "bbox_w": [
+    1333.3333333333333,
+    1.3333333333333334e-07
+   ],
+   "bbox_h": [
+    1058.5235015283154,
+    1.0585235015283154e-07
+   ],
+   "len_large_end": [
+    2513.2741228718346,
+    2.5132741228718345e-08
+   ],
+   "len_small_end": [
+    628.3185307179587,
+    6.283185307179586e-09
+   ]
+  }
+ }
+}

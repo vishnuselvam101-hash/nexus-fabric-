@@ -1,0 +1,23 @@
+{
+ "id": "E-br-r-gt-R",
+ "group": "refusal",
+ "title": "branch: r > R",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 150,
+  "branch_radius": 200,
+  "branch_dev_radius": 200,
+  "beta_deg": 60,
+  "delta": 0,
+  "s_end": 400
+ },
+ "expect": "refuse",
+ "derivation": "Branch larger than the header: no full saddle exists.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "delta",
+   "radius"
+  ]
+ }
+}

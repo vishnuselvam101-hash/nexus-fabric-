@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en" data-theme="">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#0E1116">
+<title>NEXUS FABRIC</title>
+<link rel="stylesheet" href="app.css">
+<script src="js/theme.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#view" data-i18n="skip">Skip to content</a>
+
+<!-- SVG sprite -->
+<svg xmlns="http://www.w3.org/2000/svg" hidden>
+  <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></symbol>
+  <symbol id="i-cross" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09c-.658.003-1.25.396-1.51 1z"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></symbol>
+  <symbol id="i-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4" opacity=".3"/><path d="M4.93 4.93l2.83 2.83"/><path d="M16.24 16.24l2.83 2.83" opacity=".3"/><path d="M2 12h4"/><path d="M18 12h4" opacity=".3"/><path d="M4.93 19.07l2.83-2.83" opacity=".5"/><path d="M16.24 7.76l2.83-2.83" opacity=".7"/></symbol>
+</svg>
+
+<!-- Shell -->
+<header class="topbar" role="banner">
+  <div class="topbar-left">
+    <button id="hamburger" class="btn-icon mobile-only" type="button" aria-label="Menu" aria-expanded="false" aria-controls="nav-links">
+      <svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg>
+    </button>
+    <a href="#/" class="logo" aria-label="NEXUS FABRIC home">NEXUS FABRIC</a>
+  </div>
+  <nav id="nav-links" class="topbar-nav" role="navigation" aria-label="Main">
+    <a href="#/history" data-i18n="nav.history">History</a>
+    <a href="#/help" data-i18n="nav.help">Help</a>
+    <div class="dropdown">
+      <button class="btn-text" type="button" aria-haspopup="true" aria-expanded="false" data-i18n="nav.more">More</button>
+      <div class="dropdown-menu" role="menu">
+        <a href="#/workspace/calculations" role="menuitem" data-i18n="ws.calculations">Calculations</a>
+        <a href="#/workspace/projects" role="menuitem" data-i18n="ws.projects">Projects</a>
+        <a href="#/amoeba" role="menuitem" data-i18n="ws.amoeba">AMOEBA</a>
+        <a href="#/verification" role="menuitem" data-i18n="nav.verification">Verification</a>
+        <a href="#/manufacturing" role="menuitem" data-i18n="nav.manufacturing">Manufacturing</a>
+        <a href="#/workspace/obligations" role="menuitem" data-i18n="ws.obligations">Obligations</a>
+        <a href="#/workspace/audit" role="menuitem" data-i18n="ws.audit">Audit</a>
+        <a href="#/workspace/users" role="menuitem" data-i18n="ws.users">Users</a>
+      </div>
+    </div>
+  </nav>
+  <div class="topbar-right">
+    <button id="btn-theme" class="btn-icon" type="button" aria-label="Toggle theme">
+      <svg class="icon icon-sun" aria-hidden="true"><use href="#i-sun"/></svg>
+      <svg class="icon icon-moon" aria-hidden="true"><use href="#i-moon"/></svg>
+    </button>
+    <button id="btn-lang" class="btn-icon" type="button" aria-label="Toggle language">EN</button>
+    <button id="btn-user" class="btn-icon avatar" type="button" aria-label="User menu" aria-haspopup="true" aria-expanded="false"></button>
+  </div>
+</header>
+
+<main id="view" role="main" aria-live="polite">
+  <div class="loading" role="status" aria-label="Loading">NEXUS FABRIC</div>
+</main>
+
+<!-- Login -->
+<template id="t-login">
+  <section class="card card-login" aria-labelledby="login-heading">
+    <h1 id="login-heading" data-i18n="login.title">Sign in</h1>
+    <form id="login-form" autocomplete="on">
+      <label for="login-user" data-i18n="login.user">Username</label>
+      <input id="login-user" name="username" type="text" required autocomplete="username">
+      <label for="login-pass" data-i18n="login.pass">Password</label>
+      <input id="login-pass" name="password" type="password" required autocomplete="current-password">
+      <button type="submit" class="btn-primary" data-i18n="login.submit">Sign in</button>
+    </form>
+  </section>
+</template>
+
+<!-- Convert (hero drop zone) -->
+<template id="t-convert">
+  <section class="convert" aria-labelledby="convert-heading">
+    <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-labelledby="convert-heading">
+      <svg class="icon icon-lg" aria-hidden="true"><use href="#i-upload"/></svg>
+      <h1 id="convert-heading" data-i18n="convert.title">Drop a PDF or click to browse</h1>
+      <input id="file-input" type="file" accept=".pdf,application/pdf" hidden>
+    </div>
+    <details class="options">
+      <summary data-i18n="convert.options">Options</summary>
+      <label for="page-num" data-i18n="convert.page">Page number</label>
+      <input id="page-num" type="number" min="1" value="1">
+    </details>
+    <section class="recent-strip" aria-label="Recent conversions">
+      <h2 class="sr-only" data-i18n="convert.recent">Recent conversions</h2>
+      <div id="recent-list" role="list"></div>
+    </section>
+  </section>
+</template>
+
+<!-- Processing -->
+<template id="t-processing">
+  <section class="processing" aria-labelledby="proc-heading">
+    <h2 id="proc-heading" class="proc-filename" data-i18n="proc.title">Processing</h2>
+    <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+      <div class="progress-fill"></div>
+    </div>
+    <ol class="stage-list" aria-label="Stages">
+      <li data-stage="upload"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg> <span data-i18n="proc.upload">Upload</span></li>
+      <li data-stage="extract"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg> <span data-i18n="proc.extract">Extract</span></li>
+      <li data-stage="pattern"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg> <span data-i18n="proc.pattern">Pattern</span></li>
+      <li data-stage="verify"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg> <span data-i18n="proc.verify">Verify</span></li>
+    </ol>
+    <button type="button" class="btn-secondary" id="btn-cancel" data-i18n="proc.cancel">Cancel</button>
+  </section>
+</template>
+
+<!-- Result -->
+<template id="t-result">
+  <section class="result" aria-labelledby="result-heading">
+    <div class="badge" role="status">
+      <svg class="icon icon-xl badge-icon" aria-hidden="true"><use href="#i-file"/></svg>
+      <!-- filled by the result view from the server's state; never a default verdict -->
+      <h1 id="result-heading" class="badge-label"></h1>
+    </div>
+    <div id="checks-grid" class="checks-grid" role="list" aria-label="Verification checks"></div>
+    <div class="result-actions">
+      <button type="button" class="btn-primary" id="btn-dxf">
+        <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+        <span data-i18n="cv2.dxf">Download DXF</span>
+      </button>
+      <button type="button" class="btn-secondary" id="btn-report">
+        <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+        <span data-i18n="cv2.report">Download Report</span>
+      </button>
+    </div>
+    <button type="button" class="btn-text" id="btn-another" data-i18n="cv2.another">Convert another</button>
+  </section>
+</template>
+
+<!-- Workspace -->
+<template id="t-workspace">
+  <div class="workspace">
+    <aside class="ws-sidebar" role="tablist" aria-label="Workspace sections">
+      <button role="tab" data-tab="calculations" aria-selected="true" data-i18n="ws.calculations">Calculations</button>
+      <button role="tab" data-tab="projects" data-i18n="ws.projects">Projects</button>
+      <button role="tab" data-tab="amoeba" data-i18n="ws.amoeba">AMOEBA</button>
+      <button role="tab" data-tab="obligations" data-i18n="ws.obligations">Obligations</button>
+      <button role="tab" data-tab="audit" data-i18n="ws.audit">Audit</button>
+      <button role="tab" data-tab="users" data-i18n="ws.users">Users</button>
+    </aside>
+    <div class="ws-content" role="tabpanel" aria-label="Workspace content"></div>
+  </div>
+</template>
+
+<noscript>
+  <p lang="en">NEXUS FABRIC requires JavaScript to run. This is a development build — outputs are not validated and must not be used for manufacturing.</p>
+  <p lang="ja">NEXUS FABRICの利用にはJavaScriptが必要です。開発版のため出力は未検証です。製造に使用しないでください。</p>
+</noscript>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

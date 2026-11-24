@@ -1,0 +1,14 @@
+{
+ "id": "B-ecc-chord-cap-inside",
+ "group": "closed_form",
+ "title": "Eccentric reducer (200, 100, 300, 100) x 36000: chord error 0.00928 mm with 46 080 segments (just inside the 0.01 mm cap)",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 7200000,
+  "r2": 3600000,
+  "h": 10800000,
+  "e": 3600000
+ },
+ "expect": "accept",
+ "derivation": "The chord error of the large end with 46 080 uniform segments is 2.5783e-7 K = 0.00928 mm (reference polyline, 7 % under the 0.01 mm limit): accepted."
+}

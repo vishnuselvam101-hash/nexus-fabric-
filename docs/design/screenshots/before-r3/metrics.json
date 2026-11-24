@@ -1,0 +1,39 @@
+{
+ "taken": "2026-11-19T16:06:37.484Z",
+ "base": "http://127.0.0.1:8880",
+ "screenshots": 138,
+ "skipped": [
+  "en 1920x1080 job-eccentric-gate-open: locator.click: Timeout 6000ms exceeded.",
+  "en 1366x768 job-eccentric-gate-open: locator.click: Timeout 6000ms exceeded."
+ ],
+ "console_errors": [],
+ "perf": {
+  "en": {
+   "dashboard": {
+    "domContentLoaded_ms": 54.4,
+    "first_view_rendered_ms": 138.2,
+    "first_view_min_max_ms": [
+     124.6,
+     160.3
+    ],
+    "dom_nodes": 349
+   },
+   "job": {
+    "domContentLoaded_ms": 54.2,
+    "first_view_rendered_ms": 137.6,
+    "first_view_min_max_ms": [
+     123.8,
+     180.7
+    ],
+    "dom_nodes": 1737
+   }
+  }
+ },
+ "assets_bytes": {
+  "/": 666,
+  "/app.js": 135518,
+  "/viewer.js": 16143,
+  "/styles.css": 37981,
+  "total": 190308
+ }
+}

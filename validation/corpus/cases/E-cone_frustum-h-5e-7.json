@@ -1,0 +1,20 @@
+{
+ "id": "E-cone_frustum-h-5e-7",
+ "group": "refusal",
+ "title": "cone_frustum: h = 5e-7 mm",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 200,
+  "r2": 100,
+  "h": 5e-07
+ },
+ "expect": "refuse",
+ "derivation": "Declared implementation limit of the build: positive dimensions below 1e-6 mm are refused.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "below",
+   "smallest"
+  ]
+ }
+}

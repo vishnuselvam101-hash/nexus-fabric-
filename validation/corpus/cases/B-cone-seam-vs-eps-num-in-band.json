@@ -1,0 +1,14 @@
+{
+ "id": "B-cone-seam-vs-eps-num-in-band",
+ "group": "closed_form",
+ "title": "cone r1=1e7 r2=9e6 h=0.05947080387175906: seam gap 1e-07 mm, between 1e-9 mm and 2 eps_num (G11 INCONCLUSIVE)",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 10000000.0,
+  "r2": 9000000.0,
+  "h": 0.05947080387175906
+ },
+ "expect": "either",
+ "derivation": "Seam gap l2 (2 pi - Phi) = 1e-07 mm (mpmath, 40 digits) for a cone of apex radius about 1e7 mm. The numerical error of its written vertices is about 7e-8 mm, so the seam cannot be told from a closed one below about 1.5e-7 mm (twice that error): the gap is inside that band, so G11 is INCONCLUSIVE, never PASS.",
+ "g11": "INCONCLUSIVE"
+}

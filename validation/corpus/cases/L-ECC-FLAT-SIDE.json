@@ -1,0 +1,38 @@
+{
+ "id": "L-ECC-FLAT-SIDE",
+ "group": "limit",
+ "title": "Flat-sided reducer e = r1 - r2 (ECC-01): seam ruling parallel to the axis",
+ "request": {
+  "family": "eccentric_reducer",
+  "r1": 200,
+  "r2": 100,
+  "h": 300,
+  "e": 100
+ },
+ "expect": "accept",
+ "derivation": "With e = r1 - r2 the ruling at theta = 0 is parallel to the axis, so the seam has length h = 300 exactly and rho(0) = 600 (apex at height 600 above the large end).",
+ "quantities": {
+  "reducer": {
+   "rho_at_0": [
+    600.0,
+    6e-09
+   ],
+   "rho_at_180": [
+    721.1102550927978,
+    7.211102550927978e-09
+   ]
+  }
+ },
+ "measures": {
+  "reducer": {
+   "len_seam_a": [
+    300.0,
+    3e-10
+   ],
+   "len_seam_b": [
+    300.0,
+    3e-10
+   ]
+  }
+ }
+}

@@ -1,0 +1,21 @@
+{
+ "id": "E-unknown-field",
+ "group": "refusal",
+ "title": "unknown request field",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 200,
+  "r2": 100,
+  "h": 300,
+  "thickness": 12
+ },
+ "expect": "refuse",
+ "derivation": "A field the family does not have must not be ignored silently (contract since engine 0.2.0).",
+ "refusal": {
+  "kind": "malformed",
+  "mentions": [
+   "unknown",
+   "thickness"
+  ]
+ }
+}

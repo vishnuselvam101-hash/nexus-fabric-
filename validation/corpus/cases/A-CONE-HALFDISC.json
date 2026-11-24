@@ -1,0 +1,81 @@
+{
+ "id": "A-CONE-HALFDISC",
+ "group": "closed_form",
+ "title": "Right cone with sin(alpha)=1/2: development is a half annulus",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 100,
+  "r2": 50,
+  "h": 86.60254037844386
+ },
+ "expect": "accept",
+ "derivation": "r1-r2=50, slant s=100 (h=sqrt(100^2-50^2)=86.60254037844386) so sin(alpha)=1/2, sector angle = pi. L1=200, L2=100. Half annulus: area = pi/2*(200^2-100^2) = 15000*pi; bounding box 400 x 200; chord across the large arc = 400; outline = pi*200 + pi*100 + 2*100.",
+ "quantities": {
+  "reducer": {
+   "sector_angle": [
+    3.141592653589793,
+    3.141592653589793e-11
+   ],
+   "slant_length": [
+    100.0,
+    9.999999999999999e-10
+   ],
+   "sin_half_angle": [
+    0.5,
+    5e-12
+   ],
+   "apex_radius_large": [
+    200.0,
+    1.9999999999999997e-09
+   ],
+   "apex_radius_small": [
+    100.0,
+    9.999999999999999e-10
+   ],
+   "area": [
+    47123.8898038469,
+    4.7123889803846896e-07
+   ],
+   "chord_large_arc": [
+    400.0,
+    3.9999999999999994e-09
+   ]
+  }
+ },
+ "measures": {
+  "reducer": {
+   "outline_area": [
+    47123.8898038469,
+    4.7123889803846896e-06
+   ],
+   "outline_perimeter": [
+    1142.477796076938,
+    1.1424777960769379e-07
+   ],
+   "bbox_w": [
+    400.0,
+    4e-08
+   ],
+   "bbox_h": [
+    200.0,
+    2e-08
+   ],
+   "len_seam_a": [
+    100.0,
+    9.999999999999999e-10
+   ],
+   "len_seam_b": [
+    100.0,
+    9.999999999999999e-10
+   ],
+   "len_large_end": [
+    628.3185307179587,
+    6.283185307179586e-09
+   ],
+   "len_small_end": [
+    314.1592653589793,
+    3.141592653589793e-09
+   ]
+  }
+ }
+}

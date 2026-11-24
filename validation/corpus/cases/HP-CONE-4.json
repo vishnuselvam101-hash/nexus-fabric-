@@ -1,0 +1,70 @@
+{
+ "id": "HP-CONE-4",
+ "group": "high_precision",
+ "title": "Right cone r1=0.75 r2=0.125 h=2.5: mpmath values",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 0.75,
+  "r2": 0.125,
+  "h": 2.5
+ },
+ "expect": "accept",
+ "derivation": "mpmath, 40 digits, from the 3D geometry: apex by similar triangles on a ruling; L = |C1 - apex|; sector angle = 2*pi*r1/L1 (rim length preserved) cross-checked against the arc length of the spherical image of the rulings; area = 3D surface integral, cross-checked against the sector area.  Values stored to 17 digits.",
+ "quantities": {
+  "reducer": {
+   "slant_length": [
+    2.576941016011038,
+    5.153882032022076e-12
+   ],
+   "sin_half_angle": [
+    0.24253562503633297,
+    1e-12
+   ],
+   "apex_radius_large": [
+    3.092329219213245,
+    6.18465843842649e-12
+   ],
+   "apex_radius_small": [
+    0.5153882032022076,
+    1.0307764064044151e-12
+   ],
+   "sector_angle": [
+    1.5238962756959047,
+    3.0477925513918095e-12
+   ],
+   "area": [
+    7.083736594055183,
+    1.4167473188110366e-11
+   ],
+   "chord_large_arc": [
+    4.269468973489684,
+    8.538937946979369e-12
+   ]
+  }
+ },
+ "measures": {
+  "reducer": {
+   "outline_area": [
+    7.083736594055183,
+    7.083736594055183e-09
+   ],
+   "len_large_end": [
+    4.71238898038469,
+    4.712388980384689e-11
+   ],
+   "len_small_end": [
+    0.7853981633974483,
+    7.853981633974482e-12
+   ],
+   "len_seam_a": [
+    2.576941016011038,
+    2.576941016011038e-11
+   ]
+  }
+ },
+ "hp_strings": {
+  "sector_angle": "1.5238962756959047988",
+  "area": "7.0837365940551824632",
+  "apex_radius_large": "3.0923292192132454124"
+ }
+}

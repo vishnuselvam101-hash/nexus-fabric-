@@ -1,0 +1,8 @@
+# 4K masters and caption-free variants are delivered directly, not committed
+final/*-4k60.mp4
+final/*-clean*.mp4
+# scratch outputs
+review/
+frames/
+stills/
+*.tmp.mp4

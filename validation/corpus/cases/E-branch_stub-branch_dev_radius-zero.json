@@ -1,0 +1,24 @@
+{
+ "id": "E-branch_stub-branch_dev_radius-zero",
+ "group": "refusal",
+ "title": "branch_stub: branch_dev_radius = 0.0",
+ "request": {
+  "family": "branch_stub",
+  "header_radius": 150,
+  "branch_radius": 100,
+  "branch_dev_radius": 0.0,
+  "beta_deg": 60,
+  "delta": 20,
+  "s_end": 400
+ },
+ "expect": "refuse",
+ "derivation": "branch_dev_radius must be a finite positive length; 0.0 describes no part.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "branch_dev_radius",
+   "radius",
+   "> 0"
+  ]
+ }
+}

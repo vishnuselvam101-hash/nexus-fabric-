@@ -1,0 +1,3529 @@
+[
+ {
+  "label": "af_heart",
+  "engine": "kokoro",
+  "voice": "af_heart",
+  "total_s": 37.27,
+  "speech_s": 33.2,
+  "rate_units_per_s": 3.4,
+  "mean_err": 0.0,
+  "lines_exact": 9,
+  "asr_logprob": -0.116,
+  "f0_median_hz": 198.8,
+  "f0_range_st": 9.45,
+  "f0_sd_st": 3.0,
+  "pauses_n": 13,
+  "pause_mean_s": 0.313,
+  "clipped": 0,
+  "peak_dbfs": -1.42,
+  "pesq_est": 3.76,
+  "stoi_est": 0.996,
+  "seconds_to_run": 37.7,
+  "lines": [
+   {
+    "duration_s": 4.518,
+    "speech_s": 4.078,
+    "pauses": [
+     [
+      2.155,
+      2.595
+     ]
+    ],
+    "peak_dbfs": -6.55,
+    "rms_dbfs": -22.4,
+    "clipped_samples": 0,
+    "f0_median_hz": 202.6,
+    "f0_range_st": 9.19,
+    "f0_sd_st": 3.02,
+    "voiced_share": 0.55,
+    "units": 18,
+    "stoi_est": 0.995,
+    "pesq_est": 3.66,
+    "sisdr_est_db": 23.2,
+    "asr": "Where a branch meets a header, there is one curve. Get it wrong and the steel won't fit.",
+    "asr_logprob": -0.116,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.863,
+    "speech_s": 4.378,
+    "pauses": [
+     [
+      0.825,
+      0.93
+     ],
+     [
+      2.47,
+      2.85
+     ]
+    ],
+    "peak_dbfs": -5.24,
+    "rms_dbfs": -22.32,
+    "clipped_samples": 0,
+    "f0_median_hz": 195.1,
+    "f0_range_st": 9.53,
+    "f0_sd_st": 3.0,
+    "voiced_share": 0.52,
+    "units": 13,
+    "stoi_est": 0.998,
+    "pesq_est": 3.79,
+    "sisdr_est_db": 22.1,
+    "asr": "Nexus fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.116,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.378,
+    "speech_s": 2.378,
+    "pauses": [],
+    "peak_dbfs": -1.42,
+    "rms_dbfs": -22.5,
+    "clipped_samples": 0,
+    "f0_median_hz": 189.4,
+    "f0_range_st": 10.29,
+    "f0_sd_st": 3.26,
+    "voiced_share": 0.57,
+    "units": 8,
+    "stoi_est": 0.997,
+    "pesq_est": 3.9,
+    "sisdr_est_db": 27.1,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.116,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.061,
+    "speech_s": 4.441,
+    "pauses": [
+     [
+      1.205,
+      1.66
+     ],
+     [
+      3.26,
+      3.425
+     ]
+    ],
+    "peak_dbfs": -6.2,
+    "rms_dbfs": -22.13,
+    "clipped_samples": 0,
+    "f0_median_hz": 200.0,
+    "f0_range_st": 9.89,
+    "f0_sd_st": 2.79,
+    "voiced_share": 0.5,
+    "units": 18,
+    "stoi_est": 0.993,
+    "pesq_est": 3.53,
+    "sisdr_est_db": 22.3,
+    "asr": "Then it checks its own work. Both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.116,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.279,
+    "speech_s": 3.769,
+    "pauses": [
+     [
+      1.095,
+      1.215
+     ],
+     [
+      2.925,
+      3.315
+     ]
+    ],
+    "peak_dbfs": -5.29,
+    "rms_dbfs": -22.3,
+    "clipped_samples": 0,
+    "f0_median_hz": 198.8,
+    "f0_range_st": 9.86,
+    "f0_sd_st": 2.93,
+    "voiced_share": 0.52,
+    "units": 13,
+    "stoi_est": 0.995,
+    "pesq_est": 3.7,
+    "sisdr_est_db": 23.8,
+    "asr": "What it cannot confirm, it shows you and the result stays, review required.",
+    "asr_logprob": -0.116,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.751,
+    "speech_s": 3.391,
+    "pauses": [
+     [
+      1.37,
+      1.73
+     ]
+    ],
+    "peak_dbfs": -5.48,
+    "rms_dbfs": -22.22,
+    "clipped_samples": 0,
+    "f0_median_hz": 200.0,
+    "f0_range_st": 9.2,
+    "f0_sd_st": 3.21,
+    "voiced_share": 0.53,
+    "units": 11,
+    "stoi_est": 0.997,
+    "pesq_est": 3.94,
+    "sisdr_est_db": 24.5,
+    "asr": "Every step is recorded and the whole calculation can be replayed.",
+    "asr_logprob": -0.116,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.458,
+    "speech_s": 3.843,
+    "pauses": [
+     [
+      2.475,
+      2.88
+     ],
+     [
+      3.505,
+      3.715
+     ]
+    ],
+    "peak_dbfs": -3.61,
+    "rms_dbfs": -22.06,
+    "clipped_samples": 0,
+    "f0_median_hz": 195.1,
+    "f0_range_st": 9.69,
+    "f0_sd_st": 3.27,
+    "voiced_share": 0.53,
+    "units": 12,
+    "stoi_est": 0.996,
+    "pesq_est": 3.77,
+    "sisdr_est_db": 27.4,
+    "asr": "The DXF is written, read back, and compared, then marked, not released.",
+    "asr_logprob": -0.116,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.292,
+    "speech_s": 4.522,
+    "pauses": [
+     [
+      1.8,
+      2.315
+     ],
+     [
+      3.205,
+      3.46
+     ]
+    ],
+    "peak_dbfs": -4.42,
+    "rms_dbfs": -22.22,
+    "clipped_samples": 0,
+    "f0_median_hz": 190.5,
+    "f0_range_st": 9.98,
+    "f0_sd_st": 3.25,
+    "voiced_share": 0.55,
+    "units": 16,
+    "stoi_est": 0.996,
+    "pesq_est": 3.85,
+    "sisdr_est_db": 24.8,
+    "asr": "Reading the drawing for you is planned. The calculation, the checks, and the record run today.",
+    "asr_logprob": -0.116,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.667,
+    "speech_s": 2.402,
+    "pauses": [
+     [
+      0.93,
+      1.195
+     ]
+    ],
+    "peak_dbfs": -4.08,
+    "rms_dbfs": -22.19,
+    "clipped_samples": 0,
+    "f0_median_hz": 200.0,
+    "f0_range_st": 7.44,
+    "f0_sd_st": 2.3,
+    "voiced_share": 0.53,
+    "units": 4,
+    "stoi_est": 0.997,
+    "pesq_est": 3.67,
+    "sisdr_est_db": 22.1,
+    "asr": "Nexus Fabric, engineering reimagined.",
+    "asr_logprob": -0.116,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "af_bella",
+  "engine": "kokoro",
+  "voice": "af_bella",
+  "total_s": 38.62,
+  "speech_s": 33.69,
+  "rate_units_per_s": 3.35,
+  "mean_err": 0.0,
+  "lines_exact": 9,
+  "asr_logprob": -0.172,
+  "f0_median_hz": 202.5,
+  "f0_range_st": 7.87,
+  "f0_sd_st": 2.79,
+  "pauses_n": 14,
+  "pause_mean_s": 0.352,
+  "clipped": 0,
+  "peak_dbfs": -2.42,
+  "pesq_est": 3.57,
+  "stoi_est": 0.991,
+  "seconds_to_run": 37.3,
+  "lines": [
+   {
+    "duration_s": 4.593,
+    "speech_s": 4.048,
+    "pauses": [
+     [
+      2.165,
+      2.71
+     ]
+    ],
+    "peak_dbfs": -5.44,
+    "rms_dbfs": -21.45,
+    "clipped_samples": 0,
+    "f0_median_hz": 202.5,
+    "f0_range_st": 7.39,
+    "f0_sd_st": 2.74,
+    "voiced_share": 0.58,
+    "units": 18,
+    "stoi_est": 0.994,
+    "pesq_est": 3.64,
+    "sisdr_est_db": 23.4,
+    "asr": "Where a branch meets a header, there is one curve. Get it wrong, and the steel won't fit.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.028,
+    "speech_s": 4.503,
+    "pauses": [
+     [
+      0.895,
+      1.0
+     ],
+     [
+      2.515,
+      2.935
+     ]
+    ],
+    "peak_dbfs": -4.47,
+    "rms_dbfs": -21.08,
+    "clipped_samples": 0,
+    "f0_median_hz": 200.0,
+    "f0_range_st": 8.92,
+    "f0_sd_st": 2.66,
+    "voiced_share": 0.57,
+    "units": 13,
+    "stoi_est": 0.995,
+    "pesq_est": 3.85,
+    "sisdr_est_db": 21.6,
+    "asr": "Nexus fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.495,
+    "speech_s": 2.295,
+    "pauses": [
+     [
+      0.855,
+      1.055
+     ]
+    ],
+    "peak_dbfs": -2.78,
+    "rms_dbfs": -21.39,
+    "clipped_samples": 0,
+    "f0_median_hz": 202.5,
+    "f0_range_st": 7.82,
+    "f0_sd_st": 2.55,
+    "voiced_share": 0.58,
+    "units": 8,
+    "stoi_est": 0.986,
+    "pesq_est": 3.61,
+    "sisdr_est_db": 20.8,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.237,
+    "speech_s": 4.537,
+    "pauses": [
+     [
+      1.23,
+      1.705
+     ],
+     [
+      3.325,
+      3.55
+     ]
+    ],
+    "peak_dbfs": -3.86,
+    "rms_dbfs": -20.7,
+    "clipped_samples": 0,
+    "f0_median_hz": 205.1,
+    "f0_range_st": 7.64,
+    "f0_sd_st": 2.62,
+    "voiced_share": 0.54,
+    "units": 18,
+    "stoi_est": 0.99,
+    "pesq_est": 3.65,
+    "sisdr_est_db": 25.4,
+    "asr": "Then it checks its own work. Both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.412,
+    "speech_s": 3.837,
+    "pauses": [
+     [
+      1.095,
+      1.215
+     ],
+     [
+      2.99,
+      3.445
+     ]
+    ],
+    "peak_dbfs": -2.42,
+    "rms_dbfs": -21.17,
+    "clipped_samples": 0,
+    "f0_median_hz": 197.5,
+    "f0_range_st": 8.06,
+    "f0_sd_st": 2.54,
+    "voiced_share": 0.53,
+    "units": 13,
+    "stoi_est": 0.989,
+    "pesq_est": 3.49,
+    "sisdr_est_db": 21.9,
+    "asr": "What it cannot confirm, it shows you, and the result stays. Review required.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.832,
+    "speech_s": 3.427,
+    "pauses": [
+     [
+      1.375,
+      1.78
+     ]
+    ],
+    "peak_dbfs": -3.16,
+    "rms_dbfs": -20.97,
+    "clipped_samples": 0,
+    "f0_median_hz": 202.5,
+    "f0_range_st": 8.55,
+    "f0_sd_st": 3.75,
+    "voiced_share": 0.54,
+    "units": 11,
+    "stoi_est": 0.993,
+    "pesq_est": 3.29,
+    "sisdr_est_db": 25.6,
+    "asr": "every step is recorded and the whole calculation can be replayed",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.758,
+    "speech_s": 3.998,
+    "pauses": [
+     [
+      2.63,
+      3.06
+     ],
+     [
+      3.655,
+      3.985
+     ]
+    ],
+    "peak_dbfs": -2.75,
+    "rms_dbfs": -21.36,
+    "clipped_samples": 0,
+    "f0_median_hz": 200.0,
+    "f0_range_st": 7.4,
+    "f0_sd_st": 2.74,
+    "voiced_share": 0.56,
+    "units": 12,
+    "stoi_est": 0.991,
+    "pesq_est": 3.24,
+    "sisdr_est_db": 25.2,
+    "asr": "the dxf is written read back and compared then marked not released",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.545,
+    "speech_s": 4.67,
+    "pauses": [
+     [
+      1.865,
+      2.435
+     ],
+     [
+      3.33,
+      3.635
+     ]
+    ],
+    "peak_dbfs": -3.79,
+    "rms_dbfs": -21.36,
+    "clipped_samples": 0,
+    "f0_median_hz": 197.5,
+    "f0_range_st": 8.9,
+    "f0_sd_st": 2.7,
+    "voiced_share": 0.58,
+    "units": 16,
+    "stoi_est": 0.992,
+    "pesq_est": 3.44,
+    "sisdr_est_db": 23.3,
+    "asr": "reading the drawing for you is planned the calculation the checks and the record run today",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.715,
+    "speech_s": 2.375,
+    "pauses": [
+     [
+      0.93,
+      1.27
+     ]
+    ],
+    "peak_dbfs": -6.01,
+    "rms_dbfs": -21.1,
+    "clipped_samples": 0,
+    "f0_median_hz": 202.5,
+    "f0_range_st": 6.16,
+    "f0_sd_st": 2.83,
+    "voiced_share": 0.57,
+    "units": 4,
+    "stoi_est": 0.993,
+    "pesq_est": 3.93,
+    "sisdr_est_db": 22.1,
+    "asr": "nexus fabric engineering reimagined",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "af_nicole",
+  "engine": "kokoro",
+  "voice": "af_nicole",
+  "total_s": 58.87,
+  "speech_s": 39.99,
+  "rate_units_per_s": 2.83,
+  "mean_err": 0.0062,
+  "lines_exact": 8,
+  "asr_logprob": -0.155,
+  "f0_median_hz": 160.0,
+  "f0_range_st": 15.63,
+  "f0_sd_st": 4.39,
+  "pauses_n": 40,
+  "pause_mean_s": 0.472,
+  "clipped": 0,
+  "peak_dbfs": -0.07,
+  "pesq_est": 3.01,
+  "stoi_est": 0.985,
+  "seconds_to_run": 45.3,
+  "lines": [
+   {
+    "duration_s": 7.392,
+    "speech_s": 4.817,
+    "pauses": [
+     [
+      1.38,
+      2.155
+     ],
+     [
+      3.43,
+      4.305
+     ],
+     [
+      5.105,
+      5.92
+     ],
+     [
+      7.175,
+      7.285
+     ]
+    ],
+    "peak_dbfs": -3.78,
+    "rms_dbfs": -21.94,
+    "clipped_samples": 0,
+    "f0_median_hz": 160.0,
+    "f0_range_st": 18.87,
+    "f0_sd_st": 4.89,
+    "voiced_share": 0.29,
+    "units": 18,
+    "stoi_est": 0.991,
+    "pesq_est": 3.4,
+    "sisdr_est_db": 17.6,
+    "asr": "a branch meets a header, there is one curve. Get it wrong, and the steel won't fit.",
+    "asr_logprob": -0.155,
+    "err": 0.0556
+   },
+   {
+    "duration_s": 7.501,
+    "speech_s": 5.181,
+    "pauses": [
+     [
+      0.97,
+      1.08
+     ],
+     [
+      1.115,
+      1.665
+     ],
+     [
+      3.345,
+      3.465
+     ],
+     [
+      3.505,
+      4.68
+     ],
+     [
+      5.615,
+      5.765
+     ],
+     [
+      6.165,
+      6.38
+     ]
+    ],
+    "peak_dbfs": -3.75,
+    "rms_dbfs": -22.2,
+    "clipped_samples": 0,
+    "f0_median_hz": 163.3,
+    "f0_range_st": 17.78,
+    "f0_sd_st": 4.57,
+    "voiced_share": 0.28,
+    "units": 13,
+    "stoi_est": 0.985,
+    "pesq_est": 3.03,
+    "sisdr_est_db": 19.6,
+    "asr": "Nexus fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.155,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.72,
+    "speech_s": 2.605,
+    "pauses": [
+     [
+      1.095,
+      1.775
+     ],
+     [
+      2.025,
+      2.13
+     ],
+     [
+      2.77,
+      2.87
+     ],
+     [
+      2.925,
+      3.05
+     ],
+     [
+      3.525,
+      3.63
+     ]
+    ],
+    "peak_dbfs": -3.19,
+    "rms_dbfs": -21.34,
+    "clipped_samples": 0,
+    "f0_median_hz": 153.8,
+    "f0_range_st": 18.12,
+    "f0_sd_st": 4.71,
+    "voiced_share": 0.3,
+    "units": 8,
+    "stoi_est": 0.988,
+    "pesq_est": 3.07,
+    "sisdr_est_db": 23.8,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.155,
+    "err": 0.0
+   },
+   {
+    "duration_s": 8.149,
+    "speech_s": 5.424,
+    "pauses": [
+     [
+      1.4,
+      1.51
+     ],
+     [
+      1.55,
+      2.675
+     ],
+     [
+      4.705,
+      4.815
+     ],
+     [
+      4.845,
+      5.78
+     ],
+     [
+      6.475,
+      6.6
+     ],
+     [
+      6.655,
+      6.975
+     ]
+    ],
+    "peak_dbfs": -3.68,
+    "rms_dbfs": -22.22,
+    "clipped_samples": 0,
+    "f0_median_hz": 155.3,
+    "f0_range_st": 18.4,
+    "f0_sd_st": 4.94,
+    "voiced_share": 0.29,
+    "units": 18,
+    "stoi_est": 0.985,
+    "pesq_est": 2.98,
+    "sisdr_est_db": 20.0,
+    "asr": "Then it checks its own work. Both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.155,
+    "err": 0.0
+   },
+   {
+    "duration_s": 6.869,
+    "speech_s": 4.649,
+    "pauses": [
+     [
+      1.4,
+      2.005
+     ],
+     [
+      2.8,
+      3.385
+     ],
+     [
+      4.61,
+      5.64
+     ]
+    ],
+    "peak_dbfs": -4.51,
+    "rms_dbfs": -21.89,
+    "clipped_samples": 0,
+    "f0_median_hz": 160.0,
+    "f0_range_st": 18.71,
+    "f0_sd_st": 4.72,
+    "voiced_share": 0.27,
+    "units": 13,
+    "stoi_est": 0.988,
+    "pesq_est": 2.85,
+    "sisdr_est_db": 14.5,
+    "asr": "What it cannot confirm, it shows you, and the result stays. Review required.",
+    "asr_logprob": -0.155,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.632,
+    "speech_s": 4.142,
+    "pauses": [
+     [
+      0.82,
+      0.93
+     ],
+     [
+      1.74,
+      2.82
+     ],
+     [
+      4.355,
+      4.655
+     ]
+    ],
+    "peak_dbfs": -2.92,
+    "rms_dbfs": -22.12,
+    "clipped_samples": 0,
+    "f0_median_hz": 158.4,
+    "f0_range_st": 17.94,
+    "f0_sd_st": 4.62,
+    "voiced_share": 0.28,
+    "units": 11,
+    "stoi_est": 0.98,
+    "pesq_est": 2.84,
+    "sisdr_est_db": 16.7,
+    "asr": "Every step is recorded, and the whole calculation can be replayed.",
+    "asr_logprob": -0.155,
+    "err": 0.0
+   },
+   {
+    "duration_s": 7.24,
+    "speech_s": 4.8,
+    "pauses": [
+     [
+      1.695,
+      2.11
+     ],
+     [
+      2.67,
+      2.775
+     ],
+     [
+      2.81,
+      3.635
+     ],
+     [
+      4.965,
+      5.07
+     ],
+     [
+      5.205,
+      6.195
+     ]
+    ],
+    "peak_dbfs": -0.07,
+    "rms_dbfs": -21.86,
+    "clipped_samples": 0,
+    "f0_median_hz": 160.0,
+    "f0_range_st": 6.11,
+    "f0_sd_st": 3.15,
+    "voiced_share": 0.26,
+    "units": 12,
+    "stoi_est": 0.982,
+    "pesq_est": 3.06,
+    "sisdr_est_db": 17.1,
+    "asr": "The DXF is written, read back, and compared, then marked. Not released.",
+    "asr_logprob": -0.155,
+    "err": 0.0
+   },
+   {
+    "duration_s": 8.325,
+    "speech_s": 5.59,
+    "pauses": [
+     [
+      2.435,
+      3.845
+     ],
+     [
+      4.92,
+      5.61
+     ],
+     [
+      6.025,
+      6.135
+     ],
+     [
+      6.355,
+      6.565
+     ],
+     [
+      7.285,
+      7.6
+     ]
+    ],
+    "peak_dbfs": -3.96,
+    "rms_dbfs": -22.24,
+    "clipped_samples": 0,
+    "f0_median_hz": 160.0,
+    "f0_range_st": 18.87,
+    "f0_sd_st": 4.91,
+    "voiced_share": 0.3,
+    "units": 16,
+    "stoi_est": 0.988,
+    "pesq_est": 3.25,
+    "sisdr_est_db": 20.8,
+    "asr": "Reading the drawing for you is planned. The calculation, the checks, and the record run today.",
+    "asr_logprob": -0.155,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.046,
+    "speech_s": 2.786,
+    "pauses": [
+     [
+      0.965,
+      1.07
+     ],
+     [
+      1.11,
+      2.005
+     ],
+     [
+      2.81,
+      3.07
+     ]
+    ],
+    "peak_dbfs": -4.54,
+    "rms_dbfs": -21.13,
+    "clipped_samples": 0,
+    "f0_median_hz": 153.8,
+    "f0_range_st": 5.87,
+    "f0_sd_st": 2.96,
+    "voiced_share": 0.32,
+    "units": 4,
+    "stoi_est": 0.975,
+    "pesq_est": 2.65,
+    "sisdr_est_db": 23.3,
+    "asr": "Nexus Fabric. Engineering reimagined.",
+    "asr_logprob": -0.155,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "af_aoede",
+  "engine": "kokoro",
+  "voice": "af_aoede",
+  "total_s": 35.77,
+  "speech_s": 34.12,
+  "rate_units_per_s": 3.31,
+  "mean_err": 0.0,
+  "lines_exact": 9,
+  "asr_logprob": -0.172,
+  "f0_median_hz": 177.8,
+  "f0_range_st": 10.0,
+  "f0_sd_st": 3.47,
+  "pauses_n": 6,
+  "pause_mean_s": 0.275,
+  "clipped": 37,
+  "peak_dbfs": 1.41,
+  "pesq_est": 3.59,
+  "stoi_est": 0.993,
+  "seconds_to_run": 32.5,
+  "lines": [
+   {
+    "duration_s": 4.371,
+    "speech_s": 4.121,
+    "pauses": [
+     [
+      2.255,
+      2.505
+     ]
+    ],
+    "peak_dbfs": -2.22,
+    "rms_dbfs": -17.57,
+    "clipped_samples": 0,
+    "f0_median_hz": 177.8,
+    "f0_range_st": 9.23,
+    "f0_sd_st": 2.98,
+    "voiced_share": 0.66,
+    "units": 18,
+    "stoi_est": 0.997,
+    "pesq_est": 3.72,
+    "sisdr_est_db": 25.1,
+    "asr": "Where a branch meets a header there is one curve, get it wrong and the steel won't fit.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.825,
+    "speech_s": 4.58,
+    "pauses": [
+     [
+      2.54,
+      2.785
+     ]
+    ],
+    "peak_dbfs": -1.06,
+    "rms_dbfs": -17.38,
+    "clipped_samples": 0,
+    "f0_median_hz": 179.8,
+    "f0_range_st": 9.03,
+    "f0_sd_st": 3.67,
+    "voiced_share": 0.6,
+    "units": 13,
+    "stoi_est": 0.994,
+    "pesq_est": 3.72,
+    "sisdr_est_db": 23.3,
+    "asr": "Nexus Fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.226,
+    "speech_s": 2.226,
+    "pauses": [],
+    "peak_dbfs": -2.18,
+    "rms_dbfs": -16.98,
+    "clipped_samples": 0,
+    "f0_median_hz": 190.5,
+    "f0_range_st": 9.85,
+    "f0_sd_st": 3.05,
+    "voiced_share": 0.63,
+    "units": 8,
+    "stoi_est": 0.987,
+    "pesq_est": 3.25,
+    "sisdr_est_db": 20.0,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.859,
+    "speech_s": 4.584,
+    "pauses": [
+     [
+      1.265,
+      1.54
+     ]
+    ],
+    "peak_dbfs": -0.95,
+    "rms_dbfs": -17.41,
+    "clipped_samples": 0,
+    "f0_median_hz": 177.8,
+    "f0_range_st": 10.12,
+    "f0_sd_st": 3.31,
+    "voiced_share": 0.6,
+    "units": 18,
+    "stoi_est": 0.987,
+    "pesq_est": 3.58,
+    "sisdr_est_db": 20.4,
+    "asr": "Then it checks its own work, both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.213,
+    "speech_s": 3.953,
+    "pauses": [
+     [
+      2.96,
+      3.22
+     ]
+    ],
+    "peak_dbfs": -1.04,
+    "rms_dbfs": -17.43,
+    "clipped_samples": 0,
+    "f0_median_hz": 177.8,
+    "f0_range_st": 10.72,
+    "f0_sd_st": 3.31,
+    "voiced_share": 0.61,
+    "units": 13,
+    "stoi_est": 0.991,
+    "pesq_est": 3.69,
+    "sisdr_est_db": 20.3,
+    "asr": "What it cannot confirm it shows you and the result stays, review required.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.713,
+    "speech_s": 3.488,
+    "pauses": [
+     [
+      1.39,
+      1.615
+     ]
+    ],
+    "peak_dbfs": -0.9,
+    "rms_dbfs": -17.26,
+    "clipped_samples": 0,
+    "f0_median_hz": 181.8,
+    "f0_range_st": 9.69,
+    "f0_sd_st": 3.75,
+    "voiced_share": 0.64,
+    "units": 11,
+    "stoi_est": 0.993,
+    "pesq_est": 3.48,
+    "sisdr_est_db": 18.9,
+    "asr": "Every step is recorded and the whole calculation can be replayed.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.071,
+    "speech_s": 4.071,
+    "pauses": [],
+    "peak_dbfs": 0.22,
+    "rms_dbfs": -17.55,
+    "clipped_samples": 2,
+    "f0_median_hz": 176.8,
+    "f0_range_st": 10.42,
+    "f0_sd_st": 3.21,
+    "voiced_share": 0.67,
+    "units": 12,
+    "stoi_est": 0.994,
+    "pesq_est": 3.38,
+    "sisdr_est_db": 22.2,
+    "asr": "The DXF is written, read back and compared, then marked not released.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.138,
+    "speech_s": 4.743,
+    "pauses": [
+     [
+      1.92,
+      2.315
+     ]
+    ],
+    "peak_dbfs": 1.41,
+    "rms_dbfs": -17.19,
+    "clipped_samples": 35,
+    "f0_median_hz": 186.0,
+    "f0_range_st": 11.39,
+    "f0_sd_st": 3.95,
+    "voiced_share": 0.63,
+    "units": 16,
+    "stoi_est": 0.995,
+    "pesq_est": 3.72,
+    "sisdr_est_db": 23.2,
+    "asr": "Reading the drawing for you is planned. The calculation, the checks and the record run today.",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.351,
+    "speech_s": 2.351,
+    "pauses": [],
+    "peak_dbfs": -1.42,
+    "rms_dbfs": -17.24,
+    "clipped_samples": 0,
+    "f0_median_hz": 175.8,
+    "f0_range_st": 9.57,
+    "f0_sd_st": 3.96,
+    "voiced_share": 0.69,
+    "units": 4,
+    "stoi_est": 0.997,
+    "pesq_est": 3.78,
+    "sisdr_est_db": 27.1,
+    "asr": "Nexus Fabric Engineering Reimagined",
+    "asr_logprob": -0.172,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "af_kore",
+  "engine": "kokoro",
+  "voice": "af_kore",
+  "total_s": 36.92,
+  "speech_s": 35.84,
+  "rate_units_per_s": 3.15,
+  "mean_err": 0.0069,
+  "lines_exact": 8,
+  "asr_logprob": -0.122,
+  "f0_median_hz": 152.4,
+  "f0_range_st": 13.78,
+  "f0_sd_st": 4.37,
+  "pauses_n": 7,
+  "pause_mean_s": 0.154,
+  "clipped": 0,
+  "peak_dbfs": -1.84,
+  "pesq_est": 3.81,
+  "stoi_est": 0.997,
+  "seconds_to_run": 69.2,
+  "lines": [
+   {
+    "duration_s": 4.514,
+    "speech_s": 4.369,
+    "pauses": [
+     [
+      2.385,
+      2.53
+     ]
+    ],
+    "peak_dbfs": -3.88,
+    "rms_dbfs": -18.15,
+    "clipped_samples": 0,
+    "f0_median_hz": 149.5,
+    "f0_range_st": 13.81,
+    "f0_sd_st": 4.14,
+    "voiced_share": 0.67,
+    "units": 18,
+    "stoi_est": 0.996,
+    "pesq_est": 3.71,
+    "sisdr_est_db": 26.1,
+    "asr": "Where a branch meets a header there is one curve, get it wrong and the steel won't fit.",
+    "asr_logprob": -0.122,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.989,
+    "speech_s": 4.884,
+    "pauses": [
+     [
+      2.765,
+      2.87
+     ]
+    ],
+    "peak_dbfs": -4.26,
+    "rms_dbfs": -18.06,
+    "clipped_samples": 0,
+    "f0_median_hz": 152.4,
+    "f0_range_st": 13.19,
+    "f0_sd_st": 4.28,
+    "voiced_share": 0.62,
+    "units": 13,
+    "stoi_est": 0.997,
+    "pesq_est": 3.71,
+    "sisdr_est_db": 27.1,
+    "asr": "Nexus Fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.122,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.255,
+    "speech_s": 2.255,
+    "pauses": [],
+    "peak_dbfs": -4.45,
+    "rms_dbfs": -17.65,
+    "clipped_samples": 0,
+    "f0_median_hz": 158.4,
+    "f0_range_st": 12.0,
+    "f0_sd_st": 4.43,
+    "voiced_share": 0.65,
+    "units": 8,
+    "stoi_est": 0.998,
+    "pesq_est": 4.1,
+    "sisdr_est_db": 27.4,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.122,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.057,
+    "speech_s": 4.912,
+    "pauses": [
+     [
+      1.425,
+      1.57
+     ]
+    ],
+    "peak_dbfs": -2.56,
+    "rms_dbfs": -17.86,
+    "clipped_samples": 0,
+    "f0_median_hz": 146.8,
+    "f0_range_st": 14.04,
+    "f0_sd_st": 4.82,
+    "voiced_share": 0.63,
+    "units": 18,
+    "stoi_est": 0.993,
+    "pesq_est": 3.52,
+    "sisdr_est_db": 22.7,
+    "asr": "Then it checks its own work, both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.122,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.278,
+    "speech_s": 4.123,
+    "pauses": [
+     [
+      3.075,
+      3.23
+     ]
+    ],
+    "peak_dbfs": -4.07,
+    "rms_dbfs": -17.97,
+    "clipped_samples": 0,
+    "f0_median_hz": 148.1,
+    "f0_range_st": 15.15,
+    "f0_sd_st": 4.61,
+    "voiced_share": 0.67,
+    "units": 13,
+    "stoi_est": 0.998,
+    "pesq_est": 3.94,
+    "sisdr_est_db": 28.3,
+    "asr": "What it cannot confirm it shows you and the result stays, review required.",
+    "asr_logprob": -0.122,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.879,
+    "speech_s": 3.729,
+    "pauses": [
+     [
+      1.475,
+      1.625
+     ]
+    ],
+    "peak_dbfs": -3.18,
+    "rms_dbfs": -18.08,
+    "clipped_samples": 0,
+    "f0_median_hz": 152.4,
+    "f0_range_st": 14.19,
+    "f0_sd_st": 4.47,
+    "voiced_share": 0.65,
+    "units": 11,
+    "stoi_est": 0.998,
+    "pesq_est": 3.95,
+    "sisdr_est_db": 27.6,
+    "asr": "every step is recorded and the whole calculation can be replayed",
+    "asr_logprob": -0.122,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.225,
+    "speech_s": 4.225,
+    "pauses": [],
+    "peak_dbfs": -1.84,
+    "rms_dbfs": -18.01,
+    "clipped_samples": 0,
+    "f0_median_hz": 152.4,
+    "f0_range_st": 14.24,
+    "f0_sd_st": 4.37,
+    "voiced_share": 0.69,
+    "units": 12,
+    "stoi_est": 0.996,
+    "pesq_est": 3.47,
+    "sisdr_est_db": 22.2,
+    "asr": "the DXF is written read back and compared then marked not released",
+    "asr_logprob": -0.122,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.252,
+    "speech_s": 4.977,
+    "pauses": [
+     [
+      2.05,
+      2.325
+     ]
+    ],
+    "peak_dbfs": -2.1,
+    "rms_dbfs": -17.79,
+    "clipped_samples": 0,
+    "f0_median_hz": 156.9,
+    "f0_range_st": 15.88,
+    "f0_sd_st": 4.6,
+    "voiced_share": 0.67,
+    "units": 16,
+    "stoi_est": 0.999,
+    "pesq_est": 3.95,
+    "sisdr_est_db": 29.2,
+    "asr": "reading the drawing for you as planned the calculation the checks and the record run today",
+    "asr_logprob": -0.122,
+    "err": 0.0625
+   },
+   {
+    "duration_s": 2.467,
+    "speech_s": 2.362,
+    "pauses": [
+     [
+      0.905,
+      1.01
+     ]
+    ],
+    "peak_dbfs": -4.25,
+    "rms_dbfs": -18.14,
+    "clipped_samples": 0,
+    "f0_median_hz": 145.5,
+    "f0_range_st": 11.55,
+    "f0_sd_st": 3.62,
+    "voiced_share": 0.67,
+    "units": 4,
+    "stoi_est": 0.999,
+    "pesq_est": 3.98,
+    "sisdr_est_db": 27.9,
+    "asr": "Nexus fabric engineering reimagined",
+    "asr_logprob": -0.122,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "af_sarah",
+  "engine": "kokoro",
+  "voice": "af_sarah",
+  "total_s": 36.64,
+  "speech_s": 32.2,
+  "rate_units_per_s": 3.51,
+  "mean_err": 0.0069,
+  "lines_exact": 8,
+  "asr_logprob": -0.154,
+  "f0_median_hz": 193.9,
+  "f0_range_st": 12.32,
+  "f0_sd_st": 3.67,
+  "pauses_n": 13,
+  "pause_mean_s": 0.341,
+  "clipped": 5,
+  "peak_dbfs": 0.64,
+  "pesq_est": 4.04,
+  "stoi_est": 0.998,
+  "seconds_to_run": 65.2,
+  "lines": [
+   {
+    "duration_s": 4.435,
+    "speech_s": 3.915,
+    "pauses": [
+     [
+      2.145,
+      2.665
+     ]
+    ],
+    "peak_dbfs": -2.06,
+    "rms_dbfs": -20.5,
+    "clipped_samples": 0,
+    "f0_median_hz": 197.5,
+    "f0_range_st": 12.26,
+    "f0_sd_st": 3.82,
+    "voiced_share": 0.6,
+    "units": 18,
+    "stoi_est": 0.998,
+    "pesq_est": 3.96,
+    "sisdr_est_db": 26.2,
+    "asr": "Where a branch meets a header, there is one curve. Get it wrong and the steel won't fit.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.888,
+    "speech_s": 4.303,
+    "pauses": [
+     [
+      2.42,
+      2.905
+     ],
+     [
+      3.605,
+      3.705
+     ]
+    ],
+    "peak_dbfs": -2.31,
+    "rms_dbfs": -20.63,
+    "clipped_samples": 0,
+    "f0_median_hz": 190.5,
+    "f0_range_st": 11.83,
+    "f0_sd_st": 3.39,
+    "voiced_share": 0.54,
+    "units": 13,
+    "stoi_est": 0.999,
+    "pesq_est": 4.24,
+    "sisdr_est_db": 31.4,
+    "asr": "Nexus Fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.23,
+    "speech_s": 2.23,
+    "pauses": [],
+    "peak_dbfs": -1.34,
+    "rms_dbfs": -20.08,
+    "clipped_samples": 0,
+    "f0_median_hz": 196.3,
+    "f0_range_st": 11.11,
+    "f0_sd_st": 3.81,
+    "voiced_share": 0.61,
+    "units": 8,
+    "stoi_est": 0.995,
+    "pesq_est": 3.67,
+    "sisdr_est_db": 26.1,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.992,
+    "speech_s": 4.287,
+    "pauses": [
+     [
+      1.18,
+      1.69
+     ],
+     [
+      3.215,
+      3.41
+     ]
+    ],
+    "peak_dbfs": -2.24,
+    "rms_dbfs": -20.56,
+    "clipped_samples": 0,
+    "f0_median_hz": 195.1,
+    "f0_range_st": 12.25,
+    "f0_sd_st": 3.62,
+    "voiced_share": 0.54,
+    "units": 18,
+    "stoi_est": 0.998,
+    "pesq_est": 4.11,
+    "sisdr_est_db": 27.9,
+    "asr": "Then it checks its own work. Both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.307,
+    "speech_s": 3.707,
+    "pauses": [
+     [
+      1.095,
+      1.22
+     ],
+     [
+      2.88,
+      3.355
+     ]
+    ],
+    "peak_dbfs": -2.83,
+    "rms_dbfs": -20.57,
+    "clipped_samples": 0,
+    "f0_median_hz": 192.8,
+    "f0_range_st": 13.12,
+    "f0_sd_st": 4.06,
+    "voiced_share": 0.56,
+    "units": 13,
+    "stoi_est": 0.999,
+    "pesq_est": 4.13,
+    "sisdr_est_db": 30.2,
+    "asr": "What it cannot confirm, it shows you and the result stays. Review required.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.766,
+    "speech_s": 3.396,
+    "pauses": [
+     [
+      1.335,
+      1.705
+     ]
+    ],
+    "peak_dbfs": 0.64,
+    "rms_dbfs": -20.48,
+    "clipped_samples": 5,
+    "f0_median_hz": 193.9,
+    "f0_range_st": 12.93,
+    "f0_sd_st": 3.65,
+    "voiced_share": 0.58,
+    "units": 11,
+    "stoi_est": 0.997,
+    "pesq_est": 4.14,
+    "sisdr_est_db": 29.1,
+    "asr": "Every step is recorded, and the whole calculation can be replayed.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.264,
+    "speech_s": 3.684,
+    "pauses": [
+     [
+      2.39,
+      2.785
+     ],
+     [
+      3.325,
+      3.51
+     ]
+    ],
+    "peak_dbfs": -2.43,
+    "rms_dbfs": -20.61,
+    "clipped_samples": 0,
+    "f0_median_hz": 190.5,
+    "f0_range_st": 12.62,
+    "f0_sd_st": 3.66,
+    "voiced_share": 0.58,
+    "units": 12,
+    "stoi_est": 0.998,
+    "pesq_est": 3.87,
+    "sisdr_est_db": 26.2,
+    "asr": "The DXF is written, read back and compared, then marked, not released.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.128,
+    "speech_s": 4.338,
+    "pauses": [
+     [
+      1.715,
+      2.31
+     ],
+     [
+      3.2,
+      3.395
+     ]
+    ],
+    "peak_dbfs": -2.74,
+    "rms_dbfs": -20.85,
+    "clipped_samples": 0,
+    "f0_median_hz": 186.0,
+    "f0_range_st": 12.32,
+    "f0_sd_st": 3.72,
+    "voiced_share": 0.59,
+    "units": 16,
+    "stoi_est": 0.998,
+    "pesq_est": 4.19,
+    "sisdr_est_db": 29.0,
+    "asr": "Reading the drawing for you as planned. The calculation, the checks and the record run today.",
+    "asr_logprob": -0.154,
+    "err": 0.0625
+   },
+   {
+    "duration_s": 2.627,
+    "speech_s": 2.342,
+    "pauses": [
+     [
+      0.92,
+      1.205
+     ]
+    ],
+    "peak_dbfs": -1.42,
+    "rms_dbfs": -20.25,
+    "clipped_samples": 0,
+    "f0_median_hz": 202.5,
+    "f0_range_st": 12.46,
+    "f0_sd_st": 3.29,
+    "voiced_share": 0.62,
+    "units": 4,
+    "stoi_est": 0.999,
+    "pesq_est": 4.02,
+    "sisdr_est_db": 29.8,
+    "asr": "Nexus Fabric, engineering reimagined.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "am_michael",
+  "engine": "kokoro",
+  "voice": "am_michael",
+  "total_s": 40.68,
+  "speech_s": 36.53,
+  "rate_units_per_s": 3.09,
+  "mean_err": 0.0,
+  "lines_exact": 9,
+  "asr_logprob": -0.204,
+  "f0_median_hz": 118.5,
+  "f0_range_st": 10.52,
+  "f0_sd_st": 4.33,
+  "pauses_n": 12,
+  "pause_mean_s": 0.345,
+  "clipped": 0,
+  "peak_dbfs": -1.91,
+  "pesq_est": 3.87,
+  "stoi_est": 0.996,
+  "seconds_to_run": 56.8,
+  "lines": [
+   {
+    "duration_s": 4.832,
+    "speech_s": 4.342,
+    "pauses": [
+     [
+      2.38,
+      2.87
+     ]
+    ],
+    "peak_dbfs": -5.73,
+    "rms_dbfs": -23.24,
+    "clipped_samples": 0,
+    "f0_median_hz": 113.5,
+    "f0_range_st": 10.27,
+    "f0_sd_st": 5.04,
+    "voiced_share": 0.56,
+    "units": 18,
+    "stoi_est": 0.992,
+    "pesq_est": 4.01,
+    "sisdr_est_db": 26.3,
+    "asr": "Where a branch meets a header, there is one curve. Get it wrong and the steel won't fit.",
+    "asr_logprob": -0.204,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.2,
+    "speech_s": 4.755,
+    "pauses": [
+     [
+      2.59,
+      3.035
+     ]
+    ],
+    "peak_dbfs": -4.17,
+    "rms_dbfs": -23.82,
+    "clipped_samples": 0,
+    "f0_median_hz": 118.5,
+    "f0_range_st": 10.38,
+    "f0_sd_st": 3.7,
+    "voiced_share": 0.48,
+    "units": 13,
+    "stoi_est": 0.996,
+    "pesq_est": 3.79,
+    "sisdr_est_db": 21.0,
+    "asr": "Nexus fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.204,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.468,
+    "speech_s": 2.468,
+    "pauses": [],
+    "peak_dbfs": -2.85,
+    "rms_dbfs": -22.8,
+    "clipped_samples": 0,
+    "f0_median_hz": 118.5,
+    "f0_range_st": 9.24,
+    "f0_sd_st": 5.31,
+    "voiced_share": 0.58,
+    "units": 8,
+    "stoi_est": 0.997,
+    "pesq_est": 4.06,
+    "sisdr_est_db": 27.4,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.204,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.537,
+    "speech_s": 4.967,
+    "pauses": [
+     [
+      1.195,
+      1.3
+     ],
+     [
+      1.3,
+      1.765
+     ]
+    ],
+    "peak_dbfs": -1.91,
+    "rms_dbfs": -23.35,
+    "clipped_samples": 0,
+    "f0_median_hz": 117.6,
+    "f0_range_st": 10.86,
+    "f0_sd_st": 4.5,
+    "voiced_share": 0.48,
+    "units": 18,
+    "stoi_est": 0.991,
+    "pesq_est": 3.78,
+    "sisdr_est_db": 21.7,
+    "asr": "Then it checks its own work. Both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.204,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.663,
+    "speech_s": 4.263,
+    "pauses": [
+     [
+      3.045,
+      3.445
+     ]
+    ],
+    "peak_dbfs": -4.79,
+    "rms_dbfs": -23.74,
+    "clipped_samples": 0,
+    "f0_median_hz": 114.3,
+    "f0_range_st": 10.83,
+    "f0_sd_st": 3.86,
+    "voiced_share": 0.52,
+    "units": 13,
+    "stoi_est": 0.997,
+    "pesq_est": 3.79,
+    "sisdr_est_db": 26.4,
+    "asr": "What it cannot confirm it shows you and the result stays. Review required.",
+    "asr_logprob": -0.204,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.256,
+    "speech_s": 3.861,
+    "pauses": [
+     [
+      1.52,
+      1.915
+     ]
+    ],
+    "peak_dbfs": -4.95,
+    "rms_dbfs": -23.31,
+    "clipped_samples": 0,
+    "f0_median_hz": 119.4,
+    "f0_range_st": 10.85,
+    "f0_sd_st": 4.66,
+    "voiced_share": 0.47,
+    "units": 11,
+    "stoi_est": 0.998,
+    "pesq_est": 3.92,
+    "sisdr_est_db": 25.6,
+    "asr": "Every step is recorded and the whole calculation can be replayed.",
+    "asr_logprob": -0.204,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.938,
+    "speech_s": 4.183,
+    "pauses": [
+     [
+      2.755,
+      3.195
+     ],
+     [
+      3.68,
+      3.81
+     ],
+     [
+      3.84,
+      4.025
+     ]
+    ],
+    "peak_dbfs": -2.85,
+    "rms_dbfs": -23.27,
+    "clipped_samples": 0,
+    "f0_median_hz": 119.0,
+    "f0_range_st": 13.92,
+    "f0_sd_st": 5.13,
+    "voiced_share": 0.49,
+    "units": 12,
+    "stoi_est": 0.997,
+    "pesq_est": 3.83,
+    "sisdr_est_db": 22.6,
+    "asr": "The DXF is written, read back and compared, then marked, not released.",
+    "asr_logprob": -0.204,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.724,
+    "speech_s": 4.964,
+    "pauses": [
+     [
+      2.015,
+      2.555
+     ],
+     [
+      3.51,
+      3.73
+     ]
+    ],
+    "peak_dbfs": -1.95,
+    "rms_dbfs": -23.4,
+    "clipped_samples": 0,
+    "f0_median_hz": 112.7,
+    "f0_range_st": 9.66,
+    "f0_sd_st": 3.23,
+    "voiced_share": 0.51,
+    "units": 16,
+    "stoi_est": 0.995,
+    "pesq_est": 3.74,
+    "sisdr_est_db": 20.4,
+    "asr": "Reading the drawing for you is planned. The calculation, the checks and the record run today.",
+    "asr_logprob": -0.204,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.06,
+    "speech_s": 2.73,
+    "pauses": [
+     [
+      1.025,
+      1.355
+     ]
+    ],
+    "peak_dbfs": -4.84,
+    "rms_dbfs": -23.49,
+    "clipped_samples": 0,
+    "f0_median_hz": 123.1,
+    "f0_range_st": 8.67,
+    "f0_sd_st": 3.58,
+    "voiced_share": 0.53,
+    "units": 4,
+    "stoi_est": 0.998,
+    "pesq_est": 3.9,
+    "sisdr_est_db": 26.9,
+    "asr": "Nexus Fabric Engineering Reimagined",
+    "asr_logprob": -0.204,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "am_fenrir",
+  "engine": "kokoro",
+  "voice": "am_fenrir",
+  "total_s": 36.69,
+  "speech_s": 35.06,
+  "rate_units_per_s": 3.22,
+  "mean_err": 0.0069,
+  "lines_exact": 8,
+  "asr_logprob": -0.16,
+  "f0_median_hz": 135.6,
+  "f0_range_st": 14.47,
+  "f0_sd_st": 4.73,
+  "pauses_n": 9,
+  "pause_mean_s": 0.181,
+  "clipped": 24,
+  "peak_dbfs": 0.94,
+  "pesq_est": 4.02,
+  "stoi_est": 0.996,
+  "seconds_to_run": 55.6,
+  "lines": [
+   {
+    "duration_s": 4.401,
+    "speech_s": 4.201,
+    "pauses": [
+     [
+      2.325,
+      2.525
+     ]
+    ],
+    "peak_dbfs": -1.09,
+    "rms_dbfs": -19.29,
+    "clipped_samples": 0,
+    "f0_median_hz": 133.3,
+    "f0_range_st": 14.81,
+    "f0_sd_st": 4.87,
+    "voiced_share": 0.6,
+    "units": 18,
+    "stoi_est": 0.994,
+    "pesq_est": 4.12,
+    "sisdr_est_db": 23.4,
+    "asr": "Where a branch meets a header there is one curve, get it wrong and the steel won't fit.",
+    "asr_logprob": -0.16,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.983,
+    "speech_s": 4.713,
+    "pauses": [
+     [
+      0.91,
+      1.025
+     ],
+     [
+      2.72,
+      2.875
+     ]
+    ],
+    "peak_dbfs": 0.23,
+    "rms_dbfs": -19.06,
+    "clipped_samples": 3,
+    "f0_median_hz": 131.1,
+    "f0_range_st": 13.97,
+    "f0_sd_st": 4.57,
+    "voiced_share": 0.54,
+    "units": 13,
+    "stoi_est": 0.997,
+    "pesq_est": 4.0,
+    "sisdr_est_db": 27.6,
+    "asr": "Nexus Fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.16,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.167,
+    "speech_s": 2.167,
+    "pauses": [],
+    "peak_dbfs": -0.81,
+    "rms_dbfs": -18.59,
+    "clipped_samples": 0,
+    "f0_median_hz": 145.5,
+    "f0_range_st": 11.8,
+    "f0_sd_st": 3.7,
+    "voiced_share": 0.56,
+    "units": 8,
+    "stoi_est": 0.995,
+    "pesq_est": 3.73,
+    "sisdr_est_db": 26.8,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.16,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.105,
+    "speech_s": 4.885,
+    "pauses": [
+     [
+      1.39,
+      1.61
+     ]
+    ],
+    "peak_dbfs": -0.6,
+    "rms_dbfs": -19.09,
+    "clipped_samples": 0,
+    "f0_median_hz": 134.5,
+    "f0_range_st": 15.63,
+    "f0_sd_st": 5.47,
+    "voiced_share": 0.57,
+    "units": 18,
+    "stoi_est": 0.996,
+    "pesq_est": 4.25,
+    "sisdr_est_db": 26.0,
+    "asr": "Then it checks its own work, both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.16,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.238,
+    "speech_s": 4.053,
+    "pauses": [
+     [
+      3.02,
+      3.205
+     ]
+    ],
+    "peak_dbfs": -0.26,
+    "rms_dbfs": -18.85,
+    "clipped_samples": 0,
+    "f0_median_hz": 130.1,
+    "f0_range_st": 15.81,
+    "f0_sd_st": 5.33,
+    "voiced_share": 0.57,
+    "units": 13,
+    "stoi_est": 0.997,
+    "pesq_est": 4.08,
+    "sisdr_est_db": 25.1,
+    "asr": "What it cannot confirm it shows you and the result stays, review required.",
+    "asr_logprob": -0.16,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.865,
+    "speech_s": 3.66,
+    "pauses": [
+     [
+      1.42,
+      1.625
+     ]
+    ],
+    "peak_dbfs": 0.44,
+    "rms_dbfs": -18.78,
+    "clipped_samples": 9,
+    "f0_median_hz": 135.6,
+    "f0_range_st": 16.44,
+    "f0_sd_st": 5.24,
+    "voiced_share": 0.54,
+    "units": 11,
+    "stoi_est": 0.998,
+    "pesq_est": 4.19,
+    "sisdr_est_db": 27.8,
+    "asr": "Every step is recorded, and the whole calculation can be replayed.",
+    "asr_logprob": -0.16,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.292,
+    "speech_s": 4.177,
+    "pauses": [
+     [
+      2.775,
+      2.89
+     ]
+    ],
+    "peak_dbfs": -0.34,
+    "rms_dbfs": -19.32,
+    "clipped_samples": 0,
+    "f0_median_hz": 141.0,
+    "f0_range_st": 14.6,
+    "f0_sd_st": 4.67,
+    "voiced_share": 0.58,
+    "units": 12,
+    "stoi_est": 0.993,
+    "pesq_est": 3.66,
+    "sisdr_est_db": 25.0,
+    "asr": "The DXF is written, read back and compared, then marked not released.",
+    "asr_logprob": -0.16,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.2,
+    "speech_s": 4.91,
+    "pauses": [
+     [
+      2.04,
+      2.33
+     ]
+    ],
+    "peak_dbfs": 0.94,
+    "rms_dbfs": -18.94,
+    "clipped_samples": 12,
+    "f0_median_hz": 148.1,
+    "f0_range_st": 16.17,
+    "f0_sd_st": 5.15,
+    "voiced_share": 0.55,
+    "units": 16,
+    "stoi_est": 0.997,
+    "pesq_est": 4.2,
+    "sisdr_est_db": 27.1,
+    "asr": "Reading the drawing for you as planned, the calculation, the checks and the record run today.",
+    "asr_logprob": -0.16,
+    "err": 0.0625
+   },
+   {
+    "duration_s": 2.437,
+    "speech_s": 2.297,
+    "pauses": [
+     [
+      0.895,
+      1.035
+     ]
+    ],
+    "peak_dbfs": -0.03,
+    "rms_dbfs": -18.93,
+    "clipped_samples": 0,
+    "f0_median_hz": 137.9,
+    "f0_range_st": 11.01,
+    "f0_sd_st": 3.56,
+    "voiced_share": 0.59,
+    "units": 4,
+    "stoi_est": 0.997,
+    "pesq_est": 3.93,
+    "sisdr_est_db": 26.0,
+    "asr": "Nexus Fabric Engineering Reimagined",
+    "asr_logprob": -0.16,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "am_puck",
+  "engine": "kokoro",
+  "voice": "am_puck",
+  "total_s": 35.64,
+  "speech_s": 35.12,
+  "rate_units_per_s": 3.22,
+  "mean_err": 0.0069,
+  "lines_exact": 8,
+  "asr_logprob": -0.183,
+  "f0_median_hz": 115.1,
+  "f0_range_st": 13.86,
+  "f0_sd_st": 4.83,
+  "pauses_n": 3,
+  "pause_mean_s": 0.173,
+  "clipped": 9,
+  "peak_dbfs": 0.38,
+  "pesq_est": 3.35,
+  "stoi_est": 0.992,
+  "seconds_to_run": 39.7,
+  "lines": [
+   {
+    "duration_s": 4.457,
+    "speech_s": 4.282,
+    "pauses": [
+     [
+      4.24,
+      4.415
+     ]
+    ],
+    "peak_dbfs": -2.37,
+    "rms_dbfs": -18.82,
+    "clipped_samples": 0,
+    "f0_median_hz": 111.9,
+    "f0_range_st": 12.45,
+    "f0_sd_st": 4.37,
+    "voiced_share": 0.57,
+    "units": 18,
+    "stoi_est": 0.987,
+    "pesq_est": 3.08,
+    "sisdr_est_db": 20.1,
+    "asr": "Where a branch meets a header there is one curve, get it wrong and the steel won't fit.",
+    "asr_logprob": -0.183,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.91,
+    "speech_s": 4.67,
+    "pauses": [
+     [
+      4.635,
+      4.875
+     ]
+    ],
+    "peak_dbfs": -0.89,
+    "rms_dbfs": -18.41,
+    "clipped_samples": 0,
+    "f0_median_hz": 115.1,
+    "f0_range_st": 13.59,
+    "f0_sd_st": 4.95,
+    "voiced_share": 0.48,
+    "units": 13,
+    "stoi_est": 0.995,
+    "pesq_est": 3.6,
+    "sisdr_est_db": 21.9,
+    "asr": "Nexus Fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.183,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.157,
+    "speech_s": 2.157,
+    "pauses": [],
+    "peak_dbfs": -0.96,
+    "rms_dbfs": -17.71,
+    "clipped_samples": 0,
+    "f0_median_hz": 123.1,
+    "f0_range_st": 25.28,
+    "f0_sd_st": 6.55,
+    "voiced_share": 0.6,
+    "units": 8,
+    "stoi_est": 0.993,
+    "pesq_est": 2.97,
+    "sisdr_est_db": 19.5,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.183,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.762,
+    "speech_s": 4.762,
+    "pauses": [],
+    "peak_dbfs": -0.18,
+    "rms_dbfs": -18.46,
+    "clipped_samples": 0,
+    "f0_median_hz": 110.3,
+    "f0_range_st": 13.8,
+    "f0_sd_st": 5.36,
+    "voiced_share": 0.55,
+    "units": 18,
+    "stoi_est": 0.988,
+    "pesq_est": 3.35,
+    "sisdr_est_db": 18.4,
+    "asr": "Then it checks its own work, both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.183,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.183,
+    "speech_s": 4.183,
+    "pauses": [],
+    "peak_dbfs": -0.03,
+    "rms_dbfs": -18.28,
+    "clipped_samples": 0,
+    "f0_median_hz": 107.4,
+    "f0_range_st": 13.12,
+    "f0_sd_st": 4.39,
+    "voiced_share": 0.52,
+    "units": 13,
+    "stoi_est": 0.987,
+    "pesq_est": 3.05,
+    "sisdr_est_db": 17.7,
+    "asr": "What it cannot confirm it shows you and the result stays, review required.",
+    "asr_logprob": -0.183,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.682,
+    "speech_s": 3.682,
+    "pauses": [],
+    "peak_dbfs": 0.38,
+    "rms_dbfs": -18.11,
+    "clipped_samples": 6,
+    "f0_median_hz": 115.1,
+    "f0_range_st": 11.71,
+    "f0_sd_st": 4.64,
+    "voiced_share": 0.53,
+    "units": 11,
+    "stoi_est": 0.995,
+    "pesq_est": 3.7,
+    "sisdr_est_db": 20.4,
+    "asr": "Every step is recorded and the whole calculation can be replayed.",
+    "asr_logprob": -0.183,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.151,
+    "speech_s": 4.151,
+    "pauses": [],
+    "peak_dbfs": -1.17,
+    "rms_dbfs": -18.21,
+    "clipped_samples": 0,
+    "f0_median_hz": 115.1,
+    "f0_range_st": 12.96,
+    "f0_sd_st": 5.63,
+    "voiced_share": 0.59,
+    "units": 12,
+    "stoi_est": 0.994,
+    "pesq_est": 3.3,
+    "sisdr_est_db": 22.5,
+    "asr": "The DXF is written, read back and compared, then marked not released.",
+    "asr_logprob": -0.183,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.031,
+    "speech_s": 4.926,
+    "pauses": [
+     [
+      2.065,
+      2.17
+     ]
+    ],
+    "peak_dbfs": 0.16,
+    "rms_dbfs": -18.04,
+    "clipped_samples": 3,
+    "f0_median_hz": 120.3,
+    "f0_range_st": 15.35,
+    "f0_sd_st": 5.25,
+    "voiced_share": 0.53,
+    "units": 16,
+    "stoi_est": 0.994,
+    "pesq_est": 3.68,
+    "sisdr_est_db": 20.0,
+    "asr": "Reading the drawing for you as planned, the calculation, the checks and the record run today.",
+    "asr_logprob": -0.183,
+    "err": 0.0625
+   },
+   {
+    "duration_s": 2.304,
+    "speech_s": 2.304,
+    "pauses": [],
+    "peak_dbfs": -0.17,
+    "rms_dbfs": -17.96,
+    "clipped_samples": 0,
+    "f0_median_hz": 113.1,
+    "f0_range_st": 6.44,
+    "f0_sd_st": 2.3,
+    "voiced_share": 0.61,
+    "units": 4,
+    "stoi_est": 0.996,
+    "pesq_est": 3.39,
+    "sisdr_est_db": 22.0,
+    "asr": "Nexus Fabric Engineering Reimagined",
+    "asr_logprob": -0.183,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "bf_emma",
+  "engine": "kokoro",
+  "voice": "bf_emma",
+  "total_s": 35.55,
+  "speech_s": 32.8,
+  "rate_units_per_s": 3.45,
+  "mean_err": 0.0,
+  "lines_exact": 9,
+  "asr_logprob": -0.161,
+  "f0_median_hz": 181.8,
+  "f0_range_st": 6.52,
+  "f0_sd_st": 2.31,
+  "pauses_n": 7,
+  "pause_mean_s": 0.394,
+  "clipped": 1,
+  "peak_dbfs": 0.05,
+  "pesq_est": 3.85,
+  "stoi_est": 0.997,
+  "seconds_to_run": 48.4,
+  "lines": [
+   {
+    "duration_s": 4.453,
+    "speech_s": 4.003,
+    "pauses": [
+     [
+      2.215,
+      2.665
+     ]
+    ],
+    "peak_dbfs": -3.66,
+    "rms_dbfs": -20.18,
+    "clipped_samples": 0,
+    "f0_median_hz": 179.8,
+    "f0_range_st": 6.41,
+    "f0_sd_st": 2.28,
+    "voiced_share": 0.58,
+    "units": 18,
+    "stoi_est": 0.997,
+    "pesq_est": 3.93,
+    "sisdr_est_db": 26.4,
+    "asr": "Where a branch meets a header there is one curve. Get it wrong and the steel won't fit.",
+    "asr_logprob": -0.161,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.605,
+    "speech_s": 4.275,
+    "pauses": [
+     [
+      2.415,
+      2.745
+     ]
+    ],
+    "peak_dbfs": -3.45,
+    "rms_dbfs": -20.13,
+    "clipped_samples": 0,
+    "f0_median_hz": 183.9,
+    "f0_range_st": 7.17,
+    "f0_sd_st": 2.49,
+    "voiced_share": 0.53,
+    "units": 13,
+    "stoi_est": 0.997,
+    "pesq_est": 3.9,
+    "sisdr_est_db": 29.4,
+    "asr": "Nexus Fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.161,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.411,
+    "speech_s": 2.411,
+    "pauses": [],
+    "peak_dbfs": 0.05,
+    "rms_dbfs": -19.5,
+    "clipped_samples": 1,
+    "f0_median_hz": 183.9,
+    "f0_range_st": 5.56,
+    "f0_sd_st": 2.17,
+    "voiced_share": 0.61,
+    "units": 8,
+    "stoi_est": 0.995,
+    "pesq_est": 3.52,
+    "sisdr_est_db": 23.8,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.161,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.712,
+    "speech_s": 4.312,
+    "pauses": [
+     [
+      1.255,
+      1.655
+     ]
+    ],
+    "peak_dbfs": -2.76,
+    "rms_dbfs": -20.28,
+    "clipped_samples": 0,
+    "f0_median_hz": 181.8,
+    "f0_range_st": 6.38,
+    "f0_sd_st": 2.01,
+    "voiced_share": 0.54,
+    "units": 18,
+    "stoi_est": 0.998,
+    "pesq_est": 3.78,
+    "sisdr_est_db": 27.1,
+    "asr": "Then it checks its own work. Both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.161,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.948,
+    "speech_s": 3.598,
+    "pauses": [
+     [
+      2.715,
+      3.065
+     ]
+    ],
+    "peak_dbfs": -2.5,
+    "rms_dbfs": -20.21,
+    "clipped_samples": 0,
+    "f0_median_hz": 177.8,
+    "f0_range_st": 7.04,
+    "f0_sd_st": 2.65,
+    "voiced_share": 0.6,
+    "units": 13,
+    "stoi_est": 0.998,
+    "pesq_est": 4.0,
+    "sisdr_est_db": 28.6,
+    "asr": "What it cannot confirm it shows you and the result stays. Review required.",
+    "asr_logprob": -0.161,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.78,
+    "speech_s": 3.46,
+    "pauses": [
+     [
+      1.375,
+      1.695
+     ]
+    ],
+    "peak_dbfs": -3.08,
+    "rms_dbfs": -20.01,
+    "clipped_samples": 0,
+    "f0_median_hz": 186.0,
+    "f0_range_st": 6.7,
+    "f0_sd_st": 2.37,
+    "voiced_share": 0.58,
+    "units": 11,
+    "stoi_est": 0.998,
+    "pesq_est": 3.86,
+    "sisdr_est_db": 28.3,
+    "asr": "Every step is recorded and the whole calculation can be replayed.",
+    "asr_logprob": -0.161,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.23,
+    "speech_s": 3.8,
+    "pauses": [
+     [
+      2.495,
+      2.925
+     ]
+    ],
+    "peak_dbfs": -4.18,
+    "rms_dbfs": -20.09,
+    "clipped_samples": 0,
+    "f0_median_hz": 183.9,
+    "f0_range_st": 6.47,
+    "f0_sd_st": 2.42,
+    "voiced_share": 0.57,
+    "units": 12,
+    "stoi_est": 0.995,
+    "pesq_est": 3.73,
+    "sisdr_est_db": 26.3,
+    "asr": "The DXF is written, read back and compared, then marked not released.",
+    "asr_logprob": -0.161,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.82,
+    "speech_s": 4.345,
+    "pauses": [
+     [
+      1.635,
+      2.11
+     ]
+    ],
+    "peak_dbfs": -2.22,
+    "rms_dbfs": -20.11,
+    "clipped_samples": 0,
+    "f0_median_hz": 175.8,
+    "f0_range_st": 6.7,
+    "f0_sd_st": 2.53,
+    "voiced_share": 0.61,
+    "units": 16,
+    "stoi_est": 0.998,
+    "pesq_est": 3.98,
+    "sisdr_est_db": 27.6,
+    "asr": "Reading the drawing for you is planned. The calculation, the checks and the record run today.",
+    "asr_logprob": -0.161,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.594,
+    "speech_s": 2.594,
+    "pauses": [],
+    "peak_dbfs": -3.61,
+    "rms_dbfs": -19.74,
+    "clipped_samples": 0,
+    "f0_median_hz": 175.8,
+    "f0_range_st": 6.22,
+    "f0_sd_st": 1.9,
+    "voiced_share": 0.62,
+    "units": 4,
+    "stoi_est": 0.997,
+    "pesq_est": 3.95,
+    "sisdr_est_db": 26.3,
+    "asr": "Nexus Fabric Engineering Reimagined",
+    "asr_logprob": -0.161,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "bf_isabella",
+  "engine": "kokoro",
+  "voice": "bf_isabella",
+  "total_s": 36.4,
+  "speech_s": 33.46,
+  "rate_units_per_s": 3.38,
+  "mean_err": 0.0,
+  "lines_exact": 9,
+  "asr_logprob": -0.154,
+  "f0_median_hz": 205.1,
+  "f0_range_st": 7.76,
+  "f0_sd_st": 2.51,
+  "pauses_n": 8,
+  "pause_mean_s": 0.367,
+  "clipped": 1,
+  "peak_dbfs": 0.13,
+  "pesq_est": 3.85,
+  "stoi_est": 0.997,
+  "seconds_to_run": 43.4,
+  "lines": [
+   {
+    "duration_s": 4.515,
+    "speech_s": 4.065,
+    "pauses": [
+     [
+      2.205,
+      2.655
+     ]
+    ],
+    "peak_dbfs": -1.92,
+    "rms_dbfs": -17.76,
+    "clipped_samples": 0,
+    "f0_median_hz": 205.1,
+    "f0_range_st": 7.85,
+    "f0_sd_st": 2.46,
+    "voiced_share": 0.6,
+    "units": 18,
+    "stoi_est": 0.998,
+    "pesq_est": 3.94,
+    "sisdr_est_db": 27.0,
+    "asr": "Where a branch meets a header there is one curve. Get it wrong and the steel won't fit.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.799,
+    "speech_s": 4.434,
+    "pauses": [
+     [
+      2.555,
+      2.92
+     ]
+    ],
+    "peak_dbfs": -3.43,
+    "rms_dbfs": -17.74,
+    "clipped_samples": 0,
+    "f0_median_hz": 205.1,
+    "f0_range_st": 8.43,
+    "f0_sd_st": 2.65,
+    "voiced_share": 0.53,
+    "units": 13,
+    "stoi_est": 0.997,
+    "pesq_est": 3.8,
+    "sisdr_est_db": 22.7,
+    "asr": "Nexus fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.505,
+    "speech_s": 2.505,
+    "pauses": [],
+    "peak_dbfs": 0.13,
+    "rms_dbfs": -16.77,
+    "clipped_samples": 1,
+    "f0_median_hz": 213.3,
+    "f0_range_st": 6.44,
+    "f0_sd_st": 2.55,
+    "voiced_share": 0.62,
+    "units": 8,
+    "stoi_est": 0.995,
+    "pesq_est": 3.76,
+    "sisdr_est_db": 25.2,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.781,
+    "speech_s": 4.366,
+    "pauses": [
+     [
+      1.265,
+      1.68
+     ]
+    ],
+    "peak_dbfs": -1.01,
+    "rms_dbfs": -17.68,
+    "clipped_samples": 0,
+    "f0_median_hz": 200.0,
+    "f0_range_st": 8.2,
+    "f0_sd_st": 2.51,
+    "voiced_share": 0.53,
+    "units": 18,
+    "stoi_est": 0.996,
+    "pesq_est": 3.62,
+    "sisdr_est_db": 25.9,
+    "asr": "Then it checks its own work. Both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.966,
+    "speech_s": 3.596,
+    "pauses": [
+     [
+      2.69,
+      3.06
+     ]
+    ],
+    "peak_dbfs": -2.16,
+    "rms_dbfs": -17.81,
+    "clipped_samples": 0,
+    "f0_median_hz": 207.8,
+    "f0_range_st": 7.75,
+    "f0_sd_st": 2.91,
+    "voiced_share": 0.6,
+    "units": 13,
+    "stoi_est": 0.998,
+    "pesq_est": 3.97,
+    "sisdr_est_db": 26.4,
+    "asr": "What it cannot confirm it shows you and the result stays. Review required.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.775,
+    "speech_s": 3.435,
+    "pauses": [
+     [
+      1.385,
+      1.725
+     ]
+    ],
+    "peak_dbfs": -0.85,
+    "rms_dbfs": -17.32,
+    "clipped_samples": 0,
+    "f0_median_hz": 207.8,
+    "f0_range_st": 8.43,
+    "f0_sd_st": 2.38,
+    "voiced_share": 0.58,
+    "units": 11,
+    "stoi_est": 0.997,
+    "pesq_est": 4.02,
+    "sisdr_est_db": 25.5,
+    "asr": "Every step is recorded and the whole calculation can be replayed.",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.438,
+    "speech_s": 4.003,
+    "pauses": [
+     [
+      2.58,
+      3.015
+     ]
+    ],
+    "peak_dbfs": -1.33,
+    "rms_dbfs": -17.56,
+    "clipped_samples": 0,
+    "f0_median_hz": 202.5,
+    "f0_range_st": 7.59,
+    "f0_sd_st": 2.48,
+    "voiced_share": 0.57,
+    "units": 12,
+    "stoi_est": 0.997,
+    "pesq_est": 3.86,
+    "sisdr_est_db": 28.1,
+    "asr": "The DXF is written, read back and compared Then marked, not released",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.835,
+    "speech_s": 4.405,
+    "pauses": [
+     [
+      1.62,
+      2.05
+     ]
+    ],
+    "peak_dbfs": -2.29,
+    "rms_dbfs": -17.93,
+    "clipped_samples": 0,
+    "f0_median_hz": 197.5,
+    "f0_range_st": 7.96,
+    "f0_sd_st": 2.34,
+    "voiced_share": 0.63,
+    "units": 16,
+    "stoi_est": 0.997,
+    "pesq_est": 3.78,
+    "sisdr_est_db": 24.3,
+    "asr": "Reading the drawing for you is planned The calculation, the checks and the record run today",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.783,
+    "speech_s": 2.653,
+    "pauses": [
+     [
+      1.06,
+      1.19
+     ]
+    ],
+    "peak_dbfs": -1.95,
+    "rms_dbfs": -16.97,
+    "clipped_samples": 0,
+    "f0_median_hz": 210.5,
+    "f0_range_st": 7.2,
+    "f0_sd_st": 2.27,
+    "voiced_share": 0.62,
+    "units": 4,
+    "stoi_est": 0.994,
+    "pesq_est": 3.92,
+    "sisdr_est_db": 22.5,
+    "asr": "Nexus Fabric, engineering reimagined",
+    "asr_logprob": -0.154,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "bm_george",
+  "engine": "kokoro",
+  "voice": "bm_george",
+  "total_s": 43.02,
+  "speech_s": 37.28,
+  "rate_units_per_s": 3.03,
+  "mean_err": 0.0,
+  "lines_exact": 9,
+  "asr_logprob": -0.169,
+  "f0_median_hz": 142.9,
+  "f0_range_st": 11.65,
+  "f0_sd_st": 3.37,
+  "pauses_n": 24,
+  "pause_mean_s": 0.239,
+  "clipped": 0,
+  "peak_dbfs": -4.94,
+  "pesq_est": 3.32,
+  "stoi_est": 0.995,
+  "seconds_to_run": 32.0,
+  "lines": [
+   {
+    "duration_s": 5.301,
+    "speech_s": 4.536,
+    "pauses": [
+     [
+      1.375,
+      1.59
+     ],
+     [
+      2.62,
+      3.03
+     ],
+     [
+      3.74,
+      3.88
+     ]
+    ],
+    "peak_dbfs": -6.7,
+    "rms_dbfs": -20.85,
+    "clipped_samples": 0,
+    "f0_median_hz": 145.5,
+    "f0_range_st": 9.24,
+    "f0_sd_st": 2.9,
+    "voiced_share": 0.66,
+    "units": 18,
+    "stoi_est": 0.994,
+    "pesq_est": 3.22,
+    "sisdr_est_db": 23.0,
+    "asr": "Where a branch meets a header, there is one curve. Get it wrong and the steel won't fit.",
+    "asr_logprob": -0.169,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.741,
+    "speech_s": 4.936,
+    "pauses": [
+     [
+      1.0,
+      1.305
+     ],
+     [
+      3.195,
+      3.585
+     ],
+     [
+      5.025,
+      5.135
+     ]
+    ],
+    "peak_dbfs": -6.01,
+    "rms_dbfs": -20.98,
+    "clipped_samples": 0,
+    "f0_median_hz": 142.9,
+    "f0_range_st": 11.99,
+    "f0_sd_st": 3.46,
+    "voiced_share": 0.62,
+    "units": 13,
+    "stoi_est": 0.991,
+    "pesq_est": 3.2,
+    "sisdr_est_db": 23.3,
+    "asr": "Nexus fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.169,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.041,
+    "speech_s": 2.711,
+    "pauses": [
+     [
+      0.985,
+      1.215
+     ],
+     [
+      2.215,
+      2.315
+     ]
+    ],
+    "peak_dbfs": -6.24,
+    "rms_dbfs": -20.63,
+    "clipped_samples": 0,
+    "f0_median_hz": 144.8,
+    "f0_range_st": 8.99,
+    "f0_sd_st": 2.91,
+    "voiced_share": 0.65,
+    "units": 8,
+    "stoi_est": 0.997,
+    "pesq_est": 3.17,
+    "sisdr_est_db": 28.0,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.169,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.553,
+    "speech_s": 4.888,
+    "pauses": [
+     [
+      1.44,
+      1.8
+     ],
+     [
+      3.41,
+      3.715
+     ]
+    ],
+    "peak_dbfs": -5.84,
+    "rms_dbfs": -20.77,
+    "clipped_samples": 0,
+    "f0_median_hz": 141.6,
+    "f0_range_st": 11.68,
+    "f0_sd_st": 3.32,
+    "voiced_share": 0.62,
+    "units": 18,
+    "stoi_est": 0.996,
+    "pesq_est": 3.64,
+    "sisdr_est_db": 27.1,
+    "asr": "Then it checks its own work. Both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.169,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.803,
+    "speech_s": 4.158,
+    "pauses": [
+     [
+      1.225,
+      1.4
+     ],
+     [
+      2.13,
+      2.245
+     ],
+     [
+      3.38,
+      3.735
+     ]
+    ],
+    "peak_dbfs": -5.7,
+    "rms_dbfs": -20.79,
+    "clipped_samples": 0,
+    "f0_median_hz": 141.6,
+    "f0_range_st": 12.41,
+    "f0_sd_st": 3.5,
+    "voiced_share": 0.65,
+    "units": 13,
+    "stoi_est": 0.997,
+    "pesq_est": 3.84,
+    "sisdr_est_db": 25.0,
+    "asr": "What it cannot confirm, it shows you and the result stays. Review required.",
+    "asr_logprob": -0.169,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.436,
+    "speech_s": 3.806,
+    "pauses": [
+     [
+      0.62,
+      0.73
+     ],
+     [
+      1.545,
+      1.895
+     ],
+     [
+      3.29,
+      3.46
+     ]
+    ],
+    "peak_dbfs": -4.94,
+    "rms_dbfs": -20.94,
+    "clipped_samples": 0,
+    "f0_median_hz": 142.9,
+    "f0_range_st": 12.8,
+    "f0_sd_st": 4.07,
+    "voiced_share": 0.66,
+    "units": 11,
+    "stoi_est": 0.995,
+    "pesq_est": 3.21,
+    "sisdr_est_db": 24.9,
+    "asr": "every step is recorded and the whole calculation can be replayed",
+    "asr_logprob": -0.169,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.06,
+    "speech_s": 4.355,
+    "pauses": [
+     [
+      1.47,
+      1.58
+     ],
+     [
+      2.965,
+      3.34
+     ],
+     [
+      3.995,
+      4.215
+     ]
+    ],
+    "peak_dbfs": -5.9,
+    "rms_dbfs": -20.8,
+    "clipped_samples": 0,
+    "f0_median_hz": 145.5,
+    "f0_range_st": 12.1,
+    "f0_sd_st": 3.47,
+    "voiced_share": 0.65,
+    "units": 12,
+    "stoi_est": 0.992,
+    "pesq_est": 3.02,
+    "sisdr_est_db": 24.9,
+    "asr": "the DXF is written read back and compared then marked not released",
+    "asr_logprob": -0.169,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.89,
+    "speech_s": 5.08,
+    "pauses": [
+     [
+      1.995,
+      2.43
+     ],
+     [
+      3.365,
+      3.63
+     ],
+     [
+      4.245,
+      4.355
+     ]
+    ],
+    "peak_dbfs": -5.38,
+    "rms_dbfs": -20.95,
+    "clipped_samples": 0,
+    "f0_median_hz": 142.9,
+    "f0_range_st": 12.8,
+    "f0_sd_st": 3.35,
+    "voiced_share": 0.65,
+    "units": 16,
+    "stoi_est": 0.995,
+    "pesq_est": 3.4,
+    "sisdr_est_db": 26.0,
+    "asr": "reading the drawing for you is planned the calculation the checks and the record run today",
+    "asr_logprob": -0.169,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.196,
+    "speech_s": 2.811,
+    "pauses": [
+     [
+      1.025,
+      1.31
+     ],
+     [
+      2.13,
+      2.23
+     ]
+    ],
+    "peak_dbfs": -5.29,
+    "rms_dbfs": -20.49,
+    "clipped_samples": 0,
+    "f0_median_hz": 145.5,
+    "f0_range_st": 12.83,
+    "f0_sd_st": 3.38,
+    "voiced_share": 0.68,
+    "units": 4,
+    "stoi_est": 0.996,
+    "pesq_est": 3.14,
+    "sisdr_est_db": 24.0,
+    "asr": "Nexus fabric engineering reimagined",
+    "asr_logprob": -0.169,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "bm_fable",
+  "engine": "kokoro",
+  "voice": "bm_fable",
+  "total_s": 41.08,
+  "speech_s": 41.08,
+  "rate_units_per_s": 2.75,
+  "mean_err": 0.0,
+  "lines_exact": 9,
+  "asr_logprob": -0.158,
+  "f0_median_hz": 120.8,
+  "f0_range_st": 16.04,
+  "f0_sd_st": 5.19,
+  "pauses_n": 0,
+  "pause_mean_s": 0.0,
+  "clipped": 4,
+  "peak_dbfs": 1.05,
+  "pesq_est": 2.94,
+  "stoi_est": 0.976,
+  "seconds_to_run": 34.3,
+  "lines": [
+   {
+    "duration_s": 4.933,
+    "speech_s": 4.933,
+    "pauses": [],
+    "peak_dbfs": -2.26,
+    "rms_dbfs": -23.13,
+    "clipped_samples": 0,
+    "f0_median_hz": 115.9,
+    "f0_range_st": 12.83,
+    "f0_sd_st": 4.58,
+    "voiced_share": 0.43,
+    "units": 18,
+    "stoi_est": 0.982,
+    "pesq_est": 2.86,
+    "sisdr_est_db": 15.5,
+    "asr": "Where a branch meets a header there is one curve, get it wrong and the steel won't fit.",
+    "asr_logprob": -0.158,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.24,
+    "speech_s": 5.24,
+    "pauses": [],
+    "peak_dbfs": -2.45,
+    "rms_dbfs": -23.54,
+    "clipped_samples": 0,
+    "f0_median_hz": 123.1,
+    "f0_range_st": 13.85,
+    "f0_sd_st": 4.81,
+    "voiced_share": 0.35,
+    "units": 13,
+    "stoi_est": 0.97,
+    "pesq_est": 2.92,
+    "sisdr_est_db": 14.7,
+    "asr": "Nexus Fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.158,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.091,
+    "speech_s": 3.091,
+    "pauses": [],
+    "peak_dbfs": -1.78,
+    "rms_dbfs": -22.26,
+    "clipped_samples": 0,
+    "f0_median_hz": 135.6,
+    "f0_range_st": 26.71,
+    "f0_sd_st": 6.95,
+    "voiced_share": 0.41,
+    "units": 8,
+    "stoi_est": 0.952,
+    "pesq_est": 2.61,
+    "sisdr_est_db": 14.5,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.158,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.236,
+    "speech_s": 5.236,
+    "pauses": [],
+    "peak_dbfs": -3.8,
+    "rms_dbfs": -23.43,
+    "clipped_samples": 0,
+    "f0_median_hz": 122.1,
+    "f0_range_st": 20.5,
+    "f0_sd_st": 5.78,
+    "voiced_share": 0.39,
+    "units": 18,
+    "stoi_est": 0.976,
+    "pesq_est": 2.9,
+    "sisdr_est_db": 13.4,
+    "asr": "Then it checks its own work, both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.158,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.658,
+    "speech_s": 4.658,
+    "pauses": [],
+    "peak_dbfs": -2.91,
+    "rms_dbfs": -23.69,
+    "clipped_samples": 0,
+    "f0_median_hz": 111.1,
+    "f0_range_st": 14.17,
+    "f0_sd_st": 4.37,
+    "voiced_share": 0.38,
+    "units": 13,
+    "stoi_est": 0.977,
+    "pesq_est": 2.81,
+    "sisdr_est_db": 13.5,
+    "asr": "What it cannot confirm, it shows you and the result stays, review required.",
+    "asr_logprob": -0.158,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.256,
+    "speech_s": 4.256,
+    "pauses": [],
+    "peak_dbfs": 1.05,
+    "rms_dbfs": -22.68,
+    "clipped_samples": 4,
+    "f0_median_hz": 119.4,
+    "f0_range_st": 15.38,
+    "f0_sd_st": 5.86,
+    "voiced_share": 0.38,
+    "units": 11,
+    "stoi_est": 0.988,
+    "pesq_est": 2.85,
+    "sisdr_est_db": 15.9,
+    "asr": "Every step is recorded, and the whole calculation can be replayed.",
+    "asr_logprob": -0.158,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.825,
+    "speech_s": 4.825,
+    "pauses": [],
+    "peak_dbfs": -2.55,
+    "rms_dbfs": -23.36,
+    "clipped_samples": 0,
+    "f0_median_hz": 129.0,
+    "f0_range_st": 13.69,
+    "f0_sd_st": 5.58,
+    "voiced_share": 0.4,
+    "units": 12,
+    "stoi_est": 0.988,
+    "pesq_est": 3.02,
+    "sisdr_est_db": 14.0,
+    "asr": "The DXF is written, read back and compared, then marked, not released.",
+    "asr_logprob": -0.158,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.444,
+    "speech_s": 5.444,
+    "pauses": [],
+    "peak_dbfs": -2.98,
+    "rms_dbfs": -23.49,
+    "clipped_samples": 0,
+    "f0_median_hz": 120.8,
+    "f0_range_st": 13.33,
+    "f0_sd_st": 4.59,
+    "voiced_share": 0.41,
+    "units": 16,
+    "stoi_est": 0.967,
+    "pesq_est": 2.83,
+    "sisdr_est_db": 14.9,
+    "asr": "Reading the drawing for you is planned, the calculation, the checks and the record run today.",
+    "asr_logprob": -0.158,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.398,
+    "speech_s": 3.398,
+    "pauses": [],
+    "peak_dbfs": -2.0,
+    "rms_dbfs": -22.52,
+    "clipped_samples": 0,
+    "f0_median_hz": 113.5,
+    "f0_range_st": 13.93,
+    "f0_sd_st": 4.19,
+    "voiced_share": 0.41,
+    "units": 4,
+    "stoi_est": 0.987,
+    "pesq_est": 3.64,
+    "sisdr_est_db": 16.4,
+    "asr": "Nexus Fabric Engineering Reimagined",
+    "asr_logprob": -0.158,
+    "err": 0.0
+   }
+  ]
+ },
+ {
+  "label": "bm_lewis",
+  "engine": "kokoro",
+  "voice": "bm_lewis",
+  "total_s": 41.95,
+  "speech_s": 35.55,
+  "rate_units_per_s": 3.18,
+  "mean_err": 0.0,
+  "lines_exact": 9,
+  "asr_logprob": -0.159,
+  "f0_median_hz": 113.5,
+  "f0_range_st": 11.44,
+  "f0_sd_st": 4.14,
+  "pauses_n": 22,
+  "pause_mean_s": 0.29,
+  "clipped": 0,
+  "peak_dbfs": -1.26,
+  "pesq_est": 3.76,
+  "stoi_est": 0.995,
+  "seconds_to_run": 47.2,
+  "lines": [
+   {
+    "duration_s": 5.234,
+    "speech_s": 4.334,
+    "pauses": [
+     [
+      1.295,
+      1.535
+     ],
+     [
+      2.505,
+      3.045
+     ],
+     [
+      3.755,
+      3.875
+     ]
+    ],
+    "peak_dbfs": -3.67,
+    "rms_dbfs": -23.08,
+    "clipped_samples": 0,
+    "f0_median_hz": 111.5,
+    "f0_range_st": 12.31,
+    "f0_sd_st": 4.81,
+    "voiced_share": 0.29,
+    "units": 18,
+    "stoi_est": 0.989,
+    "pesq_est": 3.69,
+    "sisdr_est_db": 20.3,
+    "asr": "Where a branch meets a header, there is one curve. Get it wrong and the steel won't fit.",
+    "asr_logprob": -0.159,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.456,
+    "speech_s": 4.586,
+    "pauses": [
+     [
+      0.96,
+      1.2
+     ],
+     [
+      2.99,
+      3.4
+     ],
+     [
+      4.205,
+      4.31
+     ],
+     [
+      4.875,
+      4.99
+     ]
+    ],
+    "peak_dbfs": -2.25,
+    "rms_dbfs": -23.28,
+    "clipped_samples": 0,
+    "f0_median_hz": 113.5,
+    "f0_range_st": 10.56,
+    "f0_sd_st": 3.75,
+    "voiced_share": 0.25,
+    "units": 13,
+    "stoi_est": 0.996,
+    "pesq_est": 3.79,
+    "sisdr_est_db": 22.4,
+    "asr": "Nexus fabric takes the dimensions of the joint and calculates both flat patterns.",
+    "asr_logprob": -0.159,
+    "err": 0.0
+   },
+   {
+    "duration_s": 2.862,
+    "speech_s": 2.542,
+    "pauses": [
+     [
+      0.905,
+      1.225
+     ]
+    ],
+    "peak_dbfs": -3.55,
+    "rms_dbfs": -22.84,
+    "clipped_samples": 0,
+    "f0_median_hz": 117.6,
+    "f0_range_st": 11.53,
+    "f0_sd_st": 4.96,
+    "voiced_share": 0.33,
+    "units": 8,
+    "stoi_est": 0.999,
+    "pesq_est": 4.3,
+    "sisdr_est_db": 23.2,
+    "asr": "One equation gives every point on the cut.",
+    "asr_logprob": -0.159,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.557,
+    "speech_s": 4.632,
+    "pauses": [
+     [
+      1.3,
+      1.8
+     ],
+     [
+      2.04,
+      2.14
+     ],
+     [
+      3.405,
+      3.73
+     ]
+    ],
+    "peak_dbfs": -4.05,
+    "rms_dbfs": -23.02,
+    "clipped_samples": 0,
+    "f0_median_hz": 114.3,
+    "f0_range_st": 11.55,
+    "f0_sd_st": 4.23,
+    "voiced_share": 0.28,
+    "units": 18,
+    "stoi_est": 0.997,
+    "pesq_est": 3.88,
+    "sisdr_est_db": 21.3,
+    "asr": "Then it checks its own work. Both patterns are folded back and must meet on the same curve.",
+    "asr_logprob": -0.159,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.796,
+    "speech_s": 4.021,
+    "pauses": [
+     [
+      1.19,
+      1.37
+     ],
+     [
+      2.045,
+      2.195
+     ],
+     [
+      3.25,
+      3.695
+     ]
+    ],
+    "peak_dbfs": -3.01,
+    "rms_dbfs": -23.04,
+    "clipped_samples": 0,
+    "f0_median_hz": 108.8,
+    "f0_range_st": 13.85,
+    "f0_sd_st": 5.07,
+    "voiced_share": 0.3,
+    "units": 13,
+    "stoi_est": 0.994,
+    "pesq_est": 3.65,
+    "sisdr_est_db": 21.9,
+    "asr": "What it cannot confirm, it shows you and the result stays. Review required.",
+    "asr_logprob": -0.159,
+    "err": 0.0
+   },
+   {
+    "duration_s": 4.198,
+    "speech_s": 3.798,
+    "pauses": [
+     [
+      1.495,
+      1.895
+     ]
+    ],
+    "peak_dbfs": -2.93,
+    "rms_dbfs": -23.13,
+    "clipped_samples": 0,
+    "f0_median_hz": 115.1,
+    "f0_range_st": 10.98,
+    "f0_sd_st": 3.55,
+    "voiced_share": 0.31,
+    "units": 11,
+    "stoi_est": 0.995,
+    "pesq_est": 3.52,
+    "sisdr_est_db": 19.6,
+    "asr": "Every step is recorded. and the whole calculation can be replayed",
+    "asr_logprob": -0.159,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.116,
+    "speech_s": 4.226,
+    "pauses": [
+     [
+      1.435,
+      1.55
+     ],
+     [
+      2.87,
+      3.375
+     ],
+     [
+      4.07,
+      4.34
+     ]
+    ],
+    "peak_dbfs": -4.24,
+    "rms_dbfs": -22.87,
+    "clipped_samples": 0,
+    "f0_median_hz": 119.4,
+    "f0_range_st": 11.19,
+    "f0_sd_st": 3.7,
+    "voiced_share": 0.31,
+    "units": 12,
+    "stoi_est": 0.996,
+    "pesq_est": 3.36,
+    "sisdr_est_db": 24.3,
+    "asr": "the dxf is written read back and compared then marked not released",
+    "asr_logprob": -0.159,
+    "err": 0.0
+   },
+   {
+    "duration_s": 5.627,
+    "speech_s": 4.787,
+    "pauses": [
+     [
+      1.885,
+      2.425
+     ],
+     [
+      3.295,
+      3.595
+     ]
+    ],
+    "peak_dbfs": -1.26,
+    "rms_dbfs": -23.19,
+    "clipped_samples": 0,
+    "f0_median_hz": 111.1,
+    "f0_range_st": 11.24,
+    "f0_sd_st": 4.06,
+    "voiced_share": 0.28,
+    "units": 16,
+    "stoi_est": 0.994,
+    "pesq_est": 3.84,
+    "sisdr_est_db": 24.8,
+    "asr": "reading the drawing for you is planned the calculation the checks and the record run today",
+    "asr_logprob": -0.159,
+    "err": 0.0
+   },
+   {
+    "duration_s": 3.099,
+    "speech_s": 2.629,
+    "pauses": [
+     [
+      0.955,
+      1.32
+     ],
+     [
+      2.085,
+      2.19
+     ]
+    ],
+    "peak_dbfs": -2.48,
+    "rms_dbfs": -23.05,
+    "clipped_samples": 0,
+    "f0_median_hz": 113.5,
+    "f0_range_st": 9.76,
+    "f0_sd_st": 3.1,
+    "voiced_share": 0.26,
+    "units": 4,
+    "stoi_est": 0.995,
+    "pesq_est": 3.85,
+    "sisdr_est_db": 20.9,
+    "asr": "nexus fabric engineering reimagined",
+    "asr_logprob": -0.159,
+    "err": 0.0
+   }
+  ]
+ }
+]

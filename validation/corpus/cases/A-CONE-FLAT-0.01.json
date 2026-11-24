@@ -1,0 +1,37 @@
+{
+ "id": "A-CONE-FLAT-0.01",
+ "group": "closed_form",
+ "title": "Nearly flat cone r1=300 r2=50 h=0.01: sector 99.9999 % of a turn (accepted since 0.4.2)",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 300,
+  "r2": 50,
+  "h": 0.01
+ },
+ "expect": "accept",
+ "derivation": "A cone sector is always below a full turn; here the seam gap l2 (2 pi - Phi) = 50 * 2 pi * 8e-10 = 2.5e-7 mm is above the 1e-9 mm closure resolution, so the pattern is accepted (values from the mpmath tier).",
+ "quantities": {
+  "reducer": {
+   "slant_length": [
+    250.0000002,
+    2.5000000019999995e-09
+   ],
+   "sin_half_angle": [
+    0.9999999992,
+    9.999999992e-12
+   ],
+   "apex_radius_large": [
+    300.00000024,
+    3.0000000024e-09
+   ],
+   "apex_radius_small": [
+    50.00000004,
+    5.000000004e-10
+   ],
+   "area": [
+    274889.3574090184,
+    2.748893574090184e-06
+   ]
+  }
+ }
+}

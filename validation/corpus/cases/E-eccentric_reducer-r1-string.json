@@ -1,0 +1,13 @@
+{
+ "id": "E-eccentric_reducer-r1-string",
+ "group": "refusal",
+ "title": "eccentric_reducer: r1 = \"12\"",
+ "request": null,
+ "expect": "refuse",
+ "derivation": "\"12\" is not a finite JSON number: the request must be rejected at the boundary (HTTP 400), never computed.",
+ "refusal": {
+  "kind": "malformed",
+  "mentions": []
+ },
+ "raw_body": "{\"family\": \"eccentric_reducer\", \"r1\": \"12\", \"r2\": 100, \"h\": 300, \"e\": 100}"
+}

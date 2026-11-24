@@ -1,0 +1,177 @@
+# Implementation Status
+
+Updated 18 November 2026 · implementation session 4 · engine `nf-core 0.1.0 / uem 0.1.0`
+
+Four different things are tracked separately and must not be confused:
+
+| Column | Meaning |
+|---|---|
+| **Code** | NOT STARTED · IN DEVELOPMENT · IMPLEMENTED · TESTED (automated tests exist and pass) · INTEGRATED (reachable through API and UI) · BLOCKED |
+| **Engineering validation** | Whether a qualified engineer has reviewed it / it has been checked against factory evidence ([evidence levels](architecture/EVIDENCE_LEVELS.md)) |
+| **Release ready** | Fit for use on real work |
+
+**Nothing in this repository is RELEASE READY. Nothing has engineering validation (everything is EV-1). No output may be used for manufacturing.**
+
+## Summary
+
+A launchable single-binary application exists: sign in, create projects, upload documents (stored encrypted, not interpreted), enter geometry parameters for five request families (cylinder shell, cone frustum, eccentric reducer, branch stub, header with one branch opening), obtain a flat pattern with independent verification checks, a DXF, a gate evaluation and a replay audit — every result ends in REVIEW REQUIRED or REJECTED, and a request the engine refuses ends in REFUSED (no result). `APPROVED` cannot be reached: the release-state rule cannot return it, and the server computes every state from a gate table built against a required set, failing closed on missing or unreadable stored data (fixed 19 November 2026; before that, corrupt stored data could read as APPROVED, see BE-002 in [the defect register](backend/DEFECT_REGISTER.md)).
+
+## Fix pass of 19 November 2026 (backend, security and recovery defects)
+
+All Critical and High entries of the backend defect register (BE-001 … BE-011), the High security findings V-33 … V-36 with V-25, and the stress findings S-2, S-3, S-4 were fixed, each with a regression test; details and what is still open are in [backend/DEFECT_REGISTER.md](backend/DEFECT_REGISTER.md) and [security/VULNERABILITY_REGISTER.md](security/VULNERABILITY_REGISTER.md). In short: radii that contradict the declared surface are refused (rule from Spec 02 §6.1, no thickness model assumed); refusals have their own state and HTTP 422; corrections that cannot be computed change nothing; writes are transactional; stored files are written atomically and restored when damaged; a replay that cannot run is not an integrity verdict; lists, dashboard and detail view use one state function; the engine identifier is derived from the engine sources and results of other engine builds are flagged "computed by a superseded engine version — recompute"; every DXF carries a NOT RELEASED annotation on a non-cutting layer and declares its units; first-run setup needs a one-time token; start-up refuses a missing key or a lost database beside existing data. These fixes are EV-1 like everything else: tested by the suites in this repository, not independently reviewed.
+
+**Second pass (independent computational validation, D1 … D8):** branch patterns were the mirror image of the header's view; every pattern is now drawn from the outside and states its **marking side** in the result, the DXF and the interface. This side is a provisional convention of the software (Spec 02 §0.3 requires a declared side and names none), held open on gate G02 for every job until a fabrication engineer reviews it. Results of engine 0.2.0 and earlier are rejected for recomputation (G21). `eps_num` and `eps_rep` are labelled estimates, not bounds; DXF header extents are those of the geometry; right cones refuse a sector that closes on itself; tolerances are written down in [backend/TOLERANCE_POLICY.md](backend/TOLERANCE_POLICY.md). See BE-035 … BE-042 in the defect register.
+
+## Added in session 4 (stress testing and learning from mistakes)
+
+- **Stress campaign** over hard and extreme parts: 6,848 cases at scale 6, each verified or explicitly refused, 0 defects after one fix. **Mutation campaign:** 2,682 wrong-parameter patterns, all caught by the verifiers.
+- **Defect found and fixed:** DXF numbers were rounded to nine decimals, breaking large-radius arcs; now exact.
+- **Regression corpus** that runs with every test.
+- **Lessons:** corrections, verification rejections and integrity failures are recorded per project; later jobs that repeat them get an advisory and stay in REVIEW REQUIRED (gate G20) until an engineer acknowledges with a reason.
+- Details and limits: [Stress Testing and Learning from Mistakes](LEARNING_AND_STRESS_TESTING.md). Zero errors is a target on tested cases, not a guarantee.
+
+## Added in session 3 (security hardening and interface quality)
+
+- **Project isolation:** membership enforced on every project, job, file, obligation and summary endpoint.
+- **Anti-forgery header and same-origin check**, security response headers with a restrictive content security policy.
+- **Sign-in throttling, password change with session revocation, account deactivation.**
+- **Hash-chained audit log** with a verification endpoint; storage key location configurable outside the data directory.
+- **Tamper detection exercised by test:** altered audit entries, engineering records and stored files are detected; a job with altered records becomes REJECTED and its files are withheld once a replay audit has run (reads do not re-hash every record). Since 19 November 2026 every read does check the stored result against its gate-evaluation record and closure hash, so an unreadable, incomplete or altered gate table is REJECTED on read (gate G22).
+- **Interface:** keyboard focus and skip link, labelled inputs, inline decisions instead of browser dialogs, account page, project members, running security configuration.
+- Documents: [security set](security/SECURITY_AUDIT.md), [UI/UX audit](design/UI_UX_AUDIT.md), [design system](design/DESIGN_SYSTEM.md).
+
+Four High security findings remain open (no TLS, unencrypted database, single unrotated key, no multi-factor authentication): **still not for confidential drawings.**
+
+## Added in session 2
+
+- **Assembly job:** header shell (with the branch opening as an inner profile) plus set-on branch, as two parts with one joint.
+- **Interface verification:** the branch cut and the header opening, each folded back to 3D from its own pattern, must be the same curve.
+- **Typed dependency edges** per parameter (derivation, interface, common cause) and **propagation** in three directions.
+- **Corrections:** an engineer's correction never edits a job; it is an attestation that creates a new job, supersedes the old one and raises **scrutiny obligations**. Downstream and lateral obligations are discharged only by passing evidence in the recomputed job; common-cause obligations stay open until an engineer records a decision with a reason.
+- **Gates G18 and G19** are evaluated when a result is read; superseded and rejected results have their DXF withheld.
+- **Replay audit** now runs in a separate operating-system process that receives only the request.
+
+The dependency **rule table is provisional** (EV-1; 0 of 56 statements reviewed). The mechanism is tested; whether the rules are the right ones is an engineering question that remains open.
+
+## Mathematical engine (`crates/uem`)
+
+| Feature | Code | Engineering validation | Notes |
+|---|---|---|---|
+| Cylindrical shell development | INTEGRATED | None (EV-1) | Reference-surface radius entered directly |
+| Mitre cut height | TESTED | None | Library function only; not in UI |
+| Right cone frustum (concentric reducer) | INTEGRATED | None | Near-cylindrical cones refused (apex-free method missing) |
+| Oblique cone frustum (eccentric reducer) | INTEGRATED | None | Numerical quadrature, estimated error; equal radii with offset refused |
+| Cylinder-on-cylinder branch stub | INTEGRATED | None | Tangent / equal-diameter / partial intersections refused; angle limit is an implementation choice |
+| Press-brake bend allowance / deduction | TESTED | None; no calibrated parameter exists | Library only; no default K-factor |
+| Profile validation (closure, self-intersection, orientation) | INTEGRATED | — | binary64, not exact predicates |
+| Independent verification checks per family | INTEGRATED | None | Different formulation, same crate (class I-F only) |
+| Seeded-fault tests for verifiers | TESTED | — | Wrong radius reference, wrong offset, inside/outside header, scale |
+| Header shell with branch opening (inner profile) | INTEGRATED | None | Seam fixed opposite the branch; no clearance rule |
+| Interface check: branch cut ≡ header opening | INTEGRATED | None | Seeded faults: inside/outside header, angle mismatch |
+| Branch on cone/sphere; several branches | NOT STARTED | | |
+| Rectangular-to-round, irregular transitions | NOT STARTED | | |
+| Thickness / neutral surface, roll and weld allowances, kerf | NOT STARTED | | BLOCKED on calibrated process data for real use |
+| Constraint solving, frames/view projection | NOT STARTED | | |
+| Interval-certified bounds, exact predicates, multi-precision | NOT STARTED | | Error figures are estimates and labelled so |
+| Uncertainty and tolerance analysis | NOT STARTED | | |
+| Plate division and seam optimisation | NOT STARTED | | BLOCKED on factory rules for real use |
+
+## AMOEBA core (`crates/nf-core`)
+
+| Mechanism | Code | Notes |
+|---|---|---|
+| Immutable content-addressed records, seven families | INTEGRATED | Identity = SHA-256 of canonical JSON; exact float round-trip enforced by test |
+| Typed dependency edges | INTEGRATED | Derivation, interface and common-cause edges for the header/branch assembly; single-part jobs have one request claim |
+| Project snapshot with predecessor (engulfment) | INTEGRATED | Enumeration of source content for coverage NOT STARTED |
+| Membrane admission (content-based type, size limit) | INTEGRATED | No sandboxed parsing yet — nothing is parsed |
+| Activities with logical work units | INTEGRATED | Costs are fixed declarations, not calibrated |
+| Release closure and closure hash | INTEGRATED | Unrelated additions do not change the hash (tested) |
+| Gate evaluation and release state | INTEGRATED | Computed with the job: G01, G02 (assemblies and branch stubs), G05, G06, G08, G10, G11, G14, G15. Evaluated by the server at every read, never taken from storage: G16 (always NOT_IMPLEMENTED), G18, G19, G20 (known mistakes), and, only when they fail, G00 (superseded), G21 (superseded engine version), G22 (stored-result integrity). A required gate missing from storage counts as FAIL. Unevaluable gates never PASS; APPROVED cannot be returned |
+| Replay audit | INTEGRATED (separate process, same machine and build) | Separate build or machine NOT STARTED |
+| Round scheduler, signals, budgets | NOT STARTED | Jobs run synchronously in one pass |
+| Exploration probes, hypothesis-driven investigation | NOT STARTED | |
+| Dependency propagation, scrutiny obligations (G18) | INTEGRATED for parameter corrections | **Rule table provisional, unreviewed (0/56)**. Not yet raised by drawing revisions, verification failures or algorithm faults |
+| Corrections with supersession; obligation resolution by recorded decision | INTEGRATED | Reason mandatory; resolved obligations are immutable |
+| Coverage ledger (G17 deferred) | NOT STARTED | |
+| Lanes / overlays, quarantine, retirement | NOT STARTED | All algorithms marked `not_production_qualified` |
+| Self-consistency audits A1–A4 | NOT STARTED | |
+| Strategy profiles, stopping rules, residual-uncertainty statement | NOT STARTED | |
+| Engineer approval (G16) | NOT STARTED | Deliberately absent: no path to APPROVED |
+
+## Drawing intelligence
+
+| Feature | Code | Notes |
+|---|---|---|
+| Upload, hashing, encrypted storage, type detection (PDF, PNG, JPEG, TIFF, DXF, STEP) | INTEGRATED | |
+| Everything in Specification 03 beyond admission (page classification, OCR, dimensions, symbols, views, projection, reconciliation, confirmation workflow) | NOT STARTED | Technology unselected; all candidate dependencies unevaluated |
+| DWG, JWW, IGES adapters | NOT STARTED | Licensing unresolved |
+
+## CAD and manufacturing output (`crates/nf-dxf`)
+
+| Feature | Code | Notes |
+|---|---|---|
+| DXF writer (R12 subset: LINE, ARC, POLYLINE, layers) | INTEGRATED | Units in a comment only; **no CAM system has been tested** |
+| Independent DXF reader and re-import comparison | INTEGRATED | |
+| Entity-to-source traceability | IN DEVELOPMENT | Pattern → DXF record relation exists; per-entity map NOT STARTED |
+| 3D visualisation | NOT STARTED | 2D pattern preview only |
+| Inner profiles (openings) | INTEGRATED | Layer `CUT_INNER`: the header's branch opening is a closed clockwise inner profile, checked by G11 and present in the DXF. One opening per plate only |
+| NOT RELEASED marking and unit declaration in the DXF | INTEGRATED | TEXT annotation on the non-cutting layer `NF_NOT_RELEASED`; `$LUNITS`/`$AUNITS`/`$ANGDIR` in the header (R12 has no unit-of-measure variable; millimetres are stated in a comment and in the annotation); checked by the re-import |
+| Bend lines, marking layers for fabrication (bend, scribe), kerf | NOT STARTED | |
+| Plate division, seam planning, nesting | NOT STARTED | |
+| STEP export | NOT STARTED | No kernel selected |
+
+## Backend (`crates/nf-server`)
+
+| Feature | Code | Notes |
+|---|---|---|
+| Authentication (Argon2id), sessions, logout | INTEGRATED | Throttling, password change, session revocation, deactivation. No MFA, recovery or SSO |
+| Roles: admin / engineer / viewer | INTEGRATED | Enforced server-side (tested) |
+| Per-project membership | INTEGRATED | 15 cross-project attack checks; administrators see all projects |
+| Anti-forgery, security headers, body limits | INTEGRATED | Tested |
+| Projects, documents, calculations, DXF export API | INTEGRATED | |
+| Audit log | INTEGRATED | Hash-chained, verifiable; not externally anchored |
+| Blob encryption at rest (AES-256-GCM) | INTEGRATED | Interim single local key file |
+| Database encryption at rest | NOT STARTED | SQLite file is plaintext — see Release Readiness |
+| TLS | NOT STARTED | Must run behind a TLS-terminating proxy |
+| Job orchestration / queue, notifications | NOT STARTED | |
+| Tenant separation | NOT STARTED | One organisation per installation |
+| Backup / restore, retention | NOT STARTED | |
+| Sandboxed native workers | NOT STARTED | No native geometry or parsing code is run yet |
+
+## Frontend (`web/`)
+
+| Area | Code | Notes |
+|---|---|---|
+| Sign-in and first-run setup | INTEGRATED | |
+| Dashboard | INTEGRATED | Live counts and recent jobs |
+| Projects & Documents | INTEGRATED | Upload, hashes, snapshot id |
+| Mathematical Engineering | INTEGRATED | Four families; results page with pattern, checks, gates, records |
+| Verification & Quality | INTEGRATED | Job states and gate tables; approval absent |
+| Manufacturing | INTEGRATED (export list only) | Planning features labelled not implemented |
+| AMOEBA Control Centre | INTEGRATED | Live record and activity counts; lists implemented / missing mechanisms |
+| Administration | INTEGRATED | Users, audit log |
+| Engineering Workspace | NOT STARTED | Page states what is missing |
+| Light / dark themes, tablet layout | INTEGRATED | Browser-tested at 1360 px and 820 px |
+| Japanese localisation | NOT STARTED | |
+| Framework / component system | — | Dependency-free ES modules for now; decision open |
+
+## Tests (all passing on 18 November 2026)
+
+| Suite | Count | Covers |
+|---|---|---|
+| `cargo test -p uem` | 17 | Reference cases; limits; profile checks; header opening; interface check; verifier seeded faults |
+| `cargo test -p nf-dxf` | 2 | Round trip; corruption, truncation, foreign entity, layer change |
+| `cargo test -p nf-core` | 12 | Record identity and storage round trip; closure; release-state rules; job determinism; assembly structure; propagation reach, locality and determinism; discharge rules |
+| `cargo test -p nf-server` | 3 | Encryption, password hashing, membrane |
+| `cargo test --release -p nf-core --test stress` | 5 campaigns | Hard and extreme geometry, mutation of inputs, regression corpus |
+| `tests/e2e_smoke.sh` | 71 checks | Fresh server: setup, auth, roles, upload admission and encryption, five job families, reference values through the API, DXF export, separate-process replay, correction → supersession → obligations → resolution, withheld files, audit |
+| `tests/security_smoke.sh` | 54 checks | Forgery, headers, cross-project access, traversal, hostile input, plaintext search, key handling, tampering with audit/records/blobs, password and session handling, throttling |
+| `cargo audit` | 104 crates | No known advisories (advisory database of 18 November 2026) |
+| `tests/ui_smoke.js` | 1 flow | Real browser: setup, single-part job, assembly job, correction, resolving an obligation, superseded job, all areas, no script errors, no overflow at tablet width |
+
+Not yet present: performance tests, security tests beyond the above, failure-recovery tests, frontend unit tests, CAM acceptance tests.
+
+## Defects found and fixed this session
+
+1. Stored records failed their identity check after a JSON round trip (float parsing not exact) — fixed by exact float round-tripping; regression test added.
+2. A slow earlier navigation could overwrite a newer page in the web client — fixed with render sequencing.

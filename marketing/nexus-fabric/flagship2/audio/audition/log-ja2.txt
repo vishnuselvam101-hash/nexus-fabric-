@@ -1,0 +1,174 @@
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 女声1 / ノーマル (10005)              err 0.045 exact 3/9 logp -0.11 rate 8.98 f0 225.4 range 8.34 pesq 3.87 total 40.88
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 女声2 / ノーマル (10007)              err 0.052 exact 4/9 logp -0.15 rate 7.15 f0 254.0 range 5.78 pesq 3.68 total 54.74
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 女声3 / ノーマル (10004)              err 0.024 exact 4/9 logp -0.11 rate 8.08 f0 258.1 range 9.49 pesq 4.02 total 43.89
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 女声4 / ノーマル (10003)              err 0.020 exact 5/9 logp -0.12 rate 7.59 f0 205.1 range 11.49 pesq 3.79 total 50.98
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 女声5 / ノーマル (10008)              err 0.034 exact 3/9 logp -0.10 rate 8.15 f0 238.8 range 9.66 pesq 3.9 total 45.58
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 女声6 / ノーマル (10006)              err 0.034 exact 3/9 logp -0.11 rate 8.57 f0 242.4 range 8.99 pesq 3.85 total 43.31
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 男声1 / ノーマル (10001)              err 0.031 exact 3/9 logp -0.10 rate 10.50 f0 153.8 range 9.77 pesq 3.91 total 33.58
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 男声2 / ノーマル (10000)              err 0.113 exact 2/9 logp -0.11 rate 8.86 f0 127.0 range 12.84 pesq 3.99 total 44.1
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 男声3 / ノーマル (10002)              err 0.023 exact 5/9 logp -0.10 rate 9.31 f0 132.2 range 10.14 pesq 3.9 total 42.84
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 九州そら / ノーマル (16)                err 0.033 exact 4/9 logp -0.16 rate 4.14 f0 254.0 range 9.29 pesq 3.79 total 72.34
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 玄野武宏 / ノーマル (11)                err 0.030 exact 3/9 logp -0.11 rate 9.65 f0 139.1 range 10.0 pesq 4.13 total 41.2
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 雀松朱司 / ノーマル (52)                err 0.024 exact 4/9 logp -0.11 rate 8.19 f0 108.8 range 8.76 pesq 3.99 total 43.05
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 麒ヶ島宗麟 / ノーマル (53)               err 0.056 exact 3/9 logp -0.11 rate 9.05 f0 148.8 range 14.23 pesq 3.91 total 40.7
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 離途 / ノーマル (99)                  err 0.020 exact 5/9 logp -0.12 rate 8.61 f0 108.8 range 6.75 pesq 3.57 total 44.17
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 離途 / シリアス (101)                 err 0.044 exact 3/9 logp -0.17 rate 7.54 f0 93.0 range 10.14 pesq 3.29 total 51.7
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 黒沢冴白 / ノーマル (100)               err 0.033 exact 4/9 logp -0.14 rate 7.55 f0 149.5 range 10.09 pesq 3.93 total 51.57
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+VOICEVOX 東北イタコ / ノーマル (109)              err 0.037 exact 3/9 logp -0.14 rate 7.49 f0 238.8 range 9.46 pesq 3.65 total 51.97
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`
+`output_sampling_rate` should be `DEFAULT_SAMPLING_RATE`

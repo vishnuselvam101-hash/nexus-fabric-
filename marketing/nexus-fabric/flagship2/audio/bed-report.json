@@ -1,0 +1,14 @@
+{
+ "en": {
+  "cues_used": 99,
+  "kinds": 43,
+  "bed_peak_dBFS_before_scaling": -5.57,
+  "bed_scale_dB": -0.45
+ },
+ "ja": {
+  "cues_used": 99,
+  "kinds": 43,
+  "bed_peak_dBFS_before_scaling": -5.57,
+  "bed_scale_dB": -0.45
+ }
+}

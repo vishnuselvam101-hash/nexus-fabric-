@@ -1,0 +1,27 @@
+[
+  {
+    "current": "展開形状の計算",
+    "replace_with": "展開計算",
+    "note": "Shorter, the everyday shop term; matches EN 'Pattern mathematics' as a check-list item."
+  },
+  {
+    "current": "独立した検証チェック",
+    "replace_with": "独立した検算",
+    "note": "検証チェック is redundant (検証 already means check); 検算 is what engineers say for an independent recalculation."
+  },
+  {
+    "current": "部品間の接合照合",
+    "replace_with": "部材間の取合い確認",
+    "note": "接合照合 is not idiomatic. Fabricators say 取合い (fit-up/interface between members) and 部材 for steel parts."
+  },
+  {
+    "keep": [
+      "コンセプト",
+      "本映像用に再描画",
+      "単位：mm",
+      "基準面・オフセット 0",
+      "AMOEBAを核とする、AIネイティブの設計基盤",
+      "NEXUS FABRIC"
+    ]
+  }
+]

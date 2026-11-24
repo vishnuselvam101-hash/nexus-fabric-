@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>NEXUS FABRIC launch film (notch)</title>
+<!-- 30 s, 1920x1080, 30 fps. window.seek(seconds) draws any exact frame. ?lang=en|ja  ?reduced=1 (springs become short fades).
+     Every number, name and line of file text inside the widgets is real output of the product: see data.js ("source"). -->
+<link rel="stylesheet" href="../launch30/node_modules/@fontsource-variable/inter/opsz.css">
+<link rel="stylesheet" href="../launch30/node_modules/@fontsource-variable/inter/opsz-italic.css">
+<link rel="stylesheet" href="../launch30/node_modules/@fontsource/noto-sans-jp/400.css">
+<link rel="stylesheet" href="../launch30/node_modules/@fontsource/noto-sans-jp/500.css">
+<link rel="stylesheet" href="../launch30/node_modules/@fontsource/noto-sans-jp/700.css">
+<link rel="stylesheet" href="../launch30/node_modules/@fontsource/jetbrains-mono/400.css">
+<style>
+:root{--ink:#f5f7fa;--dim:rgba(245,247,250,.62);--faint:rgba(245,247,250,.34);--hair:rgba(245,247,250,.14);--blue:#6fb0ff;--amber:#f0a94a;--green:#58d39a;--tint:#a9cbff}
+html,body{margin:0;background:#000;overflow:hidden}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:#000;color:var(--ink);font-family:'Inter Variable','Noto Sans JP',-apple-system,'Helvetica Neue',sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased;font-feature-settings:'ss01','cv11'}
+.mono{font-family:'JetBrains Mono','Noto Sans JP',ui-monospace,monospace;font-feature-settings:normal}
+.wp{position:absolute;inset:0;opacity:0}
+#grain{position:absolute;inset:0;opacity:.07;mix-blend-mode:overlay}
+/* the screen: a thin menu bar with the notch in the middle of it. Menu titles are placeholders (grey lines): they claim nothing. */
+#bar{position:absolute;left:0;right:0;top:0;height:38px;background:rgba(6,8,12,.26)}
+#bar i{position:absolute;top:14px;height:10px;border-radius:5px;background:rgba(245,247,250,.56)}
+#bar svg{position:absolute;left:24px;top:11px}
+#isl{position:absolute;top:0;left:960px;transform:translateX(-50%);background:#000;overflow:hidden}
+.pane{position:absolute;top:0;left:50%;opacity:0}
+.pane svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.ln{fill:none;stroke:var(--ink);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.thin{fill:none;stroke:rgba(245,247,250,.42);stroke-width:1.3;stroke-linecap:round}
+.dash{fill:none;stroke:rgba(245,247,250,.34);stroke-width:1.2;stroke-dasharray:14 5 2 5}
+.tx{fill:rgba(245,247,250,.74);font-family:'JetBrains Mono',monospace;font-size:19px}
+/* scene 3: the real application */
+#shotwrap{position:absolute;left:16px;width:1208px;top:52px;bottom:16px;border-radius:14px;overflow:hidden;background:#0e1116;box-shadow:0 0 0 1px rgba(245,247,250,.10)}
+#shot{position:absolute;left:0;top:0;width:1208px;transform-origin:0 0}
+/* scene 4: the equation */
+.eq{position:absolute;left:72px;top:206px;font-size:40px;white-space:nowrap;letter-spacing:.005em}
+.eq i{font-style:italic;font-weight:420}
+.frac{display:inline-flex;flex-direction:column;align-items:center;vertical-align:middle;margin-left:10px}
+.num{padding:0 8px 8px;border-bottom:2px solid var(--ink)}.den{padding-top:8px}
+.rad{display:inline-block;border-top:2px solid var(--ink);padding:3px 4px 0 3px;margin-left:1px}
+sup{font-size:.55em;vertical-align:.75em;line-height:0}
+.kv{position:absolute;left:72px;width:430px;display:flex;justify-content:space-between;align-items:baseline;padding:13px 0;border-top:1px solid var(--hair);font-size:27px}
+.kv b{font-weight:400;color:var(--tint)}
+.pm{position:absolute;left:72px;top:356px;font-size:18px;color:var(--dim);letter-spacing:.02em;white-space:pre}
+/* scene 6: checks */
+.chips{position:absolute;left:56px;top:84px;display:flex;gap:12px;align-items:center}
+.chip{font-size:17px;font-weight:620;letter-spacing:.07em;padding:7px 13px;border-radius:7px;white-space:nowrap}
+.c-state{color:var(--amber);box-shadow:inset 0 0 0 1.5px var(--amber)}
+.c-pass{color:var(--green);background:rgba(88,211,154,.14)}.c-inc{color:var(--amber);background:rgba(240,169,74,.14)}.c-ni{color:rgba(245,247,250,.7);background:rgba(245,247,250,.10)}
+.row{position:absolute;width:524px;height:44px;display:flex;align-items:center;gap:12px;border-top:1px solid var(--hair);font-size:15.5px}
+.row .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:rgba(245,247,250,.9)}
+.row .dv{color:var(--dim);font-size:14.5px;white-space:nowrap}
+.row svg{position:static;width:20px;height:20px;flex:none}
+.scope{position:absolute;font-size:14px;letter-spacing:.14em;color:var(--faint);text-transform:uppercase}
+/* scene 7: the DXF */
+#dxfbox{position:absolute;left:64px;top:84px;width:400px;height:468px;overflow:hidden;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 12%,#000 86%,transparent 100%)}
+#dxftxt{position:absolute;left:0;top:0;font-size:16px;line-height:23px;white-space:pre;color:rgba(245,247,250,.66)}
+#dxftxt b{font-weight:400;color:var(--ink)}#dxftxt u{text-decoration:none;color:var(--blue)}#dxftxt s{text-decoration:none;color:var(--amber)}
+.fname{position:absolute;left:520px;top:92px;width:600px;font-size:17px;line-height:25px;color:rgba(245,247,250,.9);word-break:break-all}
+.fmeta{position:absolute;left:520px;top:152px;font-size:15px;color:var(--dim);white-space:pre}
+.step{position:absolute;left:520px;height:52px;display:flex;align-items:center;gap:16px;font-size:34px;font-weight:560;letter-spacing:-.01em}
+.step svg{position:static;width:30px;height:30px;flex:none}
+/* caption below the notch, last words tinted; one quiet status line */
+#cap{position:absolute;left:0;right:0;top:664px;text-align:center;font-size:72px;font-weight:650;letter-spacing:-.026em;line-height:1.06;opacity:0}
+#cap em{font-style:normal;color:var(--tint)}
+#cap.ja{font-size:62px;font-weight:700;letter-spacing:.02em;line-height:1.2}
+#sub{position:absolute;left:0;right:0;top:762px;text-align:center;font-size:29px;font-weight:450;color:rgba(245,247,250,.84);opacity:0;letter-spacing:-.005em}
+#sub.ja{font-size:27px;letter-spacing:.04em}
+#sub span{display:inline-block;margin-left:22px;font-size:19px;font-weight:640;letter-spacing:.08em;color:var(--amber);padding:6px 12px;border-radius:6px;box-shadow:inset 0 0 0 1.5px var(--amber);vertical-align:3px}
+#status{position:absolute;left:0;right:0;bottom:54px;text-align:center;font-size:20px;font-weight:480;letter-spacing:.03em;color:rgba(245,247,250,.66);opacity:0}
+#status::before{content:"";display:inline-block;width:8px;height:8px;margin-right:12px;background:currentColor;vertical-align:2px}
+#end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0}
+#end .wm{display:flex;align-items:center;gap:30px;font-size:96px;font-weight:650;letter-spacing:.13em}
+#end .wm svg{flex:none}
+#end .l1{margin-top:34px;font-size:42px;font-weight:480;letter-spacing:-.012em;color:rgba(245,247,250,.92)}
+#end .l2{margin-top:56px;font-size:19px;font-weight:600;letter-spacing:.26em;color:rgba(245,247,250,.6);display:flex;gap:34px}
+#end .l2.ja{letter-spacing:.14em;font-weight:500}
+#end .l3{position:absolute;bottom:54px;font-size:19px;color:rgba(245,247,250,.56);letter-spacing:.02em}
+#end .l3::before{content:"";display:inline-block;width:8px;height:8px;margin-right:12px;background:var(--amber);vertical-align:2px}
+</style></head>
+<body><div id="stage">
+<div class="wp" id="wp0" style="opacity:1;background:radial-gradient(90% 72% at 50% -6%,#232831 0%,#0d1014 58%,#060709 100%)"></div><div class="wp" id="wp1"></div><div class="wp" id="wp2"></div><div class="wp" id="wp3"></div><div class="wp" id="wp4"></div><div class="wp" id="wp5"></div><div class="wp" id="wp6"></div>
+<div id="grain"></div>
+<div id="bar"><svg id="barmark" width="30" height="16" viewBox="0 0 30 16"><path fill="none" stroke="rgba(245,247,250,.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+<div id="isl">
+ <div class="pane" id="p0"><svg viewBox="0 0 900 420"><path id="hello" transform="translate(0,30)" fill="none" stroke="#fff" stroke-width="8.5" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1 1"/></svg></div>
+ <div class="pane" id="p1"><svg viewBox="0 0 1180 600" id="s1"></svg></div>
+ <div class="pane" id="p2"><div id="shotwrap"><img id="shot" src="assets/app-workspace.png" alt=""></div></div>
+ <div class="pane" id="p3">
+  <div class="eq"><i>s</i>(<i>φ</i>) =<span class="frac"><span class="num">√<span class="rad"><i>R</i><sup>2</sup> − (<i>r</i> cos <i>φ</i>)<sup>2</sup></span> − <i>r</i> sin <i>φ</i> cos <i>β</i></span><span class="den">sin <i>β</i></span></span></div>
+  <div class="pm mono" id="pm"></div>
+  <div class="kv mono" style="top:416px"><span>φ</span><b id="vphi"></b></div>
+  <div class="kv mono" style="top:470px;border-bottom:1px solid var(--hair)"><span>s(φ)</span><b id="vs"></b></div>
+  <svg viewBox="0 0 1180 600" id="s3"></svg>
+ </div>
+ <div class="pane" id="p4"><svg viewBox="0 0 1240 600" id="s4"></svg></div>
+ <div class="pane" id="p5"><div class="chips" id="chips"></div><div id="rows"></div></div>
+ <div class="pane" id="p6"><div id="dxfbox"><div id="dxftxt" class="mono"></div></div><div class="fname mono" id="fname"></div><div class="fmeta mono" id="fmeta"></div><div id="steps"></div><svg viewBox="0 0 1180 600" id="s6"></svg></div>
+</div>
+<div id="cap"></div><div id="sub"></div><div id="status"></div>
+<div id="end"><div class="wm"><svg id="endmark" width="150" height="62" viewBox="0 0 150 62"><path fill="none" stroke="#2f7df6" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1 1"/></svg><span>NEXUS FABRIC</span></div><div class="l1"></div><div class="l2"></div><div class="l3"></div></div>
+</div>
+<script src="data.js"></script>
+<script>
+const Q = new URLSearchParams(location.search), lang = Q.get('lang') === 'ja' ? 'ja' : 'en';
+const REDUCED = Q.get('reduced') === '1' || (!Q.has('reduced') && window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+const NF = window.NF, DUR = 30, PI = Math.PI;
+const $ = (id) => document.getElementById(id), cl = (x) => Math.min(1, Math.max(0, x));
+const sm = (a, b, t) => { const x = cl((t - a) / (b - a)); return x * x * (3 - 2 * x); };
+// critically damped step response (no overshoot) and a lightly under-damped one, both functions of time since the cue
+const settle = (x, resp = 0.45) => { if (x <= 0) return 0; const w = 2 * PI / resp * x; return 1 - (1 + w) * Math.exp(-w); };
+const bounce = (x, resp = 0.5, z = 0.72) => { if (x <= 0) return 0; const w = 2 * PI / resp, wd = w * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w * x) * (Math.cos(wd * x) + (z * w / wd) * Math.sin(wd * x)); };
+const NS_ = 'http://www.w3.org/2000/svg';
+const el = (p, tag, attrs = {}, text) => { const e = document.createElementNS(NS_, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text !== undefined) e.textContent = text; p.appendChild(e); return e; };
+const dpath = (pts, close) => 'M' + pts.map((p) => p[0].toFixed(2) + ' ' + p[1].toFixed(2)).join('L') + (close ? 'Z' : '');
+const fmt = (v, d = 3) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: false });
+const TICK = '<svg viewBox="0 0 20 20"><path d="M4 10.6l4 4 8-9" fill="none" stroke="#58d39a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1 1"/></svg>';
+
+// ---------- words. Captions state only what the product does today; anything planned carries its mark.
+const L = { en: {
+  cap: [null, 'One joint. <em>One curve to find.</em>', 'Meet <em>NEXUS FABRIC.</em>', 'Every curve, <em>from an equation.</em>', 'Rolled steel, <em>developed flat.</em>', 'Checked, <em>part against part.</em>', 'DXF written, re-read, <em>compared.</em>'],
+  sub: 'Engineering platform with automated drawing reading (not implemented), powered by AMOEBA', planned_ai: 'AUTOMATED DRAWING READING: PLANNED',
+  st: [null, 'Fictional drawing made for this film', 'Actual software · development build', 'Implemented · pattern mathematics', 'Actual product output · development build', 'Actual product output · 7 gates inconclusive · engineer approval not implemented', 'Actual product output · not released'],
+  steps: ['Written', 'Re-read', 'Compared'], bytes: 'bytes', units: 'units', side: 'marking side', sidev: 'outside · provisional', engine: 'engine',
+  line: 'Engineering, Reimagined.', verbs: ['UNDERSTAND.', 'RECONSTRUCT.', 'VERIFY.', 'MANUFACTURE.'], disc: 'Product concept. Capabilities in development. Not validated for manufacturing.' },
+ ja: {
+  cap: [null, 'この取合いの、<em>切断線は。</em>', '<em>NEXUS FABRIC</em>', '曲線はすべて、<em>数式から。</em>', '板を、<em>平面に展開。</em>', '部材間の取合いを、<em>確認。</em>', 'DXFを出力、再読込、<em>照合。</em>'],
+  sub: 'AMOEBAを核とする、AIネイティブの設計基盤', planned_ai: 'AIによる図面解釈：計画中',
+  st: [null, '本映像用の架空図面', '実際のソフトウェア・開発版・画面表示は英語版', '実装済み・展開計算', '実際の製品出力・開発版', '実際の製品出力・ゲート7件は未確定・技術者承認は未実装', '実際の製品出力・未リリース'],
+  steps: ['出力', '再読込', '照合'], bytes: 'バイト', units: '単位', side: 'けがき面', sidev: '外面・暫定', engine: 'エンジン',
+  line: '設計を、再定義。', verbs: ['理解する。', '再構築する。', '検証する。', '製造する。'], disc: '製品コンセプトです。機能は開発中であり、製造用途での検証は未実施です。' } }[lang];
+
+// ---------- scenes: the notch opens into one widget per scene and returns to its resting shape between them
+const PW = 212, PH = 38;
+const SC = [
+  { a: 0.0, b: 3.2, W: 900, H: 420 }, { a: 3.2, b: 7.0, W: 1180, H: 600 }, { a: 7.0, b: 10.8, W: 1240, H: 600 }, { a: 10.8, b: 14.6, W: 1180, H: 600 },
+  { a: 14.6, b: 18.4, W: 1240, H: 600 }, { a: 18.4, b: 21.7, W: 1180, H: 600 }, { a: 21.7, b: 25.0, W: 1180, H: 600 }, { a: 25.0, b: 30.0, W: PW, H: PH } ];
+const WP = [null,
+  ['#4a628c', '#26334d', '#33405e', '#131a26', '#0a0e15', '#b9cbf0'], ['#2f7df6', '#1b3fa6', '#1556c8', '#0b1c46', '#050d24', '#a9cbff'],
+  ['#6a5cf0', '#3a2aa8', '#4b3fd0', '#17123f', '#0a0720', '#c9c3ff'], ['#18a89c', '#0c5f6e', '#0f7f86', '#062a31', '#031418', '#9fece0'],
+  ['#2faa6c', '#146247', '#1e8658', '#082a1d', '#03130d', '#a8eec6'], ['#e07a2c', '#8a3a14', '#b9571c', '#2e1508', '#140803', '#ffd2a3']];
+for (let i = 1; i <= 6; i++) { const [c1, c2, c3, b1, b2] = WP[i];
+  $('wp' + i).style.background = `radial-gradient(92% 72% at 50% -4%, ${c1} 0%, ${c1}00 62%), radial-gradient(72% 62% at 88% 104%, ${c2} 0%, ${c2}00 66%), radial-gradient(62% 54% at 6% 82%, ${c3}cc 0%, ${c3}00 62%), linear-gradient(180deg, ${b1}, ${b2})`; }
+{ // seeded grain: breaks up banding in the wide gradients once the film is compressed
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'), im = g.createImageData(256, 256); let s = 20261119;
+  for (let i = 0; i < 256 * 256; i++) { s = (s * 1664525 + 1013904223) >>> 0; const v = s >>> 24; im.data[4 * i] = im.data[4 * i + 1] = im.data[4 * i + 2] = v; im.data[4 * i + 3] = 255; }
+  g.putImageData(im, 0, 0); $('grain').style.background = `url(${c.toDataURL()})`; }
+
+// ---------- the notch: width and height are separate springs, integrated once from the start of the film, so a
+// re-opening always continues from wherever the notch is. Opening is soft with a slight overshoot; closing has none.
+const HZ = 240, NSAMP = DUR * HZ + 1, IW = new Float32Array(NSAMP), IH = new Float32Array(NSAMP);
+const FOCUS_W = 659, FOCUS_AT = 1.75;   // scene 2: the widget narrows onto the pattern canvas of the real application
+const target = (t) => { for (let i = 0; i < 7; i++) { const s = SC[i]; if (t >= (i ? s.a - 0.06 : -1) && t < s.b - (i ? 0.36 : 0.42)) return [i === 2 && t >= s.a + FOCUS_AT ? FOCUS_W : s.W, s.H]; } return [PW, PH]; };
+{ let w = SC[0].W, h = SC[0].H, vw = 0, vh = 0;
+  for (let i = 0; i < NSAMP; i++) { const [tw, th] = target(i / HZ), opening = tw > PW + 1;
+    const [rw, zw] = REDUCED ? [0.16, 1] : opening ? [0.50, 0.80] : [0.34, 1.0], [rh, zh] = REDUCED ? [0.16, 1] : opening ? [0.60, 0.86] : [0.30, 1.0];
+    const kw = (2 * PI / rw) ** 2, cw = 2 * zw * 2 * PI / rw, kh = (2 * PI / rh) ** 2, ch = 2 * zh * 2 * PI / rh;
+    vw += (kw * (tw - w) - cw * vw) / HZ; w += vw / HZ; vh += (kh * (th - h) - ch * vh) / HZ; h += vh / HZ; IW[i] = w; IH[i] = h; } }
+
+// ---------- geometry of the reference assembly, taken from the product's own request
+const R = NF.request.header_radius, r = NF.request.branch_radius, BETA = NF.request.beta_deg * PI / 180, SEND = NF.request.s_end, HLEN = NF.request.header_length, STN = NF.request.branch_station;
+const sb = Math.sin(BETA), cb = Math.cos(BETA), sOf = (phi) => (Math.sqrt(R * R - (r * Math.cos(phi)) ** 2) - r * Math.sin(phi) * cb) / sb;   // Spec 02 eq. (4.3), zero offset
+const axp = (s, o) => [s * cb - o * sb, s * sb + o * cb];                       // a point at distance s along the branch axis, o across it (elevation, mm from the station)
+const markPts = (w, h, pad) => { const s0 = sOf(PI / 2), s1 = sOf(-PI / 2), p = []; for (let i = 0; i <= 120; i++) { const phi = 2 * PI * i / 120; p.push([pad + (w - 2 * pad) * i / 120, pad + (h - 2 * pad) * (sOf(phi) - s0) / (s1 - s0)]); } return p; };
+$('barmark').firstChild.setAttribute('d', dpath(markPts(30, 16, 2)));          // the mark is the developed saddle cut itself
+$('endmark').firstChild.setAttribute('d', dpath(markPts(150, 62, 5)));
+// placeholder menu titles and status items (no words)
+const BAR = []; { let x = 72; for (const w of [92, 30, 32, 36, 54, 34]) { BAR.push([x, w]); x += w + 22; } x = 1920 - 24; for (const w of [62, 18, 18, 22]) { x -= w; BAR.push([x, w]); x -= 18; }
+  for (const [bx, w] of BAR) { const i = document.createElement('i'); i.style.left = bx + 'px'; i.style.width = w + 'px'; $('bar').appendChild(i); } }
+const BARI = [...$('bar').querySelectorAll('i')];
+
+const draws = [];            // [element, scene, start, end] strokes that draw on (scene-local seconds)
+const fades = [];            // [element, scene, start]
+const stroke = (svg, d, cls, sc, a, b, extra = {}) => { const e = el(svg, 'path', { d, class: cls, pathLength: 1, 'stroke-dasharray': '1 1', 'stroke-dashoffset': 1, ...extra }); draws.push([e, sc, a, b]); return e; };
+const label = (svg, x, y, s, sc, a, extra = {}) => { const e = el(svg, 'text', { x, y, class: 'tx', 'text-anchor': 'middle', opacity: 0, ...extra }, s); fades.push([e, sc, a]); return e; };
+
+// ---------- scene 0: hello, written in one line
+$('hello').setAttribute('d', 'M214 286 C254 276 300 214 318 150 C330 108 322 84 306 88 C288 92 284 128 282 172 L276 292 C280 250 300 212 326 214 C348 216 344 252 342 276 C340 294 352 298 370 286 C398 268 420 240 416 222 C412 206 390 210 384 236 C378 264 396 292 426 286 C452 280 476 238 490 190 C502 148 502 96 486 92 C470 88 462 122 460 168 C458 222 458 262 466 280 C472 294 488 290 504 274 C528 250 548 190 554 150 C560 110 556 90 542 92 C526 94 520 126 518 170 C516 222 516 262 524 280 C530 294 548 292 562 274 C574 258 584 232 604 224 C582 222 566 244 568 264 C570 290 604 294 620 266 C630 248 624 228 604 224 C612 242 640 250 672 232');
+
+// ---------- scene 1: a fictional drawing of the reference assembly (side elevation and end view)
+{ const s = $('s1'), K = 0.5, X0 = 150, AY = 392, E = (x, z) => [X0 + (STN + x) * K, AY - z * K], A = (sv, o) => E(...axp(sv, o));
+  stroke(s, dpath([E(-STN, -R), E(HLEN - STN, -R), E(HLEN - STN, R), E(-STN, R)], true), 'ln', 1, 0.35, 1.45);
+  stroke(s, dpath([A(sOf(PI / 2), r), A(SEND, r), A(SEND, -r), A(sOf(-PI / 2), -r)]), 'ln', 1, 0.75, 1.65);
+  stroke(s, dpath([E(-STN - 60, 0), E(HLEN - STN + 60, 0)]), 'dash', 1, 0.25, 1.0); stroke(s, dpath([A(-70, 0), A(SEND + 70, 0)]), 'dash', 1, 0.6, 1.3);
+  const cx = 968, ev = (y, z) => [cx + y * K, AY - z * K], circ = []; for (let i = 0; i <= 96; i++) circ.push(ev(R * Math.cos(2 * PI * i / 96), R * Math.sin(2 * PI * i / 96)));
+  stroke(s, dpath(circ, true), 'ln', 1, 0.95, 1.85); const zt = SEND * sb, z0 = Math.sqrt(R * R - r * r), top = []; for (let i = 0; i <= 64; i++) top.push(ev(r * Math.cos(2 * PI * i / 64), zt + r * cb * Math.sin(2 * PI * i / 64)));
+  stroke(s, dpath([ev(-r, z0), ev(-r, zt)]), 'ln', 1, 1.2, 1.8); stroke(s, dpath([ev(r, z0), ev(r, zt)]), 'ln', 1, 1.2, 1.8); stroke(s, dpath(top, true), 'ln', 1, 1.4, 2.1);
+  stroke(s, dpath([ev(-R - 40, 0), ev(R + 40, 0)]), 'dash', 1, 0.9, 1.4); stroke(s, dpath([ev(0, -R - 40), ev(0, zt + 90)]), 'dash', 1, 0.9, 1.4);
+  const dim = (a, b, off, txt, t0, rot) => { const dx = b[0] - a[0], dy = b[1] - a[1], n = Math.hypot(dx, dy), nx = -dy / n * off, ny = dx / n * off, p = [a[0] + nx, a[1] + ny], q = [b[0] + nx, b[1] + ny];
+    stroke(s, dpath([p, q]), 'thin', 1, t0, t0 + 0.5); for (const [u, v] of [[a, p], [b, q]]) stroke(s, dpath([[u[0] + nx * 0.2, u[1] + ny * 0.2], [v[0] + nx * 0.18, v[1] + ny * 0.18]]), 'thin', 1, t0, t0 + 0.4);
+    const m = [(p[0] + q[0]) / 2 + nx / Math.abs(off) * 20, (p[1] + q[1]) / 2 + ny / Math.abs(off) * 20 + 6]; label(s, m[0], m[1], txt, 1, t0 + 0.25, rot ? { transform: `rotate(${rot} ${m[0]} ${m[1] - 6})` } : {}); };
+  dim(E(-STN, -R), E(HLEN - STN, -R), 44, String(HLEN), 1.7); dim(E(-STN, R), E(-STN, -R), 40, '⌀' + 2 * R, 1.85, -90); dim(A(SEND, -r), A(SEND, r), 30, '⌀' + 2 * r, 2.0, 30);
+  const arc = []; for (let i = 0; i <= 20; i++) { const a = BETA * i / 20; arc.push([E(0, 0)[0] + 58 * Math.cos(a), E(0, 0)[1] - 58 * Math.sin(a)]); } stroke(s, dpath(arc), 'thin', 1, 2.05, 2.4); label(s, E(0, 0)[0] + 84, E(0, 0)[1] - 30, NF.request.beta_deg + '°', 1, 2.2);
+  const cur = []; for (let i = 0; i <= 80; i++) { const phi = -PI / 2 + PI * i / 80, sv = sOf(phi); cur.push(E(sv * cb - r * Math.sin(phi) * sb, sv * sb + r * Math.sin(phi) * cb)); }
+  stroke(s, dpath(cur), 'ln', 1, 2.35, 2.95, { style: 'stroke:#6fb0ff;stroke-width:3.4' });
+  const c0 = cur[26]; stroke(s, dpath([[c0[0] - 6, c0[1] + 8], [c0[0] - 78, c0[1] + 120], [c0[0] - 150, c0[1] + 120]]), 'thin', 1, 2.7, 3.0, { style: 'stroke:#f0a94a' });
+  label(s, c0[0] - 214, c0[1] + 127, 's(φ) = ?', 1, 2.85, { style: 'fill:#f0a94a;font-size:22px' }); }
+
+// ---------- scene 3: the governing equation with a live read-out on the same geometry
+{ const s = $('s3'), K = 0.6, OX = 842, AY = 432, E = (x, z) => [OX + x * K, AY - z * K], A = (sv, o) => E(...axp(sv, o)), HX = 320;
+  el(s, 'path', { d: dpath([E(-HX, R), E(HX, R)]), class: 'ln' }); el(s, 'path', { d: dpath([E(-HX, -R), E(HX, -R)]), class: 'ln' });
+  el(s, 'path', { d: dpath([E(-HX - 40, 0), E(HX + 40, 0)]), class: 'dash' }); el(s, 'path', { d: dpath([A(-60, 0), A(SEND + 60, 0)]), class: 'dash' });
+  for (const sg of [-1, 1]) { const w = []; for (let i = 0; i <= 10; i++) w.push(E(sg * (HX + 9 * Math.sin(PI * i / 5)), -R + 2 * R * i / 10)); el(s, 'path', { d: dpath(w), class: 'thin' }); }
+  el(s, 'path', { d: dpath([A(sOf(PI / 2), r), A(SEND, r), A(SEND, -r), A(sOf(-PI / 2), -r)]), class: 'ln' });
+  const cur = []; for (let i = 0; i <= 80; i++) { const phi = -PI / 2 + PI * i / 80, sv = sOf(phi); cur.push(E(sv * cb - r * Math.sin(phi) * sb, sv * sb + r * Math.sin(phi) * cb)); }
+  el(s, 'path', { d: dpath(cur), class: 'ln', style: 'stroke:#6fb0ff;stroke-width:3.6' });
+  const rule = el(s, 'path', { class: 'thin', style: 'stroke:#c9c3ff;stroke-width:2;stroke-dasharray:5 5' }), dot = el(s, 'circle', { r: 7.5, fill: '#fff', stroke: '#6a5cf0', 'stroke-width': 3.5 });
+  $('pm').textContent = `R = ${R}   r = ${r}   β = ${NF.request.beta_deg}°   δ = ${NF.request.delta}   mm`;
+  window._math = (lt) => { const phi = PI / 2 + (PI + 0.34) * sm(0.3, 3.3, lt), sv = sOf(phi), o = r * Math.sin(phi), p = A(sv, o), q = A(0, o);
+    rule.setAttribute('d', dpath([q, p])); dot.setAttribute('cx', p[0]); dot.setAttribute('cy', p[1]);
+    $('vphi').textContent = (phi * 180 / PI).toFixed(1) + '°'; $('vs').textContent = sv.toFixed(2) + ' mm'; }; }
+
+// ---------- scene 4: the two flat patterns, plotted from the product's own vertex lists (y up, drawn as seen from the outside)
+{ const s = $('s4'), K = 0.40, HXo = 185, HB = 500, BXo = 810, BY = 413, hp = (p) => [HXo + p[0] * K, HB - p[1] * K], bp = (p) => [BXo + p[0] * K, BY - p[1] * K];
+  const H = NF.header, B = NF.branch, hout = H.lines.map((l) => l.pts[0]), bout = [...B.saddle, ...B.lines.map((l) => l.pts[1])];
+  el(s, 'path', { id: 'f4h', d: dpath(hout.map(hp), true) + dpath(H.hole.map(hp), true), fill: 'rgba(201,206,212,.16)', 'fill-rule': 'evenodd', opacity: 0 });
+  el(s, 'path', { id: 'f4b', d: dpath(bout.map(bp), true), fill: 'rgba(201,206,212,.16)', opacity: 0 });
+  stroke(s, dpath(hout.map(hp), true), 'ln', 4, 0.45, 1.5, { style: 'stroke:#6fb0ff' }); stroke(s, dpath(H.hole.map(hp), true), 'ln', 4, 1.2, 2.0, { style: 'stroke:#f0a94a;stroke-width:2.6' });
+  stroke(s, dpath(bout.map(bp), true), 'ln', 4, 0.9, 2.0, { style: 'stroke:#6fb0ff' });
+  const hd = (a, b, off, txt, t0, rot) => { const dx = b[0] - a[0], dy = b[1] - a[1], n = Math.hypot(dx, dy), nx = -dy / n * off, ny = dx / n * off, p = [a[0] + nx, a[1] + ny], q = [b[0] + nx, b[1] + ny];
+    stroke(s, dpath([p, q]), 'thin', 4, t0, t0 + 0.45); const m = [(p[0] + q[0]) / 2 + nx / Math.abs(off) * 20, (p[1] + q[1]) / 2 + ny / Math.abs(off) * 20 + 6]; label(s, m[0], m[1], txt, 4, t0 + 0.2, rot ? { transform: `rotate(${rot} ${m[0]} ${m[1] - 6})` } : {}); };
+  hd(hp([0, H.C]), hp([H.L, H.C]), -22, fmt(H.L, 0), 2.0); hd(hp([0, 0]), hp([0, H.C]), -22, '2πR = ' + fmt(H.C), 2.15, -90); hd(bp([0, 100]), bp([B.C, 100]), 22, '2πr = ' + fmt(B.C), 2.3);
+  const hc = H.hole.reduce((a, p) => [a[0] + p[0] / H.hole.length, a[1] + p[1] / H.hole.length], [0, 0]), c = hp(hc);
+  label(s, c[0], c[1] + 78, H.hole_name, 4, 2.3, { style: 'fill:#f0a94a;font-size:17px' }); label(s, c[0], c[1] + 102, fmt(H.hole_len), 4, 2.4, { style: 'font-size:17px' });
+  const m = bp([B.C / 2, 322]); label(s, m[0], m[1], 'saddle_cut', 4, 2.45, { style: 'fill:#6fb0ff;font-size:17px' }); label(s, m[0], m[1] + 24, fmt(B.saddle_len), 4, 2.55, { style: 'font-size:17px' });
+  const kv = [[L.engine, NF.engine], [L.side, L.sidev], [L.units, 'mm']]; kv.forEach(([k, v], i) => { const y = 132 + i * 34;
+    label(s, BXo, y, k, 4, 2.6 + i * 0.1, { 'text-anchor': 'start', style: `fill:rgba(245,247,250,.5);font-size:17px;${lang === 'ja' ? "font-family:'Noto Sans JP'" : ''}` });
+    label(s, BXo + (lang === 'ja' ? 120 : 150), y, v, 4, 2.65 + i * 0.1, { 'text-anchor': 'start', style: `font-size:17px;${lang === 'ja' && i === 1 ? "font-family:'Noto Sans JP'" : ''}` }); }); }
+
+// ---------- scene 5: the product's own checks on this job, with its gate summary (nothing left out)
+{ const g = NF.gates; $('chips').innerHTML = `<span class="chip c-state">${NF.state.replace('_', ' ')}</span><span class="chip c-pass">${g.PASS} PASS</span><span class="chip c-inc">${g.INCONCLUSIVE} INCONCLUSIVE</span><span class="chip c-ni">${g.NOT_IMPLEMENTED} NOT IMPLEMENTED</span>`;
+  const rows = $('rows'), fd = (d) => d === 0 ? '0' : d.toExponential(1).replace('e-', 'e−'); let html = '';
+  NF.checks.forEach((c, i) => { const col = i < 8 ? 0 : 1, k = i % 8; html += `<div class="row mono" style="left:${56 + col * 544}px;top:${178 + k * 46}px"><span class="nm" style="${c.scope === 'interface' ? 'color:#a8eec6' : ''}">${c.name}</span><span class="dv">Δ ${fd(c.diff)} mm</span>${TICK}</div>`; });
+  rows.innerHTML = html; }
+const ROWS = [...document.querySelectorAll('#rows .row')], CHIPS = [...document.querySelectorAll('#chips .chip')];
+
+// ---------- scene 6: the DXF as written (real lines of the file), its real name and hash, and the read-back steps
+{ const hi = (l) => { const t = l.trim(); if (/^(CUT_OUTER|LINE|POLYLINE|VERTEX|SEQEND)$/.test(t)) return t === 'CUT_OUTER' ? `<u>${l}</u>` : `<b>${l}</b>`; if (t === 'CUT_INNER') return `<s>${l}</s>`; if (/NOT RELEASED|^SECTION$|^ENTITIES$|^HEADER$/.test(t)) return `<b>${l.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</b>`; return l.replace(/&/g, '&amp;').replace(/</g, '&lt;'); };
+  $('dxftxt').innerHTML = NF.dxf.excerpt.map((l) => hi(l.length > 40 ? l.slice(0, 39) + '…' : l)).join('\n');
+  $('fname').textContent = NF.dxf.header_file; $('fmeta').textContent = `sha256  ${NF.header.sha.slice(0, 32)}…\n${NF.dxf.bytes.toLocaleString('en-US')} ${L.bytes}`;
+  $('steps').innerHTML = L.steps.map((w, i) => `<div class="step" style="top:${236 + i * 60}px">${TICK.replace('viewBox', 'class="tk" viewBox')}<span>${w}</span></div>`).join('');
+  const s = $('s6'), K = 0.24, X = 810, Y = 530, hp = (p) => [X + p[0] * K, Y - p[1] * K], H = NF.header;
+  el(s, 'path', { d: dpath(H.lines.map((l) => l.pts[0]).map(hp), true), class: 'ln', style: 'stroke:rgba(111,176,255,.35);stroke-width:1.6' }); el(s, 'path', { d: dpath(H.hole.map(hp), true), class: 'ln', style: 'stroke:rgba(240,169,74,.35);stroke-width:1.6' });
+  const o1 = el(s, 'path', { d: dpath(H.lines.map((l) => l.pts[0]).map(hp), true), class: 'ln', style: 'stroke:#6fb0ff;stroke-width:2.4', pathLength: 1, 'stroke-dasharray': '1 1', 'stroke-dashoffset': 1 });
+  const o2 = el(s, 'path', { d: dpath(H.hole.map(hp), true), class: 'ln', style: 'stroke:#f0a94a;stroke-width:2.4', pathLength: 1, 'stroke-dasharray': '1 1', 'stroke-dashoffset': 1 });
+  window._dxf = (lt) => { $('dxftxt').style.transform = `translateY(${-1500 * sm(0.3, 3.4, lt) * (REDUCED ? 0 : 1)}px)`; o1.setAttribute('stroke-dashoffset', 1 - sm(1.25, 2.0, lt)); o2.setAttribute('stroke-dashoffset', 1 - sm(1.7, 2.3, lt)); }; }
+const STEPS = [...document.querySelectorAll('#steps .step')];
+
+// ---------- static text
+$('cap').className = $('sub').className = lang; document.documentElement.lang = lang;
+$('end').querySelector('.l1').textContent = L.line; $('end').querySelector('.l2').innerHTML = L.verbs.map((v) => `<span>${v}</span>`).join(''); $('end').querySelector('.l2').className = 'l2 ' + lang; $('end').querySelector('.l3').textContent = L.disc;
+const PANES = SC.slice(0, 7).map((s, i) => { const p = $('p' + i); p.style.width = s.W + 'px'; p.style.height = s.H + 'px'; p.style.marginLeft = -s.W / 2 + 'px'; return p; });
+const VERBS = [...$('end').querySelectorAll('.l2 span')];
+// the application capture is 1920x1080 at 2x; it is shown at 1208 px wide and pushed in towards the opening on the canvas
+// the application capture is 1920x1080 at 2x. First the whole window, then the widget closes in on the canvas panel alone
+// (CSS x 577..1435, y 158..886: rulers, the release watermark and the whole plate), so no interface text is ever left cut at rest.
+const SHOT = { base: 1208 / 1920, s2: 532 / 728, cx: 1006, cy: 522 };
+
+window.seek = (t) => {
+  t = Math.max(0, Math.min(DUR, t)); const fi = t * HZ, i0 = Math.min(NSAMP - 1, Math.floor(fi)), i1 = Math.min(NSAMP - 1, i0 + 1), f = fi - i0;
+  const w = IW[i0] + (IW[i1] - IW[i0]) * f, h = IH[i0] + (IH[i1] - IH[i0]) * f, n = Math.max(0, SC.findIndex((s) => t >= s.a && t < s.b) < 0 ? 7 : SC.findIndex((s) => t >= s.a && t < s.b)), S = SC[n], lt = t - S.a;
+  const isl = $('isl'), open = cl((h - PH) / 300), rad = 12 + 30 * open; isl.style.width = w.toFixed(2) + 'px'; isl.style.height = h.toFixed(2) + 'px'; isl.style.borderRadius = `0 0 ${rad.toFixed(1)}px ${rad.toFixed(1)}px`;
+  isl.style.boxShadow = `0 ${(34 * open).toFixed(1)}px ${(90 * open).toFixed(1)}px rgba(0,0,0,${(0.42 * open).toFixed(3)})`;
+  BAR.forEach(([bx, bw], i) => { const d = Math.max(Math.abs(bx - 960), Math.abs(bx + bw - 960)) - w / 2; BARI[i].style.opacity = cl((Math.min(Math.abs(bx - 960), Math.abs(bx + bw - 960)) - w / 2 - 14) / 30) * (n === 0 || n === 7 ? 0.55 : 1); });
+  $('barmark').style.opacity = cl((936 - w / 2 - 54 - 14) / 30) * (n === 0 || n === 7 ? 0.55 : 1);
+  for (let i = 1; i <= 6; i++) $('wp' + i).style.opacity = sm(SC[i].a - 0.3, SC[i].a + 0.3, t) * (1 - sm(SC[i].b - 0.3, SC[i].b + 0.3, t));
+  $('grain').style.opacity = 0.07 * cl(sm(SC[1].a - 0.3, SC[1].a + 0.3, t) * (1 - sm(SC[6].b - 0.3, SC[6].b + 0.3, t)));
+  for (let i = 0; i < 7; i++) { const s = SC[i], o = Math.min((w - PW) / ((i === 2 ? FOCUS_W : s.W) - PW), (h - PH) / (s.H - PH)); PANES[i].style.opacity = i === n ? sm(0.7, 0.97, o) * (1 - sm(s.b - (i ? 0.58 : 0.64), s.b - (i ? 0.40 : 0.46), t)) : 0; }
+  // caption, sub-line and status of the current scene
+  const cap = $('cap'), sub = $('sub'), st = $('status');
+  if (n >= 1 && n <= 6) { const ci = settle(lt - 0.42, 0.5), co = 1 - sm(S.b - S.a - 0.55, S.b - S.a - 0.3, lt); if (cap.dataset.n !== String(n)) { cap.innerHTML = L.cap[n]; cap.dataset.n = n; sub.innerHTML = n === 2 ? `${L.sub}<span>${L.planned_ai}</span>` : ''; st.textContent = L.st[n]; }
+    document.documentElement.style.setProperty('--tint', WP[n][5]); cap.style.opacity = Math.min(ci * 1.4, 1) * co; cap.style.transform = `translateY(${(REDUCED ? 0 : 26 * (1 - ci)).toFixed(2)}px)`;
+    const si = settle(lt - 0.62, 0.5); sub.style.opacity = Math.min(si * 1.4, 1) * co; sub.style.transform = `translateY(${(REDUCED ? 0 : 18 * (1 - si)).toFixed(2)}px)`; st.style.opacity = sm(0.5, 0.9, lt) * co; }
+  else { cap.style.opacity = sub.style.opacity = st.style.opacity = 0; }
+  // strokes and labels of the current scene
+  for (const [e, sc, a, b] of draws) if (sc === n) e.setAttribute('stroke-dashoffset', (1 - sm(a, b, lt)).toFixed(4));
+  for (const [e, sc, a] of fades) if (sc === n) e.setAttribute('opacity', sm(a, a + 0.35, lt).toFixed(3));
+  if (n === 0) { const k = sm(0.3, 2.05, t); $('hello').setAttribute('stroke-dashoffset', (1 - (0.5 - 0.5 * Math.cos(PI * k)) * 0.999 - 0.001 * k).toFixed(4)); }
+  if (n === 2) { const wi = Math.min(SC[2].W, Math.max(FOCUS_W, w)), k = REDUCED ? (lt >= FOCUS_AT ? 1 : 0) : cl((SC[2].W - wi) / (SC[2].W - FOCUS_W)), z = SHOT.base * Math.pow(SHOT.s2 / SHOT.base, k);
+    const left = (SC[2].W - wi) / 2 + 16, ww = wi - 32, fx = (16 + SHOT.cx * SHOT.base) + (SC[2].W / 2 - 16 - SHOT.cx * SHOT.base) * k, fy = SHOT.cy * SHOT.base + (266 - SHOT.cy * SHOT.base) * k;
+    const wr = $('shotwrap'); wr.style.left = left.toFixed(2) + 'px'; wr.style.width = ww.toFixed(2) + 'px';
+    $('shot').style.transform = `translate(${(fx - left - SHOT.cx * z).toFixed(2)}px,${(fy - SHOT.cy * z).toFixed(2)}px) scale(${(z / SHOT.base).toFixed(5)})`; }
+  if (n === 3) window._math(lt);
+  if (n === 4) { $('f4h').setAttribute('opacity', sm(1.9, 2.5, lt)); $('f4b').setAttribute('opacity', sm(2.0, 2.6, lt)); }
+  if (n === 5) { CHIPS.forEach((c, i) => { const k = bounce(lt - 0.55 - i * 0.07, 0.42, 0.78); c.style.opacity = cl(k * 1.6); c.style.transform = `scale(${(REDUCED ? 1 : 0.9 + 0.1 * k).toFixed(3)})`; });
+    ROWS.forEach((rw, i) => { const col = i < 8 ? 0 : 1, k = settle(lt - 0.75 - (i % 8) * 0.07 - col * 0.12, 0.36); rw.style.opacity = cl(k * 1.5); rw.style.transform = `translateY(${(REDUCED ? 0 : 12 * (1 - k)).toFixed(2)}px)`;
+      rw.querySelector('svg path').setAttribute('stroke-dashoffset', (1 - sm(0, 0.22, lt - 1.0 - (i % 8) * 0.07 - col * 0.12)).toFixed(3)); }); }
+  if (n === 6) { window._dxf(lt); STEPS.forEach((sp, i) => { const t0 = 0.95 + i * 0.42, k = settle(lt - t0, 0.36); sp.style.opacity = 0.34 + 0.66 * cl(k * 1.5); sp.querySelector('path').setAttribute('stroke-dashoffset', (1 - sm(0, 0.24, lt - t0)).toFixed(3)); }); }
+  // end card: the notch has returned to rest; mark, wordmark, one line, four words
+  const e = $('end'), et = t - 25; e.style.opacity = n === 7 ? 1 : 0;
+  if (n === 7) { $('endmark').firstChild.setAttribute('stroke-dashoffset', (1 - sm(0.05, 0.8, et)).toFixed(4)); const k = settle(et - 0.32, 0.6), wm = e.querySelector('.wm span'); wm.style.opacity = cl(k * 1.4); wm.style.transform = `translateX(${(REDUCED ? 0 : 22 * (1 - k)).toFixed(2)}px)`;
+    const k1 = settle(et - 0.9, 0.6), l1 = e.querySelector('.l1'); l1.style.opacity = cl(k1 * 1.4); l1.style.transform = `translateY(${(REDUCED ? 0 : 16 * (1 - k1)).toFixed(2)}px)`;
+    VERBS.forEach((v, i) => { v.style.opacity = sm(1.55 + i * 0.26, 1.95 + i * 0.26, et); }); e.querySelector('.l3').style.opacity = sm(0.2, 0.8, et); }
+};
+(async () => { for (const tt of [1, 5, 9, 12, 16, 20, 23, 27]) window.seek(tt); await document.fonts.ready; const im = $('shot'); if (!im.complete) await new Promise((r) => { im.onload = im.onerror = r; }); window.seek(Number(Q.get('t') || 0)); window.READY = true; })();
+</script></body></html>

@@ -1,0 +1,53 @@
+{
+ "id": "A-CONE-01",
+ "group": "closed_form",
+ "title": "CONE-01 of the reference file",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 200,
+  "r2": 100,
+  "h": 300
+ },
+ "expect": "accept",
+ "derivation": "s = sqrt(300^2+100^2) = 100*sqrt(10); sin(alpha) = 1/sqrt(10); sector = 2*pi/sqrt(10); area = pi*300*100*sqrt(10).",
+ "quantities": {
+  "reducer": {
+   "sector_angle": [
+    1.98691765315922,
+    1.98691765315922e-11
+   ],
+   "slant_length": [
+    316.22776601683796,
+    3.1622776601683795e-09
+   ],
+   "area": [
+    298037.647973883,
+    2.98037647973883e-06
+   ],
+   "apex_radius_large": [
+    632.4555320336759,
+    6.324555320336759e-09
+   ]
+  }
+ },
+ "measures": {
+  "reducer": {
+   "outline_area": [
+    298037.647973883,
+    2.9803764797388305e-05
+   ],
+   "len_large_end": [
+    1256.6370614359173,
+    1.2566370614359173e-08
+   ],
+   "len_small_end": [
+    628.3185307179587,
+    6.283185307179586e-09
+   ],
+   "len_seam_a": [
+    316.22776601683796,
+    3.1622776601683795e-09
+   ]
+  }
+ }
+}

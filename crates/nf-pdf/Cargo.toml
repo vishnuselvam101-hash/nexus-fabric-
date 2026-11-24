@@ -1,0 +1,41 @@
+[package]
+name = "nf-pdf"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Proprietary"
+publish = false
+description = "Offline converter from vector PDF pages to DXF R12 (library and nf-pdf2dxf child process)"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "nf-pdf2dxf"
+path = "src/bin/nf-pdf2dxf/main.rs"
+
+[dependencies]
+# Pure Rust inflate (miniz_oxide backend); no C code is built.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+sha2 = "0.10"
+
+[target.'cfg(unix)'.dependencies]
+# Safe setrlimit wrapper, used only by the command-line program on Unix.
+rustix = { version = "1", default-features = false, features = ["std", "process"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Isolation of the command-line program's worker process (no unsafe code of our own):
+# Landlock file-system and TCP rules, and a seccomp system-call allow-list.
+landlock = "0.4"
+seccompiler = { version = "0.5", default-features = false }
+# System-call numbers and errno values for the seccomp filter (constants only).
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+# Job Object for the worker process: memory, CPU time and child-process limits. A separate
+# crate because the Windows calls are unsafe; see winjob/src/lib.rs for the reason.
+nf-pdf-winjob = { path = "winjob" }
+
+[dev-dependencies]
+nf-dxf = { path = "../nf-dxf" }
+# Property-based fuzz tests of the parser (tests/proptest_fuzz.rs); test-only, not in the program.
+proptest = { version = "1", default-features = false, features = ["std"] }

@@ -1,0 +1,140 @@
+{
+ "id": "HP-JOINT-6",
+ "group": "high_precision",
+ "title": "Header R=150 with branch r=149, beta=90, delta=0: mpmath integrals",
+ "request": {
+  "family": "header_with_branch",
+  "header_radius": 150,
+  "header_dev_radius": 150,
+  "header_length": 448,
+  "branch_station": 209,
+  "branch_radius": 149,
+  "branch_dev_radius": 149,
+  "beta_deg": 90,
+  "delta": 0,
+  "s_end": 225.0,
+  "surface_reference": "outside"
+ },
+ "expect": "accept",
+ "derivation": "Layout from the float reference tier (3D placement, bisection on each ruling); opening perimeter and area, saddle developed length and branch pattern area from mpmath (25 digits; ray/cylinder intersection in vector form, numerical differentiation inside tanh-sinh quadrature).  The developed opening perimeter, the developed saddle length and the 3D curve length agree with each other when contact and development radii coincide (isometry).  The product measures 720-segment polylines, hence the relative allowance.",
+ "quantities": {
+  "branch": {
+   "developed_width": [
+    936.1946107697584,
+    9.361946107697583e-09
+   ],
+   "s_min": [
+    17.291616465790483,
+    0.02827433388230814
+   ],
+   "s_max": [
+    150.0,
+    0.02827433388230814
+   ],
+   "s_at_0": [
+    17.291616465790533,
+    1.7291616465790533e-09
+   ],
+   "s_at_90": [
+    150.0,
+    1.5000000000000002e-08
+   ]
+  },
+  "header": {
+   "developed_width": [
+    942.4777960769379,
+    9.424777960769378e-09
+   ],
+   "length": [
+    448.0,
+    4.4799999999999994e-09
+   ],
+   "opening_x_min": [
+    59.999999999999986,
+    0.02827433388230814
+   ],
+   "opening_x_max": [
+    358.0,
+    0.02827433388230814
+   ],
+   "opening_perimeter": [
+    1100.703072703884,
+    0.03302109218111652
+   ]
+  }
+ },
+ "measures": {
+  "branch": {
+   "bbox_w": [
+    936.1946107697584,
+    9.361946107697583e-09
+   ],
+   "bbox_h": [
+    207.70838353420953,
+    0.02827433388230814
+   ],
+   "len_seam_a": [
+    207.70838353420947,
+    2.077083835342095e-08
+   ],
+   "len_seam_b": [
+    207.70838353420947,
+    2.077083835342095e-08
+   ],
+   "len_square_end": [
+    936.1946107697584,
+    9.361946107697583e-09
+   ],
+   "len_saddle_cut": [
+    1100.703072703884,
+    0.03302109218111652
+   ],
+   "outline_area": [
+    119426.65207955138,
+    3.5827995623865414
+   ]
+  },
+  "header": {
+   "bbox_w": [
+    448.0,
+    4.4799999999999994e-09
+   ],
+   "bbox_h": [
+    942.4777960769379,
+    9.424777960769378e-09
+   ],
+   "outline_area": [
+    422230.0526424682,
+    4.222300526424682e-06
+   ],
+   "hole_xmin": [
+    59.999999999999986,
+    0.02827433388230814
+   ],
+   "hole_xmax": [
+    358.0,
+    0.02827433388230814
+   ],
+   "hole_ymin": [
+    252.9495940618699,
+    0.02827433388230814
+   ],
+   "hole_ymax": [
+    689.5282020150679,
+    0.02827433388230814
+   ],
+   "hole_count": [
+    1,
+    0
+   ],
+   "hole_perimeter": [
+    1100.703072703884,
+    0.03302109218111652
+   ],
+   "hole_area": [
+    87577.2779095612,
+    7.881955011860509
+   ]
+  }
+ }
+}

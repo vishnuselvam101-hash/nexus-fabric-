@@ -1,0 +1,308 @@
+{
+ "targets": {
+  "I_LUFS": -16.0,
+  "true_peak_max_dBTP": -1.0
+ },
+ "files": {
+  "mix-en.wav": {
+   "I_LUFS": -16.0,
+   "LRA_LU": 2.9,
+   "true_peak_dBTP": -1.4,
+   "limiter_max_gain_reduction_dB": 0.0,
+   "master_gain_dB": 2.4,
+   "music_duck_dB": -9.0,
+   "sample_rate": 48000,
+   "channels": 2,
+   "frames": 1440000,
+   "duration_s": 30.0,
+   "sample_peak_dBFS": -1.47,
+   "clipped_samples": 0,
+   "ends_silent": true,
+   "pass": true
+  },
+  "mix-ja.wav": {
+   "I_LUFS": -16.0,
+   "LRA_LU": 2.8,
+   "true_peak_dBTP": -4.2,
+   "limiter_max_gain_reduction_dB": 0.0,
+   "master_gain_dB": 2.7,
+   "music_duck_dB": -9.0,
+   "sample_rate": 48000,
+   "channels": 2,
+   "frames": 1440000,
+   "duration_s": 30.0,
+   "sample_peak_dBFS": -4.25,
+   "clipped_samples": 0,
+   "ends_silent": true,
+   "pass": true
+  },
+  "music-sfx-only.wav": {
+   "I_LUFS": -16.0,
+   "LRA_LU": 9.0,
+   "true_peak_dBTP": -1.3,
+   "limiter_max_gain_reduction_dB": -2.66,
+   "master_gain_dB": 6.9,
+   "sample_rate": 48000,
+   "channels": 2,
+   "frames": 1440000,
+   "duration_s": 30.0,
+   "sample_peak_dBFS": -1.31,
+   "clipped_samples": 0,
+   "ends_silent": true,
+   "pass": true
+  },
+  "vo-en.wav": {
+   "I_LUFS": -20.3,
+   "LRA_LU": 4.0,
+   "true_peak_dBTP": -3.0,
+   "sample_rate": 48000,
+   "channels": 1,
+   "frames": 1440000,
+   "duration_s": 30.0,
+   "sample_peak_dBFS": -3.0,
+   "clipped_samples": 0,
+   "ends_silent": true,
+   "pass": true
+  },
+  "vo-ja.wav": {
+   "I_LUFS": -17.6,
+   "LRA_LU": 3.7,
+   "true_peak_dBTP": -2.9,
+   "sample_rate": 48000,
+   "channels": 1,
+   "frames": 1440000,
+   "duration_s": 30.0,
+   "sample_peak_dBFS": -3.0,
+   "clipped_samples": 0,
+   "ends_silent": true,
+   "pass": true
+  },
+  "music.wav": {
+   "I_LUFS": -22.2,
+   "LRA_LU": 9.2,
+   "true_peak_dBTP": -6.0,
+   "sample_rate": 48000,
+   "channels": 2,
+   "frames": 1440000,
+   "duration_s": 30.0,
+   "sample_peak_dBFS": -6.0,
+   "clipped_samples": 0,
+   "ends_silent": true,
+   "pass": true
+  },
+  "sfx.wav": {
+   "I_LUFS": -32.0,
+   "LRA_LU": 19.6,
+   "true_peak_dBTP": -9.0,
+   "sample_rate": 48000,
+   "channels": 2,
+   "frames": 1440000,
+   "duration_s": 30.0,
+   "sample_peak_dBFS": -9.0,
+   "clipped_samples": 0,
+   "ends_silent": true,
+   "pass": true
+  }
+ },
+ "vo_lines": {
+  "en": [
+   {
+    "line": 1,
+    "segment": [
+     0,
+     5
+    ],
+    "first_sound_s": 0.27,
+    "last_sound_s": 4.745,
+    "gap_after_previous_line_s": null,
+    "segment_rms_dBFS": -21.1,
+    "nominal_speed": 1.04,
+    "measured_rate": 1.014,
+    "pause_cap_s": 0.22,
+    "starts_before_segment": false,
+    "silent": false,
+    "inside_window": true,
+    "pass": true
+   },
+   {
+    "line": 2,
+    "segment": [
+     5,
+     11
+    ],
+    "first_sound_s": 5.27,
+    "last_sound_s": 9.876,
+    "gap_after_previous_line_s": 0.491,
+    "segment_rms_dBFS": -19.5,
+    "nominal_speed": 1.0,
+    "measured_rate": 1.0,
+    "pause_cap_s": null,
+    "starts_before_segment": false,
+    "silent": false,
+    "inside_window": true,
+    "pass": true
+   },
+   {
+    "line": 3,
+    "segment": [
+     11,
+     18
+    ],
+    "first_sound_s": 11.27,
+    "last_sound_s": 17.757,
+    "gap_after_previous_line_s": 1.36,
+    "segment_rms_dBFS": -20.9,
+    "nominal_speed": 1.0,
+    "measured_rate": 1.0,
+    "pause_cap_s": 0.26,
+    "starts_before_segment": false,
+    "silent": false,
+    "inside_window": true,
+    "pass": true
+   },
+   {
+    "line": 4,
+    "segment": [
+     18,
+     25
+    ],
+    "first_sound_s": 18.27,
+    "last_sound_s": 24.275,
+    "gap_after_previous_line_s": 0.473,
+    "segment_rms_dBFS": -21.5,
+    "nominal_speed": 1.18,
+    "measured_rate": 1.046,
+    "pause_cap_s": 0.22,
+    "starts_before_segment": false,
+    "silent": false,
+    "inside_window": true,
+    "pass": true
+   },
+   {
+    "line": 5,
+    "segment": [
+     25,
+     30
+    ],
+    "first_sound_s": 24.639,
+    "last_sound_s": 29.68,
+    "gap_after_previous_line_s": 0.327,
+    "segment_rms_dBFS": -20.1,
+    "nominal_speed": 1.12,
+    "measured_rate": 1.066,
+    "pause_cap_s": 0.22,
+    "starts_before_segment": true,
+    "silent": false,
+    "inside_window": true,
+    "pass": true
+   }
+  ],
+  "ja": [
+   {
+    "line": 1,
+    "segment": [
+     0,
+     5
+    ],
+    "first_sound_s": 0.267,
+    "last_sound_s": 3.829,
+    "gap_after_previous_line_s": null,
+    "segment_rms_dBFS": -18.8,
+    "nominal_speed": 1.0,
+    "measured_rate": 1.0,
+    "pause_cap_s": null,
+    "starts_before_segment": false,
+    "silent": false,
+    "inside_window": true,
+    "pass": true
+   },
+   {
+    "line": 2,
+    "segment": [
+     5,
+     11
+    ],
+    "first_sound_s": 5.259,
+    "last_sound_s": 10.529,
+    "gap_after_previous_line_s": 1.402,
+    "segment_rms_dBFS": -17.3,
+    "nominal_speed": 1.0,
+    "measured_rate": 1.0,
+    "pause_cap_s": null,
+    "starts_before_segment": false,
+    "silent": false,
+    "inside_window": true,
+    "pass": true
+   },
+   {
+    "line": 3,
+    "segment": [
+     11,
+     18
+    ],
+    "first_sound_s": 11.266,
+    "last_sound_s": 17.135,
+    "gap_after_previous_line_s": 0.702,
+    "segment_rms_dBFS": -19.0,
+    "nominal_speed": 1.0,
+    "measured_rate": 1.0,
+    "pause_cap_s": null,
+    "starts_before_segment": false,
+    "silent": false,
+    "inside_window": true,
+    "pass": true
+   },
+   {
+    "line": 4,
+    "segment": [
+     18,
+     25
+    ],
+    "first_sound_s": 18.267,
+    "last_sound_s": 24.373,
+    "gap_after_previous_line_s": 1.098,
+    "segment_rms_dBFS": -18.0,
+    "nominal_speed": 1.0,
+    "measured_rate": 1.0,
+    "pause_cap_s": null,
+    "starts_before_segment": false,
+    "silent": false,
+    "inside_window": true,
+    "pass": true
+   },
+   {
+    "line": 5,
+    "segment": [
+     25,
+     30
+    ],
+    "first_sound_s": 25.19,
+    "last_sound_s": 29.68,
+    "gap_after_previous_line_s": 0.786,
+    "segment_rms_dBFS": -18.7,
+    "nominal_speed": 1.0,
+    "measured_rate": 1.0,
+    "pause_cap_s": null,
+    "starts_before_segment": false,
+    "silent": false,
+    "inside_window": true,
+    "pass": true
+   }
+  ]
+ },
+ "flac": {
+  "vo-en.flac": {
+   "frames": 1440000,
+   "identical_to_wav": true
+  },
+  "vo-ja.flac": {
+   "frames": 1440000,
+   "identical_to_wav": true
+  },
+  "music-sfx-only.flac": {
+   "frames": 1440000,
+   "identical_to_wav": true
+  }
+ },
+ "all_pass": true
+}

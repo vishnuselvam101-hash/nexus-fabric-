@@ -1,0 +1,21 @@
+{
+ "id": "E-cone_frustum-h-negative",
+ "group": "refusal",
+ "title": "cone_frustum: h = -300",
+ "request": {
+  "family": "cone_frustum",
+  "r1": 200,
+  "r2": 100,
+  "h": -300
+ },
+ "expect": "refuse",
+ "derivation": "h must be a finite positive length; -300 describes no part.",
+ "refusal": {
+  "kind": "engineering",
+  "mentions": [
+   "h",
+   "radius",
+   "> 0"
+  ]
+ }
+}

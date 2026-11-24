@@ -1,0 +1,24 @@
+{
+ "id": "S-STATION-SHIFT",
+ "group": "symmetry",
+ "title": "Station shift translates the opening only",
+ "request": {
+  "family": "header_with_branch",
+  "header_radius": 150,
+  "header_dev_radius": 150,
+  "header_length": 1200,
+  "branch_station": 500,
+  "branch_radius": 100,
+  "branch_dev_radius": 100,
+  "beta_deg": 60,
+  "delta": 20,
+  "s_end": 400,
+  "surface_reference": "outside"
+ },
+ "expect": "accept",
+ "derivation": "Moving the branch 137.5 mm along the header translates the opening by (137.5, 0); the plate outline and the whole branch pattern are unchanged.",
+ "relation": {
+  "type": "station_shift",
+  "d": 137.5
+ }
+}
