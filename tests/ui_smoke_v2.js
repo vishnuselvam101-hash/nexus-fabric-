@@ -29,7 +29,7 @@ const MODULES = [
   '/js/views/workspace.js',
 ];
 
-const TABS = ['calculations', 'projects', 'amoeba', 'obligations', 'audit', 'users'];
+const TABS = ['calculations', 'projects', 'obligations', 'audit', 'users']; // AMOEBA is a top-level page (#/amoeba), not a workspace tab
 const DROPZONE = '#view .dropzone, #view .drop-zone';
 
 // Engineering inputs copied from the legacy browser test (tests/ui_smoke.js): the header-with-branch set the

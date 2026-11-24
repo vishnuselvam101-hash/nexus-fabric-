@@ -46,6 +46,7 @@ function resolveRoute(hash) {
   let m = path.match(/^\/r\/([A-Za-z0-9_-]+)\/?$/);
   if (m) return { view: 'result', mod: './views/result.js', params: { id: m[1] } };
   m = path.match(/^\/workspace\/([A-Za-z0-9_-]+)\/?$/);
+  if (m && m[1] === 'amoeba') return { redirect: '#/amoeba' };   // AMOEBA lives at its own top-level page
   if (m) return { view: 'workspace', mod: './views/workspace.js', params: { tab: m[1] } };
   if (path === '/workspace') return { redirect: '#/workspace/history' };
   m = path.match(/^\/job\/(\d+)(?:\/([a-z]+))?\/?$/);
@@ -58,8 +59,8 @@ function resolveRoute(hash) {
   if (path === '/help') return { view: 'help', mod: './views/help.js', params: {} };
   if (path === '/manufacturing') return { view: 'manufacturing', mod: './views/manufacturing.js', params: {} };
   if (path === '/verification') return { view: 'verification', mod: './views/verification.js', params: {} };
-  m = path.match(/^\/amoeba(?:\/([a-z]+))?\/?$/);
-  if (m) return { view: 'amoeba', mod: './views/amoeba.js', params: { tab: m[1] } };
+  m = path.match(/^\/amoeba(?:\/([a-z]+)(?:\/([^/]+))?)?\/?$/);   // the id is checked by the view
+  if (m) return { view: 'amoeba', mod: './views/amoeba.js', params: { tab: m[1], id: m[2] } };
   m = path.match(/^\/admin(?:\/([a-z]+))?\/?$/);
   if (m) return { view: 'admin', mod: './views/admin.js', params: { tab: m[1] } };
   return { view: 'convert', mod: './views/convert.js', params: {} };

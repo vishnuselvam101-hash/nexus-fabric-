@@ -1,7 +1,7 @@
 import { api, esc } from '../api.js';
 import { getState } from '../store.js';
 
-const TABS = ['calculations', 'projects', 'amoeba', 'obligations', 'audit', 'users'];
+const TABS = ['calculations', 'projects', 'obligations', 'audit', 'users'];
 
 const FAMILY_FIELDS = {
   cylinder_shell: ['r_dev', 'length', 'surface_reference'],
@@ -324,29 +324,6 @@ async function showProjectDetail(proj, signal) {
   } catch (e) { if (!signal.aborted) showError(e.message); }
 }
 
-/* ---- amoeba ---- */
-
-async function loadAmoeba(signal) {
-  showLoading();
-  try {
-    const data = await api('/api/amoeba/summary');
-    if (signal.aborted) return;
-    content.textContent = '';
-    content.appendChild(el('h2', null, 'AMOEBA Control Summary'));
-    if (!data || typeof data !== 'object') {
-      content.appendChild(el('p', 'sub', 'No data available.'));
-      return;
-    }
-    const dl = document.createElement('dl');
-    dl.className = 'kv';
-    for (const [k, v] of Object.entries(data)) {
-      dl.appendChild(el('dt', null, k.replace(/_/g, ' ')));
-      dl.appendChild(el('dd', null, typeof v === 'object' ? JSON.stringify(v) : String(v)));
-    }
-    content.appendChild(dl);
-  } catch (e) { if (!signal.aborted) showError(e.message); }
-}
-
 /* ---- obligations ---- */
 
 async function loadObligations(signal) {
@@ -546,7 +523,6 @@ function showUserForm(signal) {
 const TAB_LOADERS = {
   calculations: loadCalc,
   projects: loadProjects,
-  amoeba: loadAmoeba,
   obligations: loadObligations,
   audit: loadAudit,
   users: loadUsers,

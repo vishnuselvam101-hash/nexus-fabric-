@@ -232,7 +232,7 @@ function depsHtml() {
   const body = dep && dep.edges.length
     ? `<table class="table"><thead><tr><th>${esc(t('th.record'))}</th><th>${esc(t('th.relation'))}</th><th>${esc(t('th.dependson'))}</th></tr></thead>
       <tbody>${dep.edges.map((e) => `<tr><td>${nodeLabel(e.from)}</td><td>${ja() && idLabel('rel', e.rel) ? `${esc(idLabel('rel', e.rel))} ` : ''}${mono(e.rel)}</td><td>${nodeLabel(e.to)}</td></tr>`).join('')}</tbody></table>
-      <p class="sub">${h('am.dep.rule', { rule: mono(dep.rule_table) })}</p><div class="row"><a class="btn" href="#/workspace/amoeba">${esc(t('gr.open'))}</a></div>`
+      <p class="sub">${h('am.dep.rule', { rule: mono(dep.rule_table) })}</p><div class="row"><a class="btn" href="#/amoeba/dependencies/${c.id}">${esc(t('gr.open'))}</a></div>`
     : `${sub(t('gr.none.t'))}${sub(t('gr.none.p'))}`;
   return panel(esc(t('tab.graph')), body, dep ? dep.edges.length : 0);
 }
