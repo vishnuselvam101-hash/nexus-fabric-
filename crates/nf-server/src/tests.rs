@@ -1992,7 +1992,7 @@ async fn security_headers_and_anti_forgery_are_unchanged() {
     let (_, h, _) = t.send("GET", "/", None, &[]).await;
     assert_eq!(
         h["content-security-policy"],
-        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     );
     assert_eq!(
         (

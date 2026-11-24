@@ -3991,6 +3991,17 @@ async fn amoeba_summary(State(app): Ctx, headers: HeaderMap) -> Api {
 
 // ---------------------------------------------------------------- transport
 
+fn asset_bytes(content_type: &'static str, body: &'static [u8]) -> Response {
+    (
+        [
+            (header::CONTENT_TYPE, content_type),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        body,
+    )
+        .into_response()
+}
+
 fn asset(content_type: &'static str, body: &'static str) -> Response {
     (
         [
@@ -4228,7 +4239,7 @@ async fn security_layer(
     set(
         h,
         "content-security-policy",
-        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     );
     set(h, "x-content-type-options", "nosniff");
     set(h, "x-frame-options", "DENY");
@@ -4497,6 +4508,60 @@ pub(crate) fn router(app: Arc<App>) -> Router {
                 asset(
                     "text/javascript; charset=utf-8",
                     include_str!("../../../web/js/app.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/lib/hero.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/lib/hero.js"),
+                )
+            }),
+        )
+        .route(
+            "/fonts/ibm-plex-sans-latin-400-normal.woff2",
+            get(|| async {
+                asset_bytes(
+                    "font/woff2",
+                    include_bytes!("../../../web/fonts/ibm-plex-sans-latin-400-normal.woff2"),
+                )
+            }),
+        )
+        .route(
+            "/fonts/ibm-plex-sans-latin-500-normal.woff2",
+            get(|| async {
+                asset_bytes(
+                    "font/woff2",
+                    include_bytes!("../../../web/fonts/ibm-plex-sans-latin-500-normal.woff2"),
+                )
+            }),
+        )
+        .route(
+            "/fonts/ibm-plex-sans-latin-600-normal.woff2",
+            get(|| async {
+                asset_bytes(
+                    "font/woff2",
+                    include_bytes!("../../../web/fonts/ibm-plex-sans-latin-600-normal.woff2"),
+                )
+            }),
+        )
+        .route(
+            "/fonts/ibm-plex-mono-latin-400-normal.woff2",
+            get(|| async {
+                asset_bytes(
+                    "font/woff2",
+                    include_bytes!("../../../web/fonts/ibm-plex-mono-latin-400-normal.woff2"),
+                )
+            }),
+        )
+        .route(
+            "/fonts/ibm-plex-mono-latin-500-normal.woff2",
+            get(|| async {
+                asset_bytes(
+                    "font/woff2",
+                    include_bytes!("../../../web/fonts/ibm-plex-mono-latin-500-normal.woff2"),
                 )
             }),
         )

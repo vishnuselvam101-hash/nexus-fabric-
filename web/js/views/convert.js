@@ -2,6 +2,7 @@ import { api, uploadFile } from '../api.js';
 import { getState, setState, patchConvert } from '../store.js';
 import { pollConversion } from '../lib/poll.js';
 import { t } from '../i18n.js';
+import { startHero } from '../lib/hero.js';
 
 const RECENT_KEY = 'nf_recent', MAX_RECENT = 5, SCALE_KEY = 'nf.scale';
 const STAGES = ['cv2.stage.upload', 'cv2.stage.read', 'cv2.stage.write'];
@@ -291,7 +292,12 @@ function renderIdle() {
     const e2 = e.target;
     if (e2 === zone || e2.tagName === 'H1' || (e2.tagName === 'P' && e2.classList.contains('sub'))) inp.click();
   });
-  root.appendChild(zone);
+  // the zone sits on a small WebGL scene (static grid when WebGL is missing; see lib/hero.js)
+  const stage = el('div', 'drop-stage');
+  const cv = document.createElement('canvas'); cv.className = 'hero-canvas'; cv.setAttribute('aria-hidden', 'true');
+  stage.append(cv, zone);
+  root.appendChild(stage);
+  startHero(cv);
   // Required scale, directly under the drop zone
   root.appendChild(scaleField());
   // Overlay
