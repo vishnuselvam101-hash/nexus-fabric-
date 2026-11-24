@@ -5061,3 +5061,56 @@ async fn amoeba_stage_view_lists_the_stages_and_needs_a_session() {
         .await;
     assert_eq!(st, StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn zz_diag_corpus_cases() {
+    let t = boot();
+    let dir = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../validation/corpus/cases/"
+    );
+    for id in [
+        "A-CONE-FLAT-0.01",
+        "B-cone-apex-below-1e8",
+        "B-cone-seam-vs-eps-num-above-band",
+        "B-cone_frustum-seam-gap-above",
+        "B-eccentric_reducer-seam-gap-above",
+        "R-cone_frustum-0008",
+        "R-cone_frustum-0009",
+        "R-eccentric_reducer-0010",
+        "N-aspect-cone-flat-h0.01",
+    ] {
+        let Ok(text) = std::fs::read_to_string(format!("{dir}{id}.json")) else {
+            println!("DIAG {id}: no case file");
+            continue;
+        };
+        let v: Value = serde_json::from_str(&text).unwrap();
+        let (st, r) = t.calc(v["request"].clone()).await;
+        if st != StatusCode::OK {
+            println!("DIAG {id}: status {st}");
+            continue;
+        }
+        let calc = r["id"].as_i64().unwrap();
+        let s = t.get(&format!("/api/calculations/{calc}/amoeba")).await;
+        for p in s["stages"][2]["parts"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+        {
+            for c in p["checks"].as_array().cloned().unwrap_or_default() {
+                if c["verdict"] != "PASS" {
+                    println!(
+                        "DIAG {id} {} {} {}: {} m={} e={} tol={}",
+                        p["part"],
+                        c["name"],
+                        c["verdict"],
+                        c["detail"],
+                        c["measured"],
+                        c["expected"],
+                        c["tolerance"]
+                    );
+                }
+            }
+        }
+    }
+}

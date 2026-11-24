@@ -12,9 +12,7 @@
 pub mod geom;
 pub mod reader;
 
-use geom::{
-    Piece, TOL, bbox_of, circumradius, contours, crossings, duplicates, inside, loop_area, pieces,
-};
+use geom::{Piece, TOL, bbox_of, contours, crossings, duplicates, inside, loop_area, pieces};
 use reader::{Ent, Parsed};
 
 /// The marking statement every file carries (the same statement is required by policy, not taken from the writer).
@@ -805,31 +803,29 @@ fn area_check(
 }
 
 fn radii_check(cut: &[&Piece], r: &Reference) -> Check {
-    let arcs: Vec<f64> = cut
-        .iter()
-        .filter_map(|p| p.arc.map(|a| a.r.abs()))
-        .collect();
-    let refs: Vec<f64> = r
+    // A measured arc matches a declared arc when every declared point of that arc lies on the measured circle.
+    // (Fitting a radius through three nearly collinear points is ill-conditioned for very large radii.)
+    let arcs: Vec<geom::Arc> = cut.iter().filter_map(|p| p.arc).collect();
+    let declared: Vec<&RefCurve> = r
         .outer
         .iter()
         .chain(r.holes.iter())
         .filter(|c| c.is_arc && c.points.len() >= 3)
-        .filter_map(|c| {
-            circumradius(
-                c.points[0],
-                c.points[c.points.len() / 2],
-                c.points[c.points.len() - 1],
-            )
-        })
         .collect();
     let unmatched = arcs
         .iter()
-        .filter(|a| !refs.iter().any(|x| (x - *a).abs() <= TOL))
+        .filter(|a| {
+            !declared.iter().any(|c| {
+                c.points.iter().all(|p| {
+                    ((p[0] - a.c[0]).hypot(p[1] - a.c[1]) - a.r.abs()).abs() <= TOL + c.max_dev
+                })
+            })
+        })
         .count();
     let detail = format!(
-        "{} arc(s) in the file, {} declared arc radius(es); {unmatched} arc(s) without a declared radius",
+        "{} arc(s) in the file, {} declared arc(s); {unmatched} arc(s) whose circle does not pass through a declared arc",
         arcs.len(),
-        refs.len()
+        declared.len()
     );
     check(
         "arc_radii",

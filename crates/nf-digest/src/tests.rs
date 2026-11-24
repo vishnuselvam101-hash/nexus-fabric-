@@ -443,3 +443,39 @@ fn helpers_measure_what_they_claim() {
     assert!((geom::circumradius([1.0, 0.0], [0.0, 1.0], [-1.0, 0.0]).unwrap() - 1.0).abs() < 1e-12);
     assert!(geom::circumradius([0.0, 0.0], [1.0, 0.0], [2.0, 0.0]).is_none());
 }
+
+#[test]
+fn very_large_radius_arc_matches_its_declared_arc() {
+    // an arc of radius 1e8 mm: three of its points are nearly collinear (the case that defeated a radius fit)
+    let r = 1.0e8;
+    let c = [0.0, -1.0e8 + 20.0];
+    let pts: Vec<[f64; 2]> = (0..=4)
+        .map(|k| {
+            let t = (89.9999 + 0.0000025 * k as f64).to_radians();
+            [c[0] + r * t.cos(), c[1] + r * t.sin()]
+        })
+        .collect();
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.line("CUT_OUTER", [0.0, 0.0], [0.0, 20.0]);
+    d.arc("CUT_OUTER", c, r, 89.9999, 89.9999 + 0.00001);
+    d.line("CUT_OUTER", pts[4], [0.0, 0.0]);
+    let outline = vec![
+        curve(&[[0.0, 0.0], [0.0, 20.0]], false, 0.0),
+        RefCurve {
+            length: r * 0.00001_f64.to_radians(),
+            ..curve(&pts, true, 0.0)
+        },
+        curve(&[pts[4], [0.0, 0.0]], false, 0.0),
+    ];
+    let rep = check_text(
+        &d.render(),
+        &Reference {
+            part: "BIG".into(),
+            outer: outline,
+            holes: vec![],
+        },
+    );
+    let c = rep.checks.iter().find(|c| c.name == "arc_radii").unwrap();
+    assert_eq!(c.verdict, Verdict::Pass, "{}", c.detail);
+}
