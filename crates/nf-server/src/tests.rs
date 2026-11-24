@@ -757,6 +757,86 @@ fn nf_dxf_mark() -> &'static str {
     "NOT RELEASED - DEVELOPMENT BUILD"
 }
 
+/// Owner decision, 24 Nov 2026: a part's DXF is handed out only while every check on its cut
+/// geometry is decided. A header_with_branch assembly whose checks are all decided downloads with
+/// 200 and reports an empty `dxf_withheld`; a cylinder_shell whose surface reference is unknown
+/// leaves its cut geometry undecided, so its part is listed in `dxf_withheld` and answers 409.
+#[tokio::test]
+async fn dxf_is_withheld_only_while_a_check_on_the_cut_geometry_is_undecided() {
+    let t = boot();
+    // every check decided: nothing is withheld and the file is served
+    let id = t.job(good_assembly()).await;
+    let d = t.get(&format!("/api/calculations/{id}")).await;
+    assert!(
+        d["dxf_withheld"].as_object().unwrap().is_empty(),
+        "nothing is withheld: {d}"
+    );
+    let mut parts: Vec<String> = Vec::new();
+    for r in d["records"].as_array().cloned().unwrap_or_default() {
+        for c in r["payload"]["checks"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+        {
+            if let Some(scope) = c["scope"].as_str() {
+                parts.push(scope.to_string());
+            }
+        }
+    }
+    for p in d["patterns"].as_array().cloned().unwrap_or_default() {
+        if let Some(name) = p["part"].as_str().or_else(|| p["name"].as_str()) {
+            parts.push(name.to_string());
+        }
+    }
+    parts.retain(|s| !s.is_empty() && s.as_str() != "interface");
+    parts.sort();
+    parts.dedup();
+    assert!(!parts.is_empty(), "the job names its parts: {d}");
+    let mut served = 0;
+    for part in &parts {
+        let (st, _, bytes) = t
+            .send(
+                "GET",
+                &format!("/api/calculations/{id}/dxf/{part}"),
+                None,
+                &[],
+            )
+            .await;
+        assert_ne!(st, StatusCode::CONFLICT, "part {part} is decided");
+        if st == StatusCode::OK {
+            served += 1;
+            assert!(String::from_utf8_lossy(&bytes).contains(nf_dxf_mark()));
+        }
+    }
+    assert!(served > 0, "the assembly DXF is served: {parts:?}");
+    // a shell whose surface reference is unknown: its cut geometry stays undecided
+    let (st, v) = t
+        .calc(json!({ "family": "cylinder_shell", "r_dev": 150, "length": 1200, "surface_reference": "unknown" }))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let shell = v["id"].as_i64().unwrap();
+    let d = t.get(&format!("/api/calculations/{shell}")).await;
+    let withheld = d["dxf_withheld"].as_object().unwrap();
+    assert!(!withheld.is_empty(), "the undecided part is listed: {d}");
+    for (part, names) in withheld {
+        let names = names.as_array().unwrap();
+        assert!(!names.is_empty());
+        let (st, v) = t
+            .call(
+                "GET",
+                &format!("/api/calculations/{shell}/dxf/{part}"),
+                None,
+            )
+            .await;
+        assert_eq!(st, StatusCode::CONFLICT, "{v}");
+        assert_eq!(v["code"], "dxf_withheld_inconclusive");
+        let err = v["error"].as_str().unwrap();
+        assert!(err.contains("could not be confirmed"));
+        assert_eq!(v["checks"].as_array().unwrap().len(), names.len());
+    }
+    assert!(t.count("SELECT COUNT(*) FROM audit WHERE action = 'dxf_withheld'") >= 1);
+}
+
 // ---------------------------------------------------------------- BE-007
 
 #[tokio::test]

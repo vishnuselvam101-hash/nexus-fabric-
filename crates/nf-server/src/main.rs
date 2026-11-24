@@ -2972,6 +2972,25 @@ async fn get_calc(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> A
         // RC-01: the records served are the verified ones of the release closure
         result["records"] = json!(r.records);
     }
+    // the parts whose DXF is withheld, from the same verified records get_dxf reads (RC-01)
+    result["dxf_withheld"] = json!(
+        c.records
+            .as_ref()
+            .map(|r| {
+                dxf_withheld(r)
+                    .into_iter()
+                    .map(|(part, hits)| {
+                        (
+                            part,
+                            hits.into_iter()
+                                .map(|(name, _)| name)
+                                .collect::<Vec<String>>(),
+                        )
+                    })
+                    .collect::<BTreeMap<String, Vec<String>>>()
+            })
+            .unwrap_or_default()
+    );
     result["not_checked_against_records"] = json!(NOT_CHECKED_AGAINST_RECORDS);
     result["id"] = json!(id);
     result["project_id"] = json!(c.project);
@@ -3319,6 +3338,45 @@ async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api
 
 /// A DXF is served for exactly one situation: the job is the current revision
 /// and `evaluate` says REVIEW_REQUIRED. Everything else is refused.
+/// The checks on a part's cut geometry that could not be confirmed, read from the VERIFIED release
+/// records (RC-01) — never from the copy inside the stored result. A check is undecided for part P
+/// when its verdict is INCONCLUSIVE and its scope is P or "interface" (a joint check bears on every
+/// part of the job). Owner decision, 24 Nov 2026: no DXF is handed out for such a part. The map is
+/// empty for every part whose checks are all decided; each entry lists (name, reason) per check.
+fn dxf_withheld(records: &RecordsCheck) -> BTreeMap<String, Vec<(String, String)>> {
+    let undecided: Vec<(String, String, String)> = records
+        .records
+        .iter()
+        .filter(|r| r["kind"] == "verification_evidence" || r["kind"] == "interface_evidence")
+        .flat_map(|r| {
+            r["payload"]["checks"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default()
+        })
+        .filter(|c| c["verdict"] == "INCONCLUSIVE")
+        .map(|c| {
+            (
+                c["name"].as_str().unwrap_or("").to_string(),
+                c["scope"].as_str().unwrap_or("").to_string(),
+                c["reason"].as_str().unwrap_or("").to_string(),
+            )
+        })
+        .collect();
+    let mut out: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+    for part in records.dxf.keys() {
+        let hits: Vec<(String, String)> = undecided
+            .iter()
+            .filter(|(_, scope, _)| scope == part || scope == "interface")
+            .map(|(name, _, reason)| (name.clone(), reason.clone()))
+            .collect();
+        if !hits.is_empty() {
+            out.insert(part.clone(), hits);
+        }
+    }
+    out
+}
+
 async fn get_dxf(
     State(app): Ctx,
     headers: HeaderMap,
@@ -3364,6 +3422,37 @@ async fn get_dxf(
         return Err(fail(StatusCode::NOT_FOUND, "no DXF for this part"));
     };
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    // Owner decision (24 Nov 2026): the file of a part is withheld while any check on its cut
+    // geometry is INCONCLUSIVE. The checks are those of the verified release records (RC-01).
+    let withheld = dxf_withheld(records);
+    if let Some(hits) = withheld.get(part.as_str()) {
+        let names = hits
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect::<Vec<&str>>()
+            .join(", ");
+        app.audit(
+            &tx,
+            &u.username,
+            "dxf_withheld",
+            &format!("calculation #{id} part {part}: {names}"),
+        )?;
+        tx.commit()?;
+        return Err(fail_json(
+            StatusCode::CONFLICT,
+            json!({
+                "error": format!(
+                    "no DXF for part {part}: {} check(s) on its cut geometry could not be confirmed ({names}); the file is withheld until every check on the cut geometry is decided",
+                    hits.len()
+                ),
+                "code": "dxf_withheld_inconclusive",
+                "checks": hits
+                    .iter()
+                    .map(|(name, reason)| json!({ "name": name, "reason": reason }))
+                    .collect::<Vec<Value>>(),
+            }),
+        ));
+    }
     let bytes = match storage::load_blob(&app.data_dir, &app.key, &sha) {
         Ok(b) => b,
         Err(problem) => {
