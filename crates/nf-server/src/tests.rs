@@ -4880,14 +4880,25 @@ async fn ra006_a_remote_peer_with_a_forged_forwarded_address_is_still_limited_by
 // ---------------------------------------------------------------- AMOEBA digest (Phase 1)
 
 fn part_names(d: &Value) -> Vec<String> {
-    let mut v: Vec<String> = d["patterns"].as_array().cloned().unwrap_or_default().iter().filter_map(|p| p["part"].as_str().map(str::to_string)).collect();
+    let mut v: Vec<String> = d["patterns"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|p| p["part"].as_str().map(str::to_string))
+        .collect();
     v.sort();
     v.dedup();
     v
 }
 
 fn stage<'a>(v: &'a Value, name: &str) -> &'a Value {
-    v["stages"].as_array().unwrap().iter().find(|s| s["stage"] == name).unwrap_or_else(|| panic!("no stage {name}: {v}"))
+    v["stages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["stage"] == name)
+        .unwrap_or_else(|| panic!("no stage {name}: {v}"))
 }
 
 /// Every DXF of a job that passes the digest is snapshotted, gate G23 passes, the stages report it, and the
@@ -4906,13 +4917,19 @@ async fn amoeba_passing_files_get_a_snapshot_pass_gate_g23_and_are_served() {
         assert_eq!(gate_of(&d, "G23")["result"], "PASS", "{d}");
         let parts = part_names(&d);
         assert!(!parts.is_empty());
-        let snaps = t.count(&format!("SELECT COUNT(*) FROM amoeba_digests WHERE calc_id = {id} AND verdict = 'PASS'"));
+        let snaps = t.count(&format!(
+            "SELECT COUNT(*) FROM amoeba_digests WHERE calc_id = {id} AND verdict = 'PASS'"
+        ));
         assert_eq!(snaps as usize, parts.len(), "one PASS snapshot per DXF");
         let st = t.get(&format!("/api/calculations/{id}/amoeba")).await;
         assert_eq!(stage(&st, "digest")["status"], "PASS", "{st}");
         assert_eq!(stage(&st, "export")["status"], "AVAILABLE", "{st}");
         for p in &parts {
-            assert_eq!(t.dxf_status(id, p).await, StatusCode::OK, "part {p} is served");
+            assert_eq!(
+                t.dxf_status(id, p).await,
+                StatusCode::OK,
+                "part {p} is served"
+            );
         }
     }
 }
@@ -4930,7 +4947,9 @@ async fn amoeba_a_failing_snapshot_withholds_the_file_and_fails_gate_g23() {
     let d = t.get(&format!("/api/calculations/{id}")).await;
     assert_eq!(gate_of(&d, "G23")["result"], "FAIL", "{d}");
     assert_eq!(d["state"], "REJECTED");
-    let (st, v) = t.call("GET", &format!("/api/calculations/{id}/dxf/{part}"), None).await;
+    let (st, v) = t
+        .call("GET", &format!("/api/calculations/{id}/dxf/{part}"), None)
+        .await;
     assert_eq!(st, StatusCode::CONFLICT, "{v}");
     assert_eq!(v["code"], "amoeba_digest_failed");
     assert_eq!(v["checks"][0]["name"], "area");
@@ -4949,10 +4968,12 @@ async fn amoeba_an_inconclusive_snapshot_holds_the_file() {
     t.sql(&format!("UPDATE amoeba_digests SET verdict = 'INCONCLUSIVE', checks_json = '[{{\"name\":\"area\",\"verdict\":\"INCONCLUSIVE\",\"detail\":\"planted\"}}]' WHERE calc_id = {id}"));
     let d = t.get(&format!("/api/calculations/{id}")).await;
     assert_eq!(gate_of(&d, "G23")["result"], "INCONCLUSIVE", "{d}");
-    let (st, v) = t.call("GET", &format!("/api/calculations/{id}/dxf/{part}"), None).await;
+    let (st, v) = t
+        .call("GET", &format!("/api/calculations/{id}/dxf/{part}"), None)
+        .await;
     assert_eq!(st, StatusCode::CONFLICT, "{v}");
     assert_eq!(v["code"], "amoeba_digest_inconclusive");
-    assert!(t.count(&format!("SELECT COUNT(*) FROM audit WHERE action = 'dxf_withheld' AND detail LIKE '%AMOEBA digest amoeba_digest_inconclusive%'")) >= 1);
+    assert!(t.count("SELECT COUNT(*) FROM audit WHERE action = 'dxf_withheld' AND detail LIKE '%AMOEBA digest amoeba_digest_inconclusive%'") >= 1);
 }
 
 /// A result with no snapshot (none was recorded) is held: nothing can be handed out without one.
@@ -4965,7 +4986,9 @@ async fn amoeba_a_missing_snapshot_holds_the_file() {
     t.sql(&format!("DELETE FROM amoeba_digests WHERE calc_id = {id}"));
     let d = t.get(&format!("/api/calculations/{id}")).await;
     assert_eq!(gate_of(&d, "G23")["result"], "INCONCLUSIVE", "{d}");
-    let (st, v) = t.call("GET", &format!("/api/calculations/{id}/dxf/{part}"), None).await;
+    let (st, v) = t
+        .call("GET", &format!("/api/calculations/{id}/dxf/{part}"), None)
+        .await;
     assert_eq!(st, StatusCode::CONFLICT, "{v}");
     assert_eq!(v["code"], "amoeba_digest_missing");
 }
@@ -4977,8 +5000,13 @@ async fn amoeba_the_served_file_must_be_the_snapshotted_file() {
     let id = t.job(cone()).await;
     let part = part_names(&t.get(&format!("/api/calculations/{id}")).await)[0].clone();
     t.sql("DROP TRIGGER amoeba_no_update");
-    t.sql(&format!("UPDATE amoeba_digests SET dxf_sha256 = '{}' WHERE calc_id = {id}", "0".repeat(64)));
-    let (st, v) = t.call("GET", &format!("/api/calculations/{id}/dxf/{part}"), None).await;
+    t.sql(&format!(
+        "UPDATE amoeba_digests SET dxf_sha256 = '{}' WHERE calc_id = {id}",
+        "0".repeat(64)
+    ));
+    let (st, v) = t
+        .call("GET", &format!("/api/calculations/{id}/dxf/{part}"), None)
+        .await;
     assert_eq!(st, StatusCode::CONFLICT, "{v}");
     assert_eq!(v["code"], "amoeba_snapshot_mismatch");
 }
@@ -4989,8 +5017,20 @@ async fn amoeba_snapshots_cannot_be_changed_or_deleted() {
     let t = boot();
     let id = t.job(cone()).await;
     let db = t.app.db();
-    assert!(db.execute(&format!("UPDATE amoeba_digests SET verdict = 'PASS' WHERE calc_id = {id}"), []).is_err());
-    assert!(db.execute(&format!("DELETE FROM amoeba_digests WHERE calc_id = {id}"), []).is_err());
+    assert!(
+        db.execute(
+            &format!("UPDATE amoeba_digests SET verdict = 'PASS' WHERE calc_id = {id}"),
+            []
+        )
+        .is_err()
+    );
+    assert!(
+        db.execute(
+            &format!("DELETE FROM amoeba_digests WHERE calc_id = {id}"),
+            []
+        )
+        .is_err()
+    );
 }
 
 /// The stage view: the five stages in order, plain JSON, for signed-in users only.
@@ -4999,9 +5039,25 @@ async fn amoeba_stage_view_lists_the_stages_and_needs_a_session() {
     let t = boot();
     let id = t.job(good_assembly()).await;
     let v = t.get(&format!("/api/calculations/{id}/amoeba")).await;
-    let names: Vec<&str> = v["stages"].as_array().unwrap().iter().map(|s| s["stage"].as_str().unwrap()).collect();
+    let names: Vec<&str> = v["stages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["stage"].as_str().unwrap())
+        .collect();
     assert_eq!(names, ["surround", "engulf", "digest", "confirm", "export"]);
-    assert_eq!(stage(&v, "confirm")["status"], "HOLD", "engineer approval (G16) is not implemented");
-    let (st, _, _) = t.send("GET", &format!("/api/calculations/{id}/amoeba"), None, &[("cookie", "")]).await;
+    assert_eq!(
+        stage(&v, "confirm")["status"],
+        "HOLD",
+        "engineer approval (G16) is not implemented"
+    );
+    let (st, _, _) = t
+        .send(
+            "GET",
+            &format!("/api/calculations/{id}/amoeba"),
+            None,
+            &[("cookie", "")],
+        )
+        .await;
     assert_eq!(st, StatusCode::UNAUTHORIZED);
 }

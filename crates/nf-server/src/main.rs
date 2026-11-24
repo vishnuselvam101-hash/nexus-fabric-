@@ -3460,17 +3460,17 @@ async fn get_dxf(
         };
         // a REJECTED result whose AMOEBA digest failed names the failing checks as well
         let rows = amoeba::rows(&db, id)?;
-        if let Some(r) = rows.iter().find(|r| r.verdict != "PASS") {
-            if let Err((code, checks)) = amoeba::hold_for(&rows, &r.part) {
-                return Err(fail_json(
-                    StatusCode::CONFLICT,
-                    json!({
-                        "error": format!("this result is REJECTED{why}; its files are withheld; the AMOEBA digest of part {} did not pass", r.part),
-                        "code": code,
-                        "checks": checks,
-                    }),
-                ));
-            }
+        if let Some(r) = rows.iter().find(|r| r.verdict != "PASS")
+            && let Err((code, checks)) = amoeba::hold_for(&rows, &r.part)
+        {
+            return Err(fail_json(
+                StatusCode::CONFLICT,
+                json!({
+                    "error": format!("this result is REJECTED{why}; its files are withheld; the AMOEBA digest of part {} did not pass", r.part),
+                    "code": code,
+                    "checks": checks,
+                }),
+            ));
         }
         return Err(fail(
             StatusCode::CONFLICT,
@@ -3523,12 +3523,27 @@ async fn get_dxf(
     // AMOEBA digest: the file is served only when its snapshot passed every check, and the snapshot is of this file
     let digest_rows = amoeba::rows(&tx, id)?;
     if let Err((code, checks)) = amoeba::hold_for(&digest_rows, &part) {
-        let names = checks.as_array().map(|a| a.iter().filter_map(|c| c["name"].as_str()).collect::<Vec<&str>>().join(", ")).unwrap_or_default();
-        app.audit(&tx, &u.username, "dxf_withheld", &format!("calculation #{id} part {part}: AMOEBA digest {code} {names}"))?;
+        let names = checks
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|c| c["name"].as_str())
+                    .collect::<Vec<&str>>()
+                    .join(", ")
+            })
+            .unwrap_or_default();
+        app.audit(
+            &tx,
+            &u.username,
+            "dxf_withheld",
+            &format!("calculation #{id} part {part}: AMOEBA digest {code} {names}"),
+        )?;
         tx.commit()?;
         let msg = match code.as_str() {
             "amoeba_digest_failed" => "the AMOEBA digest found defects in this file",
-            "amoeba_digest_inconclusive" => "the AMOEBA digest could not confirm every check of this file",
+            "amoeba_digest_inconclusive" => {
+                "the AMOEBA digest could not confirm every check of this file"
+            }
             _ => "no AMOEBA digest is recorded for this part",
         };
         return Err(fail_json(
@@ -3536,7 +3551,11 @@ async fn get_dxf(
             json!({ "error": format!("no DXF for part {part}: {msg}; the file is withheld"), "code": code, "checks": checks }),
         ));
     }
-    if digest_rows.iter().find(|r| r.part == part).is_some_and(|r| r.dxf_sha256 != sha) {
+    if digest_rows
+        .iter()
+        .find(|r| r.part == part)
+        .is_some_and(|r| r.dxf_sha256 != sha)
+    {
         tx.commit()?;
         return Err(fail_json(
             StatusCode::CONFLICT,

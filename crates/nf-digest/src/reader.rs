@@ -7,11 +7,31 @@ pub type P = [f64; 2];
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Ent {
-    Line { layer: String, a: P, b: P },
-    Arc { layer: String, c: P, r: f64, start_deg: f64, end_deg: f64 },
-    Poly { layer: String, pts: Vec<P>, closed: bool },
-    Text { layer: String, text: String },
-    Other { kind: String, layer: String },
+    Line {
+        layer: String,
+        a: P,
+        b: P,
+    },
+    Arc {
+        layer: String,
+        c: P,
+        r: f64,
+        start_deg: f64,
+        end_deg: f64,
+    },
+    Poly {
+        layer: String,
+        pts: Vec<P>,
+        closed: bool,
+    },
+    Text {
+        layer: String,
+        text: String,
+    },
+    Other {
+        kind: String,
+        layer: String,
+    },
 }
 
 impl Ent {
@@ -58,7 +78,7 @@ fn pairs(text: &str) -> Result<Vec<(i32, &str)>, String> {
     while lines.last().is_some_and(|l| l.trim().is_empty()) {
         lines.pop();
     }
-    if lines.len() % 2 != 0 {
+    if !lines.len().is_multiple_of(2) {
         return Err("the file ends in the middle of a group code/value pair".into());
     }
     let mut out = Vec::with_capacity(lines.len() / 2);
@@ -103,7 +123,10 @@ fn layer_of(rec: &Rec<'_>) -> String {
 }
 
 fn point(rec: &Rec<'_>, x: i32, y: i32, nonfinite: &mut Vec<String>) -> Result<P, String> {
-    Ok([coord(rec, x, "X", nonfinite)?, coord(rec, y, "Y", nonfinite)?])
+    Ok([
+        coord(rec, x, "X", nonfinite)?,
+        coord(rec, y, "Y", nonfinite)?,
+    ])
 }
 
 pub fn parse(text: &str) -> Result<Parsed, String> {
@@ -119,7 +142,13 @@ pub fn parse(text: &str) -> Result<Parsed, String> {
             if code != 2 {
                 return Err("SECTION is not followed by its name".into());
             }
-            sections.push((value.trim().to_string(), vec![Rec { name: "", body: vec![] }]));
+            sections.push((
+                value.trim().to_string(),
+                vec![Rec {
+                    name: "",
+                    body: vec![],
+                }],
+            ));
             in_section = true;
             continue;
         }
@@ -141,7 +170,10 @@ pub fn parse(text: &str) -> Result<Parsed, String> {
                 }
                 kind => {
                     if let Some((_, recs)) = sections.last_mut().filter(|_| in_section) {
-                        recs.push(Rec { name: kind, body: vec![] });
+                        recs.push(Rec {
+                            name: kind,
+                            body: vec![],
+                        });
                     }
                     continue;
                 }
@@ -151,10 +183,10 @@ pub fn parse(text: &str) -> Result<Parsed, String> {
             parsed.comments.push(value.trim().to_string());
             continue;
         }
-        if let Some((_, recs)) = sections.last_mut().filter(|_| in_section) {
-            if let Some(rec) = recs.last_mut() {
-                rec.body.push((code, value));
-            }
+        if let Some((_, recs)) = sections.last_mut().filter(|_| in_section)
+            && let Some(rec) = recs.last_mut()
+        {
+            rec.body.push((code, value));
         }
     }
     // the pairs of a section are kept in its records; numbers are checked where they are used
@@ -164,11 +196,15 @@ pub fn parse(text: &str) -> Result<Parsed, String> {
             "HEADER" => {
                 let body = &recs[0].body;
                 for (i, (c, v)) in body.iter().enumerate() {
-                    if *c == 9 && v.trim() == "$INSUNITS" {
-                        if let Some((70, n)) = body.get(i + 1) {
-                            let n = n.trim().parse::<i64>().map_err(|_| "$INSUNITS is not an integer".to_string())?;
-                            parsed.insunits = Some(n);
-                        }
+                    if *c == 9
+                        && v.trim() == "$INSUNITS"
+                        && let Some((70, n)) = body.get(i + 1)
+                    {
+                        let n = n
+                            .trim()
+                            .parse::<i64>()
+                            .map_err(|_| "$INSUNITS is not an integer".to_string())?;
+                        parsed.insunits = Some(n);
                     }
                 }
             }
@@ -210,7 +246,10 @@ fn entities(recs: &[Rec<'_>], nonfinite: &mut Vec<String>) -> Result<Vec<Ent>, S
             }),
             "POLYLINE" => {
                 let flags = match text_of(rec, 70) {
-                    Some(v) => v.trim().parse::<i64>().map_err(|_| "POLYLINE flags are not an integer".to_string())?,
+                    Some(v) => v
+                        .trim()
+                        .parse::<i64>()
+                        .map_err(|_| "POLYLINE flags are not an integer".to_string())?,
                     None => 0,
                 };
                 let mut pts = Vec::new();
@@ -221,13 +260,20 @@ fn entities(recs: &[Rec<'_>], nonfinite: &mut Vec<String>) -> Result<Vec<Ent>, S
                     i += 1;
                 }
                 i += 1; // SEQEND
-                out.push(Ent::Poly { layer: layer_of(rec), pts, closed: flags & 1 == 1 });
+                out.push(Ent::Poly {
+                    layer: layer_of(rec),
+                    pts,
+                    closed: flags & 1 == 1,
+                });
             }
             "TEXT" => out.push(Ent::Text {
                 layer: layer_of(rec),
                 text: text_of(rec, 1).unwrap_or("").to_string(),
             }),
-            kind => out.push(Ent::Other { kind: kind.to_string(), layer: layer_of(rec) }),
+            kind => out.push(Ent::Other {
+                kind: kind.to_string(),
+                layer: layer_of(rec),
+            }),
         }
     }
     Ok(out)

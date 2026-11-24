@@ -86,7 +86,13 @@ pub fn pieces(ents: &[Ent]) -> (Vec<Piece>, usize) {
                     out.push(path_piece(layer, pts.clone(), *closed));
                 }
             }
-            Ent::Arc { layer, c, r, start_deg, end_deg } => out.push(arc_piece(layer, *c, *r, *start_deg, *end_deg)),
+            Ent::Arc {
+                layer,
+                c,
+                r,
+                start_deg,
+                end_deg,
+            } => out.push(arc_piece(layer, *c, *r, *start_deg, *end_deg)),
             Ent::Text { .. } | Ent::Other { .. } => {}
         }
     }
@@ -119,11 +125,21 @@ fn arc_piece(layer: &str, c: P, r: f64, start_deg: f64, end_deg: f64) -> Piece {
     let sweep = (end_deg.to_radians() - t0).rem_euclid(tau);
     let arc = Arc { c, r, t0, sweep };
     let length = r.abs() * sweep;
-    let step = if r.abs() > SAG { 2.0 * (1.0 - SAG / r.abs()).acos() } else { sweep.max(1e-9) };
-    let wanted = if step > 0.0 { (sweep / step).ceil() as usize } else { MAX_CHORDS + 1 };
+    let step = if r.abs() > SAG {
+        2.0 * (1.0 - SAG / r.abs()).acos()
+    } else {
+        sweep.max(1e-9)
+    };
+    let wanted = if step > 0.0 {
+        (sweep / step).ceil() as usize
+    } else {
+        MAX_CHORDS + 1
+    };
     let n = wanted.clamp(1, MAX_CHORDS);
     let sampled_ok = wanted <= MAX_CHORDS;
-    let pts: Vec<P> = (0..=n).map(|k| arc_pt(&arc, t0 + sweep * k as f64 / n as f64)).collect();
+    let pts: Vec<P> = (0..=n)
+        .map(|k| arc_pt(&arc, t0 + sweep * k as f64 / n as f64))
+        .collect();
     let min_seg = if sweep > 0.0 { length } else { 0.0 };
     Piece {
         layer: layer.to_string(),
@@ -168,7 +184,9 @@ impl Piece {
         let s = match self.arc {
             Some(a) => {
                 let t1 = a.t0 + a.sweep;
-                a.c[0] * a.r * (t1.sin() - a.t0.sin()) + a.c[1] * a.r * (a.t0.cos() - t1.cos()) + a.r * a.r * a.sweep
+                a.c[0] * a.r * (t1.sin() - a.t0.sin())
+                    + a.c[1] * a.r * (a.t0.cos() - t1.cos())
+                    + a.r * a.r * a.sweep
             }
             None => {
                 let n = self.pts.len();
@@ -224,10 +242,7 @@ pub fn contours(pieces: &[Piece]) -> Vec<Contour> {
     }
     let open: Vec<&Piece> = pieces.iter().filter(|p| !p.closed).collect();
     let m = 2 * open.len();
-    let pos: Vec<P> = open
-        .iter()
-        .flat_map(|p| [p.start(), p.end()])
-        .collect();
+    let pos: Vec<P> = open.iter().flat_map(|p| [p.start(), p.end()]).collect();
     // union-find over the ends: ends within TOL of each other are one joint
     let mut parent: Vec<usize> = (0..m).collect();
     fn find(parent: &mut [usize], mut x: usize) -> usize {
@@ -286,19 +301,17 @@ pub fn contours(pieces: &[Piece]) -> Vec<Contour> {
         let closed_chain = joints.iter().all(|j| j.len() == 2);
         let length: f64 = group.iter().map(|&k| open[k].length).sum();
         let layer = open[group[0]].layer.clone();
-        if closed_chain {
-            if let Some((area2, samples)) = walk(&open, &group, &joint, &roots) {
-                out.push(Contour {
-                    layer,
-                    closed: true,
-                    area: (area2 / 2.0).abs(),
-                    length,
-                    samples,
-                    gap: 0.0,
-                    branch_joints: 0,
-                });
-                continue;
-            }
+        if closed_chain && let Some((area2, samples)) = walk(&open, &group, &joint, &roots) {
+            out.push(Contour {
+                layer,
+                closed: true,
+                area: (area2 / 2.0).abs(),
+                length,
+                samples,
+                gap: 0.0,
+                branch_joints: 0,
+            });
+            continue;
         }
         // open or branching: the free ends give the gap
         let free: Vec<P> = group
@@ -314,14 +327,27 @@ pub fn contours(pieces: &[Piece]) -> Vec<Contour> {
             }
         }
         let branch_joints = joints.iter().filter(|j| j.len() > 2).count();
-        out.push(Contour { layer, closed: false, area: 0.0, length, samples: Vec::new(), gap, branch_joints });
+        out.push(Contour {
+            layer,
+            closed: false,
+            area: 0.0,
+            length,
+            samples: Vec::new(),
+            gap,
+            branch_joints,
+        });
     }
     out
 }
 
 /// Walk a closed chain of pieces: its signed twice-area and its points in order. None if the walk does not
 /// return to its start within the number of pieces (a defect the caller reports as an open contour).
-fn walk(open: &[&Piece], group: &[usize], joint: &[Vec<usize>], roots: &[usize]) -> Option<(f64, Vec<P>)> {
+fn walk(
+    open: &[&Piece],
+    group: &[usize],
+    joint: &[Vec<usize>],
+    roots: &[usize],
+) -> Option<(f64, Vec<P>)> {
     let start = group[0];
     let (mut k, mut enter) = (start, 0usize);
     let mut area2 = 0.0;
@@ -344,7 +370,11 @@ fn walk(open: &[&Piece], group: &[usize], joint: &[Vec<usize>], roots: &[usize])
         let next = if j[0] == exit { j[1] } else { j[0] };
         let (nk, ne) = (next / 2, next % 2);
         if nk == start {
-            return if ne == 0 { Some((area2, samples)) } else { None };
+            return if ne == 0 {
+                Some((area2, samples))
+            } else {
+                None
+            };
         }
         k = nk;
         enter = ne;
@@ -371,7 +401,14 @@ pub fn crossings(pieces: &[&Piece]) -> (usize, bool) {
     }
     let bb: Vec<[f64; 4]> = segs
         .iter()
-        .map(|(a, b)| [a[0].min(b[0]), a[1].min(b[1]), a[0].max(b[0]), a[1].max(b[1])])
+        .map(|(a, b)| {
+            [
+                a[0].min(b[0]),
+                a[1].min(b[1]),
+                a[0].max(b[0]),
+                a[1].max(b[1]),
+            ]
+        })
         .collect();
     let mut count = 0;
     for i in 0..segs.len() {
@@ -381,7 +418,9 @@ pub fn crossings(pieces: &[&Piece]) -> (usize, bool) {
                 continue;
             }
             let ((a, b), (c, d)) = (segs[i], segs[j]);
-            let touching = [a, b].iter().any(|x| [c, d].iter().any(|y| dist(*x, *y) <= TOL));
+            let touching = [a, b]
+                .iter()
+                .any(|x| [c, d].iter().any(|y| dist(*x, *y) <= TOL));
             if !touching && proper(a, b, c, d) {
                 count += 1;
             }
@@ -410,7 +449,11 @@ pub fn duplicates(pieces: &[&Piece]) -> usize {
             None => {
                 let n = p.pts.len();
                 for w in p.pts.windows(2) {
-                    units.push((w[0], w[1], [(w[0][0] + w[1][0]) / 2.0, (w[0][1] + w[1][1]) / 2.0]));
+                    units.push((
+                        w[0],
+                        w[1],
+                        [(w[0][0] + w[1][0]) / 2.0, (w[0][1] + w[1][1]) / 2.0],
+                    ));
                 }
                 if p.closed && n >= 2 {
                     let (a, b) = (p.pts[n - 1], p.pts[0]);
@@ -423,7 +466,8 @@ pub fn duplicates(pieces: &[&Piece]) -> usize {
     for i in 0..units.len() {
         for j in (i + 1)..units.len() {
             let ((a, b, m), (c, d, k)) = (units[i], units[j]);
-            let same_ends = (dist(a, c) <= TOL && dist(b, d) <= TOL) || (dist(a, d) <= TOL && dist(b, c) <= TOL);
+            let same_ends = (dist(a, c) <= TOL && dist(b, d) <= TOL)
+                || (dist(a, d) <= TOL && dist(b, c) <= TOL);
             if same_ends && dist(m, k) <= TOL {
                 n += 1;
             }
@@ -442,7 +486,9 @@ pub fn inside(poly: &[P], p: P) -> bool {
     let mut j = n - 1;
     for i in 0..n {
         let (a, b) = (poly[i], poly[j]);
-        if (a[1] > p[1]) != (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0] {
+        if (a[1] > p[1]) != (b[1] > p[1])
+            && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]
+        {
             inside = !inside;
         }
         j = i;
@@ -466,7 +512,12 @@ pub fn bbox_of(pts: impl Iterator<Item = P>) -> Option<[f64; 4]> {
     for p in pts {
         b = Some(match b {
             None => [p[0], p[1], p[0], p[1]],
-            Some(x) => [x[0].min(p[0]), x[1].min(p[1]), x[2].max(p[0]), x[3].max(p[1])],
+            Some(x) => [
+                x[0].min(p[0]),
+                x[1].min(p[1]),
+                x[2].max(p[0]),
+                x[3].max(p[1]),
+            ],
         });
     }
     b

@@ -28,7 +28,11 @@ pub fn reference(part: &str, pattern: Option<&PatternView>) -> Reference {
             outer: p.curves.iter().map(curve).collect(),
             holes: p.holes.iter().map(curve).collect(),
         },
-        None => Reference { part: part.to_string(), outer: Vec::new(), holes: Vec::new() },
+        None => Reference {
+            part: part.to_string(),
+            outer: Vec::new(),
+            holes: Vec::new(),
+        },
     }
 }
 
@@ -79,7 +83,13 @@ fn report_json(r: &Report) -> Value {
 }
 
 /// Store the snapshots of a job. Rows are never updated or deleted (append-only triggers).
-pub fn store(db: &Connection, calc: i64, digests: &[Digest], engine: &str, at: i64) -> rusqlite::Result<()> {
+pub fn store(
+    db: &Connection,
+    calc: i64,
+    digests: &[Digest],
+    engine: &str,
+    at: i64,
+) -> rusqlite::Result<()> {
     for d in digests {
         let checks = report_json(&d.report)["checks"].to_string();
         db.execute(
@@ -124,7 +134,11 @@ pub fn rows(db: &Connection, calc: i64) -> rusqlite::Result<Vec<Row>> {
 pub fn gate(rows: &[Row]) -> (nf_core::GateResult, String) {
     use nf_core::GateResult as R;
     if rows.is_empty() {
-        return (R::Inconclusive, "No AMOEBA digest is recorded for this result, so its DXF files cannot be confirmed.".into());
+        return (
+            R::Inconclusive,
+            "No AMOEBA digest is recorded for this result, so its DXF files cannot be confirmed."
+                .into(),
+        );
     }
     let failing: Vec<String> = rows
         .iter()
@@ -132,17 +146,42 @@ pub fn gate(rows: &[Row]) -> (nf_core::GateResult, String) {
         .map(|r| format!("{}: {}", r.part, failed_names(&r.checks, "FAIL").join(", ")))
         .collect();
     if !failing.is_empty() {
-        return (R::Fail, format!("The AMOEBA digest found defects in the DXF file(s): {}. Such a file is never served.", failing.join("; ")));
+        return (
+            R::Fail,
+            format!(
+                "The AMOEBA digest found defects in the DXF file(s): {}. Such a file is never served.",
+                failing.join("; ")
+            ),
+        );
     }
     let open: Vec<String> = rows
         .iter()
         .filter(|r| r.verdict != "PASS")
-        .map(|r| format!("{}: {}", r.part, failed_names(&r.checks, "INCONCLUSIVE").join(", ")))
+        .map(|r| {
+            format!(
+                "{}: {}",
+                r.part,
+                failed_names(&r.checks, "INCONCLUSIVE").join(", ")
+            )
+        })
         .collect();
     if !open.is_empty() {
-        return (R::Inconclusive, format!("The AMOEBA digest could not confirm every check of the DXF file(s): {}. The file is held until each check passes.", open.join("; ")));
+        return (
+            R::Inconclusive,
+            format!(
+                "The AMOEBA digest could not confirm every check of the DXF file(s): {}. The file is held until each check passes.",
+                open.join("; ")
+            ),
+        );
     }
-    (R::Pass, format!("The AMOEBA digest passes every check of all {} DXF file(s) (engine {}).", rows.len(), rows[0].engine))
+    (
+        R::Pass,
+        format!(
+            "The AMOEBA digest passes every check of all {} DXF file(s) (engine {}).",
+            rows.len(),
+            rows[0].engine
+        ),
+    )
 }
 
 fn failed_names(checks: &Value, verdict: &str) -> Vec<String> {
@@ -166,9 +205,18 @@ pub fn hold_for(rows: &[Row], part: &str) -> Result<(), (String, Value)> {
             let names: Vec<Value> = r
                 .checks
                 .as_array()
-                .map(|a| a.iter().filter(|c| c["verdict"] != "PASS").cloned().collect())
+                .map(|a| {
+                    a.iter()
+                        .filter(|c| c["verdict"] != "PASS")
+                        .cloned()
+                        .collect()
+                })
                 .unwrap_or_default();
-            let code = if r.verdict == "FAIL" { "amoeba_digest_failed" } else { "amoeba_digest_inconclusive" };
+            let code = if r.verdict == "FAIL" {
+                "amoeba_digest_failed"
+            } else {
+                "amoeba_digest_inconclusive"
+            };
             Err((code.into(), Value::Array(names)))
         }
     }
@@ -188,7 +236,12 @@ pub fn stages(id: i64, state: &str, gates: &[nf_core::Gate], rows: &[Row]) -> Va
     let all_pass = !rows.is_empty() && rows.iter().all(|r| r.verdict == "PASS");
     let mut hold: Vec<String> = gates
         .iter()
-        .filter(|g| !matches!(g.result, nf_core::GateResult::Pass | nf_core::GateResult::NotApplicable))
+        .filter(|g| {
+            !matches!(
+                g.result,
+                nf_core::GateResult::Pass | nf_core::GateResult::NotApplicable
+            )
+        })
         .map(|g| format!("{} {:?}", g.id, g.result))
         .collect();
     if state != "REVIEW_REQUIRED" {
@@ -201,7 +254,11 @@ pub fn stages(id: i64, state: &str, gates: &[nf_core::Gate], rows: &[Row]) -> Va
     if state != "REVIEW_REQUIRED" {
         export_reasons.push(format!("state {state}"));
     }
-    let export = if export_reasons.is_empty() { "AVAILABLE" } else { "WITHHELD" };
+    let export = if export_reasons.is_empty() {
+        "AVAILABLE"
+    } else {
+        "WITHHELD"
+    };
     json!({
         "calculation": id,
         "state": state,
