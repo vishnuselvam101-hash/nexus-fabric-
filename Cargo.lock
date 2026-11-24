@@ -797,6 +797,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "nf-core",
+ "nf-licence",
  "rand",
  "rusqlite",
  "serde",

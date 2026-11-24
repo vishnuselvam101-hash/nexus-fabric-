@@ -31,6 +31,9 @@ fn config(dir: &std::path::Path) -> Config {
         setup_token: Some(TOKEN.into()),
         request_timeout: Duration::from_secs(60),
         desktop: false,
+        licence_path: dir.join("licence.nflic"),
+        // the licence tests run with enforcement ON; the off-mode tests build their own config
+        licence_enforce: true,
     }
 }
 
@@ -883,6 +886,7 @@ fn be007_no_unwrap_or_expect_in_product_code() {
         ("storage.rs", include_str!("storage.rs")),
         ("membrane.rs", include_str!("membrane.rs")),
         ("crypto.rs", include_str!("crypto.rs")),
+        ("licence.rs", include_str!("licence.rs")),
     ] {
         let product = src.split("#[cfg(test)]\nmod tests {").next().unwrap();
         for (n, line) in product.lines().enumerate() {
@@ -1412,7 +1416,8 @@ async fn v25_removal_of_the_newest_audit_entries_is_detected() {
             v["anchor_intact"].as_bool(),
             v["entries"].as_i64()
         ),
-        (Some(true), Some(true), Some(6))
+        // six projects plus the licence status entry written at start-up
+        (Some(true), Some(true), Some(7))
     );
     assert!(v["limitation"].as_str().unwrap().contains("rollback"));
     attacker_drops_triggers(&t);
@@ -2252,6 +2257,10 @@ async fn s2_page_corruption_is_not_reported_as_an_intact_log() {
         anon_audit: Mutex::new((0, 0, 0)),
         anon_minute: Mutex::new(None),
         verified: Mutex::new((-1, Default::default())),
+        licence: Mutex::new(crate::licence::LicenceCache::default()),
+        licence_keys: nf_licence::VERIFY_KEYS,
+        licence_path: t.dir.join("licence.nflic"),
+        licence_enforce: false,
         fault: Mutex::new(None),
     });
     let verdict = match verify_audit(&app2, &app2.db()) {
@@ -3095,6 +3104,8 @@ async fn bh014_every_refusal_answers_with_a_code_fields_and_the_message() {
 #[tokio::test]
 async fn length_rules_count_characters_not_bytes_or_utf16_units() {
     let t = boot();
+    // the evaluation covers one seat; this test creates a second account, so install a two-seat licence
+    licence::install_seats(&t, 2).await;
     let a = t.job(good_assembly()).await;
     let url = format!("/api/calculations/{a}/corrections");
     let corr =
@@ -3903,6 +3914,10 @@ fn rc01_compare_with_records_finds_every_difference() {
 }
 /// Task 3.1: PDF to DXF through the server.
 mod pdfconv;
+
+/// Licence system: state machine glue, the read-only gate, seats, renewal (plan cases 12-22
+/// and the owner's enforcement-off cases).
+mod licence;
 
 // ---------------------------------------------------------------- architecture review A (RA-001 … RA-016)
 

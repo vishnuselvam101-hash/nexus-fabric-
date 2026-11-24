@@ -205,6 +205,9 @@ pub(crate) async fn run(args: &[String]) -> Result<(), String> {
         setup_token: Some(token.clone()),
         request_timeout: Duration::from_secs(120),
         desktop: true,
+        licence_path: data_dir.join("licence.nflic"),
+        // desktop mode keeps the owner's default: the state is shown, nothing is gated
+        licence_enforce: false,
     };
     // The same limits as server mode, without reading the NF_* server settings.
     let limits = crate::Limits {
@@ -269,6 +272,7 @@ pub(crate) async fn run(args: &[String]) -> Result<(), String> {
             if let Err(e) = crate::housekeeping(&keeper) {
                 eprintln!("nf-server: housekeeping failed: {e}");
             }
+            crate::licence::recheck(&keeper);
         }
     });
     crate::serve(listener, crate::router(app.clone()), limits, true).await?;

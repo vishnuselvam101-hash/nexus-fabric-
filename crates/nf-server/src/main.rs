@@ -25,6 +25,7 @@ macro_rules! elog {
 
 mod crypto;
 mod desktop;
+mod licence;
 mod membrane;
 mod pdfconv;
 mod storage;
@@ -90,6 +91,14 @@ pub(crate) struct App {
     /// (database data_version, jobs whose stored summary was checked against the full result at that version).
     /// (database version, job id -> findings of the full check against the records). See `calc_rows`.
     verified: Mutex<(i64, std::collections::HashMap<i64, Vec<String>>)>,
+    /// Licence cache: file payload, persisted fallback, monotonic time (licence.rs).
+    licence: Mutex<licence::LicenceCache>,
+    /// Issuer public keys compiled into the build.
+    licence_keys: &'static [(&'static str, [u8; 32])],
+    /// The licence key file (NF_LICENCE_FILE).
+    licence_path: PathBuf,
+    /// Owner's switch: refuse new work in read-only (NF_LICENCE_ENFORCE; default off).
+    licence_enforce: bool,
     #[cfg(test)]
     fault: Mutex<Option<&'static str>>,
 }
@@ -776,11 +785,14 @@ fn insert_user(
 /// `mode` ("desktop" or "server") tells the client whether to show the desktop
 /// security notice on that screen (task 2.4).
 async fn health(State(app): Ctx) -> Api {
+    // licence cache before the database lock (lock order, licence.rs)
+    let licence = licence::health_field(&app);
     let db = app.db();
     let users = q_count(&db, "SELECT COUNT(*) FROM users", [])?;
     ok(
         json!({ "status": "ok", "setup_required": users == 0, "setup_token_required": users == 0,
                "mode": if app.desktop { "desktop" } else { "server" },
+               "licence": licence,
                "build_notice": "Development build. Not validated. No output of this software may be used for manufacturing." }),
     )
 }
@@ -1175,8 +1187,18 @@ async fn add_user(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value>) 
     check_new_user(&username, &password, &role)?;
     let salt = hex::encode(crypto::random_bytes::<16>());
     let hash = hash_blocking(&app, password, salt.clone()).await?;
+    // seat allowance before the database lock (lock order, licence.rs)
+    let seats = licence::seats_allowed(&app);
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let used = q_count(&tx, "SELECT COUNT(*) FROM users WHERE active = 1", [])?;
+    if let Err(e) = licence::seat_gate(&app, &tx, &u.username, used, seats, "add user") {
+        // the refusal was audited inside the transaction: commit so the entry survives
+        if matches!(e, ApiError::Resp(_)) {
+            tx.commit()?;
+        }
+        return Err(e);
+    }
     let id = insert_user(&tx, &username, &role, &salt, &hash)?;
     app.audit(
         &tx,
@@ -1263,6 +1285,8 @@ async fn set_user_active(
     Path(id): Path<i64>,
     Json(body): Json<Value>,
 ) -> Api {
+    // seat allowance before the database lock (lock order, licence.rs)
+    let seats = licence::seats_allowed(&app);
     let mut db = app.db();
     let u = auth_db(&db, &app, &headers)?;
     require(&u, &["admin"])?;
@@ -1279,6 +1303,20 @@ async fn set_user_active(
         ));
     }
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    if active {
+        // reactivation counts against the seats; deactivation never does
+        let used = q_count(
+            &tx,
+            "SELECT COUNT(*) FROM users WHERE active = 1 AND id != ?",
+            params![id],
+        )?;
+        if let Err(e) = licence::seat_gate(&app, &tx, &u.username, used, seats, "reactivate user") {
+            if matches!(e, ApiError::Resp(_)) {
+                tx.commit()?;
+            }
+            return Err(e);
+        }
+    }
     if tx.execute(
         "UPDATE users SET active = ? WHERE id = ?",
         params![active, id],
@@ -4590,8 +4628,18 @@ pub(crate) fn router(app: Arc<App>) -> Router {
         .route("/api/dashboard", get(dashboard))
         .route("/api/amoeba/summary", get(amoeba_summary))
         .route("/api/audit", get(audit_log))
+        // the licence key file: read by any signed-in user, installed by an administrator
+        .route(
+            "/api/licence",
+            get(licence::licence_status).post(licence::licence_upload),
+        )
         .merge(test_routes())
         .layer(axum::extract::DefaultBodyLimit::max(256 * 1024))
+        // the licence gate runs inside the security layer (host/CSRF/rate limits first)
+        .layer(axum::middleware::from_fn_with_state(
+            app.clone(),
+            licence::licence_layer,
+        ))
         .layer(axum::middleware::from_fn_with_state(
             app.clone(),
             security_layer,
@@ -4612,6 +4660,11 @@ pub(crate) struct Config {
     pub request_timeout: Duration,
     /// Desktop mode (`nf-server --desktop`); false in server mode.
     pub desktop: bool,
+    /// The licence key file (NF_LICENCE_FILE; default licence.nflic in the data folder).
+    pub licence_path: PathBuf,
+    /// Refuse new work when the licence is read-only (NF_LICENCE_ENFORCE; default off:
+    /// the state is shown and audited but nothing is gated).
+    pub licence_enforce: bool,
 }
 
 /// Connection limits (S-3) and shutdown behaviour (S-8). All configurable.
@@ -4688,6 +4741,13 @@ impl Config {
             }
             Err(_) => None,
         };
+        let licence_path = std::env::var("NF_LICENCE_FILE")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| data_dir.join("licence.nflic"));
+        // Owner's release-gate switch: off by default. "1" or "true" turns enforcement on.
+        let licence_enforce = std::env::var("NF_LICENCE_ENFORCE")
+            .map(|v| v.trim() == "1" || v.trim().eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
         Ok(Config {
             data_dir,
             key_path,
@@ -4704,6 +4764,8 @@ impl Config {
                 3600,
             )?),
             desktop: false,
+            licence_path,
+            licence_enforce,
         })
     }
 }
@@ -4802,6 +4864,10 @@ pub(crate) fn build_app_with(cfg: Config, accept_unanchored: bool) -> Result<Arc
         anon_audit: Mutex::new((0, 0, 0)),
         anon_minute: Mutex::new(None),
         verified: Mutex::new((-1, Default::default())),
+        licence: Mutex::new(licence::LicenceCache::default()),
+        licence_keys: nf_licence::VERIFY_KEYS,
+        licence_path: cfg.licence_path,
+        licence_enforce: cfg.licence_enforce,
         #[cfg(test)]
         fault: Mutex::new(None),
     };
@@ -4842,6 +4908,9 @@ pub(crate) fn build_app_with(cfg: Config, accept_unanchored: bool) -> Result<Arc
         seed_known_clients(&db)
             .map_err(|e| format!("cannot seed the known sign-in addresses: {e}"))?;
     }
+    // Licence: load, verify, evaluate, persist, audit. Never blocks start-up; a broken
+    // audit chain keeps the behaviour above and licence logging goes to the log only.
+    licence::init(&app);
     Ok(Arc::new(app))
 }
 
@@ -5106,7 +5175,11 @@ environment variables (server mode; desktop mode keeps its data in the per-user 
   NF_REQUEST_TIMEOUT_SECS   time limit for a whole request, 1 to 3600 (default 120)
   NF_HEADER_TIMEOUT_SECS    time limit for a request head, 1 to 600 (default 15)
   NF_MAX_CONNECTIONS        open connections, 1 to 100000 (default 512)
-  NF_SHUTDOWN_GRACE_SECS    seconds requests in flight get when the server stops, 0 to 600 (default 20)",
+  NF_SHUTDOWN_GRACE_SECS    seconds requests in flight get when the server stops, 0 to 600 (default 20)
+  NF_LICENCE_FILE           licence key file (default: licence.nflic inside the data folder)
+  NF_LICENCE_ENFORCE        1 or true = refuse new work when the licence is read-only, and apply
+                            seat limits (default: off — the licence state is loaded, shown and
+                            audited, but nothing is gated)",
         desktop = desktop::USAGE
     )
 }
@@ -5178,6 +5251,7 @@ async fn main() {
         limits.max_connections
     );
     // BE-033: expired sessions and old sign-in failures are removed every hour, not only at the next sign-in.
+    // The licence is rechecked on the same tick: a renewed key file is picked up without a restart.
     let keeper = app.clone();
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(3600));
@@ -5186,6 +5260,7 @@ async fn main() {
             if let Err(e) = housekeeping(&keeper) {
                 elog!("nf-server: housekeeping failed: {e}");
             }
+            licence::recheck(&keeper);
         }
     });
     let service = router(app.clone());
@@ -5267,6 +5342,8 @@ mod invocation_tests {
             "NF_HEADER_TIMEOUT_SECS",
             "NF_MAX_CONNECTIONS",
             "NF_SHUTDOWN_GRACE_SECS",
+            "NF_LICENCE_FILE",
+            "NF_LICENCE_ENFORCE",
             "--desktop",
             "--no-browser",
             "--port N",

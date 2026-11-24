@@ -406,7 +406,7 @@ const EN = {
 
   // administration
   'adm.denied.t': 'Administrator role required', 'adm.denied.p': 'Users, security configuration and the audit log are visible to administrators only.', 'adm.denied.go': 'Back to the dashboard',
-  'adm.sub': 'Users, the security configuration as running, and the hash-chained audit log.', 'adm.tabs.aria': 'Administration views',
+  'adm.sub': 'Users, the licence, the security configuration as running, and the hash-chained audit log.', 'adm.tabs.aria': 'Administration views',
   'adm.t.users': 'Users', 'adm.t.security': 'Security configuration', 'adm.t.audit': 'Audit log', 'adm.t.planned': 'Planned',
   'th.username': 'Username', 'th.role': 'Role', 'th.status': 'Status', 'th.actions': 'Actions', 'adm.you': '(you)', 'adm.active': 'active', 'adm.inactive': 'deactivated',
   'adm.deactivate': 'Deactivate', 'adm.reactivate': 'Reactivate', 'adm.confirm': 'Confirm: deactivate {user}', 'adm.users.foot': 'Project access is granted per project, on the project page.',
@@ -419,6 +419,24 @@ const EN = {
   'adm.chain.t.ok': 'Audit chain intact over {n} entries.', 'adm.chain.t.bad': 'Audit chain BROKEN at entry {n}.',
   'adm.planned.1': 'Multi-factor authentication, single sign-on', 'adm.planned.2': 'Built-in TLS, database encryption at rest, key rotation', 'adm.planned.3': 'Backup and restore tooling, retention policies',
   'adm.planned.4': 'Engineering standards and factory rule management', 'adm.planned.5': 'Separate tenants (isolation is per project within one installation)',
+
+  // licence (offline Ed25519 key file; enforcement is the owner's switch, off by default)
+  'lic.aria': 'Licence status',
+  'lic.off': 'Evaluation · development build — licence not enforced',
+  'lic.state.evaluation': 'Evaluation', 'lic.state.valid': 'Licence valid', 'lic.state.grace': 'Grace period', 'lic.state.read_only': 'Read-only',
+  'lic.eval.days': '{n} day(s) left', 'lic.grace.until': 'full function until {date} — renew via Chuo-Sogo',
+  'lic.readonly.short': 'new work refused; existing jobs and files stay exportable',
+  'lic.rollback.short': 'clock rolled back', 'lic.notyet': 'the installed licence is not yet valid',
+  'adm.t.licence': 'Licence',
+  'lic.panel.h': 'Licence', 'lic.panel.foot': 'The state is computed offline from the key file and the persisted time. Nothing is deleted or locked in any state.',
+  'lic.f.state': 'State', 'lic.f.enforced': 'Enforcement', 'lic.f.file': 'Key file', 'lic.f.file.ok': 'installed', 'lic.f.file.none': 'not installed',
+  'lic.f.edition': 'Edition', 'lic.f.id': 'Licence ID', 'lic.f.customer': 'Customer', 'lic.f.seats': 'Seats', 'lic.f.used': 'Seats in use',
+  'lic.f.from': 'Valid from', 'lic.f.until': 'Valid until', 'lic.f.grace': 'Grace until', 'lic.f.days': 'Evaluation days left',
+  'lic.f.issuer': 'Issuer', 'lic.f.key': 'Issuer key', 'lic.f.rollback': 'Clock rollback', 'lic.f.contact': 'Renewal contact',
+  'lic.ed.pilot': 'Pilot', 'lic.ed.standard': 'Standard', 'lic.ed.site': 'Site', 'lic.none': 'none',
+  'lic.install.h': 'Install a licence key file (.nflic)', 'lic.install.go': 'Install', 'lic.install.busy': 'Installing…',
+  'lic.install.done': 'Licence installed — state: {state}.', 'lic.install.none': 'Choose a .nflic file first.',
+  'lic.install.foot': 'The file is checked offline against the issuer keys compiled into this build. Monthly keys are issued by Chuo-Sogo; installing a key never deletes anything.',
 };
 
 // ---------------------------------------------------------------- 日本語
@@ -745,7 +763,7 @@ const JA = {
   'acc.planned.t': 'アカウントのセキュリティ', 'acc.planned.1': '多要素認証', 'acc.planned.2': 'アカウントの復旧（現在は、管理者が新しいアカウントを作成する必要があります）', 'acc.planned.3': '個別セッションの一覧表示と無効化',
 
   'adm.denied.t': '管理者権限が必要です', 'adm.denied.p': 'ユーザー、セキュリティ設定、監査ログを参照できるのは、管理者だけです。', 'adm.denied.go': 'ダッシュボードへ戻る',
-  'adm.sub': 'ユーザー、稼働中のセキュリティ設定、ハッシュチェーン化された監査ログ。', 'adm.tabs.aria': 'システム管理の表示',
+  'adm.sub': 'ユーザー、ライセンス、稼働中のセキュリティ設定、ハッシュチェーン化された監査ログ。', 'adm.tabs.aria': 'システム管理の表示',
   'adm.t.users': 'ユーザー', 'adm.t.security': 'セキュリティ設定', 'adm.t.audit': '監査ログ', 'adm.t.planned': '計画中',
   'th.username': 'ユーザー名', 'th.role': '権限', 'th.status': '状態', 'th.actions': '操作', 'adm.you': '（自分）', 'adm.active': '有効', 'adm.inactive': '無効',
   'adm.deactivate': '無効化', 'adm.reactivate': '再有効化', 'adm.confirm': '確認：{user} を無効化', 'adm.users.foot': 'プロジェクトへのアクセス権は、各プロジェクトのページで個別に付与します。',
@@ -758,6 +776,23 @@ const JA = {
   'adm.chain.t.ok': '監査チェーンに改ざんはありません（{n}件）。', 'adm.chain.t.bad': '監査チェーンが、エントリー{n}で破損しています。',
   'adm.planned.1': '多要素認証、シングルサインオン', 'adm.planned.2': '`TLS`の内蔵、データベースの保存時暗号化、鍵のローテーション', 'adm.planned.3': 'バックアップと復元のツール、保存期間のポリシー',
   'adm.planned.4': '技術基準と工場ルールの管理', 'adm.planned.5': 'テナントの分離（現在の分離は、1つのインストール内のプロジェクト単位です）',
+
+  'lic.aria': 'ライセンスの状態',
+  'lic.off': '評価版・開発版 — ライセンスは未適用',
+  'lic.state.evaluation': '評価版', 'lic.state.valid': 'ライセンス有効', 'lic.state.grace': '猶予期間', 'lic.state.read_only': '読み取り専用',
+  'lic.eval.days': '残り{n}日', 'lic.grace.until': '{date}まで全機能を利用できます — 更新は中部総合まで',
+  'lic.readonly.short': '新規作業は拒否されます。既存のジョブとファイルは引き続き出力できます',
+  'lic.rollback.short': '時計の巻き戻しを検出', 'lic.notyet': 'インストール済みのライセンスはまだ有効期間前です',
+  'adm.t.licence': 'ライセンス',
+  'lic.panel.h': 'ライセンス', 'lic.panel.foot': '状態はキーファイルと保存された時刻からオフラインで計算されます。どの状態でも削除やロックは行われません。',
+  'lic.f.state': '状態', 'lic.f.enforced': '適用', 'lic.f.file': 'キーファイル', 'lic.f.file.ok': 'インストール済み', 'lic.f.file.none': '未インストール',
+  'lic.f.edition': 'エディション', 'lic.f.id': 'ライセンスID', 'lic.f.customer': '顧客', 'lic.f.seats': '席数', 'lic.f.used': '使用中の席数',
+  'lic.f.from': '有効開始', 'lic.f.until': '有効終了', 'lic.f.grace': '猶予期限', 'lic.f.days': '評価版の残り日数',
+  'lic.f.issuer': '発行者', 'lic.f.key': '発行者鍵', 'lic.f.rollback': '時計の巻き戻し', 'lic.f.contact': '更新窓口',
+  'lic.ed.pilot': 'パイロット', 'lic.ed.standard': 'スタンダード', 'lic.ed.site': 'サイト', 'lic.none': 'なし',
+  'lic.install.h': 'ライセンスキーファイル（.nflic）のインストール', 'lic.install.go': 'インストール', 'lic.install.busy': 'インストール中…',
+  'lic.install.done': 'ライセンスをインストールしました — 状態：{state}。', 'lic.install.none': '.nflicファイルを選択してください。',
+  'lic.install.foot': 'ファイルは、このビルドに組み込まれた発行者鍵でオフライン検証されます。月次のキーは中部総合が発行します。インストールによって削除されるものはありません。',
 };
 
 const MSG = { en: EN, ja: JA };
@@ -1118,6 +1153,8 @@ const ID = {
     calculation: [null, '計算'], calculation_refused: [null, '計算の入力拒否'], correction: [null, '訂正'], correction_refused: [null, '訂正の拒否'], lesson_recorded: [null, '教訓の記録'],
     advisory_acknowledged: [null, '注意喚起の確認'], obligation_resolved: [null, '要精査項目の解消'], replay_audit: [null, '再実行監査'], replay_unavailable: [null, '再実行監査を実行できず'],
     dxf_export: [null, 'DXFのダウンロード'], stored_file_damaged: [null, '保存ファイルの破損'],
+    licence_status: [null, 'ライセンス状態'], licence_loaded: [null, 'ライセンス読込'], licence_invalid: [null, 'ライセンス無効'], licence_expired: [null, 'ライセンス期限切れ（猶予）'], licence_readonly: [null, 'ライセンス読み取り専用'],
+    licence_clock_rollback: [null, '時計の巻き戻し'], licence_blocked: [null, 'ライセンスによる拒否'], licence_seat_limit: [null, '席数の上限'], licence_seat_limit_not_enforced: [null, '席数上限（未適用）'],
   },
   security: {
     allowed_hosts: [null, '応答するホスト名'], anti_forgery: [null, 'リクエスト偽造への対策'], audit_log: [null, '監査ログ'], blob_encryption: [null, '保存ファイルの暗号化'],

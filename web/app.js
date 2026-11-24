@@ -416,6 +416,7 @@ function diffHtml(c, prev) {
 // ---------------------------------------------------------------- session state
 let me = null;
 let summary = null;          // last /api/dashboard result: status bar and navigation counts
+let licence = null;          // last /api/licence result (or the health summary): the top-bar strip
 let viewer = null;           // active PatternViewer, if the current view has one
 let wsState = { id: null, part: 0, tab: 'gates', scope: 'all', gf: 'all', ghost: false };
 let ctxProject = null;       // project of the view on screen, used by "new calculation"
@@ -645,6 +646,7 @@ function mountShell(force) {
       <a class="brand" href="#/dashboard" aria-label="${esc(t('shell.brand.aria'))}">${ic('mark', 18)}<span lang="en">NEXUS FABRIC</span></a>
       <nav class="crumbs" id="crumbs" aria-label="${esc(t('shell.crumbs'))}"></nav>
       <div class="devnote" role="note"><span>${esc(t('build.short'))}<span class="long">${esc(t('build.long'))}</span></span></div>
+      <div class="licnote" id="licnote" role="note" aria-label="${esc(t('lic.aria'))}" hidden></div>
       <div class="tools">
         ${langSwitch()}
         <span class="bellwrap"><button class="ib" id="bell" aria-label="${esc(t('shell.bell'))}" aria-expanded="false" data-tip="${esc(t('shell.bell'))}" data-tip-pos="end">${ic('bell')}</button><span class="dot" id="belldot" hidden></span></span>
@@ -684,6 +686,7 @@ function mountShell(force) {
   $('#bell').onclick = () => toggleNotes();
   $$('.engsrc button').forEach((b) => { b.onclick = () => setEngSrc(b.dataset.src); });
   setEngSrc(document.documentElement.dataset.engsrc);
+  paintLicence();
 }
 
 function toggleNotes(force) {
@@ -723,6 +726,27 @@ function paintStatus() {
   if (c) { c.hidden = !n; c.textContent = n; c.setAttribute('aria-label', t('shell.obl.aria', { n })); }
 }
 async function refreshSummary() { try { summary = await api('/api/dashboard'); paintStatus(); } catch { /* status bar keeps its last state */ } }
+
+// The licence strip beside the build notice. With enforcement off (the owner's release-gate switch,
+// the default) it says so, and shows the real state whenever a key is installed. The strip informs;
+// it never gates an action — the server decides that, and only when enforcement is on.
+function paintLicence() {
+  const el = $('#licnote'); if (!el) return;
+  const L = licence;
+  if (!L || !L.state) { el.hidden = true; return; }
+  const parts = [];
+  if (!L.enforced) { parts.push(t('lic.off')); if (L.file_verified) parts.push(t(`lic.state.${L.state}`)); }
+  else parts.push(t(`lic.state.${L.state}`));
+  if (L.state === 'evaluation' && L.days_left != null && (L.enforced || L.file_verified)) parts.push(t('lic.eval.days', { n: L.days_left }));
+  if (L.state === 'grace' && L.grace_until) parts.push(t('lic.grace.until', { date: when(L.grace_until) }));
+  if (L.state === 'read_only' && L.enforced) parts.push(t('lic.readonly.short'));
+  if (L.note === 'not yet valid') parts.push(t('lic.notyet'));
+  if (L.clock_rollback) parts.push(t('lic.rollback.short'));
+  el.classList.toggle('warn', !!L.enforced && L.state === 'grace');
+  el.classList.toggle('bad', !!L.enforced && L.state === 'read_only');
+  el.innerHTML = `<span>${esc(parts.join(' · '))}</span>`;
+  el.hidden = false;
+}
 
 // ---------------------------------------------------------------- sign in
 // Desktop mode (nf-server --desktop) hands the one-time setup token over in the URL fragment, which the browser never sends to the server.
@@ -1586,19 +1610,39 @@ const views = {
   admin: {
     async load() {
       if (me.role !== 'admin') return { denied: true };
-      const [users, audit, sec, chain] = await Promise.all([api('/api/users'), api('/api/audit'), api('/api/security/status'), api('/api/audit/verify')]);
-      return { users, audit, sec, chain };
+      const [users, audit, sec, chain, lic] = await Promise.all([api('/api/users'), api('/api/audit'), api('/api/security/status'), api('/api/audit/verify'), api('/api/licence')]);
+      licence = lic; paintLicence();
+      return { users, audit, sec, chain, lic };
     },
     render(data, tab) {
       if (data.denied) return { title: t('nav.admin'), crumbs: [[t('nav.admin')]], html: `<div class="page">${ph(esc(t('nav.admin')), '')}${empty('shield', t('adm.denied.t'), esc(t('adm.denied.p')), `<a class="btn" href="#/dashboard">${esc(t('adm.denied.go'))}</a>`)}</div>` };
-      const { users, audit, sec, chain } = data;
+      const { users, audit, sec, chain, lic } = data;
       // what the server states about itself is shown as it wrote it; in Japanese the column says so once
       const srvText = (v) => (ja() ? `<span lang="en">${esc(v)}</span>` : esc(v));
       const srvHead = (key) => `${esc(t(key))}${ja() ? ` ${engTag('srv.tag')}` : ''}`;
       const val = (v) => (v === true ? tag('na', t('yes')) : v === false ? tag('na', t('no')) : typeof v === 'number' ? `<span class="mono">${v}</span>` : srvText(Array.isArray(v) ? v.join(', ') : v));
       const chainHtml = (ch) => h('adm.chain', { state: `${ch.intact ? tag('ok', t('adm.chain.ok'), 'check') : tag('bad', t('adm.chain.bad', { n: ch.first_broken_entry }), 'close')} ${esc(t('adm.chain.over', { n: ch.entries }))}` });
-      const tabs = [['users', t('adm.t.users'), users.length], ['security', t('adm.t.security')], ['audit', t('adm.t.audit'), audit.length], ['planned', t('adm.t.planned')]];
+      const tabs = [['users', t('adm.t.users'), users.length], ['licence', t('adm.t.licence')], ['security', t('adm.t.security')], ['audit', t('adm.t.audit'), audit.length], ['planned', t('adm.t.planned')]];
       const active = tabs.some((x) => x[0] === tab) ? tab : 'users';
+      // the licence panel: the signed fields and the state as the server computed them
+      const licRows = [
+        ['lic.f.state', tag(lic.enforced && lic.state === 'read_only' ? 'bad' : lic.state === 'grace' ? 'warn' : 'na', t(`lic.state.${lic.state}`))],
+        ['lic.f.enforced', tag('na', t(lic.enforced ? 'yes' : 'no'))],
+        ['lic.f.file', esc(t(lic.file_verified ? 'lic.f.file.ok' : 'lic.f.file.none'))],
+        ['lic.f.edition', lic.edition ? esc(t(`lic.ed.${lic.edition}`)) : esc(t('lic.none'))],
+        ['lic.f.id', lic.licence_id ? mono(lic.licence_id) : esc(t('lic.none'))],
+        ['lic.f.customer', lic.customer ? esc(lic.customer) : esc(t('lic.none'))],
+        ['lic.f.seats', `<span class="mono">${lic.seats}</span>`],
+        ['lic.f.used', `<span class="mono">${lic.seats_used}</span>`],
+        ['lic.f.from', esc(when(lic.valid_from))],
+        ['lic.f.until', esc(when(lic.valid_until))],
+        ['lic.f.grace', esc(when(lic.grace_until))],
+        ['lic.f.days', lic.days_left == null ? '—' : `<span class="mono">${lic.days_left}</span>`],
+        ['lic.f.issuer', lic.issuer ? esc(lic.issuer) : esc(t('lic.none'))],
+        ['lic.f.key', lic.key_id ? mono(lic.key_id) : esc(t('lic.none'))],
+        ['lic.f.rollback', tag('na', t(lic.clock_rollback ? 'yes' : 'no'))],
+        ['lic.f.contact', esc(lic.renewal_contact || 'Chuo-Sogo')],
+      ];
       return {
         title: t('nav.admin'), crumbs: [[t('nav.admin')]],
         html: `<div class="page">${ph(esc(t('nav.admin')), esc(t('adm.sub')))}
@@ -1606,6 +1650,8 @@ const views = {
           ${tabPanel('ad', 'users', active, `${panel(esc(t('adm.t.users')), `<div class="tbl"><table id="tbl-users"><thead><tr><th>#</th><th>${esc(t('th.username'))}</th><th>${esc(t('th.role'))}</th><th>${esc(t('th.status'))}</th><th>${esc(t('th.created'))}</th><th><span class="vh">${esc(t('th.actions'))}</span></th></tr></thead><tbody>${users.map((u) => `<tr><td>${u.id}</td><td class="u">${esc(u.username)}${u.id === me.id ? ` <span class="sub">${esc(t('adm.you'))}</span>` : ''}</td><td>${esc(roleText(u.role))}</td><td>${u.active ? tag('na', t('adm.active')) : tag('na', t('adm.inactive'))}</td><td class="nw">${when(u.created_at)}</td>
               <td class="nw">${u.id === me.id ? '' : `<button class="${u.active ? 'danger' : ''}" data-user="${u.id}" data-name="${esc(u.username)}" data-to="${u.active ? 0 : 1}">${esc(t(u.active ? 'adm.deactivate' : 'adm.reactivate'))}</button>`}</td></tr>`).join('')}</tbody></table></div>`, { flush: true, count: users.length, foot: esc(t('adm.users.foot')) })}
             ${panel(esc(t('adm.add.h')), `<form id="nu" novalidate><div class="fgrid"><div class="field"><label for="nuu">${esc(t('th.username'))}</label><input id="nuu" name="u" autocomplete="off" autocapitalize="none" spellcheck="false"></div><div class="field"><label for="nup">${esc(t('adm.add.pass'))}</label><input id="nup" name="p" type="password" autocomplete="new-password"></div><div class="field"><label for="nur">${esc(t('th.role'))}</label><select id="nur" name="r">${['engineer', 'viewer', 'admin'].map((r) => `<option value="${r}">${esc(roleText(r))}</option>`).join('')}</select></div></div><div id="umsg"></div><button class="pri">${esc(t('adm.add.go'))}</button></form>`)}`)}
+          ${tabPanel('ad', 'licence', active, `${panel(esc(t('lic.panel.h')), `<div class="tbl"><table><thead><tr><th>${esc(t('th.setting'))}</th><th>${esc(t('th.value'))}</th></tr></thead><tbody>${licRows.map(([k, v]) => `<tr><td>${esc(t(k))}</td><td>${v}</td></tr>`).join('')}</tbody></table></div>`, { flush: true, foot: esc(t('lic.panel.foot')) })}
+            ${panel(esc(t('lic.install.h')), `<form id="licup" novalidate><div class="field"><label for="licfile">${esc(t('lic.install.h'))}</label><input id="licfile" type="file" accept=".nflic"></div><div id="licmsg"></div><button class="pri">${esc(t('lic.install.go'))}</button></form>`, { foot: esc(t('lic.install.foot')) })}`)}
           ${tabPanel('ad', 'security', active, panel(esc(t('adm.sec.h')), `<div class="tbl"><table><thead><tr><th>${esc(t('th.setting'))}</th><th>${srvHead('th.value')}</th></tr></thead><tbody>${Object.entries(sec).map(([k, v]) => `<tr><td>${ja() && idLabel('security', k) ? `${jaHtml(idLabel('security', k))}<br>${mono(k)}` : ja() ? mono(k) : words(k)}</td><td>${val(v)}</td></tr>`).join('')}</tbody></table></div>`, { flush: true, foot: esc(t('adm.sec.foot')) }))}
           ${tabPanel('ad', 'audit', active, panel(esc(t('adm.t.audit')), `<div class="tbl"><table id="tbl-audit"><thead><tr><th>${esc(t('th.when'))}</th><th>${esc(t('th.user'))}</th><th>${esc(t('th.action'))}</th><th>${srvHead('th.detail')}</th></tr></thead><tbody>${audit.map((x) => `<tr><td class="nw">${when(x.at)}</td><td>${ud(x.username)}</td><td>${ja() && idLabel('audit', x.action) ? `${esc(idLabel('audit', x.action))}<br>` : ''}${mono(x.action)}</td><td>${srvText(x.detail)}</td></tr>`).join('')}</tbody></table></div>`,
             { flush: true, count: audit.length, tools: `${filterBox('tbl-audit', t('adm.audit.filter'))}<button id="verify">${ic('shield')}${esc(t('adm.verify'))}</button>`, foot: `<span id="chain">${chainHtml(chain)}</span> ${eng(chain.limitation)}` }))}
@@ -1626,6 +1672,19 @@ const views = {
             try { await api(`/api/users/${b.dataset.user}/active`, { method: 'POST', json: { active: !off } }); toast(() => h(off ? 'adm.off.done' : 'adm.on.done', { user: ud(name) }), 'ok'); refresh(); } catch (err) { toastErr(err); }
           }; });
           $('#verify').onclick = async (e) => { try { const ch = await withBusy(e.currentTarget, t('adm.verify.busy'), () => api('/api/audit/verify')); current.data.chain = ch; $('#chain').innerHTML = chainHtml(ch); toast(() => esc(ch.intact ? t('adm.chain.t.ok', { n: ch.entries }) : t('adm.chain.t.bad', { n: ch.first_broken_entry })), ch.intact ? 'ok' : 'err'); } catch (err) { toastErr(err); } };
+          // install a key file: the raw .nflic bytes go to POST /api/licence (the offline renewal path)
+          const lf = $('#licup');
+          if (lf) lf.onsubmit = async (e) => {
+            e.preventDefault(); clearFieldErrors(lf);
+            const inp = $('#licfile'), file = inp.files[0];
+            if (!file) { fieldError(inp, t('lic.install.none')); return; }
+            try {
+              const r = await withBusy($('button', lf), t('lic.install.busy'), () => api('/api/licence', { method: 'POST', body: file, headers: { 'Content-Type': 'application/octet-stream' } }));
+              licence = r; paintLicence();
+              toast(() => esc(t('lic.install.done', { state: t(`lic.state.${r.state}`) })), 'ok');
+              refresh();
+            } catch (err) { formError('#licmsg', err); }
+          };
         },
       };
     },
@@ -1765,7 +1824,9 @@ function renderBootError(err) {
     try {
       const session = await api('/api/session');
       if (!session.signed_in) { me = null; renderLogin({ setup: false, key: null }); return; }
-      me = { id: session.id, username: session.username, role: session.role }; route();
+      me = { id: session.id, username: session.username, role: session.role };
+      try { licence = await api('/api/licence'); } catch { licence = health.licence || null; }
+      route();
     } catch { /* an error is shown by api() */ }
   } catch (err) { renderBootError(err); }
 })();

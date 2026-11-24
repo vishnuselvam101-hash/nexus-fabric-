@@ -171,6 +171,11 @@ label{display:block;font-size:var(--t-m);color:var(--ink-2);margin:0 0 var(--s1)
 /* the build notice: boxed, amber, the same words on every screen */
 .devnote{margin-left:auto;display:flex;align-items:center;gap:6px;height:24px;padding:0 var(--s2);border:1px solid var(--amber-line);border-radius:2px;color:var(--amber);font-size:var(--t-s);font-weight:600;white-space:nowrap;min-width:0;overflow:hidden}
 .devnote>span{overflow:hidden;text-overflow:ellipsis}
+/* the licence strip beside the build notice: neutral while enforcement is off, amber in grace, red in read-only */
+.licnote{display:flex;align-items:center;gap:6px;height:24px;padding:0 var(--s2);border:1px solid var(--chrome-line);border-radius:2px;color:var(--chrome-mute);font-size:var(--t-s);font-weight:600;white-space:nowrap;min-width:0;max-width:38vw;overflow:hidden}
+.licnote>span{overflow:hidden;text-overflow:ellipsis}
+.licnote.warn{border-color:var(--amber-line);color:var(--amber)}
+.licnote.bad{border-color:var(--red-line);color:var(--red)}
 .tools{display:flex;align-items:center;gap:2px}
 /* language switch: both names always visible, each in its own language */
 .lang{display:inline-flex;height:24px;margin-right:var(--s2);border:1px solid var(--chrome-line);border-radius:var(--r);overflow:hidden;flex:none}
@@ -672,6 +677,7 @@ dialog form{margin:0}
   .app{grid-template-rows:auto minmax(0,1fr) 24px}
   .topbar{flex-wrap:wrap;row-gap:4px;height:auto;min-height:44px;padding-top:4px;padding-bottom:4px}
   .devnote{flex:1 1 auto}
+  .licnote{flex:1 1 auto;max-width:100%}
   .tools{flex-wrap:wrap;justify-content:flex-end;margin-left:auto;max-width:100%}
   /* phone (B1): the navigation is a menu opened by the menu button, drawn over the page with its labels */
   .navtoggle{display:inline-flex}
