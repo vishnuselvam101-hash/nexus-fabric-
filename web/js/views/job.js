@@ -26,6 +26,7 @@ const named = (kind, id) => { const l = idLabel(kind, id); if (!ja()) return l ?
 const famLabel = (k) => esc(idLabel('familyLong', k) || idText('family', k));
 const partName = (p) => (ja() && idLabel('part', p) ? `${esc(idLabel('part', p))} ${mono(p)}` : esc(p));
 const partText = (p) => (ja() && idLabel('part', p) ? `${idLabel('part', p)} ${p}` : String(p));
+const checkName = (n) => (ja() ? `${labelled('check', n)} ${mono(n)}` : words(n));
 const plabel = (fam, key) => idLabel('param', `${fam}.${key}`) || idLabel('param', key) || (ja() ? key : String(key).replaceAll('_', ' '));
 const jaHtml = (s) => esc(s).replace(/`([^`]+)`/g, '<span class="mono">$1</span>');
 function eng(text, key = 'eng.tag') {
@@ -78,6 +79,7 @@ const blocked = () => state !== 'REVIEW_REQUIRED' && state !== 'APPROVED';
 const canCorrect = () => canEdit() && !blocked() && c.correctable_parameters.length > 0;
 const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); if (!dead) fn(); }, ms); timers.add(id); };
 const openCount = () => c.obligations.filter((o) => o.state === 'open').length + c.advisories.filter((a) => a.state === 'open').length;
+const dxfHeld = (part) => Object.hasOwn(c.dxf_withheld || {}, part);
 
 function headerHtml() {
   const primary = c.superseded_by ? 'successor' : canCorrect() ? 'corr' : canEdit() ? 'clone' : '';
@@ -134,7 +136,7 @@ function checksHtml() {
   return panel(esc(t('tab.checks')), `<div class="row">${tag(passN === c.checks.length ? 'ok' : 'bad', t('c.n', { a: passN, b: c.checks.length }))}
     <span class="row" role="group" aria-label="${esc(t('c.scope.aria'))}">${['all', ...scopes].map((s) => `<button type="button" class="chip" data-scope="${esc(s)}" aria-pressed="${s === scope}">${s === 'all' ? esc(t('c.all')) : partName(s)}</button>`).join('')}</span></div>
     <ul class="il" id="checks">${c.checks.map((k) => `<li class="card" data-scope="${esc(k.scope)}"${scope !== 'all' && scope !== k.scope ? ' hidden' : ''}>
-      <div class="l1"><span class="id">${partName(k.scope)}</span><b>${ja() ? `${labelled('check', k.name)} ${mono(k.name)}` : words(k.name)}</b>${resultTag(k.verdict)}</div>
+      <div class="l1"><span class="id">${partName(k.scope)}</span><b>${checkName(k.name)}</b>${resultTag(k.verdict)}</div>
       <p class="sub">${h('c.method', { method: eng(k.method), cls: mono(k.independence) })}</p>
       <dl class="kv checks-grid"><dt>${esc(t('c.primary'))}</dt><dd>${num(k.primary)}</dd><dt>${esc(t('c.reference'))}</dt><dd>${num(k.reference)}</dd>
       <dt>${esc(t('c.difference'))}</dt><dd>${num(k.difference)}</dd><dt>${esc(t('c.tolerance'))}</dt><dd>${num(k.tolerance)}</dd></dl></li>`).join('')}</ul>${sub(t('c.foot'))}`, c.checks.length);
@@ -160,10 +162,18 @@ function recordsHtml() {
     <pre class="mono" lang="en">${esc(JSON.stringify(r.payload, null, 1))}</pre></div></details>`).join('')}`, c.records.length);
 }
 function dxfHtml() {
+  const free = c.patterns.filter((p) => !dxfHeld(p.part));
+  const link = (p) => `<a class="btn" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}" download aria-label="${esc(t('dxf.aria', { part: partText(p.part) }))}" title="${esc(t('dxf.tip', { part: partText(p.part) }))}">${esc(t('dxf.btn'))} · ${partName(p.part)}</a>`;
+  const held = (p) => {
+    const names = c.dxf_withheld[p.part] || [];
+    return alert(`<b>${esc(t('dxf.withheld.t', { part: partText(p.part) }))}</b><p>${esc(t('dxf.withheld.p', { n: names.length }))}</p>
+      <ul class="il">${names.map((n) => `<li>${checkName(n)}</li>`).join('')}</ul>`, 'warn');
+  };
   const body = !c.patterns.length ? sub(t('parts.none'))
     : blocked() ? sub(t('dxf.withheld'))
-      : `<div class="row">${c.patterns.map((p) => `<a class="btn" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}" download aria-label="${esc(t('dxf.aria', { part: partText(p.part) }))}" title="${esc(t('dxf.tip', { part: partText(p.part) }))}">${esc(t('dxf.btn'))} · ${partName(p.part)}</a>`).join('')}
-        ${c.patterns.length > 1 ? `<button type="button" class="btn" id="dxf-all" aria-label="${esc(t('dxf.all.aria', { n: c.patterns.length }))}">${esc(t('dxf.all', { n: c.patterns.length }))}</button>` : ''}</div>`;
+      : `<div class="row">${free.map(link).join('')}
+        ${free.length > 1 ? `<button type="button" class="btn" id="dxf-all" aria-label="${esc(t('dxf.all.aria', { n: free.length }))}">${esc(t('dxf.all', { n: free.length }))}</button>` : ''}</div>
+        ${c.patterns.filter((p) => dxfHeld(p.part)).map(held).join('')}`;
   return panel(esc(t('dxf.btn')), body);
 }
 function reqHtml() {
@@ -343,13 +353,14 @@ function wire() {
   const gp = $('#go-pattern', root); if (gp) gp.onclick = () => goTab('pattern');
   const da = $('#dxf-all', root);
   if (da) da.onclick = async () => {
-    for (const p of c.patterns) {
+    const parts = c.patterns.filter((p) => !dxfHeld(p.part));
+    for (const p of parts) {
       if (dead) return;
       const a = el('a', { href: `/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}`, download: '' });
       document.body.append(a); a.click(); a.remove();
       await new Promise((res) => later(res, 350));
     }
-    if (!dead) toast(t('dxf.all.toast', { n: c.patterns.length }), 'warn');
+    if (!dead) toast(t('dxf.all.toast', { n: parts.length }), 'warn');
   };
   $$('[data-ack]', root).forEach((btn) => { btn.onclick = async () => {
     const input = $(`[data-advreason="${btn.dataset.ack}"]`, root);

@@ -66,7 +66,7 @@ const STRINGS = {
     s9_a: 'Five shape families.', s9_l1: 'cylinder shell', s9_l2: 'cone frustum', s9_l3: 'eccentric reducer',
     s9_l4: 'branch stub', s9_l5: 'header shell with branch',
     s10_wm: 'NEXUS FABRIC', s10_line: 'Flat patterns you can check.', s10_cta: 'Request a demonstration',
-    s10_contact: '[contact]', s10_disc: 'Development build · not validated · not for manufacturing',
+    s10_contact: 'chuo-sogo.net\nsekishion@chuo-sogo.net · vishnu.s@chuo-sogo.net', s10_disc: 'Development build · not validated · not for manufacturing',
     st: 'Actual software · development build', st_suffix: ''
   },
   ja: {
@@ -81,7 +81,7 @@ const STRINGS = {
     s9_a: '5つの形状ファミリー。', s9_l1: '円筒', s9_l2: '円錐台', s9_l3: '偏心異径管',
     s9_l4: '枝管', s9_l5: '母管と枝管', s9_line: '円筒／円錐台／偏心異径管／枝管／母管と枝管',
     s10_wm: 'NEXUS FABRIC', s10_line: '検算できる板展開。', s10_cta: 'デモのご依頼はこちら',
-    s10_contact: '[contact]', s10_disc: '開発版・未検証・製造には使用できません',
+    s10_contact: 'chuo-sogo.net\nsekishion@chuo-sogo.net · vishnu.s@chuo-sogo.net', s10_disc: '開発版・未検証・製造には使用できません',
     st: '実際の画面・開発版', st_suffix: '・画面は英語版'
   }
 };
@@ -192,6 +192,25 @@ const NF = {
 window.NF = NF;
 window.SHOTS = [];
 
+// ---------- end card: the contact block keeps its authored line break, centred, clear of the disclaimer ----------
+let contactFixed = false;
+const fixContact = () => {
+  const nodes = [...stage.querySelectorAll('div,span,p')];
+  const hits = nodes.filter((n) => n.textContent.includes('chuo-sogo.net') && n.textContent.includes('@'));
+  const c = hits[hits.length - 1];
+  if (!c) return false;
+  c.style.whiteSpace = 'pre-line'; c.style.textAlign = 'center'; c.style.lineHeight = '1.5';
+  const dh = nodes.filter((n) => n.textContent.trim() === text('s10_disc').trim());
+  const d = dh[dh.length - 1];
+  if (d) {
+    const sr = stage.getBoundingClientRect(), pr = (d.offsetParent || stage).getBoundingClientRect();
+    const h = d.getBoundingClientRect().height;
+    const top = Math.min(c.getBoundingClientRect().bottom - sr.top + 24, 1080 - 40 - h);
+    d.style.top = (top - (pr.top - sr.top)).toFixed(2) + 'px'; d.style.bottom = 'auto';
+  }
+  return true;
+};
+
 // ---------- the cut: hide every shot layer, render the live one (+0.3 s outgoing overlap for dissolves) ----------
 window.seek = (t) => {
   t = clamp(t, 0, DUR);
@@ -205,6 +224,7 @@ window.seek = (t) => {
     L.style.opacity = over ? (1 - seg(t, s.b, s.b + .3)).toFixed(4) : 1;
     try { s.render(t, t - s.a); } catch (e) { console.error('shot ' + (i + 1), e); }
   });
+  if (!contactFixed && SHOTS.length && t >= SHOTS[SHOTS.length - 1].a) contactFixed = fixContact();
 };
 </script>
 <script src="unroll.js"></script>

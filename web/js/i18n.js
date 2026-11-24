@@ -846,6 +846,8 @@ const EN = {
   "smp.2.name": "Sample 2: concentric and eccentric reducers",
   "smp.3.name": "Sample 3: header with branch and branch stub",
   "smp.go": "Open the sample projects",
+  "dxf.withheld.t": "No DXF for {part}",
+  "dxf.withheld.p": "{n} check(s) on this part's cut geometry could not be confirmed, so the file is withheld until every check is decided:",
 };
 
 // ================================================================ 日本語
@@ -1629,6 +1631,8 @@ const JA = {
   "smp.2.name": "サンプル2：同心レジューサと偏心レジューサ",
   "smp.3.name": "サンプル3：母管＋枝管と枝管スタブ",
   "smp.go": "サンプルプロジェクトを開く",
+  "dxf.withheld.t": "{part}のDXFはありません",
+  "dxf.withheld.p": "この部材の切断形状に関する検証項目{n}件が未確定です。すべての項目の判定が確定するまで、ファイルは提供されません：",
 };
 
 const MSG = { en: EN, ja: JA };

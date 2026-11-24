@@ -20,8 +20,10 @@ const sheet = (files, out, cols, w, h) => { const a = ['-loglevel', 'error', '-y
     for (let t = a; t <= c + 1e-6; t += 0.1) { await p.evaluate((x) => window.seek(x), t); const f = path.join(tmp, `${files.length}.png`); await p.screenshot({ path: f }); files.push(f); }
     sheet(files, path.join(dir, `burst-${lang}-${a}.png`), 5, 768, 432); fs.rmSync(tmp, { recursive: true, force: true });
   } else { const out = path.join(__dirname, 'final'); fs.mkdirSync(out, { recursive: true });
-    const ff = spawn('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'image2pipe', '-framerate', '30', '-i', '-', '-c:v', 'libx264', '-profile:v', 'high', '-level', '5.1', '-s', '3840x2160', '-pix_fmt', 'yuv420p', '-crf', '16', '-preset', 'slow', '-movflags', '+faststart', path.join(out, `NEXUS-FABRIC-ad-4k-${lang}-picture.mp4`)], { stdio: ['pipe', 'inherit', 'inherit'] });
-    for (let f = 0; f < 900; f++) { await p.evaluate((x) => window.seek(x), f / 30); if (!ff.stdin.write(await p.screenshot({ type: 'png' }))) await new Promise((r) => ff.stdin.once('drain', r));
-      if ((f + 1) % 90 === 0) console.log(`video ${lang}: ${f + 1}/900 frames (${((f + 1) / 30).toFixed(1)}s)`); }
+    const fps = Number(process.env.NF_FPS || 30), frames = Math.round(30 * fps), every = Math.max(1, Math.round(3 * fps));
+    const name = fps === 30 ? `NEXUS-FABRIC-ad-4k-${lang}-picture.mp4` : `NEXUS-FABRIC-ad-4k60-${lang}-picture.mp4`;
+    const ff = spawn('ffmpeg', ['-loglevel', 'error', '-y', '-f', 'image2pipe', '-framerate', String(fps), '-i', '-', '-c:v', 'libx264', '-profile:v', 'high', '-level', fps === 30 ? '5.1' : '5.2', '-r', String(fps), '-s', '3840x2160', '-pix_fmt', 'yuv420p', '-crf', '16', '-preset', 'slow', '-movflags', '+faststart', path.join(out, name)], { stdio: ['pipe', 'inherit', 'inherit'] });
+    for (let f = 0; f < frames; f++) { await p.evaluate((x) => window.seek(x), f / fps); if (!ff.stdin.write(await p.screenshot({ type: 'png' }))) await new Promise((r) => ff.stdin.once('drain', r));
+      if ((f + 1) % every === 0) console.log(`video ${lang}: ${f + 1}/${frames} frames (${((f + 1) / fps).toFixed(1)}s)`); }
     ff.stdin.end(); await new Promise((r) => ff.on('close', r)); }
   console.log('console errors:', errs.length, errs.slice(0, 5).join(' | ')); await b.close(); if (errs.length) process.exitCode = 1; })();
