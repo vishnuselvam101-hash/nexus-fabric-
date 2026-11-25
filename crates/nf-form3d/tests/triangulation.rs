@@ -13,6 +13,8 @@
 //! triangle has positive area in 3D with its centroid and edge midpoints within the tolerance of the surface (up to
 //! 1e-9 times the largest dimension M).
 
+use std::collections::HashMap;
+
 use nf_form3d::triangulate::{
     Triangulation, net_area, pattern_polygons, signed_area, triangulate, triangulate_formed,
 };
@@ -186,6 +188,104 @@ fn check_formed_area(t: &Triangulation, outer: &[P2], holes: &[Vec<P2>], pat: &P
     );
 }
 
+/// Distance (mm) from `q` to the closed segment a-b.
+fn segment_distance(q: P2, a: P2, b: P2) -> f64 {
+    let (dx, dy) = (b.x - a.x, b.y - a.y);
+    let len2 = dx * dx + dy * dy;
+    let t = if len2 == 0.0 {
+        0.0
+    } else {
+        (((q.x - a.x) * dx + (q.y - a.y) * dy) / len2).clamp(0.0, 1.0)
+    };
+    q.dist(p(a.x + t * dx, a.y + t * dy))
+}
+
+/// Mesh conformity of a formed triangulation of the plate `outer` with `holes`, to the tolerance 1e-9 times the largest
+/// dimension M of the form: every edge of a triangle is interior (shared by two triangles, traversed in opposite
+/// directions) or on the plate boundary (used by one triangle, and the boundary edges cover the perimeter exactly once);
+/// no vertex lies within the tolerance of a triangle edge other than its end points (no T-junction, no duplicate); and
+/// no triangle has zero area in 3D.
+fn check_conformity(form: &Form3d, outer: &[P2], holes: &[Vec<P2>], t: &Triangulation) {
+    let m = form.largest_dimension();
+    let tol = 1e-9 * m;
+    let loops = std::iter::once(outer).chain(holes.iter().map(Vec::as_slice));
+    let boundary: Vec<(P2, P2)> = loops
+        .flat_map(|poly| {
+            let n = poly.len();
+            (0..n).map(move |i| (poly[i], poly[(i + 1) % n]))
+        })
+        .collect();
+    let perimeter: f64 = boundary.iter().map(|&(a, b)| a.dist(b)).sum();
+    let on_boundary = |q: P2| {
+        boundary
+            .iter()
+            .any(|&(a, b)| segment_distance(q, a, b) <= tol)
+    };
+
+    let mut directed: HashMap<(usize, usize), usize> = HashMap::new();
+    for &[a, b, c] in &t.triangles {
+        for e in [(a, b), (b, c), (c, a)] {
+            *directed.entry(e).or_insert(0) += 1;
+        }
+    }
+    let mut boundary_length = 0.0;
+    for (&(x, y), &uses) in &directed {
+        assert_eq!(
+            uses, 1,
+            "directed edge {x}->{y} is used by {uses} triangles"
+        );
+        let (q, r) = (t.vertices[x], t.vertices[y]);
+        let mid = p(0.5 * (q.x + r.x), 0.5 * (q.y + r.y));
+        if directed.contains_key(&(y, x)) {
+            assert!(
+                !on_boundary(mid),
+                "interior edge {x}-{y} lies on the plate boundary"
+            );
+        } else {
+            assert!(
+                on_boundary(mid),
+                "boundary edge {x}-{y} is not on the plate outline or a hole"
+            );
+            boundary_length += q.dist(r);
+        }
+    }
+    assert!(
+        (boundary_length - perimeter).abs() <= 1e-9 * perimeter,
+        "boundary edges cover {boundary_length} mm of the perimeter {perimeter} mm"
+    );
+
+    for &[a, b, c] in &t.triangles {
+        for (x, y) in [(a, b), (b, c), (c, a)] {
+            let (q, r) = (t.vertices[x], t.vertices[y]);
+            for (k, &v) in t.vertices.iter().enumerate() {
+                if k == x || k == y {
+                    continue;
+                }
+                assert!(
+                    segment_distance(v, q, r) > tol,
+                    "vertex {k} lies within {tol:e} mm of edge {x}-{y}: a T-junction or a duplicate"
+                );
+            }
+        }
+        let (pa, pb, pc) = (
+            form.map(t.vertices[a]),
+            form.map(t.vertices[b]),
+            form.map(t.vertices[c]),
+        );
+        let (e1, e2) = (sub(pb, pa), sub(pc, pa));
+        let n = [
+            e1[1] * e2[2] - e1[2] * e2[1],
+            e1[2] * e2[0] - e1[0] * e2[2],
+            e1[0] * e2[1] - e1[1] * e2[0],
+        ];
+        let area3 = 0.5 * (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+        assert!(
+            area3 > 1e-9 * m * m,
+            "triangle {a} {b} {c} has zero area in 3D: {area3:e} mm2"
+        );
+    }
+}
+
 #[test]
 fn branch_stub_of_the_fixture_triangulates_within_the_chord_bound() {
     let pat = develop::branch_stub(150.0, 100.0, 100.0, 60.0, 0.0, 400.0).unwrap();
@@ -195,7 +295,31 @@ fn branch_stub_of_the_fixture_triangulates_within_the_chord_bound() {
     let t = triangulate_formed(&form, &outer, &holes, CHORD).unwrap();
     // the branch cylinder has radius 100 mm (its developed width is 2 pi r)
     check_chord(&form, 100.0, CHORD, &t);
+    check_conformity(&form, &outer, &holes, &t);
     check_formed_area(&t, &outer, &holes, &pat);
+}
+
+#[test]
+fn hole_straddling_slab_lines_is_conformal() {
+    // a cylinder of radius 100 mm and length 250 mm, with a diamond hole 14 mm wide: the slab lines (about 2.8 mm
+    // apart) cross the hole, so its boundary is cut by several slab lines and the pieces meet along them
+    let cyl = Form3d::cylinder(100.0, 250.0).unwrap();
+    let outer = [p(0.0, 0.0), p(628.0, 0.0), p(628.0, 250.0), p(0.0, 250.0)];
+    let holes = vec![vec![
+        p(305.0, 60.0),
+        p(312.0, 100.0),
+        p(305.0, 140.0),
+        p(298.0, 100.0),
+    ]];
+    let t = triangulate_formed(&cyl, &outer, &holes, CHORD).unwrap();
+    check_chord(&cyl, 100.0, CHORD, &t);
+    check_conformity(&cyl, &outer, &holes, &t);
+    let sum = triangle_area_sum(&t.vertices, &t.triangles);
+    let net = net_area(&outer, &holes);
+    assert!(
+        (sum - net).abs() <= 1e-9 * net,
+        "triangles {sum} vs net {net}"
+    );
 }
 
 #[test]
@@ -214,6 +338,7 @@ fn header_shell_with_opening_triangulates_within_the_chord_bound() {
     let t = triangulate_formed(&form, &outer, &holes, CHORD).unwrap();
     // the header shell has radius 150 mm (its developed width is 2 pi R)
     check_chord(&form, 150.0, CHORD, &t);
+    check_conformity(&form, &outer, &holes, &t);
     check_formed_area(&t, &outer, &holes, &pat);
 }
 

@@ -473,6 +473,12 @@ fn clip_half_plane(
 }
 
 /// The vertex index of `p` in `vertices`, appending `p` when no vertex lies within `tol` of it.
+///
+/// `tol` is the merge tolerance 1e-9 times the largest dimension M of the part. The points merged here are the slab
+/// line points computed from the two neighbouring slabs, which differ only by rounding (about 1e-16 M), so 1e-9 M
+/// merges them and nothing else: it is far below the chord tolerance (0.01 mm, about 1e-7 M for a 100 mm part) and far
+/// above the rounding. `intern` has no triangle in view, so a merge that would collapse a triangle is refused by the
+/// caller, `triangulate_formed`, which requires the three corners of every triangle to stay distinct.
 fn intern(vertices: &mut Vec<P2>, p: P2, tol: f64) -> usize {
     if let Some(i) = vertices.iter().position(|&v| v.dist(p) <= tol) {
         return i;
@@ -574,11 +580,16 @@ pub fn triangulate_formed(
                 .iter()
                 .map(|&p| intern(&mut vertices, p, tol))
                 .collect();
-            triangles.extend(
-                t.triangles
-                    .iter()
-                    .map(|tr| [map[tr[0]], map[tr[1]], map[tr[2]]]),
-            );
+            for tr in &t.triangles {
+                let g = [map[tr[0]], map[tr[1]], map[tr[2]]];
+                // a merge within the tolerance must not collapse a triangle: its three corners stay distinct
+                if g[0] == g[1] || g[1] == g[2] || g[2] == g[0] {
+                    return Err(Form3dError::NotTriangulable(
+                        "a slab vertex merge collapses a triangle",
+                    ));
+                }
+                triangles.push(g);
+            }
         }
     }
     Ok(Triangulation {
