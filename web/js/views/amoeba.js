@@ -14,9 +14,9 @@ const byWhen = (who, ts) => `${ud(who)}<br><span class="sub">${when(ts)}</span>`
 const CHIP = { ok: 'ok', warn: 'warn', bad: 'bad' };
 const tag = (kind, text) => `<span class="chip ${CHIP[kind] || ''}">${esc(text)}</span>`;
 const panel = (title, body, o = {}) => `<section class="panel"><div class="panel-h"><h2>${title}</h2>${o.count !== undefined ? `<span class="cnt">${esc(o.count)}</span>` : ''}${o.tools || ''}</div>${body}${o.foot ? `<div class="panel-b sub">${o.foot}</div>` : ''}</section>`;
-const tbl = (id, heads, rows) => `<div class="panel-b"><table class="table"${id ? ` id="${id}"` : ''}><thead><tr>${heads.map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+const tbl = (id, heads, rows) => `<div class="panel-b tbl-sticky"><table class="table"${id ? ` id="${id}"` : ''}><thead><tr>${heads.map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
 const empty = (title, text) => `<div class="panel-b"><div class="alert"><b>${esc(title)}</b><p class="sub">${text}</p></div></div>`;
-const filterBox = (target, label) => `<div class="field"><label class="sub" for="flt-${target}">${esc(label)}</label><input id="flt-${target}" type="search" data-filter="${target}" autocomplete="off"></div>`;
+const filterBox = (target, label) => `<div class="search"><label class="vh" for="flt-${target}">${esc(label)}</label><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input id="flt-${target}" type="search" data-filter="${target}" placeholder="${esc(label)}" autocomplete="off"></div>`;
 const errHtml = (e) => (e && e.key ? esc(t(e.key, e.params)) : e && e.message ? srv(e.message) : esc(String(e)));
 
 // identifiers the engine or server owns: reviewed label in Japanese with the identifier beside it
@@ -167,6 +167,7 @@ function wireFilters(host) {
 function show(k) {
   activeTab = tabDefs.some((x) => x[0] === k) ? k : 'records';
   $$('[role=tab]', root).forEach((b) => { const on = b.dataset.tab === activeTab; b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; });
+  $$('[data-goto]', root).forEach((b) => b.setAttribute('aria-current', String(b.dataset.goto === activeTab)));
   body.innerHTML = panelFor(activeTab);
   wireFilters(body);
   if (activeTab === 'dependencies' && graph) graph.wire(body);
@@ -177,9 +178,14 @@ function show(k) {
 function tabHash(k) { return `#/amoeba/${k}${k === 'dependencies' && depId ? `/${depId}` : ''}`; }
 
 function renderShell() {
-  root.innerHTML = `<div class="workspace"><div class="panel-h"><h1>${esc(t('nav.amoeba'))}</h1><p class="sub">${esc(t('am.sub'))}</p></div>
+  // summary cards first (the same totals as the tab badges); each opens its tab
+  const stats = tabDefs.filter((d) => d[2] !== undefined && d[2] !== null).map(([k, l, n, attn]) =>
+    `<button type="button" class="stat${attn ? ' warn' : ''}" data-goto="${k}"><span class="stat-n">${n}</span><span class="stat-l">${esc(l)}</span></button>`).join('');
+  root.innerHTML = `<div class="workspace"><header class="page-h"><h1>${esc(t('nav.amoeba'))}</h1><p class="sub">${esc(t('am.sub'))}</p></header>
+    <div class="stats">${stats}</div>
     <div class="tabs" role="tablist" aria-label="${esc(t('am.tabs.aria'))}">${tabDefs.map(([k, l, n, attn]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === activeTab}" tabindex="${k === activeTab ? 0 : -1}">${esc(l)}${n !== undefined && n !== null ? `<span class="cnt${attn ? ' warn' : ''}">${n}</span>` : ''}</button>`).join('')}</div>
     <div class="ws-content" id="am-body"></div></div>`;
+  $$('[data-goto]', root).forEach((b) => b.addEventListener('click', () => { show(b.dataset.goto); if (location.hash !== tabHash(activeTab)) location.hash = tabHash(activeTab); }));
   body = $('#am-body', root);
   const list = $('[role=tablist]', root), tabs = $$('[role=tab]', list);
   list.addEventListener('click', (e) => { const b = e.target.closest('[role=tab]'); if (!b) return; show(b.dataset.tab); if (location.hash !== tabHash(activeTab)) location.hash = tabHash(activeTab); });
