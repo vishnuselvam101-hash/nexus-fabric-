@@ -75,6 +75,24 @@ notices_match_graph() { # notices_match_graph <THIRD_PARTY_NOTICES.txt>
   return 0
 }
 
+# Every web/vendor/*/LICENSE (the licence of a bundled browser library) must appear
+# verbatim in the notices file, so a vendored library cannot ship without its licence text.
+vendor_licences_listed() { # vendor_licences_listed <THIRD_PARTY_NOTICES.txt>
+  local notices_text lic n=0 text
+  notices_text=$(cat "$1")
+  for lic in "$ROOT"/web/vendor/*/LICENSE; do
+    [ -f "$lic" ] || continue
+    n=$((n+1))
+    text=$(cat "$lic")
+    case "$notices_text" in
+      *"$text"*) ;;
+      *) echo "  not listed verbatim: ${lic#"$ROOT"/}"; return 1 ;;
+    esac
+  done
+  [ "$n" -gt 0 ] || { echo "  no web/vendor/*/LICENSE found"; return 1; }
+  return 0
+}
+
 check "THIRD_PARTY_NOTICES.txt is in the package" test -f "$NOTICES"
 if [ -f "$NOTICES" ]; then
   check "notices list at least 90 crate entries" \
@@ -89,6 +107,8 @@ if [ -f "$NOTICES" ]; then
     grep -q 'Permission is hereby granted, free of charge' "$NOTICES"
   check "notices name+version set equals cargo tree -e normal,build of nf-server and nf-pdf for both targets" \
     notices_match_graph "$NOTICES"
+  check "every web/vendor/*/LICENSE is listed verbatim in the notices" \
+    vendor_licences_listed "$NOTICES"
 fi
 
 if [ "$fail" -ne 0 ]; then
