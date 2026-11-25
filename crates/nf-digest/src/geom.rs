@@ -4,14 +4,19 @@
 
 use crate::reader::{Ent, P};
 
-/// Relative digest tolerance: tol = TOL_REL x the part's bounding-box diagonal (both in mm).
-/// About 0.001 mm for a 1 m part; it scales with the job, so scaled jobs get the same verdicts.
+/// Relative digest tolerance (E4 v3): tol = max(FLOOR_REL x M, min(CAP, TOL_REL x M)), M = the part's
+/// bounding-box diagonal (mm). Normal and large parts get CAP (0.001 mm); tiny scaled parts scale with
+/// the job (so their verdicts do not change with the scale); huge parts get a float-noise floor.
 pub const TOL_REL: f64 = 1e-6;
+/// Absolute cap of the digest tolerance (mm).
+pub const TOL_CAP: f64 = 0.001;
+/// Float-noise floor, relative to the diagonal.
+pub const FLOOR_REL: f64 = 1e-9;
 
 /// Digest tolerance (mm) of a part whose bounding-box diagonal is `diag` (mm).
 pub fn tolerance(diag: f64) -> f64 {
     if diag.is_finite() && diag > 0.0 {
-        TOL_REL * diag
+        (FLOOR_REL * diag).max((TOL_REL * diag).min(TOL_CAP))
     } else {
         0.0
     }
@@ -140,8 +145,14 @@ fn arc_piece(layer: &str, c: P, r: f64, start_deg: f64, end_deg: f64, tiny_min: 
     let sweep = (end_deg.to_radians() - t0).rem_euclid(tau);
     let arc = Arc { c, r, t0, sweep };
     let length = r.abs() * sweep;
-    let step = if r.abs() > SAG {
-        2.0 * (1.0 - SAG / r.abs()).acos()
+    // the chord sagitta never exceeds the digest tolerance, so tiny parts are sampled as finely as their size needs
+    let sag = if tiny_min > 0.0 {
+        SAG.min(tiny_min)
+    } else {
+        SAG
+    };
+    let step = if r.abs() > sag {
+        2.0 * (1.0 - sag / r.abs()).acos()
     } else {
         sweep.max(1e-9)
     };
@@ -541,11 +552,12 @@ pub fn bbox_of(pts: impl Iterator<Item = P>) -> Option<[f64; 4]> {
 /// Radius of the circle through three points, None when they are (nearly) collinear.
 pub fn circumradius(a: P, b: P, c: P) -> Option<f64> {
     let d = 2.0 * cross([b[0] - a[0], b[1] - a[1]], [c[0] - a[0], c[1] - a[1]]);
-    if d.abs() < 1e-12 {
-        return None;
-    }
     let ab = dist(a, b);
     let bc = dist(b, c);
     let ca = dist(c, a);
+    // scale-free: |sin| of the angle at a, so the same verdict at every scale
+    if d.abs() <= 1e-12 * ab * dist(a, c) {
+        return None;
+    }
     Some(ab * bc * ca / d.abs())
 }

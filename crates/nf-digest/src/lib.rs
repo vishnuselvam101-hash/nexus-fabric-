@@ -7,8 +7,8 @@
 //! measured. A FAIL is a finding. An INCONCLUSIVE means the file could not be judged on that point.
 //!
 //! The digest decides nothing by itself: the server keeps a DXF back unless every check PASSes.
-//! Tolerance: tol = 1e-6 x the part's bounding-box diagonal (about 0.001 mm for a 1 m part), for positions,
-//! lengths, radii and segments alike. Every finding that uses it reports the measured value and tol in mm.
+//! Tolerance (E4 v3): tol = max(1e-9 x M, min(0.001 mm, 1e-6 x M)), M = the part's bounding-box diagonal, for
+//! positions, lengths, radii, joins and segments alike. Every finding that uses it reports the measured value and tol in mm.
 
 pub mod geom;
 pub mod reader;
@@ -756,13 +756,12 @@ fn extents_check(cut: &[&Piece], r: &Reference, tol: f64) -> Check {
 }
 
 /// Loop of a reference: its curves joined end to end (either direction) into one point sequence.
-fn reference_loop(curves: &[RefCurve]) -> Option<Vec<[f64; 2]>> {
+fn reference_loop(curves: &[RefCurve], tol: f64) -> Option<Vec<[f64; 2]>> {
     let first = curves.first()?;
     let mut used = vec![false; curves.len()];
     used[0] = true;
     let mut pts = first.points.clone();
-    let close =
-        |a: [f64; 2], b: [f64; 2]| (a[0] - b[0]).abs() <= 0.01 && (a[1] - b[1]).abs() <= 0.01;
+    let close = |a: [f64; 2], b: [f64; 2]| (a[0] - b[0]).abs() <= tol && (a[1] - b[1]).abs() <= tol;
     loop {
         let end = *pts.last()?;
         let next = curves.iter().enumerate().find(|(i, c)| {
@@ -804,10 +803,11 @@ fn area_check(
         .chain(r.holes.iter())
         .map(|c| c.max_dev * c.length)
         .sum();
+    let join_tol = tol;
     let tol = tol * perim + arc_loss;
     let measured: f64 = closed_outer.iter().map(|c| c.area).sum::<f64>()
         - closed_inner.iter().map(|c| c.area).sum::<f64>();
-    let Some(outer_pts) = reference_loop(&r.outer) else {
+    let Some(outer_pts) = reference_loop(&r.outer, join_tol) else {
         return check(
             "area",
             Verdict::Inconclusive,

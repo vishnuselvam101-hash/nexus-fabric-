@@ -200,6 +200,29 @@ fn duplicate_entity_fails() {
 
 #[test]
 fn tiny_segment_fails() {
+    // E4 v3: the 111.8 mm part has tol 1.1e-4 mm, so this 0.00005 mm segment is below it (spec change, recorded)
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.poly(
+        "CUT_OUTER",
+        &[
+            [0.0, 0.0],
+            [100.0, 0.0],
+            [100.00005, 0.0],
+            [100.0, 50.0],
+            [0.0, 50.0],
+        ],
+        true,
+    );
+    d.poly("CUT_INNER", &SQUARE, true);
+    let rep = run(&d, &rect_reference());
+    assert_fails(&rep, "tiny_segments");
+    assert!(check_named(&rep, "tiny_segments").measured.unwrap() >= 1.0);
+}
+
+#[test]
+fn segment_of_0_0005_mm_passes_on_112_mm_part() {
+    // E4 v3: tol of the 111.8 mm part is 1.1e-4 mm, so a 0.0005 mm segment is a real edge, not a tiny one
     let mut d = Doc::new();
     d.insunits = Some(4);
     d.poly(
@@ -215,8 +238,7 @@ fn tiny_segment_fails() {
     );
     d.poly("CUT_INNER", &SQUARE, true);
     let rep = run(&d, &rect_reference());
-    assert_fails(&rep, "tiny_segments");
-    assert!(check_named(&rep, "tiny_segments").measured.unwrap() >= 1.0);
+    assert_eq!(check_named(&rep, "tiny_segments").verdict, Verdict::Pass);
 }
 
 #[test]
@@ -501,14 +523,19 @@ fn scaled_job(s: f64) -> (Doc, Reference) {
     (d, r)
 }
 
-/// Tolerance of the rectangle reference at scale `s`: 1e-6 x its diagonal (100 mm by 50 mm).
+/// Tolerance of the rectangle reference at scale `s` (E4 v3 rule on its 100 mm by 50 mm diagonal).
 fn rect_tol(s: f64) -> f64 {
-    1e-6 * (100.0f64.powi(2) + 50.0f64.powi(2)).sqrt() * s
+    geom::tolerance((100.0f64.powi(2) + 50.0f64.powi(2)).sqrt() * s)
 }
 
 #[test]
-fn tolerance_is_relative_to_the_part_diagonal() {
-    assert!((geom::tolerance(1000.0 * 2f64.sqrt()) - 0.001 * 2f64.sqrt()).abs() < 1e-15);
+fn tolerance_follows_the_v3_rule() {
+    // normal and large parts: capped at 0.001 mm
+    assert!((geom::tolerance(1000.0 * 2f64.sqrt()) - 0.001).abs() < 1e-15);
+    // tiny parts: 1e-6 x diagonal, so a scaled job gets the same verdicts
+    assert!((geom::tolerance(1e-6) - 1e-12).abs() < 1e-24);
+    // huge parts: float-noise floor 1e-9 x diagonal
+    assert!((geom::tolerance(1e9) - 1.0).abs() < 1e-12);
     assert_eq!(geom::tolerance(0.0), 0.0);
     assert_eq!(geom::tolerance(f64::NAN), 0.0);
 }
