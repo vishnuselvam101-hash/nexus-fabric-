@@ -4,10 +4,25 @@
 
 use crate::reader::{Ent, P};
 
-/// Digest tolerance (mm): a gap, a duplicate position or a tiny segment is judged against this.
-pub const TOL: f64 = 0.001;
-/// A segment shorter than this (mm) is a tiny segment.
-pub const TINY: f64 = 0.001;
+/// Relative digest tolerance: tol = TOL_REL x the part's bounding-box diagonal (both in mm).
+/// About 0.001 mm for a 1 m part; it scales with the job, so scaled jobs get the same verdicts.
+pub const TOL_REL: f64 = 1e-6;
+
+/// Digest tolerance (mm) of a part whose bounding-box diagonal is `diag` (mm).
+pub fn tolerance(diag: f64) -> f64 {
+    if diag.is_finite() && diag > 0.0 {
+        TOL_REL * diag
+    } else {
+        0.0
+    }
+}
+
+/// Bounding-box diagonal (mm) of the finite points; 0 when there are none.
+pub fn diagonal(pts: impl Iterator<Item = P>) -> f64 {
+    bbox_of(pts.filter(|p| p[0].is_finite() && p[1].is_finite()))
+        .map_or(0.0, |b| (b[2] - b[0]).hypot(b[3] - b[1]))
+}
+
 /// Sagitta used to sample arcs for the intersection and inside tests (mm).
 const SAG: f64 = 1e-4;
 /// Most chords per arc; an arc needing more is sampled coarsely and the intersection test is inconclusive.
@@ -35,7 +50,7 @@ pub struct Piece {
     pub length: f64,
     /// Shortest segment (mm) of the piece.
     pub min_seg: f64,
-    /// Segments shorter than TINY (an arc counts as one segment).
+    /// Segments shorter than the digest tolerance (an arc counts as one segment).
     pub tiny: usize,
     /// False where an arc needed more chords than MAX_CHORDS.
     pub sampled_ok: bool,
@@ -73,17 +88,17 @@ fn cross(a: P, b: P) -> f64 {
 }
 
 /// Build the pieces of the cut geometry. `empty` counts polylines without vertices (degenerate, dropped).
-pub fn pieces(ents: &[Ent]) -> (Vec<Piece>, usize) {
+pub fn pieces(ents: &[Ent], tiny_min: f64) -> (Vec<Piece>, usize) {
     let mut out = Vec::new();
     let mut empty = 0;
     for e in ents {
         match e {
-            Ent::Line { layer, a, b } => out.push(path_piece(layer, vec![*a, *b], false)),
+            Ent::Line { layer, a, b } => out.push(path_piece(layer, vec![*a, *b], false, tiny_min)),
             Ent::Poly { layer, pts, closed } => {
                 if pts.is_empty() {
                     empty += 1;
                 } else {
-                    out.push(path_piece(layer, pts.clone(), *closed));
+                    out.push(path_piece(layer, pts.clone(), *closed, tiny_min));
                 }
             }
             Ent::Arc {
@@ -92,21 +107,21 @@ pub fn pieces(ents: &[Ent]) -> (Vec<Piece>, usize) {
                 r,
                 start_deg,
                 end_deg,
-            } => out.push(arc_piece(layer, *c, *r, *start_deg, *end_deg)),
+            } => out.push(arc_piece(layer, *c, *r, *start_deg, *end_deg, tiny_min)),
             Ent::Text { .. } | Ent::Other { .. } => {}
         }
     }
     (out, empty)
 }
 
-fn path_piece(layer: &str, pts: Vec<P>, closed: bool) -> Piece {
+fn path_piece(layer: &str, pts: Vec<P>, closed: bool, tiny_min: f64) -> Piece {
     let mut segs: Vec<f64> = pts.windows(2).map(|w| dist(w[0], w[1])).collect();
     if closed && pts.len() >= 2 {
         segs.push(dist(pts[pts.len() - 1], pts[0]));
     }
     let length: f64 = segs.iter().sum();
     let min_seg = segs.iter().copied().fold(f64::INFINITY, f64::min);
-    let tiny = segs.iter().filter(|s| **s < TINY).count() + usize::from(pts.len() < 2);
+    let tiny = segs.iter().filter(|s| **s < tiny_min).count() + usize::from(pts.len() < 2);
     Piece {
         layer: layer.to_string(),
         closed,
@@ -119,7 +134,7 @@ fn path_piece(layer: &str, pts: Vec<P>, closed: bool) -> Piece {
     }
 }
 
-fn arc_piece(layer: &str, c: P, r: f64, start_deg: f64, end_deg: f64) -> Piece {
+fn arc_piece(layer: &str, c: P, r: f64, start_deg: f64, end_deg: f64, tiny_min: f64) -> Piece {
     let tau = std::f64::consts::TAU;
     let t0 = start_deg.to_radians();
     let sweep = (end_deg.to_radians() - t0).rem_euclid(tau);
@@ -148,7 +163,7 @@ fn arc_piece(layer: &str, c: P, r: f64, start_deg: f64, end_deg: f64) -> Piece {
         arc: Some(arc),
         length,
         min_seg,
-        tiny: usize::from(length < TINY),
+        tiny: usize::from(length < tiny_min),
         sampled_ok,
     }
 }
@@ -227,7 +242,7 @@ pub struct Contour {
 }
 
 /// Chain the open pieces into contours and collect the closed polylines as contours of their own.
-pub fn contours(pieces: &[Piece]) -> Vec<Contour> {
+pub fn contours(pieces: &[Piece], tol: f64) -> Vec<Contour> {
     let mut out = Vec::new();
     for p in pieces.iter().filter(|p| p.closed) {
         out.push(Contour {
@@ -243,7 +258,7 @@ pub fn contours(pieces: &[Piece]) -> Vec<Contour> {
     let open: Vec<&Piece> = pieces.iter().filter(|p| !p.closed).collect();
     let m = 2 * open.len();
     let pos: Vec<P> = open.iter().flat_map(|p| [p.start(), p.end()]).collect();
-    // union-find over the ends: ends within TOL of each other are one joint
+    // union-find over the ends: ends within tol of each other are one joint
     let mut parent: Vec<usize> = (0..m).collect();
     fn find(parent: &mut [usize], mut x: usize) -> usize {
         while parent[x] != x {
@@ -254,7 +269,7 @@ pub fn contours(pieces: &[Piece]) -> Vec<Contour> {
     }
     for i in 0..m {
         for j in (i + 1)..m {
-            if dist(pos[i], pos[j]) <= TOL {
+            if dist(pos[i], pos[j]) <= tol {
                 let (a, b) = (find(&mut parent, i), find(&mut parent, j));
                 if a != b {
                     parent[a] = b;
@@ -383,7 +398,7 @@ fn walk(
 }
 
 /// Pairs of segments that cross properly (not at a shared end). Returns (count, inconclusive).
-pub fn crossings(pieces: &[&Piece]) -> (usize, bool) {
+pub fn crossings(pieces: &[&Piece], tol: f64) -> (usize, bool) {
     let mut segs: Vec<(P, P)> = Vec::new();
     let mut sampled = true;
     for p in pieces {
@@ -414,13 +429,13 @@ pub fn crossings(pieces: &[&Piece]) -> (usize, bool) {
     for i in 0..segs.len() {
         for j in (i + 1)..segs.len() {
             let (p, q) = (bb[i], bb[j]);
-            if p[2] < q[0] - TOL || q[2] < p[0] - TOL || p[3] < q[1] - TOL || q[3] < p[1] - TOL {
+            if p[2] < q[0] - tol || q[2] < p[0] - tol || p[3] < q[1] - tol || q[3] < p[1] - tol {
                 continue;
             }
             let ((a, b), (c, d)) = (segs[i], segs[j]);
             let touching = [a, b]
                 .iter()
-                .any(|x| [c, d].iter().any(|y| dist(*x, *y) <= TOL));
+                .any(|x| [c, d].iter().any(|y| dist(*x, *y) <= tol));
             if !touching && proper(a, b, c, d) {
                 count += 1;
             }
@@ -441,7 +456,7 @@ fn proper(a: P, b: P, c: P, d: P) -> bool {
 
 /// Pairs of segments that repeat each other: the same two ends (either direction) and the same middle.
 /// A polyline contributes each of its segments; an arc contributes once.
-pub fn duplicates(pieces: &[&Piece]) -> usize {
+pub fn duplicates(pieces: &[&Piece], tol: f64) -> usize {
     let mut units: Vec<(P, P, P)> = Vec::new();
     for p in pieces {
         match p.arc {
@@ -466,9 +481,9 @@ pub fn duplicates(pieces: &[&Piece]) -> usize {
     for i in 0..units.len() {
         for j in (i + 1)..units.len() {
             let ((a, b, m), (c, d, k)) = (units[i], units[j]);
-            let same_ends = (dist(a, c) <= TOL && dist(b, d) <= TOL)
-                || (dist(a, d) <= TOL && dist(b, c) <= TOL);
-            if same_ends && dist(m, k) <= TOL {
+            let same_ends = (dist(a, c) <= tol && dist(b, d) <= tol)
+                || (dist(a, d) <= tol && dist(b, c) <= tol);
+            if same_ends && dist(m, k) <= tol {
                 n += 1;
             }
         }

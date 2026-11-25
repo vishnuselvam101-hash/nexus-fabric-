@@ -7,12 +7,15 @@
 //! measured. A FAIL is a finding. An INCONCLUSIVE means the file could not be judged on that point.
 //!
 //! The digest decides nothing by itself: the server keeps a DXF back unless every check PASSes.
-//! Tolerances: TOL (0.001 mm) for positions, lengths and radii; TINY (0.001 mm) for segments.
+//! Tolerance: tol = 1e-6 x the part's bounding-box diagonal (about 0.001 mm for a 1 m part), for positions,
+//! lengths, radii and segments alike. Every finding that uses it reports the measured value and tol in mm.
 
 pub mod geom;
 pub mod reader;
 
-use geom::{Piece, TOL, bbox_of, contours, crossings, duplicates, inside, loop_area, pieces};
+use geom::{
+    Piece, bbox_of, contours, crossings, diagonal, duplicates, inside, loop_area, pieces, tolerance,
+};
 use reader::{Ent, Parsed};
 
 /// The marking statement every file carries (the same statement is required by policy, not taken from the writer).
@@ -187,9 +190,20 @@ pub fn check_text(text: &str, reference: &Reference) -> Report {
         Ok(p) => p,
         Err(why) => return Report::unreadable(&reference.part, why),
     };
-    let (geo, empty) = pieces(&parsed.ents);
+    // the digest tolerance follows the part: the declared outline's diagonal, else the file's own geometry
+    let declared = reference
+        .outer
+        .iter()
+        .chain(reference.holes.iter())
+        .flat_map(|c| c.points.iter().copied());
+    let mut diag = diagonal(declared);
+    if diag == 0.0 {
+        diag = diagonal(parsed.ents.iter().flat_map(ent_points));
+    }
+    let tol = tolerance(diag);
+    let (geo, empty) = pieces(&parsed.ents, tol);
     let all_contours = if parsed.nonfinite.is_empty() {
-        contours(&geo)
+        contours(&geo, tol)
     } else {
         Vec::new()
     };
@@ -214,7 +228,7 @@ pub fn check_text(text: &str, reference: &Reference) -> Report {
         )
     };
     if finite {
-        checks.extend(geometry(&geo, &all_contours, empty, reference));
+        checks.extend(geometry(&geo, &all_contours, empty, reference, tol));
     } else {
         for n in [
             "contours_closed",
@@ -242,6 +256,16 @@ pub fn check_text(text: &str, reference: &Reference) -> Report {
         entities: parsed.ents.len(),
         contours: contour_count,
         layers: parsed.layers.len(),
+    }
+}
+
+/// Points that bound an entity: its ends or vertices, and the corners of an arc's full circle.
+fn ent_points(e: &Ent) -> Vec<reader::P> {
+    match e {
+        Ent::Line { a, b, .. } => vec![*a, *b],
+        Ent::Poly { pts, .. } => pts.clone(),
+        Ent::Arc { c, r, .. } => vec![[c[0] - r, c[1] - r], [c[0] + r, c[1] + r]],
+        Ent::Text { .. } | Ent::Other { .. } => Vec::new(),
     }
 }
 
@@ -466,7 +490,13 @@ fn nf_metadata(p: &Parsed) -> Check {
     )
 }
 
-fn geometry(geo: &[Piece], all: &[geom::Contour], empty: usize, r: &Reference) -> Vec<Check> {
+fn geometry(
+    geo: &[Piece],
+    all: &[geom::Contour],
+    empty: usize,
+    r: &Reference,
+    tol: f64,
+) -> Vec<Check> {
     let cut: Vec<&Piece> = geo.iter().filter(|p| p.layer.starts_with("CUT")).collect();
     let closed_outer: Vec<&geom::Contour> = all
         .iter()
@@ -491,9 +521,9 @@ fn geometry(geo: &[Piece], all: &[geom::Contour], empty: usize, r: &Reference) -
         },
         Some(open.len() as f64),
         Some(0.0),
-        Some(TOL),
+        Some(tol),
         format!(
-            "{} open contour(s), {} branching joint(s); every contour must close within {TOL} mm",
+            "{} open contour(s), {} branching joint(s); every contour must close within {tol:.3e} mm",
             open.len(),
             branching
         ),
@@ -507,12 +537,12 @@ fn geometry(geo: &[Piece], all: &[geom::Contour], empty: usize, r: &Reference) -
         },
         Some(max_gap),
         Some(0.0),
-        Some(TOL),
-        format!("largest gap between free ends {max_gap:.6} mm"),
+        Some(tol),
+        format!("largest gap between free ends {max_gap:.6} mm; tolerance {tol:.3e} mm"),
     ));
 
     // crossings
-    let (cross_n, cross_inconclusive) = crossings(&cut);
+    let (cross_n, cross_inconclusive) = crossings(&cut, tol);
     out.push(if cross_inconclusive {
         check("self_intersection", Verdict::Inconclusive, None, Some(0.0), None, "too many segments for the crossing test (or an arc needs more chords than the test samples)".into())
     } else {
@@ -520,7 +550,7 @@ fn geometry(geo: &[Piece], all: &[geom::Contour], empty: usize, r: &Reference) -
     });
 
     // duplicates
-    let dup = duplicates(&cut);
+    let dup = duplicates(&cut, tol);
     out.push(check(
         "duplicates",
         if dup == 0 {
@@ -530,8 +560,8 @@ fn geometry(geo: &[Piece], all: &[geom::Contour], empty: usize, r: &Reference) -
         },
         Some(dup as f64),
         Some(0.0),
-        Some(TOL),
-        format!("{dup} duplicated piece(s)"),
+        Some(tol),
+        format!("{dup} duplicated piece(s); tolerance {tol:.3e} mm"),
     ));
 
     // tiny segments
@@ -546,10 +576,9 @@ fn geometry(geo: &[Piece], all: &[geom::Contour], empty: usize, r: &Reference) -
         },
         Some(tiny as f64),
         Some(0.0),
-        Some(geom::TINY),
+        Some(tol),
         format!(
-            "{tiny} segment(s) shorter than {} mm or empty; shortest {}",
-            geom::TINY,
+            "{tiny} segment(s) shorter than {tol:.3e} mm or empty; shortest {}",
             if min_seg.is_finite() {
                 format!("{min_seg:.6} mm")
             } else {
@@ -623,7 +652,7 @@ fn geometry(geo: &[Piece], all: &[geom::Contour], empty: usize, r: &Reference) -
     });
 
     // dimensions
-    out.push(extents_check(&cut, r));
+    out.push(extents_check(&cut, r, tol));
     let outer_len: f64 = geo
         .iter()
         .filter(|p| p.layer == OUTER_LAYER)
@@ -642,16 +671,16 @@ fn geometry(geo: &[Piece], all: &[geom::Contour], empty: usize, r: &Reference) -
         "outline_length",
         outer_len,
         ref_outer_len,
-        TOL * n_outer_curves,
+        tol * n_outer_curves,
     ));
     out.push(length_check(
         "hole_length",
         hole_len,
         ref_hole_len,
-        TOL * n_hole_curves,
+        tol * n_hole_curves,
     ));
-    out.push(area_check(&closed_outer, &closed_inner, r));
-    out.push(radii_check(&cut, r));
+    out.push(area_check(&closed_outer, &closed_inner, r, tol));
+    out.push(radii_check(&cut, r, tol));
     out
 }
 
@@ -664,11 +693,13 @@ fn length_check(name: &'static str, measured: f64, expected: f64, tol: f64) -> C
         Some(measured),
         Some(expected),
         Some(tol),
-        format!("length {measured:.6} mm against {expected:.6} mm (difference {diff:.6})"),
+        format!(
+            "length {measured:.6} mm against {expected:.6} mm (difference {diff:.6}; tolerance {tol:.3e} mm)"
+        ),
     )
 }
 
-fn extents_check(cut: &[&Piece], r: &Reference) -> Check {
+fn extents_check(cut: &[&Piece], r: &Reference, tol: f64) -> Check {
     let dxf = bbox_of(cut.iter().flat_map(|p| {
         let b = p.bbox();
         [[b[0], b[1]], [b[2], b[3]]]
@@ -688,7 +719,7 @@ fn extents_check(cut: &[&Piece], r: &Reference) -> Check {
     match (dxf, refb) {
         (Some(d), Some(f)) => {
             let diff = (0..4).map(|i| (d[i] - f[i]).abs()).fold(0.0f64, f64::max);
-            let tol = TOL + arc_dev;
+            let tol = tol + arc_dev;
             check(
                 "extents",
                 if diff <= tol {
@@ -710,7 +741,7 @@ fn extents_check(cut: &[&Piece], r: &Reference) -> Check {
             Verdict::Pass,
             Some(0.0),
             Some(0.0),
-            Some(TOL),
+            Some(tol),
             "no geometry, none declared".into(),
         ),
         _ => check(
@@ -764,6 +795,7 @@ fn area_check(
     closed_outer: &[&geom::Contour],
     closed_inner: &[&geom::Contour],
     r: &Reference,
+    tol: f64,
 ) -> Check {
     let perim: f64 = r.outer.iter().chain(r.holes.iter()).map(|c| c.length).sum();
     let arc_loss: f64 = r
@@ -772,7 +804,7 @@ fn area_check(
         .chain(r.holes.iter())
         .map(|c| c.max_dev * c.length)
         .sum();
-    let tol = TOL * perim.max(1.0) + arc_loss;
+    let tol = tol * perim + arc_loss;
     let measured: f64 = closed_outer.iter().map(|c| c.area).sum::<f64>()
         - closed_inner.iter().map(|c| c.area).sum::<f64>();
     let Some(outer_pts) = reference_loop(&r.outer) else {
@@ -798,11 +830,13 @@ fn area_check(
         Some(measured),
         Some(expected),
         Some(tol),
-        format!("area {measured:.4} mm² against {expected:.4} mm² (difference {diff:.6})"),
+        format!(
+            "area {measured:.4} mm² against {expected:.4} mm² (difference {diff:.6}; tolerance {tol:.3e} mm)"
+        ),
     )
 }
 
-fn radii_check(cut: &[&Piece], r: &Reference) -> Check {
+fn radii_check(cut: &[&Piece], r: &Reference, tol: f64) -> Check {
     // A measured arc matches a declared arc when every declared point of that arc lies on the measured circle.
     // (Fitting a radius through three nearly collinear points is ill-conditioned for very large radii.)
     let arcs: Vec<geom::Arc> = cut.iter().filter_map(|p| p.arc).collect();
@@ -817,7 +851,7 @@ fn radii_check(cut: &[&Piece], r: &Reference) -> Check {
         .filter(|a| {
             !declared.iter().any(|c| {
                 c.points.iter().all(|p| {
-                    ((p[0] - a.c[0]).hypot(p[1] - a.c[1]) - a.r.abs()).abs() <= TOL + c.max_dev
+                    ((p[0] - a.c[0]).hypot(p[1] - a.c[1]) - a.r.abs()).abs() <= tol + c.max_dev
                 })
             })
         })
@@ -836,7 +870,7 @@ fn radii_check(cut: &[&Piece], r: &Reference) -> Check {
         },
         Some(unmatched as f64),
         Some(0.0),
-        Some(TOL),
+        Some(tol),
         detail,
     )
 }
