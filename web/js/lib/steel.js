@@ -4,7 +4,7 @@
    Off-screen stages stop rendering; reduced motion renders one frame per change. Without WebGL the function
    returns null and the host keeps its CSS fallback. */
 import * as THREE from '../../vendor/three/three.module.js';
-import { reducedMotion } from './motion.js';
+import { reducedMotion, webglAvailable } from './motion.js';
 
 const R = 1.6;                  // shell radius
 const ARC = Math.PI * 1.6;      // shell arc (leaves a seam gap at the back)
@@ -122,6 +122,8 @@ export function steelPose(p, t) {
 
 /* createSteelStage(host): returns { set(p), dispose(), onresize }, or null without WebGL. p is the scroll progress. */
 export function createSteelStage(host) {
+  // without WebGL three.js writes a console error before it throws: decide first, so the page stays clean
+  if (!webglAvailable()) return null;
   const canvas = document.createElement('canvas');
   canvas.setAttribute('aria-hidden', 'true');
   let renderer;

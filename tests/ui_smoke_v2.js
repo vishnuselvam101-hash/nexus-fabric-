@@ -734,6 +734,27 @@ async function main() {
       .concat(badRequests.map((m) => 'request: ' + m));
     check('no console errors / page errors / failed requests', issues.length === 0,
       issues.slice(0, 8).join('; '));
+    /* ---- 10. BH-R8-006: without WebGL the home page logs no WebGL or three.js error ---- */
+    try {
+      const nb = await chromium.launch({ headless: true, args: ['--disable-webgl', '--disable-webgl2'] });
+      try {
+        const nctx = await nb.newContext({ viewport: { width: 1280, height: 900 } });
+        const lr = await nctx.request.post(BASE + '/api/login', { data: { username: USER, password: PASS }, headers: { 'X-NF-Request': '1', Origin: BASE } });
+        const np = await nctx.newPage();
+        const glErrors = [];
+        np.on('console', (m) => { if (m.type() === 'error' && /WebGL|THREE/.test(m.text())) glErrors.push(m.text()); });
+        np.on('pageerror', (e) => glErrors.push('pageerror: ' + msgOf(e)));
+        await np.goto(BASE + '/#/', { waitUntil: 'load' });
+        await np.waitForSelector(DROPZONE, { state: 'visible', timeout: 20000 });
+        await np.waitForTimeout(800);
+        check('BH-R8-006: without WebGL the home page logs no WebGL or three.js error', lr.ok() && glErrors.length === 0,
+          'login=' + lr.status() + ' ' + glErrors.slice(0, 2).join(' | '));
+      } finally {
+        await nb.close();
+      }
+    } catch (e) {
+      check('BH-R8-006: without WebGL the home page logs no WebGL or three.js error', false, msgOf(e));
+    }
   } catch (e) {
     check('browser session', false, msgOf(e));
   } finally {
