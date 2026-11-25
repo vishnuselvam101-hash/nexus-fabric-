@@ -688,6 +688,24 @@ async function main() {
       check('language toggle switches to Japanese', false, msgOf(e));
     }
 
+    /* ---- 7b. BH-R8-002/003: table headers follow the language; tables and AMOEBA fit a 390px screen (still 390 wide, now in Japanese) ---- */
+    try {
+      await page.goto(BASE + '/#/workspace/history', { waitUntil: 'load' });
+      await page.waitForSelector('#view table thead th', { state: 'attached', timeout: 15000 });
+      const heads = await page.$$eval('#view table thead th', (ths) => ths.map((th) => th.textContent.trim()));
+      const english = heads.filter((h) => /^(Job|Family|Project|Release|Gates|Created)$/.test(h));
+      check('BH-R8-002: the history table headers follow the language (Japanese)', english.length === 0, heads.join(' | '));
+      const wHist = await page.evaluate(() => document.documentElement.scrollWidth);
+      check('BH-R8-003: the history table scrolls inside itself at 390px', wHist <= 391, 'scrollWidth=' + wHist);
+      await page.goto(BASE + '/#/amoeba', { waitUntil: 'load' });
+      await page.waitForSelector('#view', { state: 'attached', timeout: 15000 });
+      await page.waitForTimeout(600);
+      const wAm = await page.evaluate(() => document.documentElement.scrollWidth);
+      check('BH-R8-003: the AMOEBA page has no horizontal scroll at 390px', wAm <= 391, 'scrollWidth=' + wAm);
+    } catch (e) {
+      check('BH-R8-002: the history table headers follow the language (Japanese)', false, msgOf(e));
+    }
+
     /* ---- 8. safety: never offer approve/release ---- */
     try {
       const offenders = await page.evaluate(() => {

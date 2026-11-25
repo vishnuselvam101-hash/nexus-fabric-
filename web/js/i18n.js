@@ -132,6 +132,7 @@ const EN = {
   // table headers (workspace tabs)
   'th.job': 'Job', 'th.family': 'Geometry family', 'th.project': 'Project',
   'th.state': 'Release state', 'th.created': 'Created', 'th.name': 'Name', 'th.docs': 'Documents',
+  'th.id': 'ID', 'th.desc': 'Description', 'th.calcs': 'Calcs', 'th.active': 'Active',
   'th.jobs': 'Jobs', 'th.username': 'Username', 'th.role': 'Role', 'th.status': 'Status',
   'th.when': 'When', 'th.user': 'User', 'th.action': 'Action', 'th.detail': 'Detail',
   // ported screens (from the legacy catalogue)
@@ -919,6 +920,7 @@ const JA = {
 
   'th.job': 'ジョブ', 'th.family': '形状種別', 'th.project': 'プロジェクト',
   'th.state': 'リリース状態', 'th.created': '作成', 'th.name': '名称', 'th.docs': '文書',
+  'th.id': 'ID', 'th.desc': '説明', 'th.calcs': '計算', 'th.active': '有効',
   'th.jobs': 'ジョブ', 'th.username': 'ユーザー名', 'th.role': '権限', 'th.status': '状態',
   'th.when': '日時', 'th.user': 'ユーザー', 'th.action': '操作', 'th.detail': '詳細',
   // ported screens (from the legacy catalogue)

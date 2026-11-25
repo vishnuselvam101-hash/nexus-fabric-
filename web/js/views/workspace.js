@@ -1,5 +1,6 @@
 import { api, esc } from '../api.js';
 import { getState } from '../store.js';
+import { t } from '../i18n.js';
 
 const TABS = ['calculations', 'projects', 'obligations', 'audit', 'users'];
 
@@ -75,7 +76,10 @@ function table(cols, rows, onClick) {
     tbody.appendChild(row);
   }
   t.appendChild(tbody);
-  return t;
+  const scroll = document.createElement('div');
+  scroll.className = 'tbl-scroll';
+  scroll.appendChild(t);
+  return scroll;
 }
 
 /* ---- calculations ---- */
@@ -88,15 +92,15 @@ async function loadCalc(signal) {
     content.textContent = '';
 
     const hd = el('div', 'panel-h');
-    hd.appendChild(el('h2', null, 'Calculations'));
-    const btn = el('button', 'btn pri', 'New calculation');
+    hd.appendChild(el('h2', null, t('ws.calculations')));
+    const btn = el('button', 'btn pri', t('ws.new.calc'));
     btn.type = 'button';
     btn.addEventListener('click', () => { window.location.hash = '#/math'; });
     hd.appendChild(btn);
     content.appendChild(hd);
 
     if (!calcs || !calcs.length) {
-      content.appendChild(el('p', 'sub', 'No calculations yet.'));
+      content.appendChild(el('p', 'sub', t('ws.none.calc')));
       return;
     }
     const rows = calcs.map(c => ({
@@ -104,7 +108,7 @@ async function loadCalc(signal) {
       cells: ['#' + c.id, c.family || '', c.project_name || '', c.release_state || '',
         (c.gates_passed != null ? c.gates_passed + '/' + c.gates_total : ''), fmtDate(c.created_at)],
     }));
-    content.appendChild(table(['Job', 'Family', 'Project', 'Release', 'Gates', 'Created'], rows, (c) => {
+    content.appendChild(table([t('th.job'), t('th.family'), t('th.project'), t('th.state'), t('insp.gates'), t('th.created')], rows, (c) => {
       window.location.hash = '#/job/' + c.id;
     }));
   } catch (e) { if (!signal.aborted) showError(e.message); }
@@ -228,7 +232,7 @@ async function loadProjects(signal) {
     content.textContent = '';
 
     const hd = el('div', 'panel-h');
-    hd.appendChild(el('h2', null, 'Projects'));
+    hd.appendChild(el('h2', null, t('ws.projects')));
     const btn = el('button', 'btn pri', 'New project');
     btn.type = 'button';
     btn.addEventListener('click', () => showProjectForm(signal));
@@ -236,7 +240,7 @@ async function loadProjects(signal) {
     content.appendChild(hd);
 
     if (!projects || !projects.length) {
-      content.appendChild(el('p', 'sub', 'No projects.'));
+      content.appendChild(el('p', 'sub', t('ws.none.projects')));
       return;
     }
     const rows = projects.map(p => ({
@@ -246,7 +250,7 @@ async function loadProjects(signal) {
         String(p.calculations_count ?? p.calculations?.length ?? 0),
         fmtDate(p.created_at)],
     }));
-    content.appendChild(table(['ID', 'Name', 'Description', 'Docs', 'Calcs', 'Created'], rows, (p) => {
+    content.appendChild(table([t('th.id'), t('th.name'), t('th.desc'), t('th.docs'), t('th.calcs'), t('th.created')], rows, (p) => {
       window.location.hash = '#/project/' + p.id;
     }));
   } catch (e) { if (!signal.aborted) showError(e.message); }
@@ -259,7 +263,7 @@ function showProjectForm(signal) {
   const form = document.createElement('form');
 
   const fn = el('div', 'field');
-  fn.appendChild(el('label', null, 'Name'));
+  fn.appendChild(el('label', null, t('th.name')));
   const ni = document.createElement('input');
   ni.name = 'name'; ni.required = true;
   fn.appendChild(ni);
@@ -337,13 +341,13 @@ async function loadObligations(signal) {
       content.appendChild(el('p', 'sub', 'No open obligations.'));
       return;
     }
-    const t = document.createElement('table');
-    t.className = 'table';
+    const tbl = document.createElement('table');
+    tbl.className = 'table';
     const thead = document.createElement('thead');
     const hr = document.createElement('tr');
-    for (const h of ['ID', 'Description', 'Status', 'Created', '']) hr.appendChild(el('th', null, h));
+    for (const h of [t('th.id'), t('th.desc'), t('th.status'), t('th.created'), '']) hr.appendChild(el('th', null, h));
     thead.appendChild(hr);
-    t.appendChild(thead);
+    tbl.appendChild(thead);
     const tbody = document.createElement('tbody');
     for (const o of obs) {
       const tr = document.createElement('tr');
@@ -370,8 +374,8 @@ async function loadObligations(signal) {
       tr.appendChild(td);
       tbody.appendChild(tr);
     }
-    t.appendChild(tbody);
-    content.appendChild(t);
+    tbl.appendChild(tbody);
+    content.appendChild(tbl);
   } catch (e) { if (!signal.aborted) showError(e.message); }
 }
 
@@ -393,7 +397,7 @@ async function loadAudit(signal) {
       data: e,
       cells: [fmtDate(e.timestamp || e.created_at), e.user || e.username || '', e.action || '', e.detail || e.message || ''],
     }));
-    content.appendChild(table(['Timestamp', 'User', 'Action', 'Detail'], rows));
+    content.appendChild(table([t('th.when'), t('th.user'), t('th.action'), t('th.detail')], rows));
   } catch (e) { if (!signal.aborted) showError(e.message); }
 }
 
@@ -426,13 +430,13 @@ async function loadUsers(signal) {
       content.appendChild(el('p', 'sub', 'No users.'));
       return;
     }
-    const t = document.createElement('table');
-    t.className = 'table';
+    const tbl = document.createElement('table');
+    tbl.className = 'table';
     const thead = document.createElement('thead');
     const hr = document.createElement('tr');
-    for (const h of ['Username', 'Role', 'Active', 'Created', '']) hr.appendChild(el('th', null, h));
+    for (const h of [t('th.username'), t('th.role'), t('th.active'), t('th.created'), '']) hr.appendChild(el('th', null, h));
     thead.appendChild(hr);
-    t.appendChild(thead);
+    tbl.appendChild(thead);
     const tbody = document.createElement('tbody');
     for (const u of users) {
       const tr = document.createElement('tr');
@@ -454,8 +458,8 @@ async function loadUsers(signal) {
       tr.appendChild(td);
       tbody.appendChild(tr);
     }
-    t.appendChild(tbody);
-    content.appendChild(t);
+    tbl.appendChild(tbody);
+    content.appendChild(tbl);
   } catch (e) { if (!signal.aborted) showError(e.message); }
 }
 
