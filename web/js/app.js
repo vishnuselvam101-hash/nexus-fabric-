@@ -2,6 +2,7 @@
 import { api, setAuthHandler } from './api.js';
 import { getState, setState } from './store.js';
 import { initialLang, setLang, applyPage, lang, t } from './i18n.js';
+import { initFx, enterMotion } from './lib/motion.js';
 
 const TITLES = { convert: 'Convert', login: 'Sign in', result: 'Result', workspace: 'Workspace', job: 'Job', math: 'New calculation', project: 'Project', account: 'Account', admin: 'Administration', manufacturing: 'Manufacturing', help: 'Help', verification: 'Verification', amoeba: 'AMOEBA' };
 const THEMES = ['dark', 'light', ''];
@@ -86,6 +87,7 @@ async function renderRoute() {
     await mod.mount(viewEl, route.params || {});
     if (token !== renderToken) return;
     applyPage(viewEl);
+    enterMotion(viewEl);
     currentView = { unmount: mod.unmount };
   } catch (e) {
     if (e?.status === 401) { navigate('#/login'); return; }
@@ -113,6 +115,7 @@ async function renderRoute() {
 const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 
 function startRouter() {
+  initFx();
   window.addEventListener('hashchange', renderRoute);
   renderRoute();
 }

@@ -1,4 +1,4 @@
-@layer tokens, reset, base, layout, components, states, utilities;
+@layer tokens, reset, base, layout, components, states, utilities, look;
 
 /* IBM Plex (SIL OFL 1.1, see fonts/OFL-IBM-Plex.txt), latin subset, served from this folder: no CDN, works offline */
 @font-face { font-family: "IBM Plex Sans"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); }
@@ -801,5 +801,148 @@
     .topbar, .skip-link, .btn, .btn-primary, .btn-secondary, .btn-text, .btn-icon, .hero-canvas,
     .result-actions, .ws-sidebar, .toast, .modal-backdrop, .drop-overlay, .dropdown-menu, .user-menu { display: none !important; }
     .card, .panel, .result, .convert-result { box-shadow: none; border-color: #999; }
+  }
+}
+
+/* =====================================================================================================
+   Look (design system, stage 2): blueprint grid, glow, glass cards with a 1 px gradient edge, gradient
+   headline, steel-blue secondary, motion. Derived from the founder-approved frame C. Dark is the default;
+   light follows the OS (or data-theme). Every animation is transform/opacity only and is switched off by
+   prefers-reduced-motion. Weak GPUs lose only the blur and the spinning edge (see .no-fx in motion.js).
+   ===================================================================================================== */
+@layer look {
+  :root {
+    --cool: #7FB4D9;
+    --cool-soft: rgba(127, 180, 217, .14);
+    --cool-line: rgba(127, 180, 217, .35);
+    --grid-minor: rgba(127, 180, 217, .07);
+    --grid-major: rgba(127, 180, 217, .16);
+    --card-bg: linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .012)), rgba(26, 30, 35, .62);
+    --edge: linear-gradient(135deg, rgba(255, 106, 26, .8), rgba(127, 180, 217, .4) 42%, rgba(127, 180, 217, .1) 70%, rgba(255, 106, 26, .5));
+    --grad: linear-gradient(100deg, #FFFFFF 0%, #FFB27A 30%, var(--accent) 58%, var(--cool) 100%);
+    --bloom-a: rgba(255, 106, 26, .22);
+    --bloom-b: rgba(127, 180, 217, .2);
+    --ease-out: cubic-bezier(.22, 1, .36, 1);
+  }
+  [data-theme="light"] {
+    --cool: #2B6C97;
+    --cool-soft: rgba(43, 108, 151, .10);
+    --cool-line: rgba(43, 108, 151, .35);
+    --grid-minor: rgba(43, 108, 151, .07);
+    --grid-major: rgba(43, 108, 151, .15);
+    --card-bg: linear-gradient(180deg, rgba(255, 255, 255, .95), rgba(255, 255, 255, .8));
+    --edge: linear-gradient(135deg, rgba(181, 63, 5, .6), rgba(43, 108, 151, .35) 50%, rgba(181, 63, 5, .3));
+    --grad: linear-gradient(100deg, #111418 0%, #B53F05 55%, #2B6C97 100%);
+    --bloom-a: rgba(181, 63, 5, .10);
+    --bloom-b: rgba(43, 108, 151, .10);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --cool: #2B6C97;
+      --cool-soft: rgba(43, 108, 151, .10);
+      --cool-line: rgba(43, 108, 151, .35);
+      --grid-minor: rgba(43, 108, 151, .07);
+      --grid-major: rgba(43, 108, 151, .15);
+      --card-bg: linear-gradient(180deg, rgba(255, 255, 255, .95), rgba(255, 255, 255, .8));
+      --edge: linear-gradient(135deg, rgba(181, 63, 5, .6), rgba(43, 108, 151, .35) 50%, rgba(181, 63, 5, .3));
+      --grad: linear-gradient(100deg, #111418 0%, #B53F05 55%, #2B6C97 100%);
+      --bloom-a: rgba(181, 63, 5, .10);
+      --bloom-b: rgba(43, 108, 151, .10);
+    }
+  }
+  @property --nf-spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+  /* background: blueprint grid (drifts), two bloom glows. Fixed, behind everything, no layout cost. */
+  html { background: var(--bg); }
+  body { position: relative; isolation: isolate; }
+  body::before, body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -2; }
+  body::before {
+    background-image:
+      linear-gradient(var(--grid-minor) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-minor) 1px, transparent 1px),
+      linear-gradient(var(--grid-major) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-major) 1px, transparent 1px);
+    background-size: 48px 48px, 48px 48px, 240px 240px, 240px 240px;
+    -webkit-mask-image: radial-gradient(ellipse 85% 70% at 60% 30%, #000 30%, transparent 92%);
+            mask-image: radial-gradient(ellipse 85% 70% at 60% 30%, #000 30%, transparent 92%);
+    animation: nf-grid-drift 40s linear infinite;
+  }
+  body::after {
+    background:
+      radial-gradient(40vw 40vw at 105% -10%, var(--bloom-b), transparent 65%),
+      radial-gradient(46vw 46vw at -10% 110%, var(--bloom-a), transparent 65%);
+    filter: blur(20px);
+    animation: nf-bloom 22s ease-in-out infinite alternate;
+  }
+  @keyframes nf-grid-drift { to { background-position: 480px 480px, 480px 480px, 1200px 1200px, 1200px 1200px; } }
+  @keyframes nf-bloom { to { transform: translate3d(3vw, -2vh, 0); } }
+
+  /* headline: gradient type, sharp and large */
+  .grad, h1.grad {
+    background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  h1 { font-weight: 600; letter-spacing: -.035em; line-height: 1.02; }
+  .eyebrow {
+    display: flex; align-items: center; gap: 10px; margin: 0 0 var(--sp-4);
+    font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: .18em; text-transform: uppercase; color: var(--cool);
+  }
+  .eyebrow::before { content: ""; width: 26px; height: 1px; background: linear-gradient(90deg, transparent, var(--cool)); }
+
+  /* glass cards: translucent body, gradient 1 px edge drawn by ::before (mask), soft depth */
+  .card, .panel, .processing, .convert-processing, .result, .convert-result, .stat, .dropzone, .card-login {
+    position: relative; isolation: isolate;
+    background: var(--card-bg); border-color: transparent;
+    -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 30px 70px -40px rgba(0, 0, 0, .7);
+    transition: transform var(--dur-slow) var(--ease-out), box-shadow var(--dur-slow) var(--ease-out);
+  }
+  .card::before, .panel::before, .processing::before, .convert-processing::before, .result::before,
+  .convert-result::before, .stat::before, .dropzone::before, .card-login::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; z-index: -1;
+    background: var(--edge); opacity: .55;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+    transition: opacity var(--dur-slow) var(--ease-out);
+  }
+  .card:hover, .stat:hover, a.card:hover { transform: translateY(-2px); }
+  .card:hover::before, .stat:hover::before { opacity: 1; }
+  .panel { overflow: clip; }
+
+  /* bloom on the key action and on the focus ring of cards */
+  .btn-primary, .btn.primary {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 12px 36px -12px color-mix(in srgb, var(--accent) 75%, transparent);
+  }
+  .btn-primary:hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 16px 46px -10px color-mix(in srgb, var(--accent) 90%, transparent); }
+  .btn, .btn-secondary, .btn-icon, .chip, .tag, .badge { transition: transform var(--dur) var(--ease-out), background var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out), color var(--dur) var(--ease-out); }
+  .btn:not(:disabled):active { transform: translateY(1px) scale(.99); }
+  .btn:not(:disabled):hover { transform: translateY(-1px); }
+  .chip.ok, .badge.ok { color: var(--cool); background: var(--cool-soft); }
+
+  /* motion: page transition, stagger-in of cards and sections */
+  #view > * { animation: nf-rise 380ms var(--ease-out) both; }
+  #view > .loading { animation: none; }
+  [data-stagger] > * { animation: nf-rise 380ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 55ms); }
+  @keyframes nf-rise { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
+  .count { font-variant-numeric: tabular-nums; }
+
+  /* the hero/steel stage: its own canvas, never covers text */
+  .steel-stage { position: relative; min-height: 380px; border-radius: var(--r-xl); overflow: hidden; isolation: isolate; }
+  .steel-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .steel-stage .steel-fallback { position: absolute; inset: 0; display: none; place-items: center; color: var(--text-3); font-family: var(--font-mono); font-size: var(--fs-xs); }
+  .no-gl .steel-stage .steel-fallback { display: grid; }
+  .no-gl .steel-stage canvas { display: none; }
+  .fx-off .card::before, .fx-off .panel::before, .fx-off .stat::before { display: none; }
+  .fx-off .card, .fx-off .panel, .fx-off .stat, .fx-off .dropzone { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .fx-off body::before, .fx-off body::after { animation: none; }
+
+  /* light theme: no spinning or blur on cards; calmer shadows */
+  [data-theme="light"] .card, [data-theme="light"] .panel, [data-theme="light"] .stat { box-shadow: inset 0 1px 0 #fff, 0 20px 40px -28px rgba(17, 20, 24, .28); }
+
+  @media (max-width: 820px) {
+    body::before { background-size: 36px 36px, 36px 36px, 180px 180px, 180px 180px; }
+    .steel-stage { min-height: 300px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body::before, body::after, #view > *, [data-stagger] > *, .card:hover, .stat:hover, .btn:hover { animation: none !important; transform: none !important; }
   }
 }
