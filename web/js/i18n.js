@@ -1674,7 +1674,7 @@ Object.assign(EN, {
   'exp.locked': 'Export DXF (locked)',
   'exp.because': 'Locked because:',
   'exp.hold': 'Hold:',
-  'exp.note': 'DXF downloads open only after the server releases this job: state approved and every gate PASS.',
+  'exp.note': 'DXF downloads open only after the server releases this job: its released state and every gate PASS.',
   'exp.reason.gate': 'Gate {id} ({name}) is {result}.',
   'exp.reason.state': 'The server has not released this job (state {state}).',
   'am.stage.aria': 'AMOEBA stages',

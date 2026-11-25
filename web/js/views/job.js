@@ -82,7 +82,7 @@ const canCorrect = () => canEdit() && !blocked() && c.correctable_parameters.len
 const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); if (!dead) fn(); }, ms); timers.add(id); };
 const openCount = () => c.obligations.filter((o) => o.state === 'open').length + c.advisories.filter((a) => a.state === 'open').length;
 const dxfHeld = (part) => Object.hasOwn(c.dxf_withheld || {}, part);
-// the server releases a job only when it is APPROVED and every gate passes; until then the export stays locked
+// the server releases a job only in its released state and only when every gate passes; until then the export stays locked
 const allPass = () => c.gates.length > 0 && c.gates.every((g) => g.result === 'PASS');
 const released = () => state === 'APPROVED' && allPass();
 const amoebaStage = () => {
