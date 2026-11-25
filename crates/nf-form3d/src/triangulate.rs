@@ -4,16 +4,20 @@
 //! The outline is a simple closed polygon, the holes are simple closed polygons inside it and do not touch each other
 //! or the outline. The triangles cover the outline minus the holes exactly (up to rounding), so their area sum is the
 //! net area of the plate: `net_area`.
+//!
+//! The formed parts (`triangulate_formed`, A-21 round 2) are triangulated by slab decomposition: the plate is cut by
+//! lines of constant circumferential coordinate into slabs of equal width, the pieces are triangulated by `triangulate`,
+//! and every triangle then lies within one slab, so its points are within the chord tolerance of the surface.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use uem::{Geom, P2, Pattern};
 
 use crate::{Form3d, Form3dError};
 
 /// A triangulated plate. `vertices` are the outline vertices followed by the vertices of each hole, in the order the
-/// holes were given, then any midpoints added by `triangulate_formed`. Triangles are counter-clockwise index triples
-/// into `vertices`.
+/// holes were given. A slab triangulation (`triangulate_formed`) lists the vertices of its slabs instead, with the
+/// vertices on a shared slab line merged. Triangles are counter-clockwise index triples into `vertices`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Triangulation {
     pub vertices: Vec<P2>,
@@ -110,9 +114,9 @@ fn in_wedge(a: P2, v: P2, b: P2, d: P2) -> bool {
     }
 }
 
-/// Triangulates an outline with holes. The outline and the holes must be simple closed polygons (first vertex not
-/// repeated at the end); the outline is made counter-clockwise and the holes clockwise.
-pub fn triangulate(outer: &[P2], holes: &[Vec<P2>]) -> Result<Triangulation, Form3dError> {
+/// The outline made counter-clockwise and the holes clockwise, with repeated and closing vertices removed. Refuses an
+/// outline or a hole that is not finite, has fewer than three vertices, or has zero area.
+fn normalise(outer: &[P2], holes: &[Vec<P2>]) -> Result<(Vec<P2>, Vec<Vec<P2>>), Form3dError> {
     let clean = |poly: &[P2]| -> Vec<P2> {
         let mut out: Vec<P2> = Vec::with_capacity(poly.len());
         for &p in poly {
@@ -151,6 +155,13 @@ pub fn triangulate(outer: &[P2], holes: &[Vec<P2>]) -> Result<Triangulation, For
             h.reverse();
         }
     }
+    Ok((outer, holes))
+}
+
+/// Triangulates an outline with holes. The outline and the holes must be simple closed polygons (first vertex not
+/// repeated at the end); the outline is made counter-clockwise and the holes clockwise.
+pub fn triangulate(outer: &[P2], holes: &[Vec<P2>]) -> Result<Triangulation, Form3dError> {
+    let (outer, holes) = normalise(outer, holes)?;
 
     // vertices: outline first, then holes
     let mut vertices: Vec<P2> = outer.clone();
@@ -326,189 +337,179 @@ fn ear_clip(
     }
     Ok(tris)
 }
+/// The circumferential coordinate of `p` along the formed part: x (`along` 0) for a cylinder, y (`along` 1) for a header.
+fn coord(p: P2, along: usize) -> f64 {
+    if along == 0 { p.x } else { p.y }
+}
 
-/// Boundary splitting passes allowed by `triangulate_formed`. Each pass halves the long boundary sides, so an ordinary
-/// plate needs about ten.
-const MAX_BOUNDARY_PASSES: usize = 64;
-
-/// Splits a counter-clockwise triangle `t` at the midpoints `m[k]` of its edges `(t[k], t[k + 1])` (None: not split).
-/// Every split edge is shared with the neighbour, which is split at the same midpoint, so the mesh stays conforming.
-fn split_triangle(t: [usize; 3], m: [Option<usize>; 3], out: &mut Vec<[usize; 3]>) {
-    match m {
-        [None, None, None] => out.push(t),
-        [Some(m0), Some(m1), Some(m2)] => {
-            out.push([t[0], m0, m2]);
-            out.push([m0, t[1], m1]);
-            out.push([m2, m1, t[2]]);
-            out.push([m0, m1, m2]);
-        }
-        [Some(mid), None, None] => {
-            out.push([t[0], mid, t[2]]);
-            out.push([mid, t[1], t[2]]);
-        }
-        [None, Some(mid), None] => {
-            out.push([t[1], mid, t[0]]);
-            out.push([mid, t[2], t[0]]);
-        }
-        [None, None, Some(mid)] => {
-            out.push([t[2], mid, t[1]]);
-            out.push([mid, t[0], t[1]]);
-        }
-        [Some(a), Some(b), None] => {
-            out.push([a, t[1], b]);
-            out.push([t[0], a, b]);
-            out.push([t[0], b, t[2]]);
-        }
-        [None, Some(a), Some(b)] => {
-            out.push([a, t[2], b]);
-            out.push([t[1], a, b]);
-            out.push([t[1], b, t[0]]);
-        }
-        [Some(a), None, Some(b)] => {
-            out.push([b, t[0], a]);
-            out.push([t[2], b, a]);
-            out.push([t[2], a, t[1]]);
-        }
+/// The point of the line `coord = value` on the segment p-q, where `fp` and `fq` are the signed distances of p and q
+/// from the line, of opposite signs (or zero at an end point). An end point on the line is returned exactly.
+fn line_point(p: P2, q: P2, fp: f64, fq: f64, value: f64, along: usize) -> P2 {
+    if fp == 0.0 {
+        return p;
+    }
+    if fq == 0.0 {
+        return q;
+    }
+    let t = fp / (fp - fq);
+    let o = if along == 0 {
+        p.y + t * (q.y - p.y)
+    } else {
+        p.x + t * (q.x - p.x)
+    };
+    if along == 0 {
+        P2::new(value, o)
+    } else {
+        P2::new(o, value)
     }
 }
 
-/// The vertex of `t` that is neither `a` nor `b`.
-fn opposite(t: [usize; 3], a: usize, b: usize) -> Option<usize> {
-    t.into_iter().find(|&v| v != a && v != b)
-}
-
-/// True when `d` lies strictly inside the circumcircle of the counter-clockwise triangle `a b c` (with a margin
-/// against rounding, so that cocircular points do not flip back and forth).
-fn in_circle(a: P2, b: P2, c: P2, d: P2) -> bool {
-    let (adx, ady) = (a.x - d.x, a.y - d.y);
-    let (bdx, bdy) = (b.x - d.x, b.y - d.y);
-    let (cdx, cdy) = (c.x - d.x, c.y - d.y);
-    let (ad, bd, cd) = (
-        adx * adx + ady * ady,
-        bdx * bdx + bdy * bdy,
-        cdx * cdx + cdy * cdy,
-    );
-    let det =
-        adx * (bdy * cd - bd * cdy) - ady * (bdx * cd - bd * cdx) + ad * (bdx * cdy - bdy * cdx);
-    let scale = ad.max(bd).max(cd);
-    det > 1e-12 * scale * scale
-}
-
-/// One pass splitting every boundary side (a side with no triangle across it) whose circumferential extent exceeds
-/// `span`, at its midpoint. Returns the refined triangles, or None when no boundary side is too long.
-fn split_boundary_pass(
-    vertices: &mut Vec<P2>,
-    tris: &[[usize; 3]],
-    circ: fn(P2) -> f64,
-    span: f64,
-) -> Option<Vec<[usize; 3]>> {
-    let sides: HashSet<(usize, usize)> = tris
-        .iter()
-        .flat_map(|t| (0..3).map(move |k| (t[k], t[(k + 1) % 3])))
-        .collect();
-    let mut out = Vec::with_capacity(tris.len() + 16);
-    let mut changed = false;
-    for &t in tris {
-        let mut m = [None; 3];
-        for (k, slot) in m.iter_mut().enumerate() {
-            let (a, b) = (t[k], t[(k + 1) % 3]);
-            if !sides.contains(&(b, a)) && (circ(vertices[a]) - circ(vertices[b])).abs() > span {
-                let (pa, pb) = (vertices[a], vertices[b]);
-                vertices.push(P2::new(0.5 * (pa.x + pb.x), 0.5 * (pa.y + pb.y)));
-                *slot = Some(vertices.len() - 1);
-                changed = true;
+/// Clips the region bounded by `loops` (outer loops counter-clockwise, holes clockwise: the region lies on the left of
+/// every edge) to the closed half-plane `coord <= value` (`below`) or `coord >= value`. The new boundary is the kept
+/// parts of the loop edges and the chords of the line that lie inside the region (a chord is inside when its midpoint
+/// is). The output keeps the convention. Refused: an edge lying along the line, and a boundary that pinches at a point.
+fn clip_half_plane(
+    loops: &[Vec<P2>],
+    along: usize,
+    value: f64,
+    below: bool,
+) -> Result<Vec<Vec<P2>>, Form3dError> {
+    let sign = if below { 1.0 } else { -1.0 };
+    let f = |p: P2| sign * (coord(p, along) - value);
+    let mut segs: Vec<(P2, P2)> = Vec::new();
+    let mut on_line: Vec<P2> = Vec::new();
+    for poly in loops {
+        let n = poly.len();
+        for i in 0..n {
+            let (p, q) = (poly[i], poly[(i + 1) % n]);
+            let (fp, fq) = (f(p), f(q));
+            if fp == 0.0 && fq == 0.0 {
+                return Err(Form3dError::NotTriangulable(
+                    "a plate edge lies along a slab line",
+                ));
+            }
+            if fp == 0.0 {
+                on_line.push(p);
+            }
+            if fq == 0.0 {
+                on_line.push(q);
+            }
+            let (in_p, in_q) = (fp <= 0.0, fq <= 0.0);
+            if in_p && in_q {
+                segs.push((p, q));
+            } else if in_p != in_q {
+                let x = line_point(p, q, fp, fq, value, along);
+                on_line.push(x);
+                let (a, b) = if in_p { (p, x) } else { (x, q) };
+                if !same(a, b) {
+                    segs.push((a, b));
+                }
             }
         }
-        split_triangle(t, m, &mut out);
     }
-    changed.then_some(out)
-}
-
-/// Lawson edge flips: an interior edge is flipped while the opposite vertex lies strictly inside the circumcircle of
-/// its triangle and the flip keeps both new triangles counter-clockwise. Boundary sides are never flipped, so the
-/// triangles keep covering the same plate. Refuses when the flips do not settle within their budget.
-fn lawson_flips(vertices: &[P2], tris: &mut [[usize; 3]]) -> Result<(), Form3dError> {
-    // owner[(a, b)] is the triangle with the counter-clockwise side a -> b
-    let mut owner: HashMap<(usize, usize), usize> = HashMap::new();
-    for (ti, t) in tris.iter().enumerate() {
-        for k in 0..3 {
-            owner.insert((t[k], t[(k + 1) % 3]), ti);
-        }
-    }
-    let mut stack: Vec<(usize, usize)> = owner.keys().copied().collect();
-    // a fan from the ear clipping can need one flip per vertex for each vertex, so the budget is quadratic
-    let mut budget = 4 * vertices.len() * vertices.len() + 1000;
-    while let Some((a, b)) = stack.pop() {
-        let (Some(&t1), Some(&t2)) = (owner.get(&(a, b)), owner.get(&(b, a))) else {
-            continue;
+    // the chords: consecutive points of the line, each kept when its midpoint lies inside the region
+    on_line.sort_by(|a, b| coord(*a, 1 - along).total_cmp(&coord(*b, 1 - along)));
+    on_line.dedup_by(|a, b| same(*a, *b));
+    let want = if below { -1.0 } else { 1.0 };
+    for w in on_line.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        let o = 0.5 * (coord(a, 1 - along) + coord(b, 1 - along));
+        let mid = if along == 0 {
+            P2::new(value, o)
+        } else {
+            P2::new(o, value)
         };
-        let (Some(c), Some(d)) = (opposite(tris[t1], a, b), opposite(tris[t2], a, b)) else {
-            continue;
-        };
-        let (pa, pb, pc, pd) = (vertices[a], vertices[b], vertices[c], vertices[d]);
-        if !in_circle(pa, pb, pc, pd) || cross(pa, pd, pc) <= 0.0 || cross(pd, pb, pc) <= 0.0 {
+        let inside = loops.iter().filter(|l| inside_polygon(l, mid)).count() % 2 == 1;
+        if !inside {
             continue;
         }
-        if budget == 0 {
+        // the piece lies on the left: its side of the line is -coord for `below`, +coord otherwise
+        let left_along = if along == 0 { -(b.y - a.y) } else { b.x - a.x };
+        if left_along * want < 0.0 {
+            segs.push((b, a));
+        } else {
+            segs.push((a, b));
+        }
+    }
+    // chain the directed segments into closed loops; a point with two outgoing segments is a pinch
+    let key = |p: P2| ((p.x + 0.0).to_bits(), (p.y + 0.0).to_bits());
+    let mut next: HashMap<(u64, u64), usize> = HashMap::new();
+    for (i, s) in segs.iter().enumerate() {
+        if next.insert(key(s.0), i).is_some() {
             return Err(Form3dError::NotTriangulable(
-                "edge flips did not settle within their budget",
+                "a slab boundary pinches at a point",
             ));
         }
-        budget -= 1;
-        // a b c and b a d become a d c and d b c
-        tris[t1] = [a, d, c];
-        tris[t2] = [d, b, c];
-        owner.remove(&(a, b));
-        owner.remove(&(b, a));
-        for (side, t) in [
-            ((a, d), t1),
-            ((d, c), t1),
-            ((c, a), t1),
-            ((d, b), t2),
-            ((b, c), t2),
-            ((c, d), t2),
-        ] {
-            owner.insert(side, t);
-        }
-        stack.extend([(a, d), (d, b), (b, c), (c, a)]);
     }
-    Ok(())
+    let mut used = vec![false; segs.len()];
+    let mut out: Vec<Vec<P2>> = Vec::new();
+    for s in 0..segs.len() {
+        if used[s] {
+            continue;
+        }
+        let mut lp: Vec<P2> = Vec::new();
+        let mut cur = s;
+        loop {
+            used[cur] = true;
+            lp.push(segs[cur].0);
+            let nxt = *next
+                .get(&key(segs[cur].1))
+                .ok_or(Form3dError::NotTriangulable(
+                    "a slab boundary does not close",
+                ))?;
+            if nxt == s {
+                break;
+            }
+            if used[nxt] {
+                return Err(Form3dError::NotTriangulable(
+                    "a slab boundary pinches at a point",
+                ));
+            }
+            cur = nxt;
+        }
+        out.push(lp);
+    }
+    Ok(out)
 }
 
-/// Triangulates an outline with holes on the formed cylinder or header shell, so that the formed part is within
-/// `chord_tol` (mm) of its surface.
+/// The vertex index of `p` in `vertices`, appending `p` when no vertex lies within `tol` of it.
+fn intern(vertices: &mut Vec<P2>, p: P2, tol: f64) -> usize {
+    if let Some(i) = vertices.iter().position(|&v| v.dist(p) <= tol) {
+        return i;
+    }
+    vertices.push(p);
+    vertices.len() - 1
+}
+
+/// Triangulates an outline with holes on the formed cylinder or header shell, so that every point of every triangle
+/// lies within `chord_tol` (mm) of the formed surface.
 ///
-/// Why a chord bound follows from the plate: on the cylinder the chord of two surface points whose circumferential
-/// plate coordinates differ by `d` (arc length) lies at radius R cos(d / 2R) from the axis. With
-/// `span = 2 R acos(1 - chord_tol / R)`, every triangle side with circumferential extent at most `span` is within
-/// `chord_tol` of the surface. A triangle whose three sides each span at most `span` has its vertices in one arc of
-/// at most `span` (for `span < 2 R pi / 3`, which `chord_tol < R / 2` gives), so its centroid and every point of it
-/// lie within `chord_tol` too.
+/// Why a slab lies within the bound: on the cylinder the 3D position of a plate point depends only on its
+/// circumferential coordinate (the arc length u, at radius R), and on the header only on y. A slab is a band of plate
+/// with circumferential coordinate in [lo, hi], of width at most `span = 2 R acos(1 - chord_tol / R)`. Its points map
+/// to surface points within one arc of angle span / R, and the chord of such an arc lies at radius R cos(span / 2R) =
+/// R - chord_tol from the axis. Every point of a convex combination of them is at least that far from the axis, so a
+/// triangle inside the slab is within `chord_tol` of the surface at all its points.
 ///
-/// The method: the plate is triangulated by `triangulate`; the boundary sides longer than `span` are split at their
-/// midpoints; then Lawson flips make the interior Delaunay. This bounds plates whose two boundary rows are dense along
-/// the circumference, such as the cylinder shell. A plate with an interior that has no points of its own (the branch
-/// stub, the header with its opening) keeps a side longer than `span` after the flips, and is refused: no interior
-/// point is added here, so no approximation is hidden. Refused as well: a cone (no chord bound is stated for its map
-/// here), a `chord_tol` that is not positive, and one at or above half the radius.
+/// The method: the plate is cut by the lines of constant circumferential coordinate at equal spacing (the slab count
+/// is the least that makes the width at most `span`); each piece is an exact clip of the region to its slab
+/// (`clip_half_plane`); each piece is triangulated by `triangulate`. No point is added inside a piece, and no
+/// approximation is made: a piece with a pinch, or an edge along a cut, is refused. Refused as well: a cone (no chord
+/// bound is stated for its map here), a `chord_tol` that is not positive, and one at or above half the radius.
 pub fn triangulate_formed(
     form: &Form3d,
     outer: &[P2],
     holes: &[Vec<P2>],
     chord_tol: f64,
 ) -> Result<Triangulation, Form3dError> {
-    let radius = match *form {
-        Form3d::Cylinder { radius, .. } | Form3d::Header { radius, .. } => radius,
+    let (radius, along) = match *form {
+        Form3d::Cylinder { radius, .. } => (radius, 0),
+        Form3d::Header { radius, .. } => (radius, 1),
         Form3d::Cone { .. } => {
             return Err(Form3dError::NotTriangulable(
                 "the cone map has no chord-bounded triangulation",
             ));
         }
-    };
-    let circ: fn(P2) -> f64 = if matches!(form, Form3d::Header { .. }) {
-        |p| p.y
-    } else {
-        |p| p.x
     };
     if !(chord_tol.is_finite() && chord_tol > 0.0) {
         return Err(Form3dError::NotPositive("chord_tol"));
@@ -518,34 +519,67 @@ pub fn triangulate_formed(
             "the chord tolerance must be below half the radius",
         ));
     }
-    let span = radius * 2.0 * (1.0 - chord_tol / radius).acos();
-    let base = triangulate(outer, holes)?;
-    let mut vertices = base.vertices;
-    let mut triangles = base.triangles;
-    let mut settled = false;
-    for _ in 0..MAX_BOUNDARY_PASSES {
-        match split_boundary_pass(&mut vertices, &triangles, circ, span) {
-            Some(next) => triangles = next,
-            None => {
-                settled = true;
-                break;
-            }
+    let span = 2.0 * radius * (1.0 - chord_tol / radius).acos();
+    let (outer, holes) = normalise(outer, holes)?;
+    let (c_min, c_max) = outer
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &p| {
+            let c = coord(p, along);
+            (lo.min(c), hi.max(c))
+        });
+    let width = c_max - c_min;
+    let count = ((width / span).ceil() as usize).max(1);
+    let step = width / count as f64;
+    let tol = 1e-9 * form.largest_dimension();
+    let mut loops: Vec<Vec<P2>> = Vec::with_capacity(1 + holes.len());
+    loops.push(outer);
+    loops.extend(holes);
+    let mut vertices: Vec<P2> = Vec::new();
+    let mut triangles: Vec<[usize; 3]> = Vec::new();
+    for k in 0..count {
+        let lo = c_min + k as f64 * step;
+        let hi = if k + 1 == count {
+            c_max
+        } else {
+            c_min + (k + 1) as f64 * step
+        };
+        let mut piece = loops.clone();
+        if k + 1 < count {
+            piece = clip_half_plane(&piece, along, hi, true)?;
         }
-    }
-    if !settled {
-        return Err(Form3dError::NotTriangulable(
-            "the boundary did not settle under the chord bound",
-        ));
-    }
-    // the flips make the interior Delaunay; a side that is still too long is refused below
-    lawson_flips(&vertices, &mut triangles)?;
-    let too_long = triangles.iter().any(|t| {
-        (0..3).any(|k| (circ(vertices[t[k]]) - circ(vertices[t[(k + 1) % 3]])).abs() > span)
-    });
-    if too_long {
-        return Err(Form3dError::NotTriangulable(
-            "the chord bound is not reached by the boundary splits and edge flips: a side is still too long",
-        ));
+        if k > 0 {
+            piece = clip_half_plane(&piece, along, lo, false)?;
+        }
+        // the piece's loops: counter-clockwise outlines, and clockwise holes, each hole in the outline around it
+        let (p_outers, p_holes): (Vec<Vec<P2>>, Vec<Vec<P2>>) =
+            piece.into_iter().partition(|l| signed_area(l) > 0.0);
+        let mut assigned: Vec<Vec<Vec<P2>>> = vec![Vec::new(); p_outers.len()];
+        for h in p_holes {
+            let probe = h
+                .first()
+                .copied()
+                .ok_or(Form3dError::NotTriangulable("a slab boundary is empty"))?;
+            let host = (0..p_outers.len())
+                .filter(|&o| inside_polygon(&p_outers[o], probe))
+                .min_by(|&a, &b| signed_area(&p_outers[a]).total_cmp(&signed_area(&p_outers[b])))
+                .ok_or(Form3dError::NotTriangulable(
+                    "a slab hole lies in no slab outline",
+                ))?;
+            assigned[host].push(h);
+        }
+        for (outline, hs) in p_outers.iter().zip(assigned.iter()) {
+            let t = triangulate(outline, hs)?;
+            let map: Vec<usize> = t
+                .vertices
+                .iter()
+                .map(|&p| intern(&mut vertices, p, tol))
+                .collect();
+            triangles.extend(
+                t.triangles
+                    .iter()
+                    .map(|tr| [map[tr[0]], map[tr[1]], map[tr[2]]]),
+            );
+        }
     }
     Ok(Triangulation {
         vertices,

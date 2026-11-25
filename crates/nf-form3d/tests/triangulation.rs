@@ -8,11 +8,10 @@
 //!
 //! Area acceptance: the triangle area sum equals the net area of the plate within 1e-9 relative. The net area is the
 //! area of the drawn outline minus the holes, and for the engine patterns it is also compared with the pattern's own
-//! `area` quantity. Chord acceptance (A-21 review): a cylinder shell's full-circumference seams are triangulated by
-//! `triangulate_formed` to a chord tolerance of 0.01 mm, and every triangle has positive area in 3D with its centroid
-//! and edge midpoints within the tolerance of the surface (up to 1e-9 times the largest dimension M). The branch stub
-//! and the header with its opening are refused by the chord bound: their interiors need points this method does not
-//! place, so the planar triangulation stands for them only as an area check.
+//! `area` quantity. Chord acceptance (A-21 review, round 2): the cylinder shell, the branch stub and the header with
+//! its opening are triangulated by `triangulate_formed` (slab decomposition) to a chord tolerance of 0.01 mm, and every
+//! triangle has positive area in 3D with its centroid and edge midpoints within the tolerance of the surface (up to
+//! 1e-9 times the largest dimension M).
 
 use nf_form3d::triangulate::{
     Triangulation, net_area, pattern_polygons, signed_area, triangulate, triangulate_formed,
@@ -171,33 +170,36 @@ fn engine_area(pat: &Pattern) -> f64 {
         .expect("the pattern states its area")
 }
 
-#[test]
-fn branch_stub_of_the_fixture_triangulates_to_its_area() {
-    let pat = develop::branch_stub(150.0, 100.0, 100.0, 60.0, 0.0, 400.0).unwrap();
-    let (outer, holes) = pattern_polygons(&pat).unwrap();
-    assert!(holes.is_empty());
-    let form = Form3d::from_pattern(&pat).unwrap();
-    // the chord bound cannot be met without interior points: refused, not approximated
-    assert!(matches!(
-        triangulate_formed(&form, &outer, &holes, CHORD),
-        Err(Form3dError::NotTriangulable(reason)) if reason.contains("chord bound")
-    ));
-    let t = triangulate(&outer, &holes).unwrap();
+/// The triangle area sum of a formed triangulation equals the net area of the plate, and the net area equals the
+/// engine's own area of the pattern, both within 1e-9 relative.
+fn check_formed_area(t: &Triangulation, outer: &[P2], holes: &[Vec<P2>], pat: &Pattern) {
     let sum = triangle_area_sum(&t.vertices, &t.triangles);
-    let net = net_area(&outer, &holes);
+    let net = net_area(outer, holes);
     assert!(
         (sum - net).abs() <= 1e-9 * net,
         "triangles {sum} vs net {net}"
     );
     assert!(
-        (net - engine_area(&pat)).abs() <= 1e-9 * engine_area(&pat),
+        (net - engine_area(pat)).abs() <= 1e-9 * engine_area(pat),
         "net {net} vs engine area {}",
-        engine_area(&pat)
+        engine_area(pat)
     );
 }
 
 #[test]
-fn header_shell_with_opening_triangulates_to_its_area() {
+fn branch_stub_of_the_fixture_triangulates_within_the_chord_bound() {
+    let pat = develop::branch_stub(150.0, 100.0, 100.0, 60.0, 0.0, 400.0).unwrap();
+    let (outer, holes) = pattern_polygons(&pat).unwrap();
+    assert!(holes.is_empty());
+    let form = Form3d::from_pattern(&pat).unwrap();
+    let t = triangulate_formed(&form, &outer, &holes, CHORD).unwrap();
+    // the branch cylinder has radius 100 mm (its developed width is 2 pi r)
+    check_chord(&form, 100.0, CHORD, &t);
+    check_formed_area(&t, &outer, &holes, &pat);
+}
+
+#[test]
+fn header_shell_with_opening_triangulates_within_the_chord_bound() {
     let branch = Branch {
         big_r: 150.0,
         r: 100.0,
@@ -209,22 +211,10 @@ fn header_shell_with_opening_triangulates_to_its_area() {
     let (outer, holes) = pattern_polygons(&pat).unwrap();
     assert_eq!(holes.len(), 1);
     let form = Form3d::from_pattern(&pat).unwrap();
-    assert!(matches!(
-        triangulate_formed(&form, &outer, &holes, CHORD),
-        Err(Form3dError::NotTriangulable(reason)) if reason.contains("chord bound")
-    ));
-    let t = triangulate(&outer, &holes).unwrap();
-    let sum = triangle_area_sum(&t.vertices, &t.triangles);
-    let net = net_area(&outer, &holes);
-    assert!(
-        (sum - net).abs() <= 1e-9 * net,
-        "triangles {sum} vs net {net}"
-    );
-    assert!(
-        (net - engine_area(&pat)).abs() <= 1e-9 * engine_area(&pat),
-        "net {net} vs engine area {}",
-        engine_area(&pat)
-    );
+    let t = triangulate_formed(&form, &outer, &holes, CHORD).unwrap();
+    // the header shell has radius 150 mm (its developed width is 2 pi R)
+    check_chord(&form, 150.0, CHORD, &t);
+    check_formed_area(&t, &outer, &holes, &pat);
 }
 
 #[test]
