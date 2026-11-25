@@ -10,3 +10,11 @@ publish = false
 
 [profile.release]
 opt-level = 2
+
+# Optimise the engine crates in dev builds so the test suite runs faster. Floats are unaffected:
+# Rust has no fast-math, so opt-level changes do not change results.
+[profile.dev.package.uem]
+opt-level = 2
+
+[profile.dev.package.nf-core]
+opt-level = 2
