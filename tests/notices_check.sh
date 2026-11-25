@@ -13,7 +13,7 @@ BIN=${1:-$ROOT/target/release/nf-server}
 CARGO=${2:-nf-cargo}
 VERSION=0.0.0-notices-check
 TARGETS="x86_64-unknown-linux-gnu x86_64-pc-windows-gnu"
-FIRST_PARTY="nf-core nf-dxf nf-licence nf-pdf nf-pdf-winjob nf-server uem"
+FIRST_PARTY="nf-core nf-digest nf-dxf nf-licence nf-pdf nf-pdf-winjob nf-server uem"
 fail=0
 
 check() { # check <description> <command...>

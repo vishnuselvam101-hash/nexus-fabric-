@@ -997,7 +997,7 @@ const HELP_JA = {
   'hp.gate.G20': 'この計算が、このプロジェクトで教訓として記録された誤りを繰り返していないこと。一致した場合は、技術者が理由を付けてそれぞれ確認していること。',
   'hp.gate.G21': '結果が、現在のエンジンのビルドで計算されていること。ほかのビルドの結果は再計算が必要です。',
   'hp.gate.G22': '保存済みの結果が整合性の検査に合格すること。合格しない場合、その計算は何も使用してはなりません。',
-  'hp.gate.G23': 'DXF の各ファイルが AMOEBA ダイジェストのすべての検査に合格すること（ファイルを独立に再測定し、計算の入力と照合）。不合格または確認できないファイルは決して渡しません。',
+  'hp.gate.G23': '各図面ファイルが独立再測定による全検査に合格すること（ファイルを計算の入力と照合して測り直す）。不合格または確認できないファイルは決して渡しません。',
   'hp.gate.na': '仕様書02で定義されていますが、このビルドでは評価しません。',
   'hp.gate.proposed': 'AMOEBAのアーキテクチャで提案されたもので、仕様書02には含まれず、このビルドでは評価しません。',
   'hp.ref.h': '各拒否コードの意味',
@@ -1096,7 +1096,7 @@ const ID = {
     G12: ['Process constraints', '加工上の制約'], G13: ['Reproducibility', '再現性'], G14: ['Algorithm status', 'アルゴリズムの評価状況'], G15: ['Output integrity', '出力の完全性'],
     G16: ['Human approval', '技術者承認'], G17: ['Coverage complete (proposed)', '網羅性（提案のみ）'], G18: ['Obligation closure', '要精査項目の解消'],
     G19: ['Self-consistency', '自己整合性'], G20: ['Known mistakes', '既知の誤りとの照合'], G21: ['Engine current', 'エンジンが現行版であること'], G22: ['Stored result integrity', '保存済み結果の完全性'],
-    G23: ['AMOEBA digest', 'AMOEBA ダイジェスト検査'],
+    G23: ['AMOEBA digest', '図面ファイルの独立再測定検査'],
   },
   check: {
     bottom_edge_equals_circumference: [null, '端の辺の長さ＝円周長'], seam_edges_equal_length: [null, '両方の継目の辺が同じ長さ'], seam_length_equals_input: [null, '継目の辺の長さ＝入力した長さ'],
