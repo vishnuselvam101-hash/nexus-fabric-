@@ -92,9 +92,11 @@ async function main() {
     check('static shell + modules served', false, msgOf(e));
   }
 
-  /* ---- first-run setup (empty data dir) ---- */
+  /* ---- first-run setup (empty data dir). On an empty server the administrator is created through the form (step 2). ---- */
+  let firstRun = false;
+  try { firstRun = !!(await (await api.get('/api/health')).json()).setup_required; } catch { firstRun = false; }
   try {
-    if (api) {
+    if (api && !firstRun) {
       const r = await api.post('/api/setup', {
         headers: { 'X-NF-Request': '1' },
         data: { username: USER, password: PASS, setup_token: SETUP_TOKEN },
@@ -150,8 +152,26 @@ async function main() {
       check('unauthenticated load shows login', false, msgOf(e));
     }
 
+    /* ---- 2b. BH-R8-001: an empty server shows the first-run setup form and signs the administrator in ---- */
+    if (firstRun) {
+      try {
+        const heading = await page.textContent('#login-heading');
+        const tokenField = await page.isVisible('#login-token');
+        check('first run: the form is the setup form (heading, token field)', heading.trim() === 'Setup' && tokenField, 'heading=' + heading + ' token=' + tokenField);
+        await page.fill('#login-user', USER);
+        await page.fill('#login-pass', PASS);
+        await page.fill('#login-token', SETUP_TOKEN);
+        await page.click('#login-form button[type="submit"]');
+        await page.waitForSelector(DROPZONE, { state: 'visible', timeout: 20000 });
+        loggedIn = true;
+        check('first run: creating the administrator signs in and lands on convert', true);
+      } catch (e) {
+        check('first run: creating the administrator signs in and lands on convert', false, msgOf(e));
+      }
+    }
+
     /* ---- 3. sign in through the form ---- */
-    try {
+    if (!firstRun) try {
       await page.fill('#login-user', USER);
       await page.fill('#login-pass', PASS);
       await page.click('#login-form button[type="submit"]');
