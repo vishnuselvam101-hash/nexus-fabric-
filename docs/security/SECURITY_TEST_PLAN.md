@@ -8,7 +8,7 @@
 |---|---|---|
 | `tests/security_smoke.sh` (52 checks) | Missing anti-forgery header; cross-origin requests; headers and cookie attributes; fifteen cross-project access attempts (read, upload, calculate, replay, correct, resolve, summaries, self-granting membership); path traversal in file and part names; SQL metacharacters; malformed and oversized bodies; executable upload under an innocent name; plaintext search of blob store and database; key location and permissions; **tampering with the audit log, engineering records and a stored blob followed by detection**; password change and session revocation; deactivation; throttling; forged cookie | `bash tests/security_smoke.sh` |
 | `tests/e2e_smoke.sh` (61) | Authentication, roles, membrane, withheld files | `bash tests/e2e_smoke.sh` |
-| `tests/ui_smoke.js` | Stored script-injection payloads must not execute; no blocking dialogs; content security policy produces no violations | see Build and Test Guide |
+| `tests/legacy/ui_smoke_v1.js` | Stored script-injection payloads must not execute; no blocking dialogs; content security policy produces no violations | see Build and Test Guide |
 | Unit tests | Authenticated encryption round trip and tamper detection; password hashing; membrane | `cargo test --workspace` |
 | `cargo audit` | Known advisories in dependencies | `cargo audit` |
 

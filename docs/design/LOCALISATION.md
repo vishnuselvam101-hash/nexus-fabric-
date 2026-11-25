@@ -31,7 +31,7 @@ Round 3. The client has two languages: English (the reference) and Japanese. Eve
 4. Run `node docs/design/tools/i18n_check.mjs`. It must report no missing key, no placeholder mismatch, and no bare
    English identifier in Japanese.
 5. Rebuild with `cargo build --release -p nf-server` (the files are embedded in the binary), then run
-   `tests/ui_smoke.js`. Its Japanese walk fails on any English word of three or more letters on the screens it visits.
+   `tests/legacy/ui_smoke_v1.js`. Its Japanese walk fails on any English word of three or more letters on the screens it visits.
 
 ## What is deliberately not translated
 
@@ -49,7 +49,7 @@ the engine output.
 
 ## How the tests guard it
 
-- `tests/ui_smoke.js`, section 14b:
+- `tests/legacy/ui_smoke_v1.js`, section 14b:
   - the switch: no reload, `<html lang>` follows, the choice survives a reload, `?lang=ja` and `?lang=en` each open in
     their language, and the empty route `#/` opens the dashboard;
   - a walk of the visible text on 32 Japanese states: sign-in, dashboard, job list, the five new-calculation forms, a
@@ -72,7 +72,7 @@ is checked from the build itself, not from a hand-written list:
   G09, G12, G13 from Specification 02 and G17, proposed for AMOEBA); and every check name, record kind, record family,
   relation and gate of the jobs the engine computes for all five families (each declared surface, and the set-on joint)
   has a Japanese label.
-- `tests/ui_smoke.js`, the Japanese walk: besides English words, every screen it visits is probed for an identifier
+- `tests/legacy/ui_smoke_v1.js`, the Japanese walk: besides English words, every screen it visits is probed for an identifier
   shown without a label. A visible monospace element whose text is shaped like an identifier (lower-case words joined
   by `_` or `.`, or a gate id) must have a Japanese label in the identifier table `ID`, unless it is one of the
   identifiers below. The walk now also visits the concentric reducer's checks and the help page.
@@ -262,4 +262,4 @@ New catalogue keys (help page, sample projects, the refusal note of the form, th
 - `web/i18n.js`: the catalogue, the template tables and the identifier labels.
 - `web/app.js`: the views. It uses `t`, `h`, `eng`, `srv`, `named`, `mono`, `ud` and `jaHtml` (backquoted identifiers in
   Japanese text).
-- `docs/design/tools/i18n_check.mjs` and `tests/ui_smoke.js` (section 14b): the checks above.
+- `docs/design/tools/i18n_check.mjs` and `tests/legacy/ui_smoke_v1.js` (section 14b): the checks above.

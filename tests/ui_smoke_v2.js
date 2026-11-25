@@ -32,7 +32,7 @@ const MODULES = [
 const TABS = ['calculations', 'projects', 'obligations', 'audit', 'users']; // AMOEBA is a top-level page (#/amoeba), not a workspace tab
 const DROPZONE = '#view .dropzone, #view .drop-zone';
 
-// Engineering inputs copied from the legacy browser test (tests/ui_smoke.js): the header-with-branch set the
+// Engineering inputs copied from the legacy browser test (tests/legacy/ui_smoke_v1.js): the header-with-branch set the
 // engine accepts, and the cylinder magnitude the engine refuses (BH-014, magnitude_above_limit).
 const FAMILY = 'header_with_branch';
 const VALID = {

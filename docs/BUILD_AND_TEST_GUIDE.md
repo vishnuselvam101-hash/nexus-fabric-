@@ -55,7 +55,7 @@ Browser test (needs an empty data directory because it performs first-run setup)
 
 ```
 NF_SETUP_TOKEN=ui-smoke-setup-token NF_DATA_DIR=$(mktemp -d) NF_LISTEN=127.0.0.1:8793 target/release/nf-server &
-NF_BASE=http://127.0.0.1:8793 node tests/ui_smoke.js      # uses the same token (override with NF_SETUP_TOKEN)
+NF_BASE=http://127.0.0.1:8793 node tests/ui_smoke_v2.js   # uses the same token (override with NF_SETUP_TOKEN)
 ```
 
 The script exits 0 on success and prints what it observed (single-part and assembly results, obligations before and after a decision, no script errors, no overflow at tablet width).

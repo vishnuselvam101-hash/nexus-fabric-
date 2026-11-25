@@ -42,7 +42,7 @@ jobs:
           npm install --no-save playwright@1 && npx playwright install --with-deps chromium
           NF_SETUP_TOKEN=ui-smoke-setup-token NF_DATA_DIR="$(mktemp -d)" NF_LISTEN=127.0.0.1:8793 target/release/nf-server &
           sleep 2
-          node tests/ui_smoke.js
+          node tests/ui_smoke_v2.js
       - name: Desktop mode tests
         run: node tests/desktop_smoke.js target/release/nf-server 8861
       - name: Offline check (static part; the no-network run needs root and is skipped here with a message)

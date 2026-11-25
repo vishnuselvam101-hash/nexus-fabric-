@@ -31,7 +31,7 @@ async function req(method, p, body) {
   return { status: res.status, ok: res.ok, json, text };
 }
 
-// ---- every input set the legacy browser test uses (tests/ui_smoke.js), per family
+// ---- every input set the legacy browser test uses (tests/legacy/ui_smoke_v1.js), per family
 const SURFACES = ['outside', 'inside', 'neutral', 'unknown'];
 const HEADER = { header_radius: 150, header_dev_radius: 150, header_length: 1200, branch_station: 600, branch_radius: 100, branch_dev_radius: 100, beta_deg: 60, delta: 0, s_end: 400 };
 const STUB = { header_radius: 150, branch_radius: 100, branch_dev_radius: 100, beta_deg: 60, delta: 0, s_end: 400 };

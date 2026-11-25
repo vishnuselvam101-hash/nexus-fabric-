@@ -2,7 +2,7 @@
 // 1. every key exists in English and in Japanese, and the placeholders of each key are the same in both;
 // 2. no Japanese engine or server template carries a bare identifier (an ASCII word of three or more letters
 //    outside backquotes: those are shown in monospace by the client, so they are never read as English);
-// 3. no Japanese catalogue string carries a bare English-looking word (same rule, same allow-list as tests/ui_smoke.js).
+// 3. no Japanese catalogue string carries a bare English-looking word (same rule, same allow-list as tests/legacy/ui_smoke_v1.js).
 // The module is loaded from a data: URL, so nothing is written to disk. Exit status 1 if 1 or 2 or 3 fails.
 import fs from 'node:fs';
 import path from 'node:path';

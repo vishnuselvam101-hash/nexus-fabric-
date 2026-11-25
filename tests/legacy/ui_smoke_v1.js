@@ -1,3 +1,4 @@
+// Retired: targets the pre-v2 UI; use tests/ui_smoke_v2.js
 // Browser test of every critical workflow. Requires a freshly started server with an EMPTY data directory
 // (it performs first-run setup). The server must be started with the same one-time setup token this test uses:
 //   NF_SETUP_TOKEN=ui-smoke-setup-token NF_DATA_DIR=$(mktemp -d) NF_LISTEN=127.0.0.1:8793 target/release/nf-server &
@@ -920,7 +921,7 @@ const controlProbe = () => {
   // result labelled "converted from PDF - not verified - not released", its preview and downloads, in both languages.
   // Needs the converter nf-pdf2dxf beside the server binary (or NF_PDF2DXF for the server).
   {
-    const pdfBytes = fs.readFileSync(require('path').join(__dirname, '..', 'crates', 'nf-pdf', 'tests', 'fixtures', 'reportlab_lines.pdf'));
+    const pdfBytes = fs.readFileSync(require('path').join(__dirname, '..', '..', 'crates', 'nf-pdf', 'tests', 'fixtures', 'reportlab_lines.pdf'));
     const up = await ctx.request.post(`${B}/api/projects/1/documents`, { headers: { 'X-NF-Request': '1', 'X-Filename': 'lines.pdf' }, data: pdfBytes });
     check('pdf: a PDF is stored as a document', up.status() === 200, up.status());
     const proj = await apiGet('/api/projects/1');
