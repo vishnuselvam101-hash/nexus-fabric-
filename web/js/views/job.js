@@ -3,6 +3,7 @@ import { getState } from '../store.js';
 import { t, h, has, idLabel, quantityUnit, engineJa, engineSentences, lang } from '../i18n.js';
 import { el, $, $$, toast, busy, fmtTime, modal } from '../ui.js';
 import { mountPattern } from './job-pattern.js';
+import { mountAmoebas, unmountAmoebas } from '../lib/amoeba-mount.js';
 
 const ja = () => lang() === 'ja';
 const words = (s) => esc(String(s ?? '').replaceAll('_', ' '));
@@ -81,6 +82,62 @@ const canCorrect = () => canEdit() && !blocked() && c.correctable_parameters.len
 const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); if (!dead) fn(); }, ms); timers.add(id); };
 const openCount = () => c.obligations.filter((o) => o.state === 'open').length + c.advisories.filter((a) => a.state === 'open').length;
 const dxfHeld = (part) => Object.hasOwn(c.dxf_withheld || {}, part);
+// the server releases a job only when it is APPROVED and every gate passes; until then the export stays locked
+const allPass = () => c.gates.length > 0 && c.gates.every((g) => g.result === 'PASS');
+const released = () => state === 'APPROVED' && allPass();
+const amoebaStage = () => {
+  if (state === 'SUPERSEDED') return 'idle';
+  if (!c.patterns.length || state === 'REJECTED' || state === 'NO_RESULT') return 'hold';
+  if (!c.gates.length) return 'idle';
+  if (!allPass()) return 'hold';
+  return released() ? 'release' : 'digest';
+};
+const lockReason = () => {
+  if (!c.patterns.length) return c.refusal ? refusalHtml(c.refusal) : c.outcome ? eng(c.outcome) : esc(t('ban.none.default'));
+  const bad = c.gates.find((g) => g.result !== 'PASS');
+  if (bad) return esc(t('exp.reason.gate', { id: bad.id, name: bad.name.replaceAll('_', ' '), result: resultText(bad.result) }));
+  return esc(t('exp.reason.state', { state: stateText(state) }));
+};
+const AM_STEPS = [
+  ['surround', 'am.s.surround', () => c.patterns.length > 0],
+  ['engulf', 'am.s.engulf', () => c.checks.length > 0],
+  ['digest', 'am.s.digest', () => c.gates.length > 0],
+  ['release', 'am.s.release', () => released()],
+];
+function timelineHtml() {
+  const held = amoebaStage() === 'hold';
+  const open = AM_STEPS.findIndex(([, , done]) => !done());
+  return AM_STEPS.map(([k, key, done], i) => {
+    const s = done() ? 'done' : i === open ? (held ? 'held' : 'now') : 'todo';
+    return `<li class="am-step" data-s="${s}" data-stage="${k}"><span class="am-dot" aria-hidden="true"></span><b>${esc(t(key))}</b></li>`;
+  }).join('');
+}
+function amoebaPanel() {
+  const stage = amoebaStage();
+  const why = stage === 'hold' ? `<p class="am-why"><b>${esc(t('exp.hold'))}</b> ${lockReason()}</p>` : '';
+  return `<section class="panel am-stage"><div class="amoeba-mount am-job" data-amoeba data-stage="${stage}" role="img" aria-label="${esc(t('am.stage.aria'))}"></div><ol class="am-timeline" aria-label="${esc(t('am.stage.aria'))}">${timelineHtml()}</ol>${why}</section>`;
+}
+function exportHtml() {
+  const free = c.patterns.filter((p) => !dxfHeld(p.part));
+  const body = released() && free.length
+    ? `<a class="btn btn-primary btn-block" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(free[0].part)}" download>${esc(t('exp.dxf'))}</a>`
+    : `<button type="button" class="btn btn-block" disabled aria-disabled="true">${esc(t('exp.locked'))}</button><p class="sub lock-why"><b>${esc(t('exp.because'))}</b> ${lockReason()}</p>`;
+  return panel(esc(t('exp.h')), `<div class="export-box">${body}</div>`);
+}
+function inspectorHtml() {
+  const count = (r) => c.gates.filter((g) => g.result === r).length;
+  const cells = [['PASS', 'insp.g.pass', 'ok'], ['FAIL', 'insp.g.fail', 'bad'], ['INCONCLUSIVE', 'insp.g.inc', 'warn'], ['NOT_IMPLEMENTED', 'insp.g.ni', 'na']]
+    .map(([r, key, kind]) => `<div class="gc gc-${kind}"><b class="count" data-count="${count(r)}">${count(r)}</b><span>${esc(t(key))}</span></div>`).join('');
+  const dims = c.patterns.length
+    ? c.patterns.map((p) => `<div class="dimrow"><div class="dimname">${partName(p.part)}</div>${kvRows([[esc(t('insp.len')), num(p.length, 'mm')], [esc(t('insp.holes')), `<span class="count" data-count="${p.holes.length}">${p.holes.length}</span>`], [esc(t('insp.side')), words(p.marking_side)]])}</div>`).join('')
+    : sub(t('insp.none'));
+  return panel(esc(t('insp.dims')), dims) + panel(esc(t('insp.gates')), `<div class="gcount">${cells}</div>`);
+}
+let amHandles = [];
+function mountJobAmoeba() {
+  const my = gen;
+  mountAmoebas(root).then((h) => { if (my === gen && !dead) amHandles = h; else unmountAmoebas(h); });
+}
 
 function headerHtml() {
   const primary = c.superseded_by ? 'successor' : canCorrect() ? 'corr' : canEdit() ? 'clone' : '';
@@ -163,6 +220,7 @@ function recordsHtml() {
     <pre class="mono" lang="en">${esc(JSON.stringify(r.payload, null, 1))}</pre></div></details>`).join('')}`, c.records.length);
 }
 function dxfHtml() {
+  if (!released()) return panel(esc(t('dxf.btn')), sub(t('exp.note')));
   const free = c.patterns.filter((p) => !dxfHeld(p.part));
   const link = (p) => `<a class="btn" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}" download aria-label="${esc(t('dxf.aria', { part: partText(p.part) }))}" title="${esc(t('dxf.tip', { part: partText(p.part) }))}">${esc(t('dxf.btn'))} · ${partName(p.part)}</a>`;
   const held = (p) => {
@@ -253,13 +311,14 @@ const measHtml = () => panel(esc(t('meas.h')), `${sub(t('meas.hint'))}<div class
 function render() {
   const tabsRow = `<div class="tabs" role="tablist" aria-label="${esc(t('tabs.aria'))}">${TABS.map((k) => `<button type="button" role="tab" id="tab-${k}" data-tab="${k}" aria-controls="tp-${k}" aria-selected="${k === tab}" tabindex="${k === tab ? 0 : -1}">${esc(t(TAB_KEY[k]))}${k === 'details' && openCount() ? ` <span class="cnt">${openCount()}</span>` : ''}</button>`).join('')}</div>`;
   const tp = (k, html) => `<div role="tabpanel" id="tp-${k}" aria-labelledby="tab-${k}"${k === tab ? '' : ' hidden'}>${html}</div>`;
-  root.innerHTML = `<div class="workspace"><div class="ws-content"><section class="panel job-head">${headerHtml()}</section>${bannerHtml()}${tabsRow}
+  root.innerHTML = `<div class="workspace job-ws"><aside class="ws-sidebar">${tabsRow}</aside><div class="ws-content"><section class="panel job-head">${headerHtml()}</section>${amoebaPanel()}${bannerHtml()}
     ${tp('result', gatesHtml() + checksHtml() + dxfHtml() + recordsHtml())}
     ${tp('pattern', c.patterns.length ? '<div class="pattern-host" id="pattern-host"></div>' : panel(esc(t('nopat.t')), alert(c.refusal ? refusalHtml(c.refusal) : c.outcome ? eng(c.outcome) : esc(t('nopat.default')))))}
     ${tp('details', reqHtml() + (prev ? diffHtml() : '') + measHtml() + depsHtml() + scrutinyHtml() + historyHtml())}
-  </div></div>`;
+  </div><aside class="ws-inspector">${exportHtml()}${inspectorHtml()}</aside></div>`;
   wire();
   show(tab);
+  mountJobAmoeba();
 }
 function show(k, focus) {
   tab = TABS.includes(k) ? k : 'result';
@@ -419,6 +478,7 @@ export function unmount() {
   dead = true; gen++;
   timers.forEach(clearTimeout); timers.clear();
   if (disposePattern) { disposePattern(); disposePattern = null; }
+  unmountAmoebas(amHandles); amHandles = [];
   if (dlg) { dlg.close(); dlg = null; }
   if (root) root.innerHTML = '';
   root = null; c = null; prev = null; dep = null; meta = null;

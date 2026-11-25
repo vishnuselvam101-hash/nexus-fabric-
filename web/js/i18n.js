@@ -1667,6 +1667,60 @@ Object.assign(JA, {
   'st.amoeba.label': 'AMOEBA 検証',
 });
 
+// stage 2 job workspace: export lock, AMOEBA stage timeline, inspector
+Object.assign(EN, {
+  'exp.h': 'Export',
+  'exp.dxf': 'Export DXF',
+  'exp.locked': 'Export DXF (locked)',
+  'exp.because': 'Locked because:',
+  'exp.hold': 'Hold:',
+  'exp.note': 'DXF downloads open only after the server releases this job: state approved and every gate PASS.',
+  'exp.reason.gate': 'Gate {id} ({name}) is {result}.',
+  'exp.reason.state': 'The server has not released this job (state {state}).',
+  'am.stage.aria': 'AMOEBA stages',
+  'am.s.surround': 'Surround',
+  'am.s.engulf': 'Engulf',
+  'am.s.digest': 'Digest',
+  'am.s.release': 'Release',
+  'am.s.hold': 'Hold',
+  'insp.dims': 'Dimensions',
+  'insp.gates': 'Gates',
+  'insp.len': 'Flat length',
+  'insp.holes': 'Holes',
+  'insp.side': 'Marking side',
+  'insp.none': 'No pattern yet.',
+  'insp.g.pass': 'Pass',
+  'insp.g.fail': 'Fail',
+  'insp.g.inc': 'Inconclusive',
+  'insp.g.ni': 'Not implemented',
+});
+Object.assign(JA, {
+  'exp.h': '書き出し',
+  'exp.dxf': 'DXF を書き出す',
+  'exp.locked': 'DXF を書き出す（ロック中）',
+  'exp.because': 'ロック理由：',
+  'exp.hold': '保留：',
+  'exp.note': 'DXF のダウンロードは、サーバーがこのジョブを解放した後（承認済みかつ全ゲート合格）にのみ開きます。',
+  'exp.reason.gate': 'ゲート {id}（{name}）は {result} です。',
+  'exp.reason.state': 'サーバーはこのジョブを解放していません（状態：{state}）。',
+  'am.stage.aria': 'AMOEBA の段階',
+  'am.s.surround': '包囲',
+  'am.s.engulf': '取り込み',
+  'am.s.digest': '消化',
+  'am.s.release': '解放',
+  'am.s.hold': '保留',
+  'insp.dims': '寸法',
+  'insp.gates': 'ゲート',
+  'insp.len': '展開長',
+  'insp.holes': '穴',
+  'insp.side': '刻印面',
+  'insp.none': 'まだ展開図がありません。',
+  'insp.g.pass': '合格',
+  'insp.g.fail': '不合格',
+  'insp.g.inc': '判定保留',
+  'insp.g.ni': '未実装',
+});
+
 const MSG = { en: EN, ja: JA };
 export const CATALOGUE = MSG;
 
