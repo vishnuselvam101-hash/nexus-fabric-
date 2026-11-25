@@ -338,7 +338,7 @@ async function loadObligations(signal) {
     content.textContent = '';
     content.appendChild(el('h2', null, 'Obligations'));
     if (!obs || !obs.length) {
-      content.appendChild(el('p', 'sub', 'No open obligations.'));
+      content.appendChild(el('p', 'sub', t('ws.none.obl')));
       return;
     }
     const tbl = document.createElement('table');
@@ -419,7 +419,7 @@ async function loadUsers(signal) {
     content.textContent = '';
 
     const hd = el('div', 'panel-h');
-    hd.appendChild(el('h2', null, 'Users'));
+    hd.appendChild(el('h2', null, t('ws.users')));
     const btn = el('button', 'btn pri', t('ws.add.user'));
     btn.type = 'button';
     btn.addEventListener('click', () => showUserForm(signal));
@@ -427,7 +427,7 @@ async function loadUsers(signal) {
     content.appendChild(hd);
 
     if (!users || !users.length) {
-      content.appendChild(el('p', 'sub', 'No users.'));
+      content.appendChild(el('p', 'sub', t('ws.none.users')));
       return;
     }
     const tbl = document.createElement('table');
