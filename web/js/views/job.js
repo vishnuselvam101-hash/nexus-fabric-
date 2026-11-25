@@ -16,7 +16,8 @@ const num = (v, u = '') => (typeof v === 'number' ? `<span class="mono" title="$
 const signed = (v, u = '') => `<span class="mono" title="${fmt(v)}">${v > 0 ? '+' : ''}${n3(v)}</span>${u ? ` <span class="sub">${esc(u)}</span>` : ''}`;
 const tag = (kind, text) => `<span class="tag chip${kind && kind !== 'na' ? ` ${kind}` : ''}">${esc(text)}</span>`;
 const panel = (title, body, count) => `<section class="panel"><div class="panel-h"><h2>${title}</h2>${count !== undefined ? `<span class="cnt">${esc(count)}</span>` : ''}</div><div class="panel-b">${body}</div></section>`;
-const alert = (html, kind = 'bad') => `<div class="alert ${kind}" role="alert">${html}</div>`;
+const ICON = { bad: 'i-alert', warn: 'i-alert', ok: 'i-check' };
+const alert = (html, kind = 'bad') => `<div class="alert banner ${kind}" role="alert"><svg class="icon" aria-hidden="true"><use href="#${ICON[kind] || 'i-alert'}"/></svg><div>${html}</div></div>`;
 const sub = (s) => `<p class="sub">${esc(s)}</p>`;
 const kvRows = (pairs) => `<dl class="kv">${pairs.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
 
@@ -250,11 +251,11 @@ function historyHtml() {
 const measHtml = () => panel(esc(t('meas.h')), `${sub(t('meas.hint'))}<div class="row"><button type="button" class="btn" id="go-pattern">${esc(t('tool.measure'))}</button></div>`);
 
 function render() {
-  const tabsRow = `<div class="tabs row" role="tablist" aria-label="${esc(t('tabs.aria'))}">${TABS.map((k) => `<button type="button" role="tab" id="tab-${k}" data-tab="${k}" aria-controls="tp-${k}" aria-selected="${k === tab}" tabindex="${k === tab ? 0 : -1}" class="btn${k === tab ? ' btn-primary' : ''}">${esc(t(TAB_KEY[k]))}${k === 'details' && openCount() ? ` <span class="cnt">${openCount()}</span>` : ''}</button>`).join('')}</div>`;
+  const tabsRow = `<div class="tabs" role="tablist" aria-label="${esc(t('tabs.aria'))}">${TABS.map((k) => `<button type="button" role="tab" id="tab-${k}" data-tab="${k}" aria-controls="tp-${k}" aria-selected="${k === tab}" tabindex="${k === tab ? 0 : -1}">${esc(t(TAB_KEY[k]))}${k === 'details' && openCount() ? ` <span class="cnt">${openCount()}</span>` : ''}</button>`).join('')}</div>`;
   const tp = (k, html) => `<div role="tabpanel" id="tp-${k}" aria-labelledby="tab-${k}"${k === tab ? '' : ' hidden'}>${html}</div>`;
-  root.innerHTML = `<div class="workspace"><div class="ws-content"><section class="panel">${headerHtml()}</section>${bannerHtml()}${tabsRow}
+  root.innerHTML = `<div class="workspace"><div class="ws-content"><section class="panel job-head">${headerHtml()}</section>${bannerHtml()}${tabsRow}
     ${tp('result', gatesHtml() + checksHtml() + dxfHtml() + recordsHtml())}
-    ${tp('pattern', c.patterns.length ? '<div class="viewer-container" id="pattern-host"></div>' : panel(esc(t('nopat.t')), alert(c.refusal ? refusalHtml(c.refusal) : c.outcome ? eng(c.outcome) : esc(t('nopat.default')))))}
+    ${tp('pattern', c.patterns.length ? '<div class="pattern-host" id="pattern-host"></div>' : panel(esc(t('nopat.t')), alert(c.refusal ? refusalHtml(c.refusal) : c.outcome ? eng(c.outcome) : esc(t('nopat.default')))))}
     ${tp('details', reqHtml() + (prev ? diffHtml() : '') + measHtml() + depsHtml() + scrutinyHtml() + historyHtml())}
   </div></div>`;
   wire();
@@ -264,7 +265,7 @@ function show(k, focus) {
   tab = TABS.includes(k) ? k : 'result';
   $$('[role=tab]', root).forEach((b) => {
     const on = b.dataset.tab === tab;
-    b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; b.classList.toggle('btn-primary', on);
+    b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1;
     const p = document.getElementById(b.getAttribute('aria-controls')); if (p) p.hidden = !on;
     if (on && focus) b.focus();
   });

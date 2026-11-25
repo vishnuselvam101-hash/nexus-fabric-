@@ -63,24 +63,28 @@ export function mountPattern(host, c) {
   const xy = (q) => `${n3(q[0])}, ${n3(q[1])}`;
   const point = (q) => (q.free ? esc(t('pv.free')) : h('pv.on', { curve: mono(q.curve), i: q.vi }));
 
+  // one compact segmented toolbar: icons, the label as the accessible name and tooltip
+  const ib = (attrs, icon, label, tip) => `<button type="button" class="seg-btn" ${attrs} aria-label="${esc(label)}" title="${esc(tip || label)}"><svg class="icon" aria-hidden="true"><use href="#${icon}"/></svg></button>`;
   host.innerHTML = `<section class="panel">
-    <div class="panel-h">
-      <div class="tabs" role="tablist" aria-label="${esc(t('parts.aria'))}">${patterns.map((p, i) => `<button class="btn" role="tab" id="${ptId(i)}" data-part="${i}" aria-controls="${pvId}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}">${partName(p.part)} <span class="mono">${esc(p.class)}</span></button>`).join('')}</div>
-      <div class="row">
-        <button class="btn" data-tool="select" aria-pressed="true" title="${esc(t('tool.select.tip'))}">${esc(t('tool.select'))}</button>
-        <button class="btn" data-tool="measure" aria-pressed="false" title="${esc(t('tool.measure.tip'))}">${esc(t('tool.measure'))}</button>
-        <button class="btn" data-zoom="out" aria-label="${esc(t('zoom.out'))}" title="${esc(t('zoom.out.tip'))}">−</button>
+    <div class="panel-h toolbar-row">
+      <div class="tabs" role="tablist" aria-label="${esc(t('parts.aria'))}">${patterns.map((p, i) => `<button type="button" role="tab" id="${ptId(i)}" data-part="${i}" aria-controls="${pvId}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}">${partName(p.part)} <span class="mono">${esc(p.class)}</span></button>`).join('')}</div>
+      <div class="seg">
+        ${ib('data-tool="select" aria-pressed="true"', 'i-cursor', t('tool.select'), t('tool.select.tip'))}
+        ${ib('data-tool="measure" aria-pressed="false"', 'i-ruler', t('tool.measure'), t('tool.measure.tip'))}
+        <span class="seg-sep" aria-hidden="true"></span>
+        ${ib('data-zoom="out"', 'i-minus', t('zoom.out'), t('zoom.out.tip'))}
         <span class="mono" data-zoomv aria-live="off">100%</span>
-        <button class="btn" data-zoom="in" aria-label="${esc(t('zoom.in'))}" title="${esc(t('zoom.in.tip'))}">+</button>
-        <button class="btn" data-zoom="fit" aria-label="${esc(t('zoom.fit'))}" title="${esc(t('zoom.fit.tip'))}">${esc(t('zoom.fit'))}</button>
-        <button class="btn" data-toggle="grid" aria-pressed="true">${esc(t('disp.grid'))}</button>
-        <button class="btn" data-toggle="dims" aria-pressed="true" title="${esc(t('disp.dims.tip'))}">${esc(t('disp.dims'))}</button>
-        <button class="btn" data-toggle="labels" aria-pressed="true" title="${esc(t('disp.labels.tip'))}">${esc(t('disp.labels'))}</button>
-        ${prevPatterns.length ? `<button class="btn" data-ghost aria-pressed="false" title="${esc(t('disp.prev.tip', { id: prev.id }))}">${esc(t('disp.prev', { id: prev.id }))}</button>` : ''}
+        ${ib('data-zoom="in"', 'i-plus', t('zoom.in'), t('zoom.in.tip'))}
+        ${ib('data-zoom="fit"', 'i-fit', t('zoom.fit'), t('zoom.fit.tip'))}
+        <span class="seg-sep" aria-hidden="true"></span>
+        ${ib('data-toggle="grid" aria-pressed="true"', 'i-grid', t('disp.grid'))}
+        ${ib('data-toggle="dims" aria-pressed="true"', 'i-dims', t('disp.dims'), t('disp.dims.tip'))}
+        ${ib('data-toggle="labels" aria-pressed="true"', 'i-label', t('disp.labels'), t('disp.labels.tip'))}
+        ${prevPatterns.length ? ib('data-ghost aria-pressed="false"', 'i-layers', t('disp.prev', { id: prev.id }), t('disp.prev.tip', { id: prev.id })) : ''}
       </div>
     </div>
+    <div class="pv-stage"><div class="viewer-container" id="${pvId}" role="tabpanel" data-pv></div></div>
     <div class="panel-b">
-      <div class="viewer-container" id="${pvId}" role="tabpanel" data-pv></div>
       <div class="row sub" data-notes role="note" aria-label="${esc(t('cn.aria'))}"></div>
       <div class="row sub" aria-hidden="true"><span><b>X</b> <span class="mono" data-ro-x>—</span></span><span><b>Y</b> <span class="mono" data-ro-y>—</span></span><span data-ro-info></span></div>
     </div>
