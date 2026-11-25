@@ -39,7 +39,8 @@ fn kind(code: u16) -> Kind {
 }
 
 /// Reads the body of a HEADER section (the pairs between its name and `0 ENDSEC`). Comments (999) are
-/// skipped. A variable seen twice keeps its last value.
+/// skipped. A variable set twice is refused: two values for one variable (for example two `$INSUNITS`)
+/// would otherwise be resolved silently.
 pub(crate) fn parse_variables(body: &[Pair]) -> Result<BTreeMap<String, HeaderValue>, CadError> {
     let mut vars = BTreeMap::new();
     let mut current: Option<(String, Vec<&Pair>)> = None;
@@ -53,10 +54,13 @@ pub(crate) fn parse_variables(body: &[Pair]) -> Result<BTreeMap<String, HeaderVa
             }
             let name = pair.value.trim();
             if !name.starts_with('$') || name.len() < 2 {
+                return Err(CadError::at(pair.line, Reason::HeaderNameNotDollar));
+            }
+            if vars.contains_key(name) {
                 return Err(CadError::at(
                     pair.line,
-                    Reason::Structure {
-                        detail: "header variable name must start with $",
+                    Reason::DuplicateHeaderVariable {
+                        name: name.to_string(),
                     },
                 ));
             }
@@ -65,12 +69,7 @@ pub(crate) fn parse_variables(body: &[Pair]) -> Result<BTreeMap<String, HeaderVa
             match current.as_mut() {
                 Some((_, group)) => group.push(pair),
                 None => {
-                    return Err(CadError::at(
-                        pair.line,
-                        Reason::Structure {
-                            detail: "header value before any variable name",
-                        },
-                    ));
+                    return Err(CadError::at(pair.line, Reason::HeaderValueWithoutName));
                 }
             }
         }

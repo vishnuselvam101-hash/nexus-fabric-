@@ -17,6 +17,7 @@ mod tokenizer;
 mod units;
 
 use std::collections::BTreeMap;
+use std::io::Read;
 
 pub use error::{CadError, Reason};
 pub use header::HeaderValue;
@@ -26,8 +27,11 @@ pub use units::Units;
 /// Hard limits. Exceeding one is a refusal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
-    /// Largest accepted input, in bytes.
+    /// Largest accepted input, in bytes. Default 32 MiB.
     pub max_bytes: usize,
+    /// Largest number of group code and value pairs. Default 4 million, which bounds the memory a
+    /// parsed document can hold (about 70 bytes a pair) to a few hundred MB.
+    pub max_pairs: usize,
     /// Largest number of entity records (group 0 records in ENTITIES and BLOCKS, not counting ENDBLK),
     /// and the largest record count a table header may declare.
     pub max_entities: usize,
@@ -38,7 +42,8 @@ pub struct Limits {
 impl Default for Limits {
     fn default() -> Self {
         Limits {
-            max_bytes: 64 << 20,
+            max_bytes: 32 << 20,
+            max_pairs: 4_000_000,
             max_entities: 1_000_000,
             max_depth: 16,
         }
@@ -59,7 +64,7 @@ pub struct Section {
 /// A parsed DXF file.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Document {
-    /// Header variables by name, for example `$ACADVER`. A name seen twice keeps its last value.
+    /// Header variables by name, for example `$ACADVER`. A name set twice is refused.
     pub header: BTreeMap<String, HeaderValue>,
     /// Every section in file order.
     pub sections: Vec<Section>,
@@ -76,6 +81,30 @@ impl Document {
     /// Parses with the given limits.
     pub fn parse_with(input: &[u8], limits: &Limits) -> Result<Document, CadError> {
         parse::parse(input, limits)
+    }
+
+    /// Reads `reader` and parses it with the default [`Limits`]. At most `max_bytes + 1` bytes are read,
+    /// so an endless reader is refused rather than read forever.
+    pub fn parse_reader(reader: impl Read) -> Result<Document, CadError> {
+        Document::parse_reader_with(reader, &Limits::default())
+    }
+
+    /// Reads `reader` and parses it with the given limits. At most `max_bytes + 1` bytes are read: the
+    /// cap is enforced by the read itself, before any byte is parsed.
+    pub fn parse_reader_with(reader: impl Read, limits: &Limits) -> Result<Document, CadError> {
+        let cap = u64::try_from(limits.max_bytes)
+            .unwrap_or(u64::MAX)
+            .saturating_add(1);
+        let mut bytes = Vec::new();
+        reader.take(cap).read_to_end(&mut bytes).map_err(|e| {
+            CadError::at(
+                0,
+                Reason::ReadFailed {
+                    message: e.to_string(),
+                },
+            )
+        })?;
+        parse::parse(&bytes, limits)
     }
 
     /// The value of a header variable, for example `variable("$INSUNITS")`.

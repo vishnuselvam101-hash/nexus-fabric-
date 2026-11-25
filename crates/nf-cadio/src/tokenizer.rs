@@ -16,39 +16,57 @@ pub struct Pair {
     pub line: usize,
 }
 
-/// Splits `input` into pairs. Accepts CRLF and LF line ends, and codes padded with spaces or tabs.
-pub(crate) fn tokenize(input: &[u8]) -> Result<Vec<Pair>, CadError> {
+/// Calls `visit` with every pair of `input`, in order. Accepts CRLF and LF line ends, and codes padded
+/// with spaces or tabs. Reads one line at a time: no table of lines is built, and the pair count is
+/// checked before each pair is handed on, so `visit` never sees more than `max_pairs` pairs.
+pub(crate) fn for_each_pair(
+    input: &[u8],
+    max_pairs: usize,
+    mut visit: impl FnMut(Pair) -> Result<(), CadError>,
+) -> Result<(), CadError> {
     if let Some(pos) = input.iter().position(|&b| b == 0) {
         let line = input[..pos].iter().filter(|&&b| b == b'\n').count() + 1;
         return Err(CadError::at(line, Reason::NulByte));
     }
-    let mut lines: Vec<&[u8]> = input
+    // Blank lines at the end of the file are not data. Keep the input up to the end of the last line
+    // that has a non-blank byte.
+    let Some(last) = input.iter().rposition(|b| !b.is_ascii_whitespace()) else {
+        return Ok(());
+    };
+    let end = input[last..]
+        .iter()
+        .position(|&b| b == b'\n')
+        .map_or(input.len(), |off| last + off);
+    let text = &input[..end];
+    let line_count = text.iter().filter(|&&b| b == b'\n').count() + 1;
+    if line_count % 2 == 1 {
+        return Err(CadError::at(line_count, Reason::TruncatedPair));
+    }
+    let mut lines = text
         .split(|&b| b == b'\n')
-        .map(|line| line.strip_suffix(b"\r").unwrap_or(line))
-        .collect();
-    // A final LF leaves an empty last line; blank lines at the end of the file are not data.
-    while lines
-        .last()
-        .is_some_and(|line| line.trim_ascii().is_empty())
-    {
-        lines.pop();
-    }
-    if lines.len() % 2 == 1 {
-        return Err(CadError::at(lines.len(), Reason::TruncatedPair));
-    }
-    lines
-        .chunks_exact(2)
-        .enumerate()
-        .map(|(i, pair)| {
-            let line = 2 * i + 1;
-            let code = parse_code(pair[0]).map_err(|reason| CadError::at(line, reason))?;
-            Ok(Pair {
-                code,
-                value: latin1(pair[1]),
+        .map(|line| line.strip_suffix(b"\r").unwrap_or(line));
+    let mut count = 0usize;
+    let mut line = 1usize;
+    while let Some(code_line) = lines.next() {
+        let Some(value_line) = lines.next() else {
+            return Err(CadError::at(line, Reason::TruncatedPair));
+        };
+        count += 1;
+        if count > max_pairs {
+            return Err(CadError::at(
                 line,
-            })
-        })
-        .collect()
+                Reason::TooManyPairs { limit: max_pairs },
+            ));
+        }
+        let code = parse_code(code_line).map_err(|reason| CadError::at(line, reason))?;
+        visit(Pair {
+            code,
+            value: latin1(value_line),
+            line,
+        })?;
+        line += 2;
+    }
+    Ok(())
 }
 
 fn parse_code(line: &[u8]) -> Result<u16, Reason> {

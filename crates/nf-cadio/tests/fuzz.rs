@@ -105,6 +105,7 @@ fn random_mutations_never_panic_for_30_seconds() {
     let corpus = corpus();
     let small = Limits {
         max_bytes: 512,
+        max_pairs: 64,
         max_entities: 3,
         max_depth: 1,
     };

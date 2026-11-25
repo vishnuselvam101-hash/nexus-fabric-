@@ -2,7 +2,7 @@
 
 mod common;
 
-use nf_cadio::{Document, HeaderValue, Limits, Units};
+use nf_cadio::{Document, HeaderValue, Limits, Reason, Units};
 
 fn names(doc: &Document) -> Vec<&str> {
     doc.sections.iter().map(|s| s.name.as_str()).collect()
@@ -178,10 +178,17 @@ fn unrecognised_insunits_code_is_unknown_not_guessed() {
 }
 
 #[test]
-fn duplicate_header_variable_keeps_last_value() {
-    let text = "  0\nSECTION\n  2\nHEADER\n  9\n$INSUNITS\n 70\n4\n  9\n$INSUNITS\n 70\n6\n  0\nENDSEC\n  0\nEOF\n";
-    let doc = Document::parse(text.as_bytes()).unwrap();
-    assert_eq!(doc.units(), Units::Meter);
+fn duplicate_insunits_is_refused_not_resolved() {
+    // $INSUNITS 4 (mm) then 1 (inch) would otherwise be resolved to one value without a word.
+    let text = "  0\nSECTION\n  2\nHEADER\n  9\n$INSUNITS\n 70\n4\n  9\n$INSUNITS\n 70\n1\n  0\nENDSEC\n  0\nEOF\n";
+    let e = Document::parse(text.as_bytes()).unwrap_err();
+    assert_eq!(
+        e.reason,
+        Reason::DuplicateHeaderVariable {
+            name: "$INSUNITS".to_string()
+        }
+    );
+    assert_eq!(e.line, 9);
 }
 
 #[test]
@@ -195,6 +202,7 @@ fn file_without_sections_is_valid_when_it_ends_with_eof() {
 fn default_limits_are_safe_and_nonzero() {
     let d = Limits::default();
     assert!(d.max_bytes >= 1 << 20);
+    assert!(d.max_pairs >= 1_000_000);
     assert!(d.max_entities >= 100_000);
     assert!(d.max_depth >= 1);
 }

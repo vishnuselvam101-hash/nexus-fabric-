@@ -1,8 +1,12 @@
 //! Splits the pairs into sections and enforces the limits.
+//!
+//! The input is read twice. The first pass refuses bad tokens and too many pairs and stores nothing.
+//! The second pass builds the sections one pair at a time and checks each record as it arrives, so a
+//! refused input never holds a second copy of its pairs. Section bodies are moved, never cloned.
 
 use crate::error::{CadError, Reason};
 use crate::header::{int_value, parse_variables};
-use crate::tokenizer::{tokenize, Pair};
+use crate::tokenizer::{for_each_pair, Pair};
 use crate::{Document, Limits, Section};
 
 pub(crate) fn parse(input: &[u8], limits: &Limits) -> Result<Document, CadError> {
@@ -15,116 +19,186 @@ pub(crate) fn parse(input: &[u8], limits: &Limits) -> Result<Document, CadError>
             },
         ));
     }
-    let pairs = tokenize(input)?;
-    let mut doc = Document::default();
-    let mut entities = 0usize;
-    let mut eof = false;
-    let mut i = 0;
-    while i < pairs.len() {
-        let pair = &pairs[i];
-        if eof {
-            return Err(structure(pair.line, "data after 0 EOF"));
+    for_each_pair(input, limits.max_pairs, |_| Ok(()))?;
+    let mut builder = Builder::new(limits);
+    for_each_pair(input, limits.max_pairs, |pair| builder.push(pair))?;
+    builder.finish()
+}
+
+/// Where the reader is between pairs.
+enum State {
+    /// Outside every section: `0 SECTION`, `0 EOF` or a 999 comment.
+    Top,
+    /// After `0 SECTION` at `line`, waiting for its group 2 name.
+    Name { line: usize },
+    /// Inside a section.
+    Body(Open),
+    /// After `0 EOF`.
+    Eof,
+}
+
+/// A section being read.
+struct Open {
+    name: String,
+    /// Line of the `0 SECTION` record.
+    line: usize,
+    pairs: Vec<Pair>,
+    /// Extended-data nesting depth (group 1002 braces).
+    depth: usize,
+    /// True from `0 TABLE` in TABLES up to the next record.
+    in_table_header: bool,
+    /// True once the group 70 of the current table header has been checked. That group 70 is the
+    /// record count, and it comes before the first record of the table in both R12 and R2000 layouts.
+    table_count_seen: bool,
+}
+
+struct Builder<'a> {
+    limits: &'a Limits,
+    doc: Document,
+    state: State,
+    entities: usize,
+    has_header: bool,
+    /// Line of the last pair seen (0 before the first). Used for end-of-input refusals.
+    last_line: usize,
+}
+
+impl<'a> Builder<'a> {
+    fn new(limits: &'a Limits) -> Self {
+        Builder {
+            limits,
+            doc: Document::default(),
+            state: State::Top,
+            entities: 0,
+            has_header: false,
+            last_line: 0,
         }
+    }
+
+    fn push(&mut self, pair: Pair) -> Result<(), CadError> {
+        self.last_line = pair.line;
+        match std::mem::replace(&mut self.state, State::Top) {
+            State::Top => self.top(pair),
+            State::Name { line } => self.name(pair, line),
+            State::Body(open) => self.body(open, pair),
+            State::Eof => Err(CadError::at(pair.line, Reason::DataAfterEof)),
+        }
+    }
+
+    fn top(&mut self, pair: Pair) -> Result<(), CadError> {
         if pair.code == 999 {
-            doc.comments.push(pair.value.clone());
-            i += 1;
-            continue;
+            self.doc.comments.push(pair.value);
+            return Ok(());
         }
-        if pair.code != 0 {
-            return Err(structure(
-                pair.line,
-                "expected 0 SECTION, 0 EOF or a 999 comment",
-            ));
+        match (pair.code, pair.value.as_str()) {
+            (0, "SECTION") => self.state = State::Name { line: pair.line },
+            (0, "EOF") => self.state = State::Eof,
+            _ => return Err(CadError::at(pair.line, Reason::RecordOutsideSection)),
         }
-        match pair.value.as_str() {
-            "EOF" => {
-                eof = true;
-                i += 1;
-            }
-            "SECTION" => {
-                let name = match pairs.get(i + 1) {
-                    Some(name) if name.code == 2 => name,
-                    _ => return Err(structure(pair.line, "SECTION without a name (group 2)")),
-                };
-                let start = i + 2;
-                let end = section_end(&pairs, start, pair.line)?;
-                let section = Section {
-                    name: name.value.clone(),
-                    line: pair.line,
-                    pairs: pairs[start..end].to_vec(),
-                };
-                check_body(&section, limits, &mut entities)?;
-                if section.name == "HEADER" {
-                    doc.header.extend(parse_variables(&section.pairs)?);
-                }
-                doc.sections.push(section);
-                i = end + 1;
-            }
-            _ => return Err(structure(pair.line, "expected 0 SECTION or 0 EOF")),
-        }
+        Ok(())
     }
-    if !eof {
-        let line = pairs.last().map_or(0, |p| p.line);
-        return Err(CadError::at(line, Reason::MissingEof));
+
+    fn name(&mut self, pair: Pair, line: usize) -> Result<(), CadError> {
+        if pair.code != 2 {
+            return Err(CadError::at(line, Reason::SectionWithoutName));
+        }
+        if pair.value.trim() != pair.value {
+            return Err(CadError::at(pair.line, Reason::SectionNameWhitespace));
+        }
+        if pair.value == "HEADER" {
+            if self.has_header {
+                return Err(CadError::at(line, Reason::DuplicateHeader));
+            }
+            self.has_header = true;
+        }
+        self.state = State::Body(Open {
+            name: pair.value,
+            line,
+            pairs: Vec::new(),
+            depth: 0,
+            in_table_header: false,
+            table_count_seen: false,
+        });
+        Ok(())
     }
-    Ok(doc)
-}
 
-fn structure(line: usize, detail: &'static str) -> CadError {
-    CadError::at(line, Reason::Structure { detail })
-}
-
-/// Index of the `0 ENDSEC` that closes a section whose body starts at `start`.
-fn section_end(pairs: &[Pair], start: usize, section_line: usize) -> Result<usize, CadError> {
-    for (j, pair) in pairs.iter().enumerate().skip(start) {
+    fn body(&mut self, mut open: Open, pair: Pair) -> Result<(), CadError> {
         if pair.code == 0 {
             match pair.value.as_str() {
-                "ENDSEC" => return Ok(j),
+                "ENDSEC" => return self.close(open),
                 "SECTION" | "EOF" => {
-                    return Err(structure(pair.line, "section not closed by 0 ENDSEC"));
+                    return Err(CadError::at(pair.line, Reason::SectionNotClosed));
                 }
                 _ => {}
             }
         }
+        open.record(pair, self.limits, &mut self.entities)?;
+        self.state = State::Body(open);
+        Ok(())
     }
-    let line = pairs.last().map_or(section_line, |p| p.line);
-    Err(structure(line, "section not closed by 0 ENDSEC"))
+
+    fn close(&mut self, open: Open) -> Result<(), CadError> {
+        if open.depth != 0 {
+            return Err(CadError::at(open.line, Reason::UnbalancedBraces));
+        }
+        if open.name == "HEADER" {
+            self.doc.header = parse_variables(&open.pairs)?;
+        }
+        self.doc.sections.push(Section {
+            name: open.name,
+            line: open.line,
+            pairs: open.pairs,
+        });
+        self.state = State::Top;
+        Ok(())
+    }
+
+    fn finish(self) -> Result<Document, CadError> {
+        match self.state {
+            State::Eof => Ok(self.doc),
+            State::Top => Err(CadError::at(self.last_line, Reason::MissingEof)),
+            State::Name { line } => Err(CadError::at(line, Reason::SectionWithoutName)),
+            State::Body(_) => Err(CadError::at(self.last_line, Reason::SectionNotClosed)),
+        }
+    }
 }
 
-/// Per-section checks: record boundaries, extended-data braces, the entity count and table counts.
-fn check_body(section: &Section, limits: &Limits, entities: &mut usize) -> Result<(), CadError> {
-    let counts_entities = matches!(section.name.as_str(), "ENTITIES" | "BLOCKS");
-    let is_tables = section.name == "TABLES";
-    let is_header = section.name == "HEADER";
-    let body = &section.pairs;
-    let mut depth = 0usize;
-    for (j, pair) in body.iter().enumerate() {
+impl Open {
+    /// Checks one pair of the body, then keeps it. `entities` counts across sections.
+    fn record(
+        &mut self,
+        pair: Pair,
+        limits: &Limits,
+        entities: &mut usize,
+    ) -> Result<(), CadError> {
+        let line = pair.line;
         match pair.code {
             0 => {
-                if is_header {
-                    return Err(structure(pair.line, "record inside HEADER"));
+                if self.name == "HEADER" {
+                    return Err(CadError::at(line, Reason::RecordInHeader));
                 }
-                if depth != 0 {
-                    return Err(CadError::at(pair.line, Reason::UnbalancedBraces));
+                if self.depth != 0 {
+                    return Err(CadError::at(line, Reason::UnbalancedBraces));
                 }
-                if counts_entities && pair.value != "ENDBLK" {
+                if matches!(self.name.as_str(), "ENTITIES" | "BLOCKS") && pair.value != "ENDBLK" {
                     *entities += 1;
                     if *entities > limits.max_entities {
                         return Err(CadError::at(
-                            pair.line,
+                            line,
                             Reason::TooManyEntities {
                                 limit: limits.max_entities,
                             },
                         ));
                     }
                 }
+                self.in_table_header = self.name == "TABLES" && pair.value == "TABLE";
+                self.table_count_seen = false;
             }
             1002 => match pair.value.as_str() {
                 "{" => {
-                    depth += 1;
-                    if depth > limits.max_depth {
+                    self.depth += 1;
+                    if self.depth > limits.max_depth {
                         return Err(CadError::at(
-                            pair.line,
+                            line,
                             Reason::TooDeep {
                                 limit: limits.max_depth,
                             },
@@ -132,49 +206,44 @@ fn check_body(section: &Section, limits: &Limits, entities: &mut usize) -> Resul
                     }
                 }
                 "}" => {
-                    if depth == 0 {
-                        return Err(CadError::at(pair.line, Reason::UnbalancedBraces));
+                    if self.depth == 0 {
+                        return Err(CadError::at(line, Reason::UnbalancedBraces));
                     }
-                    depth -= 1;
+                    self.depth -= 1;
                 }
-                _ => {
-                    return Err(structure(
-                        pair.line,
-                        "extended-data group 1002 is not { or }",
-                    ))
-                }
+                _ => return Err(CadError::at(line, Reason::ExtendedDataGroup)),
             },
-            70 if is_tables && j >= 2 && is_table_count(body, j) => {
-                let declared = int_value(pair)?;
-                if declared < 0 {
-                    return Err(CadError::at(
-                        pair.line,
-                        Reason::InvalidValue {
-                            code: pair.code,
-                            text: pair.value.chars().take(32).collect(),
-                        },
-                    ));
-                }
-                if !usize::try_from(declared).is_ok_and(|d| d <= limits.max_entities) {
-                    return Err(CadError::at(
-                        pair.line,
-                        Reason::DeclaredCountTooLarge {
-                            declared,
-                            limit: limits.max_entities,
-                        },
-                    ));
-                }
+            70 if self.in_table_header && !self.table_count_seen => {
+                self.table_count_seen = true;
+                check_table_count(&pair, limits)?;
             }
             _ => {}
         }
+        self.pairs.push(pair);
+        Ok(())
     }
-    if depth != 0 {
-        return Err(CadError::at(section.line, Reason::UnbalancedBraces));
-    }
-    Ok(())
 }
 
-/// True when the pair at `j` is the record count of a table header: `0 TABLE`, `2 NAME`, `70 count`.
-fn is_table_count(body: &[Pair], j: usize) -> bool {
-    body[j - 2].code == 0 && body[j - 2].value == "TABLE" && body[j - 1].code == 2
+/// The record count of a table header: a non-negative integer no larger than `max_entities`.
+fn check_table_count(pair: &Pair, limits: &Limits) -> Result<(), CadError> {
+    let declared = int_value(pair)?;
+    if declared < 0 {
+        return Err(CadError::at(
+            pair.line,
+            Reason::InvalidValue {
+                code: pair.code,
+                text: pair.value.chars().take(32).collect(),
+            },
+        ));
+    }
+    if !usize::try_from(declared).is_ok_and(|d| d <= limits.max_entities) {
+        return Err(CadError::at(
+            pair.line,
+            Reason::DeclaredCountTooLarge {
+                declared,
+                limit: limits.max_entities,
+            },
+        ));
+    }
+    Ok(())
 }

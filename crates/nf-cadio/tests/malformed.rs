@@ -95,7 +95,7 @@ fn empty_input_is_refused_not_panicking() {
 #[test]
 fn section_not_closed_is_refused() {
     let e = refuse(b"  0\nSECTION\n  2\nENTITIES\n  0\nLINE\n  0\nEOF\n");
-    assert!(matches!(e.reason, Reason::Structure { .. }), "{e:?}");
+    assert!(matches!(e.reason, Reason::SectionNotClosed), "{e:?}");
     assert_eq!(e.line, 7);
 }
 
@@ -103,42 +103,42 @@ fn section_not_closed_is_refused() {
 fn nested_section_is_refused() {
     let e =
         refuse(b"  0\nSECTION\n  2\nHEADER\n  0\nSECTION\n  2\nENTITIES\n  0\nENDSEC\n  0\nEOF\n");
-    assert!(matches!(e.reason, Reason::Structure { .. }), "{e:?}");
+    assert!(matches!(e.reason, Reason::SectionNotClosed), "{e:?}");
     assert_eq!(e.line, 5);
 }
 
 #[test]
 fn section_without_name_is_refused() {
     let e = refuse(b"  0\nSECTION\n  0\nENDSEC\n  0\nEOF\n");
-    assert!(matches!(e.reason, Reason::Structure { .. }), "{e:?}");
+    assert!(matches!(e.reason, Reason::SectionWithoutName), "{e:?}");
     assert_eq!(e.line, 1);
 }
 
 #[test]
 fn data_after_eof_is_refused() {
     let e = refuse(b"  0\nEOF\n  0\nSECTION\n");
-    assert!(matches!(e.reason, Reason::Structure { .. }), "{e:?}");
+    assert!(matches!(e.reason, Reason::DataAfterEof), "{e:?}");
     assert_eq!(e.line, 3);
 }
 
 #[test]
 fn record_outside_a_section_is_refused() {
     let e = refuse(b"  0\nLINE\n  0\nEOF\n");
-    assert!(matches!(e.reason, Reason::Structure { .. }), "{e:?}");
+    assert!(matches!(e.reason, Reason::RecordOutsideSection), "{e:?}");
     assert_eq!(e.line, 1);
 }
 
 #[test]
 fn header_value_without_variable_name_is_refused() {
     let e = refuse(b"  0\nSECTION\n  2\nHEADER\n 70\n4\n  0\nENDSEC\n  0\nEOF\n");
-    assert!(matches!(e.reason, Reason::Structure { .. }), "{e:?}");
+    assert!(matches!(e.reason, Reason::HeaderValueWithoutName), "{e:?}");
     assert_eq!(e.line, 5);
 }
 
 #[test]
 fn header_name_without_dollar_is_refused() {
     let e = refuse(b"  0\nSECTION\n  2\nHEADER\n  9\nINSUNITS\n 70\n4\n  0\nENDSEC\n  0\nEOF\n");
-    assert!(matches!(e.reason, Reason::Structure { .. }), "{e:?}");
+    assert!(matches!(e.reason, Reason::HeaderNameNotDollar), "{e:?}");
     assert_eq!(e.line, 5);
 }
 
@@ -290,7 +290,7 @@ fn unclosed_brace_at_section_end_is_refused() {
 #[test]
 fn extended_data_group_other_than_braces_is_refused() {
     let e = refuse(b"  0\nSECTION\n  2\nENTITIES\n  0\nLINE\n1002\nAPP\n  0\nENDSEC\n  0\nEOF\n");
-    assert!(matches!(e.reason, Reason::Structure { .. }), "{e:?}");
+    assert!(matches!(e.reason, Reason::ExtendedDataGroup), "{e:?}");
     assert_eq!(e.line, 7);
 }
 
@@ -299,4 +299,123 @@ fn refusal_display_names_the_line() {
     let e = refuse(b"  0\nSECTION\nX2\nHEADER\n");
     let shown = e.to_string();
     assert!(shown.contains("line 3"), "{shown}");
+}
+
+#[test]
+fn section_name_with_trailing_space_is_refused_not_trimmed() {
+    // "ENTITIES " is not ENTITIES, so no entity limit would apply to it. Refuse it at the name.
+    let mut text = String::from("  0\nSECTION\n  2\nENTITIES \n");
+    for _ in 0..4 {
+        text.push_str("  0\nLINE\n");
+    }
+    text.push_str("  0\nENDSEC\n  0\nEOF\n");
+    let limits = Limits {
+        max_entities: 2,
+        ..Limits::default()
+    };
+    let e = refuse_with(text.as_bytes(), &limits);
+    assert!(matches!(e.reason, Reason::SectionNameWhitespace), "{e:?}");
+    assert_eq!(e.line, 3);
+}
+
+#[test]
+fn section_name_with_leading_tab_is_refused() {
+    let e = refuse(b"  0\nSECTION\n  2\n\tHEADER\n  0\nENDSEC\n  0\nEOF\n");
+    assert!(matches!(e.reason, Reason::SectionNameWhitespace), "{e:?}");
+    assert_eq!(e.line, 3);
+}
+
+#[test]
+fn second_header_section_is_refused() {
+    let e = refuse(
+        b"  0\nSECTION\n  2\nHEADER\n  0\nENDSEC\n  0\nSECTION\n  2\nHEADER\n  0\nENDSEC\n  0\nEOF\n",
+    );
+    assert!(matches!(e.reason, Reason::DuplicateHeader), "{e:?}");
+    assert_eq!(e.line, 7);
+}
+
+#[test]
+fn table_count_after_handle_and_subclass_is_checked() {
+    // R2000 layout: handle (5) and subclass (100) come before the record count (70).
+    let text = "  0\nSECTION\n  2\nTABLES\n  0\nTABLE\n  2\nLAYER\n  5\n2\n100\nAcDbSymbolTable\n 70\n4000000000\n  0\nENDTAB\n  0\nENDSEC\n  0\nEOF\n";
+    let e = refuse(text.as_bytes());
+    assert!(
+        matches!(
+            e.reason,
+            Reason::DeclaredCountTooLarge {
+                declared: 4000000000,
+                ..
+            }
+        ),
+        "{e:?}"
+    );
+    assert_eq!(e.line, 13);
+}
+
+#[test]
+fn pair_count_over_limit_is_refused_at_the_pair() {
+    let text = b"  0\nSECTION\n  2\nHEADER\n  0\nENDSEC\n  0\nEOF\n";
+    let limits = Limits {
+        max_pairs: 3,
+        ..Limits::default()
+    };
+    let e = refuse_with(text, &limits);
+    assert!(
+        matches!(e.reason, Reason::TooManyPairs { limit: 3 }),
+        "{e:?}"
+    );
+    assert_eq!(e.line, 7);
+    let fits = Limits {
+        max_pairs: 4,
+        ..Limits::default()
+    };
+    assert!(Document::parse_with(text, &fits).is_ok());
+}
+
+#[test]
+fn reader_is_read_only_up_to_the_byte_limit() {
+    // An endless stream of records. The read stops at max_bytes + 1 bytes and the input is refused.
+    struct Endless(usize);
+    impl std::io::Read for Endless {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let pattern = b"  0\nLINE\n";
+            for (i, b) in buf.iter_mut().enumerate() {
+                *b = pattern[(self.0 + i) % pattern.len()];
+            }
+            self.0 += buf.len();
+            Ok(buf.len())
+        }
+    }
+    let limits = Limits {
+        max_bytes: 1000,
+        ..Limits::default()
+    };
+    let mut reader = Endless(0);
+    let e = Document::parse_reader_with(&mut reader, &limits).unwrap_err();
+    assert!(
+        matches!(e.reason, Reason::TooLarge { limit: 1000, .. }),
+        "{e:?}"
+    );
+    assert_eq!(e.line, 0);
+    assert_eq!(reader.0, 1001);
+}
+
+#[test]
+fn reader_failure_is_refused_with_its_message() {
+    struct Broken;
+    impl std::io::Read for Broken {
+        fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::other("disk gone"))
+        }
+    }
+    let e = Document::parse_reader(Broken).unwrap_err();
+    assert!(matches!(e.reason, Reason::ReadFailed { .. }), "{e:?}");
+    assert!(e.to_string().contains("disk gone"), "{e}");
+}
+
+#[test]
+fn reader_input_within_limit_parses_like_a_slice() {
+    let text = common::r12_sample();
+    let from_reader = Document::parse_reader(text.as_bytes()).unwrap();
+    assert_eq!(from_reader, Document::parse(text.as_bytes()).unwrap());
 }
