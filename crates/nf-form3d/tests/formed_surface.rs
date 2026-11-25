@@ -368,9 +368,9 @@ fn invalid_dimensions_are_refused() {
     );
     let other = develop::cone_frustum(200.0, 100.0, 300.0).unwrap();
     let mut wrong = other.clone();
-    wrong.family = "branch_stub";
+    wrong.family = "press_bend";
     assert_eq!(
         Form3d::from_pattern(&wrong),
-        Err(Form3dError::UnsupportedFamily("branch_stub"))
+        Err(Form3dError::UnsupportedFamily("press_bend"))
     );
 }

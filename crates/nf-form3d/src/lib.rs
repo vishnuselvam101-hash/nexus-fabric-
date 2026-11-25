@@ -30,6 +30,8 @@
 //! increases counter-clockwise seen from the small end looking toward the large end, and the angle of the cylinder
 //! counter-clockwise seen from the end v = length looking toward v = 0. These are the conventions the engine states.
 
+pub mod triangulate;
+
 use uem::{P2, Pattern, TAU};
 
 /// A formed part of one of the supported families, with the derived values the map needs.
@@ -47,6 +49,10 @@ pub enum Form3d {
         cos_a: f64,
         slant: f64,
     },
+    /// Header shell: a cylinder whose axis is the plate x direction (the header axis), with the plate y the
+    /// developed circumference from the seam at y = 0. Position = (u, R*sin(v/R), R*cos(v/R)) for a plate point (u, v).
+    /// Radius and length in mm.
+    Header { radius: f64, length: f64 },
 }
 
 /// Refusal of a family or dimension this crate cannot map.
@@ -60,6 +66,13 @@ pub enum Form3dError {
     UnsupportedFamily(&'static str),
     /// A quantity the family needs is missing from the pattern.
     MissingQuantity(&'static str),
+    /// The pattern cannot be formed exactly from its own data. The reason says what is missing.
+    NotFormable {
+        family: &'static str,
+        reason: &'static str,
+    },
+    /// The plate outline or a hole cannot be triangulated (not simple, no bridge, ...).
+    NotTriangulable(&'static str),
 }
 
 impl std::fmt::Display for Form3dError {
@@ -73,6 +86,10 @@ impl std::fmt::Display for Form3dError {
                 write!(f, "family {name} has no closed-form 3D map in nf-form3d")
             }
             Form3dError::MissingQuantity(name) => write!(f, "pattern quantity {name} is missing"),
+            Form3dError::NotFormable { family, reason } => {
+                write!(f, "family {family} cannot be formed exactly: {reason}")
+            }
+            Form3dError::NotTriangulable(reason) => write!(f, "triangulation refused: {reason}"),
         }
     }
 }
@@ -124,6 +141,13 @@ impl Form3d {
         })
     }
 
+    /// A header shell of the given radius and length (mm), see `Form3d::Header`.
+    pub fn header(radius: f64, length: f64) -> Result<Form3d, Form3dError> {
+        positive("radius", radius)?;
+        positive("length", length)?;
+        Ok(Form3d::Header { radius, length })
+    }
+
     /// The formed part of an engine pattern, taken from the pattern's own quantities.
     pub fn from_pattern(p: &Pattern) -> Result<Form3d, Form3dError> {
         let q = |name: &'static str| p.quantity(name).ok_or(Form3dError::MissingQuantity(name));
@@ -136,6 +160,17 @@ impl Form3d {
                 let slant = q("slant_length")?;
                 Form3d::cone(l1 * sin_a, l2 * sin_a, slant * cos_a)
             }
+            // the branch stub is the branch cylinder; its axial span is the saddle's (s_min, s_max)
+            "branch_stub" => {
+                Form3d::cylinder(q("developed_width")? / TAU, q("s_max")? - q("s_min")?)
+            }
+            "header_shell_with_opening" => {
+                Form3d::header(q("developed_width")? / TAU, q("length")?)
+            }
+            "eccentric_reducer" => Err(Form3dError::NotFormable {
+                family: "eccentric_reducer",
+                reason: "the pattern states neither the offset nor the heights of the oblique cone, and its end curves are estimated polylines",
+            }),
             other => Err(Form3dError::UnsupportedFamily(other)),
         }
     }
@@ -144,7 +179,9 @@ impl Form3d {
     /// tolerance of the checks, which are 1e-9 times this value.
     pub fn largest_dimension(&self) -> f64 {
         match *self {
-            Form3d::Cylinder { radius, length } => (2.0 * radius).max(length),
+            Form3d::Cylinder { radius, length } | Form3d::Header { radius, length } => {
+                (2.0 * radius).max(length)
+            }
             Form3d::Cone { r1, h, .. } => (2.0 * r1).max(h),
         }
     }
@@ -157,6 +194,10 @@ impl Form3d {
             Form3d::Cylinder { radius, .. } => {
                 let t = uv.x / radius;
                 [radius * t.cos(), radius * t.sin(), uv.y]
+            }
+            Form3d::Header { radius, .. } => {
+                let t = uv.y / radius;
+                [uv.x, radius * t.sin(), radius * t.cos()]
             }
             Form3d::Cone {
                 r2, sin_a, cos_a, ..
