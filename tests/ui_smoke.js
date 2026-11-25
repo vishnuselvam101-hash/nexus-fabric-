@@ -1267,7 +1267,7 @@ const controlProbe = () => {
     check('3.5 help: no request leaves the program (every request of the help page is to the program itself)', requests.length > 0 && external.length === 0, external);
     await p.goto(`${B}/?lang=ja#/help`); await p.waitForFunction(() => document.querySelector('#view') && document.querySelector('#view').dataset.hash === '#/help'); await p.waitForSelector('#help-gates');
     const helpJa = await p.evaluate(() => ({ gates: [...document.querySelectorAll('#help-gates tbody tr')].map((tr) => tr.cells[1].textContent.trim()), h1: document.querySelector('#view h1').textContent }));
-    check('3.5 help ja: the page is in Japanese, with the Japanese gate labels of the job view', /ヘルプ/.test(helpJa.h1) && helpJa.gates.length === 23 && helpJa.gates.every((g, i) => g === CAT.ids.gate[CAT.gates[i]][1]), helpJa);
+    check('3.5 help ja: the page is in Japanese, with the Japanese gate labels of the job view', /ヘルプ/.test(helpJa.h1) && helpJa.gates.length === 24 && helpJa.gates.every((g, i) => g === CAT.ids.gate[CAT.gates[i]][1]), helpJa);
     await jaScreen('help');
     await p.goto(`${B}/?lang=ja#/help/refusals`); await p.waitForSelector('#help-refusals');
     const focusedSection = await p.waitForFunction(() => document.activeElement && document.activeElement.id === 'help-refusals-h', null, { timeout: 5000 }).then(() => true, () => false);
