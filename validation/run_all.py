@@ -248,6 +248,8 @@ def run_case(case):
             if job.state == 'APPROVED':
                 out['issues'].append('state APPROVED is unreachable')
         exp = case['expect']
+        if case.get('withheld') and job.accepted and not job.withheld:
+            out['issues'].append('the case expects the DXF withheld (engine 0.4.12: a feature below the digest tolerance), but no DXF was withheld')
         if exp == 'refuse':
             if job.accepted:
                 out['class'] = 'wrongly_accepted'

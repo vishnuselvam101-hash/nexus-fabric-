@@ -62,7 +62,9 @@ def cases():
         add(f'aspect-ecc-oblique-e{e:g}', f'very oblique reducer r1=200 r2=100 h=300 e={e:g}', {'family': 'eccentric_reducer', 'r1': 200, 'r2': 100, 'h': 300, 'e': e})
     add('aspect-ecc-tiny-r2', 'reducer with tiny small end r2 = 1e-6', {'family': 'eccentric_reducer', 'r1': 200, 'r2': 1e-6, 'h': 300, 'e': 100})
     add('aspect-cone-tiny-r2', 'cone with tiny small end r2 = 1e-9 (apex nearly in the pattern)', {'family': 'cone_frustum', 'r1': 200, 'r2': 1e-9, 'h': 300})
-    add('aspect-branch-tiny', 'tiny branch r/R = 1e-6', _asm(1000.0, 1e-3, 60, 0.0))
+    # 0.4.12 (architect decision c): the job is accepted and the DXF is WITHHELD with the G23 reason (a feature below the
+    # digest tolerance cannot be verified); this was 'accept' with the file served before. A spec change, recorded.
+    add('aspect-branch-tiny', 'tiny branch r/R = 1e-6 (accepted; DXF withheld by G23: features below the digest tolerance)', _asm(1000.0, 1e-3, 60, 0.0), withheld=True)
     add('aspect-branch-long', 'very long stub s_end = 1e6 R', {'family': 'branch_stub', 'header_radius': 150, 'branch_radius': 100, 'branch_dev_radius': 100, 'beta_deg': 60, 'delta': 20, 's_end': 1.5e8})
     a = _asm(150.0, 100.0, 60, 20.0)
     add('aspect-header-long', 'very long header L = 1e7 R', dict(a, header_length=1.5e9, branch_station=7.5e8))

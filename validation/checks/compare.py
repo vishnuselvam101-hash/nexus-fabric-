@@ -637,6 +637,26 @@ def compare_job(req, job, ndense=6001, dxf=True):
     withhold_ok = {}
     listed_map = (job.result.get('dxf_withheld') or {}) if job.result else {}
     for name in job.withheld:
+        if job.withheld[name].code == 'amoeba_digest_inconclusive':
+            # the AMOEBA digest (gate G23) holds the file: it must be held only because its checks are INCONCLUSIVE, with
+            # G23 itself INCONCLUSIVE (not FAIL: a FAIL refuses the job) and every check the 409 names INCONCLUSIVE
+            g23 = next((g for g in ((job.result or {}).get('gates') or []) if g.get('id') == 'G23'), {})
+            held = job.withheld[name].checks
+            reasons = []
+            if g23.get('result') != 'INCONCLUSIVE':
+                reasons.append(f'gate G23 is {g23.get("result")}, not INCONCLUSIVE')
+            if not held:
+                reasons.append('the 409 names no check')
+            if any(c.get('verdict') != 'INCONCLUSIVE' for c in held):
+                reasons.append('the 409 names a check that is not INCONCLUSIVE')
+            withhold_ok[name] = not reasons
+            rep.setdefault('withheld_checks', {})[name] = {
+                'name': 'dxf held by the AMOEBA digest only because of INCONCLUSIVE checks',
+                'result': 'PASS' if not reasons else 'FAIL',
+                'listed': sorted({c.get('name') for c in held}), **({'reasons': reasons} if reasons else {})}
+            if reasons:
+                issues.append(f'{name}: dxf held by the AMOEBA digest only because of INCONCLUSIVE checks: FAIL ({"; ".join(reasons)})')
+            continue
         listed = set(listed_map.get(name, []))
         scoped = [c for c in job.checks() if c.get('scope') in (name, 'interface')]
         unsure = {c['name'] for c in scoped if c.get('verdict') == 'INCONCLUSIVE'}
