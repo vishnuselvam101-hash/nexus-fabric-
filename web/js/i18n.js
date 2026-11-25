@@ -1639,6 +1639,34 @@ const JA = {
   "dxf.withheld.p": "この部材の切断形状に関する検証項目{n}件が未確定です。すべての項目の判定が確定するまで、ファイルは提供されません：",
 };
 
+// stage 2 home story and steel stage (chapters describe the product; the part is an illustration, not data)
+Object.assign(EN, {
+  'st.fallback': 'Steel part preview needs WebGL',
+  'st.caption': 'Illustration: a generic steel shell with a branch. Not your drawing.',
+  'st.dim.w': 'flat blank width',
+  'st.dim.h': 'shell height',
+  'st.c1.t': 'Rotate',
+  'st.c1.p': 'The part turns in 3D, the way it sits in the drawing.',
+  'st.c2.t': 'Unroll',
+  'st.c2.p': 'Each bend unrolls to its true arc length. Dimension lines mark the flat blank.',
+  'st.c3.t': 'Digest',
+  'st.c3.p': 'The AMOEBA surrounds the pattern, checks every bend, hole and closure, and releases only what passes.',
+  'st.amoeba.label': 'AMOEBA verification',
+});
+Object.assign(JA, {
+  'st.fallback': '鋼板部品のプレビューには WebGL が必要です',
+  'st.caption': 'イメージ図：一般的な鋼板のシェルと枝管です。お客様の図面ではありません。',
+  'st.dim.w': '展開幅',
+  'st.dim.h': '胴の高さ',
+  'st.c1.t': '回転',
+  'st.c1.p': '部品を3Dで回転させ、図面どおりの向きを確認します。',
+  'st.c2.t': '展開',
+  'st.c2.p': '各曲げを実際の弧長で展開します。寸法線が展開板の大きさを示します。',
+  'st.c3.t': '検証',
+  'st.c3.p': 'AMOEBA が展開図を取り囲み、曲げ・穴・閉じ部をすべて検査し、合格したものだけを解放します。',
+  'st.amoeba.label': 'AMOEBA 検証',
+});
+
 const MSG = { en: EN, ja: JA };
 export const CATALOGUE = MSG;
 

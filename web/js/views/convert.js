@@ -2,7 +2,8 @@ import { api, uploadFile } from '../api.js';
 import { getState, setState, patchConvert } from '../store.js';
 import { pollConversion } from '../lib/poll.js';
 import { t } from '../i18n.js';
-import { startHero } from '../lib/hero.js';
+import { createSteelStage, FLAT } from '../lib/steel.js';
+import { mountAmoebas, unmountAmoebas } from '../lib/amoeba-mount.js';
 
 const RECENT_KEY = 'nf_recent', MAX_RECENT = 5, SCALE_KEY = 'nf.scale';
 const STAGES = ['cv2.stage.upload', 'cv2.stage.read', 'cv2.stage.write'];
@@ -257,7 +258,9 @@ function teardown() {
 
 /* ---- render ---- */
 function render() {
-  if (!root) return; root.textContent = '';
+  if (!root) return;
+  dropSteel();
+  root.textContent = '';
   const p = getState().convert.phase;
   if (p === 'idle') renderIdle();
   else if (p === 'uploading' || p === 'converting' || p === 'polling') renderProgress();
@@ -265,17 +268,65 @@ function render() {
   else renderFail();
 }
 
+let steel = null, homeScroll = null, amoebas = [], mountSeq = 0;
+
+function dropSteel() {
+  if (steel) { steel.dispose(); steel = null; }
+  if (homeScroll) { window.removeEventListener('scroll', homeScroll); window.removeEventListener('resize', homeScroll); homeScroll = null; }
+  unmountAmoebas(amoebas); amoebas = [];
+}
+
+// scroll progress of the home story: 0 at the top of the story, 1 at its bottom
+function storyProgress(story) {
+  const r = story.getBoundingClientRect();
+  return clamp01(-r.top / Math.max(1, r.height - window.innerHeight));
+}
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs, txt) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, String(v));
+  if (txt !== undefined) e.textContent = txt;
+  return e;
+}
+
+// dimension lines around the flat blank; drawn from the same scale as the 3D stage, no numbers invented
+function drawDims(svg, w, h, k, scaleFlat) {
+  const cx = w / 2, cy = h / 2;
+  const fw = (FLAT.w * scaleFlat) / k, fh = (FLAT.h * scaleFlat) / k;
+  const x1 = cx - fw / 2, x2 = cx + fw / 2, y1 = cy - fh / 2, y2 = cy + fh / 2;
+  const yb = y2 + 26, xl = x1 - 26;
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.textContent = '';
+  svg.append(
+    svgEl('line', { x1, y1: yb, x2, y2: yb }), svgEl('line', { x1, y1: yb - 6, x2: x1, y2: yb + 6 }), svgEl('line', { x1: x2, y1: yb - 6, x2, y2: yb + 6 }),
+    svgEl('text', { x: cx, y: yb + 20, 'text-anchor': 'middle' }, t('st.dim.w')),
+    svgEl('line', { x1: xl, y1, x2: xl, y2 }), svgEl('line', { x1: xl - 6, y1, x2: xl + 6, y2: y1 }), svgEl('line', { x1: xl - 6, y1: y2, x2: xl + 6, y2 }),
+    svgEl('text', { x: xl - 8, y: cy, 'text-anchor': 'end', transform: `rotate(-90 ${xl - 8} ${cy})` }, t('st.dim.h')),
+  );
+}
+
+function chapter(n, key, extra) {
+  const sec = el('section', 'story-ch');
+  sec.appendChild(el('p', 'eyebrow', `${n} / 3`));
+  sec.appendChild(el('h2', 'story-h', t(`${key}.t`)));
+  sec.appendChild(el('p', 'lede', t(`${key}.p`)));
+  if (extra) sec.appendChild(extra);
+  return sec;
+}
+
 function renderIdle() {
+  dropSteel();
+  const seq = ++mountSeq;
   const notice = getState().convert.notice;
-  let noticeEl = null;   // shown inside the hero, above the drop surface
-  if (notice) { noticeEl = el('div', 'alert warn'); noticeEl.appendChild(el('p', null, notice)); }
-  // full-width hero: the live scene (lib/hero.js; static grid without WebGL), one headline, one drop surface
-  const stage = el('div', 'drop-stage');
-  const cv = document.createElement('canvas'); cv.className = 'hero-canvas'; cv.setAttribute('aria-hidden', 'true');
-  const copy = el('div', 'hero-copy');
-  copy.appendChild(el('p', 'hero-kicker', t('cv2.title')));
-  copy.appendChild(el('h1', 'hero-title', t('cv2.hero')));
-  copy.appendChild(el('p', 'hero-sub', t('cv2.sub')));
+  const story = el('div', 'home-hero');
+
+  // top: the headline and the real intake (drop surface, scale, options)
+  const top = el('div', 'hero-top');
+  top.appendChild(el('p', 'eyebrow', t('cv2.title')));
+  top.appendChild(el('h1', 'hero-title grad', t('cv2.hero')));
+  top.appendChild(el('p', 'hero-sub', t('cv2.sub')));
+  if (notice) { const noticeEl = el('div', 'alert warn'); noticeEl.appendChild(el('p', null, notice)); top.appendChild(noticeEl); }
   const zone = el('div', 'dropzone');
   const ic = el('span', 'dz-icon'); ic.setAttribute('aria-hidden', 'true');
   ic.innerHTML = '<svg class="icon"><use href="#i-upload"/></svg>';
@@ -307,11 +358,47 @@ function renderIdle() {
     const e2 = e.target.closest('.dz-icon, .dz-hint') || e.target;
     if (e2 === zone || e2.classList.contains('dz-icon') || e2.classList.contains('dz-hint')) inp.click();
   });
-  stage.append(cv, copy);
-  if (noticeEl) stage.appendChild(noticeEl);
-  stage.appendChild(zone);
-  root.appendChild(stage);
-  startHero(cv);
+  top.appendChild(zone);
+
+  // stage: its own canvas inside this column; it never reaches the text column
+  const stageEl = el('div', 'steel-stage');
+  stageEl.setAttribute('aria-hidden', 'true');
+  stageEl.appendChild(el('div', 'steel-fallback', t('st.fallback')));
+  const dims = svgEl('svg', { class: 'steel-dims', 'aria-hidden': 'true' });
+  stageEl.appendChild(dims);
+  stageEl.appendChild(el('p', 'steel-caption', t('st.caption')));
+
+  // scroll story (left column): three chapters; the third hosts the AMOEBA mount
+  const chapters = el('div', 'hero-story');
+  chapters.appendChild(chapter(1, 'st.c1'));
+  chapters.appendChild(chapter(2, 'st.c2'));
+  const mount = el('div', 'amoeba-mount');
+  mount.dataset.amoeba = '';
+  mount.dataset.stage = 'idle';
+  mount.setAttribute('role', 'img');
+  mount.setAttribute('aria-label', t('st.amoeba.label'));
+  chapters.appendChild(chapter(3, 'st.c3', mount));
+
+  story.append(top, stageEl, chapters);
+  root.appendChild(story);
+
+  // the steel part: scroll drives the pose; without WebGL the fallback text stays
+  steel = createSteelStage(stageEl);
+  if (steel) {
+    steel.onresize = ({ w, h, k, scaleFlat }) => drawDims(dims, w, h, k, scaleFlat);
+    homeScroll = () => {
+      const p = storyProgress(story);
+      steel.set(p);
+      dims.style.opacity = String(clamp01((p - 0.6) / 0.25));
+    };
+    window.addEventListener('scroll', homeScroll, { passive: true });
+    window.addEventListener('resize', homeScroll, { passive: true });
+    homeScroll();
+  } else {
+    stageEl.classList.add('is-fallback');
+  }
+  mountAmoebas(root).then((h) => { if (seq === mountSeq) amoebas = h; else unmountAmoebas(h); });
+
   // Overlay
   const ov = el('div', 'drop-overlay'); ov.hidden = true;
   ov.appendChild(el('p', null, t('cv2.release')));
@@ -440,7 +527,7 @@ export function mount(container) {
 }
 
 export function unmount() {
-  runId++; teardown();
+  runId++; teardown(); dropSteel();
   // Reset to idle if mid-upload/convert with no server-side conversion yet
   const p = getState().convert.phase;
   if ((p === 'uploading' || p === 'converting') && !getState().convert.conversionId)
