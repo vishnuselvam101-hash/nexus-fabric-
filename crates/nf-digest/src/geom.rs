@@ -145,12 +145,17 @@ fn arc_piece(layer: &str, c: P, r: f64, start_deg: f64, end_deg: f64, tiny_min: 
     let sweep = (end_deg.to_radians() - t0).rem_euclid(tau);
     let arc = Arc { c, r, t0, sweep };
     let length = r.abs() * sweep;
-    // the chord sagitta never exceeds the digest tolerance, so tiny parts are sampled as finely as their size needs
+    // the chord sagitta is at most the digest tolerance (and at most SAG), so tiny parts are sampled as finely
+    // as their size needs; a large arc takes the finest sagitta that still fits MAX_CHORDS, so it is never inconclusive
     let sag = if tiny_min > 0.0 {
         SAG.min(tiny_min)
     } else {
         SAG
     };
+    // one chord of margin, so rounding never takes the arc past MAX_CHORDS
+    let budget = (MAX_CHORDS - 1) as f64;
+    let fit = r.abs() * (1.0 - (sweep / (2.0 * budget)).cos());
+    let sag = sag.max(fit);
     let step = if r.abs() > sag {
         2.0 * (1.0 - sag / r.abs()).acos()
     } else {

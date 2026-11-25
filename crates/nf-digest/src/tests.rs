@@ -613,3 +613,21 @@ fn real_tiny_segment_fails_at_tiny_and_huge_scales() {
         );
     }
 }
+
+#[test]
+fn large_arcs_fit_the_chord_budget_and_stay_sampled() {
+    // a 5 m radius full circle (the reducer of a 25.4x scaled job) and a 200 m one: both must be sampled, not inconclusive
+    for r in [5334.0, 210000.0] {
+        let ent = reader::Ent::Arc {
+            layer: "CUT_OUTER".into(),
+            c: [0.0, 0.0],
+            r,
+            start_deg: 0.0,
+            end_deg: 360.0,
+        };
+        let (pieces, empty) = geom::pieces(&[ent], tolerance(r * 2.0));
+        assert_eq!(empty, 0, "r {r}");
+        assert!(pieces.iter().all(|p| p.sampled_ok), "r {r}");
+        assert!(pieces[0].pts.len() <= 4096 + 1, "r {r}"); // MAX_CHORDS points at most
+    }
+}
