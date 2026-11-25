@@ -594,11 +594,12 @@ const ARC_DISPLAY_MAX_CHORDS: usize = 4096;
 
 /// Display chords of an arc of radius `r` and sweep `sweep` (rad) for sagitta tolerance `tol` (mm): the fewest n with
 /// r(1 - cos(sweep / 2n)) <= tol. Since 1 - cos x <= x²/2, n = ceil((sweep/2)·sqrt(r / (2·tol))) meets the tolerance,
-/// capped at ARC_DISPLAY_MAX_CHORDS.
+/// capped at ARC_DISPLAY_MAX_CHORDS. At least two chords (three points): the digest declares an arc by its points, so a
+/// flat arc that needs one chord is still declared as an arc (engine 0.4.12).
 fn arc_display_chords(r: f64, sweep: f64, tol: f64) -> usize {
     let needed = (sweep.abs() / 2.0) * (r.abs() / (2.0 * tol)).sqrt();
     if needed.is_finite() {
-        (needed.ceil() as usize).clamp(1, ARC_DISPLAY_MAX_CHORDS)
+        (needed.ceil() as usize).clamp(2, ARC_DISPLAY_MAX_CHORDS)
     } else {
         ARC_DISPLAY_MAX_CHORDS
     }
