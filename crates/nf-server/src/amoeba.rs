@@ -17,6 +17,8 @@ fn curve(c: &CurveView) -> RefCurve {
         length: c.length,
         max_dev: c.points_max_deviation,
         is_arc: c.kind == "arc",
+        // the engine's seam pair: the two straight edges named seam_a and seam_b (uem::develop)
+        seam: c.kind == "line" && (c.name == "seam_a" || c.name == "seam_b"),
     }
 }
 

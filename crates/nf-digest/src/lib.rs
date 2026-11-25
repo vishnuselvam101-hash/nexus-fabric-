@@ -65,6 +65,9 @@ pub struct RefCurve {
     pub length: f64,
     pub max_dev: f64,
     pub is_arc: bool,
+    /// One of the two seam edges the engine declares for the part (a straight edge). The seam pair may coincide in the
+    /// file (near-360 degree sectors): the two edges are then read as the two sides of one closed outline.
+    pub seam: bool,
 }
 
 /// What the job declares for one part: the reference the file is checked against.
@@ -201,7 +204,8 @@ pub fn check_text(text: &str, reference: &Reference) -> Report {
         diag = diagonal(parsed.ents.iter().flat_map(ent_points));
     }
     let tol = tolerance(diag);
-    let (geo, empty) = pieces(&parsed.ents, tol);
+    let (mut geo, empty) = pieces(&parsed.ents, tol);
+    mark_seams(&mut geo, reference, tol);
     let all_contours = if parsed.nonfinite.is_empty() {
         contours(&geo, tol)
     } else {
@@ -260,6 +264,43 @@ pub fn check_text(text: &str, reference: &Reference) -> Report {
 }
 
 /// Points that bound an entity: its ends or vertices, and the corners of an arc's full circle.
+/// Marks the segments of the file that are the declared seam pair: each declared seam (a curve with `seam` set) marks
+/// the first segment whose two ends are its two ends within `tol`, in either direction. A straight edge is one segment;
+/// a polyline outline (an eccentric reducer) carries its seam edges as segments of the same closed polyline. Only marked
+/// segments may coincide with each other (geom::duplicates); an undeclared coincident edge is still a finding.
+fn mark_seams(geo: &mut [Piece], r: &Reference, tol: f64) {
+    let near = |a: reader::P, b: reader::P| (a[0] - b[0]).hypot(a[1] - b[1]) <= tol;
+    let mut declared: Vec<[reader::P; 2]> = r
+        .outer
+        .iter()
+        .chain(r.holes.iter())
+        .filter(|c| c.seam && c.points.len() == 2)
+        .map(|c| [c.points[0], c.points[1]])
+        .collect();
+    for p in geo.iter_mut().filter(|p| p.arc.is_none()) {
+        let n = p.pts.len();
+        let mut ends: Vec<(reader::P, reader::P)> =
+            p.pts.windows(2).map(|w| (w[0], w[1])).collect();
+        if p.closed && n >= 2 {
+            ends.push((p.pts[n - 1], p.pts[0]));
+        }
+        for (k, (a, b)) in ends.into_iter().enumerate() {
+            let found = declared
+                .iter()
+                .position(|d| (near(a, d[0]) && near(b, d[1])) || (near(a, d[1]) && near(b, d[0])));
+            if let (Some(i), Some(flag)) = (found, p.seam_segs.get_mut(k)) {
+                declared.remove(i);
+                *flag = true;
+            }
+        }
+    }
+}
+
+/// Distance between two points (mm).
+fn step(a: reader::P, b: reader::P) -> f64 {
+    (a[0] - b[0]).hypot(a[1] - b[1])
+}
+
 fn ent_points(e: &Ent) -> Vec<reader::P> {
     match e {
         Ent::Line { a, b, .. } => vec![*a, *b],
@@ -549,19 +590,39 @@ fn geometry(
         check("self_intersection", if cross_n == 0 { Verdict::Pass } else { Verdict::Fail }, Some(cross_n as f64), Some(0.0), None, format!("{cross_n} crossing pair(s)"))
     });
 
+    // A reference that declares a straight or polyline feature shorter than the tolerance (a micro-scale branch or
+    // saddle): the file's features of that size cannot be told apart from the declared ones, so a finding about them
+    // is INCONCLUSIVE, not FAIL (0.4.12). The file is then held, and the job itself is not refused.
+    let fine = r.outer.iter().chain(r.holes.iter()).any(|c| {
+        !c.is_arc
+            && c.points
+                .windows(2)
+                .any(|w| step(w[0], w[1]) > 0.0 && step(w[0], w[1]) <= tol)
+    });
+    let finding = |bad: bool| {
+        if !bad {
+            Verdict::Pass
+        } else if fine {
+            Verdict::Inconclusive
+        } else {
+            Verdict::Fail
+        }
+    };
+    let below = if fine {
+        "; the reference declares features shorter than the tolerance, so these cannot be told apart".to_string()
+    } else {
+        String::new()
+    };
+
     // duplicates
     let dup = duplicates(&cut, tol);
     out.push(check(
         "duplicates",
-        if dup == 0 {
-            Verdict::Pass
-        } else {
-            Verdict::Fail
-        },
+        finding(dup > 0),
         Some(dup as f64),
         Some(0.0),
         Some(tol),
-        format!("{dup} duplicated piece(s); tolerance {tol:.3e} mm"),
+        format!("{dup} duplicated piece(s); tolerance {tol:.3e} mm{below}"),
     ));
 
     // tiny segments
@@ -569,16 +630,12 @@ fn geometry(
     let min_seg = geo.iter().map(|p| p.min_seg).fold(f64::INFINITY, f64::min);
     out.push(check(
         "tiny_segments",
-        if tiny == 0 {
-            Verdict::Pass
-        } else {
-            Verdict::Fail
-        },
+        finding(tiny > 0),
         Some(tiny as f64),
         Some(0.0),
         Some(tol),
         format!(
-            "{tiny} segment(s) shorter than {tol:.3e} mm or empty; shortest {}",
+            "{tiny} segment(s) shorter than {tol:.3e} mm or empty; shortest {}{below}",
             if min_seg.is_finite() {
                 format!("{min_seg:.6} mm")
             } else {

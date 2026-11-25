@@ -60,6 +60,17 @@ pub struct Piece {
     pub tiny: usize,
     /// False where an arc needed more chords than MAX_CHORDS.
     pub sampled_ok: bool,
+    /// Per segment (a line: one; a polyline: its segments in order, the closing one last): whether the reference declares
+    /// it as one of its seam pair (see lib.rs mark_seams). Two declared seam segments may coincide: they are the two sides
+    /// of one cut, read as one outline (0.4.12 digest). Arcs have none.
+    pub seam_segs: Vec<bool>,
+}
+
+impl Piece {
+    /// True when one of the segments of the piece is a declared seam edge.
+    pub fn has_seam(&self) -> bool {
+        self.seam_segs.iter().any(|&s| s)
+    }
 }
 
 impl Piece {
@@ -137,6 +148,7 @@ fn path_piece(layer: &str, pts: Vec<P>, closed: bool, tiny_min: f64) -> Piece {
         min_seg: if min_seg.is_finite() { min_seg } else { 0.0 },
         tiny,
         sampled_ok: true,
+        seam_segs: vec![false; segs.len()],
     }
 }
 
@@ -182,6 +194,7 @@ fn arc_piece(layer: &str, c: P, r: f64, start_deg: f64, end_deg: f64, tiny_min: 
         min_seg,
         tiny: usize::from(length < tiny_min),
         sampled_ok,
+        seam_segs: Vec::new(),
     }
 }
 
@@ -277,6 +290,21 @@ pub fn contours(pieces: &[Piece], tol: f64) -> Vec<Contour> {
     let pos: Vec<P> = open.iter().flat_map(|p| [p.start(), p.end()]).collect();
     // union-find over the ends: ends within tol of each other are one joint
     let mut parent: Vec<usize> = (0..m).collect();
+    let mut cand: Vec<(f64, usize, usize)> = Vec::new();
+    for i in 0..m {
+        for j in (i + 1)..m {
+            let d = dist(pos[i], pos[j]);
+            if d <= tol {
+                cand.push((d, i, j));
+            }
+        }
+    }
+    // With a declared seam pair the two seam edges coincide with the arc ends they border, so the ends are paired
+    // nearest first and each end joins one partner only: the seam pair then closes the outline instead of meeting
+    // both ends of one arc in a single joint. Without a seam pair every end within tol joins its neighbours.
+    let paired_once = open.iter().any(|p| p.has_seam());
+    cand.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut used = vec![false; m];
     fn find(parent: &mut [usize], mut x: usize) -> usize {
         while parent[x] != x {
             parent[x] = parent[parent[x]];
@@ -284,14 +312,15 @@ pub fn contours(pieces: &[Piece], tol: f64) -> Vec<Contour> {
         }
         x
     }
-    for i in 0..m {
-        for j in (i + 1)..m {
-            if dist(pos[i], pos[j]) <= tol {
-                let (a, b) = (find(&mut parent, i), find(&mut parent, j));
-                if a != b {
-                    parent[a] = b;
-                }
-            }
+    for (_, i, j) in cand {
+        if paired_once && (used[i] || used[j]) {
+            continue;
+        }
+        used[i] = true;
+        used[j] = true;
+        let (a, b) = (find(&mut parent, i), find(&mut parent, j));
+        if a != b {
+            parent[a] = b;
         }
     }
     let roots: Vec<usize> = (0..m).map(|i| find(&mut parent, i)).collect();
@@ -490,35 +519,50 @@ fn proper(a: P, b: P, c: P, d: P) -> bool {
 /// Pairs of segments that repeat each other: the same two ends (either direction) and the same middle.
 /// A polyline contributes each of its segments; an arc contributes once.
 pub fn duplicates(pieces: &[&Piece], tol: f64) -> usize {
-    let mut units: Vec<(P, P, P)> = Vec::new();
+    // (start, end, middle, declared seam edge)
+    let mut units: Vec<(P, P, P, bool)> = Vec::new();
     for p in pieces {
         match p.arc {
-            Some(_) => units.push((p.start(), p.end(), p.mid())),
+            Some(_) => units.push((p.start(), p.end(), p.mid(), false)),
             None => {
                 let n = p.pts.len();
-                for w in p.pts.windows(2) {
+                for (k, w) in p.pts.windows(2).enumerate() {
+                    let seam = p.seam_segs.get(k).copied().unwrap_or(false);
                     units.push((
                         w[0],
                         w[1],
                         [(w[0][0] + w[1][0]) / 2.0, (w[0][1] + w[1][1]) / 2.0],
+                        seam,
                     ));
                 }
                 if p.closed && n >= 2 {
                     let (a, b) = (p.pts[n - 1], p.pts[0]);
-                    units.push((a, b, [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0]));
+                    let seam = p.seam_segs.get(n - 1).copied().unwrap_or(false);
+                    units.push((a, b, [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0], seam));
                 }
             }
         }
     }
     let bb: Vec<[f64; 4]> = units
         .iter()
-        .map(|(a, b, _)| [a[0].min(b[0]), a[1].min(b[1]), a[0].max(b[0]), a[1].max(b[1])])
+        .map(|(a, b, _, _)| {
+            [
+                a[0].min(b[0]),
+                a[1].min(b[1]),
+                a[0].max(b[0]),
+                a[1].max(b[1]),
+            ]
+        })
         .collect();
     let mut n = 0;
     for (i, j) in overlapping_pairs(&bb, tol) {
-        let ((a, b, m), (c, d, k)) = (units[i], units[j]);
-        let same_ends = (dist(a, c) <= tol && dist(b, d) <= tol)
-            || (dist(a, d) <= tol && dist(b, c) <= tol);
+        let ((a, b, m, si), (c, d, k, sj)) = (units[i], units[j]);
+        if si && sj {
+            // the two declared seam edges of one cut: one outline, not a duplicate
+            continue;
+        }
+        let same_ends =
+            (dist(a, c) <= tol && dist(b, d) <= tol) || (dist(a, d) <= tol && dist(b, c) <= tol);
         if same_ends && dist(m, k) <= tol {
             n += 1;
         }

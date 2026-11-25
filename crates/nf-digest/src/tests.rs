@@ -84,6 +84,7 @@ fn curve(points: &[[f64; 2]], is_arc: bool, max_dev: f64) -> RefCurve {
         length,
         max_dev,
         is_arc,
+        seam: false,
     }
 }
 
@@ -667,4 +668,150 @@ fn large_valid_part_is_decided_by_the_crossing_test() {
     let sx = check_named(&rep, "self_intersection");
     assert_eq!(sx.verdict, Verdict::Fail, "{}", sx.detail);
     assert!(sx.measured.unwrap() >= 1.0);
+}
+
+/// A near-360 degree cone sector (the seam edges coincide within the tolerance, as the engine writes them), with its
+/// reference. With `declared` the two straight edges are the engine's declared seam pair.
+fn near_full_sector(declared: bool) -> (Doc, Reference) {
+    let phi_deg = 359.999_999_712_000_03_f64;
+    let phi = phi_deg.to_radians();
+    let arc_pts = |r: f64, from: f64, to: f64| -> Vec<[f64; 2]> {
+        (0..=720)
+            .map(|k| {
+                let t = from + (to - from) * k as f64 / 720.0;
+                [r * t.cos(), r * t.sin()]
+            })
+            .collect()
+    };
+    let (o0, o1) = ([300.0, 0.0], [300.0 * phi.cos(), 300.0 * phi.sin()]);
+    let (i0, i1) = ([50.0, 0.0], [50.0 * phi.cos(), 50.0 * phi.sin()]);
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.arc("CUT_OUTER", [0.0, 0.0], 300.0, 0.0, phi_deg)
+        .line("CUT_OUTER", o1, i1)
+        .arc("CUT_OUTER", [0.0, 0.0], 50.0, 0.0, phi_deg)
+        .line("CUT_OUTER", i0, o0);
+    let seam = |c: RefCurve| RefCurve {
+        seam: declared,
+        ..c
+    };
+    // the reference arcs are 720 chords each: their sagitta is the chord error the area check allows for
+    let sag = |r: f64| r * (1.0 - (phi / 1440.0).cos());
+    let outer = vec![
+        RefCurve {
+            length: 300.0 * phi,
+            ..curve(&arc_pts(300.0, 0.0, phi), true, sag(300.0))
+        },
+        seam(RefCurve {
+            length: 250.0,
+            ..curve(&[o1, i1], false, 0.0)
+        }),
+        RefCurve {
+            length: 50.0 * phi,
+            ..curve(&arc_pts(50.0, phi, 0.0), true, sag(50.0))
+        },
+        seam(RefCurve {
+            length: 250.0,
+            ..curve(&[i0, o0], false, 0.0)
+        }),
+    ];
+    (
+        d,
+        Reference {
+            part: "SECTOR".into(),
+            outer,
+            holes: Vec::new(),
+        },
+    )
+}
+
+/// Engine 0.4.12 digest: a near-360 degree sector whose seam pair the reference declares is read as one closed outline:
+/// no duplicate, closed, one outer profile and the correct area.
+#[test]
+fn declared_seam_pair_of_a_near_full_sector_reads_as_one_closed_outline() {
+    let (d, r) = near_full_sector(true);
+    let rep = run(&d, &r);
+    for name in [
+        "contours_closed",
+        "seam_gaps",
+        "duplicates",
+        "outer_profiles",
+        "area",
+        "self_intersection",
+    ] {
+        let c = check_named(&rep, name);
+        assert_eq!(c.verdict, Verdict::Pass, "{name}: {}", c.detail);
+    }
+}
+
+/// The same coincident edges without a declaration are still a finding: a duplicate, and an outline that does not close.
+#[test]
+fn undeclared_coincident_edges_of_a_near_full_sector_still_fail() {
+    let (d, r) = near_full_sector(false);
+    let rep = run(&d, &r);
+    assert_fails(&rep, "duplicates");
+    assert_fails(&rep, "contours_closed");
+}
+
+/// Engine 0.4.12 digest: a reference that declares a feature shorter than the tolerance cannot be judged for tiny
+/// segments: the finding is INCONCLUSIVE (the file is held). Without such a declaration the same segment is a FAIL.
+#[test]
+fn features_below_the_tolerance_declared_by_the_reference_are_inconclusive() {
+    let pts = [
+        [0.0, 0.0],
+        [1e-5, 0.0],
+        [100.0, 0.0],
+        [100.0, 50.0],
+        [0.0, 50.0],
+    ];
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.poly("CUT_OUTER", &pts, true);
+    d.poly("CUT_INNER", &SQUARE, true);
+    let closed_pts = [pts[0], pts[1], pts[2], pts[3], pts[4], pts[0]];
+    let declared = Reference {
+        part: "T".into(),
+        outer: vec![curve(&closed_pts, false, 0.0)],
+        holes: rect_reference().holes,
+    };
+    let rep = run(&d, &declared);
+    let c = check_named(&rep, "tiny_segments");
+    assert_eq!(c.verdict, Verdict::Inconclusive, "{}", c.detail);
+    assert_eq!(rep.verdict(), Verdict::Inconclusive);
+
+    let undeclared = Reference {
+        part: "T".into(),
+        outer: rect_reference().outer,
+        holes: rect_reference().holes,
+    };
+    let rep = run(&d, &undeclared);
+    assert_fails(&rep, "tiny_segments");
+}
+
+/// The same near-360 degree sector written as ONE closed polyline (the eccentric reducer's form, where the seam edges are
+/// segments of the outline): the declared seam segments may coincide and nothing else; without the declaration they are
+/// duplicates.
+#[test]
+fn declared_seam_segments_of_a_closed_polyline_sector_are_not_duplicates() {
+    let phi = 359.999_999_712_000_03_f64.to_radians();
+    let mut pts: Vec<[f64; 2]> = (0..=720)
+        .map(|k| {
+            let t = phi * k as f64 / 720.0;
+            [300.0 * t.cos(), 300.0 * t.sin()]
+        })
+        .collect();
+    pts.extend((0..=720).map(|k| {
+        let t = phi * (1.0 - k as f64 / 720.0);
+        [50.0 * t.cos(), 50.0 * t.sin()]
+    }));
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.poly("CUT_OUTER", &pts, true);
+    let rep = run(&d, &near_full_sector(true).1);
+    for name in ["duplicates", "contours_closed", "outer_profiles", "area"] {
+        let c = check_named(&rep, name);
+        assert_eq!(c.verdict, Verdict::Pass, "{name}: {}", c.detail);
+    }
+    let rep = run(&d, &near_full_sector(false).1);
+    assert_fails(&rep, "duplicates");
 }
