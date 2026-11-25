@@ -147,7 +147,11 @@ async function resolveProject() {
 }
 
 /* ---- drag/drop ---- */
-function overlay(show) { if (root) { const o = root.querySelector('.drop-overlay'); if (o) o.hidden = !show; } }
+function overlay(show) {
+  if (!root) return;
+  const o = root.querySelector('.drop-overlay'); if (o) o.hidden = !show;
+  const z = root.querySelector('.dropzone'); if (z) z.classList.toggle('drag', show);   // dashed outline only while a file is over the page
+}
 function onEnter(e) { e.preventDefault(); dragN++; if (getState().convert.phase === 'idle') overlay(true); }
 function onOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
 function onLeave(e) { e.preventDefault(); if (--dragN <= 0) { dragN = 0; overlay(false); } }
@@ -263,12 +267,20 @@ function render() {
 
 function renderIdle() {
   const notice = getState().convert.notice;
-  if (notice) {
-    const n = el('div', 'alert warn'); n.appendChild(el('p', null, notice)); root.appendChild(n);
-  }
+  let noticeEl = null;   // shown inside the hero, above the drop surface
+  if (notice) { noticeEl = el('div', 'alert warn'); noticeEl.appendChild(el('p', null, notice)); }
+  // full-width hero: the live scene (lib/hero.js; static grid without WebGL), one headline, one drop surface
+  const stage = el('div', 'drop-stage');
+  const cv = document.createElement('canvas'); cv.className = 'hero-canvas'; cv.setAttribute('aria-hidden', 'true');
+  const copy = el('div', 'hero-copy');
+  copy.appendChild(el('p', 'hero-kicker', t('cv2.title')));
+  copy.appendChild(el('h1', 'hero-title', t('cv2.hero')));
+  copy.appendChild(el('p', 'hero-sub', t('cv2.sub')));
   const zone = el('div', 'dropzone');
-  zone.appendChild(el('h1', null, t('cv2.title')));
-  zone.appendChild(el('p', 'sub', t('cv2.sub')));
+  const ic = el('span', 'dz-icon'); ic.setAttribute('aria-hidden', 'true');
+  ic.innerHTML = '<svg class="icon"><use href="#i-upload"/></svg>';
+  zone.appendChild(ic);
+  zone.appendChild(el('p', 'dz-hint', t('cv2.drop')));
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = '.pdf,application/pdf'; inp.className = 'vh'; inp.id = 'conv-file';
   inp.addEventListener('change', () => {
@@ -277,29 +289,29 @@ function renderIdle() {
     handleFile(f);
   });
   zone.appendChild(inp);
-  const btn = el('button', 'btn pri', t('cv2.choose'));
+  const btn = el('button', 'btn pri btn-lg', t('cv2.choose'));
   btn.type = 'button'; btn.addEventListener('click', () => inp.click());
   zone.appendChild(btn);
-  // Options
+  // the required scale and the options sit inside the surface, as one row
+  const row = el('div', 'dz-row');
+  row.appendChild(scaleField());
   const det = document.createElement('details'); det.className = 'conv-options';
   det.appendChild(el('summary', null, t('cv2.options')));
   const fld = el('div', 'field');
   const lbl = el('label', null, t('cv2.page')); lbl.htmlFor = 'conv-page'; fld.appendChild(lbl);
   const pg = document.createElement('input');
   pg.type = 'number'; pg.id = 'conv-page'; pg.value = '1'; pg.min = '1';
-  fld.appendChild(pg); det.appendChild(fld); zone.appendChild(det);
+  fld.appendChild(pg); det.appendChild(fld); row.appendChild(det);
+  zone.appendChild(row);
   zone.addEventListener('click', (e) => {
-    const e2 = e.target;
-    if (e2 === zone || e2.tagName === 'H1' || (e2.tagName === 'P' && e2.classList.contains('sub'))) inp.click();
+    const e2 = e.target.closest('.dz-icon, .dz-hint') || e.target;
+    if (e2 === zone || e2.classList.contains('dz-icon') || e2.classList.contains('dz-hint')) inp.click();
   });
-  // the zone sits on a small WebGL scene (static grid when WebGL is missing; see lib/hero.js)
-  const stage = el('div', 'drop-stage');
-  const cv = document.createElement('canvas'); cv.className = 'hero-canvas'; cv.setAttribute('aria-hidden', 'true');
-  stage.append(cv, zone);
+  stage.append(cv, copy);
+  if (noticeEl) stage.appendChild(noticeEl);
+  stage.appendChild(zone);
   root.appendChild(stage);
   startHero(cv);
-  // Required scale, directly under the drop zone
-  root.appendChild(scaleField());
   // Overlay
   const ov = el('div', 'drop-overlay'); ov.hidden = true;
   ov.appendChild(el('p', null, t('cv2.release')));

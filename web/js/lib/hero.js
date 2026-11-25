@@ -7,18 +7,19 @@ uniform vec2 uRes; uniform float uT; uniform vec3 uBg; uniform vec3 uLine; unifo
 void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5 * uRes) / uRes.y;
   vec3 col = uBg;
-  float h = 0.30 - uv.y;               // distance below the horizon (horizon at uv.y = 0.30)
+  float h = 0.12 - uv.y;               // distance below the horizon (horizon at uv.y = 0.12, behind the drop surface)
   if (h > 0.0) {
     float z = 1.0 / h;                  // depth of the plane under this pixel
     vec2 q = vec2(uv.x * z, z + uT * 0.6) * 1.6;
     vec2 g = abs(fract(q) - 0.5);
     float ln = 1.0 - smoothstep(0.0, 0.035, min(g.x, g.y));
     float fade = smoothstep(0.0, 0.5, h) * (1.0 - smoothstep(1.2, 2.6, z));
-    col = mix(col, uLine, ln * 0.45 * fade);
+    col = mix(col, uLine, ln * 0.7 * fade);
     float sweep = exp(-pow((uv.x - (fract(uT * 0.07) * 2.4 - 1.2)) * 3.0, 2.0));
     col = mix(col, uAcc, ln * sweep * fade * 0.85);
   }
-  col = mix(uBg, col, smoothstep(1.25, 0.25, length(uv * vec2(0.8, 1.0))));   // vignette fades to the background, not to black
+  col = mix(col, uAcc, 0.16 * exp(-abs(h) * 14.0) * (1.0 - smoothstep(0.2, 1.1, abs(uv.x))));   // a soft molten horizon
+  col = mix(uBg, col, smoothstep(1.35, 0.35, length(uv * vec2(0.7, 1.0))));   // vignette fades to the background, not to black
   gl_FragColor = vec4(col, 1.0);
 }`;
 

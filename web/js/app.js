@@ -100,6 +100,11 @@ async function renderRoute() {
     ? 'NEXUS FABRIC'
     : `NEXUS FABRIC — ${TITLES[route.view] || ''}${suffix}`;
   setState({ view: route.view });
+  // the top bar marks the page it leads to
+  for (const a of document.querySelectorAll('.topbar-nav > a')) {
+    const href = a.getAttribute('href') || '';
+    if (location.hash === href || location.hash.startsWith(href + '/')) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  }
   updateUserButton();
   closeMenus();
   viewEl.focus({ preventScroll: true });
