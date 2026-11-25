@@ -386,6 +386,7 @@ function renderIdle() {
   steel = createSteelStage(stageEl);
   if (steel) {
     steel.onresize = ({ w, h, k, scaleFlat }) => drawDims(dims, w, h, k, scaleFlat);
+    if (steel.layout) drawDims(dims, steel.layout.w, steel.layout.h, steel.layout.k, steel.layout.scaleFlat);
     homeScroll = () => {
       const p = storyProgress(story);
       steel.set(p);

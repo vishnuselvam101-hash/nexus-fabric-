@@ -1,3 +1,4 @@
+import { mountAmoebas, unmountAmoebas } from '../lib/amoeba-mount.js';
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 import { api } from '../api.js';
 import { t, h, idLabel, lang } from '../i18n.js';
@@ -45,6 +46,7 @@ const dirs = (d) => (['downstream', 'lateral', 'common_cause'].includes(d) ? t(`
 const famShort = (k) => esc(idText('family', k));
 const jobLink = (id, lc) => `<a href="#/job/${id}">${esc(t(lc ? 'job.n.lc' : 'job.n', { id }))}</a>`;
 
+let amHandles = [], amSeq = 0;
 let root = null, body = null, ac = null, data = null, projects = [], tabDefs = [], activeTab = 'records', depId = null, graph = null;
 const pnameHtml = (id) => { const p = projects.find((x) => x.id === id); return p ? ud(p.name) : esc(t('project.n', { id })); };
 const plink = (id) => `<a href="#/project/${id}" title="${esc(t('project.tip', { id }))}">${pnameHtml(id)}</a>`;
@@ -180,8 +182,11 @@ function tabHash(k) { return `#/amoeba/${k}${k === 'dependencies' && depId ? `/$
 function renderShell() {
   // summary cards first (the same totals as the tab badges); each opens its tab
   const stats = tabDefs.filter((d) => d[2] !== undefined && d[2] !== null).map(([k, l, n, attn]) =>
-    `<button type="button" class="stat${attn ? ' warn' : ''}" data-goto="${k}"><span class="stat-n">${n}</span><span class="stat-l">${esc(l)}</span></button>`).join('');
+    `<button type="button" class="stat${attn ? ' warn' : ''}" data-goto="${k}"><span class="stat-n count" data-count="${n}">${n}</span><span class="stat-l">${esc(l)}</span></button>`).join('');
+  // the organism reflects the real totals: hold while any obligation is open, idle otherwise
+  const stage = data && data.a && data.a.obligations && data.a.obligations.open > 0 ? 'hold' : 'idle';
   root.innerHTML = `<div class="workspace"><header class="page-h"><h1>${esc(t('nav.amoeba'))}</h1><p class="sub">${esc(t('am.sub'))}</p></header>
+    <div class="amoeba-band panel"><div class="amoeba-mount am-overview" data-amoeba data-stage="${stage}" role="img" aria-label="${esc(t('am.stage.aria'))}"></div></div>
     <div class="stats">${stats}</div>
     <div class="tabs" role="tablist" aria-label="${esc(t('am.tabs.aria'))}">${tabDefs.map(([k, l, n, attn]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${k === activeTab}" tabindex="${k === activeTab ? 0 : -1}">${esc(l)}${n !== undefined && n !== null ? `<span class="cnt${attn ? ' warn' : ''}">${n}</span>` : ''}</button>`).join('')}</div>
     <div class="ws-content" id="am-body"></div></div>`;
@@ -227,6 +232,8 @@ export async function mount(container, params = {}) {
       ['obligations', t('am.t.obligations'), a.obligations.open, a.obligations.open > 0],
       ['lessons', t('am.t.lessons'), lessons.length], ['dependencies', t('am.t.dependencies')], ['mechanisms', t('am.t.mechanisms')]];
     renderShell();
+    const my = ++amSeq;
+    mountAmoebas(root).then((h) => { if (my === amSeq && root) amHandles = h; else unmountAmoebas(h); });
   } catch (err) {
     if (aborted()) return;
     root.innerHTML = `<div class="panel-b"><div class="alert bad"><b>${esc(t('err.t'))}</b><p class="sub">${errHtml(err)}</p>
@@ -237,6 +244,7 @@ export async function mount(container, params = {}) {
 
 export function unmount() {
   if (ac) { ac.abort(); ac = null; }
+  amSeq++; unmountAmoebas(amHandles); amHandles = [];
   if (root) root.textContent = '';
   root = null; body = null; data = null; graph = null; projects = []; tabDefs = []; depId = null;
 }

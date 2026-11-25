@@ -4512,11 +4512,56 @@ pub(crate) fn router(app: Arc<App>) -> Router {
             }),
         )
         .route(
-            "/js/lib/hero.js",
+            "/js/lib/motion.js",
             get(|| async {
                 asset(
                     "text/javascript; charset=utf-8",
-                    include_str!("../../../web/js/lib/hero.js"),
+                    include_str!("../../../web/js/lib/motion.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/lib/steel.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/lib/steel.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/lib/amoeba-mount.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/lib/amoeba-mount.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/lib/amoeba.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/lib/amoeba.js"),
+                )
+            }),
+        )
+        .route(
+            "/vendor/three/three.module.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/vendor/three/three.module.js"),
+                )
+            }),
+        )
+        .route(
+            "/vendor/three/three.core.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/vendor/three/three.core.js"),
                 )
             }),
         )

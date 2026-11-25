@@ -41,6 +41,7 @@ export function countUp(el, to, { dec = 0, duration = 700 } = {}) {
 
 /* call after a view is mounted: stagger indices for [data-stagger] children, count-ups for [data-count] */
 export function enterMotion(root) {
+  for (const list of root.querySelectorAll('.stats, .il, .checks-grid')) list.dataset.stagger ??= '';
   for (const group of root.querySelectorAll('[data-stagger]')) {
     [...group.children].forEach((child, i) => child.style.setProperty('--i', Math.min(i, 12)));
   }

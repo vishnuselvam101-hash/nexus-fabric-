@@ -194,7 +194,8 @@ export function createSteelStage(host) {
     scaleFlat = Math.min((0.92 * worldW) / FLAT.w, (0.7 * worldH) / FLAT.h);
     scale3D = Math.min((0.6 * worldW) / (2 * R + BL * 0.5), (0.7 * worldH) / H);
     stage.dirty = true;
-    if (stage.onresize) stage.onresize({ w, h, k, scaleFlat, scale3D });
+    stage.layout = { w, h, k, scaleFlat, scale3D };
+    if (stage.onresize) stage.onresize(stage.layout);
   }
 
   let raf = 0;
