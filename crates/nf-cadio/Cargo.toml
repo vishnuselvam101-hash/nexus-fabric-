@@ -1,0 +1,16 @@
+[package]
+name = "nf-cadio"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Proprietary"
+publish = false
+description = "General ASCII DXF reader: tokenizer, sections, header variables, units and hard limits (shares no code with nf-dxf or nf-digest)"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+# Test-only: writes the R12 fixtures that the reader is checked against. Not a runtime dependency.
+nf-dxf = { path = "../nf-dxf" }

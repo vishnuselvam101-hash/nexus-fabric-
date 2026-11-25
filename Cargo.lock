@@ -649,6 +649,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nf-cadio"
+version = "0.1.0"
+dependencies = [
+ "nf-dxf",
+]
+
+[[package]]
 name = "nf-core"
 version = "0.1.0"
 dependencies = [
