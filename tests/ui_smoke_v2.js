@@ -170,6 +170,40 @@ async function main() {
       }
     }
 
+    /* ---- 2c. the setup form was open when setup was completed elsewhere: the real server answers 409, the form
+       becomes the normal sign-in and the same credentials sign in. A second context; health is answered as before setup. ---- */
+    try {
+      const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      const p2 = await ctx2.newPage();
+      p2.setDefaultTimeout(15000);
+      await p2.route('**/api/health', async (route) => {
+        const res = await route.fetch();
+        const body = await res.json();
+        await route.fulfill({ response: res, json: { ...body, setup_required: true } });
+      });
+      try {
+        await p2.goto(BASE + '/', { waitUntil: 'load' });
+        await p2.waitForSelector('#login-token', { state: 'visible', timeout: 20000 });
+        await p2.fill('#login-user', USER);
+        await p2.fill('#login-pass', PASS);
+        await p2.fill('#login-token', SETUP_TOKEN);
+        await p2.click('#login-form button[type="submit"]');
+        await p2.waitForSelector('#login-token', { state: 'detached', timeout: 20000 });
+        const heading = (await p2.textContent('#login-heading')).trim();
+        check('setup completed elsewhere: the form becomes the sign-in form', heading === 'Sign in' && (await p2.$('#login-token')) === null,
+          'heading=' + heading);
+        await p2.fill('#login-user', USER);
+        await p2.fill('#login-pass', PASS);
+        await p2.click('#login-form button[type="submit"]');
+        await p2.waitForSelector(DROPZONE, { state: 'visible', timeout: 20000 });
+        check('setup completed elsewhere: the same credentials sign in', true);
+      } finally {
+        await ctx2.close();
+      }
+    } catch (e) {
+      check('setup completed elsewhere: the form becomes the sign-in form', false, msgOf(e));
+    }
+
     /* ---- 3. sign in through the form ---- */
     if (!firstRun) try {
       await page.fill('#login-user', USER);
