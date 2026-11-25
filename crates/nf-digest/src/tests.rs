@@ -631,3 +631,40 @@ fn large_arcs_fit_the_chord_budget_and_stay_sampled() {
         assert!(pieces[0].pts.len() <= 4096 + 1, "r {r}"); // MAX_CHORDS points at most
     }
 }
+
+/// Engine 0.4.12 / digest: a large valid part (30 000 segments) is decided by the crossing test, not left INCONCLUSIVE
+/// by a segment cap; two swapped vertices of it are a crossing and must be found.
+#[test]
+fn large_valid_part_is_decided_by_the_crossing_test() {
+    const N: usize = 30_000;
+    let pts: Vec<[f64; 2]> = (0..N)
+        .map(|k| {
+            let t = 2.0 * std::f64::consts::PI * k as f64 / N as f64;
+            [1000.0 * t.cos(), 1000.0 * t.sin()]
+        })
+        .collect();
+    let mut closed = pts.clone();
+    closed.push(pts[0]);
+    let r = Reference {
+        part: "BIG".into(),
+        outer: vec![curve(&closed, false, 0.0)],
+        holes: Vec::new(),
+    };
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.poly("CUT_OUTER", &pts, true);
+    let rep = run(&d, &r);
+    let sx = check_named(&rep, "self_intersection");
+    assert_eq!(sx.verdict, Verdict::Pass, "{}", sx.detail);
+    assert_eq!(sx.measured, Some(0.0));
+
+    let mut bad = pts.clone();
+    bad.swap(10, N / 2);
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.poly("CUT_OUTER", &bad, true);
+    let rep = run(&d, &r);
+    let sx = check_named(&rep, "self_intersection");
+    assert_eq!(sx.verdict, Verdict::Fail, "{}", sx.detail);
+    assert!(sx.measured.unwrap() >= 1.0);
+}

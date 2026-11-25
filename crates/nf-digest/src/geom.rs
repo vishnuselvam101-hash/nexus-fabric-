@@ -32,8 +32,9 @@ pub fn diagonal(pts: impl Iterator<Item = P>) -> f64 {
 const SAG: f64 = 1e-4;
 /// Most chords per arc; an arc needing more is sampled coarsely and the intersection test is inconclusive.
 const MAX_CHORDS: usize = 4096;
-/// Most segments for the pairwise intersection test; more is inconclusive.
-pub const MAX_SEGMENTS: usize = 20000;
+/// Resource limit (memory and time), not a verdict: the crossing and duplicate tests sweep the segments, so their
+/// cost follows the number of overlapping pairs. Above this many segments the file is INCONCLUSIVE.
+pub const MAX_SEGMENTS: usize = 2_000_000;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Arc {
@@ -413,6 +414,28 @@ fn walk(
     None
 }
 
+/// Index pairs (i, j), i < j, of the boxes that overlap within `tol` on both axes. A sweep over the smallest x: each
+/// box is compared only with the boxes that start before it ends, so the work follows the overlaps.
+fn overlapping_pairs(bb: &[[f64; 4]], tol: f64) -> Vec<(usize, usize)> {
+    let mut order: Vec<usize> = (0..bb.len()).collect();
+    order.sort_by(|&i, &j| bb[i][0].total_cmp(&bb[j][0]));
+    let mut out = Vec::new();
+    for (a, &i) in order.iter().enumerate() {
+        let p = bb[i];
+        for &j in &order[a + 1..] {
+            let q = bb[j];
+            if q[0] > p[2] + tol {
+                break;
+            }
+            if p[3] < q[1] - tol || q[3] < p[1] - tol {
+                continue;
+            }
+            out.push((i.min(j), i.max(j)));
+        }
+    }
+    out
+}
+
 /// Pairs of segments that cross properly (not at a shared end). Returns (count, inconclusive).
 pub fn crossings(pieces: &[&Piece], tol: f64) -> (usize, bool) {
     let mut segs: Vec<(P, P)> = Vec::new();
@@ -442,19 +465,13 @@ pub fn crossings(pieces: &[&Piece], tol: f64) -> (usize, bool) {
         })
         .collect();
     let mut count = 0;
-    for i in 0..segs.len() {
-        for j in (i + 1)..segs.len() {
-            let (p, q) = (bb[i], bb[j]);
-            if p[2] < q[0] - tol || q[2] < p[0] - tol || p[3] < q[1] - tol || q[3] < p[1] - tol {
-                continue;
-            }
-            let ((a, b), (c, d)) = (segs[i], segs[j]);
-            let touching = [a, b]
-                .iter()
-                .any(|x| [c, d].iter().any(|y| dist(*x, *y) <= tol));
-            if !touching && proper(a, b, c, d) {
-                count += 1;
-            }
+    for (i, j) in overlapping_pairs(&bb, tol) {
+        let ((a, b), (c, d)) = (segs[i], segs[j]);
+        let touching = [a, b]
+            .iter()
+            .any(|x| [c, d].iter().any(|y| dist(*x, *y) <= tol));
+        if !touching && proper(a, b, c, d) {
+            count += 1;
         }
     }
     (count, false)
@@ -493,15 +510,17 @@ pub fn duplicates(pieces: &[&Piece], tol: f64) -> usize {
             }
         }
     }
+    let bb: Vec<[f64; 4]> = units
+        .iter()
+        .map(|(a, b, _)| [a[0].min(b[0]), a[1].min(b[1]), a[0].max(b[0]), a[1].max(b[1])])
+        .collect();
     let mut n = 0;
-    for i in 0..units.len() {
-        for j in (i + 1)..units.len() {
-            let ((a, b, m), (c, d, k)) = (units[i], units[j]);
-            let same_ends = (dist(a, c) <= tol && dist(b, d) <= tol)
-                || (dist(a, d) <= tol && dist(b, c) <= tol);
-            if same_ends && dist(m, k) <= tol {
-                n += 1;
-            }
+    for (i, j) in overlapping_pairs(&bb, tol) {
+        let ((a, b, m), (c, d, k)) = (units[i], units[j]);
+        let same_ends = (dist(a, c) <= tol && dist(b, d) <= tol)
+            || (dist(a, d) <= tol && dist(b, c) <= tol);
+        if same_ends && dist(m, k) <= tol {
+            n += 1;
         }
     }
     n
