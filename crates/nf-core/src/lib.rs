@@ -106,13 +106,17 @@ use std::collections::{BTreeMap, BTreeSet};
 /// the message. The surface-unknown reason was written in English and Japanese in one string; the engine now writes
 /// English only and the client translates it like every other engine sentence. Geometry and verdicts are unchanged;
 /// record text changed, so results of 0.4.8 are REJECTED with G21 recompute.
+/// 0.4.12 (25 Nov 2026): the display sagitta of the arc points is relative for small and large parts: min(0.01 mm, 1e-5 x M),
+/// M the bounding-box diagonal of the pattern (a tiny part gets chords that follow its own size). Cut geometry and the DXF
+/// are unchanged; the JSON arc points, the digest of tiny arcs and the verdicts that read them move. Results of 0.4.11
+/// are REJECTED with G21 recompute.
 /// 0.4.11 (24 Nov 2026): AMOEBA digest. Every DXF of a job is re-measured by nf-digest, an independent reader, and
 /// the digest is kept as an immutable snapshot; gate G23 (AMOEBA digest) reads it and a DXF is served only when every
 /// check passes. The engine's geometry, checks and verdicts are unchanged. Results of 0.4.10 are REJECTED with G21 recompute.
 /// 0.4.10 (23 Nov 2026): wording only. The G14 detail says "Algorithms are evidence level EV-1 (not independently
 /// reviewed) and not production-qualified." (the authorship wording was removed from every text of the product);
 /// geometry, checks and verdicts unchanged; record text changed, so results of 0.4.9 are REJECTED with G21 recompute.
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.11+src.", env!("NF_ENGINE_SRC_HASH"));
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.12+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the
