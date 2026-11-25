@@ -479,3 +479,110 @@ fn very_large_radius_arc_matches_its_declared_arc() {
     let c = rep.checks.iter().find(|c| c.name == "arc_radii").unwrap();
     assert_eq!(c.verdict, Verdict::Pass, "{}", c.detail);
 }
+
+/// The clean square-in-rectangle job and its reference, both multiplied by `s`.
+fn scaled_job(s: f64) -> (Doc, Reference) {
+    let sc =
+        |pts: &[[f64; 2]]| -> Vec<[f64; 2]> { pts.iter().map(|p| [p[0] * s, p[1] * s]).collect() };
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.poly("CUT_OUTER", &sc(&RECT), true);
+    d.poly("CUT_INNER", &sc(&SQUARE), true);
+    let closed = |pts: &[[f64; 2]]| {
+        let mut v = sc(pts);
+        v.push(v[0]);
+        v
+    };
+    let r = Reference {
+        part: "P1".into(),
+        outer: vec![curve(&closed(&RECT), false, 0.0)],
+        holes: vec![curve(&closed(&SQUARE), false, 0.0)],
+    };
+    (d, r)
+}
+
+/// Tolerance of the rectangle reference at scale `s`: 1e-6 x its diagonal (100 mm by 50 mm).
+fn rect_tol(s: f64) -> f64 {
+    1e-6 * (100.0f64.powi(2) + 50.0f64.powi(2)).sqrt() * s
+}
+
+#[test]
+fn tolerance_is_relative_to_the_part_diagonal() {
+    assert!((geom::tolerance(1000.0 * 2f64.sqrt()) - 0.001 * 2f64.sqrt()).abs() < 1e-15);
+    assert_eq!(geom::tolerance(0.0), 0.0);
+    assert_eq!(geom::tolerance(f64::NAN), 0.0);
+}
+
+#[test]
+fn clean_job_passes_at_tiny_and_huge_scales() {
+    for s in [1e-8, 1e-3, 1.0, 256.0, 65536.0] {
+        let (d, r) = scaled_job(s);
+        let rep = run(&d, &r);
+        for c in &rep.checks {
+            assert_eq!(
+                c.verdict,
+                Verdict::Pass,
+                "scale {s}: {} — {}",
+                c.name,
+                c.detail
+            );
+        }
+        assert_eq!(rep.verdict(), Verdict::Pass, "scale {s}");
+    }
+}
+
+#[test]
+fn real_gap_fails_at_tiny_and_huge_scales() {
+    // the last edge stops 10 tolerances short of the first vertex: an open contour with a real gap
+    for s in [1e-8, 1.0, 65536.0] {
+        let (_, r) = scaled_job(s);
+        let g = 10.0 * rect_tol(s);
+        let mut d = Doc::new();
+        d.insunits = Some(4);
+        d.line("CUT_OUTER", [0.0, 0.0], [100.0 * s, 0.0]);
+        d.line("CUT_OUTER", [100.0 * s, 0.0], [100.0 * s, 50.0 * s]);
+        d.line("CUT_OUTER", [100.0 * s, 50.0 * s], [0.0, 50.0 * s]);
+        d.line("CUT_OUTER", [0.0, 50.0 * s], [0.0, g]);
+        d.poly("CUT_INNER", &SQUARE.map(|p| [p[0] * s, p[1] * s]), true);
+        let rep = run(&d, &r);
+        assert_fails(&rep, "seam_gaps");
+        let c = check_named(&rep, "seam_gaps");
+        assert!(
+            (c.measured.unwrap() - g).abs() < 1e-9 * g,
+            "scale {s}: {:?}",
+            c.measured
+        );
+        assert!(
+            (c.tolerance.unwrap() - rect_tol(s)).abs() < 1e-9 * rect_tol(s),
+            "scale {s}"
+        );
+    }
+}
+
+#[test]
+fn real_tiny_segment_fails_at_tiny_and_huge_scales() {
+    // one extra vertex 0.5 tolerances past the bottom-right corner: a segment shorter than the tolerance
+    for s in [1e-8, 1.0, 65536.0] {
+        let t = 0.5 * rect_tol(s);
+        let mut d = Doc::new();
+        d.insunits = Some(4);
+        d.poly(
+            "CUT_OUTER",
+            &[
+                [0.0, 0.0],
+                [100.0 * s, 0.0],
+                [100.0 * s + t, 0.0],
+                [100.0 * s, 50.0 * s],
+                [0.0, 50.0 * s],
+            ],
+            true,
+        );
+        d.poly("CUT_INNER", &SQUARE.map(|p| [p[0] * s, p[1] * s]), true);
+        let rep = run(&d, &scaled_job(s).1);
+        assert_fails(&rep, "tiny_segments");
+        assert!(
+            check_named(&rep, "tiny_segments").measured.unwrap() >= 1.0,
+            "scale {s}"
+        );
+    }
+}
