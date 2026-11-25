@@ -665,6 +665,13 @@ name = "nf-dxf"
 version = "0.1.0"
 
 [[package]]
+name = "nf-form3d"
+version = "0.1.0"
+dependencies = [
+ "uem",
+]
+
+[[package]]
 name = "nf-pdf"
 version = "0.1.0"
 dependencies = [
