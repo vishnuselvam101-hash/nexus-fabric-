@@ -143,7 +143,7 @@ pub fn gate(rows: &[Row]) -> (nf_core::GateResult, String) {
     let failing: Vec<String> = rows
         .iter()
         .filter(|r| r.verdict == "FAIL")
-        .map(|r| format!("{}: {}", r.part, failed_names(&r.checks, "FAIL").join(", ")))
+        .map(|r| format!("{}: {}", r.part, check_lines(&r.checks, "FAIL").join("; ")))
         .collect();
     if !failing.is_empty() {
         return (
@@ -161,7 +161,7 @@ pub fn gate(rows: &[Row]) -> (nf_core::GateResult, String) {
             format!(
                 "{}: {}",
                 r.part,
-                failed_names(&r.checks, "INCONCLUSIVE").join(", ")
+                check_lines(&r.checks, "INCONCLUSIVE").join("; ")
             )
         })
         .collect();
@@ -184,13 +184,26 @@ pub fn gate(rows: &[Row]) -> (nf_core::GateResult, String) {
     )
 }
 
-fn failed_names(checks: &Value, verdict: &str) -> Vec<String> {
+/// One line per check with the given verdict: its name, measured value, tolerance (mm) and own detail.
+fn check_lines(checks: &Value, verdict: &str) -> Vec<String> {
+    let num = |v: &Value| {
+        v.as_f64()
+            .map_or_else(|| "n/a".to_string(), |x| x.to_string())
+    };
     checks
         .as_array()
         .map(|a| {
             a.iter()
                 .filter(|c| c["verdict"] == verdict)
-                .filter_map(|c| c["name"].as_str().map(str::to_string))
+                .map(|c| {
+                    format!(
+                        "{} ({verdict}: measured {}, tolerance {} mm): {}",
+                        c["name"].as_str().unwrap_or("?"),
+                        num(&c["measured"]),
+                        num(&c["tolerance"]),
+                        c["detail"].as_str().unwrap_or("")
+                    )
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -234,6 +247,16 @@ pub fn stages(id: i64, state: &str, gates: &[nf_core::Gate], rows: &[Row]) -> Va
         "INCONCLUSIVE".into()
     };
     let all_pass = !rows.is_empty() && rows.iter().all(|r| r.verdict == "PASS");
+    let failing: Vec<String> = rows
+        .iter()
+        .flat_map(|r| {
+            ["FAIL", "INCONCLUSIVE"]
+                .into_iter()
+                .flat_map(|v| check_lines(&r.checks, v))
+                .map(|l| format!("{}: {l}", r.part))
+                .collect::<Vec<String>>()
+        })
+        .collect();
     let mut hold: Vec<String> = gates
         .iter()
         .filter(|g| {
@@ -267,7 +290,7 @@ pub fn stages(id: i64, state: &str, gates: &[nf_core::Gate], rows: &[Row]) -> Va
             { "stage": "engulf", "status": if rows.is_empty() { "PENDING" } else { "DONE" }, "snapshots": rows.iter().map(|r| json!({
                 "part": r.part, "dxf_sha256": r.dxf_sha256, "inputs_sha256": r.inputs_sha256, "engine": r.engine, "created_at": r.created_at
             })).collect::<Vec<Value>>() },
-            { "stage": "digest", "status": digest_status, "parts": rows.iter().map(|r| json!({
+            { "stage": "digest", "status": digest_status, "failing": failing, "parts": rows.iter().map(|r| json!({
                 "part": r.part, "verdict": r.verdict, "checks": r.checks
             })).collect::<Vec<Value>>() },
             { "stage": "confirm", "status": if hold.is_empty() { "CLEAR" } else { "HOLD" }, "reasons": hold },
