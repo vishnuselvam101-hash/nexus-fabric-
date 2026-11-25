@@ -697,6 +697,11 @@ async function main() {
       check('BH-R8-002: the history table headers follow the language (Japanese)', english.length === 0, heads.join(' | '));
       const wHist = await page.evaluate(() => document.documentElement.scrollWidth);
       check('BH-R8-003: the history table scrolls inside itself at 390px', wHist <= 391, 'scrollWidth=' + wHist);
+      await page.goto(BASE + '/#/workspace/projects', { waitUntil: 'load' });
+      await page.waitForSelector('#view', { state: 'attached', timeout: 15000 });
+      await page.waitForTimeout(500);
+      const btns = await page.$$eval('#view button', (bs) => bs.map((b) => b.textContent.trim()));
+      check('BH-R8-004: the projects tab buttons are in Japanese', !btns.some((x) => /^(New project|Back|Create)$/.test(x)), btns.join(' | '));
       await page.goto(BASE + '/#/amoeba', { waitUntil: 'load' });
       await page.waitForSelector('#view', { state: 'attached', timeout: 15000 });
       await page.waitForTimeout(600);

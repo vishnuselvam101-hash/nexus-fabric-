@@ -181,7 +181,7 @@ async function showCalcForm(signal) {
   form.appendChild(pg);
 
   // Submit
-  const sub = el('button', 'btn pri', 'Create');
+  const sub = el('button', 'btn pri', t('common.create'));
   sub.type = 'submit';
   form.appendChild(sub);
 
@@ -213,7 +213,7 @@ async function showCalcForm(signal) {
   });
 
   // Back button
-  const back = el('button', 'btn', 'Back');
+  const back = el('button', 'btn', t('common.back'));
   back.type = 'button';
   back.addEventListener('click', () => loadCalc(signal));
   form.appendChild(back);
@@ -233,7 +233,7 @@ async function loadProjects(signal) {
 
     const hd = el('div', 'panel-h');
     hd.appendChild(el('h2', null, t('ws.projects')));
-    const btn = el('button', 'btn pri', 'New project');
+    const btn = el('button', 'btn pri', t('ws.new.project'));
     btn.type = 'button';
     btn.addEventListener('click', () => showProjectForm(signal));
     hd.appendChild(btn);
@@ -276,7 +276,7 @@ function showProjectForm(signal) {
   fd.appendChild(di);
   form.appendChild(fd);
 
-  const sub = el('button', 'btn pri', 'Create');
+  const sub = el('button', 'btn pri', t('common.create'));
   sub.type = 'submit';
   form.appendChild(sub);
 
@@ -294,7 +294,7 @@ function showProjectForm(signal) {
     }
   });
 
-  const back = el('button', 'btn', 'Back');
+  const back = el('button', 'btn', t('common.back'));
   back.type = 'button';
   back.addEventListener('click', () => loadProjects(signal));
   form.appendChild(back);
@@ -321,7 +321,7 @@ async function showProjectDetail(proj, signal) {
       }
       content.appendChild(ul);
     }
-    const back = el('button', 'btn', 'Back');
+    const back = el('button', 'btn', t('common.back'));
     back.type = 'button';
     back.addEventListener('click', () => loadProjects(signal));
     content.appendChild(back);
@@ -357,7 +357,7 @@ async function loadObligations(signal) {
       tr.appendChild(el('td', null, fmtDate(o.created_at)));
       const td = document.createElement('td');
       if (!o.resolved) {
-        const btn = el('button', 'btn', 'Resolve');
+        const btn = el('button', 'btn', t('ws.obl.resolve'));
         btn.type = 'button';
         btn.addEventListener('click', async () => {
           btn.disabled = true;
@@ -420,7 +420,7 @@ async function loadUsers(signal) {
 
     const hd = el('div', 'panel-h');
     hd.appendChild(el('h2', null, 'Users'));
-    const btn = el('button', 'btn pri', 'Add user');
+    const btn = el('button', 'btn pri', t('ws.add.user'));
     btn.type = 'button';
     btn.addEventListener('click', () => showUserForm(signal));
     hd.appendChild(btn);
@@ -495,7 +495,7 @@ function showUserForm(signal) {
   fr.appendChild(ri);
   form.appendChild(fr);
 
-  const sub = el('button', 'btn pri', 'Create');
+  const sub = el('button', 'btn pri', t('common.create'));
   sub.type = 'submit';
   form.appendChild(sub);
 
@@ -513,7 +513,7 @@ function showUserForm(signal) {
     }
   });
 
-  const back = el('button', 'btn', 'Back');
+  const back = el('button', 'btn', t('common.back'));
   back.type = 'button';
   back.addEventListener('click', () => loadUsers(signal));
   form.appendChild(back);
