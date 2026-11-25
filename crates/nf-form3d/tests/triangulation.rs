@@ -8,10 +8,15 @@
 //!
 //! Area acceptance: the triangle area sum equals the net area of the plate within 1e-9 relative. The net area is the
 //! area of the drawn outline minus the holes, and for the engine patterns it is also compared with the pattern's own
-//! `area` quantity. Surface acceptance: every triangle vertex lies on the declared surface within 1e-9 times the
-//! largest dimension M of the formed part.
+//! `area` quantity. Chord acceptance (A-21 review): a cylinder shell's full-circumference seams are triangulated by
+//! `triangulate_formed` to a chord tolerance of 0.01 mm, and every triangle has positive area in 3D with its centroid
+//! and edge midpoints within the tolerance of the surface (up to 1e-9 times the largest dimension M). The branch stub
+//! and the header with its opening are refused by the chord bound: their interiors need points this method does not
+//! place, so the planar triangulation stands for them only as an area check.
 
-use nf_form3d::triangulate::{net_area, pattern_polygons, signed_area, triangulate};
+use nf_form3d::triangulate::{
+    Triangulation, net_area, pattern_polygons, signed_area, triangulate, triangulate_formed,
+};
 use nf_form3d::{Form3d, Form3dError};
 use uem::geometry::Branch;
 use uem::{P2, Pattern, develop};
@@ -94,19 +99,68 @@ fn outline_only_is_ear_clipped_to_n_minus_two_triangles() {
     assert_eq!(check_area(&outer, &[]), 10);
 }
 
-/// Each engine vertex sits on its surface: the branch and the header are cylinders of the developed radius.
-fn on_cylinder_surface(form: &Form3d, t: &nf_form3d::triangulate::Triangulation, radius: f64) {
-    let tol = 1e-9 * form.largest_dimension();
-    for &uv in &t.vertices {
-        let x = form.map(uv);
-        let off = match form {
-            Form3d::Header { .. } => (x[1].hypot(x[2]) - radius).abs(),
-            _ => (x[0].hypot(x[1]) - radius).abs(),
+/// Chord bound of the seams (mm), and the allowance for rounding (1e-9 times the largest dimension M).
+const CHORD: f64 = 0.01;
+
+fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn mid(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [
+        0.5 * (a[0] + b[0]),
+        0.5 * (a[1] + b[1]),
+        0.5 * (a[2] + b[2]),
+    ]
+}
+
+/// Checks a triangulation of a formed cylinder or header of the given radius to the chord bound: every triangle has
+/// positive area in 3D (none collapses onto the seam), and the centroid and the edge midpoints of every triangle lie
+/// within `chord` (mm) of the surface.
+fn check_chord(form: &Form3d, radius: f64, chord: f64, t: &Triangulation) {
+    let tol = chord + 1e-9 * form.largest_dimension();
+    let off = |x: [f64; 3]| {
+        let r = match form {
+            Form3d::Header { .. } => x[1].hypot(x[2]),
+            _ => x[0].hypot(x[1]),
         };
+        (r - radius).abs()
+    };
+    for &[a, b, c] in &t.triangles {
+        let (va, vb, vc) = (t.vertices[a], t.vertices[b], t.vertices[c]);
+        let plate = signed_area(&[va, vb, vc]);
+        assert!(plate > 0.0, "triangle {a} {b} {c} is not counter-clockwise");
+        let (pa, pb, pc) = (form.map(va), form.map(vb), form.map(vc));
+        let n = {
+            let (e1, e2) = (sub(pb, pa), sub(pc, pa));
+            [
+                e1[1] * e2[2] - e1[2] * e2[1],
+                e1[2] * e2[0] - e1[0] * e2[2],
+                e1[0] * e2[1] - e1[1] * e2[0],
+            ]
+        };
+        let area3 = 0.5 * (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
         assert!(
-            off <= tol,
-            "{uv:?} -> {x:?} is {off:e} mm off the cylinder of radius {radius}"
+            area3 > 0.5 * plate,
+            "triangle {a} {b} {c}: 3D area {area3} against plate area {plate}"
         );
+        let centroid = [
+            (pa[0] + pb[0] + pc[0]) / 3.0,
+            (pa[1] + pb[1] + pc[1]) / 3.0,
+            (pa[2] + pb[2] + pc[2]) / 3.0,
+        ];
+        let o = off(centroid);
+        assert!(
+            o <= tol,
+            "triangle {a} {b} {c}: centroid {o:e} mm off the surface"
+        );
+        for (x, y) in [(pa, pb), (pb, pc), (pc, pa)] {
+            let o = off(mid(x, y));
+            assert!(
+                o <= tol,
+                "triangle {a} {b} {c}: edge midpoint {o:e} mm off the surface"
+            );
+        }
     }
 }
 
@@ -122,6 +176,12 @@ fn branch_stub_of_the_fixture_triangulates_to_its_area() {
     let pat = develop::branch_stub(150.0, 100.0, 100.0, 60.0, 0.0, 400.0).unwrap();
     let (outer, holes) = pattern_polygons(&pat).unwrap();
     assert!(holes.is_empty());
+    let form = Form3d::from_pattern(&pat).unwrap();
+    // the chord bound cannot be met without interior points: refused, not approximated
+    assert!(matches!(
+        triangulate_formed(&form, &outer, &holes, CHORD),
+        Err(Form3dError::NotTriangulable(reason)) if reason.contains("chord bound")
+    ));
     let t = triangulate(&outer, &holes).unwrap();
     let sum = triangle_area_sum(&t.vertices, &t.triangles);
     let net = net_area(&outer, &holes);
@@ -134,8 +194,6 @@ fn branch_stub_of_the_fixture_triangulates_to_its_area() {
         "net {net} vs engine area {}",
         engine_area(&pat)
     );
-    let form = Form3d::from_pattern(&pat).unwrap();
-    on_cylinder_surface(&form, &t, 100.0);
 }
 
 #[test]
@@ -150,6 +208,11 @@ fn header_shell_with_opening_triangulates_to_its_area() {
     assert_eq!(pat.holes.len(), 1, "the opening is the one hole");
     let (outer, holes) = pattern_polygons(&pat).unwrap();
     assert_eq!(holes.len(), 1);
+    let form = Form3d::from_pattern(&pat).unwrap();
+    assert!(matches!(
+        triangulate_formed(&form, &outer, &holes, CHORD),
+        Err(Form3dError::NotTriangulable(reason)) if reason.contains("chord bound")
+    ));
     let t = triangulate(&outer, &holes).unwrap();
     let sum = triangle_area_sum(&t.vertices, &t.triangles);
     let net = net_area(&outer, &holes);
@@ -162,8 +225,6 @@ fn header_shell_with_opening_triangulates_to_its_area() {
         "net {net} vs engine area {}",
         engine_area(&pat)
     );
-    let form = Form3d::from_pattern(&pat).unwrap();
-    on_cylinder_surface(&form, &t, 150.0);
 }
 
 #[test]
@@ -198,6 +259,120 @@ fn bad_input_is_refused_not_approximated() {
     // a degenerate outline
     assert!(matches!(
         triangulate(&[p(0.0, 0.0), p(1.0, 1.0), p(2.0, 2.0)], &[]),
+        Err(Form3dError::NotTriangulable(_))
+    ));
+}
+
+#[test]
+fn two_holes_with_repeated_bridge_vertices_are_triangulated() {
+    // review A-21 finding 2: the second bridge must enter the copy of the repeated outline vertex whose wedge holds it
+    let outer = [p(0.0, 0.0), p(10.0, 0.0), p(10.0, 10.0), p(0.0, 10.0)];
+    let h1 = vec![
+        p(6.673, 6.814),
+        p(5.33, 7.82),
+        p(3.958, 6.852),
+        p(4.454, 5.249),
+        p(6.132, 5.225),
+    ];
+    let h2 = vec![
+        p(6.308, 8.764),
+        p(5.823, 9.126),
+        p(5.329, 8.778),
+        p(5.508, 8.2),
+        p(6.113, 8.192),
+    ];
+    // V = 4 + 5 + 5 vertices with two holes: V + 2h - 2 = 16 triangles
+    assert_eq!(check_area(&outer, &[h1, h2]), 16);
+}
+
+#[test]
+fn seeded_random_multi_hole_plates_are_triangulated() {
+    // holes are star-shaped polygons in the cells of a 3 x 3 grid, so they are disjoint and inside the outline
+    let mut state: u64 = 0x9E37_79B9_7F4A_7C15;
+    let mut next = move || {
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        (state >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let outer = [p(0.0, 0.0), p(90.0, 0.0), p(90.0, 90.0), p(0.0, 90.0)];
+    for case in 0..300 {
+        let mut cells: Vec<usize> = (0..9).collect();
+        let count = 2 + (next() * 4.0) as usize;
+        let mut holes = Vec::new();
+        for _ in 0..count {
+            let pick = (next() * cells.len() as f64) as usize % cells.len();
+            let cell = cells.swap_remove(pick);
+            let (cx, cy) = (
+                15.0 + 30.0 * (cell % 3) as f64 + 10.0 * (next() - 0.5),
+                15.0 + 30.0 * (cell / 3) as f64 + 10.0 * (next() - 0.5),
+            );
+            let n = 3 + (next() * 6.0) as usize;
+            let hole: Vec<P2> = (0..n)
+                .map(|k| {
+                    let step = std::f64::consts::TAU / n as f64;
+                    let a = (k as f64 + 0.8 * next()) * step;
+                    let r = 9.0 * (0.4 + 0.6 * next());
+                    p(cx + r * a.cos(), cy + r * a.sin())
+                })
+                .collect();
+            holes.push(hole);
+        }
+        let t = triangulate(&outer, &holes)
+            .unwrap_or_else(|e| panic!("case {case}: {e} for {holes:?}"));
+        let sum = triangle_area_sum(&t.vertices, &t.triangles);
+        let net = net_area(&outer, &holes);
+        assert!(
+            (sum - net).abs() <= 1e-9 * net,
+            "case {case}: triangle area sum {sum} differs from the net area {net}"
+        );
+    }
+}
+
+#[test]
+fn zero_area_corner_that_carries_area_is_refused() {
+    // review A-21 finding 3: the sharp corner at (0,0) has sin(angle) ~ 1e-13 and carries half the area
+    let sliver = [p(0.0, 0.0), p(1.0, 0.0), p(2.0, 0.0), p(1.0, 1e-13)];
+    assert!(matches!(
+        triangulate(&sliver, &[]),
+        Err(Form3dError::NotTriangulable(_))
+    ));
+}
+
+#[test]
+fn full_turn_seams_are_chord_bounded_and_refined_to_the_tolerance() {
+    // a cylinder of radius 100 mm: the two long edges u = 0 and u = 2 pi R are the seam, and both map to the same
+    // 3D points, so without subdivision every triangle along them would collapse or cut through the interior
+    let cyl = Form3d::cylinder(100.0, 250.0).unwrap();
+    let outer = [p(0.0, 0.0), p(628.0, 0.0), p(628.0, 250.0), p(0.0, 250.0)];
+    let fine = triangulate_formed(&cyl, &outer, &[], CHORD).unwrap();
+    assert!(
+        (triangle_area_sum(&fine.vertices, &fine.triangles) - 157000.0).abs() <= 1e-9 * 157000.0
+    );
+    check_chord(&cyl, 100.0, CHORD, &fine);
+    // a coarser tolerance subdivides less
+    let coarse = triangulate_formed(&cyl, &outer, &[], 0.5).unwrap();
+    assert!(fine.vertices.len() > coarse.vertices.len());
+    check_chord(&cyl, 100.0, 0.5, &coarse);
+}
+
+#[test]
+fn chord_bound_refuses_a_bad_tolerance_and_the_cone() {
+    let outer = [p(0.0, 0.0), p(628.0, 0.0), p(628.0, 250.0), p(0.0, 250.0)];
+    let cyl = Form3d::cylinder(100.0, 250.0).unwrap();
+    assert!(matches!(
+        triangulate_formed(&cyl, &outer, &[], 0.0),
+        Err(Form3dError::NotPositive("chord_tol"))
+    ));
+    // at or above half the radius the chord bound does not hold for the whole triangle
+    assert!(matches!(
+        triangulate_formed(&cyl, &outer, &[], 50.0),
+        Err(Form3dError::NotTriangulable(_))
+    ));
+    // the cone has no chord-bounded triangulation here
+    let cone = Form3d::cone(200.0, 100.0, 300.0).unwrap();
+    assert!(matches!(
+        triangulate_formed(&cone, &outer, &[], CHORD),
         Err(Form3dError::NotTriangulable(_))
     ));
 }
