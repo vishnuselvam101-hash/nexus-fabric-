@@ -94,14 +94,14 @@ function rawGet(p, host) {
   const sent = [];
   page.on('request', (r) => sent.push(r.url() + ' ' + (r.postData() || '')));
   await page.goto(linkUrl);
-  await page.waitForSelector('#f', { timeout: 15000 });
+  await page.waitForSelector('#login-form', { timeout: 15000 });
   await page.waitForFunction(() => !location.hash, null, { timeout: 5000 }).catch(() => {});
   check('the fragment is removed from the address bar', !(await page.evaluate(() => location.href)).includes('#'));
-  check('the token field is hidden when the token came from the link', (await page.$('#lt')) === null);
-  await page.fill('#lu', 'admin');
-  await page.fill('#lp', 'correct-horse-9');
-  await page.click('#f button.pri');
-  await page.waitForFunction(() => !document.querySelector('#f'), null, { timeout: 20000 }).catch(() => {});
+  check('the token field is hidden when the token came from the link', (await page.$('#login-token')) === null);
+  await page.fill('#login-user', 'admin');
+  await page.fill('#login-pass', 'correct-horse-9');
+  await page.click('#login-form button[type="submit"]');
+  await page.waitForFunction(() => !document.querySelector('#login-form'), null, { timeout: 20000 }).catch(() => {});
   const me = await page.evaluate(async () => (await fetch('/api/me', { headers: { 'X-NF-Request': '1' } })).json().catch(() => null));
   check('first administrator is created from the link', !!(me && JSON.stringify(me).includes('admin')), JSON.stringify(me).slice(0, 120));
   // The token may appear in the setup request body (as in server mode), but never in a URL.
