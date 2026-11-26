@@ -2537,11 +2537,27 @@ fn amoeba_holds(c: &Core, digest: &[amoeba::Row]) -> Vec<Value> {
     parts
         .iter()
         .filter_map(|part| {
-            amoeba::hold_for(digest, part)
-                .err()
-                .map(|(code, checks)| json!({ "part": part, "code": code, "checks": checks }))
+            let (code, checks) = match amoeba::hold_for(digest, part) {
+                Err(hold) => hold,
+                Ok(()) => {
+                    let sha = c.records.as_ref().and_then(|r| r.dxf.get(part.as_str()))?;
+                    if !snapshot_mismatch(digest, sha, part) {
+                        return None;
+                    }
+                    ("amoeba_snapshot_mismatch".to_string(), json!([]))
+                }
+            };
+            Some(json!({ "part": part, "code": code, "checks": checks }))
         })
         .collect()
+}
+
+/// The snapshot of a part describes another file than the one the job names (get_dxf and the job views read it alike).
+fn snapshot_mismatch(digest: &[amoeba::Row], sha: &str, part: &str) -> bool {
+    digest
+        .iter()
+        .find(|r| r.part == part)
+        .is_some_and(|r| r.dxf_sha256 != sha)
 }
 
 /// The export answer carried by job rows and the job detail. `available` is the decision get_dxf makes.
@@ -3584,7 +3600,17 @@ async fn get_amoeba(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) ->
             hits.len()
         )
     }));
-    ok(amoeba::stages(c.id, e.state, &e.gates, &rows, &holds))
+    let part_holds = amoeba_holds(&c, &rows);
+    holds.extend(part_holds.iter().map(|h| {
+        format!(
+            "part {}: {}",
+            h["part"].as_str().unwrap_or(""),
+            h["code"].as_str().unwrap_or("")
+        )
+    }));
+    let mut view = amoeba::stages(c.id, e.state, &e.gates, &rows, &holds);
+    view["amoeba_holds"] = json!(part_holds);
+    ok(view)
 }
 
 /// A DXF is served for exactly one situation: the job is the current revision,
@@ -3710,11 +3736,7 @@ async fn get_dxf(
             json!({ "error": format!("no DXF for part {part}: {msg}; the file is withheld"), "code": code, "checks": checks }),
         ));
     }
-    if digest_rows
-        .iter()
-        .find(|r| r.part == part)
-        .is_some_and(|r| r.dxf_sha256 != sha)
-    {
+    if snapshot_mismatch(&digest_rows, &sha, &part) {
         tx.commit()?;
         return Err(fail_json(
             StatusCode::CONFLICT,

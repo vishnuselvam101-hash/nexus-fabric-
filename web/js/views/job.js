@@ -81,15 +81,21 @@ const blocked = () => state !== 'REVIEW_REQUIRED' && state !== 'APPROVED';
 const canCorrect = () => canEdit() && !blocked() && c.correctable_parameters.length > 0;
 const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); if (!dead) fn(); }, ms); timers.add(id); };
 const openCount = () => c.obligations.filter((o) => o.state === 'open').length + c.advisories.filter((a) => a.state === 'open').length;
-const dxfHeld = (part) => Object.hasOwn(c.dxf_withheld || {}, part);
-// the export follows the server's answer (job detail `export`, the rule of get_dxf): available, or held by one gate
-const exportInfo = () => c.export || { available: false, held_by: null, not_checked: [] };
+// the export follows the server's answer (job detail `export`, the rule of get_dxf): available, held by one gate,
+// or held part by part (owner rule `withheld`, AMOEBA snapshot `amoeba_holds`)
+const exportInfo = () => c.export || { available: false, held_by: null, not_checked: [], amoeba_holds: [], withheld: [] };
 const released = () => exportInfo().available === true;
+const withheldOf = () => exportInfo().withheld || [];
+const amoebaHoldsOf = () => exportInfo().amoeba_holds || [];
+const WITHHELD_CODE = 'dxf_withheld_inconclusive';
+const partHeld = (part) => withheldOf().some((w) => w.part === part) || amoebaHoldsOf().some((h) => h.part === part);
+// a part is served when no gate holds the job and no hold names the part (the rule of get_dxf, per part)
+const servable = (part) => !exportInfo().held_by && state === 'REVIEW_REQUIRED' && !c.superseded_by && !partHeld(part);
 const amoebaStage = () => {
   if (state === 'SUPERSEDED') return 'idle';
   if (!c.patterns.length || state === 'REJECTED' || state === 'NO_RESULT') return 'hold';
   if (!c.gates.length) return 'idle';
-  if (exportInfo().held_by) return 'hold';
+  if (exportInfo().held_by || withheldOf().length || amoebaHoldsOf().length) return 'hold';
   return released() ? 'release' : 'digest';
 };
 // the failing check of a held export: gate, result, what the engine found, one fix (the fix text is per result)
@@ -105,11 +111,18 @@ const amoebaHoldsHtml = () => {
   const rows = exportInfo().amoeba_holds || [];
   return rows.length ? `<ul class="il sub exp-am">${rows.map((h) => `<li><span class="mono">${esc(h.code)}</span> ${esc(t('am.hold.part', { part: partText(h.part) }))}${(h.checks || []).length ? `<ul class="il">${h.checks.map((k) => `<li>${checkName(k.name)} · ${eng(k.detail)}</li>`).join('')}</ul>` : ''}</li>`).join('')}</ul>` : '';
 };
-// everything that holds or qualifies the export, beside the button: AMOEBA holds, then the gates not checked by NF
-const exportNotesHtml = () => amoebaHoldsHtml() + notCheckedHtml();
+// the parts the owner rule withholds: the code, and the checks on the cut geometry that are not decided
+const withheldHtml = () => {
+  const rows = withheldOf();
+  return rows.length ? `<ul class="il sub exp-wh">${rows.map((w) => `<li><span class="mono">${esc(WITHHELD_CODE)}</span> ${esc(t('dxf.withheld.t', { part: partText(w.part) }))}${(w.checks || []).length ? `<ul class="il">${w.checks.map((k) => `<li>${checkName(k.name)}${k.reason ? ` · ${eng(k.reason)}` : ''}</li>`).join('')}</ul>` : ''}</li>`).join('')}</ul>` : '';
+};
+// everything that holds or qualifies the export, beside the button: withheld parts, AMOEBA holds, then the gates not checked by NF
+const exportNotesHtml = () => withheldHtml() + amoebaHoldsHtml() + notCheckedHtml();
 const lockReason = () => {
   if (!c.patterns.length) return c.refusal ? refusalHtml(c.refusal) : c.outcome ? eng(c.outcome) : esc(t('ban.none.default'));
   if (exportInfo().held_by) return heldHtml(exportInfo().held_by);
+  if (withheldOf().length) return esc(t('exp.reason.withheld', { parts: withheldOf().map((w) => partText(w.part)).join(', ') }));
+  if (amoebaHoldsOf().length) return esc(t('exp.reason.amoeba', { parts: amoebaHoldsOf().map((h) => partText(h.part)).join(', ') }));
   return esc(t('exp.reason.state', { state: stateText(state) }));
 };
 const AM_STEPS = [
@@ -128,12 +141,12 @@ function timelineHtml() {
 }
 function amoebaPanel() {
   const stage = amoebaStage();
-  const why = stage === 'hold' ? `<p class="am-why"><b>${esc(t('exp.hold'))}</b> ${lockReason()}</p>${amoebaHoldsHtml()}` : '';
+  const why = stage === 'hold' ? `<p class="am-why"><b>${esc(t('exp.hold'))}</b> ${lockReason()}</p>${withheldHtml()}${amoebaHoldsHtml()}` : '';
   return `<section class="panel am-stage"><div class="amoeba-mount am-job" data-amoeba data-stage="${stage}" role="img" aria-label="${esc(t('am.stage.aria'))}"></div><ol class="am-timeline" aria-label="${esc(t('am.stage.aria'))}">${timelineHtml()}</ol>${why}</section>`;
 }
 function exportHtml() {
-  const free = c.patterns.filter((p) => !dxfHeld(p.part));
-  const body = released() && free.length
+  const free = c.patterns.filter((p) => servable(p.part));
+  const body = free.length
     ? `<a class="btn btn-primary btn-block" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(free[0].part)}" download>${esc(t('exp.dxf'))}</a><p class="sub">${esc(t('exp.checked'))}</p>${exportNotesHtml()}`
     : `<button type="button" class="btn btn-block" disabled aria-disabled="true">${esc(t('exp.locked'))}</button><p class="sub lock-why"><b>${esc(t('exp.because'))}</b> ${lockReason()}</p>${exportNotesHtml()}`;
   return panel(esc(t('exp.h')), `<div class="export-box">${body}</div>`);
@@ -234,20 +247,15 @@ function recordsHtml() {
     <pre class="mono" lang="en">${esc(JSON.stringify(r.payload, null, 1))}</pre></div></details>`).join('')}`, c.records.length);
 }
 function dxfHtml() {
-  if (!released()) return panel(esc(t('dxf.btn')), `${sub(t('exp.note'))}<p class="sub lock-why"><b>${esc(t('exp.because'))}</b> ${lockReason()}</p>${exportNotesHtml()}`);
-  const free = c.patterns.filter((p) => !dxfHeld(p.part));
+  const free = c.patterns.filter((p) => servable(p.part));
+  if (!free.length) return panel(esc(t('dxf.btn')), `${sub(t('exp.note'))}<p class="sub lock-why"><b>${esc(t('exp.because'))}</b> ${lockReason()}</p>${exportNotesHtml()}`);
   const link = (p) => `<a class="btn" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}" download aria-label="${esc(t('dxf.aria', { part: partText(p.part) }))}" title="${esc(t('dxf.tip', { part: partText(p.part) }))}">${esc(t('dxf.btn'))} · ${partName(p.part)}</a>`;
-  const held = (p) => {
-    const names = c.dxf_withheld[p.part] || [];
-    return alert(`<b>${esc(t('dxf.withheld.t', { part: partText(p.part) }))}</b><p>${esc(t('dxf.withheld.p', { n: names.length }))}</p>
-      <ul class="il">${names.map((n) => `<li>${checkName(n)}</li>`).join('')}</ul>`, 'warn');
-  };
-  const body = !c.patterns.length ? sub(t('parts.none'))
-    : blocked() ? sub(t('dxf.withheld'))
-      : `<div class="row">${free.map(link).join('')}
+  // one alert per withheld part: the parts that are served stay downloadable beside it
+  const held = (w) => alert(`<b>${esc(t('dxf.withheld.t', { part: partText(w.part) }))}</b><p>${esc(t('dxf.withheld.p', { n: (w.checks || []).length }))}</p>
+      <ul class="il">${(w.checks || []).map((k) => `<li>${checkName(k.name)}${k.reason ? ` · ${eng(k.reason)}` : ''}</li>`).join('')}</ul>`, 'warn');
+  return panel(esc(t('dxf.btn')), `<div class="row">${free.map(link).join('')}
         ${free.length > 1 ? `<button type="button" class="btn" id="dxf-all" aria-label="${esc(t('dxf.all.aria', { n: free.length }))}">${esc(t('dxf.all', { n: free.length }))}</button>` : ''}</div>
-        ${c.patterns.filter((p) => dxfHeld(p.part)).map(held).join('')}`;
-  return panel(esc(t('dxf.btn')), body);
+        ${withheldOf().map(held).join('')}`);
 }
 function reqHtml() {
   const refKeys = !c.patterns.length && c.refusal ? c.refusal.fields || [] : [];
@@ -427,7 +435,7 @@ function wire() {
   const gp = $('#go-pattern', root); if (gp) gp.onclick = () => goTab('pattern');
   const da = $('#dxf-all', root);
   if (da) da.onclick = async () => {
-    const parts = c.patterns.filter((p) => !dxfHeld(p.part));
+    const parts = c.patterns.filter((p) => servable(p.part));
     for (const p of parts) {
       if (dead) return;
       const a = el('a', { href: `/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}`, download: '' });

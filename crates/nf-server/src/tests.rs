@@ -5046,6 +5046,34 @@ async fn amoeba_the_served_file_must_be_the_snapshotted_file() {
     assert_eq!(v["code"], "amoeba_snapshot_mismatch");
 }
 
+/// A snapshot of another file holds the export of the job: the job detail and the AMOEBA stage view name it.
+#[tokio::test]
+async fn amoeba_a_tampered_snapshot_is_named_by_the_export_and_the_stage_view() {
+    let mut t = boot();
+    let id = t.job(cone()).await;
+    replay_matches(&mut t, id).await;
+    let part = part_names(&t.get(&format!("/api/calculations/{id}")).await)[0].clone();
+    let d = t.get(&format!("/api/calculations/{id}")).await;
+    assert_eq!(d["export"]["available"], true, "{d}");
+    t.sql("DROP TRIGGER amoeba_no_update");
+    t.sql(&format!(
+        "UPDATE amoeba_digests SET dxf_sha256 = '{}' WHERE calc_id = {id} AND part = '{part}'",
+        "0".repeat(64)
+    ));
+    let d = t.get(&format!("/api/calculations/{id}")).await;
+    assert_eq!(d["export"]["available"], false, "{d}");
+    assert_eq!(
+        d["export"]["amoeba_holds"][0]["code"], "amoeba_snapshot_mismatch",
+        "{d}"
+    );
+    let st = t.get(&format!("/api/calculations/{id}/amoeba")).await;
+    assert_eq!(
+        st["amoeba_holds"][0]["code"], "amoeba_snapshot_mismatch",
+        "{st}"
+    );
+    assert_eq!(stage(&st, "export")["status"], "WITHHELD", "{st}");
+}
+
 /// Snapshots are immutable at the database level: an update or a delete is refused.
 #[tokio::test]
 async fn amoeba_snapshots_cannot_be_changed_or_deleted() {

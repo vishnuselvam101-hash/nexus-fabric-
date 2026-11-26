@@ -33,14 +33,22 @@ const extent = (p) => {
   for (const k of [...p.curves, ...p.holes]) for (const [x, y] of k.points) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   return { w: x1 - x0, h: y1 - y0 };
 };
-const summarise = (c) => ({
-  noResult: !c.patterns.length,
-  superseded_by: c.superseded_by,
-  released: !!(c.export && c.export.available),
-  held: (c.export && c.export.held_by) || null,
-  amoebaHolds: (c.export && c.export.amoeba_holds) || [],
-  parts: c.patterns.map((p) => ({ part: p.part, cls: p.class, sha: p.dxf_sha256, ...extent(p), curves: p.curves.length, holes: p.holes.length })),
-});
+// a part is served when the server gives its file: no gate holds the job, no owner-rule or AMOEBA hold names the part
+const summarise = (c) => {
+  const exp = c.export || {};
+  const withheld = exp.withheld || [];
+  const amoebaHolds = exp.amoeba_holds || [];
+  const served = (part) => !exp.held_by && c.state === 'REVIEW_REQUIRED' && !c.superseded_by
+    && !withheld.some((w) => w.part === part) && !amoebaHolds.some((h) => h.part === part);
+  return {
+    noResult: !c.patterns.length,
+    superseded_by: c.superseded_by,
+    held: exp.held_by || null,
+    withheld,
+    amoebaHolds,
+    parts: c.patterns.map((p) => ({ part: p.part, cls: p.class, sha: p.dxf_sha256, served: served(p.part), ...extent(p), curves: p.curves.length, holes: p.holes.length })),
+  };
+};
 // Same precedence as every other list: superseded > no result > the server state.
 const effState = (row) => (row.superseded || (row.facts && row.facts.superseded_by) ? 'SUPERSEDED'
   : row.no_result || (row.facts && row.facts.noResult) ? 'NO_RESULT' : row.state);
@@ -74,10 +82,14 @@ const dxfCell = (c, p) => {
     ? h('mfg.w.sup.by', { job: `<a href="#/job/${esc(c.facts.superseded_by)}">#${esc(c.facts.superseded_by)}</a>` })
     : esc(t('mfg.w.sup'))}</span>`;
   if (s === 'REJECTED') return `<span class="sub">${esc(t('mfg.w.rej'))}</span>`;
-  if (!c.facts || !c.facts.released) {
-    const hb = c.facts && c.facts.held;
-    const am = ((c.facts && c.facts.amoebaHolds) || []).filter((h) => h.part === p.part);
-    return `<span class="sub">${esc(t('mfg.w.held'))}${hb ? `<br>${esc(t('exp.held.check', { id: hb.gate, name: String(hb.name).replaceAll('_', ' '), result: t(`result.${hb.result}`) }))}` : ''}${am.map((h) => `<br><span class="mono">${esc(h.code)}</span> ${esc((h.checks || []).map((k) => k.name).join(', '))}`).join('')}</span>`;
+  if (!p.served) {
+    const f = c.facts;
+    const wh = f.withheld.find((w) => w.part === p.part);
+    if (wh) return `<span class="sub">${esc(t('mfg.w.withheld'))}${(wh.checks || []).map((k) => `<br><span class="mono">${esc(k.name)}</span>`).join('')}</span>`;
+    const am = f.amoebaHolds.filter((h) => h.part === p.part);
+    const hb = f.held;
+    const why = am.length ? esc(t(am[0].code === 'amoeba_snapshot_mismatch' ? 'mfg.w.snap' : 'mfg.w.held')) : esc(t('mfg.w.gate'));
+    return `<span class="sub">${why}${hb ? `<br>${esc(t('exp.held.check', { id: hb.gate, name: String(hb.name).replaceAll('_', ' '), result: t(`result.${hb.result}`) }))}` : ''}${am.map((h) => `<br><span class="mono">${esc(h.code)}</span> ${esc((h.checks || []).map((k) => k.name).join(', '))}`).join('')}</span>`;
   }
   return `<a class="btn" href="/api/calculations/${esc(c.id)}/dxf/${encodeURIComponent(p.part)}" download
     aria-label="${esc(t('mfg.dl.aria', { id: c.id, part: partText(p.part) }))}">${esc(t('mfg.dl'))}</a>`;
