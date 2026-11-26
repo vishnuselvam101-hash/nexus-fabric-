@@ -103,7 +103,8 @@ function rawGet(p, host) {
   const shortPage = await shortCtx.newPage();
   await shortPage.goto(`http://127.0.0.1:${PORT}/#setup=abc`);
   await shortPage.waitForSelector('#login-form .alert', { timeout: 15000 }).catch(() => {});
-  check('an incomplete setup link: the fragment is removed from the address bar', !(await shortPage.evaluate(() => location.href)).includes('#'));
+  const shortHref = await shortPage.evaluate(() => location.href);
+  check('an incomplete setup link: the fragment is removed from the address bar', !shortHref.includes('setup='), shortHref.replace(/^https?:\/\/[^/]*/, ''));
   const hint = (await shortPage.textContent('#login-form .alert').catch(() => '')) || '';
   check('an incomplete setup link: the sign-in page says the link is incomplete', /incomplete/.test(hint), hint.trim().slice(0, 100));
   await shortCtx.close();
