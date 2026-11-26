@@ -88,7 +88,7 @@ export function mount(container) {
       setState({ user, view: 'app' });
       location.hash = '#/';
     } catch (err) {
-      showError(loginError(err));
+      showError(setup ? setupError(err) : loginError(err));
     } finally {
       btn.classList.remove('is-busy');
       btn.disabled = false;
@@ -102,6 +102,13 @@ function loginError(err) {
   if (err.status === 401) return t('login.bad');
   if (err.status === 429) return t('login.throttled');
   return t('login.failed');
+}
+
+// setup: the server's own 4xx answer says what to fix (a bad setup token, a weak password). It is shown as text and
+// never includes the token, which the form does not echo back.
+function setupError(err) {
+  const client = err.status >= 400 && err.status < 500 && err.status !== 401 && err.status !== 429;
+  return client && err.message ? String(err.message) : loginError(err);
 }
 
 function showError(msg) {
