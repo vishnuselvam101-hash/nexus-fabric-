@@ -21,6 +21,11 @@ export function mount(container) {
     setState({ sessionEnded: false });
     showError(t('login.ended'));
   }
+  // the setup link was incomplete or altered: say so once, here
+  if (getState().setupLinkBroken) {
+    setState({ setupLinkBroken: false });
+    showError(t('login.linkBroken'));
+  }
 
   if (setup) {
     // data-i18n would be applied again after mount and overwrite these texts: drop it in setup mode
@@ -28,24 +33,7 @@ export function mount(container) {
     heading.removeAttribute('data-i18n');
     heading.textContent = t('login.setup');
     // desktop mode: the setup link already carried the token, so no token field is asked for
-    if (!getState().setupToken) {
-      const tokenLabel = document.createElement('label');
-      tokenLabel.setAttribute('for', 'login-token');
-      tokenLabel.textContent = t('login.token');
-      const tokenInput = document.createElement('input');
-      tokenInput.id = 'login-token';
-      tokenInput.name = 'setup_token';
-      tokenInput.type = 'text';
-      tokenInput.required = true;
-      tokenInput.autocomplete = 'off';
-      const tokenHelp = document.createElement('p');
-      tokenHelp.className = 'sub';
-      tokenHelp.id = 'login-token-help';
-      tokenHelp.textContent = t('login.tokenHelp');
-      tokenInput.setAttribute('aria-describedby', 'login-token-help');
-      btn.before(tokenLabel, tokenInput, tokenHelp);
-      setupFields = [tokenLabel, tokenInput, tokenHelp];
-    }
+    if (!getState().setupToken) setupFields = addTokenField(btn);
     // desktop mode: say what the program does and does not protect, before the first account is made
     if (getState().health?.mode === 'desktop') {
       const notice = document.createElement('div');
@@ -100,6 +88,11 @@ export function mount(container) {
             leaveSetup();
             return;
           }
+          // the setup link's token was refused: forget it and ask for a token by hand, so the next try can succeed
+          if (err.status >= 400 && err.status < 500) {
+            setState({ setupToken: null });
+            if (root && !root.querySelector('#login-token')) setupFields.push(...addTokenField(btn));
+          }
           throw err;
         }
         await api('/api/login', { json: { username: data.username, password: data.password } });
@@ -117,6 +110,26 @@ export function mount(container) {
     }
   };
   form.addEventListener('submit', onSubmit);
+}
+
+// the one-time setup token typed in by hand (used when the setup link did not carry it); returns the added elements
+function addTokenField(btn) {
+  const tokenLabel = document.createElement('label');
+  tokenLabel.setAttribute('for', 'login-token');
+  tokenLabel.textContent = t('login.token');
+  const tokenInput = document.createElement('input');
+  tokenInput.id = 'login-token';
+  tokenInput.name = 'setup_token';
+  tokenInput.type = 'text';
+  tokenInput.required = true;
+  tokenInput.autocomplete = 'off';
+  const tokenHelp = document.createElement('p');
+  tokenHelp.className = 'sub';
+  tokenHelp.id = 'login-token-help';
+  tokenHelp.textContent = t('login.tokenHelp');
+  tokenInput.setAttribute('aria-describedby', 'login-token-help');
+  btn.before(tokenLabel, tokenInput, tokenHelp);
+  return [tokenLabel, tokenInput, tokenHelp];
 }
 
 // server answers mapped to text: 401 wrong credentials, 429 throttled; anything else is a generic failure

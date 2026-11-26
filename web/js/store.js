@@ -3,6 +3,7 @@ let state = {
   user: null,
   setupRequired: false,
   setupToken: null,   // desktop mode: the one-time setup token from the link's fragment; kept in memory only
+  setupLinkBroken: false,   // desktop mode: a #setup= fragment that is not a complete link; shown once on the sign-in page
   projectId: null,
   convert: { phase: 'idle', file: null, progress: 0, conversionId: null, result: null, error: null },
   history: [],

@@ -85,6 +85,28 @@ function rawGet(p, host) {
 
   // First-run setup through the browser, with the token only in the fragment.
   const browser = await chromium.launch();
+  // A setup link whose token the server refuses: the token is forgotten, the token field is shown and the server's answer is shown.
+  const badCtx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+  const badPage = await badCtx.newPage();
+  await badPage.goto(`http://127.0.0.1:${PORT}/#setup=${'0'.repeat(64)}`);
+  await badPage.waitForSelector('#login-form', { timeout: 15000 });
+  await badPage.fill('#login-user', 'admin');
+  await badPage.fill('#login-pass', 'correct-horse-9');
+  await badPage.click('#login-form button[type="submit"]');
+  await badPage.waitForSelector('#login-token', { state: 'visible', timeout: 15000 }).catch(() => {});
+  check('a refused setup link: the token field is shown by hand', await badPage.isVisible('#login-token').catch(() => false));
+  const refusal = (await badPage.textContent('#login-form .alert').catch(() => '')) || '';
+  check('a refused setup link: the server answer is shown', refusal.trim().length > 0, refusal.trim().slice(0, 100));
+  await badCtx.close();
+  // An incomplete setup link: the fragment is taken out of the address bar and the sign-in page says the link is incomplete.
+  const shortCtx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+  const shortPage = await shortCtx.newPage();
+  await shortPage.goto(`http://127.0.0.1:${PORT}/#setup=abc`);
+  await shortPage.waitForSelector('#login-form .alert', { timeout: 15000 }).catch(() => {});
+  check('an incomplete setup link: the fragment is removed from the address bar', !(await shortPage.evaluate(() => location.href)).includes('#'));
+  const hint = (await shortPage.textContent('#login-form .alert').catch(() => '')) || '';
+  check('an incomplete setup link: the sign-in page says the link is incomplete', /incomplete/.test(hint), hint.trim().slice(0, 100));
+  await shortCtx.close();
   const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
   const page = await ctx.newPage();
   const sent = [];

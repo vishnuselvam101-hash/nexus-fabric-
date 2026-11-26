@@ -285,6 +285,10 @@ async function boot() {
   if (setupLink) {
     setState({ setupToken: setupLink[1] });
     history.replaceState(null, '', location.pathname + location.search);
+  } else if (location.hash.startsWith('#setup=')) {
+    // an incomplete or altered setup link: it is taken out of the address bar too, and the sign-in page says so
+    setState({ setupLinkBroken: true });
+    history.replaceState(null, '', location.pathname + location.search);
   }
 
   setAuthHandler(() => {
