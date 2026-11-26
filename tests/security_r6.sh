@@ -126,7 +126,7 @@ const { chromium } = require('playwright');
   const browser = await chromium.launch(opts); const page = await browser.newPage(); const hits = [];
   page.on('dialog', async (d) => { hits.push('dialog ' + d.message()); await d.dismiss(); });
   await page.addInitScript(() => { window.__x = []; for (const f of ['alert', 'confirm', 'prompt']) window[f] = (m) => window.__x.push(String(m)); });
-  await page.goto(B + '/'); await page.fill('#lu', user); await page.fill('#lp', pw); await page.click('#f button'); await page.waitForSelector('#view');
+  await page.goto(B + '/'); await page.fill('#login-user', user); await page.fill('#login-pass', pw); await page.click('#login-form button[type="submit"]'); await page.waitForSelector('#view');
   for (const r of routes.split(' ')) {
     await page.evaluate((h) => { location.hash = h; }, r); await page.waitForTimeout(500);
     for (const t of await page.$$('[role=tab]')) { try { await t.click({ timeout: 300 }); } catch { /* not visible */ } }
