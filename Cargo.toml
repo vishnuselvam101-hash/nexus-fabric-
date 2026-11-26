@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/uem", "crates/nf-dxf", "crates/nf-digest", "crates/nf-core", "crates/nf-server", "crates/nf-pdf", "crates/nf-licence", "crates/nf-form3d"]
+members = ["crates/uem", "crates/nf-dxf", "crates/nf-digest", "crates/nf-core", "crates/nf-server", "crates/nf-pdf", "crates/nf-licence", "crates/nf-form3d", "crates/nf-cadio"]
 
 [workspace.package]
 version = "0.1.0"
