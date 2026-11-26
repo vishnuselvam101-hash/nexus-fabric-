@@ -23,6 +23,7 @@ macro_rules! elog {
     }};
 }
 
+mod amoeba;
 mod crypto;
 mod desktop;
 mod licence;
@@ -1784,7 +1785,7 @@ pub(crate) const REJECTED: &str = "REJECTED";
 pub(crate) const REFUSED: &str = "REFUSED";
 
 /// Gates the server evaluates itself at read time. A stored copy is never trusted.
-const SERVER_GATES: [&str; 7] = ["G00", "G16", "G18", "G19", "G20", "G21", "G22"];
+const SERVER_GATES: [&str; 8] = ["G00", "G16", "G18", "G19", "G20", "G21", "G22", "G23"];
 
 /// What every view needs to know about a stored job, read without trusting it.
 struct Core {
@@ -2356,6 +2357,9 @@ fn evaluate(db: &Connection, c: &Core) -> rusqlite::Result<Eval> {
             format!("No match among the {lessons_n} lesson(s) recorded in this project. Lessons cover only mistakes already seen here.")
         },
     ));
+    let digest_rows = amoeba::rows(db, c.id)?;
+    let (g23, d23) = amoeba::gate(&digest_rows);
+    gates.push(gate(amoeba::GATE_ID, "amoeba_digest", g23, d23));
     // every required gate that storage did not deliver is a failed gate
     let mut gates = nf_core::with_required_gates(gates);
     if let Some(n) = c.superseded_by {
@@ -2643,6 +2647,8 @@ fn persist_calc(
         params![project, out.request.family(), REJECTED, out.closure_hash, result_json, supersedes, user, now() as i64, out.engine],
     )?;
     let id = db.last_insert_rowid();
+    // AMOEBA digest: every DXF of the job is checked and the check is kept as an immutable snapshot
+    amoeba::store(db, id, &amoeba::digest_job(out), &out.engine, now() as i64)?;
     refresh_state(db, id)?;
     Ok(id)
 }
@@ -3415,6 +3421,15 @@ fn dxf_withheld(records: &RecordsCheck) -> BTreeMap<String, Vec<(String, String)
     out
 }
 
+/// Stage view of a job for polling: surround, engulf, digest per check, confirm or hold, export.
+async fn get_amoeba(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api {
+    let db = app.db();
+    let u = auth_db(&db, &app, &headers)?;
+    let (c, e) = calc_guard(&app, &db, &u, id, "view the AMOEBA state")?;
+    let rows = amoeba::rows(&db, c.id)?;
+    ok(amoeba::stages(c.id, e.state, &e.gates, &rows))
+}
+
 async fn get_dxf(
     State(app): Ctx,
     headers: HeaderMap,
@@ -3443,6 +3458,20 @@ async fn get_dxf(
         } else {
             ""
         };
+        // a REJECTED result whose AMOEBA digest failed names the failing checks as well
+        let rows = amoeba::rows(&db, id)?;
+        if let Some(r) = rows.iter().find(|r| r.verdict != "PASS")
+            && let Err((code, checks)) = amoeba::hold_for(&rows, &r.part)
+        {
+            return Err(fail_json(
+                StatusCode::CONFLICT,
+                json!({
+                    "error": format!("this result is REJECTED{why}; its files are withheld; the AMOEBA digest of part {} did not pass", r.part),
+                    "code": code,
+                    "checks": checks,
+                }),
+            ));
+        }
         return Err(fail(
             StatusCode::CONFLICT,
             &format!("this result is REJECTED{why}; its files are withheld"),
@@ -3489,6 +3518,48 @@ async fn get_dxf(
                     .map(|(name, reason)| json!({ "name": name, "reason": reason }))
                     .collect::<Vec<Value>>(),
             }),
+        ));
+    }
+    // AMOEBA digest: the file is served only when its snapshot passed every check, and the snapshot is of this file
+    let digest_rows = amoeba::rows(&tx, id)?;
+    if let Err((code, checks)) = amoeba::hold_for(&digest_rows, &part) {
+        let names = checks
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|c| c["name"].as_str())
+                    .collect::<Vec<&str>>()
+                    .join(", ")
+            })
+            .unwrap_or_default();
+        app.audit(
+            &tx,
+            &u.username,
+            "dxf_withheld",
+            &format!("calculation #{id} part {part}: AMOEBA digest {code} {names}"),
+        )?;
+        tx.commit()?;
+        let msg = match code.as_str() {
+            "amoeba_digest_failed" => "the AMOEBA digest found defects in this file",
+            "amoeba_digest_inconclusive" => {
+                "the AMOEBA digest could not confirm every check of this file"
+            }
+            _ => "no AMOEBA digest is recorded for this part",
+        };
+        return Err(fail_json(
+            StatusCode::CONFLICT,
+            json!({ "error": format!("no DXF for part {part}: {msg}; the file is withheld"), "code": code, "checks": checks }),
+        ));
+    }
+    if digest_rows
+        .iter()
+        .find(|r| r.part == part)
+        .is_some_and(|r| r.dxf_sha256 != sha)
+    {
+        tx.commit()?;
+        return Err(fail_json(
+            StatusCode::CONFLICT,
+            json!({ "error": format!("no DXF for part {part}: the file differs from its AMOEBA snapshot; it is withheld"), "code": "amoeba_snapshot_mismatch" }),
         ));
     }
     let bytes = match storage::load_blob(&app.data_dir, &app.key, &sha) {
@@ -4616,6 +4687,7 @@ pub(crate) fn router(app: Arc<App>) -> Router {
         .route("/api/calculations/{id}/replay", post(replay))
         .route("/api/calculations/{id}/recompute", post(recompute))
         .route("/api/calculations/{id}/dxf/{part}", get(get_dxf))
+        .route("/api/calculations/{id}/amoeba", get(get_amoeba))
         .route("/api/calculations/{id}/corrections", post(correct))
         .route("/api/calculations/{id}/dependencies", get(dependencies))
         .route("/api/lessons", get(list_lessons))

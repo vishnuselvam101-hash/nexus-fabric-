@@ -13,10 +13,11 @@ SETUP_TOKEN_ENV = 'NF_SETUP_TOKEN'
 
 
 class Withheld:
-    """The server's 409 marker: the DXF is withheld because verification checks on the cut geometry are INCONCLUSIVE."""
+    """The server's 409 marker: the DXF is withheld because verification checks on the cut geometry are INCONCLUSIVE
+    (code dxf_withheld_inconclusive), or because the AMOEBA digest could not confirm its checks (code amoeba_digest_inconclusive)."""
 
-    def __init__(self, checks, error):
-        self.checks, self.error = checks, error      # checks: the list of {name, reason} dicts the server names
+    def __init__(self, checks, error, code='dxf_withheld_inconclusive'):
+        self.checks, self.error, self.code = checks, error, code      # checks: the list of {name, reason} dicts the server names
 
     def __repr__(self):
         return f'Withheld({[c.get("name") for c in self.checks]!r})'
@@ -114,8 +115,8 @@ class Client:
             except Exception:
                 r = {}
             # the withhold marker: the file is held back only because a check on the cut geometry is INCONCLUSIVE
-            if r.get('code') == 'dxf_withheld_inconclusive':
-                return st, Withheld(r.get('checks', []), r.get('error', ''))
+            if r.get('code') in ('dxf_withheld_inconclusive', 'amoeba_digest_inconclusive'):
+                return st, Withheld(r.get('checks', []), r.get('error', ''), r['code'])
         raise DxfError(st, b)
 
 

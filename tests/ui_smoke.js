@@ -1257,8 +1257,8 @@ const controlProbe = () => {
     const refText = (code) => String(CAT.en[`refusal.${code}`]).replace(/\{(\w+)\}/g, (x, k) => ph[k]).replace(/\*\*/g, '').replace(/`/g, '');
     check('3.5 help: the help is a page of the program (Help in the navigation), and its inputs are exactly the fields of the new-calculation form, family by family',
       helpEn.nav && Object.keys(formFields).every((f) => JSON.stringify(helpEn.fams[f]) === JSON.stringify(formFields[f])), { fams: helpEn.fams, formFields });
-    check('3.5 help: every gate G00 to G22 is listed with the name the job view uses; G03, G04, G07, G09, G12, G13 and G17 are marked as not evaluated by this build',
-      helpEn.gates.map((g) => g[0]).join() === Array.from({ length: 23 }, (_, i) => `G${String(i).padStart(2, '0')}`).join() && helpEn.gates.every(([id, name]) => name === CAT.ids.gate[id][0])
+    check('3.5 help: every gate G00 to G23 is listed with the name the job view uses; G03, G04, G07, G09, G12, G13 and G17 are marked as not evaluated by this build',
+      helpEn.gates.map((g) => g[0]).join() === Array.from({ length: 24 }, (_, i) => `G${String(i).padStart(2, '0')}`).join() && helpEn.gates.every(([id, name]) => name === CAT.ids.gate[id][0])
         && (helpEn.text.match(/not evaluated by this build/g) || []).length === 7, helpEn.gates);
     check('3.5 help: every refusal code of the build is listed with the message a refused field shows (one source)', helpEn.refusals.length === CAT.codes.length && helpEn.refusals.every(([code, text], i) => code === CAT.codes[i] && text === refText(code)), helpEn.refusals.filter(([code, text]) => text !== refText(code)).slice(0, 3));
     check('3.5 help: it says what is not modelled (thickness, bend allowance, weld gap, kerf), that it is a development build, that results stay REVIEW REQUIRED and DXF files NOT RELEASED, and keeps the EV-1 disclosure',
@@ -1267,7 +1267,7 @@ const controlProbe = () => {
     check('3.5 help: no request leaves the program (every request of the help page is to the program itself)', requests.length > 0 && external.length === 0, external);
     await p.goto(`${B}/?lang=ja#/help`); await p.waitForFunction(() => document.querySelector('#view') && document.querySelector('#view').dataset.hash === '#/help'); await p.waitForSelector('#help-gates');
     const helpJa = await p.evaluate(() => ({ gates: [...document.querySelectorAll('#help-gates tbody tr')].map((tr) => tr.cells[1].textContent.trim()), h1: document.querySelector('#view h1').textContent }));
-    check('3.5 help ja: the page is in Japanese, with the Japanese gate labels of the job view', /ヘルプ/.test(helpJa.h1) && helpJa.gates.length === 23 && helpJa.gates.every((g, i) => g === CAT.ids.gate[CAT.gates[i]][1]), helpJa);
+    check('3.5 help ja: the page is in Japanese, with the Japanese gate labels of the job view', /ヘルプ/.test(helpJa.h1) && helpJa.gates.length === 24 && helpJa.gates.every((g, i) => g === CAT.ids.gate[CAT.gates[i]][1]), helpJa);
     await jaScreen('help');
     await p.goto(`${B}/?lang=ja#/help/refusals`); await p.waitForSelector('#help-refusals');
     const focusedSection = await p.waitForFunction(() => document.activeElement && document.activeElement.id === 'help-refusals-h', null, { timeout: 5000 }).then(() => true, () => false);

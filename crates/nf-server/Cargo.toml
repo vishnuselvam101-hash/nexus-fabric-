@@ -13,6 +13,7 @@ http-body-util = "0.1.5"
 hyper = { version = "1", features = ["http1", "server"] }
 hyper-util = { version = "0.1.20", features = ["tokio", "service", "server-graceful"] }
 nf-core = { version = "0.1.0", path = "../nf-core" }
+nf-digest = { version = "0.1.0", path = "../nf-digest" }
 nf-licence = { version = "0.1.0", path = "../nf-licence" }
 rand = "0.10.4"
 rusqlite = { version = "0.43.0", features = ["bundled"] }

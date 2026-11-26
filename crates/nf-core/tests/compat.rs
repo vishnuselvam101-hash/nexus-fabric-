@@ -38,6 +38,10 @@
 //! fix exactly 2 cone_frustum cases changed `patterns_sha256` (their 2 eps_num exceeds 1e-9 mm) and nothing else: no state,
 //! no outcome, no refusal, and every `dxf_cut_geometry` byte-identical. The true counts of the accepted cases that carry the
 //! seam quantities (field-level diff, 335 cases): 55 cone_frustum and 40 eccentric_reducer. The fixture was regenerated.
+//! Engine 0.4.12 (deliberate, `NF_WRITE_COMPAT_FIXTURE=1`): the arc display sagitta is min(0.01 mm, 1e-5 x M), M the pattern's
+//! bounding-box diagonal. Against the fixture before this change, of 335 cases: no state, outcome, refusal or parse result changed,
+//! and every `dxf_cut_geometry` is byte-identical; `patterns_sha256` changed for 23 cone_frustum cases (the arc display points of
+//! parts smaller than 1 m, whose tolerance is below 0.01 mm). The fixture was regenerated.
 //! Review of work plan task 1.2 (engine 0.4.4, deliberate, `NF_WRITE_COMPAT_FIXTURE=1`): the eccentric reducer's
 //! `eps_rep` is not certified (its vertex term carries the quadrature estimate of its developed angle), so its two
 //! circumference checks are INCONCLUSIVE instead of PASS; the statements of G08 and of the pattern assumptions about

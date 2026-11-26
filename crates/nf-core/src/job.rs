@@ -549,19 +549,57 @@ fn curve_entity(c: &uem::Curve, closed_profile: bool) -> Entity {
 const DENSITY_QUANTITIES: [&str; 2] = ["polyline_segments", "chord_error_limit"];
 
 /// Sagitta tolerance of the arc points in the JSON result (mm, display only): the chords shown stay within this
-/// distance of the arc (review B2-003).
+/// distance of the arc (review B2-003). Engine 0.4.12: the tolerance of a pattern is min(this, ARC_DISPLAY_REL x M),
+/// M the bounding-box diagonal of its curves (see display_tol).
 const ARC_DISPLAY_TOL: f64 = 0.01;
+
+/// Relative sagitta tolerance of the arc points: 1e-5 of the pattern's bounding-box diagonal M (engine 0.4.12).
+const ARC_DISPLAY_REL: f64 = 1e-5;
+
+/// The display sagitta tolerance (mm) of one pattern: min(0.01 mm, 1e-5 x M), M = the diagonal of the bounding box
+/// of its outline and openings (a circle counts with its full extent). Falls back to 0.01 mm for a degenerate box.
+fn display_tol(outline: &[uem::Curve], holes: &[uem::Curve]) -> f64 {
+    let mut lo = [f64::INFINITY; 2];
+    let mut hi = [f64::NEG_INFINITY; 2];
+    let mut add = |x: f64, y: f64| {
+        for (k, v) in [x, y].into_iter().enumerate() {
+            lo[k] = lo[k].min(v);
+            hi[k] = hi[k].max(v);
+        }
+    };
+    for c in outline.iter().chain(holes) {
+        match &c.geom {
+            Geom::Line { a, b } => {
+                add(a.x, a.y);
+                add(b.x, b.y);
+            }
+            Geom::Polyline { pts, .. } => pts.iter().for_each(|q| add(q.x, q.y)),
+            Geom::Arc { c, r, .. } => {
+                add(c.x - r.abs(), c.y - r.abs());
+                add(c.x + r.abs(), c.y + r.abs());
+            }
+        }
+    }
+    let m = (hi[0] - lo[0]).hypot(hi[1] - lo[1]);
+    if m.is_finite() && m > 0.0 {
+        ARC_DISPLAY_TOL.min(ARC_DISPLAY_REL * m)
+    } else {
+        ARC_DISPLAY_TOL
+    }
+}
 
 /// Safety cap on the display chords of one arc. Where the tolerance needs more chords than this (very large
 /// radii), the points stop at the cap and `points_max_deviation` states the true, larger deviation.
 const ARC_DISPLAY_MAX_CHORDS: usize = 4096;
 
-/// Display chords of an arc of radius `r` and sweep `sweep` (rad): the fewest n with r(1 - cos(sweep / 2n)) <= tol.
-/// Since 1 - cos x <= x²/2, n = ceil((sweep/2)·sqrt(r / (2·tol))) meets the tolerance, capped at ARC_DISPLAY_MAX_CHORDS.
-fn arc_display_chords(r: f64, sweep: f64) -> usize {
-    let needed = (sweep.abs() / 2.0) * (r.abs() / (2.0 * ARC_DISPLAY_TOL)).sqrt();
+/// Display chords of an arc of radius `r` and sweep `sweep` (rad) for sagitta tolerance `tol` (mm): the fewest n with
+/// r(1 - cos(sweep / 2n)) <= tol. Since 1 - cos x <= x²/2, n = ceil((sweep/2)·sqrt(r / (2·tol))) meets the tolerance,
+/// capped at ARC_DISPLAY_MAX_CHORDS. At least two chords (three points): the digest declares an arc by its points, so a
+/// flat arc that needs one chord is still declared as an arc (engine 0.4.12).
+fn arc_display_chords(r: f64, sweep: f64, tol: f64) -> usize {
+    let needed = (sweep.abs() / 2.0) * (r.abs() / (2.0 * tol)).sqrt();
     if needed.is_finite() {
-        (needed.ceil() as usize).clamp(1, ARC_DISPLAY_MAX_CHORDS)
+        (needed.ceil() as usize).clamp(2, ARC_DISPLAY_MAX_CHORDS)
     } else {
         ARC_DISPLAY_MAX_CHORDS
     }
@@ -757,10 +795,10 @@ pub fn conventions_for(p: &Pattern, frame: Frame) -> nf_dxf::Conventions {
 
 const MARKING_SIDE_SCRUTINY: &str = "Marking side: every pattern of this job is drawn as seen from the OUTSIDE of the formed part (pattern normal toward the outside). Spec 02 §0.3 requires a declared marking side but does not choose one; this side follows from the frames the specification writes down (§4.1, §4.4) and is a PROVISIONAL convention declared by the software. It has not been reviewed by a fabrication engineer. Marking a pattern on the other face mirrors the part (misfit of tens of millimetres for an offset, oblique branch). An engineer must confirm the marking side before use.";
 
-fn curve_view(c: &uem::Curve) -> CurveView {
+fn curve_view(c: &uem::Curve, display: f64) -> CurveView {
     // B2-003: the chord count of an arc follows from its radius and sweep, so the display stays within tolerance
     let chords = match c.geom {
-        Geom::Arc { r, a0, a1, .. } => arc_display_chords(r, a1 - a0),
+        Geom::Arc { r, a0, a1, .. } => arc_display_chords(r, a1 - a0, display),
         _ => 1,
     };
     CurveView {
@@ -946,6 +984,7 @@ impl Builder {
         comments.extend(conv.comments());
         let text = nf_dxf::write_stated(&entities, &big, &conv.texts(), &comments);
         let dxf_sha = sha256_hex(text.as_bytes());
+        let display = display_tol(&pattern.outline, &pattern.holes);
         let pv = PatternView {
             part: part.to_string(),
             family: pattern.family.to_string(),
@@ -971,8 +1010,8 @@ impl Builder {
                 .chain(pattern.quantity("polyline_segments").map(|n| format!("Polyline density: {n:.0} segments per curve, uniform in the angle; doubled from the base number until the measured chord error is within the chord error limit.")))
                 .chain(pattern.quantity("chord_error_limit").map(|m| format!("Chord error limit: {m} mm, an implementation limit pending engineering review (docs/backend/TOLERANCE_POLICY.md); not an engineering tolerance.")))
                 .collect(),
-            curves: pattern.outline.iter().map(curve_view).collect(),
-            holes: pattern.holes.iter().map(curve_view).collect(),
+            curves: pattern.outline.iter().map(|c| curve_view(c, display)).collect(),
+            holes: pattern.holes.iter().map(|c| curve_view(c, display)).collect(),
             dxf_sha256: dxf_sha.clone(),
         };
         let pattern_id = self.push(Record::new(Family::Claim, "pattern", json!({ "part": part, "pattern": pv, "axes": { "provenance": "computed", "authority": "calculated", "validation": "candidate" } }), deps, Some(a_dev)));
@@ -3210,9 +3249,30 @@ mod tests {
         // the chord count is the fewest that meets the tolerance (one chord fewer exceeds it)
         let r: f64 = 1e4;
         let sweep: f64 = 1.0;
-        let need = super::arc_display_chords(r, sweep);
+        let need = super::arc_display_chords(r, sweep, 0.01);
         let sag = |k: usize| r * (1.0 - (sweep / (2.0 * k as f64)).cos());
         assert!(sag(need) <= 0.01 && sag(need - 1) > 0.01, "need {need}");
+    }
+
+    /// Engine 0.4.12: the display sagitta is min(0.01 mm, 1e-5 x M), M the bounding-box diagonal of the pattern. A part of
+    /// one metre or more keeps 0.01 mm; a tiny part gets a tolerance of its own size, so its arcs are not one chord.
+    #[test]
+    fn display_tolerance_is_relative_below_one_metre() {
+        let line = |len: f64| uem::Curve {
+            name: "edge",
+            layer: Layer::CutOuter,
+            geom: Geom::Line {
+                a: uem::P2::new(0.0, 0.0),
+                b: uem::P2::new(len, 0.0),
+            },
+        };
+        assert_eq!(super::display_tol(&[line(1000.0)], &[]), 0.01);
+        assert_eq!(super::display_tol(&[line(1e6)], &[]), 0.01);
+        let tiny = super::display_tol(&[line(3e-6)], &[]);
+        assert!((tiny - 1e-5 * 3e-6).abs() < 1e-20, "{tiny}");
+        assert_eq!(super::display_tol(&[], &[]), 0.01);
+        let r = 2.98e-6;
+        assert!(super::arc_display_chords(r, std::f64::consts::PI, tiny) >= 2);
     }
 
     /// B2-004: a header with an opening reports its gross and net plate area; net = gross - opening, and net < gross.

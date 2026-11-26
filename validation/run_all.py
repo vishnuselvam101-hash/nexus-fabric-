@@ -25,7 +25,7 @@ import shapely
 
 from checks.client import Client, SpawnedServer, USER, PASSWORD, SETUP_TOKEN_ENV, DxfError
 from checks.product import Job
-from checks.compare import compare_job, compare_scaled, rel_tol, scale_request
+from checks.compare import compare_job, compare_scaled, rel_tol, scale_request, unexpected_holds
 from checks.oracle import classify
 from checks import hpcheck
 
@@ -114,7 +114,7 @@ def check_relation(case, job, issues, findings, info):
         # geometric scale relation (checks/compare.py compare_scaled): entity types must agree; vertex counts may differ;
         # polylines agree with k times the base within the stated chord-error limits; the scaled pattern itself must
         # pass the exact reference comparison
-        type_issues, devs, sc_findings, sc_info = compare_scaled(job, j2, k, other)
+        type_issues, devs, sc_findings, sc_info = compare_scaled(job, j2, k, other, expect_withheld=bool(case.get('withheld')))
         info.update(sc_info)
         issues.extend(type_issues)
         if devs and rel.get('refusal_ok'):
@@ -248,6 +248,8 @@ def run_case(case):
             if job.state == 'APPROVED':
                 out['issues'].append('state APPROVED is unreachable')
         exp = case['expect']
+        if case.get('withheld') and job.accepted and not job.withheld:
+            out['issues'].append('the case expects the DXF withheld (engine 0.4.12: a feature below the digest tolerance), but no DXF was withheld')
         if exp == 'refuse':
             if job.accepted:
                 out['class'] = 'wrongly_accepted'
@@ -277,10 +279,13 @@ def run_case(case):
                 out['issues'].append(f'valid request refused: {job.refusal_text()[:200]}')
             return out
         if case.get('compare', True) and finite_job(job):
-            rep = compare_job(case['request'], job, ndense=case.get('ndense', 6001))
+            rep = compare_job(case['request'], job, ndense=case.get('ndense', 6001), expect_withheld=bool(case.get('withheld')))
             out['issues'] += rep['issues']
             out['findings'] += rep['findings']
             out['info']['compare'] = {k: v for k, v in rep.items() if k not in ('issues', 'findings')}
+        else:
+            # compare:False and non-finite cases never reach compare_job: an AMOEBA hold on them is still checked
+            out['issues'] += unexpected_holds(job, expect_withheld=bool(case.get('withheld')))
         check_expected(case, job, out['issues'])
         if case.get('relation'):
             check_relation(case, job, out['issues'], out['findings'], out['info'])

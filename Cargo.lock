@@ -745,6 +745,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "nf-digest"
+version = "0.1.0"
+
+[[package]]
 name = "nf-dxf"
 version = "0.1.0"
 
@@ -797,6 +801,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "nf-core",
+ "nf-digest",
  "nf-licence",
  "rand",
  "rusqlite",

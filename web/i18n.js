@@ -932,6 +932,7 @@ const HELP_EN = {
   'hp.gate.G20': 'The job does not repeat a mistake recorded as a lesson in this project, or an engineer has acknowledged each match with a reason.',
   'hp.gate.G21': 'The result was computed by the running engine build; a result of any other build must be recomputed.',
   'hp.gate.G22': 'The stored result passes its integrity check; if it does not, nothing of the job may be used.',
+  'hp.gate.G23': 'Every DXF file of the job passes every check of the AMOEBA digest (independent re-measurement of the file against the job). A file that fails or cannot be confirmed is never handed out.',
   'hp.gate.na': 'Defined in Specification 02; not evaluated by this build.',
   'hp.gate.proposed': 'Proposed in the AMOEBA architecture; not part of Specification 02 and not evaluated by this build.',
   'hp.ref.h': 'What each refusal code means',
@@ -996,6 +997,7 @@ const HELP_JA = {
   'hp.gate.G20': 'この計算が、このプロジェクトで教訓として記録された誤りを繰り返していないこと。一致した場合は、技術者が理由を付けてそれぞれ確認していること。',
   'hp.gate.G21': '結果が、現在のエンジンのビルドで計算されていること。ほかのビルドの結果は再計算が必要です。',
   'hp.gate.G22': '保存済みの結果が整合性の検査に合格すること。合格しない場合、その計算は何も使用してはなりません。',
+  'hp.gate.G23': '各図面ファイルが独立再測定による全検査に合格すること（ファイルを計算の入力と照合して測り直す）。不合格または確認できないファイルは決して渡しません。',
   'hp.gate.na': '仕様書02で定義されていますが、このビルドでは評価しません。',
   'hp.gate.proposed': 'AMOEBAのアーキテクチャで提案されたもので、仕様書02には含まれず、このビルドでは評価しません。',
   'hp.ref.h': '各拒否コードの意味',
@@ -1083,7 +1085,7 @@ const ID = {
   side: { outside: ['outside', '外面'], inside: ['inside', '内面'] },
   sref: { unknown: [null, '不明'], outside: [null, '外面'], inside: [null, '内面'], neutral: [null, '中立面'] },
   joint: { set_on: ['Set-on', 'セットオン'] },
-  // Every gate G00-G22 of Specification 02 (and G17, proposed for AMOEBA). The English label is the gate's machine
+  // Every gate G00-G23 of Specification 02 (and G17, proposed for AMOEBA). The English label is the gate's machine
   // name in words; the job view shows the server's own name in English, so the English label is read by the help
   // page only. The gates this build does not evaluate are listed in GATES_NOT_EVALUATED below (work plan 3.3, 3.5).
   gate: {
@@ -1094,6 +1096,7 @@ const ID = {
     G12: ['Process constraints', '加工上の制約'], G13: ['Reproducibility', '再現性'], G14: ['Algorithm status', 'アルゴリズムの評価状況'], G15: ['Output integrity', '出力の完全性'],
     G16: ['Human approval', '技術者承認'], G17: ['Coverage complete (proposed)', '網羅性（提案のみ）'], G18: ['Obligation closure', '要精査項目の解消'],
     G19: ['Self-consistency', '自己整合性'], G20: ['Known mistakes', '既知の誤りとの照合'], G21: ['Engine current', 'エンジンが現行版であること'], G22: ['Stored result integrity', '保存済み結果の完全性'],
+    G23: ['AMOEBA digest', '図面ファイルの独立再測定検査'],
   },
   check: {
     bottom_edge_equals_circumference: [null, '端の辺の長さ＝円周長'], seam_edges_equal_length: [null, '両方の継目の辺が同じ長さ'], seam_length_equals_input: [null, '継目の辺の長さ＝入力した長さ'],
