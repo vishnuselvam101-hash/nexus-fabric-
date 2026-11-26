@@ -4189,6 +4189,17 @@ async fn amoeba_summary(State(app): Ctx, headers: HeaderMap) -> Api {
 
 // ---------------------------------------------------------------- transport
 
+fn asset_bytes(content_type: &'static str, body: &'static [u8]) -> Response {
+    (
+        [
+            (header::CONTENT_TYPE, content_type),
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        body,
+    )
+        .into_response()
+}
+
 fn asset(content_type: &'static str, body: &'static str) -> Response {
     (
         [
@@ -4426,7 +4437,7 @@ async fn security_layer(
     set(
         h,
         "content-security-policy",
-        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+        "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     );
     set(h, "x-content-type-options", "nosniff");
     set(h, "x-frame-options", "DENY");
@@ -4627,11 +4638,308 @@ pub(crate) fn router(app: Arc<App>) -> Router {
             }),
         )
         .route(
-            "/app.js",
+            "/app.css",
+            get(|| async {
+                asset(
+                    "text/css; charset=utf-8",
+                    include_str!("../../../web/app.css"),
+                )
+            }),
+        )
+        .route(
+            "/js/theme.js",
             get(|| async {
                 asset(
                     "text/javascript; charset=utf-8",
-                    include_str!("../../../web/app.js"),
+                    include_str!("../../../web/js/theme.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/icons.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/icons.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/i18n.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/i18n.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/api.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/api.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/store.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/store.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/ui.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/ui.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/app.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/app.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/lib/motion.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/lib/motion.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/lib/steel.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/lib/steel.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/lib/amoeba-mount.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/lib/amoeba-mount.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/lib/amoeba.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/lib/amoeba.js"),
+                )
+            }),
+        )
+        .route(
+            "/vendor/three/three.module.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/vendor/three/three.module.js"),
+                )
+            }),
+        )
+        .route(
+            "/vendor/three/three.core.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/vendor/three/three.core.js"),
+                )
+            }),
+        )
+        .route(
+            "/fonts/ibm-plex-sans-latin-400-normal.woff2",
+            get(|| async {
+                asset_bytes(
+                    "font/woff2",
+                    include_bytes!("../../../web/fonts/ibm-plex-sans-latin-400-normal.woff2"),
+                )
+            }),
+        )
+        .route(
+            "/fonts/ibm-plex-sans-latin-500-normal.woff2",
+            get(|| async {
+                asset_bytes(
+                    "font/woff2",
+                    include_bytes!("../../../web/fonts/ibm-plex-sans-latin-500-normal.woff2"),
+                )
+            }),
+        )
+        .route(
+            "/fonts/ibm-plex-sans-latin-600-normal.woff2",
+            get(|| async {
+                asset_bytes(
+                    "font/woff2",
+                    include_bytes!("../../../web/fonts/ibm-plex-sans-latin-600-normal.woff2"),
+                )
+            }),
+        )
+        .route(
+            "/fonts/ibm-plex-mono-latin-400-normal.woff2",
+            get(|| async {
+                asset_bytes(
+                    "font/woff2",
+                    include_bytes!("../../../web/fonts/ibm-plex-mono-latin-400-normal.woff2"),
+                )
+            }),
+        )
+        .route(
+            "/fonts/ibm-plex-mono-latin-500-normal.woff2",
+            get(|| async {
+                asset_bytes(
+                    "font/woff2",
+                    include_bytes!("../../../web/fonts/ibm-plex-mono-latin-500-normal.woff2"),
+                )
+            }),
+        )
+        .route(
+            "/js/lib/poll.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/lib/poll.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/convert.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/convert.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/login.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/login.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/result.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/result.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/workspace.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/workspace.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/help.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/help.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/manufacturing.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/manufacturing.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/verification.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/verification.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/amoeba.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/amoeba.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/job.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/job.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/job-pattern.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/job-pattern.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/math.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/math.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/project.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/project.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/account.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/account.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/admin.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/admin.js"),
                 )
             }),
         )
@@ -4641,24 +4949,6 @@ pub(crate) fn router(app: Arc<App>) -> Router {
                 asset(
                     "text/javascript; charset=utf-8",
                     include_str!("../../../web/viewer.js"),
-                )
-            }),
-        )
-        .route(
-            "/i18n.js",
-            get(|| async {
-                asset(
-                    "text/javascript; charset=utf-8",
-                    include_str!("../../../web/i18n.js"),
-                )
-            }),
-        )
-        .route(
-            "/styles.css",
-            get(|| async {
-                asset(
-                    "text/css; charset=utf-8",
-                    include_str!("../../../web/styles.css"),
                 )
             }),
         )

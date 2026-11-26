@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>NEXUS FABRIC — ad4k core</title>
+<!-- 30.000 s · 1920x1080 CSS stage (deviceScaleFactor 2 => 3840x2160) · 30 fps · ?lang=en|ja · ?t=seconds
+     CORE ONLY. Shots live in shots-a.js (1-5) and shots-b.js (6-10); each pushes {a,b,init(layer),render(t,local)}.
+     Deterministic: no rAF, no timers, no CSS animation. window.seek(t) draws any exact frame. -->
+<link rel="stylesheet" href="../flagship4/fonts/fonts.css">
+<style>
+:root{--steel:#0B0E11;--panel:#141A20;--rule:#2A333C;--cyan:#35D6E8;--cyan-deep:#0E7C8A;--ink:#F2F6F8;--ink2:#9AA7B2;--amber:#E8A33D}
+html,body{margin:0;background:#000;overflow:hidden}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--steel);color:var(--ink);
+  font-family:'Inter Variable','Noto Sans JP',sans-serif;font-optical-sizing:auto;-webkit-font-smoothing:antialiased}
+.shot{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden}
+.screen{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;background:var(--steel)}
+.cam{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0;will-change:transform}
+.cam img{display:block;width:1920px;height:1080px}
+.hl{position:absolute;border:3px solid var(--cyan);border-radius:8px;opacity:0;pointer-events:none;
+  box-shadow:0 0 0 1px rgba(11,14,17,.6),0 0 26px rgba(53,214,232,.26),0 0 0 1px rgba(53,214,232,.35) inset}
+.cap{position:absolute;left:80px;bottom:88px;max-width:1500px;padding:14px 24px 16px;white-space:pre-line;
+  background:rgba(11,14,17,.86);border-radius:10px;box-shadow:0 14px 44px rgba(0,0,0,.5),0 0 0 1px rgba(242,246,248,.08);
+  font-size:38px;font-weight:600;line-height:1.24;letter-spacing:-.012em;color:var(--ink);opacity:0}
+.cap em{font-style:normal;color:var(--cyan)}
+html[lang=ja] .cap{font-family:'Noto Sans JP',sans-serif;font-size:34px;font-weight:700;letter-spacing:.02em;line-height:1.34;line-break:strict}
+.slam{position:absolute;left:0;top:0;width:1920px;height:1080px;display:flex;align-items:center;justify-content:center;
+  font-size:150px;font-weight:800;letter-spacing:-.02em;line-height:.94;text-transform:uppercase;white-space:nowrap;opacity:0}
+html[lang=ja] .slam{font-family:'Noto Sans JP',sans-serif;font-weight:700;letter-spacing:.02em;text-transform:none}
+.mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.lab{font-family:'JetBrains Mono',monospace;font-size:19px;letter-spacing:.04em;color:var(--ink2)}
+html[lang=ja] .lab{font-family:'Noto Sans JP',sans-serif;letter-spacing:.02em}
+#overlay{position:absolute;left:0;top:0;width:1920px;height:1080px;opacity:0;pointer-events:none}
+#status{position:absolute;right:48px;bottom:44px;padding:8px 14px;background:rgba(11,14,17,.88);border-radius:6px;
+  font-size:17px;font-weight:600;letter-spacing:.09em;color:rgba(242,246,248,.82);white-space:nowrap;opacity:0}
+html[lang=ja] #status{font-family:'Noto Sans JP',sans-serif;font-weight:500;letter-spacing:.04em}
+#status::before{content:"";display:inline-block;width:7px;height:7px;margin-right:10px;background:var(--cyan);vertical-align:1px}
+</style></head>
+<body><div id="stage"></div>
+<script>
+const LANG = new URLSearchParams(location.search).get('lang') === 'ja' ? 'ja' : 'en';
+document.documentElement.lang = LANG;
+const NS = 'http://www.w3.org/2000/svg', PI = Math.PI, DUR = 30;
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const ease = {
+  outCubic: (x) => 1 - Math.pow(1 - clamp(x), 3),
+  inOutCubic: (x) => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; },
+  outExpo: (x) => { x = clamp(x); return x >= 1 ? 1 : 1 - Math.pow(2, -10 * x); },
+  outBack: (x) => { x = clamp(x); const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); }
+};
+const setAttrs = (n, at) => { for (const k in at || {}) { const v = at[k];
+  if (k === 'text') n.textContent = v; else if (k === 'html') n.innerHTML = v;
+  else if (k === 'style') n.style.cssText += ';' + v; else if (v !== undefined && v !== null) n.setAttribute(k, v); } return n; };
+const el = (tag, at, parent) => { const n = setAttrs(document.createElement(tag), at); if (parent) parent.appendChild(n); return n; };
+const svg = (tag, at, parent) => { const n = setAttrs(document.createElementNS(NS, tag), at); if (parent) parent.appendChild(n); return n; };
+
+// ---------- every authored string of the storyboard (captures carry their own text) ----------
+const STRINGS = {
+  en: {
+    s1_a: 'ENTER THE DIMENSIONS.', s1_b: 'GET THE FLAT PATTERN.', s1_c: 'CHECK EVERY VALUE.',
+    s2_a: 'Nine dimensions in.', s2_b: 'Header shell with branch.',
+    s3_a: 'Unrolled to the plate.', s3_b: '942.478 mm, opening included.', s3_dim: '942.478 mm', s3_unit: 'mm',
+    s4_a: 'CHECKED.',
+    s5_a: 'Primary value. Independent reference.', s5_b: 'The difference, shown.', s5_c: 'Every result on record.',
+    s6_a: '13 release gates.', s6_b: 'Nothing passes silently.', s6_c: 'Cannot compute? It refuses — it does not guess.',
+    s7_a: 'PDF lines to DXF, at a stated scale 1:N.', s7_b: 'Converted — not verified, not released.', s7_scale: '1:N',
+    s8_a: 'English and Japanese. Offline,\non the shop’s own PC.',
+    s9_a: 'Five shape families.', s9_l1: 'cylinder shell', s9_l2: 'cone frustum', s9_l3: 'eccentric reducer',
+    s9_l4: 'branch stub', s9_l5: 'header shell with branch',
+    s10_wm: 'NEXUS FABRIC', s10_line: 'Flat patterns you can check.', s10_cta: 'Request a demonstration',
+    s10_contact: 'chuo-sogo.net\nsekishion@chuo-sogo.net · vishnu.s@chuo-sogo.net', s10_disc: 'Development build · not validated · not for manufacturing',
+    st: 'Actual software · development build', st_suffix: ''
+  },
+  ja: {
+    s1_a: '寸法を入力。', s1_b: '板展開を得る。', s1_c: 'すべて検算。',
+    s2_a: '寸法は9項目。', s2_b: '母管と枝管の取合い。',
+    s3_a: '板に展開。', s3_b: '942.478 mm、開口部つき。', s3_dim: '942.478 mm', s3_unit: 'mm',
+    s4_a: '検算。',
+    s5_a: '主計算値と、独立した参照値。', s5_b: 'その差まで表示。', s5_c: 'すべて記録に残る。',
+    s6_a: 'リリースゲートは13。', s6_b: '黙って通さない。', s6_c: '計算できなければ、推測せず拒否。',
+    s7_a: 'PDFの線をDXFへ。縮尺1:Nを指定（必須）。', s7_b: '変換のみ。未検証・未リリース。', s7_scale: '1:N',
+    s8_a: '日本語と英語。オフラインで、\n工場のPC上で動く。',
+    s9_a: '5つの形状ファミリー。', s9_l1: '円筒', s9_l2: '円錐台', s9_l3: '偏心異径管',
+    s9_l4: '枝管', s9_l5: '母管と枝管', s9_line: '円筒／円錐台／偏心異径管／枝管／母管と枝管',
+    s10_wm: 'NEXUS FABRIC', s10_line: '検算できる板展開。', s10_cta: 'デモのご依頼はこちら',
+    s10_contact: 'chuo-sogo.net\nsekishion@chuo-sogo.net · vishnu.s@chuo-sogo.net', s10_disc: '開発版・未検証・製造には使用できません',
+    st: '実際の画面・開発版', st_suffix: '・画面は英語版'
+  }
+};
+const text = (id) => (STRINGS[LANG][id] !== undefined ? STRINGS[LANG][id] : (STRINGS.en[id] !== undefined ? STRINGS.en[id] : id));
+
+// ---------- geometry: exact cylinder–cylinder intersection, header R150 / branch r100 / beta 60° ----------
+const R = 150, r = 100, B = 60 * PI / 180, sB = Math.sin(B), cB = Math.cos(B), thMax = Math.asin(r / R);
+const zOf = (th, sign) => (R * Math.cos(th) * cB + sign * Math.sqrt(Math.max(0, r * r - R * R * Math.sin(th) ** 2))) / sB;
+const sOf = (f) => (Math.sqrt(Math.max(0, R * R - (r * Math.cos(f)) ** 2)) - r * Math.sin(f) * cB) / sB;
+const geo = {
+  R, r, beta: B, plateW: 2 * PI * R,                                  // 942.4778… mm, the header plate width
+  opening(n = 180) {                                                  // developed hole on the header plate, mm
+    const p = [], W = this.plateW;
+    for (let i = 0; i <= n; i++) { const th = -thMax + 2 * thMax * i / n; p.push([W / 2 + R * th, zOf(th, 1)]); }
+    for (let i = n; i >= 0; i--) { const th = -thMax + 2 * thMax * i / n; p.push([W / 2 + R * th, zOf(th, -1)]); }
+    return p;
+  },
+  saddle(n = 180) {                                                   // developed branch cut, x = r*phi, y = axis mm
+    const p = []; for (let i = 0; i <= n; i++) { const f = 2 * PI * i / n; p.push([r * f, sOf(f)]); } return p;
+  },
+  cylinderLines(t = 0) {                                              // orthographic line drawing, mm-ish local space
+    const a = .62 - .22 * clamp(t), b = .30, ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b);
+    const P = (q) => [q[0] * ca - q[2] * sa, q[1] * cb - (q[0] * sa + q[2] * ca) * sb];
+    const v = [sa * cb, sb, ca * cb], L = 210, H = 190;
+    const U = [1, 0, 0], W = [0, 1, 0], d = [Math.sin(B), 0, Math.cos(B)], ub = [Math.cos(B), 0, -Math.sin(B)], wb = [0, 1, 0];
+    const at = (c, u, w, rad, f) => [c[0] + rad * (Math.cos(f) * u[0] + Math.sin(f) * w[0]),
+      c[1] + rad * (Math.cos(f) * u[1] + Math.sin(f) * w[1]), c[2] + rad * (Math.cos(f) * u[2] + Math.sin(f) * w[2])];
+    const ring = (c, u, w, rad, n = 72) => { const o = []; for (let i = 0; i <= n; i++) o.push(P(at(c, u, w, rad, 2 * PI * i / n))); return o; };
+    const sil = (u, w) => { const A = u[0] * v[0] + u[1] * v[1] + u[2] * v[2], Bv = w[0] * v[0] + w[1] * v[1] + w[2] * v[2], f = Math.atan2(-A, Bv); return [f, f + PI]; };
+    const body = [ring([0, 0, -L], U, W, R), ring([0, 0, L], U, W, R), ring([d[0] * H, 0, d[2] * H], ub, wb, r)];
+    for (const f of sil(U, W)) body.push([P(at([0, 0, -L], U, W, R, f)), P(at([0, 0, L], U, W, R, f))]);
+    for (const f of sil(ub, wb)) { const s = sOf(f);
+      body.push([P(at([d[0] * s, 0, d[2] * s], ub, wb, r, f)), P(at([d[0] * H, 0, d[2] * H], ub, wb, r, f))]); }
+    const cut = [];
+    for (let i = 0; i <= 90; i++) { const th = -thMax + 2 * thMax * i / 90; cut.push(P([R * Math.cos(th), R * Math.sin(th), zOf(th, 1)])); }
+    for (let i = 90; i >= 0; i--) { const th = -thMax + 2 * thMax * i / 90; cut.push(P([R * Math.cos(th), R * Math.sin(th), zOf(th, -1)])); }
+    return { body, cut, seam: [P([-R, 0, -L]), P([-R, 0, L])] };
+  }
+};
+
+// ---------- shared stage furniture ----------
+const stage = document.getElementById('stage');
+const overlay = el('div', { id: 'overlay' }, null);
+const statusEl = el('div', { id: 'status' }, null);
+const imgs = [];
+let ruler = null;
+
+const NF = {
+  LANG, DUR, clamp, lerp, seg, ease, el, svg, geo, stage, text, STRINGS, _imgs: imgs, _overlay: overlay, _status: statusEl,
+  // a capture in a camera wrapper. cam(scale,cx,cy,rotY) centres the capture point (cx,cy) on the stage.
+  screen(name) {
+    const layer = el('div', { class: 'screen' }, null);
+    const wrap = el('div', { class: 'cam' }, layer);
+    const img = el('img', { src: 'screens/' + name + '.png', width: 1920, height: 1080, alt: '' }, wrap);
+    imgs.push(img); layer.img = img; layer.wrap = wrap; layer._fr = [];
+    layer.cam = (s, cx, cy, rotY = 0) => {
+      let tx = 960 - cx * s, ty = 540 - cy * s;
+      if (!rotY && s >= 1) { tx = clamp(tx, 1920 - 1920 * s, 0); ty = clamp(ty, 1080 - 1080 * s, 0); }
+      wrap.style.transform = `translate(${tx.toFixed(2)}px,${ty.toFixed(2)}px) scale(${s.toFixed(5)})`;
+      img.style.transformOrigin = `${cx}px ${cy}px`;
+      img.style.transform = rotY ? `perspective(2600px) rotateY(${rotY.toFixed(3)}deg)` : 'none';
+      layer._cam = { s, cx, cy, tx, ty };
+    };
+    layer.cam(1, 960, 540);
+    return layer;
+  },
+  // cyan measurement frame in capture coordinates; padding 26 -> 10 px with a damped settle. key allows several at once.
+  frame(layer, x, y, w, h, p, key = 0) {
+    const n = layer._fr[key] || (layer._fr[key] = el('div', { class: 'hl' }, layer));
+    if (p <= 0) { n.style.opacity = 0; return n; }
+    const c = layer._cam || { s: 1, tx: 0, ty: 0 }, s = c.s, g = lerp(26, 10, ease.outBack(p));
+    n.style.opacity = clamp(p * 5);
+    n.style.left = (c.tx + x * s - g).toFixed(2) + 'px'; n.style.top = (c.ty + y * s - g).toFixed(2) + 'px';
+    n.style.width = (w * s + 2 * g).toFixed(2) + 'px'; n.style.height = (h * s + 2 * g).toFixed(2) + 'px';
+    return n;
+  },
+  status(on, extraJa) {
+    statusEl.textContent = text('st') + (LANG === 'ja' && extraJa ? text('st_suffix') : '');
+    statusEl.style.opacity = on ? 1 : 0;
+  },
+  caption(parent, id, cls) { return el('div', { class: cls || 'cap', text: text(id) }, parent); },
+  // kinetic word: p is the 0..1 reveal progress. mask (default) | stretch | track
+  slam(node, p, mode) {
+    if (p <= 0) { node.style.opacity = 0; return; }
+    const k = ease.outExpo(p); node.style.opacity = clamp(p * 8);
+    if (mode === 'stretch') { node.style.transformOrigin = '50% 62%'; node.style.transform = `scaleY(${(0.16 + 0.84 * ease.outBack(p)).toFixed(4)})`; }
+    else if (mode === 'track') { node.style.letterSpacing = lerp(.34, LANG === 'ja' ? .02 : -.03, k).toFixed(4) + 'em'; node.style.transform = 'none'; }
+    else { node.style.clipPath = `inset(-30% ${(100 * (1 - k)).toFixed(2)}% -30% -6%)`; node.style.transform = `translateX(${(-26 * (1 - k)).toFixed(2)}px)`; }
+  },
+  // the self-drawing cyan ruler across the lower third; ticks snap as the line passes them
+  rule(p) {
+    if (!ruler) {
+      const s = svg('svg', { width: 1920, height: 1080, viewBox: '0 0 1920 1080' }, overlay);
+      const g = svg('g', { transform: 'translate(0,756)' }, s);
+      const line = svg('path', { d: 'M160 0H1760', stroke: '#35D6E8', 'stroke-width': 2, fill: 'none', pathLength: 1, 'stroke-dasharray': '1 1' }, g);
+      const ticks = [];
+      for (let i = 0; i <= 50; i++) { const x = 160 + 32 * i, maj = i % 5 === 0;
+        ticks.push({ f: i / 50, n: svg('path', { d: `M${x} 0V${maj ? -22 : -10}`, stroke: maj ? '#35D6E8' : '#2A333C', 'stroke-width': maj ? 2 : 1.5, opacity: 0 }, g) }); }
+      ruler = { line, ticks };
+    }
+    overlay.style.opacity = p > 0 ? 1 : 0;
+    if (p <= 0) return;
+    const k = ease.outCubic(p);
+    ruler.line.setAttribute('stroke-dashoffset', (1 - k).toFixed(4));
+    for (const t of ruler.ticks) t.n.setAttribute('opacity', k >= t.f ? 1 : 0);
+  }
+};
+window.NF = NF;
+window.SHOTS = [];
+
+// ---------- end card: the contact block keeps its authored line break, centred, clear of the disclaimer ----------
+let contactFixed = false;
+const fixContact = () => {
+  const nodes = [...stage.querySelectorAll('div,span,p')];
+  const hits = nodes.filter((n) => n.textContent.includes('chuo-sogo.net') && n.textContent.includes('@'));
+  const c = hits[hits.length - 1];
+  if (!c) return false;
+  c.style.whiteSpace = 'pre-line'; c.style.textAlign = 'center'; c.style.lineHeight = '1.5';
+  const dh = nodes.filter((n) => n.textContent.trim() === text('s10_disc').trim());
+  const d = dh[dh.length - 1];
+  if (d) {
+    const sr = stage.getBoundingClientRect(), pr = (d.offsetParent || stage).getBoundingClientRect();
+    const h = d.getBoundingClientRect().height;
+    const top = Math.min(c.getBoundingClientRect().bottom - sr.top + 24, 1080 - 40 - h);
+    d.style.top = (top - (pr.top - sr.top)).toFixed(2) + 'px'; d.style.bottom = 'auto';
+  }
+  return true;
+};
+
+// ---------- the cut: hide every shot layer, render the live one (+0.3 s outgoing overlap for dissolves) ----------
+window.seek = (t) => {
+  t = clamp(t, 0, DUR);
+  NF.status(false); NF.rule(0);
+  SHOTS.forEach((s, i) => {
+    const L = s.layer; if (!L) return;
+    const nx = SHOTS[i + 1], main = t >= s.a && t < s.b;
+    const over = !main && nx && t >= s.b && t < s.b + .3 && t >= nx.a;
+    if (!main && !over) { L.style.display = 'none'; return; }
+    L.style.display = 'block';
+    L.style.opacity = over ? (1 - seg(t, s.b, s.b + .3)).toFixed(4) : 1;
+    try { s.render(t, t - s.a); } catch (e) { console.error('shot ' + (i + 1), e); }
+  });
+  if (!contactFixed && SHOTS.length && t >= SHOTS[SHOTS.length - 1].a) contactFixed = fixContact();
+};
+</script>
+<script src="unroll.js"></script>
+<script src="shots-a.js"></script>
+<script src="shots-b.js"></script>
+<script>
+(async () => {
+  for (const s of window.SHOTS) {
+    s.layer = NF.el('div', { class: 'shot' }, stage);
+    s.layer.style.display = 'none';
+    try { if (s.init) s.init(s.layer); } catch (e) { console.error('init', e); }
+  }
+  stage.appendChild(NF._overlay); stage.appendChild(NF._status);   // ruler + status sit above every shot
+  await document.fonts.ready;
+  await Promise.all([...document.images].map((im) => im.decode().catch(() => {})));
+  await document.fonts.ready;
+  const q = new URLSearchParams(location.search);
+  window.seek(Number(q.get('t')) || 0);
+  window.READY = true;
+})();
+</script></body></html>

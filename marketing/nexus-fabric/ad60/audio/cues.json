@@ -1,0 +1,3921 @@
+{
+  "meta": {
+    "title": "NEXUS FABRIC — launch film soundtrack",
+    "sample_rate": 48000,
+    "channels": 2,
+    "bit_depth": 24,
+    "duration_s": 70.8,
+    "frames_60fps": 4248,
+    "bpm": 100,
+    "beat_s": 0.6,
+    "key": "D Aeolian → D major add9",
+    "seed": 20240607,
+    "target_lufs": -14.0,
+    "ceiling_dbtp": -1.0,
+    "measured_lufs": -14.01,
+    "measured_dbtp": -1.0,
+    "low_end_mono_below_hz": 120.0,
+    "stereo_width": "pad and hats only"
+  },
+  "sections": [
+    {
+      "name": "Intro",
+      "start": 0.0,
+      "end": 11.4,
+      "note": "sub D1 swell, felt piano, room-air; no percussion"
+    },
+    {
+      "name": "Build A",
+      "start": 11.4,
+      "end": 23.4,
+      "note": "8th pulse from 11.4; kick beats 1 & 3 from 17.4; pad Dm"
+    },
+    {
+      "name": "Build B",
+      "start": 23.4,
+      "end": 33.6,
+      "note": "16th hats; pad cutoff 400→4000 Hz; riser 32.4→33.6"
+    },
+    {
+      "name": "Silence",
+      "start": 33.6,
+      "end": 34.2,
+      "note": "everything out"
+    },
+    {
+      "name": "Reveal",
+      "start": 34.2,
+      "end": 41.4,
+      "note": "pad Dm–Bb–F–C, half-time kick/snare, sub D1"
+    },
+    {
+      "name": "Sustain",
+      "start": 41.4,
+      "end": 57.0,
+      "note": "pulse + pad; hats out 46.8; piano per scene change"
+    },
+    {
+      "name": "Resolve",
+      "start": 57.0,
+      "end": 62.4,
+      "note": "pulse out; piano + pad"
+    },
+    {
+      "name": "End",
+      "start": 62.4,
+      "end": 69.6,
+      "note": "D major add9 62.4; piano D3 63.6; sub decay to 69.6"
+    },
+    {
+      "name": "Black tail",
+      "start": 69.6,
+      "end": 70.8,
+      "note": "silence"
+    }
+  ],
+  "windows": [
+    {
+      "name": "fade-in",
+      "start": 0.0,
+      "end": 0.05
+    },
+    {
+      "name": "full-silence",
+      "start": 33.6,
+      "end": 34.2
+    },
+    {
+      "name": "black-tail-silence",
+      "start": 69.6,
+      "end": 70.8
+    }
+  ],
+  "reserved": [
+    {
+      "name": "hold-latch",
+      "note": "descending minor third 0.3 s; superseded by dimension-tick at 38.4"
+    }
+  ],
+  "cues": [
+    {
+      "scene": "bed",
+      "name": "room-air",
+      "bus": "bed",
+      "start": 0.0,
+      "end": 69.6,
+      "gain_db": -42.0,
+      "pan": 0.0,
+      "note": "pink noise bed, -42 dBFS RMS, ducked 6 dB from 11.4"
+    },
+    {
+      "scene": "S01",
+      "name": "sub-swell",
+      "bus": "music",
+      "start": 0.0,
+      "end": 11.4,
+      "gain_db": -30.0,
+      "pan": 0.0,
+      "note": "D1 sine swell"
+    },
+    {
+      "scene": "S01",
+      "name": "felt-piano",
+      "bus": "music",
+      "start": 1.2,
+      "end": 5.4,
+      "gain_db": -13.0,
+      "pan": 0.0,
+      "note": "D3"
+    },
+    {
+      "scene": "S01",
+      "name": "felt-piano",
+      "bus": "music",
+      "start": 3.6,
+      "end": 8.2,
+      "gain_db": -14.0,
+      "pan": 0.0,
+      "note": "A2"
+    },
+    {
+      "scene": "S02",
+      "name": "pluck",
+      "bus": "music",
+      "start": 6.6,
+      "end": 7.1,
+      "gain_db": -16.0,
+      "pan": 0.0,
+      "note": "sine, 90 ms decay, 146.83 Hz"
+    },
+    {
+      "scene": "S02",
+      "name": "pluck",
+      "bus": "music",
+      "start": 6.9,
+      "end": 7.4,
+      "gain_db": -16.0,
+      "pan": 0.0,
+      "note": "sine, 90 ms decay, 174.61 Hz"
+    },
+    {
+      "scene": "S02",
+      "name": "pluck",
+      "bus": "music",
+      "start": 7.2,
+      "end": 7.7,
+      "gain_db": -16.0,
+      "pan": 0.0,
+      "note": "sine, 90 ms decay, 196.00 Hz"
+    },
+    {
+      "scene": "S02",
+      "name": "pluck",
+      "bus": "music",
+      "start": 7.5,
+      "end": 8.0,
+      "gain_db": -16.0,
+      "pan": 0.0,
+      "note": "sine, 90 ms decay, 220.00 Hz"
+    },
+    {
+      "scene": "S02",
+      "name": "pluck",
+      "bus": "music",
+      "start": 7.8,
+      "end": 8.3,
+      "gain_db": -16.0,
+      "pan": 0.0,
+      "note": "sine, 90 ms decay, 261.63 Hz"
+    },
+    {
+      "scene": "S02",
+      "name": "pad",
+      "bus": "music",
+      "start": 8.4,
+      "end": 19.0,
+      "gain_db": -21.0,
+      "pan": 0.0,
+      "note": "Dm, cutoff 300→420 Hz"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 11.4,
+      "end": 11.85,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 11.7,
+      "end": 12.15,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 12.0,
+      "end": 12.45,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 12.3,
+      "end": 12.75,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 12.6,
+      "end": 13.05,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "ui-tick",
+      "bus": "sfx",
+      "start": 12.6,
+      "end": 12.65,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "dimension field 1..9"
+    },
+    {
+      "scene": "S03",
+      "name": "ui-tick",
+      "bus": "sfx",
+      "start": 12.75,
+      "end": 12.8,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "dimension field 1..9"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 12.9,
+      "end": 13.35,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "ui-tick",
+      "bus": "sfx",
+      "start": 12.9,
+      "end": 12.95,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "dimension field 1..9"
+    },
+    {
+      "scene": "S03",
+      "name": "ui-tick",
+      "bus": "sfx",
+      "start": 13.05,
+      "end": 13.1,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "dimension field 1..9"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 13.2,
+      "end": 13.65,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "ui-tick",
+      "bus": "sfx",
+      "start": 13.2,
+      "end": 13.25,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "dimension field 1..9"
+    },
+    {
+      "scene": "S03",
+      "name": "ui-tick",
+      "bus": "sfx",
+      "start": 13.35,
+      "end": 13.4,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "dimension field 1..9"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 13.5,
+      "end": 13.95,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "ui-tick",
+      "bus": "sfx",
+      "start": 13.5,
+      "end": 13.55,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "dimension field 1..9"
+    },
+    {
+      "scene": "S03",
+      "name": "ui-tick",
+      "bus": "sfx",
+      "start": 13.65,
+      "end": 13.7,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "dimension field 1..9"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 13.8,
+      "end": 14.25,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "ui-tick",
+      "bus": "sfx",
+      "start": 13.8,
+      "end": 13.85,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "dimension field 1..9"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 14.1,
+      "end": 14.55,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 14.4,
+      "end": 14.85,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 14.7,
+      "end": 15.15,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 15.0,
+      "end": 15.45,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 15.3,
+      "end": 15.75,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 15.6,
+      "end": 16.05,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 15.9,
+      "end": 16.35,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 16.2,
+      "end": 16.65,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 16.5,
+      "end": 16.95,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 16.8,
+      "end": 17.25,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 17.1,
+      "end": 17.55,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 17.4,
+      "end": 17.85,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S04",
+      "name": "pad",
+      "bus": "music",
+      "start": 17.4,
+      "end": 25.0,
+      "gain_db": -16.0,
+      "pan": 0.0,
+      "note": "Dm, cutoff 400→900 Hz"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 17.4,
+      "end": 17.85,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 17.7,
+      "end": 18.15,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 18.0,
+      "end": 18.45,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 18.3,
+      "end": 18.75,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 18.6,
+      "end": 19.05,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 18.6,
+      "end": 19.05,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S04",
+      "name": "ui-tick",
+      "bus": "sfx",
+      "start": 18.6,
+      "end": 18.65,
+      "gain_db": -27.0,
+      "pan": 0.0,
+      "note": "column label"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 18.9,
+      "end": 19.35,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 19.2,
+      "end": 19.65,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S04",
+      "name": "ui-tick",
+      "bus": "sfx",
+      "start": 19.2,
+      "end": 19.25,
+      "gain_db": -27.0,
+      "pan": 0.0,
+      "note": "column label"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 19.5,
+      "end": 19.95,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 19.8,
+      "end": 20.25,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 19.8,
+      "end": 20.25,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S04",
+      "name": "ui-tick",
+      "bus": "sfx",
+      "start": 19.8,
+      "end": 19.85,
+      "gain_db": -27.0,
+      "pan": 0.0,
+      "note": "column label"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 20.1,
+      "end": 20.55,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 20.4,
+      "end": 20.85,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 20.7,
+      "end": 21.15,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 21.0,
+      "end": 21.45,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 21.0,
+      "end": 21.45,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 21.3,
+      "end": 21.75,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 21.6,
+      "end": 22.05,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 21.9,
+      "end": 22.35,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 22.2,
+      "end": 22.65,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 22.2,
+      "end": 22.65,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 22.5,
+      "end": 22.95,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 22.8,
+      "end": 23.25,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 23.1,
+      "end": 23.55,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 23.4,
+      "end": 23.5,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 23.4,
+      "end": 23.85,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S05",
+      "name": "pad",
+      "bus": "music",
+      "start": 23.4,
+      "end": 35.2,
+      "gain_db": -14.0,
+      "pan": 0.0,
+      "note": "Dm, cutoff 400→4000 Hz"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 23.4,
+      "end": 23.85,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 23.55,
+      "end": 23.65,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 23.7,
+      "end": 23.8,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 23.7,
+      "end": 24.15,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 23.85,
+      "end": 23.95,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 24.0,
+      "end": 24.1,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 24.0,
+      "end": 24.45,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 24.15,
+      "end": 24.25,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 24.3,
+      "end": 24.4,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 24.3,
+      "end": 24.75,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 24.45,
+      "end": 24.55,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 24.6,
+      "end": 24.7,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 24.6,
+      "end": 25.05,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 24.6,
+      "end": 25.05,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 24.6,
+      "end": 24.8,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 1/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 24.75,
+      "end": 24.85,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 24.75,
+      "end": 24.95,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 2/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 24.9,
+      "end": 25.0,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 24.9,
+      "end": 25.35,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 24.9,
+      "end": 25.1,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 3/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 25.05,
+      "end": 25.15,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 25.05,
+      "end": 25.25,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 4/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 25.2,
+      "end": 25.3,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 25.2,
+      "end": 25.65,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 25.2,
+      "end": 25.4,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 5/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 25.35,
+      "end": 25.45,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 25.35,
+      "end": 25.55,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 6/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 25.5,
+      "end": 25.6,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 25.5,
+      "end": 25.95,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 25.5,
+      "end": 25.7,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 7/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 25.65,
+      "end": 25.75,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 25.65,
+      "end": 25.85,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 8/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 25.8,
+      "end": 25.9,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 25.8,
+      "end": 26.25,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 25.8,
+      "end": 26.25,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 25.8,
+      "end": 26.0,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 9/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 25.95,
+      "end": 26.05,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 25.95,
+      "end": 26.15,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 10/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 26.1,
+      "end": 26.2,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 26.1,
+      "end": 26.55,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 26.1,
+      "end": 26.3,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 11/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 26.25,
+      "end": 26.35,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 26.25,
+      "end": 26.45,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 12/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 26.4,
+      "end": 26.5,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 26.4,
+      "end": 26.85,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "gate-thunk",
+      "bus": "sfx",
+      "start": 26.4,
+      "end": 26.6,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "gate 13/13"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 26.55,
+      "end": 26.65,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 26.7,
+      "end": 26.8,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 26.7,
+      "end": 27.15,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 26.85,
+      "end": 26.95,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 27.0,
+      "end": 27.1,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 27.0,
+      "end": 27.45,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 27.0,
+      "end": 27.45,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 27.15,
+      "end": 27.25,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 27.3,
+      "end": 27.4,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 27.3,
+      "end": 27.75,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 27.45,
+      "end": 27.55,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 27.6,
+      "end": 27.7,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 27.6,
+      "end": 28.05,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 27.75,
+      "end": 27.85,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 27.9,
+      "end": 28.0,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 27.9,
+      "end": 28.35,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 28.05,
+      "end": 28.15,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 28.2,
+      "end": 28.3,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 28.2,
+      "end": 28.65,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 28.2,
+      "end": 28.65,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 28.35,
+      "end": 28.45,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 28.5,
+      "end": 28.6,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 28.5,
+      "end": 28.95,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 28.65,
+      "end": 28.75,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 28.8,
+      "end": 28.9,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 28.8,
+      "end": 29.25,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 28.95,
+      "end": 29.05,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 29.1,
+      "end": 29.2,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 29.1,
+      "end": 29.55,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 29.25,
+      "end": 29.35,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 29.4,
+      "end": 29.5,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 29.4,
+      "end": 29.85,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 29.4,
+      "end": 29.85,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S06",
+      "name": "refuse-damp",
+      "bus": "sfx",
+      "start": 29.4,
+      "end": 29.75,
+      "gain_db": -19.0,
+      "pan": 0.0,
+      "note": "low-passed noise thud, dry"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 29.55,
+      "end": 29.65,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 29.7,
+      "end": 29.8,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 29.7,
+      "end": 30.15,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 29.85,
+      "end": 29.95,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 30.0,
+      "end": 30.1,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 30.0,
+      "end": 30.45,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 30.15,
+      "end": 30.25,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 30.3,
+      "end": 30.4,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 30.3,
+      "end": 30.75,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 30.45,
+      "end": 30.55,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 30.6,
+      "end": 30.7,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 30.6,
+      "end": 31.05,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 30.6,
+      "end": 31.05,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 30.75,
+      "end": 30.85,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 30.9,
+      "end": 31.0,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 30.9,
+      "end": 31.35,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 31.05,
+      "end": 31.15,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 31.2,
+      "end": 31.3,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 31.2,
+      "end": 31.65,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 31.35,
+      "end": 31.45,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 31.5,
+      "end": 31.6,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 31.5,
+      "end": 31.95,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 31.65,
+      "end": 31.75,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 31.8,
+      "end": 31.9,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 31.8,
+      "end": 32.25,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 31.8,
+      "end": 32.25,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 31.95,
+      "end": 32.05,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 32.1,
+      "end": 32.2,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 32.1,
+      "end": 32.55,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 32.25,
+      "end": 32.35,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 32.4,
+      "end": 32.5,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 32.4,
+      "end": 32.85,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S06",
+      "name": "reveal-air",
+      "bus": "sfx",
+      "start": 32.4,
+      "end": 33.6,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "reverse swell 32.4→33.6, cut for the silent beat"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 32.55,
+      "end": 32.65,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 32.7,
+      "end": 32.8,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 32.7,
+      "end": 33.15,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 32.85,
+      "end": 32.95,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 33.0,
+      "end": 33.1,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S04",
+      "name": "kick",
+      "bus": "music",
+      "start": 33.0,
+      "end": 33.45,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "beats 1 & 3"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 33.0,
+      "end": 33.45,
+      "gain_db": -19.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 33.15,
+      "end": 33.25,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 33.3,
+      "end": 33.4,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S03",
+      "name": "pulse",
+      "bus": "music",
+      "start": 33.3,
+      "end": 33.75,
+      "gain_db": -22.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S05",
+      "name": "hat",
+      "bus": "music",
+      "start": 33.45,
+      "end": 33.55,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 34.2,
+      "end": 34.3,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "kick",
+      "bus": "music",
+      "start": 34.2,
+      "end": 34.65,
+      "gain_db": -13.5,
+      "pan": 0.0,
+      "note": "half-time"
+    },
+    {
+      "scene": "S07",
+      "name": "pad",
+      "bus": "music",
+      "start": 34.2,
+      "end": 37.6,
+      "gain_db": -12.0,
+      "pan": 0.0,
+      "note": "reveal Dm"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 34.2,
+      "end": 34.65,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "sub",
+      "bus": "music",
+      "start": 34.2,
+      "end": 41.4,
+      "gain_db": -19.0,
+      "pan": 0.0,
+      "note": "D1 reveal"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 34.35,
+      "end": 34.45,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 34.5,
+      "end": 34.6,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 34.5,
+      "end": 34.95,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 34.65,
+      "end": 34.75,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 34.8,
+      "end": 34.9,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 34.8,
+      "end": 35.25,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 34.95,
+      "end": 35.05,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 35.1,
+      "end": 35.2,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 35.1,
+      "end": 35.55,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 35.25,
+      "end": 35.35,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 35.4,
+      "end": 35.5,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 35.4,
+      "end": 35.85,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "snare",
+      "bus": "music",
+      "start": 35.4,
+      "end": 35.72,
+      "gain_db": -19.0,
+      "pan": 0.0,
+      "note": "half-time"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 35.55,
+      "end": 35.65,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 35.7,
+      "end": 35.8,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 35.7,
+      "end": 36.15,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 35.85,
+      "end": 35.95,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 36.0,
+      "end": 36.1,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pad",
+      "bus": "music",
+      "start": 36.0,
+      "end": 39.4,
+      "gain_db": -12.0,
+      "pan": 0.0,
+      "note": "reveal Bb"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 36.0,
+      "end": 36.45,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 36.15,
+      "end": 36.25,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 36.3,
+      "end": 36.4,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 36.3,
+      "end": 36.75,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 36.45,
+      "end": 36.55,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 36.6,
+      "end": 36.7,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "kick",
+      "bus": "music",
+      "start": 36.6,
+      "end": 37.05,
+      "gain_db": -13.5,
+      "pan": 0.0,
+      "note": "half-time"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 36.6,
+      "end": 37.05,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 36.75,
+      "end": 36.85,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 36.9,
+      "end": 37.0,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 36.9,
+      "end": 37.35,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 37.05,
+      "end": 37.15,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 37.2,
+      "end": 37.3,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 37.2,
+      "end": 37.65,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 37.35,
+      "end": 37.45,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 37.5,
+      "end": 37.6,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 37.5,
+      "end": 37.95,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 37.65,
+      "end": 37.75,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 37.8,
+      "end": 37.9,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pad",
+      "bus": "music",
+      "start": 37.8,
+      "end": 41.2,
+      "gain_db": -12.0,
+      "pan": 0.0,
+      "note": "reveal F"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 37.8,
+      "end": 38.25,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "snare",
+      "bus": "music",
+      "start": 37.8,
+      "end": 38.12,
+      "gain_db": -19.0,
+      "pan": 0.0,
+      "note": "half-time"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 37.95,
+      "end": 38.05,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 38.1,
+      "end": 38.2,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 38.1,
+      "end": 38.55,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 38.25,
+      "end": 38.35,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 38.4,
+      "end": 38.5,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 38.4,
+      "end": 38.85,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "dimension-tick",
+      "bus": "sfx",
+      "start": 38.4,
+      "end": 38.44,
+      "gain_db": -25.0,
+      "pan": 0.0,
+      "note": "942.478 mm dimension line (replaces hold-latch)"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 38.55,
+      "end": 38.65,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 38.7,
+      "end": 38.8,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 38.7,
+      "end": 39.15,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 38.85,
+      "end": 38.95,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 39.0,
+      "end": 39.1,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "kick",
+      "bus": "music",
+      "start": 39.0,
+      "end": 39.45,
+      "gain_db": -13.5,
+      "pan": 0.0,
+      "note": "half-time"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 39.0,
+      "end": 39.45,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 39.15,
+      "end": 39.25,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 39.3,
+      "end": 39.4,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 39.3,
+      "end": 39.75,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 39.45,
+      "end": 39.55,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 39.6,
+      "end": 39.7,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pad",
+      "bus": "music",
+      "start": 39.6,
+      "end": 43.0,
+      "gain_db": -12.0,
+      "pan": 0.0,
+      "note": "reveal C"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 39.6,
+      "end": 40.05,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 39.75,
+      "end": 39.85,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 39.9,
+      "end": 40.0,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 39.9,
+      "end": 40.35,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 40.05,
+      "end": 40.15,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 40.2,
+      "end": 40.3,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 40.2,
+      "end": 40.65,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "snare",
+      "bus": "music",
+      "start": 40.2,
+      "end": 40.52,
+      "gain_db": -19.0,
+      "pan": 0.0,
+      "note": "half-time"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 40.35,
+      "end": 40.45,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 40.5,
+      "end": 40.6,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 40.5,
+      "end": 40.95,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 40.65,
+      "end": 40.75,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 40.8,
+      "end": 40.9,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 40.8,
+      "end": 41.25,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 40.95,
+      "end": 41.05,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 41.1,
+      "end": 41.2,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 41.1,
+      "end": 41.55,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 41.25,
+      "end": 41.35,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S08",
+      "name": "felt-piano",
+      "bus": "music",
+      "start": 41.4,
+      "end": 45.0,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "scene change D3"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 41.4,
+      "end": 41.5,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S08",
+      "name": "pad",
+      "bus": "music",
+      "start": 41.4,
+      "end": 48.4,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "Dm sustain, groove stripped to pulse + pad"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 41.4,
+      "end": 41.85,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 41.55,
+      "end": 41.65,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 41.7,
+      "end": 41.8,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 41.7,
+      "end": 42.15,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 41.85,
+      "end": 41.95,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 42.0,
+      "end": 42.1,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 42.0,
+      "end": 42.45,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S08",
+      "name": "paper-drop",
+      "bus": "sfx",
+      "start": 42.0,
+      "end": 42.2,
+      "gain_db": -20.0,
+      "pan": 0.0,
+      "note": "120 ms band-passed noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 42.15,
+      "end": 42.25,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 42.3,
+      "end": 42.4,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 42.3,
+      "end": 42.75,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 42.45,
+      "end": 42.55,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 42.6,
+      "end": 42.7,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 42.6,
+      "end": 43.05,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 42.75,
+      "end": 42.85,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 42.9,
+      "end": 43.0,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 42.9,
+      "end": 43.35,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 43.05,
+      "end": 43.15,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 43.2,
+      "end": 43.3,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 43.2,
+      "end": 43.65,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 43.35,
+      "end": 43.45,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 43.5,
+      "end": 43.6,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 43.5,
+      "end": 43.95,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 43.65,
+      "end": 43.75,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 43.8,
+      "end": 43.9,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 43.8,
+      "end": 44.25,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 43.95,
+      "end": 44.05,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 44.1,
+      "end": 44.2,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 44.1,
+      "end": 44.55,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 44.25,
+      "end": 44.35,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 44.4,
+      "end": 44.5,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 44.4,
+      "end": 44.85,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 44.55,
+      "end": 44.65,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 44.7,
+      "end": 44.8,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 44.7,
+      "end": 45.15,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 44.85,
+      "end": 44.95,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 45.0,
+      "end": 45.1,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 45.0,
+      "end": 45.45,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 45.15,
+      "end": 45.25,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 45.3,
+      "end": 45.4,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 45.3,
+      "end": 45.75,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 45.45,
+      "end": 45.55,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 45.6,
+      "end": 45.7,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 45.6,
+      "end": 46.05,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 45.75,
+      "end": 45.85,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 45.9,
+      "end": 46.0,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 45.9,
+      "end": 46.35,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 46.05,
+      "end": 46.15,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 46.2,
+      "end": 46.3,
+      "gain_db": -25.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 46.2,
+      "end": 46.65,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 46.35,
+      "end": 46.45,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 46.5,
+      "end": 46.6,
+      "gain_db": -30.0,
+      "pan": -0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 46.5,
+      "end": 46.95,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "hat",
+      "bus": "music",
+      "start": 46.65,
+      "end": 46.75,
+      "gain_db": -30.0,
+      "pan": 0.28,
+      "note": "16th, filtered noise"
+    },
+    {
+      "scene": "S09",
+      "name": "felt-piano",
+      "bus": "music",
+      "start": 46.8,
+      "end": 50.4,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "scene change F3"
+    },
+    {
+      "scene": "S09",
+      "name": "pad",
+      "bus": "music",
+      "start": 46.8,
+      "end": 53.8,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "Bb sustain, hats out"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 46.8,
+      "end": 47.25,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 47.1,
+      "end": 47.55,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 47.4,
+      "end": 47.85,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S09",
+      "name": "stamp-soft",
+      "bus": "sfx",
+      "start": 47.4,
+      "end": 47.65,
+      "gain_db": -19.5,
+      "pan": 0.0,
+      "note": "180 Hz body + short noise"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 47.7,
+      "end": 48.15,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 48.0,
+      "end": 48.45,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 48.3,
+      "end": 48.75,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 48.6,
+      "end": 49.05,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 48.9,
+      "end": 49.35,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 49.2,
+      "end": 49.65,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 49.5,
+      "end": 49.95,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 49.8,
+      "end": 50.25,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 50.1,
+      "end": 50.55,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 50.4,
+      "end": 50.85,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 50.7,
+      "end": 51.15,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 51.0,
+      "end": 51.45,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 51.3,
+      "end": 51.75,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 51.6,
+      "end": 52.05,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 51.9,
+      "end": 52.35,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S10",
+      "name": "pad",
+      "bus": "music",
+      "start": 52.2,
+      "end": 58.6,
+      "gain_db": -18.0,
+      "pan": 0.0,
+      "note": "F, pad thins"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 52.2,
+      "end": 52.65,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 52.5,
+      "end": 52.95,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 52.8,
+      "end": 53.25,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 53.1,
+      "end": 53.55,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S10",
+      "name": "felt-piano",
+      "bus": "music",
+      "start": 53.4,
+      "end": 57.0,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "single note A3"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 53.4,
+      "end": 53.85,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 53.7,
+      "end": 54.15,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 54.0,
+      "end": 54.45,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 54.3,
+      "end": 54.75,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 54.6,
+      "end": 55.05,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 54.9,
+      "end": 55.35,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 55.2,
+      "end": 55.65,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 261.63 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 55.5,
+      "end": 55.95,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 55.8,
+      "end": 56.25,
+      "gain_db": -20.39,
+      "pan": 0.0,
+      "note": "8th note, 146.83 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 56.1,
+      "end": 56.55,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 56.4,
+      "end": 56.85,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 174.61 Hz, triangle/sine"
+    },
+    {
+      "scene": "S07",
+      "name": "pulse",
+      "bus": "music",
+      "start": 56.7,
+      "end": 57.15,
+      "gain_db": -23.0,
+      "pan": 0.0,
+      "note": "8th note, 220.00 Hz, triangle/sine"
+    },
+    {
+      "scene": "S11",
+      "name": "felt-piano",
+      "bus": "music",
+      "start": 57.0,
+      "end": 60.6,
+      "gain_db": -15.0,
+      "pan": 0.0,
+      "note": "scene change G3"
+    },
+    {
+      "scene": "S11",
+      "name": "pad",
+      "bus": "music",
+      "start": 57.0,
+      "end": 64.0,
+      "gain_db": -17.0,
+      "pan": 0.0,
+      "note": "C, pulse out, piano + pad only"
+    },
+    {
+      "scene": "S11",
+      "name": "pluck",
+      "bus": "music",
+      "start": 57.3,
+      "end": 57.8,
+      "gain_db": -18.0,
+      "pan": 0.0,
+      "note": "phone entry, 220.00 Hz"
+    },
+    {
+      "scene": "S11",
+      "name": "pluck",
+      "bus": "music",
+      "start": 57.6,
+      "end": 58.1,
+      "gain_db": -18.0,
+      "pan": 0.0,
+      "note": "phone entry, 293.66 Hz"
+    },
+    {
+      "scene": "S12",
+      "name": "pad",
+      "bus": "music",
+      "start": 62.4,
+      "end": 69.6,
+      "gain_db": -13.0,
+      "pan": 0.0,
+      "note": "D major add9 (D–F#–A–E), releases to 69.6"
+    },
+    {
+      "scene": "S12",
+      "name": "sub",
+      "bus": "music",
+      "start": 62.4,
+      "end": 69.6,
+      "gain_db": -21.0,
+      "pan": 0.0,
+      "note": "D1 decays to silence at 69.6"
+    },
+    {
+      "scene": "S12",
+      "name": "felt-piano",
+      "bus": "music",
+      "start": 63.6,
+      "end": 69.2,
+      "gain_db": -13.5,
+      "pan": 0.0,
+      "note": "D3"
+    }
+  ]
+}

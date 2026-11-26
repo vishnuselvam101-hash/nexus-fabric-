@@ -1,0 +1,9 @@
+NEXUS FABRIC - font notice
+
+Bundled fonts (latin subset, woff2, unmodified files):
+  IBM Plex Sans 400, 500, 600 normal   ibm-plex-sans-latin-{400,500,600}-normal.woff2
+  IBM Plex Mono 400, 500 normal        ibm-plex-mono-latin-{400,500}-normal.woff2
+
+Copyright 2019 IBM Corp. (Reserved Font Name: IBM Plex). Licensed under the SIL Open Font License, Version 1.1 (full text in OFL-IBM-Plex.txt).
+Obtained from the npm packages @fontsource/ibm-plex-sans 5.3.0 and @fontsource/ibm-plex-mono 5.3.0 (the font files
+are the IBM Plex release; the packaging of those npm packages is MIT).
