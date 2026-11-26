@@ -60,6 +60,7 @@ Security (`docs/RELEASE_READINESS.md`, section "Security gaps"):
 - The audit chain is not anchored externally and the hashes are not signed (V-25, V-28).
 - The PDF converter is a separate worker (V-26). On Linux it has a parent-death kill, resource limits, Landlock where the kernel has it, and a seccomp allow-list. On Windows it has a Job Object only (memory, CPU time, one process) and no file-system or network isolation. This is a self-assessment, with no independent review.
 - No independent security review or penetration test. The security findings are a self-assessment.
+- The Windows installer and portable zip were built on Linux and have not been installed or run on Windows before this pilot. Please report any install, start or uninstall problem with the Windows version and screenshots. (Windows 版は Linux 上で作成したもので、本パイロット前に Windows 上でのインストール・起動は未確認です。問題があれば画面写真を添えてご報告ください。)
 - No backup or restore tooling. No alerting.
 
 Behaviour found in the bug hunts (`docs/qa/BUG_HUNT_R7.md`, `docs/qa/BUG_HUNT_R8.md`):
