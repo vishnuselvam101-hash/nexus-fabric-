@@ -785,7 +785,7 @@ async function main() {
       return { status: r.status, json };
     }, [method, url, data]);
 
-    // P1 (server): a DXF is served exactly for the jobs the server does not hold (state REVIEW_REQUIRED)
+    // P1 (server): a DXF is served exactly for the jobs the export rule releases (job detail export.available)
     try {
       const list = (await jfetch('GET', '/api/calculations')).json || [];
       const problems = [];
@@ -794,13 +794,13 @@ async function main() {
         const job = (await jfetch('GET', '/api/calculations/' + row.id)).json;
         if (!job || !Array.isArray(job.patterns) || job.patterns.length === 0) continue;
         const dxf = await jfetch('GET', '/api/calculations/' + row.id + '/dxf/' + encodeURIComponent(job.patterns[0].part));
-        const open = job.state === 'REVIEW_REQUIRED';
+        const open = job.export.available === true;
         if (open) released += 1; else held += 1;
-        if (open ? dxf.status !== 200 : dxf.status === 200) problems.push('#' + row.id + ' ' + job.state + ' DXF ' + dxf.status);
+        if (open ? dxf.status !== 200 : dxf.status !== 409 && dxf.status !== 404) problems.push('#' + row.id + ' ' + job.state + ' DXF ' + dxf.status);
       }
-      check('P1 server: DXF is served only for jobs not held', problems.length === 0 && released + held > 0,
+      check('P1 server: DXF is served only for jobs the export rule releases', problems.length === 0 && released + held > 0,
         'released=' + released + ' held=' + held + ' ' + problems.join('; '));
-    } catch (e) { check('P1 server: DXF is served only for jobs not held', false, msgOf(e)); }
+    } catch (e) { check('P1 server: DXF is served only for jobs the export rule releases', false, msgOf(e)); }
 
     // P1 (Job page): the export button is enabled exactly when the job is not held; a held job shows a disabled button and the reason
     try {
@@ -811,11 +811,36 @@ async function main() {
       const enabled = await page.locator('.export-box a[href*="/dxf/"]').count();
       const disabled = await page.locator('.export-box button[disabled]').count();
       const why = disabled ? (await page.locator('.export-box .lock-why').first().innerText().catch(() => '')).trim() : '';
-      const held = job.state !== 'REVIEW_REQUIRED';
+      const held = job.export.available !== true;
       const ok = held ? (disabled === 1 && enabled === 0 && why.length > 0) : (enabled === 1 && disabled === 0);
-      check('P1 Job page: export enabled exactly when the job is not held; held shows disabled button and reason', ok,
+      check('P1 Job page: export enabled exactly when the export rule releases the job; held shows disabled button and reason', ok,
         'state=' + job.state + ' enabled=' + enabled + ' disabled=' + disabled + ' why=' + why.slice(0, 100));
-    } catch (e) { check('P1 Job page: export enabled exactly when the job is not held; held shows disabled button and reason', false, msgOf(e)); }
+    } catch (e) { check('P1 Job page: export enabled exactly when the export rule releases the job; held shows disabled button and reason', false, msgOf(e)); }
+
+    // P1 held path, for real: a new job has no replay audit, so G19 is NOT_RUN and the server holds its DXF (409 naming
+    // the gate). The Job page shows the same gate and one fix, and the download button is disabled.
+    try {
+      const body = { family: FAMILY, delta: 0, surface_reference: 'outside' };
+      for (const [k, v] of Object.entries(VALID)) body[k] = Number(v);
+      const made = await jfetch('POST', '/api/projects/' + projectId + '/calculations', body);
+      if (made.status !== 200 || !made.json || !made.json.id) throw new Error('job not created: ' + made.status);
+      const hid = made.json.id;
+      const job = (await jfetch('GET', '/api/calculations/' + hid)).json;
+      const hold = job && job.export && job.export.held_by;
+      const part = encodeURIComponent(job.patterns[0].part);
+      const dxf = await jfetch('GET', '/api/calculations/' + hid + '/dxf/' + part);
+      const serverOk = !!hold && dxf.status === 409 && dxf.json && dxf.json.gate === hold.gate && /held by AMOEBA/.test(dxf.json.error || '') && typeof dxf.json.fix === 'string';
+      check('P1 server held path: 409 names the held gate and its fix', serverOk,
+        'held_by=' + JSON.stringify(hold || null) + ' dxf=' + dxf.status + ' ' + JSON.stringify(dxf.json || null).slice(0, 160));
+      await page.goto(BASE + '/#/job/' + hid, { waitUntil: 'load' });
+      await page.waitForSelector('.export-box', { state: 'attached', timeout: 20000 });
+      const disabled = await page.locator('.export-box button[disabled]').count();
+      const enabled = await page.locator('.export-box a[href*="/dxf/"]').count();
+      const why = (await page.locator('.export-box .lock-why').first().innerText().catch(() => '')).trim();
+      const uiOk = !!hold && disabled === 1 && enabled === 0 && why.includes(hold.gate) && why.length > hold.gate.length + 10;
+      check('P1 Job page held path: disabled button and the held gate with its fix', uiOk,
+        'disabled=' + disabled + ' enabled=' + enabled + ' why=' + why.slice(0, 160));
+    } catch (e) { check('P1 held path: the checks ran to the end', false, msgOf(e)); }
 
     // P2: every Calculations row has its state and project, and the job from check A shows its gate count
     try {
