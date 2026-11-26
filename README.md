@@ -4,7 +4,15 @@ Engineering Drawing-to-Manufacturing Geometry System: converts engineering drawi
 
 A person enters the dimensions; deterministic mathematical engines calculate; independent verification challenges the result; an authorised engineer would release it (engineer release is not implemented in this development build, so nothing is released).
 
+## Pilot evaluation build / パイロット評価版
+
+Pilot evaluation build. Not validated. Every DXF is NOT-RELEASED; an engineer must check every part before cutting. Not for confidential drawings. Do not run this program on a network (it has no TLS). Use desktop mode (`nexus-fabric.exe --desktop` on Windows, `./nexus-fabric.sh` on Linux): the server then listens on 127.0.0.1 only. Desktop mode does not encrypt the database. Pilot notes: [packaging/pilot/PILOT-NOTES.md](packaging/pilot/PILOT-NOTES.md) · install: [packaging/pilot/INSTALL-PILOT.md](packaging/pilot/INSTALL-PILOT.md).
+
+パイロット評価版です。検証されていません。すべての DXF は NOT-RELEASED（未リリース）です。切断の前に、技術者がすべての部品を確認してください。機密図面には使用しないでください。ネットワーク上でこのプログラムを動かさないでください（TLS がありません）。デスクトップモード（Windows: `nexus-fabric.exe --desktop`、Linux: `./nexus-fabric.sh`）を使用してください。このモードではサーバーは 127.0.0.1 のみで待ち受けます。デスクトップモードでもデータベースは暗号化されません。
+
 ## Software
+
+For the pilot, run desktop mode (see above). The commands below are for development from source; server mode is not part of the pilot.
 
 A development build exists: one binary serving a browser client. Build, run and test: [Build and Test Guide](docs/BUILD_AND_TEST_GUIDE.md). What works and what does not: [Implementation Status](docs/IMPLEMENTATION_STATUS.md) · [Dependency Matrix](docs/IMPLEMENTATION_DEPENDENCY_MATRIX.md) · [Release Readiness](docs/RELEASE_READINESS.md).
 
@@ -19,7 +27,7 @@ Stress testing and learning from mistakes: [docs/LEARNING_AND_STRESS_TESTING.md]
 
 ## Status
 
-Specifications are drafts or provisional; a first development build of the software exists (see above). No engineering content is validated, and no geometry kernel, PDF or OCR technology has been selected.
+Specifications are drafts or provisional; a first development build of the software exists (see above). No engineering content is validated. PDF input is vector-PDF conversion by the separate `nf-pdf2dxf` converter: it reads one page, needs a drawing scale (1:N) or millimetres per point, and does not interpret dimensions. No geometry kernel or OCR technology has been selected.
 
 ## Documents
 

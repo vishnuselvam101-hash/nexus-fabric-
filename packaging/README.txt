@@ -1,7 +1,28 @@
-NEXUS FABRIC - README (development build)
-=========================================
+NEXUS FABRIC - README (pilot evaluation build / パイロット評価版)
+=====================================================================
 
-Development build. Not validated. Outputs must not be used for manufacturing.
+PILOT NOTICE
+Pilot evaluation build. Not validated.
+Every DXF is NOT-RELEASED. An engineer must check every part before cutting.
+Not for confidential drawings. Do not run this program on a network (it has no
+TLS). Use desktop mode (the commands under STARTING IT): the server then listens
+on 127.0.0.1 only. Desktop mode does not encrypt the database; see
+HOW YOUR DATA IS PROTECTED below.
+- Outputs must not be used for manufacturing.
+- No output is released. No job can reach APPROVED in this build.
+- The engineering content has not been independently reviewed.
+- Report problems as described in PILOT-NOTES.md (sent with the pilot pack).
+
+パイロット評価版です。検証されていません。
+すべての DXF は NOT-RELEASED（未リリース）です。切断の前に、技術者がすべての部品を確認してください。
+機密図面には使用しないでください。このプログラムをネットワーク上で動かさないでください（TLS がありません）。
+デスクトップモード（STARTING IT の手順）を使用してください。このモードではサーバーは 127.0.0.1 のみで待ち受けます。
+デスクトップモードでもデータベースは暗号化されません。下記「HOW YOUR DATA IS PROTECTED」を参照してください。
+- 出力を製造に使用してはなりません。
+- 本ビルドではリリースは行われません。どのジョブも承認済みになりません。
+- 工学的な内容は、独立したレビューを受けていません。
+- 問題の報告方法は PILOT-NOTES.md（パイロット資料一式に同梱）に従ってください。
+
 All rights reserved. Evaluation use only — terms to be provided by the owner.
 
 WHAT IT IS

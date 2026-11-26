@@ -1,10 +1,10 @@
 # Release Readiness
 
-Updated 18 November 2026
+Updated 26 November 2026
 
 ## Verdict
 
-**Not ready for any use on real engineering work. Not ready for customer beta. Suitable only for internal development and demonstration with non-confidential data.**
+**Not ready for any use on real engineering work. Not ready for customer beta. Suitable only for internal development and demonstration with non-confidential data. Also suitable for a supervised pilot evaluation by a factory for review — no production cutting, no confidential drawings.**
 
 | Question | Answer |
 |---|---|
@@ -36,7 +36,7 @@ Full list: [Vulnerability Register](security/VULNERABILITY_REGISTER.md); conditi
 | One key for all blobs, no rotation, no key service (V-22) | Key compromise exposes all stored files |
 | No multi-factor authentication, recovery or single sign-on (V-23) | Account takeover by password alone |
 | Audit chain not externally anchored; hashes unsigned (V-25, V-28) | A file-level insider can rewrite consistently |
-| No parser sandbox (V-26) | Acceptable only while nothing is parsed; blocking condition for any parser |
+| Parser sandbox (V-26): the PDF converter `nf-pdf2dxf` is a separate worker. Linux: parent-death kill, resource limits, Landlock where the kernel has it, seccomp allow-list. Windows: Job Object only (memory, CPU time, one process); no file-system or network isolation | Self-assessment, no independent review. Blocking condition for any further parser |
 | No backup/restore tooling; no alerting | Data loss; incidents noticed late |
 | No independent security review or penetration test | Unknown defects — this is a self-assessment |
 
