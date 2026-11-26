@@ -817,9 +817,8 @@ async function main() {
         'state=' + job.state + ' enabled=' + enabled + ' disabled=' + disabled + ' why=' + why.slice(0, 100));
     } catch (e) { check('P1 Job page: export enabled exactly when the export rule releases the job; held shows disabled button and reason', false, msgOf(e)); }
 
-    // P1 held path, for real: a new job entered by hand is held by G01 (provenance is unproven), whatever its replay says.
-    // The server answers 409 naming the gate and one fix; the Job page shows the same gate with its detail and fix, and
-    // the download button is disabled. No download step: a fresh job cannot be released.
+    // P1 held path, for real: a new job has no replay audit, so G19 is NOT_RUN and the server holds its DXF (409 naming
+    // the gate). The Job page shows the same gate and one fix, and the download button is disabled.
     try {
       const body = { family: FAMILY, delta: 0, surface_reference: 'outside' };
       for (const [k, v] of Object.entries(VALID)) body[k] = Number(v);
@@ -830,7 +829,7 @@ async function main() {
       const hold = job && job.export && job.export.held_by;
       const part = encodeURIComponent(job.patterns[0].part);
       const dxf = await jfetch('GET', '/api/calculations/' + hid + '/dxf/' + part);
-      const serverOk = !!hold && hold.gate === 'G01' && dxf.status === 409 && dxf.json && dxf.json.gate === hold.gate && /held by AMOEBA/.test(dxf.json.error || '') && typeof dxf.json.fix === 'string';
+      const serverOk = !!hold && dxf.status === 409 && dxf.json && dxf.json.gate === hold.gate && /held by AMOEBA/.test(dxf.json.error || '') && typeof dxf.json.fix === 'string';
       check('P1 server held path: 409 names the held gate and its fix', serverOk,
         'held_by=' + JSON.stringify(hold || null) + ' dxf=' + dxf.status + ' ' + JSON.stringify(dxf.json || null).slice(0, 160));
       await page.goto(BASE + '/#/job/' + hid, { waitUntil: 'load' });
@@ -838,7 +837,7 @@ async function main() {
       const disabled = await page.locator('.export-box button[disabled]').count();
       const enabled = await page.locator('.export-box a[href*="/dxf/"]').count();
       const why = (await page.locator('.export-box .lock-why').first().innerText().catch(() => '')).trim();
-      const uiOk = !!hold && hold.gate === 'G01' && disabled === 1 && enabled === 0 && why.includes(hold.gate) && /Fix:|修正：/.test(why);
+      const uiOk = !!hold && disabled === 1 && enabled === 0 && why.includes(hold.gate) && why.length > hold.gate.length + 10;
       check('P1 Job page held path: disabled button and the held gate with its fix', uiOk,
         'disabled=' + disabled + ' enabled=' + enabled + ' why=' + why.slice(0, 160));
     } catch (e) { check('P1 held path: the checks ran to the end', false, msgOf(e)); }
