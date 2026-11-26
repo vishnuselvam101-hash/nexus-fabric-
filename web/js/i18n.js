@@ -111,6 +111,9 @@ const EN = {
   'login.setup': 'Setup', 'login.token': 'Setup token', 'login.createAccount': 'Create account',
   'login.bad': 'Incorrect username or password.',
   'login.ended': 'Your session has ended. Sign in again.',
+  'login.failed': 'Sign-in failed. Try again.',
+  'login.throttled': 'Too many failed attempts from this address. Wait a few minutes, then try again.',
+  'login.tokenHelp': 'The setup token is in the first-run setup link the server printed when it started: the text after #setup=.',
 
   // api and network
   'api.signin': 'Please sign in.',
@@ -907,6 +910,9 @@ const JA = {
   'login.setup': 'セットアップ', 'login.token': 'セットアップトークン', 'login.createAccount': 'アカウント作成',
   'login.bad': 'ユーザー名またはパスワードが正しくありません。',
   'login.ended': 'セッションが終了しました。もう一度ログインしてください。',
+  'login.failed': 'ログインに失敗しました。もう一度お試しください。',
+  'login.throttled': 'このアドレスからの失敗が多すぎます。数分待ってから、もう一度お試しください。',
+  'login.tokenHelp': 'セットアップトークンは、初回起動時にサーバーが表示したセットアップリンクにあります（`#setup=` の後の文字列）。',
 
   'api.signin': 'ログインしてください。',
   'api.unreachable': 'サーバーに接続できません。サーバーが動作していることを確認してから、再試行してください。',
