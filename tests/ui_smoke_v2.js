@@ -32,7 +32,7 @@ const MODULES = [
 const TABS = ['calculations', 'projects', 'obligations', 'audit', 'users']; // AMOEBA is a top-level page (#/amoeba), not a workspace tab
 const DROPZONE = '#view .dropzone, #view .drop-zone';
 
-// Engineering inputs copied from the legacy browser test (tests/ui_smoke.js): the header-with-branch set the
+// Engineering inputs copied from the legacy browser test (tests/legacy/ui_smoke_v1.js): the header-with-branch set the
 // engine accepts, and the cylinder magnitude the engine refuses (BH-014, magnitude_above_limit).
 const FAMILY = 'header_with_branch';
 const VALID = {
@@ -92,9 +92,11 @@ async function main() {
     check('static shell + modules served', false, msgOf(e));
   }
 
-  /* ---- first-run setup (empty data dir) ---- */
+  /* ---- first-run setup (empty data dir). On an empty server the administrator is created through the form (step 2). ---- */
+  let firstRun = false;
+  try { firstRun = !!(await (await api.get('/api/health')).json()).setup_required; } catch { firstRun = false; }
   try {
-    if (api) {
+    if (api && !firstRun) {
       const r = await api.post('/api/setup', {
         headers: { 'X-NF-Request': '1' },
         data: { username: USER, password: PASS, setup_token: SETUP_TOKEN },
@@ -150,8 +152,60 @@ async function main() {
       check('unauthenticated load shows login', false, msgOf(e));
     }
 
-    /* ---- 3. sign in through the form ---- */
+    /* ---- 2b. BH-R8-001: an empty server shows the first-run setup form and signs the administrator in ---- */
+    if (firstRun) {
+      try {
+        const heading = await page.textContent('#login-heading');
+        const tokenField = await page.isVisible('#login-token');
+        check('first run: the form is the setup form (heading, token field)', heading.trim() === 'Setup' && tokenField, 'heading=' + heading + ' token=' + tokenField);
+        await page.fill('#login-user', USER);
+        await page.fill('#login-pass', PASS);
+        await page.fill('#login-token', SETUP_TOKEN);
+        await page.click('#login-form button[type="submit"]');
+        await page.waitForSelector(DROPZONE, { state: 'visible', timeout: 20000 });
+        loggedIn = true;
+        check('first run: creating the administrator signs in and lands on convert', true);
+      } catch (e) {
+        check('first run: creating the administrator signs in and lands on convert', false, msgOf(e));
+      }
+    }
+
+    /* ---- 2c. the setup form was open when setup was completed elsewhere: the real server answers 409, the form
+       becomes the normal sign-in and the same credentials sign in. A second context; health is answered as before setup. ---- */
     try {
+      const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      const p2 = await ctx2.newPage();
+      p2.setDefaultTimeout(15000);
+      await p2.route('**/api/health', async (route) => {
+        const res = await route.fetch();
+        const body = await res.json();
+        await route.fulfill({ response: res, json: { ...body, setup_required: true } });
+      });
+      try {
+        await p2.goto(BASE + '/', { waitUntil: 'load' });
+        await p2.waitForSelector('#login-token', { state: 'visible', timeout: 20000 });
+        await p2.fill('#login-user', USER);
+        await p2.fill('#login-pass', PASS);
+        await p2.fill('#login-token', SETUP_TOKEN);
+        await p2.click('#login-form button[type="submit"]');
+        await p2.waitForSelector('#login-token', { state: 'detached', timeout: 20000 });
+        const heading = (await p2.textContent('#login-heading')).trim();
+        check('setup completed elsewhere: the form becomes the sign-in form', heading === 'Sign in' && (await p2.$('#login-token')) === null,
+          'heading=' + heading);
+        await p2.fill('#login-user', USER);
+        await p2.fill('#login-pass', PASS);
+        await p2.click('#login-form button[type="submit"]');
+        await p2.waitForSelector(DROPZONE, { state: 'visible', timeout: 20000 });
+        check('setup completed elsewhere: the same credentials sign in', true);
+      } finally {
+        await ctx2.close();
+      }
+    } catch (e) {
+      check('setup completed elsewhere: the form becomes the sign-in form', false, msgOf(e));
+    }
+
+    /* ---- 3. sign in through the form ---- */
+    if (!firstRun) try {
       await page.fill('#login-user', USER);
       await page.fill('#login-pass', PASS);
       await page.click('#login-form button[type="submit"]');
@@ -668,6 +722,29 @@ async function main() {
       check('language toggle switches to Japanese', false, msgOf(e));
     }
 
+    /* ---- 7b. BH-R8-002/003: table headers follow the language; tables and AMOEBA fit a 390px screen (still 390 wide, now in Japanese) ---- */
+    try {
+      await page.goto(BASE + '/#/workspace/history', { waitUntil: 'load' });
+      await page.waitForSelector('#view table thead th', { state: 'attached', timeout: 15000 });
+      const heads = await page.$$eval('#view table thead th', (ths) => ths.map((th) => th.textContent.trim()));
+      const english = heads.filter((h) => /^(Job|Family|Project|Release|Gates|Created)$/.test(h));
+      check('BH-R8-002: the history table headers follow the language (Japanese)', english.length === 0, heads.join(' | '));
+      const wHist = await page.evaluate(() => document.documentElement.scrollWidth);
+      check('BH-R8-003: the history table scrolls inside itself at 390px', wHist <= 391, 'scrollWidth=' + wHist);
+      await page.goto(BASE + '/#/workspace/projects', { waitUntil: 'load' });
+      await page.waitForSelector('#view', { state: 'attached', timeout: 15000 });
+      await page.waitForTimeout(500);
+      const btns = await page.$$eval('#view button', (bs) => bs.map((b) => b.textContent.trim()));
+      check('BH-R8-004: the projects tab buttons are in Japanese', !btns.some((x) => /^(New project|Back|Create)$/.test(x)), btns.join(' | '));
+      await page.goto(BASE + '/#/amoeba', { waitUntil: 'load' });
+      await page.waitForSelector('#view', { state: 'attached', timeout: 15000 });
+      await page.waitForTimeout(600);
+      const wAm = await page.evaluate(() => document.documentElement.scrollWidth);
+      check('BH-R8-003: the AMOEBA page has no horizontal scroll at 390px', wAm <= 391, 'scrollWidth=' + wAm);
+    } catch (e) {
+      check('BH-R8-002: the history table headers follow the language (Japanese)', false, msgOf(e));
+    }
+
     /* ---- 8. safety: never offer approve/release ---- */
     try {
       const offenders = await page.evaluate(() => {
@@ -696,6 +773,27 @@ async function main() {
       .concat(badRequests.map((m) => 'request: ' + m));
     check('no console errors / page errors / failed requests', issues.length === 0,
       issues.slice(0, 8).join('; '));
+    /* ---- 10. BH-R8-006: without WebGL the home page logs no WebGL or three.js error ---- */
+    try {
+      const nb = await chromium.launch({ headless: true, args: ['--disable-webgl', '--disable-webgl2'] });
+      try {
+        const nctx = await nb.newContext({ viewport: { width: 1280, height: 900 } });
+        const lr = await nctx.request.post(BASE + '/api/login', { data: { username: USER, password: PASS }, headers: { 'X-NF-Request': '1', Origin: BASE } });
+        const np = await nctx.newPage();
+        const glErrors = [];
+        np.on('console', (m) => { if (m.type() === 'error' && /WebGL|THREE/.test(m.text())) glErrors.push(m.text()); });
+        np.on('pageerror', (e) => glErrors.push('pageerror: ' + msgOf(e)));
+        await np.goto(BASE + '/#/', { waitUntil: 'load' });
+        await np.waitForSelector(DROPZONE, { state: 'visible', timeout: 20000 });
+        await np.waitForTimeout(800);
+        check('BH-R8-006: without WebGL the home page logs no WebGL or three.js error', lr.ok() && glErrors.length === 0,
+          'login=' + lr.status() + ' ' + glErrors.slice(0, 2).join(' | '));
+      } finally {
+        await nb.close();
+      }
+    } catch (e) {
+      check('BH-R8-006: without WebGL the home page logs no WebGL or three.js error', false, msgOf(e));
+    }
   } catch (e) {
     check('browser session', false, msgOf(e));
   } finally {

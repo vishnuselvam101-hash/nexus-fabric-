@@ -282,7 +282,7 @@ async function boot() {
   applyLang(savedLang, false);
 
   /* health check (non-blocking) */
-  try { setState({ health: await api('/api/health') }); } catch { /* offline ok */ }
+  try { const health = await api('/api/health'); setState({ health, setupRequired: !!health?.setup_required }); } catch { /* offline ok */ }
 
   /* authenticate */
   let authed = false;

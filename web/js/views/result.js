@@ -97,11 +97,9 @@ function showAlert(message) {
   const box = document.createElement('div');
   box.className = 'alert bad';
   box.setAttribute('role', 'alert');
-  const head = document.createElement('b');
-  head.textContent = t('cv2.failed');
   const p = document.createElement('p');
   p.textContent = message;
-  box.append(head, p);
+  box.appendChild(p);
   const grid = root.querySelector('#checks-grid');
   if (grid) { grid.textContent = ''; grid.appendChild(box); }
   else root.appendChild(box);
@@ -148,10 +146,6 @@ function renderRefused(c) {
     msg.className = 'alert bad';
     msg.setAttribute('role', 'alert');
 
-    const head = document.createElement('b');
-    head.textContent = t('cv2.failed');
-    msg.appendChild(head);
-
     const code = c.refusal_code || c.code;
     if (code) {
       const chip = document.createElement('span');
@@ -160,10 +154,14 @@ function renderRefused(c) {
       msg.append(' ', chip);
     }
 
-    const p = document.createElement('p');
-    p.textContent = c.message || c.error || c.refusal_reason ||
-      (c.status === 'timeout' ? t('cv2.err.timeout') : t('cv2.failed'));
-    msg.appendChild(p);
+    // the badge already says "Conversion failed": the fallback text must not repeat it
+    const text = c.message || c.error || c.refusal_reason ||
+      (c.status === 'timeout' ? t('cv2.err.timeout') : '');
+    if (text) {
+      const p = document.createElement('p');
+      p.textContent = text;
+      msg.appendChild(p);
+    }
     grid.appendChild(msg);
   }
 

@@ -42,7 +42,7 @@ if curl -s -m 4 -o /dev/null https://example.com; then echo "NET reachable"; els
 echo "API $(bash tests/e2e_smoke.sh 2>&1 | tail -1)"
 D=$(mktemp -d)
 (NF_SETUP_TOKEN=ui-smoke-setup-token NF_DATA_DIR=$D NF_LISTEN=127.0.0.1:8793 "$NF_BIN" >/dev/null 2>&1 & echo $! > $D/pid); sleep 1.5
-echo "BROWSER $(NF_BASE=http://127.0.0.1:8793 node tests/ui_smoke.js 2>&1 | grep -E "^passed" | tail -1)"
+echo "BROWSER $(NF_BASE=http://127.0.0.1:8793 node tests/ui_smoke_v2.js 2>&1 | grep -E "passed, [0-9]+ failed" | tail -1)"
 kill $(cat $D/pid); rm -rf $D
 echo "DESKTOP $(node tests/desktop_smoke.js "$NF_BIN" 8867 2>&1 | grep -E "^passed" | tail -1)"
 ' 2>/dev/null)
