@@ -607,9 +607,10 @@ def seam_resolution_check(fam, name, pr, job, issues):
         issues.append(f'{name}: seam clearance {gap:.4g} mm is above any resolution ({cap:.4g} mm) but the profile gate G11 says {g11}')
 
 
-def compare_job(req, job, ndense=6001, dxf=True):
+def compare_job(req, job, ndense=6001, dxf=True, expect_withheld=False):
     """Full comparison.  Returns report dict with 'issues' (geometry disagreements) and 'findings' (other defects).
-    dxf=False skips the DXF round trip (used only by the seeded-fault tests, which plant geometry, not files)."""
+    dxf=False skips the DXF round trip (used only by the seeded-fault tests, which plant geometry, not files).
+    expect_withheld: the case declares withheld=True. A file the AMOEBA digest holds on any other case is an unexpected hold (FAIL)."""
     issues, findings, rep = [], [], {'parts': {}}
     fam = req['family']
     for name, why in job.unbuilt.items():
@@ -649,6 +650,8 @@ def compare_job(req, job, ndense=6001, dxf=True):
                 reasons.append('the 409 names no check')
             if any(c.get('verdict') != 'INCONCLUSIVE' for c in held):
                 reasons.append('the 409 names a check that is not INCONCLUSIVE')
+            if not expect_withheld:
+                reasons.insert(0, 'unexpected hold: the case does not declare withheld=True')
             withhold_ok[name] = not reasons
             rep.setdefault('withheld_checks', {})[name] = {
                 'name': 'dxf held by the AMOEBA digest only because of INCONCLUSIVE checks',
@@ -793,7 +796,7 @@ def compare_job(req, job, ndense=6001, dxf=True):
     return rep
 
 
-def compare_scaled(job, j2, k, other, dxf=True):
+def compare_scaled(job, j2, k, other, dxf=True, expect_withheld=False):
     """Scale relation: the pattern of the request scaled by k must be k times the pattern of the base request.
     (1) Entity types and counts agree.  Vertex counts may differ: the product's polyline density follows an absolute
         chord-error limit, so it changes with size.
@@ -835,7 +838,7 @@ def compare_scaled(job, j2, k, other, dxf=True):
             if dev > tau:
                 devs.append(f'scale x{k}: {name}/{e1.name} ({e1.kind}) lies {dev:.3e} mm from k times the base entity, allowed {tau:.3e} mm')
     info['scale_worst_dev_over_tau'] = worst
-    rep = compare_job(other, j2, dxf=dxf)
+    rep = compare_job(other, j2, dxf=dxf, expect_withheld=expect_withheld)
     info['scale_exact_issues'] = len(rep['issues'])
     devs += [f'scaled pattern fails the exact reference comparison: {s}' for s in rep['issues']]
     return type_issues, devs, list(rep['findings']), info

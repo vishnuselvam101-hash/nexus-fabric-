@@ -114,7 +114,7 @@ def check_relation(case, job, issues, findings, info):
         # geometric scale relation (checks/compare.py compare_scaled): entity types must agree; vertex counts may differ;
         # polylines agree with k times the base within the stated chord-error limits; the scaled pattern itself must
         # pass the exact reference comparison
-        type_issues, devs, sc_findings, sc_info = compare_scaled(job, j2, k, other)
+        type_issues, devs, sc_findings, sc_info = compare_scaled(job, j2, k, other, expect_withheld=bool(case.get('withheld')))
         info.update(sc_info)
         issues.extend(type_issues)
         if devs and rel.get('refusal_ok'):
@@ -279,7 +279,7 @@ def run_case(case):
                 out['issues'].append(f'valid request refused: {job.refusal_text()[:200]}')
             return out
         if case.get('compare', True) and finite_job(job):
-            rep = compare_job(case['request'], job, ndense=case.get('ndense', 6001))
+            rep = compare_job(case['request'], job, ndense=case.get('ndense', 6001), expect_withheld=bool(case.get('withheld')))
             out['issues'] += rep['issues']
             out['findings'] += rep['findings']
             out['info']['compare'] = {k: v for k, v in rep.items() if k not in ('issues', 'findings')}
