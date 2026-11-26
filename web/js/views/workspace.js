@@ -479,7 +479,8 @@ function showUserForm(signal) {
   fr.appendChild(el('label', null, 'Role'));
   const ri = document.createElement('select');
   ri.name = 'role';
-  for (const r of ['user', 'admin']) {
+  // the server's roles (main.rs check_new_user); viewer first, the least privileged, so it is the default
+  for (const r of ['viewer', 'engineer', 'admin']) {
     const o = document.createElement('option');
     o.value = r; o.textContent = r;
     ri.appendChild(o);
