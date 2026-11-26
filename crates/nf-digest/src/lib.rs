@@ -809,6 +809,45 @@ fn same_opening(h: &geom::Contour, d: &RefCurve, pos_tol: f64) -> bool {
     loop_gap(&a, &b).max(loop_gap(&b, &a)) <= pos_tol
 }
 
+/// One-to-one assignment of openings to declared holes: a maximum bipartite matching by augmenting paths. `cand[i]` lists
+/// the holes opening `i` may take. Returns the hole of each opening and the opening of each hole (None when unmatched).
+fn one_to_one(cand: &[Vec<usize>], holes: usize) -> (Vec<Option<usize>>, Vec<Option<usize>>) {
+    fn augment(
+        i: usize,
+        cand: &[Vec<usize>],
+        seen: &mut [bool],
+        owner: &mut [Option<usize>],
+    ) -> bool {
+        for &j in &cand[i] {
+            if seen[j] {
+                continue;
+            }
+            seen[j] = true;
+            let free = match owner[j] {
+                None => true,
+                Some(k) => augment(k, cand, seen, owner),
+            };
+            if free {
+                owner[j] = Some(i);
+                return true;
+            }
+        }
+        false
+    }
+    let mut owner = vec![None; holes];
+    for i in 0..cand.len() {
+        let mut seen = vec![false; holes];
+        augment(i, cand, &mut seen, &mut owner);
+    }
+    let mut hole_of = vec![None; cand.len()];
+    for (j, o) in owner.iter().enumerate() {
+        if let Some(i) = *o {
+            hole_of[i] = Some(j);
+        }
+    }
+    (hole_of, owner)
+}
+
 /// Each drawn opening is one declared hole, and each declared hole has exactly one drawn opening (one-to-one). An
 /// opening matches a declared hole when it has the same centre, length, area and outline (`same_opening`). A reference
 /// feature below the tolerance makes a finding INCONCLUSIVE (`fine`), not FAIL.
@@ -826,50 +865,56 @@ fn hole_position_check(drawn: &[&geom::Contour], r: &Reference, tol: f64, fine: 
         (Some(a), Some(b)) => (a[0] - b[0]).hypot(a[1] - b[1]) <= pos_tol,
         _ => false,
     };
+    // the declared holes each opening may take, then the one-to-one assignment (so concentric holes each take their own)
+    let cand: Vec<Vec<usize>> = drawn
+        .iter()
+        .map(|h| {
+            (0..r.holes.len())
+                .filter(|&j| same_opening(h, &r.holes[j], pos_tol))
+                .collect()
+        })
+        .collect();
+    let (hole_of, opening_of) = one_to_one(&cand, r.holes.len());
     let mut bad = Vec::new();
-    for (i, h) in drawn.iter().enumerate() {
-        match r
-            .holes
-            .iter()
-            .filter(|d| same_opening(h, d, pos_tol))
-            .count()
-        {
-            1 => {}
-            0 => bad.push(format!(
-                "opening {} at ({}) matches no declared hole",
-                i + 1,
-                at_text(at[i])
-            )),
-            _ => bad.push(format!(
-                "opening {} at ({}) matches more than one declared hole",
-                i + 1,
-                at_text(at[i])
-            )),
+    for (i, a) in at.iter().enumerate() {
+        if hole_of[i].is_none() {
+            bad.push(if cand[i].is_empty() {
+                format!(
+                    "opening {} at ({}) matches no declared hole",
+                    i + 1,
+                    at_text(*a)
+                )
+            } else {
+                format!(
+                    "opening {} at ({}) matches only declared holes that other openings take",
+                    i + 1,
+                    at_text(*a)
+                )
+            });
         }
     }
     for (j, b) in decl.iter().enumerate() {
-        match drawn
+        if opening_of[j].is_some() {
+            continue;
+        }
+        // an opening at this position that no declared hole takes differs in size or shape from the declared hole
+        let left_over = at
             .iter()
-            .filter(|h| same_opening(h, &r.holes[j], pos_tol))
-            .count()
-        {
-            1 => {}
-            0 if at.iter().any(|a| near(*a, *b)) => bad.push(format!(
+            .enumerate()
+            .any(|(i, a)| hole_of[i].is_none() && near(*a, *b));
+        bad.push(if left_over {
+            format!(
                 "declared hole {} at ({}) has no matching opening (the opening there differs in size or shape)",
                 j + 1,
                 at_text(*b)
-            )),
-            0 => bad.push(format!(
+            )
+        } else {
+            format!(
                 "declared hole {} at ({}) has no opening at its position",
                 j + 1,
                 at_text(*b)
-            )),
-            _ => bad.push(format!(
-                "declared hole {} at ({}) has more than one opening at its position",
-                j + 1,
-                at_text(*b)
-            )),
-        }
+            )
+        });
     }
     let verdict = if bad.is_empty() {
         Verdict::Pass

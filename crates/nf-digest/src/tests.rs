@@ -1125,3 +1125,68 @@ fn circle_and_slot_openings_at_their_declared_places_pass() {
     let c = check_named(&rep, "hole_position");
     assert_eq!(c.verdict, Verdict::Pass, "slot: {}", c.detail);
 }
+
+/// The square outline of half-size `h` centred at `c`.
+fn square_outline(c: [f64; 2], h: f64) -> Vec<[f64; 2]> {
+    vec![
+        [c[0] - h, c[1] - h],
+        [c[0] + h, c[1] - h],
+        [c[0] + h, c[1] + h],
+        [c[0] - h, c[1] + h],
+    ]
+}
+
+/// Concentric correct openings (half-sizes 5 and 2 at (50, 50)) each take their own declared hole: PASS.
+#[test]
+fn concentric_openings_each_take_their_own_hole() {
+    let rep = plate_case(
+        &[
+            square_outline([50.0, 50.0], 2.0),
+            square_outline([50.0, 50.0], 5.0),
+        ],
+        vec![
+            decl_curve(&square_outline([50.0, 50.0], 5.0)),
+            decl_curve(&square_outline([50.0, 50.0], 2.0)),
+        ],
+    );
+    let c = check_named(&rep, "hole_position");
+    assert_eq!(c.verdict, Verdict::Pass, "{}", c.detail);
+}
+
+/// A concentric opening missing from the file fails: the inner declared hole has no opening.
+#[test]
+fn missing_concentric_opening_fails_hole_position() {
+    let rep = plate_case(
+        &[square_outline([50.0, 50.0], 5.0)],
+        vec![
+            decl_curve(&square_outline([50.0, 50.0], 5.0)),
+            decl_curve(&square_outline([50.0, 50.0], 2.0)),
+        ],
+    );
+    let c = check_named(&rep, "hole_position");
+    assert_eq!(c.verdict, Verdict::Fail, "{}", c.detail);
+    assert!(
+        c.detail
+            .contains("declared hole 2 at (50.0000, 50.0000) has no opening"),
+        "{}",
+        c.detail
+    );
+}
+
+/// An extra concentric opening fails: the second opening matches no declared hole of its own.
+#[test]
+fn extra_concentric_opening_fails_hole_position() {
+    let rep = plate_case(
+        &[
+            square_outline([50.0, 50.0], 5.0),
+            square_outline([50.0, 50.0], 2.0),
+            square_outline([50.0, 50.0], 2.0),
+        ],
+        vec![
+            decl_curve(&square_outline([50.0, 50.0], 5.0)),
+            decl_curve(&square_outline([50.0, 50.0], 2.0)),
+        ],
+    );
+    let c = check_named(&rep, "hole_position");
+    assert_eq!(c.verdict, Verdict::Fail, "{}", c.detail);
+}
