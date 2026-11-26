@@ -1,4 +1,4 @@
-// Checks the message catalogue web/i18n.js without a browser. Run: node docs/design/tools/i18n_check.mjs
+// Checks the message catalogue web/js/i18n.js without a browser. Run: node docs/design/tools/i18n_check.mjs
 // 1. every key exists in English and in Japanese, and the placeholders of each key are the same in both;
 // 2. no Japanese engine or server template carries a bare identifier (an ASCII word of three or more letters
 //    outside backquotes: those are shown in monospace by the client, so they are never read as English);
@@ -9,7 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const src = fs.readFileSync(path.join(here, '..', '..', '..', 'web', 'i18n.js'), 'utf8');
+const src = fs.readFileSync(path.join(here, '..', '..', '..', 'web', 'js', 'i18n.js'), 'utf8');
 const { CATALOGUE, PROSE_TABLES } = await import('data:text/javascript;base64,' + Buffer.from(src).toString('base64'));
 
 // the English the Japanese text may keep: the product, its module, file formats, the hash name, the unit, and the DXF file-name prefix NOT-RELEASED

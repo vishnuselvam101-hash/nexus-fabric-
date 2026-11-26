@@ -255,7 +255,7 @@ function renderMeta(c) {
   const rows = [];
   const file = c.filename || c.document_name;
   if (file) rows.push([null, String(file)]);
-  if (c.page_number != null) rows.push([t('cv2.page'), String(c.page_number)]);
+  if (c.page != null) rows.push([t('cv2.page'), String(c.page)]);
   if (c.converter_version) rows.push([null, String(c.converter_version)]);
 
   for (const [label, value] of rows) {

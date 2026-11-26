@@ -274,7 +274,11 @@ async function ensureProject() {
 }
 
 async function boot() {
-  setAuthHandler(() => navigate('#/login'));
+  setAuthHandler(() => {
+    // only a session that was signed in has ended; a first visit that is not signed in gets no message
+    if (getState().user) setState({ user: null, sessionEnded: true });
+    navigate('#/login');
+  });
 
   /* restore saved preferences */
   applyTheme(localStorage.getItem('nf.theme') || '');

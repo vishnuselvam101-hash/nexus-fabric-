@@ -65,7 +65,7 @@ async function main() {
   let loggedIn = false;
   let page = null;
   let browser = null;
-  let projectId = null, pdfName = '', jobId = null;
+  let projectId = null, pdfName = '', jobId = null, convId = null;
 
   const shot = async (name) => {
     if (!SHOT_DIR || !page) return;
@@ -158,6 +158,8 @@ async function main() {
         const heading = await page.textContent('#login-heading');
         const tokenField = await page.isVisible('#login-token');
         check('first run: the form is the setup form (heading, token field)', heading.trim() === 'Setup' && tokenField, 'heading=' + heading + ' token=' + tokenField);
+        const tokenHelp = await page.textContent('#login-token-help').catch(() => '');
+        check('P9 setup form says where the setup token is', (tokenHelp || '').includes('#setup='), (tokenHelp || '').slice(0, 100));
         await page.fill('#login-user', USER);
         await page.fill('#login-pass', PASS);
         await page.fill('#login-token', SETUP_TOKEN);
@@ -773,6 +775,158 @@ async function main() {
       .concat(badRequests.map((m) => 'request: ' + m));
     check('no console errors / page errors / failed requests', issues.length === 0,
       issues.slice(0, 8).join('; '));
+    /* ---- 9b. UXF-1: export rule, Calculations rows, Open items, roles, result page, REFUSED, session end ---- */
+    const jfetch = (method, url, data = null) => page.evaluate(async ([m, u, d]) => {
+      const init = { method: m, headers: { 'X-NF-Request': '1' } };
+      if (d !== null) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(d); }
+      const r = await fetch(u, init);
+      let json = null;
+      try { json = await r.json(); } catch { json = null; }
+      return { status: r.status, json };
+    }, [method, url, data]);
+
+    // P1 (server): a DXF is served exactly for the jobs the export rule releases (job detail export.available)
+    try {
+      const list = (await jfetch('GET', '/api/calculations')).json || [];
+      const problems = [];
+      let released = 0, held = 0;
+      for (const row of list) {
+        const job = (await jfetch('GET', '/api/calculations/' + row.id)).json;
+        if (!job || !Array.isArray(job.patterns) || job.patterns.length === 0) continue;
+        const dxf = await jfetch('GET', '/api/calculations/' + row.id + '/dxf/' + encodeURIComponent(job.patterns[0].part));
+        const open = job.export.available === true;
+        if (open) released += 1; else held += 1;
+        if (open ? dxf.status !== 200 : dxf.status !== 409 && dxf.status !== 404) problems.push('#' + row.id + ' ' + job.state + ' DXF ' + dxf.status);
+      }
+      check('P1 server: DXF is served only for jobs the export rule releases', problems.length === 0 && released + held > 0,
+        'released=' + released + ' held=' + held + ' ' + problems.join('; '));
+    } catch (e) { check('P1 server: DXF is served only for jobs the export rule releases', false, msgOf(e)); }
+
+    // P1 (Job page): the export button is enabled exactly when the job is not held; a held job shows a disabled button and the reason
+    try {
+      if (!jobId) throw new Error('no job from check A');
+      await page.goto(BASE + '/#/job/' + jobId, { waitUntil: 'load' });
+      await page.waitForSelector('.export-box', { state: 'attached', timeout: 20000 });
+      const job = (await jfetch('GET', '/api/calculations/' + jobId)).json;
+      const enabled = await page.locator('.export-box a[href*="/dxf/"]').count();
+      const disabled = await page.locator('.export-box button[disabled]').count();
+      const why = disabled ? (await page.locator('.export-box .lock-why').first().innerText().catch(() => '')).trim() : '';
+      const held = job.export.available !== true;
+      const ok = held ? (disabled === 1 && enabled === 0 && why.length > 0) : (enabled === 1 && disabled === 0);
+      check('P1 Job page: export enabled exactly when the export rule releases the job; held shows disabled button and reason', ok,
+        'state=' + job.state + ' enabled=' + enabled + ' disabled=' + disabled + ' why=' + why.slice(0, 100));
+    } catch (e) { check('P1 Job page: export enabled exactly when the export rule releases the job; held shows disabled button and reason', false, msgOf(e)); }
+
+    // P1 held path, for real: a new job has no replay audit, so G19 is NOT_RUN and the server holds its DXF (409 naming
+    // the gate). The Job page shows the same gate and one fix, and the download button is disabled.
+    try {
+      const body = { family: FAMILY, delta: 0, surface_reference: 'outside' };
+      for (const [k, v] of Object.entries(VALID)) body[k] = Number(v);
+      const made = await jfetch('POST', '/api/projects/' + projectId + '/calculations', body);
+      if (made.status !== 200 || !made.json || !made.json.id) throw new Error('job not created: ' + made.status);
+      const hid = made.json.id;
+      const job = (await jfetch('GET', '/api/calculations/' + hid)).json;
+      const hold = job && job.export && job.export.held_by;
+      const part = encodeURIComponent(job.patterns[0].part);
+      const dxf = await jfetch('GET', '/api/calculations/' + hid + '/dxf/' + part);
+      const serverOk = !!hold && dxf.status === 409 && dxf.json && dxf.json.gate === hold.gate && /held by AMOEBA/.test(dxf.json.error || '') && typeof dxf.json.fix === 'string';
+      check('P1 server held path: 409 names the held gate and its fix', serverOk,
+        'held_by=' + JSON.stringify(hold || null) + ' dxf=' + dxf.status + ' ' + JSON.stringify(dxf.json || null).slice(0, 160));
+      await page.goto(BASE + '/#/job/' + hid, { waitUntil: 'load' });
+      await page.waitForSelector('.export-box', { state: 'attached', timeout: 20000 });
+      const disabled = await page.locator('.export-box button[disabled]').count();
+      const enabled = await page.locator('.export-box a[href*="/dxf/"]').count();
+      const why = (await page.locator('.export-box .lock-why').first().innerText().catch(() => '')).trim();
+      const uiOk = !!hold && disabled === 1 && enabled === 0 && why.includes(hold.gate) && why.length > hold.gate.length + 10;
+      check('P1 Job page held path: disabled button and the held gate with its fix', uiOk,
+        'disabled=' + disabled + ' enabled=' + enabled + ' why=' + why.slice(0, 160));
+    } catch (e) { check('P1 held path: the checks ran to the end', false, msgOf(e)); }
+
+    // P2: every Calculations row has its state and project, and the job from check A shows its gate count
+    try {
+      await page.goto(BASE + '/#/workspace/calculations', { waitUntil: 'load' });
+      await page.waitForSelector('.ws-content table tbody tr', { timeout: 20000 });
+      const rows = await page.$$eval('.ws-content table tbody tr', (trs) => trs.map((tr) => [...tr.cells].map((td) => td.innerText.trim())));
+      const empty = rows.filter((cells) => !cells[2] || !cells[3]);
+      const mine = rows.find((cells) => cells[0] === '#' + jobId);
+      check('P2 Calculations table: state, project and gates filled', rows.length > 0 && empty.length === 0 && !!mine && /^\d+\/\d+$/.test(mine[4] || ''),
+        'rows=' + rows.length + ' empty=' + empty.length + ' mine=' + JSON.stringify(mine || null));
+    } catch (e) { check('P2 Calculations table: state, project and gates filled', false, msgOf(e)); }
+
+    // P3: Resolve needs a decision and a reason (server); the list routes to the job's Open items, not a bare POST
+    try {
+      const obs = (await jfetch('GET', '/api/obligations')).json || [];
+      const open = obs.find((o) => o.state === 'open');
+      const noReason = await jfetch('POST', '/api/obligations/' + (open ? open.id : 1) + '/resolve', { decision: 'confirmed', reason: '' });
+      check('P3 server: Resolve without a reason is refused', noReason.status === 400, 'status=' + noReason.status);
+      if (open) {
+        const done = await jfetch('POST', '/api/obligations/' + open.id + '/resolve', { decision: 'waived', reason: 'ui smoke: reviewed' });
+        check('P3 server: Resolve with a decision and a reason succeeds', done.status === 200, 'status=' + done.status);
+      }
+      await page.goto(BASE + '/#/workspace/obligations', { waitUntil: 'load' });
+      await page.waitForSelector('.ws-content table tbody tr, .ws-content p', { timeout: 20000 });
+      const links = await page.locator('.ws-content a[href^="#/job/"]').count();
+      const posts = await page.locator('.ws-content button', { hasText: /resolve|解消/i }).count();
+      check(open ? 'P3 Obligations list: no bare Resolve button; open items link to the job' : 'P3 Obligations list: no bare Resolve button (no open item in the seed)',
+        posts === 0 && (!open || links > 0), 'links=' + links + ' buttons=' + posts);
+    } catch (e) { check('P3 Obligations: Resolve flow', false, msgOf(e)); }
+
+    // P4: one user-management screen. The workspace Users tab has no add form and links to Administration > Users,
+    // whose add-user role list is the server's roles, viewer selected by default
+    try {
+      await page.goto(BASE + '/#/workspace/users', { waitUntil: 'load' });
+      await page.waitForSelector('.ws-content a[href="#/admin/users"]', { timeout: 20000 });
+      const formsInWs = await page.locator('.ws-content select[name="role"]').count();
+      await page.goto(BASE + '/#/admin/users', { waitUntil: 'load' });
+      await page.waitForSelector('#adpanel select[name="role"]', { timeout: 20000 });
+      const roles = await page.$$eval('#adpanel select[name="role"] option', (os) => os.map((o) => o.value));
+      const selected = await page.$eval('#adpanel select[name="role"]', (x) => x.value);
+      check('P4 Users: workspace has no add form and links to Administration; the role list is the server roles, viewer selected', formsInWs === 0 && JSON.stringify(roles) === JSON.stringify(['viewer', 'engineer', 'admin']) && selected === 'viewer',
+        'workspace forms=' + formsInWs + ' roles=' + roles.join(',') + ' selected=' + selected);
+    } catch (e) { check('P4 Users: workspace has no add form and links to Administration; the role list is the server roles, viewer selected', false, msgOf(e)); }
+
+    // P5: the result page shows the file name and the page the server sent
+    try {
+      // the recent list is drawn on the convert screen: open it and take the newest conversion
+      await page.evaluate(() => { location.hash = '#/'; });
+      await page.waitForSelector('a[href^="#/r/"]', { timeout: 15000 });
+      convId = Number((await page.getAttribute('a[href^="#/r/"]', 'href')).split('/').pop());
+      await page.goto(BASE + '/#/r/' + convId, { waitUntil: 'load' });
+      await page.waitForSelector('.result-meta', { timeout: 20000 });
+      const meta = (await page.locator('.result-meta').innerText()).replace(/\s+/g, ' ');
+      const fileName = path.basename(FIXTURE);
+      check('P5 Result page shows the file name and the page', meta.includes(fileName) && (meta.includes('Page number') || meta.includes('ページ番号')), meta.slice(0, 160));
+    } catch (e) { check('P5 Result page shows the file name and the page', false, msgOf(e)); }
+
+    // P6 (and P7 server shape): a refused calculation opens as REFUSED, not NO RESULT
+    try {
+      const r = await jfetch('POST', '/api/projects/' + projectId + '/calculations', REFUSED);
+      const id = r.json && r.json.id;
+      await page.goto(BASE + '/#/job/' + id, { waitUntil: 'load' });
+      await page.waitForSelector('#view h1 .tag', { timeout: 20000 });
+      const tag = (await page.locator('#view h1 .tag').first().innerText()).trim();
+      // the label follows the language the screen is in (the smoke test may have switched to Japanese)
+      check('P6 a refused job is labelled REFUSED, not NO RESULT', r.json && r.json.state === 'REFUSED' && (tag === 'REFUSED' || tag === '入力拒否'),
+        'state=' + (r.json && r.json.state) + ' tag=' + tag);
+    } catch (e) { check('P6 a refused job is labelled REFUSED, not NO RESULT', false, msgOf(e)); }
+
+    // P8 and P9 (login): an ended session says so on the login screen; a wrong password shows the catalogue text
+    try {
+      await page.context().clearCookies();
+      await page.evaluate(() => { location.hash = '#/workspace/calculations'; });
+      await page.waitForSelector('#login-form', { state: 'visible', timeout: 20000 });
+      const notice = (await page.locator('#login-form .alert').first().innerText({ timeout: 10000 })).trim();
+      check('P8 session expiry: the login screen says the session has ended',
+        notice === 'Your session has ended. Sign in again.' || notice === 'セッションが終了しました。もう一度ログインしてください。', notice.slice(0, 120));
+      await page.fill('#login-user', USER);
+      await page.fill('#login-pass', 'wrong-password-1');
+      await page.click('#login-form button[type="submit"]');
+      await page.waitForTimeout(1500);
+      const err = (await page.locator('#login-form .alert').first().innerText({ timeout: 10000 })).trim();
+      // the catalogue text in whichever language the screen is in (the smoke test may have switched to Japanese)
+      check('P9 login: a wrong password shows the catalogue message', err === 'Incorrect username or password.' || err === 'ユーザー名またはパスワードが正しくありません。', err.slice(0, 120));
+    } catch (e) { check('P8 session expiry: the login screen says the session has ended', false, msgOf(e)); }
+
     /* ---- 10. BH-R8-006: without WebGL the home page logs no WebGL or three.js error ---- */
     try {
       const nb = await chromium.launch({ headless: true, args: ['--disable-webgl', '--disable-webgl2'] });

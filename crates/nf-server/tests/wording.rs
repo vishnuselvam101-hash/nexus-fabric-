@@ -61,10 +61,6 @@ const ALLOWED: &[(&str, &str)] = &[
         "Japanese label of the same unreachable state",
     ),
     (
-        "state === 'APPROVED' && allPass()",
-        "code comparison with the unreachable state (gate G16 not implemented): the export stays locked",
-    ),
-    (
         "{ok} approved'",
         "dashboard count of jobs in the unreachable state; always zero",
     ),

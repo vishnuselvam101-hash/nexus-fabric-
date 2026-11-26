@@ -521,7 +521,7 @@ async fn be003_refused_requests_are_refused_end_to_end() {
 
 #[tokio::test]
 async fn be004_a_refused_correction_changes_nothing() {
-    let t = boot();
+    let mut t = boot();
     let a = t.job(good_assembly()).await;
     let snapshot = |t: &T| {
         (
@@ -556,6 +556,7 @@ async fn be004_a_refused_correction_changes_nothing() {
     let d = t.get(&format!("/api/calculations/{a}")).await;
     assert_eq!(d["state"], "REVIEW_REQUIRED");
     assert!(d["superseded_by"].is_null());
+    replay_matches(&mut t, a).await;
     assert_eq!(
         t.dxf_status(a, "header").await,
         StatusCode::OK,
@@ -678,13 +679,14 @@ async fn be005_a_failure_in_the_middle_of_a_write_leaves_nothing_behind() {
 
 #[tokio::test]
 async fn be006_blobs_are_atomic_verified_and_repaired() {
-    let t = boot();
+    let mut t = boot();
     let id = t.job(cone()).await;
     let d = t.get(&format!("/api/calculations/{id}")).await;
     let sha = d["patterns"][0]["dxf_sha256"].as_str().unwrap().to_string();
     let path = storage::blob_path(&t.dir, &sha);
+    let blobs_dir = t.dir.join("blobs");
     let blobs = || {
-        std::fs::read_dir(t.dir.join("blobs"))
+        std::fs::read_dir(&blobs_dir)
             .unwrap()
             .flatten()
             .map(|e| e.file_name().to_string_lossy().into_owned())
@@ -704,8 +706,10 @@ async fn be006_blobs_are_atomic_verified_and_repaired() {
     // the identical job is run again: the blob is rewritten, not trusted because it "exists"
     let again = t.job(cone()).await;
     assert!(storage::load_blob(&t.dir, &t.app.key, &sha).is_ok());
+    replay_matches(&mut t, again).await;
     assert_eq!(t.dxf_status(again, "reducer").await, StatusCode::OK);
     // damaged again, and this time only read: restored by recomputation with the identical hash
+    replay_matches(&mut t, id).await;
     std::fs::write(
         &path,
         b"garbage that is long enough to look like a sealed blob",
@@ -719,7 +723,7 @@ async fn be006_blobs_are_atomic_verified_and_repaired() {
             &[],
         )
         .await;
-    assert_eq!(st, StatusCode::OK);
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&bytes));
     assert_eq!(nf_core::sha256_hex(&bytes), sha);
     assert!(String::from_utf8_lossy(&bytes).contains(nf_dxf_mark()));
     assert_eq!(
@@ -766,9 +770,11 @@ fn nf_dxf_mark() -> &'static str {
 /// leaves its cut geometry undecided, so its part is listed in `dxf_withheld` and answers 409.
 #[tokio::test]
 async fn dxf_is_withheld_only_while_a_check_on_the_cut_geometry_is_undecided() {
-    let t = boot();
+    let mut t = boot();
     // every check decided: nothing is withheld and the file is served
     let id = t.job(good_assembly()).await;
+    // G19 is NOT_RUN until the replay audit has run; a DXF is held by the export rule until then
+    replay_matches(&mut t, id).await;
     let d = t.get(&format!("/api/calculations/{id}")).await;
     assert!(
         d["dxf_withheld"].as_object().unwrap().is_empty(),
@@ -954,7 +960,12 @@ async fn be008_replay_infrastructure_failure_is_not_an_integrity_failure() {
             (Some("REVIEW_REQUIRED"), Some("NOT_RUN")),
             "{what}"
         );
-        assert_eq!(t.dxf_status(id, "reducer").await, StatusCode::OK, "{what}");
+        assert_eq!(
+            t.dxf_status(id, "reducer").await,
+            StatusCode::CONFLICT,
+            "{what}"
+        );
+        assert_eq!(d["export"]["held_by"]["gate"], "G19", "{what}");
     }
     assert_eq!(
         t.count("SELECT COUNT(*) FROM audit WHERE action = 'replay_unavailable'"),
@@ -1007,6 +1018,8 @@ async fn be008_replay_infrastructure_failure_is_not_an_integrity_failure() {
         (d["state"].as_str(), gate_of(&d, "G19")["result"].as_str()),
         (Some("REVIEW_REQUIRED"), Some("INCONCLUSIVE"))
     );
+    assert_eq!(d["export"]["available"], true);
+    assert_eq!(t.dxf_status(other, "shell").await, StatusCode::OK);
     // a report written by an earlier build for a process failure no longer condemns the job
     t.sql(&format!("UPDATE calculations SET replay_json = '{{\"matches\":false,\"process_error\":\"No such file or directory (os error 2)\"}}', state = 'REJECTED' WHERE id = {other}"));
     let d = t.get(&format!("/api/calculations/{other}")).await;
@@ -1364,8 +1377,9 @@ async fn be011_upgrade_migration_flags_old_results_without_rewriting_them() {
 
 #[tokio::test]
 async fn dxf_download_is_marked_not_released_and_only_for_reviewable_current_jobs() {
-    let t = boot();
+    let mut t = boot();
     let id = t.job(good_assembly()).await;
+    replay_matches(&mut t, id).await;
     let (st, headers, bytes) = t
         .send(
             "GET",
@@ -2582,7 +2596,7 @@ async fn list_sees_a_same_length_alteration_made_by_another_process() {
 /// G21 covers every earlier engine, also 0.2.0 (branch drawn from the inside: validation defect D1).
 #[tokio::test]
 async fn d1_results_of_engine_0_2_0_are_flagged_for_recomputation() {
-    let t = boot();
+    let mut t = boot();
     let id = t.job(good_assembly()).await;
     assert!(nf_core::ENGINE_VERSION.starts_with("nf-engine 0.4.12+src."));
     // engine 0.4.4 (work plan task 1.2) changes reported bounds and verdicts: a result of 0.4.3 is marked for recomputation
@@ -2610,6 +2624,7 @@ async fn d1_results_of_engine_0_2_0_are_flagged_for_recomputation() {
     assert_eq!(t.dxf_status(id, "branch").await, StatusCode::CONFLICT);
     // a current result states its marking side in the result, the gate table and the DXF
     let now = t.job(assembly("outside", 150.0, 150.0, 100.0, 100.0)).await;
+    replay_matches(&mut t, now).await;
     let d = t.get(&format!("/api/calculations/{now}")).await;
     assert!(
         d["patterns"]
@@ -2633,7 +2648,7 @@ async fn d1_results_of_engine_0_2_0_are_flagged_for_recomputation() {
             &[],
         )
         .await;
-    assert!(String::from_utf8(bytes).unwrap().contains("MARKING SIDE: PATTERN DRAWN AS SEEN FROM THE OUTSIDE OF THE FORMED PART - PROVISIONAL CONVENTION, NOT REVIEWED"));
+    assert!(String::from_utf8(bytes.clone()).unwrap().contains("MARKING SIDE: PATTERN DRAWN AS SEEN FROM THE OUTSIDE OF THE FORMED PART - PROVISIONAL CONVENTION, NOT REVIEWED"), "{}", String::from_utf8_lossy(&bytes));
     // a stored result that lost the marking-side gate is incomplete: REJECTED
     t.sql(&format!("UPDATE calculations SET result_json = json_remove(result_json, '$.gates[1]') WHERE id = {now} AND json_extract(result_json, '$.gates[1].id') = 'G02'"));
     assert_eq!(
@@ -3235,7 +3250,7 @@ async fn length_rules_count_characters_not_bytes_or_utf16_units() {
 /// has no DXF; a result of the running engine is current and its DXF is offered.
 #[tokio::test]
 async fn bh004_engine_0_4_0_results_are_recomputed_and_0_4_1_results_are_current() {
-    let t = boot();
+    let mut t = boot();
     let id = t.job(good_assembly()).await;
     t.sql(&format!(
         "UPDATE calculations SET result_json = json_set(result_json, '$.engine', 'nf-engine 0.4.0+src.be53b63158593bf7') WHERE id = {id}"
@@ -3254,6 +3269,7 @@ async fn bh004_engine_0_4_0_results_are_recomputed_and_0_4_1_results_are_current
     let d = t.get(&format!("/api/calculations/{now}")).await;
     assert_eq!(d["engine"], nf_core::ENGINE_VERSION);
     assert_ne!(d["state"], "REJECTED", "a 0.4.2 result is current");
+    replay_matches(&mut t, now).await;
     assert_eq!(t.dxf_status(now, "branch").await, StatusCode::OK);
 }
 
@@ -3335,6 +3351,8 @@ async fn rc01_stored_patterns_and_dxf_references_are_checked_against_the_records
 
     // untouched jobs pass the check and serve exactly the file of their own DXF record
     let clean = t.job(cone()).await;
+    replay_matches(&mut t, clean).await;
+    replay_matches(&mut t, other).await;
     for (id, part) in [(clean, "reducer"), (other, other_part.as_str())] {
         let d = t.get(&format!("/api/calculations/{id}")).await;
         assert_eq!(d["integrity"], json!([]), "job #{id}: {d}");
@@ -3483,8 +3501,17 @@ async fn rc01_stored_patterns_and_dxf_references_are_checked_against_the_records
         .as_str()
         .unwrap()
         .to_string();
+    // the replay of the other valid job (made above, for its own DXF) names that job's record
+    let other_root = stored_result(&t.app.db(), other).unwrap().unwrap()["records"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     assert_eq!(
-        t.count(&format!("SELECT COUNT(*) FROM records WHERE kind = 'replay_audit' AND json_extract(json, '$.relations[0].to') = '{root}'")),
+        t.count(&format!("SELECT COUNT(*) FROM records WHERE kind = 'replay_audit' AND json_extract(json, '$.relations[0].to') IN ('{root}', '{other_root}')")),
         t.count("SELECT COUNT(*) FROM records WHERE kind = 'replay_audit'")
     );
     assert!(t.count("SELECT COUNT(*) FROM records WHERE kind = 'replay_audit'") >= 1);
@@ -4905,7 +4932,7 @@ fn stage<'a>(v: &'a Value, name: &str) -> &'a Value {
 /// files are served. The files are written by the engine's own writer: the round trip digests PASS.
 #[tokio::test]
 async fn amoeba_passing_files_get_a_snapshot_pass_gate_g23_and_are_served() {
-    let t = boot();
+    let mut t = boot();
     let bodies = [
         good_assembly(),
         cone(),
@@ -4913,6 +4940,8 @@ async fn amoeba_passing_files_get_a_snapshot_pass_gate_g23_and_are_served() {
     ];
     for body in bodies {
         let id = t.job(body).await;
+        // G19 is NOT_RUN until the replay audit has run; a DXF is held by the export rule until then
+        replay_matches(&mut t, id).await;
         let d = t.get(&format!("/api/calculations/{id}")).await;
         assert_eq!(gate_of(&d, "G23")["result"], "PASS", "{d}");
         let parts = part_names(&d);
@@ -4968,6 +4997,12 @@ async fn amoeba_an_inconclusive_snapshot_holds_the_file() {
     t.sql(&format!("UPDATE amoeba_digests SET verdict = 'INCONCLUSIVE', checks_json = '[{{\"name\":\"area\",\"verdict\":\"INCONCLUSIVE\",\"detail\":\"planted\"}}]' WHERE calc_id = {id}"));
     let d = t.get(&format!("/api/calculations/{id}")).await;
     assert_eq!(gate_of(&d, "G23")["result"], "INCONCLUSIVE", "{d}");
+    // the job detail names the AMOEBA hold of the file: its code and its checks
+    assert_eq!(
+        d["export"]["amoeba_holds"][0]["code"], "amoeba_digest_inconclusive",
+        "{d}"
+    );
+    assert_eq!(d["export"]["available"], false, "{d}");
     let (st, v) = t
         .call("GET", &format!("/api/calculations/{id}/dxf/{part}"), None)
         .await;
@@ -5113,4 +5148,113 @@ async fn zz_diag_corpus_cases() {
             }
         }
     }
+}
+
+/// Runs the replay audit of job `id` in a child that reproduces its release closure: G19 becomes INCONCLUSIVE, the
+/// allow-listed result of a matching replay. A DXF is held (NOT_RUN) until this has run.
+async fn replay_matches(t: &mut T, id: i64) {
+    let stored = stored_result(&t.app.db(), id).unwrap().unwrap();
+    let ids: Vec<&str> = stored["records"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["id"].as_str().unwrap())
+        .collect();
+    t.with_replay_exe(&format!("cat >/dev/null; echo '{}'", json!({ "engine": nf_core::ENGINE_VERSION, "closure_hash": stored["closure_hash"], "ids": ids })));
+    let (st, v) = t
+        .call("POST", &format!("/api/calculations/{id}/replay"), None)
+        .await;
+    assert_eq!(
+        (st, v["matches"].as_bool()),
+        (StatusCode::OK, Some(true)),
+        "{v}"
+    );
+}
+
+/// The export rule (`export_hold`) on constructed gate tables. Holds: FAIL (critical or not), NOT_RUN, and
+/// INCONCLUSIVE or NOT_IMPLEMENTED on a gate outside the allow-list. Passes: PASS, NOT_APPLICABLE, allow-listed gates.
+#[test]
+fn export_rule_holds_fail_not_run_and_unlisted_inconclusive_gates() {
+    use GateResult as R;
+    let eval = |gates: Vec<(&str, bool, R)>, open: i64| Eval {
+        gates: gates
+            .into_iter()
+            .map(|(id, critical, result)| Gate {
+                id: id.into(),
+                name: "n".into(),
+                critical,
+                result,
+                detail: "d".into(),
+            })
+            .collect(),
+        state: REVIEW_REQUIRED,
+        integrity: vec![],
+        engine_current: true,
+        open_obligations: open,
+    };
+    let held = |gates: Vec<(&str, bool, R)>, open: i64| {
+        export_hold(&eval(gates, open)).map(|g| g.id.clone())
+    };
+    // PASS and NOT_APPLICABLE never hold
+    assert_eq!(
+        held(
+            vec![("G05", true, R::Pass), ("G06", false, R::NotApplicable)],
+            0
+        ),
+        None
+    );
+    // the exploit of SECURITY-UXF1-1 F1: a non-critical FAIL must hold
+    assert_eq!(
+        held(vec![("G05", true, R::Pass), ("G06", false, R::Fail)], 0),
+        Some("G06".into())
+    );
+    // a FAIL of an allow-listed gate still holds
+    assert_eq!(held(vec![("G16", false, R::Fail)], 0), Some("G16".into()));
+    // NOT_RUN holds
+    assert_eq!(held(vec![("G19", true, R::NotRun)], 0), Some("G19".into()));
+    // INCONCLUSIVE or NOT_IMPLEMENTED on a gate outside the allow-list holds
+    assert_eq!(
+        held(vec![("G05", true, R::Inconclusive)], 0),
+        Some("G05".into())
+    );
+    assert_eq!(
+        held(vec![("G05", true, R::NotImplemented)], 0),
+        Some("G05".into())
+    );
+    // allow-listed gates do not hold
+    assert_eq!(
+        held(
+            vec![
+                ("G16", true, R::NotImplemented),
+                ("G02", true, R::Inconclusive),
+                ("G19", true, R::Inconclusive)
+            ],
+            0
+        ),
+        None
+    );
+    // G18 holds while an obligation is open, and passes otherwise
+    assert_eq!(
+        held(vec![("G18", true, R::Inconclusive)], 1),
+        Some("G18".into())
+    );
+    assert_eq!(held(vec![("G18", true, R::Inconclusive)], 0), None);
+    // the first holding gate is the one named, with its result and one fix
+    let e = eval(
+        vec![("G02", true, R::Inconclusive), ("G05", true, R::Fail)],
+        0,
+    );
+    let g = export_hold(&e).unwrap();
+    let h = hold_json(g);
+    assert_eq!(
+        (h["gate"].as_str(), h["result"].as_str()),
+        (Some("G05"), Some("FAIL"))
+    );
+    assert!(
+        h["error"]
+            .as_str()
+            .unwrap()
+            .starts_with("held by AMOEBA: gate G05 (n) is FAIL: d Fix: "),
+        "{h}"
+    );
 }

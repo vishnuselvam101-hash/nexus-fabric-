@@ -55,7 +55,7 @@ function usersHtml() {
   const form = `<form id="nu" class="calc-form" novalidate>
     ${fld('nuu', t('th.username'), '<input id="nuu" name="username" autocomplete="off" autocapitalize="none" spellcheck="false">')}
     ${fld('nup', t('adm.add.pass'), '<input id="nup" name="password" type="password" autocomplete="new-password">')}
-    ${fld('nur', t('th.role'), `<select id="nur" name="role">${['engineer', 'viewer', 'admin'].map((r) => `<option value="${r}">${esc(roleText(r))}</option>`).join('')}</select>`)}
+    ${fld('nur', t('th.role'), `<select id="nur" name="role">${['viewer', 'engineer', 'admin'].map((r) => `<option value="${r}">${esc(roleText(r))}</option>`).join('')}</select>`)}
     <div id="umsg"></div><button class="btn pri" type="submit">${esc(t('adm.add.go'))}</button></form>`;
   return panel(esc(t('adm.t.users')), table('adm-users', ['#', esc(t('th.username')), esc(t('th.role')), esc(t('th.status')), esc(t('th.created')), `<span class="sub">${esc(t('th.actions'))}</span>`], rows),
     { count: d.users.length, foot: esc(t('adm.users.foot')) })

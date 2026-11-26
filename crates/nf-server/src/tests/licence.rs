@@ -204,9 +204,11 @@ async fn licence14_expired_in_grace_still_calculates() {
 async fn licence15_past_grace_refuses_new_work_and_keeps_everything_readable() {
     let t0 = now();
     let p = payload(2, t0 - DAY, t0 + 30 * DAY);
-    let t = boot_lic(true, Some(&signed(&p)));
+    let mut t = boot_lic(true, Some(&signed(&p)));
     // existing work, made while the licence is valid
     let id = t.job(cone()).await;
+    // G19 is NOT_RUN until the replay audit has run; a DXF is held by the export rule until then
+    replay_matches(&mut t, id).await;
     let a = t.job(good_assembly()).await;
     let (_, cv) = t
         .call(

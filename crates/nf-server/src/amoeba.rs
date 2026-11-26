@@ -238,7 +238,14 @@ pub fn hold_for(rows: &[Row], part: &str) -> Result<(), (String, Value)> {
 }
 
 /// The stage view of a job: surround, engulf, digest per check, confirm or hold, export. Plain JSON, for polling.
-pub fn stages(id: i64, state: &str, gates: &[nf_core::Gate], rows: &[Row]) -> Value {
+/// `holds` are the export holds of the export rule and of the owner rule (dxf_withheld); any hold withholds the export.
+pub fn stages(
+    id: i64,
+    state: &str,
+    gates: &[nf_core::Gate],
+    rows: &[Row],
+    holds: &[String],
+) -> Value {
     let digest_status = if rows.is_empty() {
         "PENDING".to_string()
     } else if rows.iter().any(|r| r.verdict == "FAIL") {
@@ -279,6 +286,7 @@ pub fn stages(id: i64, state: &str, gates: &[nf_core::Gate], rows: &[Row]) -> Va
     if state != "REVIEW_REQUIRED" {
         export_reasons.push(format!("state {state}"));
     }
+    export_reasons.extend(holds.iter().map(|h| format!("held: {h}")));
     let export = if export_reasons.is_empty() {
         "AVAILABLE"
     } else {

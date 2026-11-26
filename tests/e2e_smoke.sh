@@ -84,6 +84,9 @@ BAD='{"family":"header_with_branch","header_radius":150,"header_dev_radius":160,
 check "outside radius smaller than development radius: refused (422), no DXF" '[ "$(curl -s -o "$DATA/bad.json" -w "%{http_code}" -H "X-NF-Request: 1" -b $JAR -H "Content-Type: application/json" -d "$BAD" $BASE/api/projects/1/calculations)" = 422 ] && [ "$(j "d[\"field\"]" < "$DATA/bad.json")" = header_dev_radius ] && [ "$(code -b $JAR $BASE/api/calculations/$(j "d[\"id\"]" < "$DATA/bad.json")/dxf/header)" = 404 ]'
 check "unknown request field refused by name (400)" '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR -H "Content-Type: application/json" -d "{\"family\":\"cylinder_shell\",\"r_dev\":100,\"length\":250,\"thickness\":12}" $BASE/api/projects/1/calculations | j "\"thickness\" in d[\"error\"]")" = True ]'
 check "unsupported input: DXF endpoint 404"       '[ "$(code -b $JAR $BASE/api/calculations/$C5/dxf/reducer)" = 404 ]'
+# the export rule holds a DXF while G19 is NOT_RUN: the replay audit of the cone runs first (G19 then INCONCLUSIVE, allow-listed)
+RP1=$(curl -s -H "X-NF-Request: 1" -b $JAR -X POST $BASE/api/calculations/$C1/replay)
+check "replay audit of the cone matches before its DXF is read" '[ "$(echo "$RP1" | j "d[\"matches\"]")" = True ]'
 curl -s -H "X-NF-Request: 1" -b "$JAR" -D "$DATA/h" -o "$DATA/out.dxf" "$BASE/api/calculations/$C1/dxf/reducer"
 check "DXF downloads and ends with EOF"           '[ "$(tail -1 $DATA/out.dxf)" = EOF ]'
 check "DXF file name marked NOT-RELEASED"         'grep -qi "filename=\"NOT-RELEASED_REVIEW_REQUIRED" "$DATA/h"'
@@ -123,6 +126,9 @@ check "assembly: interface checks pass (three fold-back, two independent joint p
 check "assembly: dependency edges exposed"          '[ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/calculations/$A1/dependencies | j "len(d[\"edges\"])>=20")" = True ]'
 check "correction without a reason refused"         '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"parameter\":\"header_radius\",\"new_value\":158}" $BASE/api/calculations/$A1/corrections)" = 400 ]'
 # BE-004: a correction the engine refuses changes nothing (it used to supersede the valid job and record a lesson)
+# the export rule holds the header DXF while G19 is NOT_RUN: the replay audit of the assembly runs first
+RPA=$(curl -s -H "X-NF-Request: 1" -b $JAR -X POST $BASE/api/calculations/$A1/replay)
+check "replay audit of the assembly matches before its DXF is read" '[ "$(echo "$RPA" | j "d[\"matches\"]")" = True ]'
 check "correction to a refused value: 422, nothing changed" '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"parameter\":\"header_radius\",\"new_value\":-5,\"reason\":\"engineer typo test\"}" $BASE/api/calculations/$A1/corrections)" = 422 ] && [ "$(get $A1 | j "d[\"superseded_by\"] is None and d[\"state\"]==\"REVIEW_REQUIRED\"")" = True ] && [ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/lessons | j "len(d)")" = 0 ] && [ "$(code -b $JAR $BASE/api/calculations/$A1/dxf/header)" = 200 ]'
 # BE-001: correcting the outside radius to 142 below the development radius 150 is a negative wall thickness: refused too.
 check "correction that contradicts the declared surface: 422, nothing changed" '[ "$(code -b $JAR -H "Content-Type: application/json" -d "{\"parameter\":\"header_radius\",\"new_value\":142,\"reason\":\"drawing dimension is the inside diameter\"}" $BASE/api/calculations/$A1/corrections)" = 422 ] && [ "$(get $A1 | j "d[\"superseded_by\"] is None")" = True ] && [ "$(curl -s -H "X-NF-Request: 1" -b $JAR $BASE/api/obligations | j "len(d)")" = 0 ]'

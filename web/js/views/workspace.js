@@ -87,9 +87,10 @@ function table(cols, rows, onClick) {
 async function loadCalc(signal) {
   showLoading();
   try {
-    const calcs = await api('/api/calculations');
+    const [calcs, projects] = await Promise.all([api('/api/calculations'), api('/api/projects')]);
     if (signal.aborted) return;
     content.textContent = '';
+    const pnames = new Map((Array.isArray(projects) ? projects : []).map(p => [String(p.id), p.name]));
 
     const hd = el('div', 'panel-h');
     hd.appendChild(el('h2', null, t('ws.calculations')));
@@ -105,7 +106,7 @@ async function loadCalc(signal) {
     }
     const rows = calcs.map(c => ({
       data: c,
-      cells: ['#' + c.id, c.family || '', c.project_name || '', c.release_state || '',
+      cells: ['#' + c.id, c.family || '', pnames.get(String(c.project_id)) || '', c.state || '',
         (c.gates_passed != null ? c.gates_passed + '/' + c.gates_total : ''), fmtDate(c.created_at)],
     }));
     content.appendChild(table([t('th.job'), t('th.family'), t('th.project'), t('th.state'), t('insp.gates'), t('th.created')], rows, (c) => {
@@ -352,24 +353,15 @@ async function loadObligations(signal) {
     for (const o of obs) {
       const tr = document.createElement('tr');
       tr.appendChild(el('td', 'mono', '#' + o.id));
-      tr.appendChild(el('td', null, o.description || o.message || ''));
-      tr.appendChild(el('td', null, o.status || 'open'));
+      tr.appendChild(el('td', null, o.label || o.note || ''));
+      tr.appendChild(el('td', null, o.state || 'open'));
       tr.appendChild(el('td', null, fmtDate(o.created_at)));
       const td = document.createElement('td');
-      if (!o.resolved) {
-        const btn = el('button', 'btn', t('ws.obl.resolve'));
-        btn.type = 'button';
-        btn.addEventListener('click', async () => {
-          btn.disabled = true;
-          try {
-            await api('/api/obligations/' + o.id + '/resolve', { method: 'POST' });
-            if (!signal.aborted) loadObligations(signal);
-          } catch (err) {
-            btn.disabled = false;
-            btn.textContent = 'Error';
-          }
-        });
-        td.appendChild(btn);
+      if (o.state === 'open') {
+        // a decision needs a reason, so it is taken on the job's Open items, not from this list
+        const link = el('a', 'btn', t('ws.obl.resolve'));
+        link.href = '#/job/' + o.target_calc;
+        td.appendChild(link);
       }
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -401,7 +393,7 @@ async function loadAudit(signal) {
   } catch (e) { if (!signal.aborted) showError(e.message); }
 }
 
-/* ---- users (admin) ---- */
+/* ---- users (admin): read-only; the one user-management screen is Administration > Users ---- */
 
 async function loadUsers(signal) {
   const st = getState();
@@ -420,10 +412,9 @@ async function loadUsers(signal) {
 
     const hd = el('div', 'panel-h');
     hd.appendChild(el('h2', null, t('ws.users')));
-    const btn = el('button', 'btn pri', t('ws.add.user'));
-    btn.type = 'button';
-    btn.addEventListener('click', () => showUserForm(signal));
-    hd.appendChild(btn);
+    const link = el('a', 'btn pri', t('ws.users.admin'));
+    link.href = '#/admin/users';
+    hd.appendChild(link);
     content.appendChild(hd);
 
     if (!users || !users.length) {
@@ -434,7 +425,7 @@ async function loadUsers(signal) {
     tbl.className = 'table';
     const thead = document.createElement('thead');
     const hr = document.createElement('tr');
-    for (const h of [t('th.username'), t('th.role'), t('th.active'), t('th.created'), '']) hr.appendChild(el('th', null, h));
+    for (const h of [t('th.username'), t('th.role'), t('th.active'), t('th.created')]) hr.appendChild(el('th', null, h));
     thead.appendChild(hr);
     tbl.appendChild(thead);
     const tbody = document.createElement('tbody');
@@ -444,82 +435,11 @@ async function loadUsers(signal) {
       tr.appendChild(el('td', null, u.role || ''));
       tr.appendChild(el('td', null, u.active !== false ? 'Yes' : 'No'));
       tr.appendChild(el('td', null, fmtDate(u.created_at)));
-      const td = document.createElement('td');
-      const tb = el('button', 'btn', u.active !== false ? 'Deactivate' : 'Activate');
-      tb.type = 'button';
-      tb.addEventListener('click', async () => {
-        tb.disabled = true;
-        try {
-          await api('/api/users/' + u.id + '/active', { method: 'POST', json: { active: u.active === false } });
-          if (!signal.aborted) loadUsers(signal);
-        } catch { tb.disabled = false; }
-      });
-      td.appendChild(tb);
-      tr.appendChild(td);
       tbody.appendChild(tr);
     }
     tbl.appendChild(tbody);
     content.appendChild(tbl);
   } catch (e) { if (!signal.aborted) showError(e.message); }
-}
-
-function showUserForm(signal) {
-  content.textContent = '';
-  const wrap = el('div', 'panel');
-  wrap.appendChild(el('h2', null, 'Add User'));
-  const form = document.createElement('form');
-
-  const fu = el('div', 'field');
-  fu.appendChild(el('label', null, 'Username'));
-  const ui = document.createElement('input');
-  ui.name = 'username'; ui.required = true;
-  fu.appendChild(ui);
-  form.appendChild(fu);
-
-  const fp = el('div', 'field');
-  fp.appendChild(el('label', null, 'Password'));
-  const pi = document.createElement('input');
-  pi.name = 'password'; pi.type = 'password'; pi.required = true;
-  fp.appendChild(pi);
-  form.appendChild(fp);
-
-  const fr = el('div', 'field');
-  fr.appendChild(el('label', null, 'Role'));
-  const ri = document.createElement('select');
-  ri.name = 'role';
-  for (const r of ['user', 'admin']) {
-    const o = document.createElement('option');
-    o.value = r; o.textContent = r;
-    ri.appendChild(o);
-  }
-  fr.appendChild(ri);
-  form.appendChild(fr);
-
-  const sub = el('button', 'btn pri', t('common.create'));
-  sub.type = 'submit';
-  form.appendChild(sub);
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    sub.disabled = true;
-    try {
-      await api('/api/users', { json: { username: ui.value, password: pi.value, role: ri.value } });
-      if (!signal.aborted) loadUsers(signal);
-    } catch (err) {
-      sub.disabled = false;
-      const a = el('div', 'alert bad');
-      a.appendChild(el('p', null, err.message));
-      form.appendChild(a);
-    }
-  });
-
-  const back = el('button', 'btn', t('common.back'));
-  back.type = 'button';
-  back.addEventListener('click', () => loadUsers(signal));
-  form.appendChild(back);
-
-  wrap.appendChild(form);
-  content.appendChild(wrap);
 }
 
 /* ---- tab dispatch ---- */

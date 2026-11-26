@@ -82,20 +82,34 @@ const canCorrect = () => canEdit() && !blocked() && c.correctable_parameters.len
 const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); if (!dead) fn(); }, ms); timers.add(id); };
 const openCount = () => c.obligations.filter((o) => o.state === 'open').length + c.advisories.filter((a) => a.state === 'open').length;
 const dxfHeld = (part) => Object.hasOwn(c.dxf_withheld || {}, part);
-// the server releases a job only in its released state and only when every gate passes; until then the export stays locked
-const allPass = () => c.gates.length > 0 && c.gates.every((g) => g.result === 'PASS');
-const released = () => state === 'APPROVED' && allPass();
+// the export follows the server's answer (job detail `export`, the rule of get_dxf): available, or held by one gate
+const exportInfo = () => c.export || { available: false, held_by: null, not_checked: [] };
+const released = () => exportInfo().available === true;
 const amoebaStage = () => {
   if (state === 'SUPERSEDED') return 'idle';
   if (!c.patterns.length || state === 'REJECTED' || state === 'NO_RESULT') return 'hold';
   if (!c.gates.length) return 'idle';
-  if (!allPass()) return 'hold';
+  if (exportInfo().held_by) return 'hold';
   return released() ? 'release' : 'digest';
 };
+// the failing check of a held export: gate, result, what the engine found, one fix (the fix text is per result)
+const FIX_KEY = { FAIL: 'exp.fix.fail', NOT_RUN: 'exp.fix.notrun' };
+const heldHtml = (hb) => `<b>${esc(t('exp.held.check', { id: hb.gate, name: String(hb.name).replaceAll('_', ' '), result: resultText(hb.result) }))}</b> ${eng(hb.detail)} <span class="fix">${esc(t(FIX_KEY[hb.result] || 'exp.fix.inc'))}</span>`;
+// allow-listed gates the engine does not check: listed, never hidden
+const notCheckedHtml = () => {
+  const rows = exportInfo().not_checked || [];
+  return rows.length ? `<ul class="il sub exp-nc">${rows.map((n) => `<li><span class="mono">${esc(n.gate)}</span> ${esc(t('exp.nc', { reason: t(`nc.${n.gate}`) }))}</li>`).join('')}</ul>` : '';
+};
+// the AMOEBA holds of the DXF files: the code the 409 carries, and the checks that are not PASS
+const amoebaHoldsHtml = () => {
+  const rows = exportInfo().amoeba_holds || [];
+  return rows.length ? `<ul class="il sub exp-am">${rows.map((h) => `<li><span class="mono">${esc(h.code)}</span> ${esc(t('am.hold.part', { part: partText(h.part) }))}${(h.checks || []).length ? `<ul class="il">${h.checks.map((k) => `<li>${checkName(k.name)} · ${eng(k.detail)}</li>`).join('')}</ul>` : ''}</li>`).join('')}</ul>` : '';
+};
+// everything that holds or qualifies the export, beside the button: AMOEBA holds, then the gates not checked by NF
+const exportNotesHtml = () => amoebaHoldsHtml() + notCheckedHtml();
 const lockReason = () => {
   if (!c.patterns.length) return c.refusal ? refusalHtml(c.refusal) : c.outcome ? eng(c.outcome) : esc(t('ban.none.default'));
-  const bad = c.gates.find((g) => g.result !== 'PASS');
-  if (bad) return esc(t('exp.reason.gate', { id: bad.id, name: bad.name.replaceAll('_', ' '), result: resultText(bad.result) }));
+  if (exportInfo().held_by) return heldHtml(exportInfo().held_by);
   return esc(t('exp.reason.state', { state: stateText(state) }));
 };
 const AM_STEPS = [
@@ -114,14 +128,14 @@ function timelineHtml() {
 }
 function amoebaPanel() {
   const stage = amoebaStage();
-  const why = stage === 'hold' ? `<p class="am-why"><b>${esc(t('exp.hold'))}</b> ${lockReason()}</p>` : '';
+  const why = stage === 'hold' ? `<p class="am-why"><b>${esc(t('exp.hold'))}</b> ${lockReason()}</p>${amoebaHoldsHtml()}` : '';
   return `<section class="panel am-stage"><div class="amoeba-mount am-job" data-amoeba data-stage="${stage}" role="img" aria-label="${esc(t('am.stage.aria'))}"></div><ol class="am-timeline" aria-label="${esc(t('am.stage.aria'))}">${timelineHtml()}</ol>${why}</section>`;
 }
 function exportHtml() {
   const free = c.patterns.filter((p) => !dxfHeld(p.part));
   const body = released() && free.length
-    ? `<a class="btn btn-primary btn-block" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(free[0].part)}" download>${esc(t('exp.dxf'))}</a>`
-    : `<button type="button" class="btn btn-block" disabled aria-disabled="true">${esc(t('exp.locked'))}</button><p class="sub lock-why"><b>${esc(t('exp.because'))}</b> ${lockReason()}</p>`;
+    ? `<a class="btn btn-primary btn-block" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(free[0].part)}" download>${esc(t('exp.dxf'))}</a><p class="sub">${esc(t('exp.checked'))}</p>${exportNotesHtml()}`
+    : `<button type="button" class="btn btn-block" disabled aria-disabled="true">${esc(t('exp.locked'))}</button><p class="sub lock-why"><b>${esc(t('exp.because'))}</b> ${lockReason()}</p>${exportNotesHtml()}`;
   return panel(esc(t('exp.h')), `<div class="export-box">${body}</div>`);
 }
 function inspectorHtml() {
@@ -220,7 +234,7 @@ function recordsHtml() {
     <pre class="mono" lang="en">${esc(JSON.stringify(r.payload, null, 1))}</pre></div></details>`).join('')}`, c.records.length);
 }
 function dxfHtml() {
-  if (!released()) return panel(esc(t('dxf.btn')), sub(t('exp.note')));
+  if (!released()) return panel(esc(t('dxf.btn')), `${sub(t('exp.note'))}<p class="sub lock-why"><b>${esc(t('exp.because'))}</b> ${lockReason()}</p>${exportNotesHtml()}`);
   const free = c.patterns.filter((p) => !dxfHeld(p.part));
   const link = (p) => `<a class="btn" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}" download aria-label="${esc(t('dxf.aria', { part: partText(p.part) }))}" title="${esc(t('dxf.tip', { part: partText(p.part) }))}">${esc(t('dxf.btn'))} · ${partName(p.part)}</a>`;
   const held = (p) => {
@@ -389,7 +403,7 @@ async function reload() {
     if (c.supersedes) { try { prev = await api(`/api/calculations/${c.supersedes}`); } catch { prev = null; } }
     if (dead || my !== gen) return;
     fam = c.request.family;
-    state = c.superseded_by ? 'SUPERSEDED' : !c.patterns.length ? 'NO_RESULT' : c.state;
+    state = c.superseded_by ? 'SUPERSEDED' : c.state === 'REFUSED' ? 'REFUSED' : !c.patterns.length ? 'NO_RESULT' : c.state;
     if (disposePattern) { disposePattern(); disposePattern = null; }
     render();
   } catch (err) { if (!dead) toast(String(err.message || err), 'err'); }
@@ -470,7 +484,7 @@ export async function mount(container, params = {}) {
   if (dead || my !== gen) return;
   meta = (list || []).find((x) => x.id === c.id) || null;
   fam = c.request.family;
-  state = c.superseded_by ? 'SUPERSEDED' : !c.patterns.length ? 'NO_RESULT' : c.state;
+  state = c.superseded_by ? 'SUPERSEDED' : c.state === 'REFUSED' ? 'REFUSED' : !c.patterns.length ? 'NO_RESULT' : c.state;
   render();
 }
 
