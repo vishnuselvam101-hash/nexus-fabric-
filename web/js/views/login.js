@@ -27,22 +27,43 @@ export function mount(container) {
     const heading = root.querySelector('#login-heading');
     heading.removeAttribute('data-i18n');
     heading.textContent = t('login.setup');
-    const tokenLabel = document.createElement('label');
-    tokenLabel.setAttribute('for', 'login-token');
-    tokenLabel.textContent = t('login.token');
-    const tokenInput = document.createElement('input');
-    tokenInput.id = 'login-token';
-    tokenInput.name = 'setup_token';
-    tokenInput.type = 'text';
-    tokenInput.required = true;
-    tokenInput.autocomplete = 'off';
-    const tokenHelp = document.createElement('p');
-    tokenHelp.className = 'sub';
-    tokenHelp.id = 'login-token-help';
-    tokenHelp.textContent = t('login.tokenHelp');
-    tokenInput.setAttribute('aria-describedby', 'login-token-help');
-    btn.before(tokenLabel, tokenInput, tokenHelp);
-    setupFields = [tokenLabel, tokenInput, tokenHelp];
+    // desktop mode: the setup link already carried the token, so no token field is asked for
+    if (!getState().setupToken) {
+      const tokenLabel = document.createElement('label');
+      tokenLabel.setAttribute('for', 'login-token');
+      tokenLabel.textContent = t('login.token');
+      const tokenInput = document.createElement('input');
+      tokenInput.id = 'login-token';
+      tokenInput.name = 'setup_token';
+      tokenInput.type = 'text';
+      tokenInput.required = true;
+      tokenInput.autocomplete = 'off';
+      const tokenHelp = document.createElement('p');
+      tokenHelp.className = 'sub';
+      tokenHelp.id = 'login-token-help';
+      tokenHelp.textContent = t('login.tokenHelp');
+      tokenInput.setAttribute('aria-describedby', 'login-token-help');
+      btn.before(tokenLabel, tokenInput, tokenHelp);
+      setupFields = [tokenLabel, tokenInput, tokenHelp];
+    }
+    // desktop mode: say what the program does and does not protect, before the first account is made
+    if (getState().health?.mode === 'desktop') {
+      const notice = document.createElement('div');
+      notice.className = 'note desk';
+      notice.id = 'desktop-notice';
+      const body = document.createElement('div');
+      const title = document.createElement('b');
+      title.textContent = t('login.desktop.h');
+      body.append(title);
+      for (const key of ['login.desktop.p1', 'login.desktop.p2', 'login.desktop.p3']) {
+        const p = document.createElement('p');
+        p.textContent = t(key);
+        body.append(p);
+      }
+      notice.append(body);
+      form.before(notice);
+      setupFields.push(notice);
+    }
     btn.removeAttribute('data-i18n');
     btn.textContent = t('login.createAccount');
   }
@@ -64,6 +85,7 @@ export function mount(container) {
   onSubmit = async (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(form));
+    const linkToken = getState().setupToken;   // from the setup link's fragment; travels in the body only
     btn.classList.add('is-busy');
     btn.disabled = true;
     clearError();
@@ -72,7 +94,7 @@ export function mount(container) {
       if (setup) {
         // the first administrator is created, then signed in with the same credentials
         try {
-          await api('/api/setup', { json: data });
+          await api('/api/setup', { json: linkToken ? { ...data, setup_token: linkToken } : data });
         } catch (err) {
           if (err.status === 409 && err.message === 'setup already completed') {
             leaveSetup();
@@ -85,7 +107,7 @@ export function mount(container) {
         await api('/api/login', { json: data });
       }
       const user = await api('/api/me');
-      setState({ user, view: 'app' });
+      setState({ user, view: 'app', setupToken: null });
       location.hash = '#/';
     } catch (err) {
       showError(setup ? setupError(err) : loginError(err));
