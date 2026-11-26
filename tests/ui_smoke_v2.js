@@ -241,8 +241,6 @@ async function main() {
         refused = true;
       }
       await Promise.allSettled(bodyJobs);
-      const recent = await page.getAttribute('a[href^="#/r/"]', 'href').catch(() => null);
-      if (recent) convId = Number(recent.split('/').pop());
       await shot('03-result.png');
       const shown = badgeText.length > 0;
       check('upload yields result or refusal', shown,
@@ -862,7 +860,10 @@ async function main() {
 
     // P5: the result page shows the file name and the page the server sent
     try {
-      if (convId === null) throw new Error('no conversion link after the upload');
+      // the recent list is drawn on the convert screen: open it and take the newest conversion
+      await page.evaluate(() => { location.hash = '#/'; });
+      await page.waitForSelector('a[href^="#/r/"]', { timeout: 15000 });
+      convId = Number((await page.getAttribute('a[href^="#/r/"]', 'href')).split('/').pop());
       await page.goto(BASE + '/#/r/' + convId, { waitUntil: 'load' });
       await page.waitForSelector('.result-meta', { timeout: 20000 });
       const meta = (await page.locator('.result-meta').innerText()).replace(/\s+/g, ' ');
@@ -877,7 +878,8 @@ async function main() {
       await page.goto(BASE + '/#/job/' + id, { waitUntil: 'load' });
       await page.waitForSelector('#view h1 .tag', { timeout: 20000 });
       const tag = (await page.locator('#view h1 .tag').first().innerText()).trim();
-      check('P6 a refused job is labelled REFUSED, not NO RESULT', r.json && r.json.state === 'REFUSED' && tag === 'REFUSED',
+      // the label follows the language the screen is in (the smoke test may have switched to Japanese)
+      check('P6 a refused job is labelled REFUSED, not NO RESULT', r.json && r.json.state === 'REFUSED' && (tag === 'REFUSED' || tag === '入力拒否'),
         'state=' + (r.json && r.json.state) + ' tag=' + tag);
     } catch (e) { check('P6 a refused job is labelled REFUSED, not NO RESULT', false, msgOf(e)); }
 
@@ -887,7 +889,8 @@ async function main() {
       await page.evaluate(() => { location.hash = '#/workspace/calculations'; });
       await page.waitForSelector('#login-form', { state: 'visible', timeout: 20000 });
       const notice = (await page.locator('#login-form .alert').first().innerText({ timeout: 10000 })).trim();
-      check('P8 session expiry: the login screen says the session has ended', notice === 'Your session has ended. Sign in again.', notice.slice(0, 120));
+      check('P8 session expiry: the login screen says the session has ended',
+        notice === 'Your session has ended. Sign in again.' || notice === 'セッションが終了しました。もう一度ログインしてください。', notice.slice(0, 120));
       await page.fill('#login-user', USER);
       await page.fill('#login-pass', 'wrong-password-1');
       await page.click('#login-form button[type="submit"]');
