@@ -868,7 +868,7 @@ async function main() {
       await page.waitForSelector('.result-meta', { timeout: 20000 });
       const meta = (await page.locator('.result-meta').innerText()).replace(/\s+/g, ' ');
       const fileName = path.basename(FIXTURE);
-      check('P5 Result page shows the file name and the page', meta.includes(fileName) && meta.includes('Page number'), meta.slice(0, 160));
+      check('P5 Result page shows the file name and the page', meta.includes(fileName) && (meta.includes('Page number') || meta.includes('ページ番号')), meta.slice(0, 160));
     } catch (e) { check('P5 Result page shows the file name and the page', false, msgOf(e)); }
 
     // P6 (and P7 server shape): a refused calculation opens as REFUSED, not NO RESULT
