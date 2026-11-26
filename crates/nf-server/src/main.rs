@@ -2383,11 +2383,123 @@ fn rematerialise_states(db: &mut Connection) -> rusqlite::Result<usize> {
     Ok(ids.len())
 }
 
+/// Gates that are not PASS on valid jobs, and the reason the engine gives. They do not hold a DXF; the UI lists
+/// each one as "not checked by NF: <reason>". Add an id only with a test or corpus log that shows it is non-PASS
+/// on valid jobs (the evidence is named beside each entry).
+const NOT_CHECKED_BY_NF: [(&str, &str); 9] = [
+    // Probe on valid fresh jobs (cylinder, cone, eccentric reducer, branch stub, header with branch): INCONCLUSIVE
+    (
+        "G01",
+        "parameters were entered by hand and are not linked to a source drawing",
+    ),
+    // d1_marking_side_is_declared_everywhere_and_the_same_for_all_parts (nf-core job.rs): INCONCLUSIVE on every job
+    (
+        "G02",
+        "the marking side is a provisional convention that no fabrication engineer has reviewed",
+    ),
+    // Probe: INCONCLUSIVE on all five valid families (no calibrated process data)
+    (
+        "G06",
+        "no calibrated process data: thickness, allowances, weld gap and kerf are not modelled",
+    ),
+    // Probe: INCONCLUSIVE on the reducer and the header (rounding bounds are a priori, not interval-certified)
+    (
+        "G08",
+        "rounding bounds are a priori and not interval-certified",
+    ),
+    // Probe: INCONCLUSIVE on the reducer and the branch stub with an unknown surface (independent verifier not built)
+    (
+        "G10",
+        "the independent verifier and the external kernel cross-check are not implemented yet",
+    ),
+    // Probe: INCONCLUSIVE on all five valid families (evidence level EV-1)
+    (
+        "G14",
+        "algorithms are evidence level EV-1 and not production-qualified",
+    ),
+    // always NOT_IMPLEMENTED (G16 is computed by evaluate, not stored)
+    ("G16", "engineer approval is not implemented in this build"),
+    // Probe: INCONCLUSIVE on all five valid families; open obligations still hold (see export_hold)
+    (
+        "G18",
+        "the propagation rule table is provisional, so obligation closure cannot be certified",
+    ),
+    // Replay audit: a matching replay is INCONCLUSIVE (audits A1-A4 are not implemented); a replay that did not run is NOT_RUN and holds
+    (
+        "G19",
+        "audits A1-A4 are not implemented, so a matching replay is not a complete audit",
+    ),
+];
+
+fn result_label(r: GateResult) -> &'static str {
+    match r {
+        GateResult::Pass => "PASS",
+        GateResult::Fail => "FAIL",
+        GateResult::Inconclusive => "INCONCLUSIVE",
+        GateResult::NotImplemented => "NOT_IMPLEMENTED",
+        GateResult::NotRun => "NOT_RUN",
+        GateResult::NotApplicable => "NOT_APPLICABLE",
+    }
+}
+
+/// The export rule, the one answer for get_dxf, the job list and the job detail. Returns the gate that holds the
+/// DXF, or `None` when it may be served. PASS and NOT_APPLICABLE pass; FAIL and NOT_RUN hold whatever their
+/// criticality; INCONCLUSIVE and NOT_IMPLEMENTED hold unless the gate is in NOT_CHECKED_BY_NF (G18 holds while
+/// an obligation is open).
+fn export_hold(e: &Eval) -> Option<&Gate> {
+    use GateResult as R;
+    e.gates.iter().find(|g| match g.result {
+        R::Pass | R::NotApplicable => false,
+        R::Fail | R::NotRun => true,
+        R::Inconclusive | R::NotImplemented => {
+            if g.id == "G18" {
+                e.open_obligations > 0
+            } else {
+                !NOT_CHECKED_BY_NF.iter().any(|(id, _)| *id == g.id)
+            }
+        }
+    })
+}
+
+/// The gate that holds a DXF, as the 409 body and the UI read it: the failing check, what the engine found, one fix.
+fn hold_json(g: &Gate) -> Value {
+    let result = result_label(g.result);
+    let fix = match g.result {
+        GateResult::Fail => "correct the inputs or the drawing and run the calculation again",
+        GateResult::NotRun => "run the replay audit for this job",
+        _ => "an engineer must resolve this check; a check that cannot be proved is not released",
+    };
+    json!({
+        "error": format!("held by AMOEBA: gate {} ({}) is {result}: {} Fix: {fix}.", g.id, g.name, g.detail),
+        "gate": g.id, "name": g.name, "result": result, "detail": g.detail, "fix": fix,
+    })
+}
+
+/// The export answer carried by job rows and the job detail. `available` is the decision get_dxf makes.
+fn export_json(c: &Core, e: &Eval) -> Value {
+    let hold = export_hold(e);
+    let not_checked: Vec<Value> = NOT_CHECKED_BY_NF
+        .iter()
+        .filter(|(id, _)| {
+            e.gates.iter().any(|g| {
+                g.id == *id && !matches!(g.result, GateResult::Pass | GateResult::NotApplicable)
+            })
+        })
+        .map(|(id, why)| json!({ "gate": id, "reason": why }))
+        .collect();
+    json!({
+        "available": e.state == REVIEW_REQUIRED && c.superseded_by.is_none() && hold.is_none(),
+        "held_by": hold.map(hold_json),
+        "not_checked": not_checked,
+    })
+}
+
 fn row_json(c: &Core, e: &Eval) -> Value {
     json!({ "id": c.id, "project_id": c.project, "family": c.family, "state": e.state, "closure_hash": c.closure_col, "created_by": c.created_by, "created_at": c.created_at,
             "replayed": c.replay_raw.is_some(), "superseded": c.superseded_by.is_some(), "open_obligations": e.open_obligations,
             "no_result": e.refused(), "outcome": if e.refused() { json!(c.outcome) } else { Value::Null }, "engine_current": e.engine_current, "integrity_failure": !e.integrity.is_empty(),
-            "gates_total": e.gates.len(), "gates_passed": e.gates.iter().filter(|g| g.result == nf_core::GateResult::Pass).count() })
+            "gates_total": e.gates.len(), "gates_passed": e.gates.iter().filter(|g| g.result == nf_core::GateResult::Pass).count(),
+            "export": export_json(c, e) })
 }
 
 /// Job list rows. The state of each row comes from `evaluate`, exactly as in
@@ -2979,6 +3091,7 @@ async fn get_calc(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> A
     result["created_by"] = json!(c.created_by);
     result["closure_hash"] = json!(c.closure_col);
     result["gates"] = json!(e.gates);
+    result["export"] = export_json(&c, &e);
     result["state"] = json!(e.state);
     result["refused"] = json!(e.refused());
     result["integrity"] = json!(e.integrity);
@@ -3318,8 +3431,8 @@ async fn replay(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api
 
 // ---------------------------------------------------------------- DXF download
 
-/// A DXF is served for exactly one situation: the job is the current revision
-/// and `evaluate` says REVIEW_REQUIRED. Everything else is refused.
+/// A DXF is served for exactly one situation: the job is the current revision,
+/// `evaluate` says REVIEW_REQUIRED, and the export rule (`export_hold`) holds no gate. Everything else is refused.
 async fn get_dxf(
     State(app): Ctx,
     headers: HeaderMap,
@@ -3352,6 +3465,10 @@ async fn get_dxf(
             StatusCode::CONFLICT,
             &format!("this result is REJECTED{why}; its files are withheld"),
         ));
+    }
+    // The export rule (export_hold): a gate that is FAIL or NOT_RUN, or not PASS and not allow-listed, holds the file.
+    if let Some(g) = export_hold(&e) {
+        return Err(fail_json(StatusCode::CONFLICT, hold_json(g)));
     }
     // RC-01: the file is the one named by the job's own DXF record, read from the verified release
     // closure; the copy of the reference inside the stored result is never used to choose a file.
