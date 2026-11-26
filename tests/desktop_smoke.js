@@ -90,10 +90,10 @@ function rawGet(p, host) {
   const sent = [];
   page.on('request', (r) => sent.push(r.url() + ' ' + (r.postData() || '')));
   await page.goto(linkUrl);
-  await page.waitForSelector('#f', { timeout: 15000 });
+  await page.waitForSelector('#login-form', { timeout: 15000 });
   await page.waitForFunction(() => !location.hash, null, { timeout: 5000 }).catch(() => {});
   check('the fragment is removed from the address bar', !(await page.evaluate(() => location.href)).includes('#'));
-  check('the token field is hidden when the token came from the link', (await page.$('#lt')) === null);
+  check('the token field is hidden when the token came from the link', (await page.$('#login-token')) === null);
   // task 2.4: the server tells the client it runs in desktop mode, and the first-run screen says what is and is not protected
   const mode = await page.evaluate(async () => (await fetch('/api/health')).json());
   check('the server tells the client it runs in desktop mode', mode.mode === 'desktop', JSON.stringify(mode).slice(0, 160));
@@ -104,16 +104,16 @@ function rawGet(p, host) {
     && /account by itself does not encrypt the database/.test(noticeEn), noticeEn.slice(0, 120));
   check('first-run screen: no wording that an account encrypts the database, no claim words',
     !/account (encrypts|protects) the database|\b(secure|approved|certified|validated|production-ready|hack-proof|error-free)\b/i.test(noticeEn), noticeEn.slice(0, 120));
-  await page.click('#lang-ja');
+  await page.click('#btn-lang'); // the topbar language toggle: EN to JA
   await page.waitForFunction(() => /暗号化/.test((document.querySelector('#desktop-notice') || {}).textContent || ''), null, { timeout: 5000 }).catch(() => {});
   const noticeJa = (await page.textContent('#desktop-notice').catch(() => '')) || '';
   check('first-run screen: the same notice in Japanese', /データベースもデータフォルダー全体も暗号化しません/.test(noticeJa) && /保護されたバックアップ/.test(noticeJa) && /アカウントだけでは、データベースは暗号化されません/.test(noticeJa), noticeJa.slice(0, 80));
-  await page.click('#lang-en');
+  await page.click('#btn-lang'); // the topbar language toggle: JA to EN
   await page.waitForFunction(() => /Desktop mode/.test((document.querySelector('#desktop-notice') || {}).textContent || ''), null, { timeout: 5000 }).catch(() => {});
-  await page.fill('#lu', 'admin');
-  await page.fill('#lp', 'correct-horse-9');
-  await page.click('#f button.pri');
-  await page.waitForFunction(() => !document.querySelector('#f'), null, { timeout: 20000 }).catch(() => {});
+  await page.fill('#login-user', 'admin');
+  await page.fill('#login-pass', 'correct-horse-9');
+  await page.click('#login-form button[type="submit"]');
+  await page.waitForFunction(() => !document.querySelector('#login-form'), null, { timeout: 20000 }).catch(() => {});
   const me = await page.evaluate(async () => (await fetch('/api/me', { headers: { 'X-NF-Request': '1' } })).json().catch(() => null));
   check('first administrator is created from the link', !!(me && (me.user || me.username || me.name || JSON.stringify(me).includes('admin'))), JSON.stringify(me).slice(0, 120));
   // the token travels only in the setup request body (as in server mode), never in a URL or the query string

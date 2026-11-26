@@ -114,6 +114,11 @@ const EN = {
   'login.failed': 'Sign-in failed. Try again.',
   'login.throttled': 'Too many failed attempts from this address. Wait a few minutes, then try again.',
   'login.tokenHelp': 'The setup token is in the first-run setup link the server printed when it started: the text after #setup=.',
+  // desktop mode, first-run screen (wording decided by the owner: docs/security/DESKTOP_KEY_ASSESSMENT.md section 6)
+  'login.desktop.h': 'Desktop mode: how your data is kept',
+  'login.desktop.p1': 'This program does not encrypt its database or the whole data folder. Stored files have their own encryption, but that does not make the data on this computer an encrypted data set.',
+  'login.desktop.p2': 'How well the data is protected depends on this computer and how it is run. Recommended: disk encryption, an individual account for each person, access to the data folder only for the people who use this program, and protected backups.',
+  'login.desktop.p3': 'Disk encryption protects a lost or stolen computer; it does not protect a copy of the data folder taken while the disk is unlocked. A computer account by itself does not encrypt the database.',
 
   // api and network
   'api.signin': 'Please sign in.',
@@ -913,6 +918,11 @@ const JA = {
   'login.failed': 'ログインに失敗しました。もう一度お試しください。',
   'login.throttled': 'このアドレスからの失敗が多すぎます。数分待ってから、もう一度お試しください。',
   'login.tokenHelp': 'セットアップトークンは、初回起動時にサーバーが表示したセットアップリンクにあります（`#setup=` の後の文字列）。',
+  // desktop mode, first-run screen (same notice as the English)
+  'login.desktop.h': 'デスクトップモード：データの保存について',
+  'login.desktop.p1': 'このプログラムは、データベースもデータフォルダー全体も暗号化しません。保存されたファイルには個別の暗号化がありますが、それによってこのコンピューター上のデータ全体が暗号化されるわけではありません。',
+  'login.desktop.p2': 'データがどの程度保護されるかは、このコンピューターとその運用環境によって決まります。推奨：ディスクの暗号化、利用者ごとの個別アカウント、データフォルダーへのアクセスをこのプログラムの利用者だけに限定すること、保護されたバックアップ。',
+  'login.desktop.p3': 'ディスクの暗号化は紛失・盗難にあったコンピューターを保護しますが、ディスクのロックが解除されている間に取られたデータフォルダーのコピーは保護しません。コンピューターのアカウントだけでは、データベースは暗号化されません。',
 
   'api.signin': 'ログインしてください。',
   'api.unreachable': 'サーバーに接続できません。サーバーが動作していることを確認してから、再試行してください。',

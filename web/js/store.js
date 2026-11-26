@@ -2,6 +2,7 @@ let state = {
   view: 'loading',
   user: null,
   setupRequired: false,
+  setupToken: null,   // desktop mode: the one-time setup token from the link's fragment; kept in memory only
   projectId: null,
   convert: { phase: 'idle', file: null, progress: 0, conversionId: null, result: null, error: null },
   history: [],

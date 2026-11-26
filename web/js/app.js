@@ -41,7 +41,12 @@ export function navigate(hash) {
 
 function resolveRoute(hash) {
   const path = (hash || '').replace(/^#/, '') || '/';
-  if (path === '/' || path === '') return { view: 'convert', mod: './views/convert.js', params: {} };
+  // desktop first run: the setup link's fragment was taken out of the address bar, so the sign-in page is the bare address
+  if (path === '/' || path === '') {
+    return getState().setupToken && !getState().user
+      ? { view: 'login', mod: './views/login.js', params: {} }
+      : { view: 'convert', mod: './views/convert.js', params: {} };
+  }
   if (path === '/login') return { view: 'login', mod: './views/login.js', params: {} };
   if (path === '/history') return { redirect: '#/workspace/history' };
   let m = path.match(/^\/r\/([A-Za-z0-9_-]+)\/?$/);
@@ -274,10 +279,18 @@ async function ensureProject() {
 }
 
 async function boot() {
+  /* desktop mode (nf-server --desktop): the one-time setup token comes in the URL fragment, which the browser never
+     sends to the server. It is kept in memory and taken out of the address bar at once. */
+  const setupLink = /^#setup=([0-9a-f]{64})$/.exec(location.hash);
+  if (setupLink) {
+    setState({ setupToken: setupLink[1] });
+    history.replaceState(null, '', location.pathname + location.search);
+  }
+
   setAuthHandler(() => {
     // only a session that was signed in has ended; a first visit that is not signed in gets no message
     if (getState().user) setState({ user: null, sessionEnded: true });
-    navigate('#/login');
+    if (!getState().setupToken) navigate('#/login');   // the setup link keeps the bare address (see resolveRoute)
   });
 
   /* restore saved preferences */
@@ -296,7 +309,7 @@ async function boot() {
     authed = true;
   } catch (e) {
     setState({ user: null });
-    if (e?.status === 401) { navigate('#/login'); }
+    if (e?.status === 401 && !getState().setupToken) { navigate('#/login'); }
   }
 
   /* project */
