@@ -84,12 +84,14 @@ const dxfCell = (c, p) => {
   if (s === 'REJECTED') return `<span class="sub">${esc(t('mfg.w.rej'))}</span>`;
   if (!p.served) {
     const f = c.facts;
-    const wh = f.withheld.find((w) => w.part === p.part);
-    if (wh) return `<span class="sub">${esc(t('mfg.w.withheld'))}${(wh.checks || []).map((k) => `<br><span class="mono">${esc(k.name)}</span>`).join('')}</span>`;
-    const am = f.amoebaHolds.filter((h) => h.part === p.part);
     const hb = f.held;
+    // a gate that holds the job is named whether or not this part is also withheld
+    const gateLine = hb ? `<br>${esc(t('exp.held.check', { id: hb.gate, name: String(hb.name).replaceAll('_', ' '), result: t(`result.${hb.result}`) }))}` : '';
+    const wh = f.withheld.find((w) => w.part === p.part);
+    if (wh) return `<span class="sub">${esc(t('mfg.w.withheld'))}${(wh.checks || []).map((k) => `<br><span class="mono">${esc(k.name)}</span>`).join('')}${gateLine}</span>`;
+    const am = f.amoebaHolds.filter((h) => h.part === p.part);
     const why = am.length ? esc(t(am[0].code === 'amoeba_snapshot_mismatch' ? 'mfg.w.snap' : 'mfg.w.held')) : esc(t('mfg.w.gate'));
-    return `<span class="sub">${why}${hb ? `<br>${esc(t('exp.held.check', { id: hb.gate, name: String(hb.name).replaceAll('_', ' '), result: t(`result.${hb.result}`) }))}` : ''}${am.map((h) => `<br><span class="mono">${esc(h.code)}</span> ${esc((h.checks || []).map((k) => k.name).join(', '))}`).join('')}</span>`;
+    return `<span class="sub">${why}${gateLine}${am.map((h) => `<br><span class="mono">${esc(h.code)}</span> ${esc((h.checks || []).map((k) => k.name).join(', '))}`).join('')}</span>`;
   }
   return `<a class="btn" href="/api/calculations/${esc(c.id)}/dxf/${encodeURIComponent(p.part)}" download
     aria-label="${esc(t('mfg.dl.aria', { id: c.id, part: partText(p.part) }))}">${esc(t('mfg.dl'))}</a>`;

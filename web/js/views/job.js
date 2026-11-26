@@ -121,7 +121,12 @@ const exportNotesHtml = () => withheldHtml() + amoebaHoldsHtml() + notCheckedHtm
 const lockReason = () => {
   if (!c.patterns.length) return c.refusal ? refusalHtml(c.refusal) : c.outcome ? eng(c.outcome) : esc(t('ban.none.default'));
   if (exportInfo().held_by) return heldHtml(exportInfo().held_by);
-  if (withheldOf().length) return esc(t('exp.reason.withheld', { parts: withheldOf().map((w) => partText(w.part)).join(', ') }));
+  // the job's own state comes before the parts: a superseded or rejected job is not withheld part by part
+  if (state !== 'REVIEW_REQUIRED') return esc(t('exp.reason.state', { state: stateText(state) }));
+  if (withheldOf().length) {
+    const parts = withheldOf().map((w) => partText(w.part)).join(', ');
+    return esc(t(withheldOf().length > 1 ? 'exp.reason.withheld.many' : 'exp.reason.withheld', { parts }));
+  }
   if (amoebaHoldsOf().length) return esc(t('exp.reason.amoeba', { parts: amoebaHoldsOf().map((h) => partText(h.part)).join(', ') }));
   return esc(t('exp.reason.state', { state: stateText(state) }));
 };
