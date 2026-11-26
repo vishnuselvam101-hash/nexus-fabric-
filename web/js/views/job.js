@@ -82,9 +82,9 @@ const canCorrect = () => canEdit() && !blocked() && c.correctable_parameters.len
 const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); if (!dead) fn(); }, ms); timers.add(id); };
 const openCount = () => c.obligations.filter((o) => o.state === 'open').length + c.advisories.filter((a) => a.state === 'open').length;
 const dxfHeld = (part) => Object.hasOwn(c.dxf_withheld || {}, part);
-// the server releases a job only in its released state and only when every gate passes; until then the export stays locked
+// the export rule (server get_dxf, the Jobs list and this page): AMOEBA's digest passes, i.e. every automatic gate is PASS
 const allPass = () => c.gates.length > 0 && c.gates.every((g) => g.result === 'PASS');
-const released = () => state === 'APPROVED' && allPass();
+const released = () => state === 'REVIEW_REQUIRED' && allPass();
 const amoebaStage = () => {
   if (state === 'SUPERSEDED') return 'idle';
   if (!c.patterns.length || state === 'REJECTED' || state === 'NO_RESULT') return 'hold';
@@ -120,7 +120,7 @@ function amoebaPanel() {
 function exportHtml() {
   const free = c.patterns.filter((p) => !dxfHeld(p.part));
   const body = released() && free.length
-    ? `<a class="btn btn-primary btn-block" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(free[0].part)}" download>${esc(t('exp.dxf'))}</a>`
+    ? `<a class="btn btn-primary btn-block" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(free[0].part)}" download>${esc(t('exp.dxf'))}</a><p class="sub">${esc(t('exp.checked'))}</p>`
     : `<button type="button" class="btn btn-block" disabled aria-disabled="true">${esc(t('exp.locked'))}</button><p class="sub lock-why"><b>${esc(t('exp.because'))}</b> ${lockReason()}</p>`;
   return panel(esc(t('exp.h')), `<div class="export-box">${body}</div>`);
 }
