@@ -82,20 +82,27 @@ const canCorrect = () => canEdit() && !blocked() && c.correctable_parameters.len
 const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); if (!dead) fn(); }, ms); timers.add(id); };
 const openCount = () => c.obligations.filter((o) => o.state === 'open').length + c.advisories.filter((a) => a.state === 'open').length;
 const dxfHeld = (part) => Object.hasOwn(c.dxf_withheld || {}, part);
-// the export follows the server (get_dxf): a job the server has not held (state REVIEW_REQUIRED) can be downloaded
-const allPass = () => c.gates.length > 0 && c.gates.every((g) => g.result === 'PASS');
-const released = () => state === 'REVIEW_REQUIRED';
+// the export follows the server's answer (job detail `export`, the rule of get_dxf): available, or held by one gate
+const exportInfo = () => c.export || { available: false, held_by: null, not_checked: [] };
+const released = () => exportInfo().available === true;
 const amoebaStage = () => {
   if (state === 'SUPERSEDED') return 'idle';
   if (!c.patterns.length || state === 'REJECTED' || state === 'NO_RESULT') return 'hold';
   if (!c.gates.length) return 'idle';
-  if (!allPass()) return 'hold';
+  if (exportInfo().held_by) return 'hold';
   return released() ? 'release' : 'digest';
+};
+// the failing check of a held export: gate, result, what the engine found, one fix (the fix text is per result)
+const FIX_KEY = { FAIL: 'exp.fix.fail', NOT_RUN: 'exp.fix.notrun' };
+const heldHtml = (hb) => `<b>${esc(t('exp.held.check', { id: hb.gate, name: String(hb.name).replaceAll('_', ' '), result: resultText(hb.result) }))}</b> ${eng(hb.detail)} <span class="fix">${esc(t(FIX_KEY[hb.result] || 'exp.fix.inc'))}</span>`;
+// allow-listed gates the engine does not check: listed, never hidden
+const notCheckedHtml = () => {
+  const rows = exportInfo().not_checked || [];
+  return rows.length ? `<ul class="il sub exp-nc">${rows.map((n) => `<li><span class="mono">${esc(n.gate)}</span> ${esc(t('exp.nc', { reason: t(`nc.${n.gate}`) }))}</li>`).join('')}</ul>` : '';
 };
 const lockReason = () => {
   if (!c.patterns.length) return c.refusal ? refusalHtml(c.refusal) : c.outcome ? eng(c.outcome) : esc(t('ban.none.default'));
-  const bad = c.gates.find((g) => g.result !== 'PASS');
-  if (bad) return esc(t('exp.reason.gate', { id: bad.id, name: bad.name.replaceAll('_', ' '), result: resultText(bad.result) }));
+  if (exportInfo().held_by) return heldHtml(exportInfo().held_by);
   return esc(t('exp.reason.state', { state: stateText(state) }));
 };
 const AM_STEPS = [
@@ -120,8 +127,8 @@ function amoebaPanel() {
 function exportHtml() {
   const free = c.patterns.filter((p) => !dxfHeld(p.part));
   const body = released() && free.length
-    ? `<a class="btn btn-primary btn-block" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(free[0].part)}" download>${esc(t('exp.dxf'))}</a><p class="sub">${esc(t('exp.checked'))}</p>`
-    : `<button type="button" class="btn btn-block" disabled aria-disabled="true">${esc(t('exp.locked'))}</button><p class="sub lock-why"><b>${esc(t('exp.because'))}</b> ${lockReason()}</p>`;
+    ? `<a class="btn btn-primary btn-block" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(free[0].part)}" download>${esc(t('exp.dxf'))}</a><p class="sub">${esc(t('exp.checked'))}</p>${notCheckedHtml()}`
+    : `<button type="button" class="btn btn-block" disabled aria-disabled="true">${esc(t('exp.locked'))}</button><p class="sub lock-why"><b>${esc(t('exp.because'))}</b> ${lockReason()}</p>${notCheckedHtml()}`;
   return panel(esc(t('exp.h')), `<div class="export-box">${body}</div>`);
 }
 function inspectorHtml() {
@@ -220,7 +227,7 @@ function recordsHtml() {
     <pre class="mono" lang="en">${esc(JSON.stringify(r.payload, null, 1))}</pre></div></details>`).join('')}`, c.records.length);
 }
 function dxfHtml() {
-  if (!released()) return panel(esc(t('dxf.btn')), sub(t('exp.note')));
+  if (!released()) return panel(esc(t('dxf.btn')), `${sub(t('exp.note'))}<p class="sub lock-why"><b>${esc(t('exp.because'))}</b> ${lockReason()}</p>${notCheckedHtml()}`);
   const free = c.patterns.filter((p) => !dxfHeld(p.part));
   const link = (p) => `<a class="btn" href="/api/calculations/${c.id}/dxf/${encodeURIComponent(p.part)}" download aria-label="${esc(t('dxf.aria', { part: partText(p.part) }))}" title="${esc(t('dxf.tip', { part: partText(p.part) }))}">${esc(t('dxf.btn'))} · ${partName(p.part)}</a>`;
   const held = (p) => {

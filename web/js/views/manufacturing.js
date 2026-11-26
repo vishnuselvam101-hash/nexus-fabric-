@@ -36,7 +36,8 @@ const extent = (p) => {
 const summarise = (c) => ({
   noResult: !c.patterns.length,
   superseded_by: c.superseded_by,
-  released: c.state === 'REVIEW_REQUIRED',
+  released: !!(c.export && c.export.available),
+  held: (c.export && c.export.held_by) || null,
   parts: c.patterns.map((p) => ({ part: p.part, cls: p.class, sha: p.dxf_sha256, ...extent(p), curves: p.curves.length, holes: p.holes.length })),
 });
 // Same precedence as every other list: superseded > no result > the server state.
@@ -72,7 +73,10 @@ const dxfCell = (c, p) => {
     ? h('mfg.w.sup.by', { job: `<a href="#/job/${esc(c.facts.superseded_by)}">#${esc(c.facts.superseded_by)}</a>` })
     : esc(t('mfg.w.sup'))}</span>`;
   if (s === 'REJECTED') return `<span class="sub">${esc(t('mfg.w.rej'))}</span>`;
-  if (!c.facts || !c.facts.released) return `<span class="sub">${esc(t('mfg.w.held'))}</span>`;
+  if (!c.facts || !c.facts.released) {
+    const hb = c.facts && c.facts.held;
+    return `<span class="sub">${esc(t('mfg.w.held'))}${hb ? `<br>${esc(t('exp.held.check', { id: hb.gate, name: String(hb.name).replaceAll('_', ' '), result: t(`result.${hb.result}`) }))}` : ''}</span>`;
+  }
   return `<a class="btn" href="/api/calculations/${esc(c.id)}/dxf/${encodeURIComponent(p.part)}" download
     aria-label="${esc(t('mfg.dl.aria', { id: c.id, part: partText(p.part) }))}">${esc(t('mfg.dl'))}</a>`;
 };
