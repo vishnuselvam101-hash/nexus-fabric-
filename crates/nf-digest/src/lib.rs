@@ -17,6 +17,7 @@ use geom::{
     Piece, bbox_of, contours, crossings, diagonal, duplicates, inside, loop_area, pieces, tolerance,
 };
 use reader::{Ent, Parsed};
+use std::collections::HashMap;
 
 /// The marking statement every file carries (the same statement is required by policy, not taken from the writer).
 pub const NOT_RELEASED: &str =
@@ -768,24 +769,45 @@ fn seg_dist(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
     (p[0] - (a[0] + t * dx)).hypot(p[1] - (a[1] + t * dy))
 }
 
-/// Largest distance from a vertex or a segment midpoint of the closed loop `a` to the closed loop `b`. The loops are
-/// compared as they are: no rotation and no mirroring is allowed. An empty loop is infinitely far from any other.
-fn loop_gap(a: &[[f64; 2]], b: &[[f64; 2]]) -> f64 {
-    if a.is_empty() || b.is_empty() {
-        return f64::INFINITY;
+/// Whether every vertex and segment midpoint of the closed loop `a` lies within `tol` of the closed loop `b`. The loops
+/// are compared as they are: no rotation and no mirroring. The segments of `b` are indexed in a grid of cells at least
+/// `tol` wide, so the test stays linear for loops of many thousands of points. An empty loop never lies within.
+fn loop_within(a: &[[f64; 2]], b: &[[f64; 2]], tol: f64) -> bool {
+    let Some(bb) = bbox_of(b.iter().copied()) else {
+        return false;
+    };
+    if a.is_empty() {
+        return false;
     }
-    let (n, m) = (a.len(), b.len());
-    let mut worst = 0.0f64;
-    for i in 0..n {
-        let (p, q) = (a[i], a[(i + 1) % n]);
-        for x in [p, [(p[0] + q[0]) / 2.0, (p[1] + q[1]) / 2.0]] {
-            let best = (0..m)
-                .map(|j| seg_dist(x, b[j], b[(j + 1) % m]))
-                .fold(f64::INFINITY, f64::min);
-            worst = worst.max(best);
+    let n = b.len();
+    let extent = (bb[2] - bb[0]).max(bb[3] - bb[1]);
+    let cell = (extent / 256.0).max(tol).max(f64::MIN_POSITIVE);
+    let cell_of = |p: [f64; 2]| -> (i64, i64) {
+        (
+            ((p[0] - bb[0]) / cell).floor() as i64,
+            ((p[1] - bb[1]) / cell).floor() as i64,
+        )
+    };
+    // a segment within `tol` of a point lies in a cell that its box, grown by `tol`, covers
+    let mut grid: HashMap<(i64, i64), Vec<usize>> = HashMap::new();
+    for (j, &p) in b.iter().enumerate() {
+        let q = b[(j + 1) % n];
+        let lo = cell_of([p[0].min(q[0]) - tol, p[1].min(q[1]) - tol]);
+        let hi = cell_of([p[0].max(q[0]) + tol, p[1].max(q[1]) + tol]);
+        for ix in lo.0..=hi.0 {
+            for iy in lo.1..=hi.1 {
+                grid.entry((ix, iy)).or_default().push(j);
+            }
         }
     }
-    worst
+    let near = |x: [f64; 2]| -> bool {
+        grid.get(&cell_of(x))
+            .is_some_and(|js| js.iter().any(|&j| seg_dist(x, b[j], b[(j + 1) % n]) <= tol))
+    };
+    (0..a.len()).all(|i| {
+        let (p, q) = (a[i], a[(i + 1) % a.len()]);
+        near(p) && near([(p[0] + q[0]) / 2.0, (p[1] + q[1]) / 2.0])
+    })
 }
 
 /// Whether a drawn opening is the declared hole: the same centre (bounding-box centre), the same own length and area
@@ -806,7 +828,7 @@ fn same_opening(h: &geom::Contour, d: &RefCurve, pos_tol: f64) -> bool {
     };
     let a = rel(&h.samples, ch);
     let b = rel(&d.points, cd);
-    loop_gap(&a, &b).max(loop_gap(&b, &a)) <= pos_tol
+    loop_within(&a, &b, pos_tol) && loop_within(&b, &a, pos_tol)
 }
 
 /// One-to-one assignment of openings to declared holes: a maximum bipartite matching by augmenting paths. `cand[i]` lists
