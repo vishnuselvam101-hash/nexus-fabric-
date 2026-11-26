@@ -2386,7 +2386,8 @@ fn rematerialise_states(db: &mut Connection) -> rusqlite::Result<usize> {
 fn row_json(c: &Core, e: &Eval) -> Value {
     json!({ "id": c.id, "project_id": c.project, "family": c.family, "state": e.state, "closure_hash": c.closure_col, "created_by": c.created_by, "created_at": c.created_at,
             "replayed": c.replay_raw.is_some(), "superseded": c.superseded_by.is_some(), "open_obligations": e.open_obligations,
-            "no_result": e.refused(), "outcome": if e.refused() { json!(c.outcome) } else { Value::Null }, "engine_current": e.engine_current, "integrity_failure": !e.integrity.is_empty() })
+            "no_result": e.refused(), "outcome": if e.refused() { json!(c.outcome) } else { Value::Null }, "engine_current": e.engine_current, "integrity_failure": !e.integrity.is_empty(),
+            "gates_total": e.gates.len(), "gates_passed": e.gates.iter().filter(|g| g.result == nf_core::GateResult::Pass).count() })
 }
 
 /// Job list rows. The state of each row comes from `evaluate`, exactly as in
