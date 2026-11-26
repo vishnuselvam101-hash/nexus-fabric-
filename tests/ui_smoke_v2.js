@@ -893,7 +893,8 @@ async function main() {
       await page.click('#login-form button[type="submit"]');
       await page.waitForTimeout(1500);
       const err = (await page.locator('#login-form .alert').first().innerText({ timeout: 10000 })).trim();
-      check('P9 login: a wrong password shows the catalogue message', err === 'Incorrect username or password.', err.slice(0, 120));
+      // the catalogue text in whichever language the screen is in (the smoke test may have switched to Japanese)
+      check('P9 login: a wrong password shows the catalogue message', err === 'Incorrect username or password.' || err === 'ユーザー名またはパスワードが正しくありません。', err.slice(0, 120));
     } catch (e) { check('P8 session expiry: the login screen says the session has ended', false, msgOf(e)); }
 
     /* ---- 10. BH-R8-006: without WebGL the home page logs no WebGL or three.js error ---- */
