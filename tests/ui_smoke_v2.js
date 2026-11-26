@@ -871,17 +871,19 @@ async function main() {
         posts === 0 && (!open || links > 0), 'links=' + links + ' buttons=' + posts);
     } catch (e) { check('P3 Obligations: Resolve flow', false, msgOf(e)); }
 
-    // P4: the Add user role list is the server's roles, viewer selected by default
+    // P4: one user-management screen. The workspace Users tab has no add form and links to Administration > Users,
+    // whose add-user role list is the server's roles, viewer selected by default
     try {
       await page.goto(BASE + '/#/workspace/users', { waitUntil: 'load' });
-      await page.waitForSelector('.ws-content button.btn.pri', { timeout: 20000 });
-      await page.locator('.ws-content button.btn.pri').first().click();
-      await page.waitForSelector('.ws-content select[name="role"]', { timeout: 10000 });
-      const roles = await page.$$eval('.ws-content select[name="role"] option', (os) => os.map((o) => o.value));
-      const selected = await page.$eval('.ws-content select[name="role"]', (x) => x.value);
-      check('P4 Add user: roles are the server roles, viewer selected', JSON.stringify(roles) === JSON.stringify(['viewer', 'engineer', 'admin']) && selected === 'viewer',
-        'roles=' + roles.join(',') + ' selected=' + selected);
-    } catch (e) { check('P4 Add user: roles are the server roles, viewer selected', false, msgOf(e)); }
+      await page.waitForSelector('.ws-content a[href="#/admin/users"]', { timeout: 20000 });
+      const formsInWs = await page.locator('.ws-content select[name="role"]').count();
+      await page.goto(BASE + '/#/admin/users', { waitUntil: 'load' });
+      await page.waitForSelector('#adpanel select[name="role"]', { timeout: 20000 });
+      const roles = await page.$$eval('#adpanel select[name="role"] option', (os) => os.map((o) => o.value));
+      const selected = await page.$eval('#adpanel select[name="role"]', (x) => x.value);
+      check('P4 Users: workspace has no add form and links to Administration; the role list is the server roles, viewer selected', formsInWs === 0 && JSON.stringify(roles) === JSON.stringify(['viewer', 'engineer', 'admin']) && selected === 'viewer',
+        'workspace forms=' + formsInWs + ' roles=' + roles.join(',') + ' selected=' + selected);
+    } catch (e) { check('P4 Users: workspace has no add form and links to Administration; the role list is the server roles, viewer selected', false, msgOf(e)); }
 
     // P5: the result page shows the file name and the page the server sent
     try {

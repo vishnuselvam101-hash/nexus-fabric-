@@ -84,7 +84,7 @@ const EN = {
 
   // workspace tabs
   'ws.calculations': 'Calculations', 'ws.projects': 'Projects', 'ws.amoeba': 'AMOEBA',
-  'ws.obligations': 'Obligations', 'ws.audit': 'Audit', 'ws.users': 'Users',
+  'ws.obligations': 'Obligations', 'ws.audit': 'Audit', 'ws.users': 'Users', 'ws.users.admin': 'Manage users in Administration',
   'ws.new.calc': 'New calculation', 'ws.new.project': 'New project', 'ws.add.user': 'Add user',
   'ws.none.calc': 'No calculations yet.', 'ws.none.projects': 'No projects.',
   'ws.none.obl': 'No open obligations.', 'ws.none.audit': 'No audit entries.', 'ws.none.users': 'No users.',
@@ -889,7 +889,7 @@ const JA = {
   'nav.history': '履歴', 'nav.more': 'その他',
 
   'ws.calculations': '計算', 'ws.projects': 'プロジェクト', 'ws.amoeba': 'AMOEBA',
-  'ws.obligations': '要精査項目', 'ws.audit': '監査', 'ws.users': 'ユーザー',
+  'ws.obligations': '要精査項目', 'ws.audit': '監査', 'ws.users': 'ユーザー', 'ws.users.admin': '管理画面でユーザーを管理',
   'ws.new.calc': '新規計算', 'ws.new.project': '新規プロジェクト', 'ws.add.user': 'ユーザーを追加',
   'ws.none.calc': '計算はまだありません。', 'ws.none.projects': 'プロジェクトはありません。',
   'ws.none.obl': '未解決の要精査項目はありません。', 'ws.none.audit': '監査エントリーはありません。', 'ws.none.users': 'ユーザーはいません。',
