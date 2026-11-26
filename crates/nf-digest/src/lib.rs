@@ -265,7 +265,6 @@ pub fn check_text(text: &str, reference: &Reference) -> Report {
     }
 }
 
-/// Points that bound an entity: its ends or vertices, and the corners of an arc's full circle.
 /// Marks the segments of the file that are the declared seam pair: each declared seam (a curve with `seam` set) marks
 /// the first segment whose two ends are its two ends within `tol`, in either direction. A straight edge is one segment;
 /// a polyline outline (an eccentric reducer) carries its seam edges as segments of the same closed polyline. Only marked
@@ -303,6 +302,7 @@ fn step(a: reader::P, b: reader::P) -> f64 {
     (a[0] - b[0]).hypot(a[1] - b[1])
 }
 
+/// Points that bound an entity: its ends or vertices, and the corners of an arc's full circle.
 fn ent_points(e: &Ent) -> Vec<reader::P> {
     match e {
         Ent::Line { a, b, .. } => vec![*a, *b],
