@@ -309,6 +309,8 @@ class Job:
         self.result = submitted['result']
         self.parts = {}
         self.dxf_status = {}
+        self.dxf_hold = {}     # part -> the gate that holds its file (409 export hold), named in the issue
+        self.replay = submitted.get('replay')      # HTTP status of the replay audit the client ran for this accepted job
         self.withheld = {}
         self.unbuilt = {}      # part -> why the part cannot be built from the result (compare_job reports it as an issue)
         r = self.result
@@ -326,6 +328,7 @@ class Job:
                     st, payload = client.dxf(self.id, pv['part'])
                 except DxfError as ex:
                     self.dxf_status[pv['part']] = ex.status      # not served and not the withhold marker
+                    self.dxf_hold[pv['part']] = ex.hold
                     continue
                 self.dxf_status[pv['part']] = st
                 try:

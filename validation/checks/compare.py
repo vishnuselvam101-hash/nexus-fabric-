@@ -699,7 +699,8 @@ def compare_job(req, job, ndense=6001, dxf=True, expect_withheld=False):
     for name, st in job.dxf_status.items():
         # a 409 is excused only for a part whose withhold check above PASSES; every other non-200 stays an issue
         if st != 200 and not withhold_ok.get(name):
-            issues.append(f'{name}: DXF endpoint returned {st} for an accepted job')
+            hold = job.dxf_hold.get(name)
+            issues.append(f'{name}: DXF endpoint returned {st} for an accepted job' + (f': {hold}' if hold else ''))
         # the reverse rule: a part with ANY INCONCLUSIVE check in its own or the interface scope must be withheld;
         # a served DXF (200, part not withheld) means the engine broke the withhold rule
         if st == 200 and name not in job.withheld:

@@ -24,11 +24,18 @@ class Withheld:
 
 
 class DxfError(RuntimeError):
-    """A DXF request that was neither served (200) nor withheld for INCONCLUSIVE checks (the 409 withhold code)."""
+    """A DXF request that was neither served (200) nor withheld for INCONCLUSIVE checks (the 409 withhold code).
+    A 409 export hold names its gate (`gate`, `result`, `detail`): that is kept, so the disagreement says why."""
 
     def __init__(self, status, body):
-        super().__init__(f'DXF endpoint returned {status}')
-        self.status, self.body = status, body
+        self.status, self.body, self.hold = status, body, None
+        try:
+            r = json.loads(body)
+        except Exception:
+            r = {}
+        if status == 409 and isinstance(r, dict) and r.get('gate'):
+            self.hold = f"export hold by gate {r['gate']} ({r.get('name', '')}) is {r.get('result', '?')}: {r.get('detail', '')}".rstrip(': ')
+        super().__init__(f'DXF endpoint returned {status}' + (f' ({self.hold})' if self.hold else ''))
 
 
 class Client:
@@ -102,6 +109,12 @@ class Client:
         out['code'] = r.get('code')        # the stable refusal code of a 422 answer (engine 0.4.1 and later)
         out['id'] = r['id']
         st2, res = self.json('GET', f"/api/calculations/{r['id']}")
+        out['replay'] = None
+        if st2 == 200 and res.get('patterns') and res.get('state') != 'REJECTED':
+            # the user flow of an accepted job: the replay audit runs once (G19), then the files are fetched. The export
+            # rule holds every file while G19 is NOT_RUN, so the DXFs are read only after this replay (see Job)
+            out['replay'], _ = self.raw('POST', f"/api/calculations/{r['id']}/replay")
+            st2, res = self.json('GET', f"/api/calculations/{r['id']}")
         out['result'] = res if st2 == 200 else None
         return out
 

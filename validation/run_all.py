@@ -235,6 +235,7 @@ def run_case(case):
     try:
         job = submit(case.get('request'), case.get('raw_body'))
         out['http'], out['job_id'], out['outcome'], out['state'], out['engine'] = job.http, job.id, job.refusal_text() if job.refused else None, job.state, job.engine
+        out['info']['replay_http'] = job.replay
         if job.http in (401, 403, 404, 421, 429, 500, 502, 503):
             out['class'] = 'error'
             out['issues'].append(f'server answered HTTP {job.http}: {job.error}')
