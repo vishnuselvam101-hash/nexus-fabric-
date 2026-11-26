@@ -4,7 +4,7 @@ Updated 26 November 2026
 
 ## Verdict
 
-**Not ready for any use on real engineering work. Not ready for customer beta. Suitable only for internal development and demonstration with non-confidential data. Also suitable for a supervised pilot evaluation by a factory for review — no production cutting, no confidential drawings.**
+**Not ready for any use on real engineering work. Not ready for customer beta. Suitable only for internal development, demonstration and a supervised pilot evaluation by a factory for review, with non-confidential data and no production cutting.**
 
 | Question | Answer |
 |---|---|
