@@ -815,3 +815,28 @@ fn declared_seam_segments_of_a_closed_polyline_sector_are_not_duplicates() {
     let rep = run(&d, &near_full_sector(false).1);
     assert_fails(&rep, "duplicates");
 }
+
+/// The seam pairing is scoped to the seam ends: a near-360 degree sector whose seam pair is declared, with two CUT_INNER
+/// squares that touch at one corner (110, 30), is a branching joint of four ends, reported as branching (FAIL).
+/// Without the two squares the same sector passes.
+#[test]
+fn declared_seam_does_not_hide_a_branching_joint() {
+    let (mut d, r) = near_full_sector(true);
+    d.line("CUT_INNER", [100.0, 20.0], [110.0, 20.0])
+        .line("CUT_INNER", [110.0, 20.0], [110.0, 30.0])
+        .line("CUT_INNER", [110.0, 30.0], [100.0, 30.0])
+        .line("CUT_INNER", [100.0, 30.0], [100.0, 20.0])
+        .line("CUT_INNER", [110.0, 30.0], [120.0, 30.0])
+        .line("CUT_INNER", [120.0, 30.0], [120.0, 40.0])
+        .line("CUT_INNER", [120.0, 40.0], [110.0, 40.0])
+        .line("CUT_INNER", [110.0, 40.0], [110.0, 30.0]);
+    let rep = run(&d, &r);
+    let c = check_named(&rep, "contours_closed");
+    assert_eq!(c.verdict, Verdict::Fail, "{}", c.detail);
+    assert!(c.detail.contains("4 branching joint(s)"), "{}", c.detail);
+    assert_eq!(rep.verdict(), Verdict::Fail);
+
+    let (d, r) = near_full_sector(true);
+    let rep = run(&d, &r);
+    assert_eq!(check_named(&rep, "contours_closed").verdict, Verdict::Pass);
+}

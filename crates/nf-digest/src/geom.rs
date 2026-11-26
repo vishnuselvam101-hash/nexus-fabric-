@@ -67,9 +67,12 @@ pub struct Piece {
 }
 
 impl Piece {
-    /// True when one of the segments of the piece is a declared seam edge.
-    pub fn has_seam(&self) -> bool {
-        self.seam_segs.iter().any(|&s| s)
+    /// Whether the start and the end of the piece each lie on a declared seam segment (its first and its last segment).
+    pub fn seam_ends(&self) -> (bool, bool) {
+        (
+            self.seam_segs.first().copied().unwrap_or(false),
+            self.seam_segs.last().copied().unwrap_or(false),
+        )
     }
 }
 
@@ -299,12 +302,17 @@ pub fn contours(pieces: &[Piece], tol: f64) -> Vec<Contour> {
             }
         }
     }
-    // With a declared seam pair the two seam edges coincide with the arc ends they border, so the ends are paired
-    // nearest first and each end joins one partner only: the seam pair then closes the outline instead of meeting
-    // both ends of one arc in a single joint. Without a seam pair every end within tol joins its neighbours.
-    let paired_once = open.iter().any(|p| p.has_seam());
-    cand.sort_by(|a, b| a.0.total_cmp(&b.0));
-    let mut used = vec![false; m];
+    // A joint that holds a declared seam end (a seam joint) is paired: each of its ends joins one partner only, and the
+    // partner of a seam end is an end it borders (the two seam edges coincide with the arc ends they border), so the seam
+    // pair closes the outline instead of meeting both ends of one arc in a single joint. Every other joint keeps the full
+    // cluster detection, where a joint of three or more ends is branching.
+    let seam_end: Vec<bool> = open
+        .iter()
+        .flat_map(|p| {
+            let (s, e) = p.seam_ends();
+            [s, e]
+        })
+        .collect();
     fn find(parent: &mut [usize], mut x: usize) -> usize {
         while parent[x] != x {
             parent[x] = parent[parent[x]];
@@ -312,8 +320,25 @@ pub fn contours(pieces: &[Piece], tol: f64) -> Vec<Contour> {
         }
         x
     }
+    let mut whole: Vec<usize> = (0..m).collect();
+    for (_, i, j) in &cand {
+        let (a, b) = (find(&mut whole, *i), find(&mut whole, *j));
+        if a != b {
+            whole[a] = b;
+        }
+    }
+    let mut seam_joint = vec![false; m];
+    for e in 0..m {
+        if seam_end[e] {
+            let r = find(&mut whole, e);
+            seam_joint[r] = true;
+        }
+    }
+    let in_seam_joint: Vec<bool> = (0..m).map(|e| seam_joint[find(&mut whole, e)]).collect();
+    cand.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut used = vec![false; m];
     for (_, i, j) in cand {
-        if paired_once && (used[i] || used[j]) {
+        if in_seam_joint[i] && (used[i] || used[j] || !(seam_end[i] || seam_end[j])) {
             continue;
         }
         used[i] = true;
