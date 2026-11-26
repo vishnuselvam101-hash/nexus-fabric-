@@ -101,7 +101,8 @@ const EN = {
   'proc.upload': 'Upload', 'proc.extract': 'Extract', 'proc.pattern': 'Pattern', 'proc.verify': 'Verify',
   'proc.cancel': 'Cancel',
 
-  // result page 'result.another': 'Convert another',
+  // result page
+  'result.another': 'Convert another',
   'result.dxf': 'Download DXF', 'result.report': 'Download Report',
   'result.retry': 'Adjust options & retry',
 
@@ -125,7 +126,8 @@ const EN = {
   // toasts
   'toast.saved': 'Saved', 'toast.error': 'Error', 'toast.created': 'Created', 'toast.ok': 'Done',
 
-  // badges 'badge.review': 'REVIEW REQUIRED', 'badge.rejected': 'REJECTED',
+  // badges
+  'badge.review': 'REVIEW REQUIRED', 'badge.rejected': 'REJECTED',
   'badge.refused': 'REFUSED', 'badge.converted': 'CONVERTED — NOT VERIFIED — NOT RELEASED',
   'badge.error': 'ERROR', 'badge.processing': 'PROCESSING', 'badge.limitExceeded': 'LIMIT EXCEEDED',
 
@@ -1656,7 +1658,7 @@ Object.assign(EN, {
   'st.amoeba.label': 'AMOEBA verification',
 });
 Object.assign(JA, {
-  'st.fallback': '鋼板部品のプレビューには WebGL が必要です',
+  'st.fallback': '鋼板部品のプレビューには `WebGL` が必要です',
   'st.caption': 'イメージ図：一般的な鋼板のシェルと枝管です。お客様の図面ではありません。',
   'st.dim.w': '展開幅',
   'st.dim.h': '胴の高さ',
@@ -2020,7 +2022,6 @@ const WHOLE = [
   ["3D chord sums of the header end circle (radius {w}) in a tilted frame, taken to the limit", "傾いた座標系における、母管の端円（半径 `{1}`）の3D弦長の和の極限"],
   ["3D chord sums of the square end circle (radius {w}) in a tilted frame, taken to the limit", "傾いた座標系における、直切り端の円（半径 `{1}`）の3D弦長の和の極限"],
   ["A branch whose outside surface is the contact would have its opening cut at the outside diameter, so it would pass through the hole; this build has no wall thickness from which the bore could be derived", "外面を取合いとする枝管では、開口が外径で切断されるため、枝管が穴を通過してしまいます。このビルドには板厚がなく、内径を導くことができません"],
-  ["A branch whose outside surface is the contact would have its opening cut at the outside diameter, so it would pass through the hole; this build has no wall thickness from which the bore could be derived\", detail: [] }", "外面を取合いとする枝管では、開口が外径で切断されるため、枝管が穴を通過してしまいます。このビルドには板厚がなく、内径を導くことができません\", detail: [] }"],
   ["No pattern produced: out of range ({w}): a set-on joint (Spec 02 section 4.4) needs the branch INSIDE surface on the header OUTSIDE surface: {w} \"{w}\" and {w} \"{w}\".", "展開図は生成されませんでした：範囲外（`{1}`）：セットオンの取合い（仕様書02 4.4節）には、母管の外面に枝管の内面が必要です：`{2}` は「`{3}`」、`{4}` は「`{5}`」。"],
   ["Nothing is ignored silently; remove them or use a family that has them", "暗黙に無視される項目はありません。該当する項目を削除するか、それらに対応した形状種別を使用してください"],
   ["OutOfRange { code: \"{w}\", param: \"{w}\", fields: [{t}], reason: \"requires |delta| + r < R: tangent and partial intersections (including the equal-diameter tee) are not implemented in this build\", detail: [(\"limit\", {n}), (\"measured\", {n})] }", "範囲外（コード `{1}`、パラメータ `{2}`、対象欄 [{3}]）：`|delta| + r` < `R` が必要です。接する場合と部分的な相貫（同径のT継手を含む）は、このビルドでは未実装です。詳細：上限 {4}、実測値 {5}"],
@@ -2056,8 +2057,8 @@ const WHOLE = [
   ["lower left corner of the plate = the seam at the station-{n} end (X = {n}, Y = {n})", "板の左下隅＝軸方向位置{1}側の端の継目（X = {2}、Y = {3}）"],
   ["mid-height of the folded-back opening across the header (y of the 3D frame, positive above the plate centreline in the outside view) against the input offset delta", "立体に戻した開口の、母管を横切る方向の中央の高さ（3D座標系のy。外面から見た図で板の中心線より上を正とする）を、入力した偏心量 `delta` と比較"],
   ["mm: $LUNITS={n} (decimal), $AUNITS={n}, $ANGDIR={n} in the header; the unit is stated by the NF-UNITS comment line, the comment block and a TEXT annotation (R12 has no unit-of-measure variable)", "mm：ヘッダーは `$LUNITS`={1}（10進）、`$AUNITS`={2}、`$ANGDIR`={3}。単位は `NF-UNITS` コメント行、コメントブロック、および `TEXT` 注記で示しています（`R12` に単位系の変数はありません）"],
-  ["request refused, nothing was computed: out of range (joint): a set-on joint (Spec 02 section 4.4) needs the branch INSIDE surface on the header OUTSIDE surface: branch_surface_reference \"inside\" and header_surface_reference \"outside\".", "リクエストは受け付けられず、何も計算されていません：範囲外（取合い）：セットオンの取合い（仕様書02 4.4節）には、母管の外面に枝管の内面が必要です。`branch_surface_reference` は「inside」、`header_surface_reference` は「outside」としてください。"],
-  ["out of range (joint): a set-on joint (Spec 02 section 4.4) needs the branch INSIDE surface on the header OUTSIDE surface: branch_surface_reference \"inside\" and header_surface_reference \"outside\".", "範囲外（取合い）：セットオンの取合い（仕様書02 4.4節）には、母管の外面に枝管の内面が必要です。`branch_surface_reference` は「inside」、`header_surface_reference` は「outside」としてください。"],
+  ["request refused, nothing was computed: out of range (joint): a set-on joint (Spec 02 section 4.4) needs the branch INSIDE surface on the header OUTSIDE surface: branch_surface_reference \"inside\" and header_surface_reference \"outside\".", "リクエストは受け付けられず、何も計算されていません：範囲外（取合い）：セットオンの取合い（仕様書02 4.4節）には、母管の外面に枝管の内面が必要です。`branch_surface_reference` は`inside`、`header_surface_reference` は`outside`としてください。"],
+  ["out of range (joint): a set-on joint (Spec 02 section 4.4) needs the branch INSIDE surface on the header OUTSIDE surface: branch_surface_reference \"inside\" and header_surface_reference \"outside\".", "範囲外（取合い）：セットオンの取合い（仕様書02 4.4節）には、母管の外面に枝管の内面が必要です。`branch_surface_reference` は`inside`、`header_surface_reference` は`outside`としてください。"],
   ["parallel to X: roll about an axis parallel to X; the drawn face becomes the outside of the header", "Xに平行：Xに平行な軸まわりに巻きます。描いた面が母管の外面になります"],
   ["parallel to Y: roll about an axis parallel to Y; the drawn face becomes the outside of the shell", "Yに平行：Yに平行な軸まわりに巻きます。描いた面が胴板の外面になります"],
   ["parallel to Y: roll about the branch axis; the drawn face becomes the outside of the branch", "Yに平行：枝管の軸まわりに巻きます。描いた面が枝管の外面になります"],
@@ -2069,7 +2070,6 @@ const WHOLE = [
   ["surface unknown: cannot tell which surface the radius is on, so the radius check cannot be confirmed. / 基準面が不明です: 半径がどの面を指すか判別できないため、半径に関する検査は確定できません。", "基準面が不明です：半径がどの面を指すか判別できないため、半径に関する検査は確定できません。"],
   ["theta = X / R_dev, R_dev = {n} mm: theta = 0 at the seam (X = 0), increasing with X; counter-clockwise seen from the end Y = {n} mm looking toward Y = 0", "`theta` = X / `R_dev`、`R_dev` = {1} mm：`theta` = 0 は継目（X = 0）で、Xとともに増えます。Y = {2} mm の端から Y = 0 の方向を見て反時計回りです"],
   ["A branch whose outside surface is the contact would have its opening cut at the outside diameter, so it would pass through the hole; this build has no wall thickness from which the bore could be derived", "外面を取合いとする枝管では、開口が外径で切断されるため、枝管が穴を通過してしまいます。このビルドには板厚がなく、内径を導くことができません"],
-  ["A branch whose outside surface is the contact would have its opening cut at the outside diameter, so it would pass through the hole; this build has no wall thickness from which the bore could be derived\", detail: [] }", "外面を取合いとする枝管では、開口が外径で切断されるため、枝管が穴を通過してしまいます。このビルドには板厚がなく、内径を導くことができません\", detail: [] }"],
   ["No pattern produced: out of range ({w}): a set-on joint (Spec 02 section 4.4) needs the branch INSIDE surface on the header OUTSIDE surface: {w} \"{w}\" and {w} \"{w}\".", "展開図は生成されませんでした：範囲外（`{1}`）：セットオンの取合い（仕様書02 4.4節）には、母管の外面に枝管の内面が必要です：`{2}` は「`{3}`」、`{4}` は「`{5}`」。"],
   ["Nothing is ignored silently; remove them or use a family that has them", "暗黙に無視される項目はありません。該当する項目を削除するか、それらに対応した形状種別を使用してください"],
   ["invalid request: unknown field(s) {w}, {w} for family '{w}'.", "リクエストが不正です：形状種別「`{3}`」に、不明な欄 `{1}`、`{2}` があります。"],
