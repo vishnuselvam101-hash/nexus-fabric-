@@ -328,11 +328,9 @@ pub fn contours(pieces: &[Piece], tol: f64) -> Vec<Contour> {
         }
     }
     let mut seam_joint = vec![false; m];
-    for e in 0..m {
-        if seam_end[e] {
-            let r = find(&mut whole, e);
-            seam_joint[r] = true;
-        }
+    for (e, _) in seam_end.iter().enumerate().filter(|(_, s)| **s) {
+        let r = find(&mut whole, e);
+        seam_joint[r] = true;
     }
     let in_seam_joint: Vec<bool> = (0..m).map(|e| seam_joint[find(&mut whole, e)]).collect();
     cand.sort_by(|a, b| a.0.total_cmp(&b.0));

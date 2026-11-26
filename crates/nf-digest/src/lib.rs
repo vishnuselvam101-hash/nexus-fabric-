@@ -122,6 +122,7 @@ impl Report {
             "tiny_segments",
             "outer_profiles",
             "hole_count",
+            "hole_position",
             "holes_inside_outline",
             "extents",
             "outline_length",
@@ -242,6 +243,7 @@ pub fn check_text(text: &str, reference: &Reference) -> Report {
             "tiny_segments",
             "outer_profiles",
             "hole_count",
+            "hole_position",
             "holes_inside_outline",
             "extents",
             "outline_length",
@@ -674,6 +676,7 @@ fn geometry(
             r.holes.len()
         ),
     ));
+    out.push(hole_position_check(&closed_inner, r, tol, fine));
     let outline: Option<&geom::Contour> = if n_outer == 1 {
         closed_outer.first().copied()
     } else {
@@ -739,6 +742,99 @@ fn geometry(
     out.push(area_check(&closed_outer, &closed_inner, r, tol));
     out.push(radii_check(&cut, r, tol));
     out
+}
+
+/// Centre of the bounding box of a point list (mm); None when there are no points.
+fn bbox_centre(pts: &[[f64; 2]]) -> Option<[f64; 2]> {
+    bbox_of(pts.iter().copied()).map(|b| [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0])
+}
+
+fn at_text(p: Option<[f64; 2]>) -> String {
+    match p {
+        Some(p) => format!("{:.4}, {:.4}", p[0], p[1]),
+        None => "no points".into(),
+    }
+}
+
+/// Each drawn opening sits at exactly one declared hole, and each declared hole has exactly one drawn opening there
+/// (one-to-one, by position, within the tolerance the extents use). The position of an opening is the centre of its
+/// bounding box. A reference feature below the tolerance makes a finding INCONCLUSIVE (`fine`), not FAIL.
+fn hole_position_check(drawn: &[&geom::Contour], r: &Reference, tol: f64, fine: bool) -> Check {
+    let arc_dev = r
+        .outer
+        .iter()
+        .chain(r.holes.iter())
+        .map(|c| c.max_dev)
+        .fold(0.0f64, f64::max);
+    let pos_tol = tol + arc_dev;
+    let at: Vec<Option<[f64; 2]>> = drawn.iter().map(|h| bbox_centre(&h.samples)).collect();
+    let decl: Vec<Option<[f64; 2]>> = r.holes.iter().map(|h| bbox_centre(&h.points)).collect();
+    let near = |a: Option<[f64; 2]>, b: Option<[f64; 2]>| match (a, b) {
+        (Some(a), Some(b)) => (a[0] - b[0]).hypot(a[1] - b[1]) <= pos_tol,
+        _ => false,
+    };
+    let mut bad = Vec::new();
+    for (i, a) in at.iter().enumerate() {
+        match decl.iter().filter(|b| near(*a, **b)).count() {
+            1 => {}
+            0 => bad.push(format!(
+                "opening {} at ({}) matches no declared hole",
+                i + 1,
+                at_text(*a)
+            )),
+            _ => bad.push(format!(
+                "opening {} at ({}) matches more than one declared hole",
+                i + 1,
+                at_text(*a)
+            )),
+        }
+    }
+    for (j, b) in decl.iter().enumerate() {
+        match at.iter().filter(|a| near(**a, *b)).count() {
+            1 => {}
+            0 => bad.push(format!(
+                "declared hole {} at ({}) has no opening at its position",
+                j + 1,
+                at_text(*b)
+            )),
+            _ => bad.push(format!(
+                "declared hole {} at ({}) has more than one opening at its position",
+                j + 1,
+                at_text(*b)
+            )),
+        }
+    }
+    let verdict = if bad.is_empty() {
+        Verdict::Pass
+    } else if fine {
+        Verdict::Inconclusive
+    } else {
+        Verdict::Fail
+    };
+    let detail = if bad.is_empty() {
+        format!(
+            "{} opening(s) each at one declared hole position, one-to-one; tolerance {pos_tol:.3e} mm",
+            drawn.len()
+        )
+    } else {
+        format!(
+            "{}; tolerance {pos_tol:.3e} mm{}",
+            bad.join("; "),
+            if fine {
+                "; the reference declares features shorter than the tolerance, so these cannot be told apart"
+            } else {
+                ""
+            }
+        )
+    };
+    check(
+        "hole_position",
+        verdict,
+        Some(bad.len() as f64),
+        Some(0.0),
+        Some(pos_tol),
+        detail,
+    )
 }
 
 fn length_check(name: &'static str, measured: f64, expected: f64, tol: f64) -> Check {

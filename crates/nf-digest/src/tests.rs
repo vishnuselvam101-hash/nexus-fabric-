@@ -136,7 +136,7 @@ fn clean_closed_profile_passes_every_check() {
         assert_eq!(c.verdict, Verdict::Pass, "{}: {}", c.name, c.detail);
     }
     assert_eq!(rep.verdict(), Verdict::Pass);
-    assert_eq!(rep.checks.len(), 20);
+    assert_eq!(rep.checks.len(), 21);
 }
 
 #[test]
@@ -839,4 +839,119 @@ fn declared_seam_does_not_hide_a_branching_joint() {
     let (d, r) = near_full_sector(true);
     let rep = run(&d, &r);
     assert_eq!(check_named(&rep, "contours_closed").verdict, Verdict::Pass);
+}
+
+/// The 10 mm square opening of half-size 5 centred at `c`.
+fn square_at(c: [f64; 2]) -> [[f64; 2]; 4] {
+    [
+        [c[0] - 5.0, c[1] - 5.0],
+        [c[0] + 5.0, c[1] - 5.0],
+        [c[0] + 5.0, c[1] + 5.0],
+        [c[0] - 5.0, c[1] + 5.0],
+    ]
+}
+
+/// A 200 x 100 mm plate with 10 mm square openings drawn at `drawn`, declared at `declared` (centres).
+fn plate(declared: &[[f64; 2]], drawn: &[[f64; 2]]) -> (Doc, Reference) {
+    let o = [[0.0, 0.0], [200.0, 0.0], [200.0, 100.0], [0.0, 100.0]];
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.poly("CUT_OUTER", &o, true);
+    for c in drawn {
+        d.poly("CUT_INNER", &square_at(*c), true);
+    }
+    let closed = [o[0], o[1], o[2], o[3], o[0]];
+    let holes = declared
+        .iter()
+        .map(|c| {
+            let s = square_at(*c);
+            curve(&[s[0], s[1], s[2], s[3], s[0]], false, 0.0)
+        })
+        .collect();
+    (
+        d,
+        Reference {
+            part: "PLATE".into(),
+            outer: vec![curve(&closed, false, 0.0)],
+            holes,
+        },
+    )
+}
+
+/// A drawn opening at (130, 50) where the job declares a hole at (120, 20) is a wrong part: FAIL, naming the hole.
+#[test]
+fn hole_at_a_wrong_position_fails() {
+    let (d, r) = plate(&[[120.0, 20.0]], &[[130.0, 50.0]]);
+    let rep = run(&d, &r);
+    let c = check_named(&rep, "hole_position");
+    assert_eq!(c.verdict, Verdict::Fail, "{}", c.detail);
+    assert!(
+        c.detail.contains("declared hole 1 at (120.0000, 20.0000)"),
+        "{}",
+        c.detail
+    );
+    assert!(
+        c.detail.contains("opening 1 at (130.0000, 50.0000)"),
+        "{}",
+        c.detail
+    );
+    assert_eq!(rep.verdict(), Verdict::Fail);
+}
+
+/// Openings at their declared positions pass, whatever the order they are drawn in.
+#[test]
+fn holes_at_their_declared_positions_pass() {
+    let (d, r) = plate(
+        &[[60.0, 20.0], [140.0, 70.0]],
+        &[[140.0, 70.0], [60.0, 20.0]],
+    );
+    let rep = run(&d, &r);
+    let c = check_named(&rep, "hole_position");
+    assert_eq!(c.verdict, Verdict::Pass, "{}", c.detail);
+    assert_eq!(rep.verdict(), Verdict::Pass);
+
+    let (d, r) = plate(&[[120.0, 20.0]], &[[120.0, 20.0]]);
+    assert_eq!(
+        check_named(&run(&d, &r), "hole_position").verdict,
+        Verdict::Pass
+    );
+}
+
+/// The match is one-to-one: two openings at one declared position leave the second declared hole without an opening.
+#[test]
+fn two_openings_at_one_declared_position_fail() {
+    let (d, r) = plate(
+        &[[60.0, 20.0], [140.0, 70.0]],
+        &[[60.0, 20.0], [60.0, 20.0]],
+    );
+    let rep = run(&d, &r);
+    assert_fails(&rep, "hole_position");
+    let c = check_named(&rep, "hole_position");
+    assert!(
+        c.detail
+            .contains("declared hole 2 at (140.0000, 70.0000) has no opening"),
+        "{}",
+        c.detail
+    );
+}
+
+/// A hole mismatch when the reference declares a feature below the tolerance is INCONCLUSIVE (the file is held), not FAIL.
+#[test]
+fn hole_mismatch_with_a_feature_below_the_tolerance_is_inconclusive() {
+    let (d, mut r) = plate(&[[120.0, 20.0]], &[[130.0, 50.0]]);
+    r.holes = vec![curve(
+        &[
+            [120.0, 20.0],
+            [120.00001, 20.0],
+            [125.0, 25.0],
+            [120.0, 20.0],
+        ],
+        false,
+        0.0,
+    )];
+    let rep = run(&d, &r);
+    assert_eq!(
+        check_named(&rep, "hole_position").verdict,
+        Verdict::Inconclusive
+    );
 }
