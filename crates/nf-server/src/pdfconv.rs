@@ -521,7 +521,7 @@ pub(crate) fn snapshot(app: &App, tx: &Connection, project: i64) -> Result<Strin
 
 /// The columns of a conversion as the API shows them.
 /// The documents of a conversion point to it (`documents.conversion_id`); nothing is updated.
-pub(crate) const CONV_COLS: &str = "c.id, c.project_id, c.source_document, c.page, c.scale_kind, c.scale_value, c.tolerance_mm, c.include_fill, c.include_text, c.status, c.code, c.limit_name, c.message, c.converter_version, c.source_sha256, (SELECT d.id FROM documents d WHERE d.conversion_id = c.id AND d.detected_type = 'dxf'), (SELECT d.id FROM documents d WHERE d.conversion_id = c.id AND d.detected_type = 'pdf_conversion_report'), c.dxf_sha256, c.report_sha256, c.created_by, c.created_at";
+pub(crate) const CONV_COLS: &str = "c.id, c.project_id, c.source_document, c.page, c.scale_kind, c.scale_value, c.tolerance_mm, c.include_fill, c.include_text, c.status, c.code, c.limit_name, c.message, c.converter_version, c.source_sha256, (SELECT d.id FROM documents d WHERE d.conversion_id = c.id AND d.detected_type = 'dxf'), (SELECT d.id FROM documents d WHERE d.conversion_id = c.id AND d.detected_type = 'pdf_conversion_report'), c.dxf_sha256, c.report_sha256, c.created_by, c.created_at, (SELECT d.filename FROM documents d WHERE d.id = c.source_document)";
 
 pub(crate) fn conv_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
     Ok(json!({
@@ -535,6 +535,7 @@ pub(crate) fn conv_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
         "report_sha256": r.get::<_, Option<String>>(18)?, "created_by": r.get::<_, String>(19)?,
         "created_at": r.get::<_, i64>(20)?, "label": LABEL, "release_state": "NOT RELEASED",
         "flat_pattern": false,
+        "filename": r.get::<_, Option<String>>(21)?,
     }))
 }
 
