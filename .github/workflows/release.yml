@@ -25,10 +25,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends mingw-w64 nsis zip
           x86_64-w64-mingw32-gcc --version | head -1
           makensis -VERSION
-      - name: Rust toolchain (stable, with the x86_64-pc-windows-gnu target)
+      - name: Rust toolchain (pinned in rust-toolchain.toml, with the x86_64-pc-windows-gnu target)
         run: |
-          rustup toolchain install stable --profile minimal --target x86_64-pc-windows-gnu
-          rustup default stable
+          rustup toolchain install --profile minimal
           rustc --version
           cargo --version
       - name: Unit tests
@@ -68,10 +67,9 @@ jobs:
           git config --global core.autocrlf false
           git config --global core.eol lf
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Rust toolchain (stable, the runner's native MSVC target)
+      - name: Rust toolchain (pinned in rust-toolchain.toml, the runner's native MSVC target)
         run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
+          rustup toolchain install --profile minimal
           rustc -vV
           cargo --version
       - name: NSIS and zip
