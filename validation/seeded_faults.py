@@ -15,7 +15,7 @@ import numpy as np
 import shapely
 from checks.client import Client, USER, PASSWORD
 from checks.product import Job, Part
-from checks.compare import cmp_header, cmp_branch, cmp_cone, cmp_eccentric, compare_job, seam_resolution_check, dxf_roundtrip, declared_side, compare_scaled, scale_request, rel_tol
+from checks.compare import cmp_header, cmp_branch, cmp_cone, cmp_eccentric, compare_job, seam_resolution_check, dxf_roundtrip, declared_side, compare_scaled, scale_request, rel_tol, unexpected_holds
 from reference import families as RF
 from stability import _asm
 
@@ -268,6 +268,7 @@ def seam_faults(cl):
             issues = []
             cmp = cmp_eccentric if req['family'] == 'eccentric_reducer' else cmp_cone
             pr, _ = cmp(req, j.parts['reducer'], issues)
+            issues += unexpected_holds(j)     # the withheld control is an unexpected hold unless the case declares it
         else:
             pre = compare_job(req, j)
             pr = pre['parts']['reducer']
@@ -354,6 +355,7 @@ def near_tangent_and_scale(cl):
     br, _, _ = cmp_branch(NT, ctrl.parts['branch'], issues)
     declared_side(ctrl.parts['branch'], br, issues, [], True)
     declared_side(h, hr, issues, [], True)
+    issues += unexpected_holds(ctrl)          # the unmodified control is not held by the AMOEBA digest
     m = [e for e in ev if e['match'] and e['natural']]
     ok &= (not issues) and bool(m)
     out.append(('ok  ' if (not issues and m) else 'FAIL') + ' control: unmodified near-tangent joint has no geometry issue' + ('' if (not issues and m) else ': ' + (issues[0][:170] if issues else 'no frame mapping')))
@@ -414,6 +416,7 @@ def near_tangent_and_scale(cl):
     other = scale_request(REQ, K)
     base = Job(cl, cl.calculate(REQ))
     t_i, devs, _, _ = compare_scaled(base, Job(cl, cl.calculate(other)), K, other, dxf=False)
+    t_i += unexpected_holds(base)             # the unmodified base is not held by the AMOEBA digest
     ok &= not (t_i or devs)
     out.append(('ok  ' if not (t_i or devs) else 'FAIL') + f' control: unmodified pattern at scale {K} passes the scale relation' + ('' if not (t_i or devs) else ': ' + (t_i + devs)[0][:170]))
     j2 = Job(cl, cl.calculate(other))

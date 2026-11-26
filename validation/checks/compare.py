@@ -607,6 +607,15 @@ def seam_resolution_check(fam, name, pr, job, issues):
         issues.append(f'{name}: seam clearance {gap:.4g} mm is above any resolution ({cap:.4g} mm) but the profile gate G11 says {g11}')
 
 
+def unexpected_holds(job, expect_withheld=False):
+    """Issues for every file the AMOEBA digest holds (gate G23, code amoeba_digest_inconclusive) on a case that does not
+    declare withheld=True.  Used by every check of a job, including the cases that never call compare_job."""
+    if expect_withheld:
+        return []
+    return [f'{name}: unexpected hold: the case does not declare withheld=True'
+            for name, w in job.withheld.items() if w.code == 'amoeba_digest_inconclusive']
+
+
 def compare_job(req, job, ndense=6001, dxf=True, expect_withheld=False):
     """Full comparison.  Returns report dict with 'issues' (geometry disagreements) and 'findings' (other defects).
     dxf=False skips the DXF round trip (used only by the seeded-fault tests, which plant geometry, not files).

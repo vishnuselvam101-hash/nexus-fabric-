@@ -25,7 +25,7 @@ import shapely
 
 from checks.client import Client, SpawnedServer, USER, PASSWORD, SETUP_TOKEN_ENV, DxfError
 from checks.product import Job
-from checks.compare import compare_job, compare_scaled, rel_tol, scale_request
+from checks.compare import compare_job, compare_scaled, rel_tol, scale_request, unexpected_holds
 from checks.oracle import classify
 from checks import hpcheck
 
@@ -283,6 +283,9 @@ def run_case(case):
             out['issues'] += rep['issues']
             out['findings'] += rep['findings']
             out['info']['compare'] = {k: v for k, v in rep.items() if k not in ('issues', 'findings')}
+        else:
+            # compare:False and non-finite cases never reach compare_job: an AMOEBA hold on them is still checked
+            out['issues'] += unexpected_holds(job, expect_withheld=bool(case.get('withheld')))
         check_expected(case, job, out['issues'])
         if case.get('relation'):
             check_relation(case, job, out['issues'], out['findings'], out['info'])
