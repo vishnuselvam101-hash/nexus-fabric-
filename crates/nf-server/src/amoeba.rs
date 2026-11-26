@@ -280,7 +280,9 @@ pub fn stages(
         hold.push(format!("state {state}"));
     }
     let mut export_reasons = Vec::new();
-    if !all_pass {
+    // a per-part hold already names the failing digest (`amoeba_digest_*`): the status line would repeat it
+    let digest_named = holds.iter().any(|h| h.contains("amoeba_digest_"));
+    if !all_pass && !digest_named {
         export_reasons.push(format!("digest {digest_status}"));
     }
     if state != "REVIEW_REQUIRED" {
@@ -307,4 +309,32 @@ pub fn stages(
             { "stage": "export", "status": export, "reasons": export_reasons },
         ],
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_failed_digest_is_named_once_in_the_export_reasons() {
+        let rows = vec![Row {
+            part: "P1".into(),
+            dxf_sha256: "a".into(),
+            inputs_sha256: "b".into(),
+            engine: "e".into(),
+            verdict: "FAIL".into(),
+            checks: json!([]),
+            created_at: 0,
+        }];
+        let holds = vec!["part P1: amoeba_digest_failed".to_string()];
+        let view = stages(1, "REVIEW_REQUIRED", &[], &rows, &holds);
+        let export = view["stages"]
+            .as_array()
+            .and_then(|s| s.iter().find(|s| s["stage"] == "export"))
+            .expect("export stage");
+        assert_eq!(
+            export["reasons"],
+            json!(["held: part P1: amoeba_digest_failed"])
+        );
+    }
 }
