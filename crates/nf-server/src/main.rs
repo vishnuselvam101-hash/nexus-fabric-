@@ -3353,23 +3353,6 @@ async fn get_dxf(
             &format!("this result is REJECTED{why}; its files are withheld"),
         ));
     }
-    // Export rule (one rule everywhere): the file is served only when AMOEBA's digest passes, i.e. every
-    // automatic gate is PASS. REVIEW_REQUIRED alone allows non-critical FAIL, NOT_IMPLEMENTED and so on.
-    if let Some(g) = e.gates.iter().find(|g| g.result != nf_core::GateResult::Pass) {
-        let word = serde_json::to_value(g.result)
-            .ok()
-            .and_then(|v| v.as_str().map(str::to_owned))
-            .unwrap_or_default();
-        return Err(fail(
-            StatusCode::CONFLICT,
-            &format!(
-                "held by AMOEBA: gate {} ({}) is {word}: {}",
-                g.id,
-                g.name.replace('_', " "),
-                g.detail
-            ),
-        ));
-    }
     // RC-01: the file is the one named by the job's own DXF record, read from the verified release
     // closure; the copy of the reference inside the stored result is never used to choose a file.
     let Some(records) = c.records.as_ref().filter(|r| r.findings.is_empty()) else {

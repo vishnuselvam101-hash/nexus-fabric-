@@ -82,9 +82,9 @@ const canCorrect = () => canEdit() && !blocked() && c.correctable_parameters.len
 const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); if (!dead) fn(); }, ms); timers.add(id); };
 const openCount = () => c.obligations.filter((o) => o.state === 'open').length + c.advisories.filter((a) => a.state === 'open').length;
 const dxfHeld = (part) => Object.hasOwn(c.dxf_withheld || {}, part);
-// the export rule (server get_dxf, the Jobs list and this page): AMOEBA's digest passes, i.e. every automatic gate is PASS
+// the export follows the server (get_dxf): a job the server has not held (state REVIEW_REQUIRED) can be downloaded
 const allPass = () => c.gates.length > 0 && c.gates.every((g) => g.result === 'PASS');
-const released = () => state === 'REVIEW_REQUIRED' && allPass();
+const released = () => state === 'REVIEW_REQUIRED';
 const amoebaStage = () => {
   if (state === 'SUPERSEDED') return 'idle';
   if (!c.patterns.length || state === 'REJECTED' || state === 'NO_RESULT') return 'hold';

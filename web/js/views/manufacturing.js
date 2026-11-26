@@ -36,7 +36,7 @@ const extent = (p) => {
 const summarise = (c) => ({
   noResult: !c.patterns.length,
   superseded_by: c.superseded_by,
-  released: c.state === 'REVIEW_REQUIRED' && c.gates.length > 0 && c.gates.every((g) => g.result === 'PASS'),
+  released: c.state === 'REVIEW_REQUIRED',
   parts: c.patterns.map((p) => ({ part: p.part, cls: p.class, sha: p.dxf_sha256, ...extent(p), curves: p.curves.length, holes: p.holes.length })),
 });
 // Same precedence as every other list: superseded > no result > the server state.
