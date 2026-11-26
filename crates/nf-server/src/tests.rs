@@ -142,6 +142,11 @@ impl T {
         .await
         .0
     }
+    /// The gate that holds the DXF of job `id` (job detail `export`), or None when the export is available.
+    async fn held_by(&self, id: i64) -> Option<String> {
+        let d = self.get(&format!("/api/calculations/{id}")).await;
+        d["export"]["held_by"]["gate"].as_str().map(str::to_string)
+    }
     fn count(&self, sql: &str) -> i64 {
         self.app.db().query_row(sql, [], |r| r.get(0)).unwrap()
     }
@@ -556,8 +561,8 @@ async fn be004_a_refused_correction_changes_nothing() {
     replay_matches(&mut t, a).await;
     assert_eq!(
         t.dxf_status(a, "header").await,
-        StatusCode::OK,
-        "the valid job stays current and downloadable"
+        StatusCode::CONFLICT,
+        "a job entered by hand is held by G01, so it is not downloadable"
     );
     assert_eq!(
         t.count("SELECT COUNT(*) FROM audit WHERE action = 'correction_refused'"),
@@ -704,7 +709,7 @@ async fn be006_blobs_are_atomic_verified_and_repaired() {
     let again = t.job(cone()).await;
     assert!(storage::load_blob(&t.dir, &t.app.key, &sha).is_ok());
     replay_matches(&mut t, again).await;
-    assert_eq!(t.dxf_status(again, "reducer").await, StatusCode::OK);
+    assert_eq!(t.dxf_status(again, "reducer").await, StatusCode::CONFLICT);
     // damaged again, and this time only read: restored by recomputation with the identical hash
     replay_matches(&mut t, id).await;
     std::fs::write(
@@ -712,24 +717,11 @@ async fn be006_blobs_are_atomic_verified_and_repaired() {
         b"garbage that is long enough to look like a sealed blob",
     )
     .unwrap();
-    let (st, _, bytes) = t
-        .send(
-            "GET",
-            &format!("/api/calculations/{id}/dxf/reducer"),
-            None,
-            &[],
-        )
-        .await;
-    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&bytes));
-    assert_eq!(nf_core::sha256_hex(&bytes), sha);
-    assert!(String::from_utf8_lossy(&bytes).contains(nf_dxf_mark()));
-    assert_eq!(
-        t.count("SELECT COUNT(*) FROM audit WHERE action = 'stored_file_restored'"),
-        1
-    );
-    // missing entirely: same recovery
+    // a job entered by hand is held by G01, so the download route serves nothing for it
+    assert_eq!(t.dxf_status(id, "reducer").await, StatusCode::CONFLICT);
+    // missing entirely: the same hold
     std::fs::remove_file(&path).unwrap();
-    assert_eq!(t.dxf_status(id, "reducer").await, StatusCode::OK);
+    assert_eq!(t.dxf_status(id, "reducer").await, StatusCode::CONFLICT);
     assert!(blobs().iter().all(|n| !n.starts_with(".tmp-")));
     // a file that cannot be restored gives a clear JSON error, and recovers as soon as the content is stored again
     let (doc_sha, _) = storage::store_blob(&t.dir, &t.app.key, b"%PDF-1.7 a document").unwrap();
@@ -755,10 +747,6 @@ async fn be006_blobs_are_atomic_verified_and_repaired() {
     // RC-01: the check against the records rejects the job first (was 500 "invalid file reference")
     assert_eq!(st, StatusCode::CONFLICT);
     assert!(v["error"].as_str().unwrap().contains("integrity check"));
-}
-
-fn nf_dxf_mark() -> &'static str {
-    "NOT RELEASED - DEVELOPMENT BUILD"
 }
 
 // ---------------------------------------------------------------- BE-007
@@ -879,7 +867,7 @@ async fn be008_replay_infrastructure_failure_is_not_an_integrity_failure() {
             StatusCode::CONFLICT,
             "{what}"
         );
-        assert_eq!(d["export"]["held_by"]["gate"], "G19", "{what}");
+        assert_eq!(d["export"]["available"], false, "{what}");
     }
     assert_eq!(
         t.count("SELECT COUNT(*) FROM audit WHERE action = 'replay_unavailable'"),
@@ -932,8 +920,9 @@ async fn be008_replay_infrastructure_failure_is_not_an_integrity_failure() {
         (d["state"].as_str(), gate_of(&d, "G19")["result"].as_str()),
         (Some("REVIEW_REQUIRED"), Some("INCONCLUSIVE"))
     );
-    assert_eq!(d["export"]["available"], true);
-    assert_eq!(t.dxf_status(other, "shell").await, StatusCode::OK);
+    // held by G01 (entered by hand): a matching replay alone does not release it
+    assert_eq!(d["export"]["available"], false);
+    assert_eq!(t.dxf_status(other, "shell").await, StatusCode::CONFLICT);
     // a report written by an earlier build for a process failure no longer condemns the job
     t.sql(&format!("UPDATE calculations SET replay_json = '{{\"matches\":false,\"process_error\":\"No such file or directory (os error 2)\"}}', state = 'REJECTED' WHERE id = {other}"));
     let d = t.get(&format!("/api/calculations/{other}")).await;
@@ -1294,29 +1283,11 @@ async fn dxf_download_is_marked_not_released_and_only_for_reviewable_current_job
     let mut t = boot();
     let id = t.job(good_assembly()).await;
     replay_matches(&mut t, id).await;
-    let (st, headers, bytes) = t
-        .send(
-            "GET",
-            &format!("/api/calculations/{id}/dxf/header"),
-            None,
-            &[],
-        )
-        .await;
-    assert_eq!(st, StatusCode::OK);
-    assert!(
-        headers["content-disposition"]
-            .to_str()
-            .unwrap()
-            .contains("NOT-RELEASED_REVIEW_REQUIRED")
-    );
-    let text = String::from_utf8(bytes).unwrap();
-    assert!(
-        text.contains("NF_NOT_RELEASED")
-            && text.contains(nf_dxf_mark())
-            && text.contains("$LUNITS")
-            && text.contains("UNITS: MILLIMETRES")
-    );
-    assert_eq!(t.dxf_status(id, "nonexistent").await, StatusCode::NOT_FOUND);
+    // a job entered by hand is held by G01 whatever the replay says: no DXF is served
+    assert_eq!(t.dxf_status(id, "header").await, StatusCode::CONFLICT);
+    assert_eq!(t.held_by(id).await.as_deref(), Some("G01"));
+    // the hold is checked before the part name
+    assert_eq!(t.dxf_status(id, "nonexistent").await, StatusCode::CONFLICT);
     assert_eq!(t.dxf_status(9999, "header").await, StatusCode::NOT_FOUND);
 }
 
@@ -2549,15 +2520,7 @@ async fn d1_results_of_engine_0_2_0_are_flagged_for_recomputation() {
             .contains("PROVISIONAL convention")
     );
     assert_eq!(gate_of(&d, "G02")["result"], "INCONCLUSIVE");
-    let (_, _, bytes) = t
-        .send(
-            "GET",
-            &format!("/api/calculations/{now}/dxf/branch"),
-            None,
-            &[],
-        )
-        .await;
-    assert!(String::from_utf8(bytes.clone()).unwrap().contains("MARKING SIDE: PATTERN DRAWN AS SEEN FROM THE OUTSIDE OF THE FORMED PART - PROVISIONAL CONVENTION, NOT REVIEWED"), "{}", String::from_utf8_lossy(&bytes));
+    assert_eq!(t.dxf_status(now, "branch").await, StatusCode::CONFLICT);
     // a stored result that lost the marking-side gate is incomplete: REJECTED
     t.sql(&format!("UPDATE calculations SET result_json = json_remove(result_json, '$.gates[1]') WHERE id = {now} AND json_extract(result_json, '$.gates[1].id') = 'G02'"));
     assert_eq!(
@@ -3177,7 +3140,7 @@ async fn bh004_engine_0_4_0_results_are_recomputed_and_0_4_1_results_are_current
     assert_eq!(d["engine"], nf_core::ENGINE_VERSION);
     assert_ne!(d["state"], "REJECTED", "a 0.4.2 result is current");
     replay_matches(&mut t, now).await;
-    assert_eq!(t.dxf_status(now, "branch").await, StatusCode::OK);
+    assert_eq!(t.dxf_status(now, "branch").await, StatusCode::CONFLICT);
 }
 
 /// B2-005/006 (engine 0.4.2): a result stored by 0.4.1 is marked for recomputation (gate G21), is never shown as
@@ -3264,17 +3227,12 @@ async fn rc01_stored_patterns_and_dxf_references_are_checked_against_the_records
         let d = t.get(&format!("/api/calculations/{id}")).await;
         assert_eq!(d["integrity"], json!([]), "job #{id}: {d}");
         assert_eq!(d["state"], "REVIEW_REQUIRED", "job #{id}");
-        let (st, h, bytes) = t
-            .send(
-                "GET",
-                &format!("/api/calculations/{id}/dxf/{part}"),
-                None,
-                &[],
-            )
-            .await;
-        assert_eq!(st, StatusCode::OK);
-        assert_eq!(h[header::CONTENT_TYPE], "application/dxf");
-        assert_eq!(nf_core::sha256_hex(&bytes), dxf_record_sha(&t, id, part));
+        assert_eq!(
+            t.dxf_status(id, part).await,
+            StatusCode::CONFLICT,
+            "job #{id}"
+        );
+        assert_eq!(t.held_by(id).await.as_deref(), Some("G01"), "job #{id}");
     }
 
     let cases = [
@@ -3423,8 +3381,8 @@ async fn rc01_stored_patterns_and_dxf_references_are_checked_against_the_records
     );
     assert!(t.count("SELECT COUNT(*) FROM records WHERE kind = 'replay_audit'") >= 1);
     // the untampered jobs are unaffected
-    assert_eq!(t.dxf_status(clean, "reducer").await, StatusCode::OK);
-    assert_eq!(t.dxf_status(other, &other_part).await, StatusCode::OK);
+    assert_eq!(t.dxf_status(clean, "reducer").await, StatusCode::CONFLICT);
+    assert_eq!(t.dxf_status(other, &other_part).await, StatusCode::CONFLICT);
 }
 
 /// RC-01: a record of the release closure that is missing or altered in the records table makes the job
@@ -4878,27 +4836,53 @@ fn export_rule_holds_fail_not_run_and_unlisted_inconclusive_gates() {
         held(vec![("G05", true, R::NotImplemented)], 0),
         Some("G05".into())
     );
-    // allow-listed gates do not hold
+    // the allow-list is G16 and G19 only: the gates that are unproven on valid jobs hold
+    for id in ["G01", "G02", "G06", "G08", "G10", "G14", "G18"] {
+        assert_eq!(
+            held(vec![(id, true, R::Inconclusive)], 0),
+            Some(id.into()),
+            "{id} INCONCLUSIVE must hold"
+        );
+    }
+    // G16 NOT_IMPLEMENTED alone passes; G19 INCONCLUSIVE (a matching replay) alone passes
+    assert_eq!(held(vec![("G16", true, R::NotImplemented)], 0), None);
+    assert_eq!(held(vec![("G19", true, R::Inconclusive)], 0), None);
+    // INCONCLUSIVE G19 with everything else PASS passes; the same gate table with G02 INCONCLUSIVE holds on G02
     assert_eq!(
         held(
             vec![
+                ("G05", true, R::Pass),
                 ("G16", true, R::NotImplemented),
-                ("G02", true, R::Inconclusive),
                 ("G19", true, R::Inconclusive)
             ],
             0
         ),
         None
     );
-    // G18 holds while an obligation is open, and passes otherwise
+    assert_eq!(
+        held(
+            vec![
+                ("G05", true, R::Pass),
+                ("G16", true, R::NotImplemented),
+                ("G19", true, R::Inconclusive),
+                ("G02", true, R::Inconclusive)
+            ],
+            0
+        ),
+        Some("G02".into())
+    );
+    // G18 holds whether or not an obligation is open (no special case)
     assert_eq!(
         held(vec![("G18", true, R::Inconclusive)], 1),
         Some("G18".into())
     );
-    assert_eq!(held(vec![("G18", true, R::Inconclusive)], 0), None);
+    assert_eq!(
+        held(vec![("G18", true, R::Inconclusive)], 0),
+        Some("G18".into())
+    );
     // the first holding gate is the one named, with its result and one fix
     let e = eval(
-        vec![("G02", true, R::Inconclusive), ("G05", true, R::Fail)],
+        vec![("G05", true, R::Fail), ("G02", true, R::Inconclusive)],
         0,
     );
     let g = export_hold(&e).unwrap();
@@ -4914,4 +4898,28 @@ fn export_rule_holds_fail_not_run_and_unlisted_inconclusive_gates() {
             .starts_with("held by AMOEBA: gate G05 (n) is FAIL: d Fix: "),
         "{h}"
     );
+}
+
+/// UXF-1 round 2: a job entered by hand is held by G01 with its reason. A matching replay (G19 INCONCLUSIVE, allowed)
+/// does not release it, and the hold names G01, not G19.
+#[tokio::test]
+async fn uxf1_2_a_job_entered_by_hand_is_held_by_g01_after_a_matching_replay() {
+    let mut t = boot();
+    let id = t.job(cone()).await;
+    replay_matches(&mut t, id).await;
+    let d = t.get(&format!("/api/calculations/{id}")).await;
+    assert_eq!(gate_of(&d, "G19")["result"], "INCONCLUSIVE");
+    assert_eq!(d["export"]["available"], false);
+    assert_eq!(d["export"]["held_by"]["gate"], "G01");
+    assert_eq!(d["export"]["held_by"]["result"], "INCONCLUSIVE");
+    assert!(
+        d["export"]["held_by"]["detail"]
+            .as_str()
+            .unwrap()
+            .contains("entered manually"),
+        "{}",
+        d["export"]
+    );
+    assert_eq!(t.dxf_status(id, "reducer").await, StatusCode::CONFLICT);
+    assert_consistent_and_never_approved(&t).await;
 }

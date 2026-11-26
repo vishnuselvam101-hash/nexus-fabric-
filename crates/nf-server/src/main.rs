@@ -2384,46 +2384,11 @@ fn rematerialise_states(db: &mut Connection) -> rusqlite::Result<usize> {
 }
 
 /// Gates that are not PASS on valid jobs, and the reason the engine gives. They do not hold a DXF; the UI lists
-/// each one as "not checked by NF: <reason>". Add an id only with a test or corpus log that shows it is non-PASS
-/// on valid jobs (the evidence is named beside each entry).
-const NOT_CHECKED_BY_NF: [(&str, &str); 9] = [
-    // Probe on valid fresh jobs (cylinder, cone, eccentric reducer, branch stub, header with branch): INCONCLUSIVE
-    (
-        "G01",
-        "parameters were entered by hand and are not linked to a source drawing",
-    ),
-    // d1_marking_side_is_declared_everywhere_and_the_same_for_all_parts (nf-core job.rs): INCONCLUSIVE on every job
-    (
-        "G02",
-        "the marking side is a provisional convention that no fabrication engineer has reviewed",
-    ),
-    // Probe: INCONCLUSIVE on all five valid families (no calibrated process data)
-    (
-        "G06",
-        "no calibrated process data: thickness, allowances, weld gap and kerf are not modelled",
-    ),
-    // Probe: INCONCLUSIVE on the reducer and the header (rounding bounds are a priori, not interval-certified)
-    (
-        "G08",
-        "rounding bounds are a priori and not interval-certified",
-    ),
-    // Probe: INCONCLUSIVE on the reducer and the branch stub with an unknown surface (independent verifier not built)
-    (
-        "G10",
-        "the independent verifier and the external kernel cross-check are not implemented yet",
-    ),
-    // Probe: INCONCLUSIVE on all five valid families (evidence level EV-1)
-    (
-        "G14",
-        "algorithms are evidence level EV-1 and not production-qualified",
-    ),
+/// each one as "not checked by NF: <reason>". Every other gate that is not PASS holds the DXF (fail closed). Add an
+/// id only with a test that shows it is non-PASS on valid jobs (the evidence is named beside each entry).
+const NOT_CHECKED_BY_NF: [(&str, &str); 2] = [
     // always NOT_IMPLEMENTED (G16 is computed by evaluate, not stored)
     ("G16", "engineer approval is not implemented in this build"),
-    // Probe: INCONCLUSIVE on all five valid families; open obligations still hold (see export_hold)
-    (
-        "G18",
-        "the propagation rule table is provisional, so obligation closure cannot be certified",
-    ),
     // Replay audit: a matching replay is INCONCLUSIVE (audits A1-A4 are not implemented); a replay that did not run is NOT_RUN and holds
     (
         "G19",
@@ -2444,20 +2409,13 @@ fn result_label(r: GateResult) -> &'static str {
 
 /// The export rule, the one answer for get_dxf, the job list and the job detail. Returns the gate that holds the
 /// DXF, or `None` when it may be served. PASS and NOT_APPLICABLE pass; FAIL and NOT_RUN hold whatever their
-/// criticality; INCONCLUSIVE and NOT_IMPLEMENTED hold unless the gate is in NOT_CHECKED_BY_NF (G18 holds while
-/// an obligation is open).
+/// criticality; INCONCLUSIVE and NOT_IMPLEMENTED hold unless the gate is in NOT_CHECKED_BY_NF.
 fn export_hold(e: &Eval) -> Option<&Gate> {
     use GateResult as R;
     e.gates.iter().find(|g| match g.result {
         R::Pass | R::NotApplicable => false,
         R::Fail | R::NotRun => true,
-        R::Inconclusive | R::NotImplemented => {
-            if g.id == "G18" {
-                e.open_obligations > 0
-            } else {
-                !NOT_CHECKED_BY_NF.iter().any(|(id, _)| *id == g.id)
-            }
-        }
+        R::Inconclusive | R::NotImplemented => !NOT_CHECKED_BY_NF.iter().any(|(id, _)| *id == g.id),
     })
 }
 
