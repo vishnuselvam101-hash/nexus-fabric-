@@ -389,7 +389,7 @@ async function reload() {
     if (c.supersedes) { try { prev = await api(`/api/calculations/${c.supersedes}`); } catch { prev = null; } }
     if (dead || my !== gen) return;
     fam = c.request.family;
-    state = c.superseded_by ? 'SUPERSEDED' : !c.patterns.length ? 'NO_RESULT' : c.state;
+    state = c.superseded_by ? 'SUPERSEDED' : c.state === 'REFUSED' ? 'REFUSED' : !c.patterns.length ? 'NO_RESULT' : c.state;
     if (disposePattern) { disposePattern(); disposePattern = null; }
     render();
   } catch (err) { if (!dead) toast(String(err.message || err), 'err'); }
@@ -470,7 +470,7 @@ export async function mount(container, params = {}) {
   if (dead || my !== gen) return;
   meta = (list || []).find((x) => x.id === c.id) || null;
   fam = c.request.family;
-  state = c.superseded_by ? 'SUPERSEDED' : !c.patterns.length ? 'NO_RESULT' : c.state;
+  state = c.superseded_by ? 'SUPERSEDED' : c.state === 'REFUSED' ? 'REFUSED' : !c.patterns.length ? 'NO_RESULT' : c.state;
   render();
 }
 
