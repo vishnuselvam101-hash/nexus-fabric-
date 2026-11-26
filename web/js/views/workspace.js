@@ -353,24 +353,15 @@ async function loadObligations(signal) {
     for (const o of obs) {
       const tr = document.createElement('tr');
       tr.appendChild(el('td', 'mono', '#' + o.id));
-      tr.appendChild(el('td', null, o.description || o.message || ''));
-      tr.appendChild(el('td', null, o.status || 'open'));
+      tr.appendChild(el('td', null, o.label || o.note || ''));
+      tr.appendChild(el('td', null, o.state || 'open'));
       tr.appendChild(el('td', null, fmtDate(o.created_at)));
       const td = document.createElement('td');
-      if (!o.resolved) {
-        const btn = el('button', 'btn', t('ws.obl.resolve'));
-        btn.type = 'button';
-        btn.addEventListener('click', async () => {
-          btn.disabled = true;
-          try {
-            await api('/api/obligations/' + o.id + '/resolve', { method: 'POST' });
-            if (!signal.aborted) loadObligations(signal);
-          } catch (err) {
-            btn.disabled = false;
-            btn.textContent = 'Error';
-          }
-        });
-        td.appendChild(btn);
+      if (o.state === 'open') {
+        // a decision needs a reason, so it is taken on the job's Open items, not from this list
+        const link = el('a', 'btn', t('ws.obl.resolve'));
+        link.href = '#/job/' + o.target_calc;
+        td.appendChild(link);
       }
       tr.appendChild(td);
       tbody.appendChild(tr);
