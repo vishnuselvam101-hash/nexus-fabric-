@@ -87,9 +87,10 @@ function table(cols, rows, onClick) {
 async function loadCalc(signal) {
   showLoading();
   try {
-    const calcs = await api('/api/calculations');
+    const [calcs, projects] = await Promise.all([api('/api/calculations'), api('/api/projects')]);
     if (signal.aborted) return;
     content.textContent = '';
+    const pnames = new Map((Array.isArray(projects) ? projects : []).map(p => [String(p.id), p.name]));
 
     const hd = el('div', 'panel-h');
     hd.appendChild(el('h2', null, t('ws.calculations')));
@@ -105,7 +106,7 @@ async function loadCalc(signal) {
     }
     const rows = calcs.map(c => ({
       data: c,
-      cells: ['#' + c.id, c.family || '', c.project_name || '', c.release_state || '',
+      cells: ['#' + c.id, c.family || '', pnames.get(String(c.project_id)) || '', c.state || '',
         (c.gates_passed != null ? c.gates_passed + '/' + c.gates_total : ''), fmtDate(c.created_at)],
     }));
     content.appendChild(table([t('th.job'), t('th.family'), t('th.project'), t('th.state'), t('insp.gates'), t('th.created')], rows, (c) => {
