@@ -369,8 +369,9 @@ export async function mount(container, params = {}) {
     try {
       const r = await api(`/api/projects/${form.elements.namedItem('project').value}/calculations`, { method: 'POST', json: req });
       if (signal.aborted) return;
-      const noResult = r && Array.isArray(r.patterns) && r.patterns.length === 0;
-      if (noResult) toast(t('math.toast.none', { id: r.id, why: r.outcome || t('math.why.default') }), 'err');
+      // the server answers {id, state, advisories}; a refusal is state REFUSED with the reason in outcome or error
+      const noResult = r && r.state === 'REFUSED';
+      if (noResult) toast(t('math.toast.none', { id: r.id, why: r.outcome || r.error || t('math.why.default') }), 'err');
       else toast(t('math.toast.ok', { id: r && r.id, state: r && r.state ? stateText(r.state) : t('math.state.default') }), 'ok');
       if (r && r.id !== undefined) location.hash = `#/job/${r.id}`;
     } catch (err) {
