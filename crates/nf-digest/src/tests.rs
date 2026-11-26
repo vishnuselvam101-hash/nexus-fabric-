@@ -955,3 +955,173 @@ fn hole_mismatch_with_a_feature_below_the_tolerance_is_inconclusive() {
         Verdict::Inconclusive
     );
 }
+
+/// The points of a closed outline, the first point repeated at the end (as the job declares them).
+fn loop_of(pts: &[[f64; 2]]) -> Vec<[f64; 2]> {
+    let mut v = pts.to_vec();
+    v.push(pts[0]);
+    v
+}
+
+fn shift_pts(pts: &[[f64; 2]], dx: f64, dy: f64) -> Vec<[f64; 2]> {
+    pts.iter().map(|p| [p[0] + dx, p[1] + dy]).collect()
+}
+
+/// A declared opening with the given outline; its length is the polyline length.
+fn decl_curve(pts: &[[f64; 2]]) -> RefCurve {
+    curve(&loop_of(pts), false, 0.0)
+}
+
+/// The 200 x 100 mm plate with the openings `drawn` (closed polylines) and the declared openings `holes`.
+fn plate_case(drawn: &[Vec<[f64; 2]>], holes: Vec<RefCurve>) -> Report {
+    let o = [[0.0, 0.0], [200.0, 0.0], [200.0, 100.0], [0.0, 100.0]];
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.poly("CUT_OUTER", &o, true);
+    for h in drawn {
+        d.poly("CUT_INNER", h, true);
+    }
+    let r = Reference {
+        part: "PLATE".into(),
+        outer: vec![decl_curve(&o)],
+        holes,
+    };
+    run(&d, &r)
+}
+
+/// The same size and position, but the wrong size: 3 and 8 mm half-sizes swapped between two openings.
+#[test]
+fn swapped_opening_sizes_fail_hole_position() {
+    let sq = |c: [f64; 2], h: f64| -> Vec<[f64; 2]> {
+        vec![
+            [c[0] - h, c[1] - h],
+            [c[0] + h, c[1] - h],
+            [c[0] + h, c[1] + h],
+            [c[0] - h, c[1] + h],
+        ]
+    };
+    let rep = plate_case(
+        &[sq([50.0, 50.0], 8.0), sq([150.0, 50.0], 3.0)],
+        vec![
+            decl_curve(&sq([50.0, 50.0], 3.0)),
+            decl_curve(&sq([150.0, 50.0], 8.0)),
+        ],
+    );
+    assert_fails(&rep, "hole_position");
+}
+
+/// An L-shaped opening turned by 180 degrees inside the same bounding box: same centre, length and area, wrong shape.
+#[test]
+fn rotated_l_opening_in_the_same_box_fails_hole_position() {
+    let l = [
+        [0.0, 0.0],
+        [40.0, 0.0],
+        [40.0, 10.0],
+        [10.0, 10.0],
+        [10.0, 40.0],
+        [0.0, 40.0],
+    ];
+    let turned: Vec<[f64; 2]> = l.iter().map(|p| [40.0 - p[0], 40.0 - p[1]]).collect();
+    let rep = plate_case(
+        &[shift_pts(&turned, 80.0, 30.0)],
+        vec![decl_curve(&shift_pts(&l, 80.0, 30.0))],
+    );
+    assert_fails(&rep, "hole_position");
+}
+
+/// A right triangle mirrored about the vertical centre line of its box: same centre, length and area, wrong shape.
+#[test]
+fn mirrored_right_triangle_fails_hole_position() {
+    let t = [[0.0, 0.0], [30.0, 0.0], [0.0, 20.0]];
+    let mirrored: Vec<[f64; 2]> = t.iter().map(|p| [30.0 - p[0], p[1]]).collect();
+    let rep = plate_case(
+        &[shift_pts(&mirrored, 60.0, 40.0)],
+        vec![decl_curve(&shift_pts(&t, 60.0, 40.0))],
+    );
+    assert_fails(&rep, "hole_position");
+}
+
+/// Correct circle and slot openings (drawn as arcs, declared as sampled polylines with their deviation) pass.
+#[test]
+fn circle_and_slot_openings_at_their_declared_places_pass() {
+    // circle, radius 5 at (50, 50): two drawn half-circles; declared with 96 chords (deviation 5 (1 - cos(pi/96)))
+    let s = 5.0 * (1.0 - (std::f64::consts::PI / 96.0).cos());
+    let ring: Vec<[f64; 2]> = (0..96)
+        .map(|k| {
+            let t = (k as f64 * 360.0 / 96.0).to_radians();
+            [50.0 + 5.0 * t.cos(), 50.0 + 5.0 * t.sin()]
+        })
+        .collect();
+    let circle = RefCurve {
+        points: loop_of(&ring),
+        length: 2.0 * std::f64::consts::PI * 5.0,
+        max_dev: s,
+        is_arc: true,
+        seam: false,
+    };
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.poly(
+        "CUT_OUTER",
+        &[[0.0, 0.0], [200.0, 0.0], [200.0, 100.0], [0.0, 100.0]],
+        true,
+    );
+    d.arc("CUT_INNER", [50.0, 50.0], 5.0, 0.0, 180.0);
+    d.arc("CUT_INNER", [50.0, 50.0], 5.0, 180.0, 360.0);
+    let r = Reference {
+        part: "PLATE".into(),
+        outer: vec![decl_curve(&[
+            [0.0, 0.0],
+            [200.0, 0.0],
+            [200.0, 100.0],
+            [0.0, 100.0],
+        ])],
+        holes: vec![circle],
+    };
+    let rep = run(&d, &r);
+    let c = check_named(&rep, "hole_position");
+    assert_eq!(c.verdict, Verdict::Pass, "circle: {}", c.detail);
+
+    // slot 20 x 8 mm with round ends of radius 4, centred at (100, 50): drawn as two lines and two arcs
+    let sd = 4.0 * (1.0 - (std::f64::consts::PI / 32.0).cos());
+    let mut slot = Vec::new();
+    for k in 0..=16 {
+        let t = (270.0 - k as f64 * 11.25f64).to_radians();
+        slot.push([90.0 + 4.0 * t.cos(), 50.0 + 4.0 * t.sin()]);
+    }
+    for k in 0..=16 {
+        let t = (90.0 - k as f64 * 11.25f64).to_radians();
+        slot.push([110.0 + 4.0 * t.cos(), 50.0 + 4.0 * t.sin()]);
+    }
+    let slot_curve = RefCurve {
+        points: loop_of(&slot),
+        length: 40.0 + 8.0 * std::f64::consts::PI,
+        max_dev: sd,
+        is_arc: false,
+        seam: false,
+    };
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.poly(
+        "CUT_OUTER",
+        &[[0.0, 0.0], [200.0, 0.0], [200.0, 100.0], [0.0, 100.0]],
+        true,
+    );
+    d.line("CUT_INNER", [110.0, 46.0], [90.0, 46.0]);
+    d.arc("CUT_INNER", [90.0, 50.0], 4.0, 90.0, 270.0);
+    d.line("CUT_INNER", [90.0, 54.0], [110.0, 54.0]);
+    d.arc("CUT_INNER", [110.0, 50.0], 4.0, 270.0, 90.0);
+    let r = Reference {
+        part: "PLATE".into(),
+        outer: vec![decl_curve(&[
+            [0.0, 0.0],
+            [200.0, 0.0],
+            [200.0, 100.0],
+            [0.0, 100.0],
+        ])],
+        holes: vec![slot_curve],
+    };
+    let rep = run(&d, &r);
+    let c = check_named(&rep, "hole_position");
+    assert_eq!(c.verdict, Verdict::Pass, "slot: {}", c.detail);
+}

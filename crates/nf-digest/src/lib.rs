@@ -756,9 +756,62 @@ fn at_text(p: Option<[f64; 2]>) -> String {
     }
 }
 
-/// Each drawn opening sits at exactly one declared hole, and each declared hole has exactly one drawn opening there
-/// (one-to-one, by position, within the tolerance the extents use). The position of an opening is the centre of its
-/// bounding box. A reference feature below the tolerance makes a finding INCONCLUSIVE (`fine`), not FAIL.
+/// Largest distance from a point to a straight segment.
+fn seg_dist(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
+    let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+    let l2 = dx * dx + dy * dy;
+    let t = if l2 > 0.0 {
+        (((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    (p[0] - (a[0] + t * dx)).hypot(p[1] - (a[1] + t * dy))
+}
+
+/// Largest distance from a vertex or a segment midpoint of the closed loop `a` to the closed loop `b`. The loops are
+/// compared as they are: no rotation and no mirroring is allowed. An empty loop is infinitely far from any other.
+fn loop_gap(a: &[[f64; 2]], b: &[[f64; 2]]) -> f64 {
+    if a.is_empty() || b.is_empty() {
+        return f64::INFINITY;
+    }
+    let (n, m) = (a.len(), b.len());
+    let mut worst = 0.0f64;
+    for i in 0..n {
+        let (p, q) = (a[i], a[(i + 1) % n]);
+        for x in [p, [(p[0] + q[0]) / 2.0, (p[1] + q[1]) / 2.0]] {
+            let best = (0..m)
+                .map(|j| seg_dist(x, b[j], b[(j + 1) % m]))
+                .fold(f64::INFINITY, f64::min);
+            worst = worst.max(best);
+        }
+    }
+    worst
+}
+
+/// Whether a drawn opening is the declared hole: the same centre (bounding-box centre), the same own length and area
+/// (within `pos_tol`; the area scaled by the declared length, as the area check does), and the same outline relative to
+/// its centre, compared point for point without rotation or mirroring.
+fn same_opening(h: &geom::Contour, d: &RefCurve, pos_tol: f64) -> bool {
+    let (Some(ch), Some(cd)) = (bbox_centre(&h.samples), bbox_centre(&d.points)) else {
+        return false;
+    };
+    if (ch[0] - cd[0]).hypot(ch[1] - cd[1]) > pos_tol
+        || (h.length - d.length).abs() > pos_tol
+        || (h.area.abs() - loop_area(&d.points)).abs() > pos_tol * d.length
+    {
+        return false;
+    }
+    let rel = |pts: &[[f64; 2]], c: [f64; 2]| -> Vec<[f64; 2]> {
+        pts.iter().map(|p| [p[0] - c[0], p[1] - c[1]]).collect()
+    };
+    let a = rel(&h.samples, ch);
+    let b = rel(&d.points, cd);
+    loop_gap(&a, &b).max(loop_gap(&b, &a)) <= pos_tol
+}
+
+/// Each drawn opening is one declared hole, and each declared hole has exactly one drawn opening (one-to-one). An
+/// opening matches a declared hole when it has the same centre, length, area and outline (`same_opening`). A reference
+/// feature below the tolerance makes a finding INCONCLUSIVE (`fine`), not FAIL.
 fn hole_position_check(drawn: &[&geom::Contour], r: &Reference, tol: f64, fine: bool) -> Check {
     let arc_dev = r
         .outer
@@ -774,24 +827,38 @@ fn hole_position_check(drawn: &[&geom::Contour], r: &Reference, tol: f64, fine: 
         _ => false,
     };
     let mut bad = Vec::new();
-    for (i, a) in at.iter().enumerate() {
-        match decl.iter().filter(|b| near(*a, **b)).count() {
+    for (i, h) in drawn.iter().enumerate() {
+        match r
+            .holes
+            .iter()
+            .filter(|d| same_opening(h, d, pos_tol))
+            .count()
+        {
             1 => {}
             0 => bad.push(format!(
                 "opening {} at ({}) matches no declared hole",
                 i + 1,
-                at_text(*a)
+                at_text(at[i])
             )),
             _ => bad.push(format!(
                 "opening {} at ({}) matches more than one declared hole",
                 i + 1,
-                at_text(*a)
+                at_text(at[i])
             )),
         }
     }
     for (j, b) in decl.iter().enumerate() {
-        match at.iter().filter(|a| near(**a, *b)).count() {
+        match drawn
+            .iter()
+            .filter(|h| same_opening(h, &r.holes[j], pos_tol))
+            .count()
+        {
             1 => {}
+            0 if at.iter().any(|a| near(*a, *b)) => bad.push(format!(
+                "declared hole {} at ({}) has no matching opening (the opening there differs in size or shape)",
+                j + 1,
+                at_text(*b)
+            )),
             0 => bad.push(format!(
                 "declared hole {} at ({}) has no opening at its position",
                 j + 1,
