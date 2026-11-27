@@ -73,7 +73,9 @@ function resolveRoute(hash) {
 }
 
 async function renderRoute() {
-  const route = resolveRoute(location.hash);
+  let route = resolveRoute(location.hash);
+  // an administrator reset this password: nothing but the password change is open until it is done
+  if (getState().user?.must_change_password && route.view !== 'login') route = { view: 'login', mod: './views/login.js', params: {} };
   if (route.redirect) { navigate(route.redirect); return; }
   const token = ++renderToken;
   const viewEl = byId('view');
@@ -291,6 +293,12 @@ async function boot() {
     history.replaceState(null, '', location.pathname + location.search);
   }
 
+  /* desktop mode with automatic sign-in: the server opens the browser with a single-use launch token in the fragment.
+     It is taken out of the address bar at once and exchanged for a session; if that fails the normal sign-in page shows. */
+  const launchLink = /^#launch=([A-Za-z0-9_-]{16,256})$/.exec(location.hash);
+  const launchToken = launchLink ? launchLink[1] : null;
+  if (location.hash.startsWith('#launch=')) history.replaceState(null, '', location.pathname + location.search);
+
   setAuthHandler(() => {
     // only a session that was signed in has ended; a first visit that is not signed in gets no message
     if (getState().user) setState({ user: null, sessionEnded: true });
@@ -305,6 +313,10 @@ async function boot() {
   /* health check (non-blocking) */
   try { const health = await api('/api/health'); setState({ health, setupRequired: !!health?.setup_required }); } catch { /* offline ok */ }
 
+  if (launchToken && !getState().setupRequired) {
+    try { await api('/api/launch', { json: { token: launchToken } }); } catch { /* single-use, expired or refused: sign in by hand */ }
+  }
+
   /* authenticate */
   let authed = false;
   try {
@@ -317,7 +329,8 @@ async function boot() {
   }
 
   /* project */
-  if (authed) await ensureProject();
+  if (authed && !getState().user?.must_change_password) await ensureProject();
+  else if (authed) navigate('#/login');
 
   /* show app */
   byId('view')?.querySelector('.loading')?.remove();

@@ -2,6 +2,7 @@ import { api, esc } from '../api.js';
 import { getState } from '../store.js';
 import { t, h, idLabel, engineJa, lang } from '../i18n.js';
 import { el, $, $$, toast } from '../ui.js';
+import { codeScreen, resetForm, securityPanels } from './recovery.js';
 
 // advisories belong to a job and are acknowledged on the job screen; the server has no list of them
 const TABS = ['users', 'security', 'audit', 'lessons'];
@@ -50,7 +51,7 @@ function usersHtml() {
     esc(roleText(u.role)),
     tg('', t(u.active ? 'adm.active' : 'adm.inactive')),
     when(u.created_at),
-    u.id === me.id ? '' : `<button class="btn btn-secondary" type="button" data-act="active" data-user="${esc(u.id)}" data-name="${esc(u.username)}" data-to="${u.active ? 0 : 1}">${esc(t(u.active ? 'adm.deactivate' : 'adm.reactivate'))}</button>`,
+    u.id === me.id ? '' : `<button class="btn btn-secondary" type="button" data-act="reset" data-user="${esc(u.id)}" data-name="${esc(u.username)}">${esc(t('adm.reset'))}</button> <button class="btn btn-secondary" type="button" data-act="active" data-user="${esc(u.id)}" data-name="${esc(u.username)}" data-to="${u.active ? 0 : 1}">${esc(t(u.active ? 'adm.deactivate' : 'adm.reactivate'))}</button>`,
   ]);
   const form = `<form id="nu" class="calc-form" novalidate>
     ${fld('nuu', t('th.username'), '<input id="nuu" name="username" autocomplete="off" autocapitalize="none" spellcheck="false">')}
@@ -125,6 +126,30 @@ function render() {
     <div class="tabs" role="tablist" aria-label="${esc(t('adm.tabs.aria'))}">${TABS.map((k) => `<button class="btn" type="button" role="tab" id="adtab-${k}" data-tab="${k}" aria-selected="${k === tab}" aria-controls="adpanel" tabindex="${k === tab ? 0 : -1}">${esc(t(TAB_KEY[k]))}${counts[k] !== undefined ? ` <span class="cnt">${counts[k]}</span>` : ''}</button>`).join('')}</div>
     <div class="ws-content" id="adpanel" role="tabpanel" aria-labelledby="adtab-${tab}" tabindex="0">${BODY[tab]()}</div>`;
   if (tab === 'audit') applyFilter();
+  if (tab === 'security') {
+    const host = el('div', { id: 'adm-secpanels' });
+    $('#adpanel', root).append(host);
+    securityPanels(host, showCode);
+  }
+}
+
+// a new recovery code is shown once, in place of the page, until it is saved
+function showCode(code) {
+  if (!root) return;
+  const me = getState().user || {};
+  root.replaceChildren(codeScreen({ code, user: me.username, title: t('rc.new.title'), lead: t('rc.new.lead'), onDone: () => render() }));
+  $('#rc-code', root)?.focus();
+}
+
+function openReset(b) {
+  $('#rst-panel', root)?.remove();
+  const f = resetForm({
+    user: b.dataset.user, name: b.dataset.name,
+    onCancel: () => { f.remove(); b.focus(); },
+    onDone: () => { toast(t('adm.reset.done', { user: b.dataset.name }), 'ok'); load(); },
+  });
+  $('#adpanel', root).append(f);
+  $('#rst-new', f)?.focus();
 }
 
 async function load() {
@@ -258,6 +283,7 @@ function onClick(e) {
   const act = b.dataset.act;
   if (act === 'retry') load();
   else if (act === 'active') toggleUser(b);
+  else if (act === 'reset') openReset(b);
   else if (act === 'verify') verify(b);
   else if (act === 'ack') ack(b);
   else if (act === 'clearfilter') { filter = ''; const i = $('#adm-flt', root); if (i) { i.value = ''; applyFilter(); i.focus(); } }

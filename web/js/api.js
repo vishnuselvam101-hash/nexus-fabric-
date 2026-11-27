@@ -11,7 +11,8 @@ async function api(path, opts = {}) {
     reqBody = JSON.stringify(json);
   }
   const res = await fetch(path, { method: method || (json ? 'POST' : 'GET'), headers: h, body: reqBody, credentials: 'same-origin' });
-  if (res.status === 401 && path !== '/api/login') {
+  // sign-in, recovery and launch answer 401 for their own reasons: that is not an ended session
+  if (res.status === 401 && !['/api/login', '/api/recover', '/api/launch'].includes(path)) {
     if (onAuthLost) onAuthLost();
     throw new ApiError('Session expired', { status: 401 });
   }
