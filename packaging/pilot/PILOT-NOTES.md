@@ -67,6 +67,7 @@ Behaviour found in the bug hunts (`docs/qa/BUG_HUNT_R7.md`, `docs/qa/BUG_HUNT_R8
 
 - Desktop mode keeps `storage.key` in the data folder, next to the database. Not changed (BH-017, R7).
 - The engine and server texts stay in English in Japanese mode on the job, admin security and admin audit pages (BH-R8-007).
+- Engine, gate and AMOEBA messages are English on Japanese screens; they are not translated (エンジン、ゲート、AMOEBA のメッセージは、日本語の画面でも英語のまま表示されます).
 - A conversion page with an unknown id shows its title twice (BH-R8-008, low).
 - Two joints with different declarations can give byte-identical geometry; the declaration appears as text in the DXF only. Whether that is correct is an open engineering question for the owner (BH-004, R7; fixed as a statement only).
 - The form accepts some values that the engine then refuses. The refused job is still recorded (BH-014, R7, partly fixed).
