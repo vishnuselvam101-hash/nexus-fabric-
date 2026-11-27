@@ -31,7 +31,7 @@ not from values that ZK's own `shared.js` / `build.mjs` computed.
 - `readings/` : the 23 ZK reading JSON inputs. `zk_verify/` : the 15 `verify_*.py` and `verify_out.txt` as copied, for reference (not run here).
 - `tools/extract_zk.mjs` (+ `inst_prelude.mjs`) : regenerate with `node tools/extract_zk.mjs /root/zumen-kirizu .` (Node 22+; ZK is read only: the test file is copied to a temp dir and instrumented there).
 - `tools/check_no_partner.py` : `python3 -I tools/check_no_partner.py`.
-- `spec_miterbend.md` is in `docs/shapes/`; `verify_miterbend.py` (lane L6a) is in this folder.
+- Lane L6a (separate commit): `verify_miterbend.py` here, `docs/shapes/spec_miterbend.md`, `tools/compare_zk_bend.py` + `tools/zk_bend_dump.mjs` (black-box comparison with ZK bend).
 
 ## Result of the extraction (ZK commit f718c34)
 
