@@ -1,6 +1,6 @@
 import { api, esc } from '../api.js';
 import { getState } from '../store.js';
-import { t, projName } from '../i18n.js';
+import { t, projName, idLabel } from '../i18n.js';
 
 const TABS = ['calculations', 'projects', 'obligations', 'audit', 'users'];
 
@@ -104,9 +104,10 @@ async function loadCalc(signal) {
       content.appendChild(el('p', 'sub', t('ws.none.calc')));
       return;
     }
+    const stateLabel = { REVIEW_REQUIRED: 'badge.state.review', REFUSED: 'badge.state.refused', SUPERSEDED: 'badge.state.superseded' };
     const rows = calcs.map(c => ({
       data: c,
-      cells: ['#' + c.id, c.family || '', pnames.get(String(c.project_id)) || '', c.state || '',
+      cells: ['#' + c.id, idLabel('family', c.family) || c.family || '', pnames.get(String(c.project_id)) || '', stateLabel[c.state] ? t(stateLabel[c.state]) : (c.state || ''),
         (c.gates_passed != null ? c.gates_passed + '/' + c.gates_total : ''), fmtDate(c.created_at)],
     }));
     content.appendChild(table([t('th.job'), t('th.family'), t('th.project'), t('th.state'), t('insp.gates'), t('th.created')], rows, (c) => {
@@ -118,14 +119,14 @@ async function loadCalc(signal) {
 async function showCalcForm(signal) {
   content.textContent = '';
   const wrap = el('div', 'panel');
-  wrap.appendChild(el('h2', null, 'New Calculation'));
+  wrap.appendChild(el('h2', null, t('ws.new.calc')));
 
   const form = document.createElement('form');
   form.className = 'calc-form';
 
   // Family select
   const fg = el('div', 'field');
-  fg.appendChild(el('label', null, 'Geometry family'));
+  fg.appendChild(el('label', null, t('th.family')));
   const sel = document.createElement('select');
   sel.name = 'family';
   for (const f of Object.keys(FAMILY_FIELDS)) {
@@ -165,7 +166,7 @@ async function showCalcForm(signal) {
 
   // Project select
   const pg = el('div', 'field');
-  pg.appendChild(el('label', null, 'Project'));
+  pg.appendChild(el('label', null, t('th.project')));
   const psel = document.createElement('select');
   psel.name = 'project';
   try {
@@ -206,7 +207,7 @@ async function showCalcForm(signal) {
       else loadCalc(signal);
     } catch (err) {
       sub.disabled = false;
-      sub.textContent = 'Create';
+      sub.textContent = t('common.create');
       const a = el('div', 'alert bad');
       a.appendChild(el('p', null, err.message));
       form.appendChild(a);
@@ -271,7 +272,7 @@ function showProjectForm(signal) {
   form.appendChild(fn);
 
   const fd = el('div', 'field');
-  fd.appendChild(el('label', null, 'Description'));
+  fd.appendChild(el('label', null, t('th.desc')));
   const di = document.createElement('input');
   di.name = 'description';
   fd.appendChild(di);
@@ -337,7 +338,7 @@ async function loadObligations(signal) {
     const obs = await api('/api/obligations');
     if (signal.aborted) return;
     content.textContent = '';
-    content.appendChild(el('h2', null, 'Obligations'));
+    content.appendChild(el('h2', null, t('ws.obligations')));
     if (!obs || !obs.length) {
       content.appendChild(el('p', 'sub', t('ws.none.obl')));
       return;
@@ -433,7 +434,7 @@ async function loadUsers(signal) {
       const tr = document.createElement('tr');
       tr.appendChild(el('td', null, u.username));
       tr.appendChild(el('td', null, u.role || ''));
-      tr.appendChild(el('td', null, u.active !== false ? 'Yes' : 'No'));
+      tr.appendChild(el('td', null, u.active !== false ? t('common.yes') : t('common.no')));
       tr.appendChild(el('td', null, fmtDate(u.created_at)));
       tbody.appendChild(tr);
     }

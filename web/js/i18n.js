@@ -151,6 +151,8 @@ const EN = {
   'badge.review': 'REVIEW REQUIRED', 'badge.rejected': 'REJECTED',
   'badge.refused': 'REFUSED', 'badge.converted': 'CONVERTED — NOT VERIFIED — NOT RELEASED',
   'badge.error': 'ERROR', 'badge.processing': 'PROCESSING', 'badge.limitExceeded': 'LIMIT EXCEEDED',
+  'badge.state.review': 'Review required', 'badge.state.refused': 'Refused', 'badge.state.superseded': 'Superseded', 'badge.state.unknown': 'Unknown',
+  'common.yes': 'Yes', 'common.no': 'No',
 
   // table headers (workspace tabs)
   'th.job': 'Job', 'th.family': 'Geometry family', 'th.project': 'Project',
@@ -964,6 +966,8 @@ const JA = {
   'toast.saved': '保存しました', 'toast.error': 'エラー', 'toast.created': '作成しました', 'toast.ok': '完了', 'badge.review': '要レビュー', 'badge.rejected': '却下',
   'badge.refused': '拒否', 'badge.converted': 'PDFから変換・未検証・未リリース',
   'badge.error': 'エラー', 'badge.processing': '処理中', 'badge.limitExceeded': '上限超過',
+  'badge.state.review': '要レビュー', 'badge.state.refused': '拒否', 'badge.state.superseded': '置換済み', 'badge.state.unknown': '不明',
+  'common.yes': 'はい', 'common.no': 'いいえ',
 
   'th.job': 'ジョブ', 'th.family': '形状種別', 'th.project': 'プロジェクト',
   'th.state': 'リリース状態', 'th.created': '作成', 'th.name': '名称', 'th.docs': '文書',
@@ -1501,7 +1505,7 @@ const JA = {
   "cv2.time.s": "{s}秒",
   "cv2.times": "×{n}",
   "cv2.title": "PDFをDXFに変換",
-  "cv2.hero": "PDF から DXF へ",
+  "cv2.hero": "PDF から DXF へ",
   "cv2.drop": "このページのどこかにPDFをドロップするか、選択してください。",
   "cv2.unit.mmpt": "{n} mm／PDFポイント",
   "cv2.unit.ratio": "1:{n}",
@@ -1900,7 +1904,7 @@ const ID = {
   },
   rfamily: { source: [null, '原資料'], claim: [null, '主張'], relation: [null, '関係'], activity: [null, 'アクティビティ'], finding: [null, '所見'], assessment: [null, '評価'], attestation: [null, '証明'] },
   rkind: {
-    dxf_quality_report: [null, 'DXF品質ゲートの報告'],
+    dxf_quality_report: [null, 'DXF品質ゲートの報告'], pdf_conversion: [null, 'PDFからDXFへの変換'], 'verify.dxf_quality': [null, 'DXF品質の検証'],
     'build.develop': [null, '展開計算'], 'build.dxf': [null, 'DXF出力'], 'build.intersect': [null, '相貫線の計算'], 'verify.family': [null, '形状種別ごとの検証'], 'verify.interface': [null, '取合いの検証'],
     'verify.profile': [null, '輪郭の検査'], 'verify.reimport': [null, '再読込と照合'], gate_evaluation: [null, 'ゲート評価'], interface_evidence: [null, '取合いの検証結果'], profile_report: [null, '輪郭検査の報告'],
     reimport_report: [null, '再読込・照合の報告'], replay_audit: [null, '再実行監査'], verification_evidence: [null, '検証結果'], correction: [null, '訂正'], obligation_resolution: [null, '要精査項目の解消'],

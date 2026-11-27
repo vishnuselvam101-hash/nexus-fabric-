@@ -966,6 +966,7 @@
   .hero-title {
     font-size: clamp(44px, 6.2vw, 92px); line-height: .96; letter-spacing: -.045em; margin: 0;
   }
+  :lang(ja) .hero-title { word-break: keep-all; }
   .hero-sub { margin-top: var(--sp-5); font-size: var(--fs-md); max-width: 34em; color: var(--text-2); }
   .hero-top > .dropzone { margin-top: var(--sp-6); max-width: none; }
   .story-ch { min-height: 70vh; display: flex; flex-direction: column; justify-content: center; }
