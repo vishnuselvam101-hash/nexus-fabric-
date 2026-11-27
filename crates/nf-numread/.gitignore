@@ -1,0 +1,5 @@
+# Model weights are fetched (scripts/fetch-models.sh) and SHA-256 pinned, never committed.
+/models/*.onnx
+/models/*.part
+# the workspace ignores data/; the test fixture lives here
+!/tests/data/

@@ -1,0 +1,25 @@
+[package]
+name = "nf-numread"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Proprietary"
+publish = false
+description = "Offline number reader: finds every number on a drawing page PNG with its box (PP-OCRv4 models on the pure Rust rten runtime)"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "nf-numread"
+path = "src/bin/nf-numread.rs"
+
+[dependencies]
+# Pure Rust ONNX runtime (the only crate here with unsafe code, inside the runtime itself).
+rten = { version = "0.28", default-features = false, features = ["onnx_format"] }
+rten-tensor = "0.28"
+# Pure Rust PNG decoder.
+png = "0.18"
+sha2 = "0.10"
+serde_json = "1"
+
+[dev-dependencies]
