@@ -27,6 +27,7 @@ mod interp;
 mod lexer;
 mod limits;
 mod page;
+pub mod raster;
 mod report;
 mod text;
 
@@ -306,6 +307,7 @@ fn run(input: &[u8], opts: &Options, rep: &mut Report) -> Result<Vec<u8>, Fault>
         tol_mm: opts.tolerance_mm,
         fill: opts.include_fill,
         text: opts.include_text,
+        capture: false,
     };
     let mut it = interp::Interp::new(&mut doc, run_opts, opts.limits.max_output_bytes, ctm, res);
     it.stats = std::mem::take(&mut rep.stats);

@@ -545,6 +545,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "hayro-ccitt"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adbed896e99325bc312778bb9c9c289d795d51c12775c44dd5e4352f679c7e46"
+
+[[package]]
+name = "hayro-jbig2"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb5c7f3a4eb551c2bb7fa16e268f728d4bc2a5c9b090554b8dc0ee2503fb5840"
+dependencies = [
+ "hayro-ccitt",
+]
+
+[[package]]
 name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -798,6 +813,25 @@ name = "nf-pdf-winjob"
 version = "0.1.0"
 dependencies = [
  "windows-sys",
+]
+
+[[package]]
+name = "nf-raster"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "flate2",
+ "hayro-ccitt",
+ "hayro-jbig2",
+ "landlock",
+ "libc",
+ "nf-pdf",
+ "nf-pdf-winjob",
+ "rustix",
+ "seccompiler",
+ "sha2 0.10.9",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]
@@ -1415,3 +1449,18 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[package]]
+name = "zune-core"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d56377fd46368984a170bc5aac5567e52ca5da874caa60bea39fcbca78fb658b"
+
+[[package]]
+name = "zune-jpeg"
+version = "0.5.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
+dependencies = [
+ "zune-core",
+]
