@@ -135,7 +135,7 @@ except Exception: pass')
         # for the upgrade check when the valid job above could not be stored.
         local RCODE RID RSTATE
         RCODE=$(curl -s -m 60 -b "$JAR" -o "$WORK/$TAG-refused.json" -w '%{http_code}' -H 'X-NF-Request: 1' -H 'Content-Type: application/json' \
-          -d '{"family":"cone_frustum","r1":200,"r2":199.99,"h":300}' "$BASE/api/projects/$PID_PROJ/calculations")
+          -d '{"family":"cone_frustum","r1":200,"r2":199.99999,"h":300}' "$BASE/api/projects/$PID_PROJ/calculations")
         RID=$(json_field "$WORK/$TAG-refused.json" id)
         RSTATE=$(json_field "$WORK/$TAG-refused.json" state)
         if [ "$RCODE" = 422 ] && [ "$RSTATE" = REFUSED ] && [ -n "$RID" ]; then
