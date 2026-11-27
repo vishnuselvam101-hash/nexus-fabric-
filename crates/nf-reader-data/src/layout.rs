@@ -46,6 +46,37 @@ pub fn text_w(s: &str, fs: f64) -> f64 {
 pub fn inter(a: B, b: B, pad: f64) -> bool {
     a[0] - pad < b[2] && b[0] - pad < a[2] && a[1] - pad < b[3] && b[1] - pad < a[3]
 }
+/// Does the segment (x0,y0)-(x1,y1) touch the box `b` grown by `pad`? (Liang-Barsky clip.)
+pub fn seg_hits(s: B, b: B, pad: f64) -> bool {
+    let (mut t0, mut t1) = (0.0f64, 1.0f64);
+    let (dx, dy) = (s[2] - s[0], s[3] - s[1]);
+    for (p, q) in [
+        (-dx, s[0] - (b[0] - pad)),
+        (dx, (b[2] + pad) - s[0]),
+        (-dy, s[1] - (b[1] - pad)),
+        (dy, (b[3] + pad) - s[1]),
+    ] {
+        if p == 0.0 {
+            if q < 0.0 {
+                return false;
+            }
+        } else {
+            let r = q / p;
+            if p < 0.0 {
+                if r > t1 {
+                    return false;
+                }
+                t0 = t0.max(r);
+            } else {
+                if r < t0 {
+                    return false;
+                }
+                t1 = t1.min(r);
+            }
+        }
+    }
+    t0 <= t1
+}
 pub fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -79,9 +110,15 @@ pub struct Page {
     pub style: Style,
     pub lang: Lang,
     pub body: String,
+    /// The text elements alone (same markup as in `body`), for the text-only render the box test uses.
+    pub text_body: String,
     pub items: Vec<Item>,
     pub dec: usize,
     pub gtol: char,
+    /// Every drawn line segment (x0,y0,x1,y1) in page units: text is never placed across one.
+    pub segs: Vec<B>,
+    /// While set, a text item must also have a clear leader from its left edge to this point.
+    pub leader: Option<(f64, f64)>,
 }
 
 impl Page {
@@ -93,9 +130,12 @@ impl Page {
             style,
             lang,
             body: String::new(),
+            text_body: String::new(),
             items: vec![],
             dec,
             gtol,
+            segs: vec![],
+            leader: None,
         }
     }
     pub fn raw(&mut self, s: &str) {
@@ -103,17 +143,78 @@ impl Page {
         self.body.push('\n');
     }
     pub fn line(&mut self, x0: f64, y0: f64, x1: f64, y1: f64, sw: f64) {
+        self.segs.push([x0, y0, x1, y1]);
         self.raw(&format!(
             "<line x1=\"{x0:.1}\" y1=\"{y0:.1}\" x2=\"{x1:.1}\" y2=\"{y1:.1}\" stroke=\"#000\" stroke-width=\"{sw:.2}\"/>"
         ));
     }
+    /// Axis-aligned line drawn in pieces so that it never runs through a placed text box.
+    pub fn dline(&mut self, x0: f64, y0: f64, x1: f64, y1: f64, sw: f64) {
+        let pad = 2.0 * self.u;
+        let horiz = (y0 - y1).abs() < 1e-9;
+        let vert = (x0 - x1).abs() < 1e-9;
+        if !horiz && !vert {
+            return self.line(x0, y0, x1, y1, sw);
+        }
+        let (a, b, c) = if horiz { (x0, x1, y0) } else { (y0, y1, x0) };
+        let (lo, hi) = (a.min(b), a.max(b));
+        let mut cuts: Vec<(f64, f64)> = vec![];
+        for i in &self.items {
+            let (bl, bh, cl, ch) = if horiz {
+                (i.b[0], i.b[2], i.b[1], i.b[3])
+            } else {
+                (i.b[1], i.b[3], i.b[0], i.b[2])
+            };
+            if c > cl - pad && c < ch + pad && bh + pad > lo && bl - pad < hi {
+                cuts.push((bl - pad, bh + pad));
+            }
+        }
+        cuts.sort_by(|p, q| p.0.total_cmp(&q.0));
+        let mut cur = lo;
+        let mut pieces = vec![];
+        for (cl, ch) in cuts {
+            if cl > cur {
+                pieces.push((cur, cl.min(hi)));
+            }
+            cur = cur.max(ch);
+        }
+        if cur < hi {
+            pieces.push((cur, hi));
+        }
+        for (pl, ph) in pieces {
+            if ph - pl < 1.5 * self.u {
+                continue;
+            }
+            if horiz {
+                self.line(pl, c, ph, c, sw);
+            } else {
+                self.line(c, pl, c, ph, sw);
+            }
+        }
+    }
     pub fn rect(&mut self, b: B, sw: f64) {
+        for s in [
+            [b[0], b[1], b[2], b[1]],
+            [b[2], b[1], b[2], b[3]],
+            [b[2], b[3], b[0], b[3]],
+            [b[0], b[3], b[0], b[1]],
+        ] {
+            self.segs.push(s);
+        }
         self.raw(&format!(
             "<rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"none\" stroke=\"#000\" stroke-width=\"{sw:.2}\"/>",
             b[0], b[1], b[2] - b[0], b[3] - b[1]
         ));
     }
     pub fn poly(&mut self, pts: &[(f64, f64)], closed: bool, sw: f64, fill: &str) {
+        for i in 1..pts.len() {
+            self.segs
+                .push([pts[i - 1].0, pts[i - 1].1, pts[i].0, pts[i].1]);
+        }
+        if closed && pts.len() > 2 {
+            let (a, z) = (pts[pts.len() - 1], pts[0]);
+            self.segs.push([a.0, a.1, z.0, z.1]);
+        }
         let d: Vec<String> = pts.iter().map(|(x, y)| format!("{x:.1},{y:.1}")).collect();
         let tag = if closed { "polygon" } else { "polyline" };
         self.raw(&format!(
@@ -121,9 +222,50 @@ impl Page {
             d.join(" ")
         ));
     }
-    /// Box of a string: x left, baseline y, font size.
+    /// Ink box of a string: x left of the advance box, baseline y, font size. Trimmed to what the glyphs
+    /// actually cover (cap height, descender only when a glyph has one, side bearings), measured on the
+    /// rendered DejaVu Sans Mono / Noto Sans CJK JP text.
     pub fn text_box(x: f64, base: f64, s: &str, fs: f64) -> B {
-        [x, base - 0.85 * fs, x + text_w(s, fs), base + 0.2 * fs]
+        let cjk = s.chars().any(|c| (c as u32) >= 0x2E80);
+        let desc = s.chars().any(|c| "gjpqy,;()[]\u{03C6}".contains(c));
+        let top = if cjk {
+            0.83
+        } else if s.chars().any(|c| "bdfhklt".contains(c)) {
+            0.77
+        } else {
+            0.74
+        };
+        let bot = if desc {
+            0.21
+        } else if s.contains('/') {
+            0.1
+        } else if cjk {
+            0.08
+        } else {
+            0.02
+        };
+        let first = s.chars().next().unwrap_or(' ');
+        let last = s.chars().last().unwrap_or(' ');
+        let lb = match first {
+            '1' => 0.12,
+            '\u{65E5}' => 0.13,
+            c if (c as u32) >= 0x2E80 => 0.065,
+            _ => 0.05,
+        };
+        let rb = match last {
+            '\u{3002}' | '\u{3001}' => 0.68,
+            _ if s.chars().count() == 1 => 0.1,
+            '1' => 0.06,
+            '.' => 0.22,
+            c if (c as u32) >= 0x2E80 => 0.065,
+            _ => 0.04,
+        };
+        [
+            x + lb * fs,
+            base - top * fs,
+            x + text_w(s, fs) - rb * fs,
+            base + bot * fs,
+        ]
     }
     /// Inside the drawing frame and clear of every placed item.
     pub fn free(&self, b: B) -> bool {
@@ -132,7 +274,20 @@ impl Page {
             return false;
         }
         let pad = 3.0 * self.u;
-        !self.items.iter().any(|i| inter(i.b, b, pad))
+        if self.items.iter().any(|i| inter(i.b, b, pad)) {
+            return false;
+        }
+        let sp = 2.0 * self.u;
+        if self.segs.iter().any(|s| seg_hits(*s, b, sp)) {
+            return false;
+        }
+        if let Some(t) = self.leader {
+            let ls = [b[0] - 4.0 * self.u, (b[1] + b[3]) / 2.0, t.0, t.1];
+            if self.items.iter().any(|i| seg_hits(ls, i.b, sp)) {
+                return false;
+            }
+        }
+        true
     }
     /// Place a text item. Returns its box, or `None` (nothing drawn, nothing recorded) when it would collide.
     #[allow(clippy::too_many_arguments)]
@@ -159,10 +314,10 @@ impl Page {
         if bg {
             self.raw(&format!(
                 "<rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" fill=\"#fff\"/>",
-                b[0] - 2.0,
-                b[1],
-                b[2] - b[0] + 4.0,
-                b[3] - b[1]
+                xl - 2.0,
+                base - 0.85 * fs,
+                w + 4.0,
+                1.05 * fs
             ));
         }
         let lang = if self.lang == Lang::Ja {
@@ -170,11 +325,14 @@ impl Page {
         } else {
             ""
         };
-        self.raw(&format!(
+        let el = format!(
             "<text x=\"{xl:.1}\" y=\"{base:.1}\" font-size=\"{fs:.1}\" font-family=\"{FONT}\"{lang}{} fill=\"#000\">{}</text>",
             if bold { " font-weight=\"bold\"" } else { "" },
             esc(&it.text)
-        ));
+        );
+        self.text_body.push_str(&el);
+        self.text_body.push('\n');
+        self.raw(&el);
         it.b = b;
         self.items.push(it);
         Some(b)

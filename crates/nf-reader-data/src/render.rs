@@ -17,6 +17,15 @@ pub struct Fx {
 }
 
 pub fn svg(p: &Page, skew: f64, paper: &str) -> String {
+    svg_of(p, &p.body, skew, paper)
+}
+
+/// The page with its text elements only (no lines, no geometry): the box test renders this.
+pub fn svg_text_only(p: &Page, skew: f64, paper: &str) -> String {
+    svg_of(p, &p.text_body, skew, paper)
+}
+
+fn svg_of(p: &Page, body: &str, skew: f64, paper: &str) -> String {
     let (w, h) = (p.w, p.h);
     let g = if skew != 0.0 {
         format!(
@@ -29,7 +38,7 @@ pub fn svg(p: &Page, skew: f64, paper: &str) -> String {
     };
     format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">\n<rect width=\"{w}\" height=\"{h}\" fill=\"{paper}\"/>\n{g}\n{}</g>\n</svg>\n",
-        p.body
+        body
     )
 }
 

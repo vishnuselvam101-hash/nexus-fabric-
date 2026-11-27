@@ -106,7 +106,27 @@ fn fam_code(f: &str) -> &'static str {
     }
 }
 
-/// Request for a page; train pages avoid parameter sets used by val/test (`held`).
+/// Split-leak key: the request with every number rounded to the nearest 5, so near-duplicates of a held-out
+/// parameter set (not just exact copies) are excluded.
+pub fn split_key(req: &Request) -> String {
+    fn norm(v: &mut Value) {
+        match v {
+            Value::Number(n) => {
+                if let Some(f) = n.as_f64() {
+                    *v = json!((f / 5.0).round() * 5.0);
+                }
+            }
+            Value::Object(m) => m.values_mut().for_each(norm),
+            Value::Array(a) => a.iter_mut().for_each(norm),
+            _ => {}
+        }
+    }
+    let mut v = serde_json::to_value(req).unwrap_or(Value::Null);
+    norm(&mut v);
+    v.to_string()
+}
+
+/// Request for a page; pages avoid the parameter sets in `held` (train: val and test; test: val).
 pub fn request_for(
     base: u64,
     split: &str,
@@ -117,8 +137,7 @@ pub fn request_for(
         let spec = spec_for(base, split, k, attempt);
         let mut rp = Rng::new(mix(&[spec.seed, 1]));
         let (req, out) = sample(spec.fam, &mut rp);
-        let key = serde_json::to_string(&req).unwrap_or_default();
-        if split == "train" && held.contains(&key) {
+        if held.contains(&split_key(&req)) {
             continue;
         }
         return (spec, req, out);
@@ -249,24 +268,35 @@ pub struct Opts {
     pub batch: usize,
 }
 
-pub fn held_set(base: u64) -> HashSet<String> {
+/// Parameter keys that `split` must avoid: val and test pages as they are generated (the val and test sets are
+/// built in order, so test avoids val and train avoids both).
+pub fn held_for(base: u64, split: &str, counts: &[(String, u64)]) -> HashSet<String> {
     let mut s = HashSet::new();
-    for (sp, n) in [("val", 1000u64), ("test", 1000u64)] {
+    let avoid: &[&str] = match split {
+        "train" => &["val", "test"],
+        "test" => &["val"],
+        _ => &[],
+    };
+    for sp in avoid {
+        let n = counts
+            .iter()
+            .find(|c| c.0 == *sp)
+            .map(|c| c.1)
+            .unwrap_or(1000);
+        let inner = held_for(base, sp, counts);
         for k in 0..n {
-            let spec = spec_for(base, sp, k, 0);
-            let mut rp = Rng::new(mix(&[spec.seed, 1]));
-            let (req, _) = sample(spec.fam, &mut rp);
-            s.insert(serde_json::to_string(&req).unwrap_or_default());
+            let (_, req, _) = request_for(base, sp, k, &inner);
+            s.insert(split_key(&req));
         }
     }
     s
 }
 
 pub fn generate(o: &Opts) -> Result<BTreeMap<String, u64>, String> {
-    let held = held_set(o.seed);
     let t0 = std::time::Instant::now();
     let mut counts: BTreeMap<String, u64> = BTreeMap::new();
     for (split, n) in &o.counts {
+        let held = held_for(o.seed, split, &o.counts);
         std::fs::create_dir_all(o.out.join(split).join("png")).map_err(|e| e.to_string())?;
         std::fs::create_dir_all(o.out.join(split).join("pdf")).map_err(|e| e.to_string())?;
         let mut truth = std::io::BufWriter::new(

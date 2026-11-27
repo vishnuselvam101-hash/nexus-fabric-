@@ -67,7 +67,11 @@ pub fn round_to(v: f64, dec: usize) -> f64 {
 }
 
 /// ISO 2768-1 / JIS B 0405 permitted linear deviation (mm, +/-) for a nominal size and class f, m, c.
-pub fn linear_tolerance(class: &str, nominal: f64) -> f64 {
+/// `None` where the standard gives no value: class f stops at 2000 mm.
+pub fn linear_tolerance(class: &str, nominal: f64) -> Option<f64> {
+    if class == "f" && nominal > 2000.0 {
+        return None;
+    }
     let rows: [(f64, [f64; 3]); 8] = [
         (3.0, [0.05, 0.1, 0.2]),
         (6.0, [0.05, 0.1, 0.3]),
@@ -86,5 +90,4 @@ pub fn linear_tolerance(class: &str, nominal: f64) -> f64 {
     rows.iter()
         .find(|(lim, _)| nominal <= *lim)
         .map(|(_, v)| v[col])
-        .unwrap_or(4.0)
 }

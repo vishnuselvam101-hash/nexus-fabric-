@@ -98,8 +98,10 @@ type Cand = (String, Source, &'static str, (f64, f64), f64);
 const FS_DIM: f64 = 25.0;
 
 fn tol_for(p: &Page, rng: &mut Rng, nominal: f64) -> Option<f64> {
-    rng.chance(0.3)
-        .then(|| linear_tolerance(&p.gtol.to_string(), nominal))
+    if !rng.chance(0.3) {
+        return None;
+    }
+    linear_tolerance(&p.gtol.to_string(), nominal)
 }
 
 fn arrow(p: &mut Page, x: f64, y: f64, dx: f64, dy: f64) {
@@ -107,6 +109,12 @@ fn arrow(p: &mut Page, x: f64, y: f64, dx: f64, dy: f64) {
     let (nx, ny) = (-dy, dx);
     let b = ((x + dx * a + nx * a * 0.3), (y + dy * a + ny * a * 0.3));
     let c = ((x + dx * a - nx * a * 0.3), (y + dy * a - ny * a * 0.3));
+    // an arrowhead that would touch text is left out: a line never runs through a written number
+    let g = 1.5 * p.u;
+    let hit = |s: B| p.items.iter().any(|i| seg_hits(s, i.b, g));
+    if hit([x, y, b.0, b.1]) || hit([x, y, c.0, c.1]) || hit([b.0, b.1, c.0, c.1]) {
+        return;
+    }
     if p.style == Style::Jis {
         p.poly(&[(x, y), b, c], true, 1.0, "#000");
     } else {
@@ -129,17 +137,16 @@ fn hdim(
 ) {
     let u = p.u;
     let fs = FS_DIM * u;
-    p.line(x0, ext_y + 5.0 * u, x0, y + 10.0 * u, 1.2 * u);
-    p.line(x1, ext_y + 5.0 * u, x1, y + 10.0 * u, 1.2 * u);
-    p.line(x0, y, x1, y, 1.2 * u);
-    arrow(p, x0, y, 1.0, 0.0);
-    arrow(p, x1, y, -1.0, 0.0);
     let tol = tol_for(p, rng, v);
     let jis = p.style == Style::Jis;
     let base = if jis { y + 0.33 * fs } else { y - 8.0 * u };
     let mid = (x0 + x1) / 2.0;
-    let est = text_w(&format!("{prefix}{v:.1}0000"), fs);
-    if est < (x1 - x0) - 20.0 * u
+    let dec = p.dec;
+    let tol_txt = tol.map(|t| format!(" \u{00B1}{t}")).unwrap_or_default();
+    let est = text_w(&format!("{prefix}{v:.dec$}{tol_txt}"), fs);
+    // text first (it must not cross anything already drawn), then the lines around it
+    let mut stub = false;
+    let mut placed = est + 44.0 * u < (x1 - x0)
         && p.num(
             "dimension",
             part,
@@ -154,41 +161,50 @@ fn hdim(
             fs,
             jis,
         )
-        .is_some()
-    {
-        return;
+        .is_some();
+    if !placed {
+        stub = true;
+        placed = p
+            .num(
+                "dimension",
+                part,
+                prefix,
+                v,
+                "mm",
+                tol,
+                src.clone(),
+                x1 + 16.0 * u,
+                y + 0.33 * fs,
+                Anchor::Start,
+                fs,
+                false,
+            )
+            .is_some();
+        if !placed {
+            stub = false;
+            let _ = p.num(
+                "dimension",
+                part,
+                prefix,
+                v,
+                "mm",
+                tol,
+                src,
+                mid,
+                y + fs + 10.0 * u,
+                Anchor::Middle,
+                fs,
+                false,
+            );
+        }
     }
-    p.line(x1, y, x1 + 12.0 * u, y, 1.2 * u);
-    if p.num(
-        "dimension",
-        part,
-        prefix,
-        v,
-        "mm",
-        tol,
-        src.clone(),
-        x1 + 16.0 * u,
-        y + 0.33 * fs,
-        Anchor::Start,
-        fs,
-        false,
-    )
-    .is_none()
-    {
-        let _ = p.num(
-            "dimension",
-            part,
-            prefix,
-            v,
-            "mm",
-            tol,
-            src,
-            mid,
-            y + fs + 10.0 * u,
-            Anchor::Middle,
-            fs,
-            false,
-        );
+    p.dline(x0, ext_y + 5.0 * u, x0, y + 10.0 * u, 1.2 * u);
+    p.dline(x1, ext_y + 5.0 * u, x1, y + 10.0 * u, 1.2 * u);
+    p.dline(x0, y, x1, y, 1.2 * u);
+    arrow(p, x0, y, 1.0, 0.0);
+    arrow(p, x1, y, -1.0, 0.0);
+    if stub {
+        p.dline(x1, y, x1 + 12.0 * u, y, 1.2 * u);
     }
 }
 
@@ -209,11 +225,6 @@ fn vdim(
     let u = p.u;
     let fs = FS_DIM * u;
     let d = if left { -1.0 } else { 1.0 };
-    p.line(ext_x + d * 5.0 * u, y0, x + d * 10.0 * u, y0, 1.2 * u);
-    p.line(ext_x + d * 5.0 * u, y1, x + d * 10.0 * u, y1, 1.2 * u);
-    p.line(x, y0, x, y1, 1.2 * u);
-    arrow(p, x, y0, 0.0, 1.0);
-    arrow(p, x, y1, 0.0, -1.0);
     let tol = tol_for(p, rng, v);
     let base = (y0 + y1) / 2.0 + 0.33 * fs;
     let (ax, anchor) = if left {
@@ -235,9 +246,15 @@ fn vdim(
         fs,
         false,
     );
+    p.dline(ext_x + d * 5.0 * u, y0, x + d * 10.0 * u, y0, 1.2 * u);
+    p.dline(ext_x + d * 5.0 * u, y1, x + d * 10.0 * u, y1, 1.2 * u);
+    p.dline(x, y0, x, y1, 1.2 * u);
+    arrow(p, x, y0, 0.0, 1.0);
+    arrow(p, x, y1, 0.0, -1.0);
 }
 
-/// Number in the cell's right-hand column with a leader line to `target`.
+/// Number in the cell's right-hand column with a leader line to `target` that crosses no text.
+/// Returns whether it was placed.
 #[allow(clippy::too_many_arguments)]
 fn callout(
     p: &mut Page,
@@ -250,7 +267,7 @@ fn callout(
     v: f64,
     unit: &'static str,
     src: Source,
-) {
+) -> bool {
     let u = p.u;
     let fs = FS_DIM * u;
     let x = cell[2] - 165.0 * u;
@@ -262,7 +279,8 @@ fn callout(
     for k in 0..14 {
         let off = ((k + 1) / 2) as f64 * if k % 2 == 1 { 1.0 } else { -1.0 };
         let base = (y_pref + off * 46.0 * u).clamp(cell[1] + 60.0 * u, cell[3] - 60.0 * u);
-        if let Some(b) = p.num(
+        p.leader = Some(target);
+        let placed = p.num(
             "dimension",
             part,
             prefix,
@@ -275,7 +293,9 @@ fn callout(
             Anchor::Start,
             fs,
             false,
-        ) {
+        );
+        p.leader = None;
+        if let Some(b) = placed {
             p.line(
                 b[0] - 4.0 * u,
                 (b[1] + b[3]) / 2.0,
@@ -289,9 +309,10 @@ fn callout(
                 target.1,
                 3.5 * u
             ));
-            return;
+            return true;
         }
     }
+    false
 }
 
 fn label(p: &mut Page, cell: B, s: &str, part: &str, what: &str) {
@@ -408,8 +429,8 @@ fn flat(p: &mut Page, rng: &mut Rng, out: &JobOutput, part: &PatternView, fam: &
     for (q, pre, target) in [
         ("slant_length", "", "seam_a"),
         ("seam_gap", "", "seam_b"),
-        ("s_min", "", "saddle_cut"),
-        ("s_max", "", "saddle_cut"),
+        ("s_min", "Smin ", "saddle_cut"),
+        ("s_max", "Smax ", "saddle_cut"),
     ] {
         if let Some(v) = part.quantities.get(q) {
             cands.push((
@@ -464,8 +485,8 @@ fn schematic(p: &mut Page, rng: &mut Rng, out: &JobOutput, fam: &str, cell: B) {
         "page",
         "view label",
     );
-    let dia = rng.chance(0.5);
-    let (pre, fac) = if dia { ("\u{03C6}", 2.0) } else { ("R", 1.0) };
+    // A dimension line that spans the whole width is a diameter (phi); R is only used with a half-span leader.
+    let (pre, fac) = ("\u{03C6}", 2.0);
     let part0 = out
         .patterns
         .first()
@@ -502,6 +523,8 @@ fn schematic(p: &mut Page, rng: &mut Rng, out: &JobOutput, fam: &str, cell: B) {
             let poly: Vec<(f64, f64)> = pts.iter().map(|(x, y)| f.p(*x, *y)).collect();
             p.poly(&poly, true, 2.4 * u, "none");
             let cy = f.p(0.0, 0.0).1;
+            p.segs
+                .push([poly[0].0 - 25.0 * u, cy, poly[1].0 + 25.0 * u, cy]);
             p.raw(&format!(
                 "<line x1=\"{:.1}\" y1=\"{cy:.1}\" x2=\"{:.1}\" y2=\"{cy:.1}\" stroke=\"#000\" stroke-width=\"{:.1}\" stroke-dasharray=\"{:.0} {:.0} {:.0} {:.0}\"/>",
                 poly[0].0 - 25.0 * u, poly[1].0 + 25.0 * u, 1.2 * u, 30.0 * u, 6.0 * u, 6.0 * u, 6.0 * u
@@ -549,19 +572,25 @@ fn schematic(p: &mut Page, rng: &mut Rng, out: &JobOutput, fam: &str, cell: B) {
                 );
             }
             if fam == "eccentric_reducer" {
-                let tgt = f.p(l, e);
-                callout(
-                    p,
-                    rng,
-                    cell,
-                    tgt,
-                    tgt.1,
-                    &part0,
-                    "e",
-                    e,
-                    "mm",
-                    req("e", 1.0),
-                );
+                // eccentricity: offset dimension between the two axes, beside the large-end dimension
+                let (ya, yb) = (f.p(l, 0.0).1, f.p(l, e).1);
+                if (ya - yb).abs() > 12.0 * u {
+                    let w2 = text_w(&format!("{pre}{:.1}0000", r2 * fac), fs);
+                    let xe = xr + 45.0 * u + 12.0 * u + w2 + 40.0 * u;
+                    vdim(
+                        p,
+                        rng,
+                        yb.min(ya),
+                        yb.max(ya),
+                        xe,
+                        xr,
+                        false,
+                        &part0,
+                        "e",
+                        e,
+                        req("e", 1.0),
+                    );
+                }
             }
         }
         _ => {
@@ -593,6 +622,8 @@ fn schematic(p: &mut Page, rng: &mut Rng, out: &JobOutput, fam: &str, cell: B) {
             p.poly(&hp, true, 2.4 * u, "none");
             p.poly(&bp, true, 2.4 * u, "none");
             let cy = f.p(0.0, 0.0).1;
+            p.segs
+                .push([hp[0].0 - 25.0 * u, cy, hp[1].0 + 25.0 * u, cy]);
             p.raw(&format!(
                 "<line x1=\"{:.1}\" y1=\"{cy:.1}\" x2=\"{:.1}\" y2=\"{cy:.1}\" stroke=\"#000\" stroke-width=\"{:.1}\" stroke-dasharray=\"{:.0} {:.0} {:.0} {:.0}\"/>",
                 hp[0].0 - 25.0 * u, hp[1].0 + 25.0 * u, 1.2 * u, 30.0 * u, 6.0 * u, 6.0 * u, 6.0 * u
@@ -642,7 +673,7 @@ fn schematic(p: &mut Page, rng: &mut Rng, out: &JobOutput, fam: &str, cell: B) {
                 xl - 45.0 * u,
                 xl,
                 true,
-                if asm { "header" } else { "branch" },
+                if asm { "header" } else { "page" },
                 pre,
                 hr * fac,
                 req("header_radius", fac),
@@ -651,18 +682,27 @@ fn schematic(p: &mut Page, rng: &mut Rng, out: &JobOutput, fam: &str, cell: B) {
             let far_mid = ((bp[2].0 + bp[3].0) / 2.0, (bp[2].1 + bp[3].1) / 2.0);
             let side_mid = ((bp[1].0 + bp[2].0) / 2.0, (bp[1].1 + bp[2].1) / 2.0);
             let part_b = if asm { "branch" } else { part0.as_str() };
-            callout(
+            // branch size: phi with a leader to the end edge, or R with a leader to its centre and a half-span
+            let (bpre, bfac) = if rng.chance(0.5) {
+                ("\u{03C6}", 2.0)
+            } else {
+                ("R", 1.0)
+            };
+            let placed = callout(
                 p,
                 rng,
                 cell,
                 far_mid,
                 far_mid.1,
                 part_b,
-                pre,
-                br * fac,
+                bpre,
+                br * bfac,
                 "mm",
-                req("branch_radius", fac),
+                req("branch_radius", bfac),
             );
+            if placed && bfac == 1.0 {
+                p.dline(far_mid.0, far_mid.1, bp[3].0, bp[3].1, 1.2 * u);
+            }
             callout(
                 p,
                 rng,
@@ -680,6 +720,18 @@ fn schematic(p: &mut Page, rng: &mut Rng, out: &JobOutput, fam: &str, cell: B) {
             let a1 = (ps.0 + ar, ps.1);
             let a2 = (ps.0 + ar * dx, ps.1 - ar * dy);
             let large = if beta > 180.0 { 1 } else { 0 };
+            for i in 0..12 {
+                let (t0, t1) = (
+                    beta.to_radians() * i as f64 / 12.0,
+                    beta.to_radians() * (i + 1) as f64 / 12.0,
+                );
+                p.segs.push([
+                    ps.0 + ar * t0.cos(),
+                    ps.1 - ar * t0.sin(),
+                    ps.0 + ar * t1.cos(),
+                    ps.1 - ar * t1.sin(),
+                ]);
+            }
             p.raw(&format!(
                 "<path d=\"M {:.1} {:.1} A {ar:.1} {ar:.1} 0 {large} 0 {:.1} {:.1}\" fill=\"none\" stroke=\"#000\" stroke-width=\"{:.1}\"/>",
                 a1.0, a1.1, a2.0, a2.1, 1.2 * u
@@ -921,15 +973,17 @@ fn bom(p: &mut Page, out: &JobOutput, fam: &str, ids: &Ids, rc: B, ty0: f64) {
                     p.emit(it, x, base, Anchor::Start, fs, false, false);
                 }
                 1 => {
+                    let nm = part_name(fam, &part.part, lang);
+                    let fs1 = fs.min((cw[1] - 14.0) * u / text_w(nm, 1.0));
                     p.word(
                         "bom",
-                        part_name(fam, &part.part, lang),
+                        nm,
                         &part.part,
                         "part name",
                         x,
                         base,
                         Anchor::Start,
-                        fs,
+                        fs1,
                         false,
                     );
                 }
