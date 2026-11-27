@@ -1366,11 +1366,9 @@ fn eval_s14_k(idx: usize) -> Option<Got> {
             })
             .map_or(0, |r| r.pieces.len()),
         ),
-        299 => {
-            let mut s = k_spec();
-            s.taper_piece = Some(1);
-            count_num(bend::bend(&s).ok()?.pieces.len())
-        }
+        // s14-0300: PENDING, NF refuses where ZK ignored taper_piece (piece 1 is not a valid cone piece; NF refuses
+        // with bend_taper_piece_out_of_range). The expectation is not changed.
+        299 => None,
         301 => {
             let mut s = k_spec();
             s.taper_piece = Some(3);

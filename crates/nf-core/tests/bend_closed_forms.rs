@@ -480,7 +480,11 @@ fn swing_rule_basis_versus_outer() {
             .iter()
             .any(|r| r.0 == "ALLOW_PER_PIECE_MM" && r.2 == "UNVERIFIED")
     );
-    assert!(d.rules.iter().any(|r| r.0 == "seam" && r.2 == "UNVERIFIED"));
+    assert!(
+        d.rules
+            .iter()
+            .any(|r| r.0 == "SEAM_FROM_HEEL_DEG" && r.2 == "UNVERIFIED")
+    );
     assert!(!d.certified && d.method == BEND_METHOD);
     for (name, _, _, status) in BEND_NAMED_RULES {
         assert!(!name.is_empty() && !status.is_empty());
@@ -625,12 +629,16 @@ fn coded_refusals_named_in_the_golden_and_fuzz_table() {
     assert_eq!(code(&|s| s.split = 0), "bend_split_out_of_range");
     assert_eq!(code(&|s| s.allow = -1.0), "bend_value_not_positive");
     assert_eq!(code(&|s| s.seam_deg = f64::NAN), "bend_value_not_finite");
-    // an invalid taper piece is ignored and flagged, not silently used
+    // a taper_piece is never silently ignored: out of range on a reducing bend, or on a plain bend, is refused
     let mut s = ok;
     s.taper_piece = Some(1);
-    let r = bend(&s).unwrap();
-    assert_eq!(r.model.taper_ignored, Some(1));
-    assert_eq!(r.pieces.iter().filter(|p| p.cone).count(), 3);
+    assert_eq!(bend(&s).unwrap_err().code, "bend_taper_piece_out_of_range");
+    s.taper_piece = Some(5);
+    assert_eq!(bend(&s).unwrap_err().code, "bend_taper_piece_out_of_range");
+    let mut p = plain(1016.0, 12.0, 1500.0, 90.0, 2, 300.0, 300.0);
+    p.taper_piece = Some(3);
+    assert_eq!(bend(&p).unwrap_err().code, "bend_taper_piece_not_reducing");
+    // a valid taper builds: only piece 3 is a cone, and its tilt exceeds the note threshold
     s.taper_piece = Some(3);
     let r = bend(&s).unwrap();
     assert_eq!(r.pieces.iter().filter(|p| p.cone).count(), 1);

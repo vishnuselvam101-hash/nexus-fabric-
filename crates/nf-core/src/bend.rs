@@ -108,7 +108,7 @@ pub const BEND_NAMED_RULES: [(&str, &str, &str, &str); 9] = [
 ];
 
 /// Stable refusal codes of this module (documented in docs/backend/REFUSAL_CODES.md when wired into the engine).
-pub const BEND_REFUSAL_CODES: [&str; 14] = [
+pub const BEND_REFUSAL_CODES: [&str; 16] = [
     "bend_value_not_finite",
     "bend_value_not_positive",
     "bend_value_too_large",
@@ -123,6 +123,8 @@ pub const BEND_REFUSAL_CODES: [&str; 14] = [
     "bend_cuts_cross_at_heel",
     "bend_area_not_converged",
     "bend_result_not_finite",
+    "bend_taper_piece_out_of_range",
+    "bend_taper_piece_not_reducing",
 ];
 
 /// Rule `bend_swing_radius`: radius of the cut-curve swing. `Basis` = the developed (basis) surface (default, consistent
@@ -160,7 +162,8 @@ pub struct BendSpec {
     pub joints: Option<f64>,
     pub s1: f64,
     pub s2: f64,
-    /// Piece number (start piece = 1) made the only cone; outside 2..=joints it is ignored and flagged.
+    /// Piece number (start piece = 1) made the only cone. Refused (never ignored) unless the bend is reducing and the
+    /// number is in 2..=joints.
     pub taper_piece: Option<u32>,
     pub basis: Basis,
     pub swing: SwingRule,
@@ -347,7 +350,6 @@ pub struct BendModel {
     /// Pieces whose heel generatrix (no allowance) is not positive: front and back cuts cross.
     pub cross: Vec<u32>,
     pub reducing: bool,
-    pub taper_ignored: Option<u32>,
     pub joints_n: u32,
 }
 
@@ -358,7 +360,6 @@ struct Valid {
     d_end: f64,
     reducing: bool,
     taper: Option<u32>,
-    taper_ignored: Option<u32>,
     source: JointSource,
 }
 
@@ -415,17 +416,29 @@ fn validate(s: &BendSpec) -> Result<Valid, ShapeRefusal> {
             "a reducing bend with one joint has no middle piece to make a cone",
         ));
     }
-    let (taper, taper_ignored) = match s.taper_piece {
-        Some(k) if reducing && (2..=j).contains(&k) => (Some(k), None),
-        Some(k) if reducing => (None, Some(k)),
-        _ => (None, None),
-    };
+    if let Some(k) = s.taper_piece {
+        if !reducing {
+            return Err(refuse(
+                "bend_taper_piece_not_reducing",
+                "taper_piece",
+                format!(
+                    "taper_piece {k} is given but the bend is not reducing: remove it or give D_end"
+                ),
+            ));
+        }
+        if !(2..=j).contains(&k) {
+            return Err(refuse(
+                "bend_taper_piece_out_of_range",
+                "taper_piece",
+                format!("taper_piece must be 2..={j} for {j} joints (got {k})"),
+            ));
+        }
+    }
     Ok(Valid {
         j,
         d_end: if reducing { de } else { d },
         reducing,
-        taper,
-        taper_ignored,
+        taper: s.taper_piece,
         source,
     })
 }
@@ -565,7 +578,6 @@ fn model_of(s: &BendSpec, v: &Valid) -> Result<BendModel, ShapeRefusal> {
         joints: js,
         cross,
         reducing: v.reducing,
-        taper_ignored: v.taper_ignored,
         joints_n: v.j,
     })
 }
@@ -931,7 +943,7 @@ pub fn bend(s: &BendSpec) -> Result<BendResult, ShapeRefusal> {
         ),
         ("ALLOW_PER_PIECE_MM", format!("{}", s.allow), "UNVERIFIED"),
         (
-            "seam",
+            "SEAM_FROM_HEEL_DEG",
             format!(
                 "{} deg from the {}",
                 s.seam_deg,
