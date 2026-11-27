@@ -7,8 +7,10 @@
 //! `eps_rep` (owner rule of 24 Nov 2026: a shape whose DXF cannot be certified stays withheld).
 //!
 //! Exactness: ring, plate (lines and true circles), cylinder and the concentric cone are exact closed forms. The
-//! eccentric cone angle and area use composite Simpson quadrature of a smooth integrand (error bound stated at
-//! `ECC_QUAD_PANELS`), not interval arithmetic: that part is NOT certified.
+//! eccentric cone angle and area use adaptive Simpson quadrature with a Richardson (panel-doubling) a-posteriori
+//! error estimate returned with every piece (`ECC_REL_TOL`, `ECC_METHOD`); a piece whose estimate exceeds the
+//! tolerance is refused (`ecc_quadrature_not_converged`). It is not interval arithmetic: that part is NOT
+//! certified (`certified: false`).
 //!
 //! Every value is either from the request, derived by a named formula, or a named rule. The only rule constant here
 //! is `STEEL_DENSITY_KG_MM3` (7850 kg/m3, the nominal handbook value ZK uses, `RHO` in shared.js): a named rule
@@ -22,17 +24,64 @@ pub const STEEL_DENSITY_KG_MM3: f64 = 7.85e-6;
 pub const MAX_MM: f64 = crate::job::MAX_MAGNITUDE_MM;
 /// Smallest positive dimension accepted (mm); same as `job::MIN_DIMENSION_MM`.
 pub const MIN_MM: f64 = crate::job::MIN_DIMENSION_MM;
-/// Implementation limit: a ring or cone is split into 1..=12 pieces (ZK `splitN`/stock search maximum).
+/// IMPLEMENTATION LIMIT (not a fabrication rule, UNVERIFIED as a fabrication value): a ring or cone is split into
+/// 1..=12 pieces (the ZK `splitN`/stock-search maximum). A factory may need a different maximum.
 pub const MAX_SPLIT: u32 = 12;
-/// Implementation limit: a cylinder has 1..=6 longitudinal seams (ZK `seamsN`).
+/// IMPLEMENTATION LIMIT (not a fabrication rule, UNVERIFIED as a fabrication value): a cylinder has 1..=6
+/// longitudinal seams (ZK `seamsN`).
 pub const MAX_CYL_SEAMS: u32 = 6;
-/// Composite Simpson panels for the eccentric cone integrals. The integrands are analytic on [0, 2 pi] with
-/// bounded derivatives of the size of the radii; the Simpson error is below 1e-9 of the result for every
-/// accepted cone (checked against an independent chord construction in the tests). Not an interval bound.
-pub const ECC_QUAD_PANELS: usize = 4096;
+/// Relative tolerance of the eccentric-cone quadrature: a piece is returned only when its a-posteriori error
+/// estimate (Richardson, `|S2 - S1|` summed over the accepted leaves, 15x the textbook `/15` estimate) is at most
+/// this fraction of its value; otherwise `ecc_quadrature_not_converged`. The leaves are accepted at about 1.5e-10 of
+/// the value, so a returned estimate is below that; the measured true error against a 2^22-panel Simpson reference
+/// is stated in the tests (flat case r1 1000, r2 500, L 1: see `ecc_flat_cone_*`). An estimate, not an interval bound.
+pub const ECC_REL_TOL: f64 = 1e-9;
+/// Method tag carried by every eccentric result.
+pub const ECC_METHOD: &str = "adaptive_simpson_richardson";
+/// Initial panels, depth limit and evaluation budget of one adaptive integral (implementation limits).
+const ECC_INIT_PANELS: usize = 64;
+const ECC_MAX_DEPTH: u32 = 48;
+const ECC_MAX_EVALS: usize = 4_000_000;
+
+/// Named rules and implementation limits of this module, labelled so none reads as a fabrication value.
+/// (name, value, kind, status)
+pub const NAMED_RULES: [(&str, &str, &str, &str); 7] = [
+    ("MAX_SPLIT", "12", "implementation limit", "UNVERIFIED"),
+    ("MAX_CYL_SEAMS", "6", "implementation limit", "UNVERIFIED"),
+    (
+        "STEEL_DENSITY_KG_MM3",
+        "7.85e-6",
+        "rule (handbook value)",
+        "UNVERIFIED",
+    ),
+    (
+        "MASS_TABLE_REL_TOL",
+        "0.005",
+        "rule (table mass check)",
+        "UNVERIFIED",
+    ),
+    (
+        "SIZE_TABLE_TOL_MM",
+        "1.0",
+        "rule (table size check)",
+        "UNVERIFIED",
+    ),
+    (
+        "ECC_REL_TOL",
+        "1e-9",
+        "quadrature acceptance (not a fabrication value)",
+        "implementation",
+    ),
+    (
+        "ECC_MAX_DEPTH/ECC_MAX_EVALS",
+        "48/4e6",
+        "implementation limit",
+        "implementation",
+    ),
+];
 
 /// Stable refusal codes of this module (documented in docs/backend/REFUSAL_CODES.md when wired into the engine).
-pub const SHAPE_REFUSAL_CODES: [&str; 12] = [
+pub const SHAPE_REFUSAL_CODES: [&str; 15] = [
     "shape_value_not_finite",
     "shape_value_not_positive",
     "shape_value_too_large",
@@ -45,6 +94,9 @@ pub const SHAPE_REFUSAL_CODES: [&str; 12] = [
     "plate_chamfer_corner_invalid",
     "plate_hole_invalid",
     "rib_geometry_invalid",
+    "ecc_quadrature_not_converged",
+    "plate_hole_outside_outline",
+    "plate_hole_overlap",
 ];
 
 #[derive(Debug, Clone, PartialEq)]
@@ -374,20 +426,109 @@ pub struct EccPiece {
     /// Angle between the first and last generator of the piece in the development (rad).
     pub dev_angle: f64,
     pub area: f64,
+    /// A-posteriori error estimates (same units as the value) of `dev_angle` and `area`.
+    pub dev_angle_err: f64,
+    pub area_err: f64,
+    /// Always false: quadrature, not interval arithmetic.
+    pub certified: bool,
+    /// Always `ECC_METHOD`.
+    pub method: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EccSplit {
     pub pieces: Vec<EccPiece>,
     pub area_total: f64,
+    pub area_total_err: f64,
     pub mass_kg: f64,
+    /// Largest relative error estimate over all pieces and both quantities (always <= `ECC_REL_TOL`).
+    pub max_rel_err: f64,
+    /// Always false: quadrature, not interval arithmetic.
+    pub certified: bool,
+    /// Always `ECC_METHOD`.
+    pub method: &'static str,
+}
+
+/// Adaptive Simpson on [a0, a1] with Richardson error estimate. Returns (value, error estimate); the estimate is
+/// the sum over accepted leaves of `|S2 - S1|` (S1 one Simpson panel, S2 its two halves). When the depth limit or the
+/// evaluation budget stops a leaf early its (large) estimate is still added, so the result is refused later, never
+/// silently trusted.
+fn adaptive_simpson(f: &dyn Fn(f64) -> f64, a0: f64, a1: f64) -> (f64, f64) {
+    fn rec(
+        f: &dyn Fn(f64) -> f64,
+        (a, fa): (f64, f64),
+        (m, fm): (f64, f64),
+        (b, fb): (f64, f64),
+        whole: f64,
+        (tol, depth): (f64, u32),
+        st: &mut (usize, f64, f64),
+    ) {
+        let (lm, rm) = (0.5 * (a + m), 0.5 * (m + b));
+        let (flm, frm) = (f(lm), f(rm));
+        st.0 += 2;
+        let left = (m - a) / 6.0 * (fa + 4.0 * flm + fm);
+        let right = (b - m) / 6.0 * (fm + 4.0 * frm + fb);
+        let diff = left + right - whole;
+        if depth >= ECC_MAX_DEPTH || st.0 >= ECC_MAX_EVALS || diff.abs() <= 15.0 * tol {
+            st.1 += left + right + diff / 15.0;
+            st.2 += diff.abs();
+        } else {
+            rec(
+                f,
+                (a, fa),
+                (lm, flm),
+                (m, fm),
+                left,
+                (tol / 2.0, depth + 1),
+                st,
+            );
+            rec(
+                f,
+                (m, fm),
+                (rm, frm),
+                (b, fb),
+                right,
+                (tol / 2.0, depth + 1),
+                st,
+            );
+        }
+    }
+    let panels = ECC_INIT_PANELS;
+    let h = (a1 - a0) / panels as f64;
+    // coarse value (64 whole panels) fixes the absolute tolerance scale; integrands are positive
+    let mut coarse = 0.0;
+    let mut nodes = Vec::with_capacity(panels + 1);
+    for i in 0..=panels {
+        nodes.push((a0 + h * i as f64, f(a0 + h * i as f64)));
+    }
+    for w in nodes.windows(2) {
+        let mid = 0.5 * (w[0].0 + w[1].0);
+        coarse += h / 6.0 * (w[0].1 + 4.0 * f(mid) + w[1].1);
+    }
+    let tol = 1e-11 * coarse.abs() / panels as f64;
+    let mut st = (3 * panels + 1, 0.0, 0.0);
+    for w in nodes.windows(2) {
+        let mid = 0.5 * (w[0].0 + w[1].0);
+        let fm = f(mid);
+        let whole = h / 6.0 * (w[0].1 + 4.0 * fm + w[1].1);
+        rec(f, w[0], (mid, fm), w[1], whole, (tol, 0), &mut st);
+    }
+    (st.1, st.2)
 }
 
 /// Eccentric (oblique) cone of two parallel circles with a common tangent line ("flat side"), cut into n pieces by
 /// generators at equal azimuth steps from the flat side (n = 2 gives the two halves). The development maps azimuth
 /// a to polar angle phi(a) about the apex with d phi/da = sqrt(r1^2 - rho'^2)/rho, rho the distance apex to the
 /// large-mouth point (exact generator mapping; arc length of the mouth circle is preserved). Area of a piece is
-/// (1 - k^2)/2 * integral rho^2 d phi, k = r2/r1. NOT certified (quadrature, see `ECC_QUAD_PANELS`).
+/// (1 - k^2)/2 * integral rho^2 d phi, k = r2/r1.
+///
+/// The apex lies at (ax, r1) with ax = L r1/(r1 - r2) (the homothety centre; its height equals r1 exactly), which
+/// gives cancellation-free forms: rho^2 = ax^2 + 4 r1^2 sin^2(a/2) and
+/// d phi/da = r1 sqrt(ax^2 + 4 r1^2 sin^4(a/2)) / rho^2, so a cone with k near 1 loses no digits.
+///
+/// NOT certified: adaptive Simpson with an a-posteriori error estimate returned per piece (`ECC_REL_TOL`); a result
+/// whose estimate exceeds the tolerance is refused as `ecc_quadrature_not_converged` (never returned with a larger
+/// error than its stated one).
 pub fn ecc_cone_split(c: ConeSpec) -> Result<EccSplit, ShapeRefusal> {
     let d1 = dim("D1", c.d1)?;
     let d2 = dim("D2", c.d2)?;
@@ -413,46 +554,62 @@ pub fn ecc_cone_split(c: ConeSpec) -> Result<EccSplit, ShapeRefusal> {
         ));
     }
     let k = r2 / r1;
-    // homothety centre (apex): x = L/(1-k), y = (r1-r2)/(1-k); circle 1 at x = 0 centred on the axis
-    let ay = (r1 - r2) / (1.0 - k);
-    let ax = l / (1.0 - k);
-    let rho2 = |a: f64| ax * ax + ay * ay - 2.0 * ay * r1 * a.cos() + r1 * r1;
+    let ax = l * r1 / (r1 - r2);
+    let one_minus_k2 = (r1 - r2) / r1 * (1.0 + k);
+    let rho2 = |a: f64| {
+        let s = (a / 2.0).sin();
+        ax * ax + 4.0 * r1 * r1 * s * s
+    };
     let dphi = |a: f64| {
-        let rho = rho2(a).sqrt();
-        let drho = ay * r1 * a.sin() / rho;
-        (r1 * r1 - drho * drho).max(0.0).sqrt() / rho
+        let s = (a / 2.0).sin();
+        r1 * (ax * ax + 4.0 * r1 * r1 * s.powi(4)).sqrt() / rho2(a)
     };
-    let darea = |a: f64| 0.5 * (1.0 - k * k) * rho2(a) * dphi(a);
-    let simpson = |f: &dyn Fn(f64) -> f64, a0: f64, a1: f64| {
-        let m = ECC_QUAD_PANELS;
-        let h = (a1 - a0) / m as f64;
-        let mut s = f(a0) + f(a1);
-        for i in 1..m {
-            s += f(a0 + h * i as f64) * if i % 2 == 1 { 4.0 } else { 2.0 };
-        }
-        s * h / 3.0
-    };
+    let darea = |a: f64| 0.5 * one_minus_k2 * rho2(a) * dphi(a);
     let nf = f64::from(n);
-    let pieces: Vec<EccPiece> = (0..n)
-        .map(|j| {
-            let (a0, a1) = (
-                2.0 * PI * f64::from(j) / nf,
-                2.0 * PI * f64::from(j + 1) / nf,
-            );
-            // ZK cuts a 2-split at pi (flat side to far side): the same azimuth rule for n = 2
-            EccPiece {
-                a0,
-                a1,
-                dev_angle: simpson(&dphi, a0, a1),
-                area: simpson(&darea, a0, a1),
+    let mut pieces = Vec::with_capacity(n as usize);
+    let mut max_rel = 0.0f64;
+    for j in 0..n {
+        let (a0, a1) = (
+            2.0 * PI * f64::from(j) / nf,
+            2.0 * PI * f64::from(j + 1) / nf,
+        );
+        // ZK cuts a 2-split at pi (flat side to far side): the same azimuth rule for n = 2
+        let (dev_angle, dev_angle_err) = adaptive_simpson(&dphi, a0, a1);
+        let (area, area_err) = adaptive_simpson(&darea, a0, a1);
+        for (v, e) in [(dev_angle, dev_angle_err), (area, area_err)] {
+            let rel = e / v.abs();
+            if !(v.is_finite() && e.is_finite() && v > 0.0 && rel <= ECC_REL_TOL) {
+                return Err(refuse(
+                    "ecc_quadrature_not_converged",
+                    "L",
+                    format!(
+                        "the eccentric-cone integral did not converge to {ECC_REL_TOL} relative (estimate {rel:e}); refused rather than returned"
+                    ),
+                ));
             }
-        })
-        .collect();
+            max_rel = max_rel.max(rel);
+        }
+        pieces.push(EccPiece {
+            a0,
+            a1,
+            dev_angle,
+            area,
+            dev_angle_err,
+            area_err,
+            certified: false,
+            method: ECC_METHOD,
+        });
+    }
     let area_total: f64 = pieces.iter().map(|p| p.area).sum();
+    let area_total_err: f64 = pieces.iter().map(|p| p.area_err).sum();
     Ok(EccSplit {
         mass_kg: mass_kg(area_total, t),
         area_total,
+        area_total_err,
         pieces,
+        max_rel_err: max_rel,
+        certified: false,
+        method: ECC_METHOD,
     })
 }
 
@@ -564,6 +721,9 @@ pub fn edge_distance(q: [f64; 2], poly: &[[f64; 2]]) -> f64 {
 /// Even-odd point in polygon.
 pub fn inside_polygon(q: [f64; 2], poly: &[[f64; 2]]) -> bool {
     let n = poly.len();
+    if n == 0 {
+        return false;
+    }
     let mut c = false;
     let mut j = n - 1;
     for i in 0..n {
@@ -594,9 +754,35 @@ pub fn plate_corners(w: f64, h: f64, w2: Option<f64>, off: Option<f64>) -> Vec<[
     }
 }
 
-/// Plate with straight edges, C chamfers and a grid of round holes. Exact: lines and true circles; the area is the
-/// shoelace area of the straight outline minus n x pi d^2/4 (ZK draws each hole as a 360-gon, 0.0035 % smaller).
+/// Plate with straight edges, C chamfers and a grid of round holes, holes checked: refuses (coded) a hole that is not
+/// fully inside the outline or that overlaps another. Exact: lines and true circles; the area is the shoelace area of
+/// the straight outline minus n x pi d^2/4 (ZK draws each hole as a 360-gon, 0.0035 % smaller).
 pub fn plate(s: PlateSpec) -> Result<Plate, ShapeRefusal> {
+    let p = plate_geometry(s)?;
+    if !holes_outside(&p).is_empty() {
+        return Err(refuse(
+            "plate_hole_outside_outline",
+            "hole_x",
+            "a hole is not fully inside the plate outline",
+        ));
+    }
+    if let Some(g) = s.hole {
+        let d = p.hole_d;
+        if (g.nx > 1 && g.px.abs() < d - 1e-6) || (g.ny > 1 && g.py.abs() < d - 1e-6) {
+            return Err(refuse(
+                "plate_hole_overlap",
+                "hole_px",
+                "holes overlap: the pitch is smaller than the hole diameter",
+            ));
+        }
+    }
+    Ok(p)
+}
+
+/// Same geometry as `plate` but WITHOUT the hole position checks: a diagnostic for the front half, which reports
+/// outside/overlapping holes as holds (`plate_hole_out`, `plate_hole_overlap`) and still needs the piece. Callers must
+/// not treat its result as a fabrication-ready plate; use `plate` for that.
+pub fn plate_geometry(s: PlateSpec) -> Result<Plate, ShapeRefusal> {
     let w = dim("plate_W", s.w)?;
     let h = dim("plate_H", s.h)?;
     let t = dim("t", s.t)?;
@@ -1285,6 +1471,199 @@ mod tests {
             .unwrap_err()
             .code,
             "shape_split_out_of_range"
+        );
+    }
+
+    /// Fixed-panel Simpson reference (2^22 panels) of the same integrands, for the error measurements.
+    fn ecc_reference(r1: f64, r2: f64, l: f64, a0: f64, a1: f64) -> (f64, f64) {
+        let k = r2 / r1;
+        let ay = (r1 - r2) / (1.0 - k);
+        let ax = l / (1.0 - k);
+        let rho2 = |a: f64| ax * ax + ay * ay - 2.0 * ay * r1 * a.cos() + r1 * r1;
+        let dphi = |a: f64| {
+            let rho = rho2(a).sqrt();
+            let dr = ay * r1 * a.sin() / rho;
+            (r1 * r1 - dr * dr).max(0.0).sqrt() / rho
+        };
+        let simp = |f: &dyn Fn(f64) -> f64| {
+            let m = 1usize << 22;
+            let h = (a1 - a0) / m as f64;
+            let mut s = f(a0) + f(a1);
+            for i in 1..m {
+                s += f(a0 + h * i as f64) * if i % 2 == 1 { 4.0 } else { 2.0 };
+            }
+            s * h / 3.0
+        };
+        (
+            simp(&dphi),
+            simp(&|a| 0.5 * (1.0 - k * k) * rho2(a) * dphi(a)),
+        )
+    }
+
+    fn cone(d1: f64, d2: f64, l: f64, split: u32) -> ConeSpec {
+        ConeSpec {
+            d1,
+            d2,
+            l,
+            t: 0.001,
+            basis: Basis::Mid,
+            split,
+        }
+    }
+
+    #[test]
+    fn ecc_result_is_marked_uncertified_with_method_and_estimates() {
+        let e = ecc_cone_split(cone(1200.0, 800.0, 700.0, 3)).unwrap();
+        assert!(!e.certified);
+        assert_eq!(e.method, ECC_METHOD);
+        assert!(e.max_rel_err <= ECC_REL_TOL);
+        assert!(e.area_total_err >= 0.0);
+        for p in &e.pieces {
+            assert!(!p.certified && p.method == ECC_METHOD);
+            assert!(p.dev_angle_err / p.dev_angle <= ECC_REL_TOL);
+            assert!(p.area_err / p.area <= ECC_REL_TOL);
+        }
+    }
+
+    #[test]
+    fn ecc_flat_cone_meets_its_stated_bound_against_a_high_panel_reference() {
+        // review case: r1 1000, r2 500, L 1 (the old fixed 4096-panel rule was off by 9.4e-5 here)
+        let spec = ConeSpec {
+            d1: 2000.0,
+            d2: 1000.0,
+            l: 1.0,
+            t: 0.001,
+            basis: Basis::Outer,
+            split: 2,
+        };
+        match ecc_cone_split(spec) {
+            Ok(e) => {
+                for p in &e.pieces {
+                    let (ra, rr) = ecc_reference(1000.0, 500.0, 1.0, p.a0, p.a1);
+                    let (ea, er) = ((p.dev_angle - ra).abs(), (p.area - rr).abs());
+                    println!(
+                        "FLAT piece angle err {ea:e} (est {:e}) area err {er:e} (est {:e})",
+                        p.dev_angle_err, p.area_err
+                    );
+                    assert!(ea <= p.dev_angle_err.max(1e-12 * ra), "angle err {ea:e}");
+                    assert!(er <= p.area_err.max(1e-12 * rr), "area err {er:e}");
+                    assert!(ea / ra <= ECC_REL_TOL && er / rr <= ECC_REL_TOL);
+                }
+            }
+            Err(e) => assert_eq!(e.code, "ecc_quadrature_not_converged"),
+        }
+    }
+
+    #[test]
+    fn ecc_returned_values_never_exceed_their_stated_error_over_a_sweep() {
+        // flat to steep cones; every Ok must satisfy true error <= estimate (or the round-off floor) and tolerance
+        let mut worst = 0.0f64;
+        for (r1, r2, l) in [
+            (600.0, 400.0, 700.0),
+            (1000.0, 500.0, 1.0),
+            (1000.0, 500.0, 10.0),
+            (1000.0, 999.0, 5.0),
+            (300.0, 20.0, 50.0),
+        ] {
+            let spec = ConeSpec {
+                d1: 2.0 * r1,
+                d2: 2.0 * r2,
+                l,
+                t: 0.001,
+                basis: Basis::Outer,
+                split: 2,
+            };
+            if let Ok(e) = ecc_cone_split(spec) {
+                for p in &e.pieces {
+                    let (ra, rr) = ecc_reference(r1, r2, l, p.a0, p.a1);
+                    let rel = ((p.dev_angle - ra).abs() / ra).max((p.area - rr).abs() / rr);
+                    worst = worst.max(rel);
+                    assert!(rel <= ECC_REL_TOL, "{r1} {r2} {l}: rel {rel:e}");
+                    assert!((p.dev_angle - ra).abs() <= p.dev_angle_err.max(1e-12 * ra));
+                    assert!((p.area - rr).abs() <= p.area_err.max(1e-12 * rr));
+                }
+            }
+        }
+        println!("ECC worst true relative error vs 2^22-panel reference: {worst:e}");
+    }
+
+    #[test]
+    fn ecc_near_cylinder_keeps_digits() {
+        // k near 1: reformulated forms, area -> cylinder circumference x L
+        let e = ecc_cone_split(cone(1219.2, 1219.2 * (1.0 - 1e-6), 1200.0, 2)).unwrap();
+        let cyl = PI * (1219.2 - 0.001) * 1200.0;
+        close(e.area_total, cyl, 1e-5 * cyl);
+        assert!(ecc_cone_split(cone(1219.2, 1219.2 * (1.0 - 1e-12), 1200.0, 2)).is_err());
+    }
+
+    #[test]
+    fn ecc_unresolvable_cones_are_refused_not_returned() {
+        // too sharp for the depth/evaluation limits: the estimate stays above ECC_REL_TOL, so the result is refused
+        for (r1, r2, l) in [
+            (1000.0, 500.0, 1e-3),
+            (1000.0, 500.0, 1e-6),
+            (5e7, 2.5e7, 1e-3),
+        ] {
+            let e = ecc_cone_split(ConeSpec {
+                d1: 2.0 * r1,
+                d2: 2.0 * r2,
+                l,
+                t: 0.001,
+                basis: Basis::Outer,
+                split: 2,
+            })
+            .unwrap_err();
+            assert_eq!(e.code, "ecc_quadrature_not_converged", "{r1} {r2} {l}");
+        }
+    }
+
+    #[test]
+    fn plate_refuses_holes_outside_or_overlapping_but_geometry_diagnostic_keeps_them() {
+        let mk = |x: f64, px: f64| PlateSpec {
+            w: 300.0,
+            h: 200.0,
+            w2: None,
+            off: None,
+            t: 9.0,
+            c: None,
+            c_at: 0,
+            hole: Some(HoleGrid {
+                d: 22.0,
+                x,
+                y: 100.0,
+                nx: 2,
+                ny: 1,
+                px,
+                py: 0.0,
+            }),
+        };
+        assert!(plate(mk(50.0, 100.0)).is_ok());
+        assert_eq!(
+            plate(mk(250.0, 100.0)).unwrap_err().code,
+            "plate_hole_outside_outline"
+        );
+        assert_eq!(
+            plate(mk(5.0, 100.0)).unwrap_err().code,
+            "plate_hole_outside_outline"
+        );
+        assert_eq!(
+            plate(mk(50.0, 10.0)).unwrap_err().code,
+            "plate_hole_overlap"
+        );
+        assert!(plate_geometry(mk(250.0, 100.0)).is_ok());
+    }
+
+    #[test]
+    fn inside_polygon_is_empty_safe_and_rules_are_labelled() {
+        assert!(!inside_polygon([0.0, 0.0], &[]));
+        assert!(!inside_polygon([0.0, 0.0], &[[1.0, 1.0]]));
+        for (name, _, _, status) in NAMED_RULES {
+            assert!(!name.is_empty() && !status.is_empty());
+        }
+        assert!(
+            NAMED_RULES
+                .iter()
+                .any(|r| r.0 == "MAX_SPLIT" && r.3 == "UNVERIFIED")
         );
     }
 }

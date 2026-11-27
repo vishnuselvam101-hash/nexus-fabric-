@@ -24,6 +24,12 @@ pub struct Hold {
     pub keys: Vec<&'static str>,
 }
 
+/// UNVERIFIED rule (ZK): a computed mass agrees with the material table when within 0.5 % (or half the last printed
+/// decimal). Not a fabrication value; the factory has not confirmed it.
+pub const MASS_TABLE_REL_TOL: f64 = 0.005;
+/// UNVERIFIED rule (ZK): a computed plate size agrees with the table size when each side is within 1 mm.
+pub const SIZE_TABLE_TOL_MM: f64 = 1.0;
+
 fn hold(level: Level, code: &'static str, keys: &[&'static str]) -> Hold {
     Hold {
         level,
@@ -338,7 +344,7 @@ pub fn check_plate(p: &PlateParams, row: Option<&TableRow>) -> PlatePart {
                 let mut trial = spec;
                 trial.c = Some(c);
                 trial.c_at = at as u32;
-                match shapes::plate(trial) {
+                match shapes::plate_geometry(trial) {
                     Err(e) if e.code == "plate_chamfer_too_long" => {
                         out.holds
                             .push(hold(Level::Need, "plate_C_big", &["plate_C"]));
@@ -419,7 +425,7 @@ pub fn check_plate(p: &PlateParams, row: Option<&TableRow>) -> PlatePart {
         };
         let mut trial = spec;
         trial.hole = Some(g);
-        match shapes::plate(trial) {
+        match shapes::plate_geometry(trial) {
             Ok(pl) => {
                 if !shapes::holes_outside(&pl).is_empty() {
                     out.holds
@@ -455,7 +461,7 @@ fn build_piece(
     holds: &mut Vec<Hold>,
 ) -> Option<PlatePiece> {
     let qty = row.and_then(|r| r.qty).filter(|q| *q >= 1.0).unwrap_or(1.0);
-    match shapes::plate(spec) {
+    match shapes::plate_geometry(spec) {
         Ok(plate) => Some(PlatePiece {
             qty,
             kg: plate.mass_kg * qty,
@@ -483,8 +489,8 @@ fn cross_check_plate(
         let (dn, dg) = (pc.kg - tm, pc.gross_kg - tm);
         let use_gross = dg.abs() < dn.abs();
         let d = if use_gross { dg } else { dn };
-        let ok =
-            d.abs() / tm < 0.005 || d.abs() <= 0.5 * 10f64.powi(-(r.mass_decimals as i32)) + 1e-9;
+        let ok = d.abs() / tm < MASS_TABLE_REL_TOL
+            || d.abs() <= 0.5 * 10f64.powi(-(r.mass_decimals as i32)) + 1e-9;
         holds.push(hold(
             if ok { Level::Ok } else { Level::Need },
             if use_gross {
@@ -501,7 +507,8 @@ fn cross_check_plate(
             let mut y = [a, b];
             x.sort_by(f64::total_cmp);
             y.sort_by(f64::total_cmp);
-            let ok = (x[0] - y[0]).abs() <= 1.0 && (x[1] - y[1]).abs() <= 1.0;
+            let ok = (x[0] - y[0]).abs() <= SIZE_TABLE_TOL_MM
+                && (x[1] - y[1]).abs() <= SIZE_TABLE_TOL_MM;
             holds.push(hold(
                 if ok { Level::Ok } else { Level::Need },
                 "size_vs_table",
@@ -795,7 +802,7 @@ pub fn check_tee_rib(p: &RibParams) -> RibPart {
                         pieces: Vec::new(),
                     };
                 }
-                match shapes::plate(*ps) {
+                match shapes::plate_geometry(*ps) {
                     Ok(pl) => out.pieces.push(RibOut {
                         geo: g.clone(),
                         side,
@@ -872,7 +879,7 @@ pub fn check_tee_rib(p: &RibParams) -> RibPart {
         let (dn, dg) = (calc - tm, gross - tm);
         let use_gross = dg.abs() < dn.abs();
         let d = if use_gross { dg } else { dn };
-        let ok = d.abs() / tm < 0.005
+        let ok = d.abs() / tm < MASS_TABLE_REL_TOL
             || d.abs() <= 0.5 * 10f64.powi(-(p.table_mass_decimals as i32)) + 1e-9;
         out.holds.push(hold(
             if ok { Level::Ok } else { Level::Need },

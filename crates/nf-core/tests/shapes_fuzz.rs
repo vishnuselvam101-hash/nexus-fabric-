@@ -293,3 +293,143 @@ fn front_half_never_produces_nan_pieces() {
         }
     }
 }
+
+/// Combination fuzz: several fields at once, fixed seed (xorshift64*), mixed ordinary and hostile values. No panic,
+/// no NaN in an accepted result, every refusal carries a known code.
+#[test]
+fn combination_fuzz_fixed_seed() {
+    let mut st: u64 = 0x9E37_79B9_7F4A_7C15;
+    let mut next = move || {
+        st ^= st >> 12;
+        st ^= st << 25;
+        st ^= st >> 27;
+        st.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    };
+    let pick = |next: &mut dyn FnMut() -> u64| -> f64 {
+        let r = next();
+        match r % 5 {
+            0 => BAD[(r >> 8) as usize % BAD.len()],
+            1 => ((r >> 8) % 4000) as f64,
+            _ => (r >> 11) as f64 / (1u64 << 53) as f64 * 3000.0,
+        }
+    };
+    let mut ok = [0u32; 6];
+    for _ in 0..4000 {
+        let mut nx = || next();
+        let (a, b, c, d, e, f) = (
+            pick(&mut nx),
+            pick(&mut nx),
+            pick(&mut nx),
+            pick(&mut nx),
+            pick(&mut nx),
+            pick(&mut nx),
+        );
+        let n = (nx() % 16) as u32;
+        let cs = ConeSpec {
+            d1: a,
+            d2: b,
+            l: c,
+            t: d,
+            basis: Basis::Mid,
+            split: n,
+        };
+        if let Ok(r) = cone_split(cs) {
+            ok[0] += 1;
+            assert!(
+                finite_all(&[r.chord, r.height, r.piece_area, r.mass_kg]),
+                "{cs:?}"
+            );
+        }
+        match ecc_cone_split(cs) {
+            Ok(r) => {
+                ok[1] += 1;
+                assert!(
+                    finite_all(&[r.area_total, r.mass_kg, r.max_rel_err])
+                        && !r.certified
+                        && r.pieces.iter().all(|p| finite_all(&[p.dev_angle, p.area])),
+                    "{cs:?}"
+                );
+            }
+            Err(er) => assert!(code_known(er.code), "{cs:?} {er:?}"),
+        }
+        let ps = PlateSpec {
+            w: a,
+            h: b,
+            w2: if n.is_multiple_of(3) { Some(e) } else { None },
+            off: if n.is_multiple_of(2) { Some(f) } else { None },
+            t: d,
+            c: if n.is_multiple_of(4) { Some(c) } else { None },
+            c_at: n % 6,
+            hole: Some(HoleGrid {
+                d: e,
+                x: f,
+                y: c,
+                nx: n % 5,
+                ny: (n / 2) % 4,
+                px: d,
+                py: a,
+            }),
+        };
+        for r in [plate(ps), plate_geometry(ps)] {
+            match r {
+                Ok(p) => {
+                    ok[2] += 1;
+                    assert!(
+                        finite_all(&[p.area, p.perimeter, p.mass_kg, p.blank_kg])
+                            && p.outline.iter().all(|q| finite_all(q)),
+                        "{ps:?}"
+                    );
+                }
+                Err(er) => assert!(code_known(er.code), "{ps:?} {er:?}"),
+            }
+        }
+        let rs = RibSpec {
+            ro: a,
+            vc: b,
+            b: c,
+            h: d,
+            top: e,
+        };
+        match rib(rs) {
+            Ok(r) => {
+                ok[3] += 1;
+                assert!(finite_all(&[r.area, r.x_c, r.u0]), "{rs:?}");
+            }
+            Err(er) => assert!(code_known(er.code), "{rs:?} {er:?}"),
+        }
+        let rg = RingSpec {
+            od: a,
+            id: b,
+            t: c,
+            split: n,
+        };
+        match ring(rg) {
+            Ok(r) => {
+                ok[4] += 1;
+                assert!(finite_all(&[r.area_total, r.mass_kg]), "{rg:?}");
+            }
+            Err(er) => assert!(code_known(er.code), "{rg:?} {er:?}"),
+        }
+        let cy = CylSpec {
+            d: a,
+            t: b,
+            l: c,
+            seams: n,
+        };
+        match cylinder(cy) {
+            Ok(r) => {
+                ok[5] += 1;
+                assert!(
+                    finite_all(&[r.circ, r.plate_w, r.area_total, r.mass_kg]),
+                    "{cy:?}"
+                );
+            }
+            Err(er) => assert!(code_known(er.code), "{cy:?} {er:?}"),
+        }
+    }
+    println!("combination fuzz accepted counts [cone ecc plate rib ring cyl] = {ok:?}");
+    assert!(
+        ok.iter().all(|&c| c > 0),
+        "every family must accept some inputs: {ok:?}"
+    );
+}
