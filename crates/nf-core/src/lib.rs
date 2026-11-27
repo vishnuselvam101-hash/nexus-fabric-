@@ -25,6 +25,7 @@ pub mod deps;
 pub mod job;
 pub mod order;
 pub mod shapes;
+pub mod tee;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

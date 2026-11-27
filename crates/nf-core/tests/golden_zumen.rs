@@ -677,6 +677,11 @@ impl RealEngine for RustShapes {
             "s08" => eval_s08(n),
             "s09" => eval_s09(n),
             "s14" => eval_s14(n),
+            "s01" => eval_s01(n),
+            "s02" => eval_s02(n),
+            "s03" => eval_s03(n),
+            "s05" => eval_s05(n),
+            "s10" => eval_s10(n),
             _ => None,
         }
     }
@@ -1521,4 +1526,530 @@ fn real_engine_status_s14() {
     assert_eq!(r.ng, 0, "NG cases in s14");
     assert_eq!(r.derived_uncounted, 9);
     assert!(r.ok >= 270, "only {} s14 cases computed", r.ok);
+}
+
+// ======================================================================================================
+// Lane S1-L7a: tee main + branch (s01 E/F, s02 thin wall, s03 G, s05 two stops, s10 multi-branch). Every input value is
+// written below from the ZK test source (test_build.mjs:25-87, :303-415) or read from the reading JSON as DATA (the
+// drawing values); every answer is computed by `nf_core::tee`. Cases that need pads (L7b), the order layer's check list,
+// notes, stock or the DXF writer stay PENDING (None). A case with derived inputs is reported, never counted.
+// ======================================================================================================
+
+use nf_core::tee::{self, BranchOnMain, BranchPieceSpec, Mount, TeeMainResult, TeeMainSpec};
+
+fn br(name: &str, d: f64, t: f64, x: f64, dir: f64, e: f64) -> BranchOnMain {
+    BranchOnMain::new(name, d, t, Some(x), dir, e)
+}
+
+fn main_of(d: f64, t: f64, l: f64, bs: Vec<BranchOnMain>) -> Option<TeeMainResult> {
+    tee::tee_main(&TeeMainSpec::new(d, t, l, bs)).ok()
+}
+
+fn main_with(spec: &TeeMainSpec) -> Option<TeeMainResult> {
+    tee::tee_main(spec).ok()
+}
+
+fn piece_of(
+    d: f64,
+    t: f64,
+    main_d: f64,
+    main_t: f64,
+    h: f64,
+    e: f64,
+    mount: Mount,
+) -> Option<tee::BranchPieceResult> {
+    tee::branch_piece(&BranchPieceSpec {
+        d,
+        t,
+        main_d,
+        main_t,
+        h,
+        e,
+        mount,
+        angle_deg: None,
+    })
+    .ok()
+}
+
+fn hole_perimeter(h: &tee::HoleOut) -> f64 {
+    let n = h.pts.len();
+    (0..n)
+        .map(|i| {
+            let (p, q) = (h.pts[i], h.pts[(i + 1) % n]);
+            (q[0] - p[0]).hypot(q[1] - p[1])
+        })
+        .sum()
+}
+
+fn tee_refused_with(
+    r: Result<impl std::fmt::Debug, nf_core::shapes::ShapeRefusal>,
+    code: &str,
+) -> bool {
+    matches!(r, Err(e) if e.code == code)
+}
+
+/// A tee group read from a reading JSON (drawing values as data; the group fill of the order layer is written here
+/// minimally: a branch takes its diameter and wall from the main part's branch_D / branch_t when its own are absent).
+#[allow(clippy::type_complexity)]
+struct ReadTee {
+    d: f64,
+    t: f64,
+    l: f64,
+    branches: Vec<(String, f64, f64, f64, Option<f64>, f64, Option<f64>, f64)>,
+}
+
+fn read_tee(file: &str, edit: impl Fn(&mut Value)) -> ReadTee {
+    let mut v: Value = serde_json::from_str(
+        &std::fs::read_to_string(golden_dir().join("readings").join(file)).unwrap(),
+    )
+    .unwrap();
+    edit(&mut v);
+    let g = |p: &Value, k: &str| p["params"][k]["value"].as_f64();
+    let parts = v["parts"].as_array().unwrap();
+    let m = parts.iter().find(|p| p["shape"] == "tee_main").unwrap();
+    let mut out = ReadTee {
+        d: g(m, "D").unwrap(),
+        t: g(m, "t").unwrap(),
+        l: g(m, "L").unwrap(),
+        branches: vec![],
+    };
+    for p in parts.iter().filter(|p| p["shape"] == "tee_branch") {
+        out.branches.push((
+            p["no"].as_str().unwrap().into(),
+            g(p, "D").or(g(m, "branch_D")).unwrap(),
+            g(p, "t").or(g(m, "branch_t")).unwrap(),
+            g(p, "H").unwrap(),
+            g(p, "branch_x").or(g(m, "branch_x")),
+            g(p, "dir").unwrap_or(0.0),
+            g(p, "e_side"),
+            g(p, "e").unwrap_or(0.0),
+        ));
+    }
+    out
+}
+
+impl ReadTee {
+    fn spec(&self) -> Option<TeeMainSpec> {
+        let mut bs = vec![];
+        for (no, d, t, _h, x, dir, side, e) in &self.branches {
+            let se = tee::signed_offset(*e, *side, *dir).ok()?;
+            bs.push(BranchOnMain::new(no, *d, *t, *x, *dir, se));
+        }
+        Some(TeeMainSpec::new(self.d, self.t, self.l, bs))
+    }
+    fn piece(&self, i: usize) -> Option<tee::BranchPieceResult> {
+        let (_, d, t, h, _, dir, side, e) = &self.branches[i];
+        let se = tee::signed_offset(*e, *side, *dir).ok()?;
+        piece_of(*d, *t, self.d, self.t, *h, se, Mount::SetOn)
+    }
+}
+
+fn eval_s01(n: usize) -> Option<Got> {
+    let e_main = || {
+        main_of(
+            1016.0,
+            12.0,
+            1500.0,
+            vec![BranchOnMain::new("1", 610.0, 9.0, None, 0.0, 0.0)],
+        )
+    };
+    let e_br = |mount| piece_of(610.0, 9.0, 1016.0, 12.0, 900.0, 0.0, mount);
+    match n {
+        1 => num(e_br(Mount::SetOn)?.circ),
+        2 => num(e_br(Mount::SetOn)?.marks[0].len),
+        3 => num(e_br(Mount::SetOn)?.marks[4].len),
+        4 => num(e_br(Mount::SetOn)?.marks[2].len),
+        5 => num(e_main()?.plates[0].w),
+        6 => num(e_main()?.holes[0].hole_w),
+        7 => num(e_main()?.holes[0].hole_h),
+        8 => num(e_main()?.holes[0].hole_u),
+        9 => num(e_main()?.holes[0].hole_x),
+        17 => num(e_br(Mount::SetIn)?.marks[0].len),
+        18 => num(e_br(Mount::SetIn)?.marks[4].len),
+        19 => {
+            let mut s = TeeMainSpec::new(
+                1016.0,
+                12.0,
+                1500.0,
+                vec![BranchOnMain::new("1", 610.0, 9.0, None, 0.0, 0.0)],
+            );
+            s.mount = Mount::SetIn;
+            num(main_with(&s)?.holes[0].hole_w)
+        }
+        21..=25 => {
+            let f = piece_of(1016.0, 12.0, 1016.0, 12.0, 1000.0, 0.0, Mount::SetOn)?;
+            num(1000.0 - f.marks[n - 21].len)
+        }
+        27 => flag(tee_refused_with(
+            tee::branch_piece(&BranchPieceSpec {
+                d: 1016.0,
+                t: 12.0,
+                main_d: 1016.0,
+                main_t: 12.0,
+                h: 1000.0,
+                e: 0.0,
+                mount: Mount::SetIn,
+                angle_deg: None,
+            }),
+            "tee_branch_too_large_to_insert",
+        )),
+        // 10-12 pad, 13-16 / 20 / 26 check list of the order layer
+        _ => None,
+    }
+}
+
+fn eval_s02(n: usize) -> Option<Got> {
+    match n {
+        1 => num(piece_of(600.0, 0.001, 1000.0, 0.001, 900.0, 150.0, Mount::SetOn)?.cut_length),
+        2 => {
+            let r = main_of(
+                1000.0,
+                0.001,
+                1500.0,
+                vec![BranchOnMain::new("1", 600.0, 0.001, None, 0.0, 150.0)],
+            )?;
+            num(hole_perimeter(&r.holes[0]))
+        }
+        _ => None,
+    }
+}
+
+fn eval_s03(n: usize) -> Option<Got> {
+    let g = read_tee("G_tee_claude.json", |_| {});
+    match n {
+        1 => num(g.piece(0)?.marks[0].len),
+        2 => num(tee::tee_main(&g.spec()?).ok()?.holes[0].hole_x),
+        _ => None,
+    }
+}
+
+fn eval_s05(n: usize) -> Option<Got> {
+    match n {
+        3 | 4 => flag(tee_refused_with(
+            tee::tee_main(&TeeMainSpec::new(
+                1000.0,
+                10.0,
+                2000.0,
+                vec![br("1", 600.0, 10.0, 200.0, 0.0, 0.0)],
+            )),
+            "tee_hole_beyond_pipe_end",
+        )),
+        7 => num(piece_of(200.0, 10.0, 1000.0, 10.0, 495.0, 200.0, Mount::SetOn)?.shortest),
+        _ => None,
+    }
+}
+
+fn eval_s10(n: usize) -> Option<Got> {
+    let one = || {
+        main_of(
+            1016.0,
+            12.0,
+            1500.0,
+            vec![br("1", 610.0, 9.0, 750.0, 0.0, 0.0)],
+        )
+    };
+    let cross2 = |d1: f64, d2: f64| {
+        main_of(
+            1016.0,
+            12.0,
+            1500.0,
+            vec![
+                br("a", 610.0, 9.0, 750.0, d1, 0.0),
+                br("b", 610.0, 9.0, 750.0, d2, 0.0),
+            ],
+        )
+    };
+    let e3 = (609.6 - 216.3) / 2.0;
+    let e4 = (1016.0 - 216.3) / 2.0;
+    let drain = || {
+        main_of(
+            609.6,
+            6.0,
+            1500.0,
+            vec![br("d", 216.3, 5.8, 750.0, 90.0, e3)],
+        )
+    };
+    let valve = |dir2: f64, e2: f64, mirror: bool, seams: u32| {
+        let mut s = TeeMainSpec::new(
+            1016.0,
+            9.0,
+            2500.0,
+            vec![
+                br("v", 609.6, 6.0, 1000.0, 0.0, 0.0),
+                br("d", 216.3, 5.8, 2100.0, dir2, e2),
+            ],
+        );
+        s.seam_mirror = mirror;
+        s.seams = seams;
+        main_with(&s)
+    };
+    match n {
+        1 => num(one()?.holes[0].hole_w),
+        2 => num(one()?.holes[0].hole_h),
+        3 => num(one()?.holes[0].hole_u),
+        4 => num(one()?.mass_kg),
+        5..=16 => {
+            let (i, which) = ((n - 5) / 3, (n - 5) % 3);
+            let dir = [45.0, 90.0, 180.0, 270.0][i];
+            let r = main_of(
+                1016.0,
+                12.0,
+                1500.0,
+                vec![br("1", 610.0, 9.0, 750.0, dir, 0.0)],
+            )?;
+            num(match which {
+                0 => r.holes[0].hole_u,
+                1 => r.holes[0].hole_w,
+                _ => r.moved_deg,
+            })
+        }
+        // 17-20: t = 1e-9 in ZK; NF's smallest wall is 1e-6 mm (derived inputs, never counted)
+        17..=20 => {
+            let (rr, r_b, e, dir) = [
+                (500.0, 300.0, 0.0, 0.0),
+                (500.0, 300.0, 150.0, 90.0),
+                (500.0, 100.0, 400.0, 90.0),
+                (500.0, 300.0, -150.0, 200.0),
+            ][n - 17];
+            let r = main_of(
+                2.0 * rr,
+                1e-6,
+                3000.0,
+                vec![br("1", 2.0 * r_b, 1e-6, 1500.0, dir, e)],
+            )?;
+            num(hole_perimeter(&r.holes[0]))
+        }
+        21 => num(cross2(0.0, 180.0)?.holes.len() as f64),
+        22 => num(cross2(0.0, 180.0)?.holes[0].hole_u),
+        23 => num(cross2(0.0, 180.0)?.holes[1].hole_u),
+        24 => num(cross2(0.0, 180.0)?.holes[1].hole_w),
+        25 => num(cross2(0.0, 180.0)?.gaps[0].gap),
+        26 => num(cross2(0.0, 180.0)?.holes[1].seam_dist),
+        27 => flag(!cross2(0.0, 180.0)?.cross_seam),
+        28 => num(cross2(0.0, 180.0)?.mass_kg),
+        29 => num(cross2(90.0, 270.0)?.holes[0].hole_u),
+        30 => num(cross2(90.0, 270.0)?.holes[1].hole_u),
+        31 => num(cross2(90.0, 270.0)?.holes[1].seam_dist),
+        32 => num(cross2(0.0, 90.0)?.gaps[0].gap),
+        33 => num(cross2(0.0, 90.0)?.gaps[0].weld),
+        35 => num(drain()?.holes[0].hole_w),
+        36 => num(drain()?.holes[0].hole_h),
+        37 => num(drain()?.holes[0].hole_u),
+        38 => num(drain()?.holes[0].from_deg),
+        39 => num(drain()?.holes[0].to_deg),
+        40 => num(drain()?.holes[0].edge),
+        41 => num(drain()?.holes[0].seam_dist),
+        42 => num(drain()?.mass_kg),
+        43..=46 => {
+            let p = piece_of(216.3, 5.8, 609.6, 6.0, 500.0, e3, Mount::SetOn)?;
+            num(match n {
+                43 => p.marks[0].len,
+                44 => p.marks[4].len,
+                45 => p.marks[8].len,
+                _ => p.mass_kg,
+            })
+        }
+        47..=55 => {
+            let r = valve(90.0, e4, false, 1)?;
+            num(match n {
+                47 => r.holes[0].hole_w,
+                48 => r.holes[0].hole_h,
+                49 => r.holes[0].hole_u,
+                50 => r.holes[1].hole_w,
+                51 => r.holes[1].hole_u,
+                52 => r.holes[1].edge,
+                53 => r.holes[1].seam_dist,
+                54 => r.gaps[0].gap,
+                _ => r.mass_kg,
+            })
+        }
+        56 => {
+            let r = valve(270.0, -e4, false, 1)?;
+            flag(r.cross_seam && r.holes[1].cross_seam)
+        }
+        57 => num(valve(270.0, -e4, false, 1)?.holes[1].seam_dist_alt),
+        58 => flag(!valve(270.0, -e4, true, 1)?.cross_seam),
+        59 => num(valve(270.0, -e4, true, 1)?.holes[0].hole_u),
+        60 => num(valve(270.0, -e4, true, 1)?.holes[1].hole_u),
+        61 | 62 => {
+            let p = piece_of(609.6, 6.0, 1016.0, 9.0, 800.0, 0.0, Mount::SetOn)?;
+            num(if n == 61 {
+                p.marks[0].len
+            } else {
+                p.marks[4].len
+            })
+        }
+        63 | 64 => {
+            let p = piece_of(216.3, 5.8, 1016.0, 9.0, 670.0, e4, Mount::SetOn)?;
+            num(if n == 63 {
+                p.marks[0].len
+            } else {
+                p.marks[8].len
+            })
+        }
+        65 => num(piece_of(609.6, 6.0, 1016.0, 9.0, 800.0, 0.0, Mount::SetOn)?.mass_kg),
+        66 => num(piece_of(216.3, 5.8, 1016.0, 9.0, 670.0, e4, Mount::SetOn)?.mass_kg),
+        67 | 68 => {
+            let mut s = TeeMainSpec::new(
+                1016.0,
+                9.0,
+                1655.0,
+                vec![
+                    br("v", 609.6, 6.0, 1000.0, 0.0, 0.0),
+                    br("d", 216.3, 5.8, 1000.0, 90.0, e4),
+                ],
+            );
+            s.seams = 1;
+            let r = main_with(&s)?;
+            num(if n == 67 { r.gaps[0].gap } else { r.mass_kg })
+        }
+        69..=74 => {
+            let r = main_of(
+                1219.2,
+                11.0,
+                2400.0,
+                vec![
+                    br("m", 609.6, 6.0, 800.0, 0.0, 0.0),
+                    br("a", 114.3, 4.5, 1500.0, 0.0, 0.0),
+                ],
+            )?;
+            num(match n {
+                69 => r.holes[0].hole_w,
+                70 => r.holes[0].hole_h,
+                71 => r.holes[1].hole_w,
+                72 => r.holes[1].hole_h,
+                73 => r.gaps[0].gap,
+                _ => r.mass_kg,
+            })
+        }
+        76..=80 => {
+            let rt = read_tee("H_branch_drain.json", |_| {});
+            match n {
+                76 => flag(tee::tee_main(&rt.spec()?).is_ok()),
+                77 => num(tee::tee_main(&rt.spec()?).ok()?.holes[0].hole_w),
+                78 => num(tee::tee_main(&rt.spec()?).ok()?.holes[0].hole_u),
+                79 => num(tee::tee_main(&rt.spec()?).ok()?.mass_kg),
+                _ => num(rt.piece(0)?.marks[0].len),
+            }
+        }
+        // derived inputs: the edited readings (never counted)
+        85 => {
+            let rt = read_tee("H_branch_drain.json", |v| {
+                v["parts"][1]["params"]["dir"]["value"] = 270.into()
+            });
+            num(tee::tee_main(&rt.spec()?).ok()?.holes[0].hole_w)
+        }
+        88 => {
+            let rt = read_tee("H_branch_drain.json", |v| {
+                v["parts"][1]["params"]["e_side"]["value"] = 90.into()
+            });
+            num(rt.spec().map_or(0.0, |_| 1.0))
+        }
+        92..=94 => {
+            let rt = read_tee("H_branch_valve.json", |_| {});
+            let r = tee::tee_main(&rt.spec()?).ok()?;
+            num(match n {
+                92 => r.holes[0].hole_u,
+                93 => r.holes[1].hole_u,
+                _ => r.mass_kg,
+            })
+        }
+        97 | 98 => {
+            let rt = read_tee("H_branch_valve.json", |_| {});
+            num(rt.piece(if n == 97 { 0 } else { 1 })?.marks[0].len)
+        }
+        102 => num(valve(90.0, e4, false, 2)?.holes[1].plate as f64),
+        103 => num(valve(90.0, e4, false, 2)?.holes[1].hole_u),
+        104 => num(valve(90.0, e4, false, 2)?.holes[0].pts.len() as f64),
+        110 => {
+            let rt = read_tee("H_branch_valve.json", |v| {
+                v["parts"][2]["params"]["dir"]["value"] = 270.into()
+            });
+            let mut s = rt.spec()?;
+            s.seam_mirror = true;
+            num(tee::tee_main(&s).ok()?.holes[1].hole_u)
+        }
+        115 => {
+            let rt = read_tee("H_branch_cross.json", |_| {});
+            num(tee::tee_main(&rt.spec()?).ok()?.mass_kg)
+        }
+        118 => {
+            let rt = read_tee("H_branch_cross.json", |_| {});
+            num(tee::tee_main(&rt.spec()?).ok()?.holes[1].hole_u)
+        }
+        120 => num(cross2(0.0, 90.0)?.gaps[0].gap),
+        121 => flag(tee_refused_with(
+            tee::tee_main(&TeeMainSpec::new(
+                1016.0,
+                12.0,
+                1500.0,
+                vec![
+                    br("a", 610.0, 9.0, 750.0, 0.0, 0.0),
+                    br("b", 610.0, 9.0, 750.0, 30.0, 0.0),
+                ],
+            )),
+            "tee_holes_overlap",
+        )),
+        127 => num(one()?.holes[0].hole_u),
+        128 => num(one()?.holes.len() as f64),
+        _ => None,
+    }
+}
+
+/// Lane S1-L7a: per section report of the tee engine. Computed cases must be within ZK's tolerance (NG fails the test);
+/// cases that need pads, the order layer's checks, stock or the DXF writer stay PENDING.
+#[test]
+fn real_engine_status_tee() {
+    let (cases, _) = load_cases();
+    let mut tot = RealReport::default();
+    for sec in ["s01", "s02", "s03", "s04", "s05", "s10"] {
+        let part: Vec<Case> = cases.iter().filter(|c| c.section == sec).cloned().collect();
+        let r = run_real(&RustShapes, &part);
+        println!(
+            "{sec}: {} OK, {} NG, {} PENDING, {} derived (not counted) of {}",
+            r.ok,
+            r.ng,
+            r.pending,
+            r.derived_uncounted,
+            part.len()
+        );
+        for l in &r.ng_lines {
+            println!("{l}");
+        }
+        tot.ok += r.ok;
+        tot.ng += r.ng;
+        tot.pending += r.pending;
+        tot.derived_uncounted += r.derived_uncounted;
+    }
+    println!(
+        "lane L7a s01-s05+s10: {} OK, {} NG, {} PENDING, {} derived uncounted",
+        tot.ok, tot.ng, tot.pending, tot.derived_uncounted
+    );
+    assert_eq!(tot.ng, 0, "NG cases in the tee sections");
+    assert!(tot.ok >= 95, "only {} tee cases computed", tot.ok);
+    assert_eq!(tot.derived_uncounted, 27, "s01 1 + s05 1 + s10 25");
+}
+
+/// The derived tee cases are computed (not just skipped) and agree with ZK's number; they remain uncounted.
+#[test]
+fn derived_tee_cases_are_computed_but_not_counted() {
+    let (cases, _) = load_cases();
+    let mut computed = 0;
+    for c in cases
+        .iter()
+        .filter(|c| ["s01", "s05", "s10"].contains(&c.section.as_str()) && !c.derived.is_empty())
+    {
+        let got = RustShapes.eval(&key_of(c));
+        if got.is_some() {
+            computed += 1;
+            assert_ne!(
+                judge(c, got),
+                Verdict::Ng,
+                "derived case {} disagrees",
+                c.id
+            );
+        }
+    }
+    println!("derived tee cases computed (still uncounted): {computed}");
+    assert!(computed >= 8);
 }
