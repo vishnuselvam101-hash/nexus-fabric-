@@ -115,13 +115,6 @@ const EN = {
   'login.failed': 'Sign-in failed. Try again.',
   'login.throttled': 'Too many failed attempts from this address. Wait a few minutes, then try again.',
   'login.tokenHelp': 'The setup token is in the first-run setup link the server printed when it started: the text after #setup=.',
-  'login.tokenRefused': 'The setup token was not accepted. Type the token printed by the program, or open the setup link again.',
-  'login.setupFailed': 'Setup failed. Check the entries and try again.',
-  'login.pw.short': 'The password must have at least 10 characters.',
-  'login.pw.long': 'The password is too long (at most 1024 bytes).',
-  'login.pw.user': 'The password must not be the user name.',
-  'login.pw.common': 'This password is on the list of commonly used passwords. Choose another.',
-  'login.user.rule': 'The user name must be 3-64 characters: letters, digits, dot, underscore or hyphen.',
   // desktop mode, first-run screen (wording decided by the owner: docs/security/DESKTOP_KEY_ASSESSMENT.md section 6)
   'login.desktop.h': 'Desktop mode: how your data is kept',
   'login.desktop.p1': 'This program does not encrypt its database or the whole data folder. Stored files have their own encryption, but that does not make the data on this computer an encrypted data set.',
@@ -930,13 +923,6 @@ const JA = {
   'login.failed': 'ログインに失敗しました。もう一度お試しください。',
   'login.throttled': 'このアドレスからの失敗が多すぎます。数分待ってから、もう一度お試しください。',
   'login.tokenHelp': 'セットアップトークンは、初回起動時にサーバーが表示したセットアップリンクにあります（`#setup=` の後の文字列）。',
-  'login.tokenRefused': 'セットアップトークンが受け付けられませんでした。プログラムが表示したトークンを入力するか、セットアップリンクをもう一度開いてください。',
-  'login.setupFailed': 'セットアップに失敗しました。入力内容を確認して、もう一度お試しください。',
-  'login.pw.short': 'パスワードは10文字以上にしてください。',
-  'login.pw.long': 'パスワードが長すぎます（最大1024バイト）。',
-  'login.pw.user': 'パスワードをユーザー名と同じにすることはできません。',
-  'login.pw.common': 'このパスワードは、よく使われるパスワードの一覧にあります。別のものにしてください。',
-  'login.user.rule': 'ユーザー名は3〜64文字で、使えるのは英字、数字、. _ - です。',
   // desktop mode, first-run screen (same notice as the English)
   'login.desktop.h': 'デスクトップモード：データの保存について',
   'login.desktop.p1': 'このプログラムは、データベースもデータフォルダー全体も暗号化しません。保存されたファイルには個別の暗号化がありますが、それによってこのコンピューター上のデータ全体が暗号化されるわけではありません。',
@@ -1694,7 +1680,7 @@ Object.assign(EN, {
   'st.c2.t': 'Unroll',
   'st.c2.p': 'Each bend unrolls to its true arc length. Dimension lines mark the flat blank.',
   'st.c3.t': 'Digest',
-  'st.c3.p': 'The AMOEBA surrounds the pattern, checks every bend, hole and closure, and releases only what passes.',
+  'st.c3.p': 'The AMOEBA surrounds the pattern, checks every bend, hole and closure, and holds back anything that does not pass.',
   'st.amoeba.label': 'AMOEBA verification',
 });
 Object.assign(JA, {
@@ -1707,7 +1693,7 @@ Object.assign(JA, {
   'st.c2.t': '展開',
   'st.c2.p': '各曲げを実際の弧長で展開します。寸法線が展開板の大きさを示します。',
   'st.c3.t': '検証',
-  'st.c3.p': 'AMOEBA が展開図を取り囲み、曲げ・穴・閉じ部をすべて検査し、合格したものだけを解放します。',
+  'st.c3.p': 'AMOEBA が展開図を取り囲み、曲げ・穴・閉じ部をすべて検査し、合格しなかったものは提供を保留します。',
   'st.amoeba.label': 'AMOEBA 検証',
 });
 
