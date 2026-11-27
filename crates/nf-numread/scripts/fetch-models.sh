@@ -9,8 +9,8 @@ mkdir -p "$dir"
 # RapidOCR model repository on Hugging Face (Apache-2.0), pinned to a commit; the ONNX files are
 # PaddleOCR PP-OCRv4 (ch, mobile) exported to ONNX by the RapidOCR project.
 HF=https://huggingface.co/SWHL/RapidOCR/resolve/1cfba2e90fc938db55889873735088de210cc173/PP-OCRv4
-# Dictionary from the PaddleOCR repository, release/2.7.
-KEYS=https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/release/2.7/ppocr/utils/ppocr_keys_v1.txt
+# Dictionary from the PaddleOCR repository, pinned to the commit that was release/2.7 on 2026-11-27.
+KEYS=https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/8cce9b6fd7ccb50226d0c38f94054d81c29b8184/ppocr/utils/ppocr_keys_v1.txt
 fetch() { # name url sha256
   out=$dir/$1
   if [ -f "$out" ] && [ "$(sha256sum "$out" | cut -d' ' -f1)" = "$3" ]; then echo "ok (present) $1"; return; fi

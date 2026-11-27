@@ -34,6 +34,17 @@ pub const DICT_SHA256: &str = "28b2362ad4ab2dc38769aa72feb535e3a9ddb3fd2a7585a05
 /// Environment variable naming the model directory.
 pub const MODEL_DIR_ENV: &str = "NF_NUMREAD_MODELS";
 
+/// Largest model file read (the real ones are 4.7 and 10.9 MB); a bigger file is refused before it
+/// is read into memory or hashed.
+pub const MAX_MODEL_BYTES: u64 = 64 * 1024 * 1024;
+/// Largest dictionary file read (the real one is 26 KB).
+pub const MAX_DICT_BYTES: u64 = 1024 * 1024;
+
+/// A reading whose mean character probability is below this is flagged `low_confidence`.
+/// Chosen at about the 4th percentile of the sample page items (SPIKE.md); the UI must ask a person
+/// to confirm such a number.
+pub const LOW_CONFIDENCE_BELOW: f32 = 0.85;
+
 /// The configured model directory: `$NF_NUMREAD_MODELS`, else the crate's own `models/` directory.
 pub fn default_model_dir() -> PathBuf {
     match std::env::var_os(MODEL_DIR_ENV) {
@@ -42,15 +53,32 @@ pub fn default_model_dir() -> PathBuf {
     }
 }
 
-/// Read a model file and refuse it unless its SHA-256 is the pinned one.
-fn read_pinned(dir: &Path, name: &str, want: &str) -> Result<Vec<u8>, Error> {
+/// Read a model file (at most `max` bytes) and refuse it unless its SHA-256 is the pinned one.
+fn read_pinned(dir: &Path, name: &str, want: &str, max: u64) -> Result<Vec<u8>, Error> {
+    use std::io::Read;
     let path = dir.join(name);
-    let bytes = std::fs::read(&path).map_err(|e| {
+    let cannot = |e: std::io::Error| {
         Error::Model(format!(
             "cannot read {} ({e}); run crates/nf-numread/scripts/fetch-models.sh or set {MODEL_DIR_ENV}",
             path.display()
         ))
-    })?;
+    };
+    let file = std::fs::File::open(&path).map_err(cannot)?;
+    let too_big = || {
+        Error::Model(format!(
+            "{} is too large (limit {max} bytes); not read",
+            path.display()
+        ))
+    };
+    if file.metadata().map_err(cannot)?.len() > max {
+        return Err(too_big());
+    }
+    // the limit is also enforced while reading (the file may grow after the size check)
+    let mut bytes = Vec::new();
+    file.take(max + 1).read_to_end(&mut bytes).map_err(cannot)?;
+    if bytes.len() as u64 > max {
+        return Err(too_big());
+    }
     let got = hex(&bytes);
     if got != want {
         return Err(Error::Model(format!(
@@ -87,7 +115,8 @@ pub struct Params {
     pub det_side: usize,
     /// Detector probability above which a pixel is text.
     pub bin_thresh: f32,
-    /// Minimum mean probability of a detected region.
+    /// Minimum mean probability of a detected region; regions below it are not reported at all
+    /// (they are not flagged, they do not exist in the output).
     pub box_thresh: f32,
     /// Region growth factor (DB "unclip").
     pub unclip: f32,
@@ -137,8 +166,18 @@ pub struct NumberItem {
     pub kind: Kind,
     /// [x0, y0, x1, y1] in pixels of the page picture.
     pub bbox: [f32; 4],
-    /// Mean character probability, 0..1.
+    /// Mean character probability, 0..1 (of the characters the recogniser returned; an inferred
+    /// diameter sign is not counted).
     pub confidence: f32,
+    /// The text differs from what the recogniser returned (`raw` holds that).
+    pub repaired: bool,
+    /// The diameter sign was not read but put in front because the recogniser showed a phi-like
+    /// glyph there (`Params::phi_thresh`).
+    pub phi_inferred: bool,
+    /// More than one reading of the written form (comma that is not a thousands group, ratio/time).
+    pub ambiguous: bool,
+    /// `confidence` is below `LOW_CONFIDENCE_BELOW`.
+    pub low_confidence: bool,
 }
 
 pub struct Reader {
@@ -168,9 +207,9 @@ impl Reader {
     /// Load the three model files from `dir`; any file whose SHA-256 differs from the pinned value
     /// is refused before it is parsed.
     pub fn from_dir(dir: &Path, params: Params) -> Result<Reader, Error> {
-        let det_bytes = read_pinned(dir, DET_FILE, DET_SHA256)?;
-        let rec_bytes = read_pinned(dir, REC_FILE, REC_SHA256)?;
-        let dict_bytes = read_pinned(dir, DICT_FILE, DICT_SHA256)?;
+        let det_bytes = read_pinned(dir, DET_FILE, DET_SHA256, MAX_MODEL_BYTES)?;
+        let rec_bytes = read_pinned(dir, REC_FILE, REC_SHA256, MAX_MODEL_BYTES)?;
+        let dict_bytes = read_pinned(dir, DICT_FILE, DICT_SHA256, MAX_DICT_BYTES)?;
         let dict_text = String::from_utf8(dict_bytes)
             .map_err(|_| Error::Model("dictionary is not UTF-8".into()))?;
         let det = Model::load(det_bytes).map_err(|e| Error::Model(format!("detector: {e}")))?;
@@ -240,23 +279,28 @@ impl Reader {
                 continue;
             }
             for mut tok in text::tokens(&line.chars) {
-                if p.phi_thresh > 0.0 {
-                    add_phi(&mut tok, &line, p.phi_thresh);
-                }
+                // raw and confidence are taken before any repair or inference
                 let raw = tok.text();
-                let Some(parsed) = text::parse(&raw) else {
+                let confidence = tok.conf();
+                let phi_inferred = p.phi_thresh > 0.0 && add_phi(&mut tok, &line, p.phi_thresh);
+                let Some(parsed) = text::parse(&tok.text()) else {
                     continue;
                 };
+                let repaired = phi_inferred || parsed.text != raw;
                 let (first, last) = (tok.chars[0].step, tok.chars[tok.chars.len() - 1].step);
                 let ub = token_box(&upright, line.steps, first, last, pitch);
                 let bbox = to_page(orient, [bx0, by0, bx1, by1], ub);
                 items.push(NumberItem {
-                    raw: parsed.repaired.then_some(raw),
+                    raw: repaired.then_some(raw),
                     text: parsed.text,
                     value: parsed.value,
                     kind: parsed.kind,
                     bbox,
-                    confidence: tok.conf(),
+                    confidence,
+                    repaired,
+                    phi_inferred,
+                    ambiguous: parsed.ambiguous,
+                    low_confidence: confidence < LOW_CONFIDENCE_BELOW,
                 });
             }
         }
@@ -272,7 +316,8 @@ impl Reader {
 
 /// The detector/recogniser pair drops the diameter sign from many numbers; when its output shows a
 /// phi-like glyph in the few steps before a bare number, put the sign back.
-fn add_phi(tok: &mut text::Tok, line: &rec::Line, thresh: f32) {
+/// Returns true when a sign was inserted.
+fn add_phi(tok: &mut text::Tok, line: &rec::Line, thresh: f32) -> bool {
     let first = tok.chars[0].step;
     if !tok.chars[0]
         .glyph
@@ -280,7 +325,7 @@ fn add_phi(tok: &mut text::Tok, line: &rec::Line, thresh: f32) {
         .next()
         .is_some_and(|c| c.is_ascii_digit())
     {
-        return;
+        return false;
     }
     let prev_end = line
         .chars
@@ -304,7 +349,9 @@ fn add_phi(tok: &mut text::Tok, line: &rec::Line, thresh: f32) {
                 prob: best.1,
             },
         );
+        return true;
     }
+    false
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -343,7 +390,7 @@ fn r1(x: f32) -> f64 {
     (f64::from(x) * 10.0).round() / 10.0
 }
 
-/// The CLI document: {"image":{width,height},"items":[{text,value,kind_hint,box,confidence[,raw]}]}.
+/// The CLI document: {"image":{width,height},"items":[{text,value,kind_hint,box,confidence,repaired,phi_inferred,ambiguous,low_confidence[,raw]}]}.
 pub fn to_json(items: &[NumberItem], width: usize, height: usize) -> String {
     use serde_json::{json, Value};
     let list: Vec<Value> = items
@@ -356,6 +403,10 @@ pub fn to_json(items: &[NumberItem], width: usize, height: usize) -> String {
                 "box": [r1(i.bbox[0]), r1(i.bbox[1]), r1(i.bbox[2]), r1(i.bbox[3])],
                 "confidence": (f64::from(i.confidence) * 1000.0).round() / 1000.0,
             });
+            v["repaired"] = json!(i.repaired);
+            v["phi_inferred"] = json!(i.phi_inferred);
+            v["ambiguous"] = json!(i.ambiguous);
+            v["low_confidence"] = json!(i.low_confidence);
             if let Some(r) = &i.raw {
                 v["raw"] = json!(r);
             }
@@ -368,4 +419,74 @@ pub fn to_json(items: &[NumberItem], width: usize, height: usize) -> String {
         "items": list,
     });
     serde_json::to_string_pretty(&doc).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rec::{Ch, Line};
+
+    fn ch(g: &str, step: usize, prob: f32) -> Ch {
+        Ch {
+            glyph: g.into(),
+            step,
+            prob,
+        }
+    }
+
+    #[test]
+    fn inferred_phi_is_flagged_and_raw_is_the_unrepaired_text() {
+        let line = Line {
+            chars: vec![ch("1", 6, 0.9), ch("2", 8, 0.9)],
+            steps: 12,
+            phi: vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        };
+        let mut tok = text::Tok {
+            chars: line.chars.clone(),
+        };
+        let raw = tok.text();
+        let conf = tok.conf();
+        assert!(add_phi(&mut tok, &line, 0.05));
+        assert_eq!(raw, "12");
+        assert_eq!(tok.text(), "φ12");
+        let parsed = text::parse(&tok.text()).unwrap();
+        assert_eq!(parsed.kind, Kind::Diameter);
+        // the confidence taken before insertion is not dragged down by the inserted glyph
+        assert!(conf > 0.89);
+        // no phi-like step: nothing inserted
+        let mut tok2 = text::Tok {
+            chars: line.chars.clone(),
+        };
+        let quiet = Line {
+            phi: vec![0.0; 12],
+            ..line
+        };
+        assert!(!add_phi(&mut tok2, &quiet, 0.05));
+        assert_eq!(tok2.text(), "12");
+    }
+
+    #[test]
+    fn low_confidence_flag_in_item_and_json() {
+        let mk = |confidence: f32| NumberItem {
+            text: "12.5".into(),
+            raw: None,
+            value: Some(12.5),
+            kind: Kind::Number,
+            bbox: [0.0, 0.0, 10.0, 10.0],
+            confidence,
+            repaired: false,
+            phi_inferred: false,
+            ambiguous: false,
+            low_confidence: confidence < LOW_CONFIDENCE_BELOW,
+        };
+        let (lo, hi) = (mk(LOW_CONFIDENCE_BELOW - 0.01), mk(LOW_CONFIDENCE_BELOW));
+        assert!(lo.low_confidence && !hi.low_confidence);
+        let doc: serde_json::Value =
+            serde_json::from_str(&to_json(&[lo, hi], 100, 100)).expect("json");
+        assert_eq!(doc["items"][0]["low_confidence"], true);
+        assert_eq!(doc["items"][1]["low_confidence"], false);
+        for k in ["repaired", "phi_inferred", "ambiguous"] {
+            assert_eq!(doc["items"][0][k], false, "{k}");
+        }
+    }
 }

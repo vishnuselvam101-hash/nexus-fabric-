@@ -150,3 +150,20 @@ fn missing_model_dir_is_an_error_not_a_panic() {
         .expect("must fail");
     assert!(e.to_string().contains("fetch-models.sh"), "{e}");
 }
+
+/// A model file above the size cap is refused before it is read or hashed.
+#[test]
+fn oversized_model_file_is_refused_before_hashing() {
+    let d = scratch("big");
+    for f in [nf_numread::REC_FILE, nf_numread::DICT_FILE] {
+        std::fs::write(d.join(f), b"x").expect("write");
+    }
+    let f = std::fs::File::create(d.join(DET_FILE)).expect("create");
+    f.set_len(nf_numread::MAX_MODEL_BYTES + 1).expect("sparse");
+    drop(f);
+    let e = Reader::from_dir(&d, nf_numread::Params::default())
+        .err()
+        .expect("must fail");
+    assert!(e.to_string().contains("too large"), "{e}");
+    let _ = std::fs::remove_dir_all(&d);
+}

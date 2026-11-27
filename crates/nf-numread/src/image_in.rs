@@ -8,6 +8,11 @@ pub const MAX_SIDE: usize = 20_000;
 /// Largest accepted pixel count.
 pub const MAX_PIXELS: usize = 120_000_000;
 
+/// Largest decoder working size (width x height x samples x bytes per sample, before the 16-bit
+/// strip): 512 MiB. A 16-bit RGBA page is refused above 64 million pixels, 8-bit RGBA at the full
+/// 120 million pixels still passes.
+pub const MAX_DECODE_BYTES: usize = 512 * 1024 * 1024;
+
 /// An 8-bit grey image, row-major.
 #[derive(Clone, Debug)]
 pub struct Gray {
@@ -193,12 +198,32 @@ pub fn check_size(w: usize, h: usize) -> Result<(), Error> {
     Ok(())
 }
 
+/// Refuse a picture whose raw decode size (samples and bytes per sample counted) is above
+/// `MAX_DECODE_BYTES`; `bytes_per_sample` is 1 for depths up to 8 bits (rounded up), 2 for 16.
+pub fn check_decode_bytes(
+    w: usize,
+    h: usize,
+    samples: usize,
+    bytes_per_sample: usize,
+) -> Result<(), Error> {
+    let need = w
+        .saturating_mul(h)
+        .saturating_mul(samples)
+        .saturating_mul(bytes_per_sample.max(1));
+    if need > MAX_DECODE_BYTES {
+        return Err(Error::Image(format!(
+            "image {w}x{h} needs {need} bytes to decode, limit is {MAX_DECODE_BYTES}"
+        )));
+    }
+    Ok(())
+}
+
 /// Decode a PNG of any colour type / depth into 8-bit grey (transparent pixels count as white).
 pub fn decode_png(bytes: &[u8]) -> Result<Gray, Error> {
     let mut dec = png::Decoder::new(std::io::Cursor::new(bytes));
     dec.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
     dec.set_limits(png::Limits {
-        bytes: 600 * 1024 * 1024,
+        bytes: MAX_DECODE_BYTES,
     });
     let mut reader = dec
         .read_info()
@@ -208,6 +233,15 @@ pub fn decode_png(bytes: &[u8]) -> Result<Gray, Error> {
         (i.width as usize, i.height as usize)
     };
     check_size(w, h)?;
+    {
+        let i = reader.info();
+        let samples = if i.color_type == png::ColorType::Indexed {
+            4
+        } else {
+            i.color_type.samples()
+        };
+        check_decode_bytes(w, h, samples, i.bit_depth as usize / 8)?;
+    }
     let size = reader
         .output_buffer_size()
         .ok_or_else(|| Error::Image("PNG: output size overflow".into()))?;
@@ -252,4 +286,49 @@ pub fn decode_png(bytes: &[u8]) -> Result<Gray, Error> {
         }
     }
     Ok(Gray { w, h, data })
+}
+
+#[cfg(test)]
+mod decode_limit_tests {
+    use super::*;
+
+    #[test]
+    fn sixteen_bit_rgba_is_limited_tighter_than_eight_bit() {
+        // 100 million pixels: 8-bit RGBA (400 MB) passes, 16-bit RGBA (800 MB) is refused
+        assert!(check_decode_bytes(10_000, 10_000, 4, 1).is_ok());
+        assert!(check_decode_bytes(10_000, 10_000, 4, 2).is_err());
+        assert!(check_decode_bytes(8_000, 8_000, 4, 2).is_ok());
+    }
+
+    fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+        let mut crc = 0xffff_ffffu32;
+        for &b in kind.iter().chain(data) {
+            crc ^= u32::from(b);
+            for _ in 0..8 {
+                crc = if crc & 1 != 0 {
+                    (crc >> 1) ^ 0xedb8_8320
+                } else {
+                    crc >> 1
+                };
+            }
+        }
+        out.extend_from_slice(&(data.len() as u32).to_be_bytes());
+        out.extend_from_slice(kind);
+        out.extend_from_slice(data);
+        out.extend_from_slice(&(!crc).to_be_bytes());
+    }
+
+    /// A header-only 16-bit RGBA PNG of 100 million pixels is refused by decode_png itself.
+    #[test]
+    fn decode_png_refuses_huge_sixteen_bit_rgba_header() {
+        let mut png = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+        let mut ihdr = Vec::new();
+        ihdr.extend_from_slice(&10_000u32.to_be_bytes());
+        ihdr.extend_from_slice(&10_000u32.to_be_bytes());
+        ihdr.extend_from_slice(&[16, 6, 0, 0, 0]);
+        chunk(&mut png, b"IHDR", &ihdr);
+        chunk(&mut png, b"IDAT", &[]);
+        let e = decode_png(&png).expect_err("must be refused");
+        assert!(e.to_string().contains("needs"), "{e}");
+    }
 }

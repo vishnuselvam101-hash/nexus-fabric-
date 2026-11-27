@@ -22,7 +22,7 @@ official file; it is also covered by the hash check). The two ONNX files are fet
   The files used in the spike were downloaded again from that repository (commit
   1cfba2e90fc938db55889873735088de210cc173) and are **byte-identical** (same SHA-256 as above, also
   equal to the LFS object ids the repository lists). The fetch script pins that commit.
-- Dictionary: https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/release/2.7/ppocr/utils/ppocr_keys_v1.txt
+- Dictionary: https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/8cce9b6fd7ccb50226d0c38f94054d81c29b8184/ppocr/utils/ppocr_keys_v1.txt
   (identical entries to the spike copy, which only had one extra trailing newline).
 - Not established: the repository only records that RapidOCR produced the export with Paddle2ONNX; the
   exact Paddle2ONNX version and the original Paddle inference model hash are not published there, so
