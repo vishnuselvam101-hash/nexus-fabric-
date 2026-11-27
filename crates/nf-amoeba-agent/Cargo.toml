@@ -1,0 +1,15 @@
+[package]
+name = "nf-amoeba-agent"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "AMOEBA tool bridge: a model calls the local NEXUS FABRIC server through a fixed set of read and compute tools"
+
+[[bin]]
+name = "nf-amoeba-tools"
+path = "src/main.rs"
+
+[dependencies]
+hex = "0.4.3"
+serde_json = "1.0.154"
+sha2 = "0.11.1"
