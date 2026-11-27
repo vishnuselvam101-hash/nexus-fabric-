@@ -5,9 +5,12 @@ Written from first principles (docs/shapes/spec_miterbend.md), standard library 
 before reading, any zumen-kirizu bend code. Nothing here is a factory convention except the parameters marked UNVERIFIED.
 
 Two independent routes to the same numbers, counted by one pass/fail counter:
-  Route A  closed forms (tan of the half cut angle, tangent lengths of a circumscribed polygon).
+  Route A  closed forms (tan of the half cut angle, tangent lengths of a circumscribed polygon). Both swing rules.
   Route B  3D geometry: the cut curve of every segment is found by intersecting the segment's cylinder with the
            cut plane numerically (a line-plane solve per azimuth), with no tan() formula, then compared with route A.
+           Route B is one cylinder of the basis radius, so it checks the swing rule `basis` only.
+Named rules (spec section 2; each is a parameter, not law): bend_swing_radius (basis | outer), ALLOW_PER_PIECE_MM, SEAM_DEG.
+Joint count: the drawing gives J; pieces_for_angle is only the fallback when the drawing has none (the caller then asks).
 Checks: (1) t -> 0 limit: the three thickness bases coincide and equal the plain oblique cut of a cylinder;
         (2) closed forms at 90 deg with 2 joints (3 pieces) and 1 joint (2 pieces), plus 3D agreement for many cases;
         (3) neighbouring segments share their cut ellipse in 3D; developed area = circumference x centre length (quadrature).
@@ -44,12 +47,17 @@ def check_true(group, name, cond):
 
 
 # ---- model (spec sections 2-5) ----------------------------------------------------------------------------------
-# UNVERIFIED factory number: piece-count rule from public sources (MAFF 9.7.1(1)a, medium confidence). Parameter, not law.
+# Named rules. None is a confirmed factory value (spec section 2).
+# Fallback piece-count table, UNVERIFIED (MAFF 9.7.1(1)a, medium confidence). Used only when the drawing gives no joint count.
 DEFAULT_RULE = [(30.0, 2), (60.0, 3), (90.0, 4)]  # (largest angle in deg included, number of pieces)
+ALLOW_PER_PIECE_MM = 4.0  # UNVERIFIED: ZK parity (DEFAULT_RULES.allow = 4); no public source
+SEAM_DEG = 135.0  # UNVERIFIED: 45 deg from the inner generatrix (180), ZK parity; ZK's curve fits phi = 135 + x/r (spec section 8)
+SWING_RULES = ("basis", "outer")  # bend_swing_radius: basis = default (r); outer = D/2 (ZK behaviour)
 
 
 def pieces_for_angle(angle_deg, rule=DEFAULT_RULE):
-    """Number of pieces for a bend angle; the upper bound of each band is inclusive. Beyond the table: ValueError."""
+    """FALLBACK piece count for a bend angle when the drawing gives no joint count (the caller must ask). Upper bound of each band
+    inclusive. Above the table: ValueError (no count is invented)."""
     if not (angle_deg > 0 and math.isfinite(angle_deg)):
         raise ValueError("angle must be a positive finite number")
     for upper, n in rule:
@@ -63,18 +71,23 @@ def basis_radius(D, t, basis):
 
 
 class Bend:
-    """Centre-line radius R, total angle A (deg), n pieces (J = n-1 joints), straights s1/s2 on the end pieces,
-    extra length `allow` added to every piece's centre length (UNVERIFIED factory number, default 0)."""
+    """Centre-line radius R, total angle A (deg), n pieces (J = n-1 joints, from the drawing), straights s1/s2 on the end pieces,
+    extra length `allow` added to every piece's centre length (UNVERIFIED named rule, default ALLOW_PER_PIECE_MM).
+    swing: bend_swing_radius. 'basis' (default): cut-curve heights use r. 'outer': they use D/2 (ZK). The circumference and the
+    developed width always use r."""
 
-    def __init__(self, D, t, R, A, n, basis="mid", s1=0.0, s2=0.0, allow=0.0, seam_deg=180.0):
+    def __init__(self, D, t, R, A, n, basis="mid", s1=0.0, s2=0.0, allow=ALLOW_PER_PIECE_MM, seam_deg=SEAM_DEG, swing="basis"):
         assert n >= 2 and R > 0 and D > 0 and 0 < t < D / 2 and 0 < A < 180
+        assert swing in SWING_RULES, swing
         self.D, self.t, self.R, self.A, self.n = D, t, R, A, n
         self.J = n - 1
         self.theta = math.radians(A) / (2 * self.J)  # half the deflection of one joint = angle between a cut plane and the cross-section
-        self.r = basis_radius(D, t, basis)
+        self.r = basis_radius(D, t, basis)  # circumference / developed width
+        self.rs = self.r if swing == "basis" else D / 2.0  # cut-curve swing radius
+        self.swing = swing
         self.basis = basis
         self.s1, self.s2, self.allow = s1, s2, allow
-        self.seam = math.radians(seam_deg)  # azimuth of the longitudinal seam, from the outer generatrix
+        self.seam = math.radians(seam_deg)  # azimuth of the longitudinal seam, from the outer generatrix; x = r*(phi - seam)
 
     def cuts(self, k):
         """(tan theta at the start, tan theta at the end) of piece k = 1..n."""
@@ -95,13 +108,13 @@ class Bend:
     def gen_len(self, k, phi):
         """Length of the generatrix of piece k at azimuth phi (0 = outer side, pi = inner side)."""
         ts, te = self.cuts(k)
-        return self.centre_length(k) + self.r * math.cos(phi) * (ts + te)
+        return self.centre_length(k) + self.rs * math.cos(phi) * (ts + te)
 
     def edge_curves(self, k, phi):
         """z of the start edge and of the end edge at azimuth phi, z measured along the axis from the start plane centre."""
         ts, te = self.cuts(k)
         c = self.centre_length(k)
-        return (-self.r * math.cos(phi) * ts, c + self.r * math.cos(phi) * te)
+        return (-self.rs * math.cos(phi) * ts, c + self.rs * math.cos(phi) * te)
 
     def sheet(self, k, m=720):
         """Developed sheet of piece k starting at the seam: (x_i, y_start_i, y_end_i), x = r*phi, i = 0..m."""
@@ -234,7 +247,7 @@ def quadrature_area(b, tag):
 def t_to_zero(group="A t->0 limit"):
     for (D, R, A, n) in [(1000.0, 1500.0, 90.0, 3), (800.0, 600.0, 60.0, 3), (300.0, 900.0, 30.0, 2), (1200.0, 1200.0, 90.0, 4)]:
         t = 1e-9
-        bs = {name: Bend(D, t, R, A, n, name) for name in ("inner", "mid", "outer")}
+        bs = {name: Bend(D, t, R, A, n, name, allow=0.0) for name in ("inner", "mid", "outer")}
         for k in range(1, n + 1):
             for i in range(0, 12):
                 phi = 2 * math.pi * i / 12 + 0.3
@@ -259,7 +272,7 @@ def t_to_zero(group="A t->0 limit"):
             ys1, ye1 = b.edge_curves(1, phi)
             check(group, f"first piece end edge theta={math.degrees(th):.3f} phi{i}", ye1 - b.centre_length(1), -z_plane, 1e-6)
         # theta -> 0 (tiny angle): every cut curve is flat
-        tiny = Bend(D, 1e-9, R, 1e-9, n, "mid")
+        tiny = Bend(D, 1e-9, R, 1e-9, n, "mid", allow=0.0)
         for k in range(1, n + 1):
             ys, ye = tiny.edge_curves(k, 0.7)
             check(group, f"A->0 k{k} flat start", ys, 0.0, 1e-6)
@@ -270,7 +283,7 @@ def closed_forms_90():
     g = "B closed forms 90 deg"
     D, t, R = 1016.0, 12.0, 1500.0
     # 3 pieces, 2 joints: theta = 22.5 deg, tan = sqrt(2) - 1
-    b = Bend(D, t, R, 90.0, 3, "mid")
+    b = Bend(D, t, R, 90.0, 3, "mid", allow=0.0)
     q = math.sqrt(2.0) - 1.0
     r = (D - t) / 2.0
     check(g, "n3 half cut angle deg", math.degrees(b.theta), 22.5, 1e-12)
@@ -288,13 +301,13 @@ def closed_forms_90():
     check(g, "n3 sheet width = circumference", 2 * math.pi * b.r, math.pi * (D - t), 1e-9)
     check(g, "n3 middle sheet area (closed form C*c)", 2 * math.pi * r * b.centre_length(2), math.pi * (D - t) * 2 * R * q, 1e-6)
     # 2 pieces, 1 joint: theta = 45 deg, tan = 1
-    b2 = Bend(D, t, R, 90.0, 2, "mid")
+    b2 = Bend(D, t, R, 90.0, 2, "mid", allow=0.0)
     check(g, "n2 half cut angle deg", math.degrees(b2.theta), 45.0, 1e-12)
     check(g, "n2 end centre length = R", b2.centre_length(1), R, 1e-9)
     check(g, "n2 outer generatrix R+r", b2.gen_len(1, 0.0), R + r, 1e-9)
     check(g, "n2 inner generatrix R-r", b2.gen_len(1, math.pi), R - r, 1e-9)
     # 4 pieces, 3 joints: theta = 15 deg, tan = 2 - sqrt(3)
-    b4 = Bend(D, t, R, 90.0, 4, "mid")
+    b4 = Bend(D, t, R, 90.0, 4, "mid", allow=0.0)
     q4 = 2.0 - math.sqrt(3.0)
     check(g, "n4 half cut angle deg", math.degrees(b4.theta), 15.0, 1e-12)
     check(g, "n4 middle centre length 2R(2-sqrt3)", b4.centre_length(2), 2 * R * q4, 1e-9)
@@ -302,12 +315,22 @@ def closed_forms_90():
     # basis radii for the same plate
     for basis, want in (("outer", D / 2.0), ("mid", (D - t) / 2.0), ("inner", D / 2.0 - t)):
         check(g, f"radius of basis {basis}", basis_radius(D, t, basis), want, 1e-12)
-        bb = Bend(D, t, R, 90.0, 3, basis)
+        bb = Bend(D, t, R, 90.0, 3, basis, allow=0.0)
         check(g, f"circumference of basis {basis}", 2 * math.pi * bb.r, 2 * math.pi * want, 1e-9)
+    # bend_swing_radius = outer (ZK): cut-curve heights use D/2, circumference and width still use the basis radius
+    bo = Bend(D, t, R, 90.0, 3, "mid", allow=0.0, swing="outer")
+    ro = D / 2.0
+    check(g, "swing outer: radius D/2", bo.rs, ro, 1e-12)
+    check(g, "swing outer: width still on basis radius", 2 * math.pi * bo.r, math.pi * (D - t), 1e-9)
+    check(g, "swing outer: middle outer generatrix 2(R+D/2)(sqrt2-1)", bo.gen_len(2, 0.0), 2 * (R + ro) * q, 1e-9)
+    check(g, "swing outer: middle inner generatrix 2(R-D/2)(sqrt2-1)", bo.gen_len(2, math.pi), 2 * (R - ro) * q, 1e-9)
+    check(g, "swing outer: cut amplitude (D/2)(sqrt2-1)", ro * math.tan(bo.theta), ro * q, 1e-9)
+    check(g, "swing outer: end edge of first piece at the outer generatrix", bo.edge_curves(1, 0.0)[1], R * q + ro * q, 1e-9)
+    check(g, "swing outer: unchanged centre length", bo.centre_length(2), 2 * R * q, 1e-9)
     # long bend vs arc: polygon circumscribed about the arc is longer than the arc and tends to it as n grows
     prev = None
     for n in (2, 3, 4, 6, 12, 48):
-        bn = Bend(D, t, R, 90.0, n, "mid")
+        bn = Bend(D, t, R, 90.0, n, "mid", allow=0.0)
         total = sum(bn.centre_length(k) for k in range(1, n + 1))
         check_true(g, f"polygon n{n} longer than the arc", total > R * math.pi / 2)
         if prev is not None:
@@ -320,12 +343,18 @@ def rule_checks():
     g = "D piece-count rule (parameter)"
     for a, n in [(1, 2), (25, 2), (30, 2), (30.0001, 3), (45, 3), (60, 3), (60.0001, 4), (75, 4), (90, 4)]:
         check(g, f"angle {a}", pieces_for_angle(a), n, 0)
-    for bad in (0, -5, float("nan"), 90.5, 180):
+    for bad in (0, -5, float("nan")):
         try:
             pieces_for_angle(bad)
             check_true(g, f"angle {bad} refused", False)
         except ValueError:
             check_true(g, f"angle {bad} refused", True)
+    # fallback only: beyond the table the count is refused (the caller asks), an angle above 90 with joints from the drawing is allowed
+    try:
+        pieces_for_angle(120.0)
+        check_true(g, "fallback beyond table refused", False)
+    except ValueError:
+        check_true(g, "fallback beyond table refused", True)
     # the rule is a parameter: another table gives another count
     check(g, "alternative rule 3/4/5 at 50 deg", pieces_for_angle(50, [(45, 3), (67.5, 4), (90, 5)]), 4, 0)
     # a joint count from the rule feeds theta = A/(2*(n-1))
@@ -350,16 +379,18 @@ def main():
         (500.0, 6.0, 750.0, 15.0, 2, "outer", 0.0, 0.0, 2.5),
     ]
     for (D, t, R, A, n, basis, s1, s2, allow) in cases:
-        for seam in (180.0, 45.0):
-            b = Bend(D, t, R, A, n, basis, s1, s2, allow, seam)
-            tag = f"D{D} t{t} R{R} A{A} n{n} {basis} s{s1}/{s2} allow{allow} seam{seam}"
-            # the allowance is a fabrication addition, not geometry: the 3D routes use allow = 0, the allowance must be additive
-            b0 = Bend(D, t, R, A, n, basis, s1, s2, 0.0, seam)
-            route_a_vs_3d(b0, tag)
-            shared_ellipse(b0, tag)
-            quadrature_area(b, tag)
-            for k in range(1, n + 1):
-                check("B allowance is additive", f"{tag} k{k}", b.gen_len(k, 0.4) - b0.gen_len(k, 0.4), allow, 1e-9)
+        for seam in (SEAM_DEG, 180.0):
+            for swing in SWING_RULES:
+                b = Bend(D, t, R, A, n, basis, s1, s2, allow, seam, swing)
+                tag = f"D{D} t{t} R{R} A{A} n{n} {basis} s{s1}/{s2} allow{allow} seam{seam} swing {swing}"
+                # the allowance is a fabrication addition, not geometry: the 3D routes use allow = 0, the allowance must be additive
+                b0 = Bend(D, t, R, A, n, basis, s1, s2, 0.0, seam, swing)
+                if swing == "basis":  # route B is one cylinder of the basis radius
+                    route_a_vs_3d(b0, tag)
+                    shared_ellipse(b0, tag)
+                quadrature_area(b, tag)
+                for k in range(1, n + 1):
+                    check("B allowance is additive", f"{tag} k{k}", b.gen_len(k, 0.4) - b0.gen_len(k, 0.4), allow, 1e-9)
     print(f"\nverify_miterbend: {N_OK} OK, {N_NG} NG")
     for g, n in GROUPS.items():
         print(f"  {n:5d}  {g}")

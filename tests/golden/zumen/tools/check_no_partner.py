@@ -20,7 +20,7 @@ for dp, _, fs in os.walk(root):
         if rel == "tools/check_no_partner.py": continue
         try: t = open(p, encoding="utf-8").read()
         except Exception: continue
-        t2 = neg.sub("", t) if rel.startswith("readings/") else t
+        t2 = neg.sub("", t)  # the "not a partner drawing" note is allowed anywhere (readings, and inline copies in s*.json)
         if rel == "README.md":  # the README names the markers on purpose
             continue
         for m in markers:

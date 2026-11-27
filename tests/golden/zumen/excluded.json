@@ -255,7 +255,7 @@
    "kind": "num",
    "want_expr": "emn.kg",
    "zk_want": 418.1,
-   "reason": "self-referential: emn.property of an unresolved object"
+   "reason": "self-referential: emn derived from the engine (pc(E, \"1\"))"
   },
   {
    "name": "本管 E 継ぎ目3本 切る前の四角の重さ ＝ 割らない本管",
@@ -270,7 +270,22 @@
    "kind": "num",
    "want_expr": "emn.grossKg",
    "zk_want": 445.7,
-   "reason": "self-referential: emn.property of an unresolved object"
+   "reason": "self-referential: emn derived from the engine (pc(E, \"1\"))"
+  },
+  {
+   "name": "DXF 仕切弁副管A1 継ぎ目2本の線（四角2つ＋穴の点の数）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:389",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "8 + hn",
+   "zk_want": 729,
+   "reason": "self-referential: hn derived from the engine (pu.reduce((a, q) => a + Zs.holesOf(q).reduce((b, h) => b + h)"
   },
   {
    "name": "ラテラル 例3 穴の割り出し0 の周の位置 ＝ 枝の中心",
@@ -303,6 +318,51 @@
    "reason": "self-referential: m derived from the engine (Zs.unfold({ shape: \"tee_main\", t: 12, geo: { D: 1016, L: 200)"
   },
   {
+   "name": "補強板 斜めの枝 2枚 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:549",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "斜めの枝の補強板（ラテラル 例2）も割れる。2枚の形は違い、重さの合計は割る前と同じ"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "k0",
+   "zk_want": 40.852145265977846,
+   "reason": "self-referential: k0 derived from the engine (sum(lg, 12, 1).kg)"
+  },
+  {
+   "name": "補強板 斜めの枝 3枚 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:549",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "斜めの枝の補強板（ラテラル 例2）も割れる。2枚の形は違い、重さの合計は割る前と同じ"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "k0",
+   "zk_want": 40.852145265977846,
+   "reason": "self-referential: k0 derived from the engine (sum(lg, 12, 1).kg)"
+  },
+  {
+   "name": "補強板 斜めの枝 4枚 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:549",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "斜めの枝の補強板（ラテラル 例2）も割れる。2枚の形は違い、重さの合計は割る前と同じ"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "k0",
+   "zk_want": 40.852145265977846,
+   "reason": "self-referential: k0 derived from the engine (sum(lg, 12, 1).kg)"
+  },
+  {
    "name": "補強板 G2 二つ割 重さ（2枚）",
    "source": "design-demos/assets/kirizu/test_build.mjs:571",
    "origin": {
@@ -318,6 +378,186 @@
    "reason": "self-referential: engine call in expression"
   },
   {
+   "name": "径違い 例1 片2 継ぎ目2本 帯の面積の合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:682",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "縦の継ぎ目で割った円すいの片（扇の帯）: 帯ごとの外形・面積・継ぎ目の縁、帯の面積の合計 ＝ 割る前"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "whole",
+   "zk_want": 11500303.236470215,
+   "reason": "self-referential: whole derived from the engine (sh(unf(c, m)[0].pts))"
+  },
+  {
+   "name": "径違い 例1 片3 継ぎ目3本 帯の面積の合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:682",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "縦の継ぎ目で割った円すいの片（扇の帯）: 帯ごとの外形・面積・継ぎ目の縁、帯の面積の合計 ＝ 割る前"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "whole",
+   "zk_want": 10660746.905147215,
+   "reason": "self-referential: whole derived from the engine (sh(unf(c, m)[0].pts))"
+  },
+  {
+   "name": "径違い 例3 片2 継ぎ目2本 帯の面積の合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:682",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "縦の継ぎ目で割った円すいの片（扇の帯）: 帯ごとの外形・面積・継ぎ目の縁、帯の面積の合計 ＝ 割る前"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "whole",
+   "zk_want": 2949851.2228482775,
+   "reason": "self-referential: whole derived from the engine (sh(unf(c, m)[0].pts))"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 始点側 継ぎ目1本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 始点側 継ぎ目2本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 始点側 継ぎ目3本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 中間 継ぎ目1本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 中間 継ぎ目2本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 中間 継ぎ目3本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 終点側 継ぎ目1本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 終点側 継ぎ目2本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 終点側 継ぎ目3本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
    "name": "反対の口から書いた偏心 穴の面積",
    "source": "design-demos/assets/kirizu/test_build.mjs:814",
    "origin": {
@@ -330,7 +570,7 @@
    "kind": "num",
    "want_expr": "f4.holeArea",
    "zk_want": 125293.3418567171,
-   "reason": "self-referential: f4.property of an unresolved object"
+   "reason": "self-referential: f4 derived from the engine (coneU(true, 1219.2, 914.4, 1200, 12, 0, e4.b, 2, \"on\")[0].in)"
   },
   {
    "name": "反対の口から書いた偏心 穴 X 始め",
@@ -345,7 +585,7 @@
    "kind": "num",
    "want_expr": "f4.holeBox.x0",
    "zk_want": 424.6843081031894,
-   "reason": "self-referential: f4.property of an unresolved object"
+   "reason": "self-referential: f4 derived from the engine (coneU(true, 1219.2, 914.4, 1200, 12, 0, e4.b, 2, \"on\")[0].in)"
   },
   {
    "name": "反対の口から書いた偏心 穴 Y 始め",
@@ -360,7 +600,7 @@
    "kind": "num",
    "want_expr": "f4.holeBox.y0",
    "zk_want": -1113.7887390994551,
-   "reason": "self-referential: f4.property of an unresolved object"
+   "reason": "self-referential: f4 derived from the engine (coneU(true, 1219.2, 914.4, 1200, 12, 0, e4.b, 2, \"on\")[0].in)"
   },
   {
    "name": "反対の口から書いた偏心 穴の x（D1 の口から）は長さから引いた値",
@@ -375,7 +615,7 @@
    "kind": "num",
    "want_expr": "1200 - f4.xmax",
    "zk_want": 404.893789067189,
-   "reason": "self-referential: f4.property of an unresolved object"
+   "reason": "self-referential: f4 derived from the engine (coneU(true, 1219.2, 914.4, 1200, 12, 0, e4.b, 2, \"on\")[0].in)"
   },
   {
    "name": "偏心 平らな側 180°・枝 180° ＝ 平らな側 0°・枝 0°（穴の面積）",
