@@ -12,7 +12,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS amoeba_digests(id INTEGER PRIMARY KEY, calc_id INTEGE
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 11] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 14] = [
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
@@ -54,6 +54,11 @@ const ADDED_COLUMNS: [(&str, &str, &str); 11] = [
     ("calculations", "result_bytes", "INTEGER"),
     // Task 3.1: the PDF conversion a document was produced by (NULL for an upload).
     ("documents", "conversion_id", "INTEGER"),
+    // AUTH-1: the recovery code, only as a salted Argon2 hash (NULL: none yet); and the forced password change
+    // after an administrator reset.
+    ("users", "recovery_salt", "TEXT"),
+    ("users", "recovery_hash", "TEXT"),
+    ("users", "must_change", "INTEGER NOT NULL DEFAULT 0"),
 ];
 
 /// Append-only at the database level (RC-20). Created at every start, so an older database gets them too.

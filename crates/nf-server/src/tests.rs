@@ -2267,6 +2267,7 @@ async fn s2_page_corruption_is_not_reported_as_an_intact_log() {
         per_client_in_flight: 32,
         in_flight: Mutex::new(Default::default()),
         hash_slots: Semaphore::new(1),
+        auth: Default::default(),
         upload_slots: Semaphore::new(1),
         replay_slots: Semaphore::new(1),
         pdf2dxf_exe: None,
@@ -2817,7 +2818,10 @@ async fn bh008_the_start_up_probe_answers_200_for_a_visitor_who_is_not_signed_in
         let v: Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(
             (st, &v),
-            (StatusCode::OK, &json!({ "signed_in": false })),
+            (
+                StatusCode::OK,
+                &json!({ "signed_in": false, "mode": "server", "auto_signin": false })
+            ),
             "{cookie}"
         );
     }
@@ -5304,4 +5308,721 @@ fn withheld_reason_falls_back_to_the_check_figures() {
     assert!(withheld_reason(&beyond).starts_with("difference 2.5 exceeds tolerance 1"));
     let nan = json!({ "difference": null, "tolerance": 1.0 });
     assert!(withheld_reason(&nan).starts_with("a value of the check is not a finite number"));
+}
+
+// ---------------------------------------------------------------- AUTH-1: recovery and automatic sign-in
+
+const A1_PW: &str = "correct-horse-9";
+
+fn a1_app(desktop: bool, tag: &str) -> T {
+    let dir = temp_dir(tag);
+    let app = build_app(Config {
+        desktop,
+        allowed_hosts: vec!["127.0.0.1".into(), "localhost".into()],
+        licence_enforce: false,
+        ..config(&dir)
+    })
+    .unwrap();
+    T {
+        app,
+        dir,
+        cookie: "none=1".into(),
+    }
+}
+
+/// First-run setup of "admin"; returns the recovery code.
+async fn a1_setup(t: &T, auto: bool) -> (StatusCode, Value) {
+    t.send(
+        "POST",
+        "/api/setup",
+        Some(json!({ "username": "admin", "password": A1_PW, "auto_signin": auto })),
+        &[("x-nf-setup-token", TOKEN)],
+    )
+    .await
+    .pipe_json()
+}
+
+trait PipeJson {
+    fn pipe_json(self) -> (StatusCode, Value);
+}
+impl PipeJson for (StatusCode, HeaderMap, Vec<u8>) {
+    fn pipe_json(self) -> (StatusCode, Value) {
+        (
+            self.0,
+            serde_json::from_slice(&self.2).unwrap_or(Value::Null),
+        )
+    }
+}
+
+async fn a1_login(t: &T, name: &str, pw: &str) -> Option<String> {
+    let (st, h, _) = t
+        .send(
+            "POST",
+            "/api/login",
+            Some(json!({ "username": name, "password": pw })),
+            &[("cookie", "none=1")],
+        )
+        .await;
+    if st != StatusCode::OK {
+        return None;
+    }
+    let c = h.get("set-cookie")?.to_str().ok()?;
+    Some(c.split(';').next()?.to_string())
+}
+
+async fn a1_as(t: &T, cookie: &str, method: &str, path: &str, body: Value) -> (StatusCode, Value) {
+    t.send(method, path, Some(body), &[("cookie", cookie)])
+        .await
+        .pipe_json()
+}
+
+async fn a1_launch(t: &T, tok: impl Into<String>) -> (StatusCode, HeaderMap, Vec<u8>) {
+    t.send(
+        "POST",
+        "/api/launch",
+        Some(json!({ "token": tok.into() })),
+        &[("cookie", "none=1")],
+    )
+    .await
+}
+
+async fn a1_recover(t: &T, name: &str, code: &str, pw: &str) -> (StatusCode, Value) {
+    t.send(
+        "POST",
+        "/api/recover",
+        Some(json!({ "username": name, "recovery_code": code, "new_password": pw })),
+        &[("cookie", "none=1")],
+    )
+    .await
+    .pipe_json()
+}
+
+#[tokio::test]
+async fn auth1_setup_returns_a_recovery_code_stored_only_as_a_hash() {
+    let t = a1_app(false, "a1-setup");
+    let (st, v) = a1_setup(&t, false).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let code = v["recovery_code"].as_str().unwrap().to_string();
+    let groups: Vec<&str> = code.split('-').collect();
+    assert_eq!(groups.len(), 4, "{code}");
+    assert!(groups.iter().all(|g| g.len() == 5), "{code}");
+    assert!(
+        code.chars()
+            .filter(|c| *c != '-')
+            .all(|c| "23456789ABCDEFGHJKMNPQRSTUVWXYZ@".contains(c)),
+        "{code}"
+    );
+    assert!(
+        !code.contains(['0', 'O', '1', 'I', 'L']),
+        "ambiguous symbol in {code}"
+    );
+    // 32 symbols per character, 20 characters
+    assert_eq!(CODE_BITS, 100);
+    let (salt, hash): (String, String) = t
+        .app
+        .db()
+        .query_row(
+            "SELECT recovery_salt, recovery_hash FROM users WHERE username = 'admin'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert!(!salt.is_empty() && hash.len() == 64 && !hash.contains(&code.replace('-', "")));
+    let dump: String = t
+        .app
+        .db()
+        .query_row(
+            "SELECT group_concat(username || salt || hash || ifnull(recovery_salt,'') || ifnull(recovery_hash,''), '|') FROM users",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(
+        !dump.contains(&code.replace('-', "")),
+        "the code is stored in clear"
+    );
+    // two codes differ
+    let t2 = a1_app(false, "a1-setup2");
+    let (_, v2) = a1_setup(&t2, false).await;
+    assert_ne!(v2["recovery_code"], v["recovery_code"]);
+}
+
+const CODE_BITS: u32 = (auth::CODE_LEN as u32) * 5;
+
+#[tokio::test]
+async fn auth1_recovery_happy_path_single_use_sessions_revoked() {
+    let t = a1_app(false, "a1-happy");
+    let (_, v) = a1_setup(&t, false).await;
+    let code = v["recovery_code"].as_str().unwrap().to_string();
+    let old = a1_login(&t, "admin", A1_PW).await.expect("sign-in");
+    assert_eq!(
+        a1_as(&t, &old, "GET", "/api/me", json!(null)).await.0,
+        StatusCode::OK
+    );
+    // typed sloppily: lower case, spaces instead of dashes
+    let typed = code.to_lowercase().replace('-', " ");
+    let (st, v) = a1_recover(&t, "admin", &typed, "brand-new-pass-7").await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(v["ok"], true);
+    let new_code = v["recovery_code"].as_str().unwrap().to_string();
+    assert_ne!(new_code, code);
+    // sessions revoked, old password dead, new password works
+    assert_eq!(
+        a1_as(&t, &old, "GET", "/api/me", json!(null)).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert!(a1_login(&t, "admin", A1_PW).await.is_none());
+    assert!(a1_login(&t, "admin", "brand-new-pass-7").await.is_some());
+    // the used code is dead
+    let (st, v) = a1_recover(&t, "admin", &code, "another-pass-88").await;
+    assert_eq!(
+        (st, v["error"].as_str()),
+        (StatusCode::UNAUTHORIZED, Some("recovery failed"))
+    );
+    assert!(a1_login(&t, "admin", "brand-new-pass-7").await.is_some());
+    // the new code works, once
+    let (st, v) = a1_recover(&t, "admin", &new_code, "third-pass-123").await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(
+        a1_recover(&t, "admin", &new_code, "fourth-pass-123")
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    // password rules apply
+    let c3 = v["recovery_code"].as_str().unwrap();
+    let (st, _) = a1_recover(&t, "admin", c3, "short").await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+    assert!(t.count("SELECT COUNT(*) FROM audit WHERE action = 'account.recovered'") == 2);
+}
+
+#[tokio::test]
+async fn auth1_wrong_code_gives_a_generic_error_and_is_throttled() {
+    let t = a1_app(false, "a1-throttle");
+    let (_, v) = a1_setup(&t, false).await;
+    let code = v["recovery_code"].as_str().unwrap().to_string();
+    let (s1, b1) = a1_recover(&t, "admin", "AAAAA-AAAAA-AAAAA-AAAAA", "brand-new-pass-7").await;
+    let (s2, b2) = a1_recover(&t, "nobody", &code, "brand-new-pass-7").await;
+    let (s3, b3) = a1_recover(&t, "admin", "x", "brand-new-pass-7").await;
+    assert_eq!(
+        (s1, s2, s3),
+        (
+            StatusCode::UNAUTHORIZED,
+            StatusCode::UNAUTHORIZED,
+            StatusCode::UNAUTHORIZED
+        )
+    );
+    assert_eq!(b1, b2, "unknown user and wrong code must look the same");
+    assert_eq!(b1, b3);
+    assert_eq!(b1["error"], "recovery failed");
+    // 5 failures of the account from this address lock the pair (two are counted above); even the right code is then refused
+    let _ = a1_recover(&t, "admin", "DDDDD-DDDDD-DDDDD-DDDDD", "brand-new-pass-7").await;
+    let _ = a1_recover(&t, "admin", "BBBBB-BBBBB-BBBBB-BBBBB", "brand-new-pass-7").await;
+    let _ = a1_recover(&t, "admin", "CCCCC-CCCCC-CCCCC-CCCCC", "brand-new-pass-7").await;
+    let (st, v) = a1_recover(&t, "admin", &code, "brand-new-pass-7").await;
+    assert_eq!(st, StatusCode::TOO_MANY_REQUESTS, "{v}");
+    assert_eq!(v["throttled"], true);
+    // and the password was not changed
+    assert!(
+        a1_login(&t, "admin", A1_PW).await.is_none(),
+        "sign-in shares the lock"
+    );
+    assert!(t.count("SELECT COUNT(*) FROM audit WHERE action = 'account.recovered'") == 0);
+}
+
+#[tokio::test]
+async fn auth1_admin_reset_forces_a_change_and_never_on_self() {
+    let t = a1_app(false, "a1-reset");
+    let _ = a1_setup(&t, false).await;
+    let adm = a1_login(&t, "admin", A1_PW).await.unwrap();
+    let (st, v) = a1_as(
+        &t,
+        &adm,
+        "POST",
+        "/api/users",
+        json!({"username":"bob","password":"bobs-first-pass-1","role":"engineer"}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let bob_id = v["id"].as_i64().unwrap();
+    let bob = a1_login(&t, "bob", "bobs-first-pass-1").await.unwrap();
+    // not on self, not by a non-admin, not for a weak password, not for an unknown id
+    let admin_id = t.count("SELECT id FROM users WHERE username = 'admin'");
+    let path = |id: i64| format!("/api/users/{id}/reset-password");
+    assert_eq!(
+        a1_as(
+            &t,
+            &adm,
+            "POST",
+            &path(admin_id),
+            json!({"new_password":"whatever-pass-12"})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        a1_as(
+            &t,
+            &bob,
+            "POST",
+            &path(admin_id),
+            json!({"new_password":"whatever-pass-12"})
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        a1_as(
+            &t,
+            &adm,
+            "POST",
+            &path(bob_id),
+            json!({"new_password":"short"})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        a1_as(
+            &t,
+            &adm,
+            "POST",
+            &path(999),
+            json!({"new_password":"whatever-pass-12"})
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    let (st, v) = a1_as(
+        &t,
+        &adm,
+        "POST",
+        &path(bob_id),
+        json!({"new_password":"temporary-pass-55"}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    // bob's session is gone, the old password is dead
+    assert_eq!(
+        a1_as(&t, &bob, "GET", "/api/me", json!(null)).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert!(a1_login(&t, "bob", "bobs-first-pass-1").await.is_none());
+    let bob = a1_login(&t, "bob", "temporary-pass-55").await.unwrap();
+    let (st, me) = a1_as(&t, &bob, "GET", "/api/me", json!(null)).await;
+    assert_eq!(
+        (st, &me["must_change_password"]),
+        (StatusCode::OK, &json!(true)),
+        "{me}"
+    );
+    // everything else is refused until the password is changed
+    let (st, v) = a1_as(&t, &bob, "GET", "/api/projects", json!(null)).await;
+    assert_eq!(st, StatusCode::FORBIDDEN, "{v}");
+    assert_eq!(v["must_change_password"], true);
+    let (st, v) = a1_as(
+        &t,
+        &bob,
+        "POST",
+        "/api/password",
+        json!({"current":"temporary-pass-55","new":"bobs-own-pass-99"}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let bob = a1_login(&t, "bob", "bobs-own-pass-99").await.unwrap();
+    let (_, me) = a1_as(&t, &bob, "GET", "/api/me", json!(null)).await;
+    assert_eq!(me["must_change_password"], false);
+    assert_eq!(
+        a1_as(&t, &bob, "GET", "/api/projects", json!(null)).await.0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM audit WHERE action = 'account.password_reset'"),
+        1
+    );
+}
+
+#[tokio::test]
+async fn auth1_new_recovery_code_needs_the_password_and_replaces_the_old_one() {
+    let t = a1_app(false, "a1-newcode");
+    let (_, v) = a1_setup(&t, false).await;
+    let old = v["recovery_code"].as_str().unwrap().to_string();
+    let adm = a1_login(&t, "admin", A1_PW).await.unwrap();
+    let (st, _) = a1_as(
+        &t,
+        &adm,
+        "POST",
+        "/api/me/recovery-code",
+        json!({"password":"wrong-password-1"}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (st, v) = a1_as(
+        &t,
+        &adm,
+        "POST",
+        "/api/me/recovery-code",
+        json!({"password":A1_PW}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let fresh = v["recovery_code"].as_str().unwrap().to_string();
+    assert_ne!(fresh, old);
+    assert_eq!(
+        a1_recover(&t, "admin", &old, "brand-new-pass-7").await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        a1_recover(&t, "admin", &fresh, "brand-new-pass-7").await.0,
+        StatusCode::OK
+    );
+    // an engineer cannot
+    let adm = a1_login(&t, "admin", "brand-new-pass-7").await.unwrap();
+    a1_as(
+        &t,
+        &adm,
+        "POST",
+        "/api/users",
+        json!({"username":"eve","password":"eves-first-pass-1","role":"engineer"}),
+    )
+    .await;
+    let eve = a1_login(&t, "eve", "eves-first-pass-1").await.unwrap();
+    assert_eq!(
+        a1_as(
+            &t,
+            &eve,
+            "POST",
+            "/api/me/recovery-code",
+            json!({"password":"eves-first-pass-1"})
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+}
+
+#[tokio::test]
+async fn auth1_an_existing_database_without_a_code_can_get_one() {
+    let t = a1_app(false, "a1-migrate");
+    let _ = a1_setup(&t, false).await;
+    // as an installation from before this change: no recovery code, flag says so
+    t.sql("UPDATE users SET recovery_salt = NULL, recovery_hash = NULL");
+    let adm = a1_login(&t, "admin", A1_PW).await.unwrap();
+    let (_, me) = a1_as(&t, &adm, "GET", "/api/me", json!(null)).await;
+    assert_eq!(me["has_recovery_code"], false, "{me}");
+    assert_eq!(
+        a1_recover(&t, "admin", "AAAAA-AAAAA-AAAAA-AAAAA", "brand-new-pass-7")
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    let (st, v) = a1_as(
+        &t,
+        &adm,
+        "POST",
+        "/api/me/recovery-code",
+        json!({"password":A1_PW}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (_, me) = a1_as(&t, &adm, "GET", "/api/me", json!(null)).await;
+    assert_eq!(me["has_recovery_code"], true);
+    // the columns are added to a database that lacks them
+    let t2 = a1_app(false, "a1-migrate2");
+    drop(t2.app.db());
+    let c = t2.app.db();
+    for col in ["recovery_salt", "recovery_hash", "must_change"] {
+        assert!(
+            c.prepare(&format!("SELECT {col} FROM users")).is_ok(),
+            "{col}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn auth1_server_mode_has_no_launch_and_no_auto_signin() {
+    let t = a1_app(false, "a1-server");
+    let (st, v) = a1_setup(&t, true).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST, "{v}");
+    assert_eq!(
+        t.get("/api/health").await["setup_required"],
+        true,
+        "refused setup creates nothing"
+    );
+    let (st, v) = a1_setup(&t, false).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, _) = t
+        .send(
+            "POST",
+            "/api/launch",
+            Some(json!({"token":"abc"})),
+            &[("cookie", "none=1")],
+        )
+        .await
+        .pipe_json();
+    assert_eq!(st, StatusCode::NOT_FOUND);
+    let adm = a1_login(&t, "admin", A1_PW).await.unwrap();
+    let (st, v) = a1_as(
+        &t,
+        &adm,
+        "POST",
+        "/api/settings/auto-signin",
+        json!({"enabled":true,"password":A1_PW}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::BAD_REQUEST, "{v}");
+    let (_, s) = t
+        .send("GET", "/api/session", None, &[("cookie", "none=1")])
+        .await
+        .pipe_json();
+    assert_eq!(
+        (s["mode"].as_str(), s["auto_signin"].as_bool()),
+        (Some("server"), Some(false)),
+        "{s}"
+    );
+    assert_eq!(auth::issue_launch_token(&t.app), None);
+}
+
+#[tokio::test]
+async fn auth1_launch_token_single_use_expiry_replay_forged_and_os_user_never_admin() {
+    let t = a1_app(true, "a1-launch");
+    t.app.auth.lock().unwrap().os_user = Some("tester".into());
+    let (st, v) = a1_setup(&t, true).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (_, s) = t
+        .send("GET", "/api/session", None, &[("cookie", "none=1")])
+        .await
+        .pipe_json();
+    assert_eq!(
+        (s["mode"].as_str(), s["auto_signin"].as_bool()),
+        (Some("desktop"), Some(true)),
+        "{s}"
+    );
+    let tok = auth::issue_launch_token(&t.app).expect("token when auto sign-in is on");
+    assert_eq!(tok.len(), 64);
+    // forged
+    assert_eq!(
+        a1_launch(&t, "0".repeat(64)).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        a1_launch(&t, String::new()).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    // the real one works once
+    let (st, h, body) = a1_launch(&t, tok.clone()).await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&body));
+    let v: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        (v["username"].as_str(), v["role"].as_str()),
+        (Some("os:tester"), Some("engineer"))
+    );
+    let cookie = h
+        .get("set-cookie")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+    let (st, me) = a1_as(&t, &cookie, "GET", "/api/me", json!(null)).await;
+    assert_eq!(
+        (st, me["role"].as_str()),
+        (StatusCode::OK, Some("engineer")),
+        "{me}"
+    );
+    // replay
+    assert_eq!(a1_launch(&t, tok).await.0, StatusCode::UNAUTHORIZED);
+    // an engineer session cannot do administrator things, and the account has no password
+    assert_eq!(
+        a1_as(&t, &cookie, "GET", "/api/users", json!(null)).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        a1_as(
+            &t,
+            &cookie,
+            "POST",
+            "/api/settings/auto-signin",
+            json!({"enabled":false,"password":"x"})
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    assert!(a1_login(&t, "os:tester", "").await.is_none());
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM users WHERE username = 'os:tester' AND role = 'engineer'"),
+        1
+    );
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM users WHERE username LIKE 'os:%' AND role = 'admin'"),
+        0
+    );
+    // the audit log names the operating-system user
+    assert_eq!(
+        t.count(
+            "SELECT COUNT(*) FROM audit WHERE action = 'login.auto' AND detail LIKE '%tester%'"
+        ),
+        1
+    );
+    // a second launch reuses the account
+    let tok2 = auth::issue_launch_token(&t.app).unwrap();
+    assert_eq!(a1_launch(&t, tok2).await.0, StatusCode::OK);
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM users WHERE username = 'os:tester'"),
+        1
+    );
+    // expiry
+    let tok3 = auth::issue_launch_token(&t.app).unwrap();
+    for e in t.app.auth.lock().unwrap().launch.iter_mut() {
+        e.1 = std::time::Instant::now() - Duration::from_secs(1);
+    }
+    assert_eq!(
+        a1_launch(&t, tok3).await.0,
+        StatusCode::UNAUTHORIZED,
+        "expired token"
+    );
+    // the administrator can reset nobody's os account, and switching the setting off stops launches
+    let adm = a1_login(&t, "admin", A1_PW).await.unwrap();
+    let os_id = t.count("SELECT id FROM users WHERE username = 'os:tester'");
+    assert_eq!(
+        a1_as(
+            &t,
+            &adm,
+            "POST",
+            &format!("/api/users/{os_id}/reset-password"),
+            json!({"new_password":"whatever-pass-12"})
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
+    let tok4 = auth::issue_launch_token(&t.app).unwrap();
+    assert_eq!(
+        a1_as(
+            &t,
+            &adm,
+            "POST",
+            "/api/settings/auto-signin",
+            json!({"enabled":false,"password":"wrong-password-1"})
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let (st, v) = a1_as(
+        &t,
+        &adm,
+        "POST",
+        "/api/settings/auto-signin",
+        json!({"enabled":false,"password":A1_PW}),
+    )
+    .await;
+    assert_eq!(
+        (st, &v["auto_signin"]),
+        (StatusCode::OK, &json!(false)),
+        "{v}"
+    );
+    assert_eq!(
+        a1_launch(&t, tok4).await.0,
+        StatusCode::UNAUTHORIZED,
+        "tokens are dropped when the setting is off"
+    );
+    assert_eq!(auth::issue_launch_token(&t.app), None);
+    // back on later, by the administrator
+    let (st, _) = a1_as(
+        &t,
+        &adm,
+        "POST",
+        "/api/settings/auto-signin",
+        json!({"enabled":true,"password":A1_PW}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(auth::issue_launch_token(&t.app).is_some());
+}
+
+#[tokio::test]
+async fn auth1_no_secret_reaches_the_audit_log_or_the_plain_database() {
+    let t = a1_app(true, "a1-secrets");
+    t.app.auth.lock().unwrap().os_user = Some("tester".into());
+    let (_, v) = a1_setup(&t, true).await;
+    let code = v["recovery_code"].as_str().unwrap().to_string();
+    let adm = a1_login(&t, "admin", A1_PW).await.unwrap();
+    let (_, v2) = a1_as(
+        &t,
+        &adm,
+        "POST",
+        "/api/me/recovery-code",
+        json!({"password":A1_PW}),
+    )
+    .await;
+    let code2 = v2["recovery_code"].as_str().unwrap().to_string();
+    let _ = a1_recover(&t, "admin", "AAAAA-AAAAA-AAAAA-AAAAA", "never-used-pass-1").await;
+    let (_, v3) = a1_recover(&t, "admin", &code2, "recovered-pass-42").await;
+    let code3 = v3["recovery_code"].as_str().unwrap().to_string();
+    let tok = auth::issue_launch_token(&t.app).unwrap();
+    let _ = t
+        .send(
+            "POST",
+            "/api/launch",
+            Some(json!({"token": tok.clone()})),
+            &[("cookie", "none=1")],
+        )
+        .await;
+    let _ = t
+        .send(
+            "POST",
+            "/api/launch",
+            Some(json!({"token": "f".repeat(64)})),
+            &[("cookie", "none=1")],
+        )
+        .await;
+    let log: String = t
+        .app
+        .db()
+        .query_row(
+            "SELECT group_concat(username || '|' || action || '|' || detail, char(10)) FROM audit",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    for secret in [
+        &code,
+        &code2,
+        &code3,
+        &tok,
+        &A1_PW.to_string(),
+        &"recovered-pass-42".to_string(),
+        &"never-used-pass-1".to_string(),
+        &"f".repeat(64),
+    ] {
+        for needle in [secret.clone(), secret.replace('-', "")] {
+            assert!(
+                !log.contains(&needle),
+                "secret in the audit log: {}",
+                &needle[..4]
+            );
+        }
+    }
+    assert!(
+        log.contains("account.recovered")
+            && log.contains("login.auto")
+            && log.contains("recover_failed")
+    );
+    // the codes are not in the database in clear either; the launch token only as a hash in memory
+    let users: String = t.app.db().query_row(
+        "SELECT group_concat(ifnull(recovery_salt,'') || ifnull(recovery_hash,'') || hash, '|') FROM users",
+        [],
+        |r| r.get(0),
+    ).unwrap();
+    for c in [&code, &code2, &code3] {
+        assert!(!users.contains(&c.replace('-', "")));
+    }
+    assert!(auth::os_user_name().map(|n| !n.is_empty()).unwrap_or(true));
 }

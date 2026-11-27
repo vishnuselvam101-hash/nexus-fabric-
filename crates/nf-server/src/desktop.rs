@@ -165,11 +165,17 @@ pub(crate) fn bind_candidates(preferred: u16) -> Vec<SocketAddr> {
     }
 }
 
-/// The address the browser opens. With a token it carries the token in the fragment only.
-pub(crate) fn start_url(port: u16, setup_token: Option<&str>) -> String {
-    match setup_token {
-        Some(t) => format!("http://127.0.0.1:{port}/#setup={t}"),
-        None => format!("http://127.0.0.1:{port}/"),
+/// The address the browser opens. A token is carried in the fragment only: the one-time setup token on first
+/// run, or the single-use launch token of automatic sign-in (AUTH-1).
+pub(crate) fn start_url(
+    port: u16,
+    setup_token: Option<&str>,
+    launch_token: Option<&str>,
+) -> String {
+    match (setup_token, launch_token) {
+        (Some(t), _) => format!("http://127.0.0.1:{port}/#setup={t}"),
+        (None, Some(l)) => format!("http://127.0.0.1:{port}/#launch={l}"),
+        (None, None) => format!("http://127.0.0.1:{port}/"),
     }
 }
 
@@ -247,7 +253,17 @@ pub(crate) async fn run(args: &[String]) -> Result<(), String> {
         "Keep this window open while you work. Press Ctrl+C or close the window to stop; the database is then closed cleanly."
     );
 
-    let url = start_url(bound_port, needs_setup.then_some(token.as_str()));
+    // every start with automatic sign-in on: one launch token, valid 60 seconds, used once (never printed)
+    let launch = if needs_setup {
+        None
+    } else {
+        crate::auth::issue_launch_token(&app)
+    };
+    let url = start_url(
+        bound_port,
+        needs_setup.then_some(token.as_str()),
+        launch.as_deref(),
+    );
     let opened = want_browser && open_browser(&url);
     if want_browser && !opened {
         println!("Could not start a browser. Open the address above yourself.");
@@ -263,6 +279,11 @@ pub(crate) async fn run(args: &[String]) -> Result<(), String> {
         );
     }
     drop(token);
+    if launch.is_some() && !opened {
+        println!(
+            "Automatic sign-in is on, but no browser was opened here: the sign-in link is not printed. Open the address above and sign in with your password, or restart without --no-browser."
+        );
+    }
 
     let keeper = app.clone();
     tokio::spawn(async move {
@@ -412,10 +433,14 @@ mod tests {
 
     #[test]
     fn start_url_carries_the_token_only_in_the_fragment() {
-        assert_eq!(start_url(8860, None), "http://127.0.0.1:8860/");
+        assert_eq!(start_url(8860, None, None), "http://127.0.0.1:8860/");
         assert_eq!(
-            start_url(8860, Some("abc")),
+            start_url(8860, Some("abc"), None),
             "http://127.0.0.1:8860/#setup=abc"
+        );
+        assert_eq!(
+            start_url(8860, None, Some("xyz")),
+            "http://127.0.0.1:8860/#launch=xyz"
         );
     }
 
