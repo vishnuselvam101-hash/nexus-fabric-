@@ -214,13 +214,27 @@ fn read_stderr(child: &mut Child) -> String {
     e
 }
 
+/// The documents directory of a test server: a copy of the fixture PDF, the only file uploads may name.
+fn docs_dir(s: &Server) -> PathBuf {
+    let docs = s.data.join("docs");
+    std::fs::create_dir_all(&docs).unwrap();
+    std::fs::copy(pdf_fixture(), docs.join("reportlab_lines.pdf")).unwrap();
+    docs
+}
+
 impl Bridge {
-    fn start(s: &Server, steps: &Path) -> Bridge {
+    fn start(s: &Server, steps: &Path, docs: &Path) -> Bridge {
+        Self::start_as(s, steps, docs, "agent", AGENT_PASS)
+    }
+
+    fn start_as(s: &Server, steps: &Path, docs: &Path, user: &str, pass: &str) -> Bridge {
         let mut child = Command::new(env!("CARGO_BIN_EXE_nf-amoeba-tools"))
             .args(["--base", &format!("http://127.0.0.1:{}", s.port), "--steps"])
             .arg(steps)
-            .env("NF_AGENT_USER", "agent")
-            .env("NF_AGENT_PASS", AGENT_PASS)
+            .arg("--docs-dir")
+            .arg(docs)
+            .env("NF_AGENT_USER", user)
+            .env("NF_AGENT_PASS", pass)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -273,7 +287,8 @@ fn run_session(tag: &str) -> (Vec<Value>, Vec<Value>, Server) {
     let s = start_server(tag);
     let project = prepare(&s);
     let steps = s.data.join("steps.jsonl");
-    let mut b = Bridge::start(&s, &steps);
+    let docs = docs_dir(&s);
+    let mut b = Bridge::start(&s, &steps, &docs);
     let mut out = Vec::new();
     let ok = step;
     let list = ok(&mut b, &mut out, "list_projects", json!({}));
@@ -354,7 +369,7 @@ fn run_session(tag: &str) -> (Vec<Value>, Vec<Value>, Server) {
         &mut b,
         &mut out,
         "upload_document",
-        json!({ "project": project, "path": pdf_fixture().display().to_string() }),
+        json!({ "project": project, "path": docs.join("reportlab_lines.pdf").display().to_string() }),
     );
     let doc = up["result"]["document"].as_i64().expect("document id");
     let conv = ok(
@@ -373,6 +388,9 @@ fn run_session(tag: &str) -> (Vec<Value>, Vec<Value>, Server) {
     ok(&mut b, &mut out, "list_obligations", json!({}));
     ok(&mut b, &mut out, "list_lessons", json!({}));
     ok(&mut b, &mut out, "amoeba_summary", json!({}));
+    // recompute writes: it supersedes the job (the held-part job c_hwb is not used after this)
+    let re = ok(&mut b, &mut out, "recompute", json!({ "job": c_hwb }));
+    assert_eq!(re["ok"], true, "recompute: {re}");
     ok(
         &mut b,
         &mut out,
@@ -487,4 +505,126 @@ fn result_hashes_reproduce_on_a_second_run() {
         }
     }
     assert!(compared >= 10, "compared {compared} results");
+}
+
+#[test]
+fn the_bridge_refuses_to_start_for_an_administrator() {
+    let _one_at_a_time = SESSION_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let s = start_server("admin");
+    prepare(&s);
+    let docs = docs_dir(&s);
+    let steps = s.data.join("steps-admin.jsonl");
+    let child = Command::new(env!("CARGO_BIN_EXE_nf-amoeba-tools"))
+        .args(["--base", &format!("http://127.0.0.1:{}", s.port), "--steps"])
+        .arg(&steps)
+        .arg("--docs-dir")
+        .arg(&docs)
+        .env("NF_AGENT_USER", "admin")
+        .env("NF_AGENT_PASS", ADMIN_PASS)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let out = child.wait_with_output().unwrap();
+    assert!(
+        !out.status.success(),
+        "an administrator must not drive the bridge"
+    );
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("administrator"), "{err}");
+    assert!(out.stdout.is_empty());
+}
+
+#[test]
+fn uploads_are_limited_to_the_documents_directory() {
+    let _one_at_a_time = SESSION_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let s = start_server("docs");
+    let project = prepare(&s);
+    let docs = docs_dir(&s);
+    let steps = s.data.join("steps-docs.jsonl");
+    let mut b = Bridge::start(&s, &steps, &docs);
+    let mut out = Vec::new();
+    let inside = step(
+        &mut b,
+        &mut out,
+        "upload_document",
+        json!({ "project": project, "path": docs.join("reportlab_lines.pdf").display().to_string() }),
+    );
+    assert_eq!(inside["ok"], true, "a file inside the directory: {inside}");
+
+    // an existing file outside the directory, and a link inside that points outside, are refused
+    let outside = pdf_fixture().display().to_string();
+    std::os::unix::fs::symlink(pdf_fixture(), docs.join("link.pdf")).unwrap();
+    let refused_outside = step(
+        &mut b,
+        &mut out,
+        "upload_document",
+        json!({ "project": project, "path": outside }),
+    );
+    let refused_link = step(
+        &mut b,
+        &mut out,
+        "upload_document",
+        json!({ "project": project, "path": docs.join("link.pdf").display().to_string() }),
+    );
+    // a missing file gets the same answer as a file outside: no existence oracle
+    let missing_outside = step(
+        &mut b,
+        &mut out,
+        "upload_document",
+        json!({ "project": project, "path": "/nonexistent-amb5t/x.pdf" }),
+    );
+    let missing_inside = step(
+        &mut b,
+        &mut out,
+        "upload_document",
+        json!({ "project": project, "path": "nope.pdf" }),
+    );
+    // a PDF inside the directory over 100 MB is refused before it is read
+    let big = docs.join("big.pdf");
+    std::fs::write(&big, b"%PDF-1.4\n").unwrap();
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&big)
+        .unwrap()
+        .set_len(100 * 1024 * 1024 + 1)
+        .unwrap();
+    let too_big = step(
+        &mut b,
+        &mut out,
+        "upload_document",
+        json!({ "project": project, "path": big.display().to_string() }),
+    );
+    b.finish();
+
+    for a in [
+        &refused_outside,
+        &refused_link,
+        &missing_outside,
+        &missing_inside,
+    ] {
+        assert_eq!(a["ok"], false, "{a}");
+        assert_eq!(
+            a["error"], refused_outside["error"],
+            "same answer for all: {a}"
+        );
+    }
+    assert_eq!(too_big["ok"], false, "{too_big}");
+    assert!(
+        too_big["error"].as_str().unwrap().contains("100 MB"),
+        "{too_big}"
+    );
+    // a refused upload sends no HTTP request at all
+    let text = std::fs::read_to_string(&steps).unwrap();
+    for l in text.lines() {
+        let rec: Value = serde_json::from_str(l).unwrap();
+        if rec["tool"] == "upload_document" && rec["status"] == "error" {
+            assert_eq!(
+                rec["http_status"],
+                json!([]),
+                "no HTTP for a refused upload: {rec}"
+            );
+        }
+    }
 }

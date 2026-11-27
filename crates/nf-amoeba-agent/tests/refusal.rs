@@ -46,7 +46,21 @@ fn serve_counting(listener: TcpListener, count: Arc<AtomicUsize>) {
             .unwrap_or(0);
         let mut body = vec![0u8; length];
         let _ = s.read_exact(&mut body);
-        let reply = "HTTP/1.1 200 OK\r\nSet-Cookie: nf_session=fake; Path=/\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}";
+        // sign-in gets a session cookie; the role probe gets an engineer role; nothing else is ever answered
+        let body = if text.starts_with("get /api/me") {
+            r#"{"id":2,"username":"agent","role":"engineer"}"#
+        } else {
+            "{}"
+        };
+        let cookie = if text.starts_with("post /api/login") {
+            "Set-Cookie: nf_session=fake; Path=/\r\n"
+        } else {
+            ""
+        };
+        let reply = format!(
+            "HTTP/1.1 200 OK\r\n{cookie}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
         let _ = s.write_all(reply.as_bytes());
     }
 }
@@ -69,6 +83,8 @@ fn forbidden_tools_are_refused_without_any_http_call() {
         .arg(&steps)
         .env("NF_AGENT_USER", "agent")
         .env("NF_AGENT_PASS", "not-a-real-password")
+        .arg("--docs-dir")
+        .arg(&dir)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -103,8 +119,8 @@ fn forbidden_tools_are_refused_without_any_http_call() {
     }
     assert_eq!(
         count.load(Ordering::SeqCst),
-        1,
-        "only the start-up sign-in may reach the server"
+        2,
+        "only the start-up sign-in and its role check may reach the server"
     );
 
     let text = std::fs::read_to_string(&steps).unwrap();

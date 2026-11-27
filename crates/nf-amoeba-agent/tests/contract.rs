@@ -62,3 +62,18 @@ fn every_schema_path_is_used_by_the_tool_list() {
         assert_eq!(d["parameters"]["additionalProperties"], Value::Bool(false));
     }
 }
+
+#[test]
+fn readme_marks_recompute_as_a_write() {
+    // recompute supersedes the job and writes an audit entry: the README must not call it a read
+    let readme =
+        std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md")).unwrap();
+    let line = readme
+        .lines()
+        .find(|l| l.contains("recompute") && l.contains("write"))
+        .unwrap_or_else(|| panic!("README does not describe recompute as a write"));
+    assert!(
+        line.contains("supersede") || line.contains("audit"),
+        "{line}"
+    );
+}

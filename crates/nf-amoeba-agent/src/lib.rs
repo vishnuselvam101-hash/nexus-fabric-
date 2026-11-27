@@ -4,5 +4,6 @@
 pub mod agent;
 pub mod http;
 pub mod schema;
+pub mod serve;
 pub mod steps;
 pub mod tools;

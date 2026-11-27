@@ -3,16 +3,17 @@
 
 use nf_amoeba_agent::agent::Agent;
 use nf_amoeba_agent::http::Tcp;
+use nf_amoeba_agent::serve::serve;
 use nf_amoeba_agent::steps::StepLog;
 use nf_amoeba_agent::tools;
-use serde_json::{Value, json};
-use std::io::{self, BufRead, Write};
+use std::io;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: nf-amoeba-tools --base http://127.0.0.1:<port> --steps <file.jsonl>
+const USAGE: &str =
+    "usage: nf-amoeba-tools --base http://127.0.0.1:<port> --steps <file.jsonl> --docs-dir <dir>
        nf-amoeba-tools --schema
-environment: NF_AGENT_USER and NF_AGENT_PASS (the dedicated local account; never printed)";
+environment: NF_AGENT_USER and NF_AGENT_PASS (an engineer account; never printed)";
 
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
@@ -27,19 +28,20 @@ fn main() -> ExitCode {
         println!("{USAGE}");
         return ExitCode::SUCCESS;
     }
-    let (mut base, mut steps) = (None, None);
+    let (mut base, mut steps, mut docs) = (None, None, None);
     let mut it = argv.iter();
     while let Some(a) = it.next() {
         match (a.as_str(), it.next()) {
             ("--base", Some(v)) => base = Some(v.clone()),
             ("--steps", Some(v)) => steps = Some(PathBuf::from(v)),
+            ("--docs-dir", Some(v)) => docs = Some(PathBuf::from(v)),
             _ => {
                 eprintln!("{USAGE}");
                 return ExitCode::from(2);
             }
         }
     }
-    let (Some(base), Some(steps)) = (base, steps) else {
+    let (Some(base), Some(steps), Some(docs)) = (base, steps, docs) else {
         eprintln!("{USAGE}");
         return ExitCode::from(2);
     };
@@ -67,49 +69,25 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let mut agent = Agent::new(Tcp { host, port }, log);
+    let mut agent = match Agent::new(Tcp { host, port }, log).with_docs_dir(&docs) {
+        Ok(a) => a,
+        Err(e) => {
+            eprintln!("nf-amoeba-tools: {e}");
+            return ExitCode::from(2);
+        }
+    };
     if let Err(e) = agent.login(&user, &pass) {
         eprintln!("nf-amoeba-tools: {e}");
         return ExitCode::FAILURE;
     }
-    match serve(&mut agent) {
+    let stdout = io::stdout();
+    match serve(&mut agent, io::stdin().lock(), stdout.lock()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("nf-amoeba-tools: {e}");
             ExitCode::FAILURE
         }
     }
-}
-
-fn serve(agent: &mut Agent<Tcp>) -> io::Result<()> {
-    let stdout = io::stdout();
-    let mut out = stdout.lock();
-    for line in io::stdin().lock().lines() {
-        let line = line?;
-        if line.trim().is_empty() {
-            continue;
-        }
-        let resp = match serde_json::from_str::<Value>(&line) {
-            Err(_) => json!({ "id": null, "ok": false, "error": "request is not JSON" }),
-            Ok(req) => {
-                let id = req.get("id").cloned().unwrap_or(Value::Null);
-                let tool = req["tool"].as_str().unwrap_or_default();
-                let args = req.get("args").cloned().unwrap_or_else(|| json!({}));
-                let a = agent.call(tool, &args);
-                let mut resp = json!({ "id": id, "ok": a.ok, "step": a.step });
-                if let Some(r) = a.result {
-                    resp["result"] = r;
-                }
-                if let Some(e) = a.error {
-                    resp["error"] = json!(e);
-                }
-                resp
-            }
-        };
-        writeln!(out, "{resp}")?;
-        out.flush()?;
-    }
-    Ok(())
 }
 
 /// Accepts only a loopback address: the bridge never talks to another machine.

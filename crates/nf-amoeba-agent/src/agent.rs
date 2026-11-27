@@ -7,7 +7,16 @@ use crate::steps::{StepLog, redact};
 use crate::tools::{self, FAMILIES};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
+use std::fs::File;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
+
+/// The largest PDF the bridge will upload.
+const MAX_UPLOAD_BYTES: u64 = 100 * 1024 * 1024;
+/// The one answer for every path that is not a PDF inside the documents directory. The same text for a missing file,
+/// a file outside the directory and a link out of it, so the answer shows nothing about the rest of the disk.
+const REFUSED_DOCUMENT: &str = "document refused: give a PDF file inside the documents directory";
 
 /// The answer to one tool call, as written to stdout.
 pub struct Answer {
@@ -22,6 +31,8 @@ pub struct Agent<T: Transport> {
     cookie: Option<String>,
     steps: StepLog,
     http_calls: u64,
+    /// The only directory uploads may come from (canonical). None refuses every upload.
+    docs_dir: Option<PathBuf>,
     // scratch state of the call in progress
     statuses: Vec<u16>,
     engine: Option<String>,
@@ -38,9 +49,21 @@ impl<T: Transport> Agent<T> {
             cookie: None,
             steps,
             http_calls: 0,
+            docs_dir: None,
             statuses: Vec::new(),
             engine: None,
         }
+    }
+
+    /// Sets the documents directory. Uploads may name only files inside it, after symlinks are resolved.
+    pub fn with_docs_dir(mut self, dir: &Path) -> Result<Self, String> {
+        let real = std::fs::canonicalize(dir)
+            .map_err(|e| format!("cannot use the documents directory: {e}"))?;
+        if !real.is_dir() {
+            return Err("the documents directory is not a directory".into());
+        }
+        self.docs_dir = Some(real);
+        Ok(self)
     }
 
     /// Number of HTTP requests sent so far (login included).
@@ -49,6 +72,7 @@ impl<T: Transport> Agent<T> {
     }
 
     /// Signs in with the dedicated account. The password is sent once and is never recorded or printed.
+    /// An administrator account is refused: the bridge is for engineering accounts only.
     pub fn login(&mut self, username: &str, password: &str) -> Result<(), String> {
         let started = Instant::now();
         self.statuses.clear();
@@ -56,7 +80,7 @@ impl<T: Transport> Agent<T> {
         let outcome = match self.raw("POST", "/api/login", json_headers(), body.into_bytes()) {
             Ok(r) if r.status == 200 && r.set_cookie.is_some() => {
                 self.cookie = r.set_cookie;
-                Ok(())
+                self.check_role()
             }
             Ok(r) => Err(format!("login refused (HTTP {})", r.status)),
             Err(e) => Err(e),
@@ -74,8 +98,21 @@ impl<T: Transport> Agent<T> {
         outcome
     }
 
+    fn check_role(&mut self) -> Result<(), String> {
+        let me = self.get_answer("/api/me")?;
+        match me["role"].as_str() {
+            Some("admin") => Err(
+                "refused: the bridge does not run with an administrator account; sign in with an engineer account"
+                    .into(),
+            ),
+            Some(_) => Ok(()),
+            None => Err("cannot confirm the account role".into()),
+        }
+    }
+
     /// Runs one tool call. A name that is not an allowed tool is refused before anything is sent.
-    pub fn call(&mut self, tool: &str, args: &Value) -> Answer {
+    /// `Err` means the step record could not be written: the caller must stop, and no answer is given.
+    pub fn call(&mut self, tool: &str, args: &Value) -> Result<Answer, String> {
         let started = Instant::now();
         self.statuses.clear();
         self.engine = None;
@@ -93,20 +130,15 @@ impl<T: Transport> Agent<T> {
         };
         let error = outcome.as_ref().err().cloned();
         let result = outcome.ok();
-        match self.record(tool, args, status, result.as_ref(), error.as_ref(), started) {
-            Ok(step) => Answer {
-                ok: result.is_some(),
-                result,
-                error,
-                step,
-            },
-            Err(e) => Answer {
-                ok: false,
-                result: None,
-                error: Some(format!("cannot write the steps file: {e}")),
-                step: 0,
-            },
-        }
+        let step = self
+            .record(tool, args, status, result.as_ref(), error.as_ref(), started)
+            .map_err(|e| format!("cannot write the steps file: {e}"))?;
+        Ok(Answer {
+            ok: result.is_some(),
+            result,
+            error,
+            step,
+        })
     }
 
     fn dispatch(&mut self, tool: &str, a: &Value) -> Result<Value, String> {
@@ -164,14 +196,34 @@ impl<T: Transport> Agent<T> {
 
     fn upload(&mut self, a: &Value) -> Result<Value, String> {
         let project = int(a, "project")?;
-        let path = a["path"].as_str().unwrap_or_default();
-        let bytes = std::fs::read(path).map_err(|e| format!("cannot read the file: {e}"))?;
+        let docs = self
+            .docs_dir
+            .clone()
+            .ok_or("no documents directory is set: start the bridge with --docs-dir")?;
+        let path = upload_path(&docs, a["path"].as_str().unwrap_or_default())?;
+        let file = File::open(&path).map_err(|_| REFUSED_DOCUMENT.to_string())?;
+        let too_big = || "the file is larger than 100 MB: nothing was sent".to_string();
+        if file
+            .metadata()
+            .map_err(|_| REFUSED_DOCUMENT.to_string())?
+            .len()
+            > MAX_UPLOAD_BYTES
+        {
+            return Err(too_big());
+        }
+        let mut bytes = Vec::new();
+        file.take(MAX_UPLOAD_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|e| format!("cannot read the file: {e}"))?;
+        if bytes.len() as u64 > MAX_UPLOAD_BYTES {
+            return Err(too_big());
+        }
         if !bytes.starts_with(b"%PDF-") {
             return Err(
                 "not a PDF: the content does not start with %PDF-; nothing was sent".into(),
             );
         }
-        let name = std::path::Path::new(path)
+        let name = path
             .file_name()
             .and_then(|n| n.to_str())
             .filter(|n| n.chars().all(|c| c.is_ascii_graphic() || c == ' '))
@@ -257,7 +309,8 @@ impl<T: Transport> Agent<T> {
         answer(&r)
     }
 
-    /// Downloads a part's DXF only to measure it. A server refusal (a hold) is returned as the server's body, unchanged.
+    /// Downloads a part's DXF only to measure it. A hold (HTTP 409) is returned as the server's body, unchanged.
+    /// Any other refusal is a rejection, also unchanged; 401/403 and server errors are errors.
     fn dxf_digest(&mut self, a: &Value) -> Result<Value, String> {
         let job = int(a, "job")?;
         let part = a["part"].as_str().unwrap_or_default();
@@ -270,18 +323,19 @@ impl<T: Transport> Agent<T> {
             );
         }
         let r = self.get_raw(&format!("/api/calculations/{job}/dxf/{part}"))?;
-        match r.status {
-            200..=299 => Ok(json!({
-                "job": job, "part": part, "held": false,
-                "bytes": r.body.len(), "sha256": sha256_hex(&r.body),
-            })),
-            401 | 403 => Err(server_error(r.status, &r.body)),
-            400..=499 => Ok(json!({
+        if r.status == 409 {
+            return Ok(json!({
                 "job": job, "part": part, "held": true,
                 "http_status": r.status, "hold": parse_body(&r.body),
-            })),
-            s => Err(server_error(s, &r.body)),
+            }));
         }
+        if !(200..=299).contains(&r.status) {
+            return answer(&r);
+        }
+        Ok(json!({
+            "job": job, "part": part, "held": false,
+            "bytes": r.body.len(), "sha256": sha256_hex(&r.body),
+        }))
     }
 
     fn note_engine(&mut self, v: &Value) {
@@ -377,6 +431,21 @@ pub fn without_clock(v: &Value) -> Value {
         Value::Array(a) => Value::Array(a.iter().map(without_clock).collect()),
         other => other.clone(),
     }
+}
+
+/// Resolves a requested upload path to a real file inside the documents directory. Relative paths are taken from
+/// the directory. Every failure gives the same answer, so a missing file and a file outside look alike.
+fn upload_path(docs: &Path, given: &str) -> Result<PathBuf, String> {
+    let candidate = if Path::new(given).is_absolute() {
+        PathBuf::from(given)
+    } else {
+        docs.join(given)
+    };
+    let real = std::fs::canonicalize(&candidate).map_err(|_| REFUSED_DOCUMENT.to_string())?;
+    if !real.starts_with(docs) || !real.is_file() {
+        return Err(REFUSED_DOCUMENT.into());
+    }
+    Ok(real)
 }
 
 fn propose_read(a: &Value) -> Result<Value, String> {

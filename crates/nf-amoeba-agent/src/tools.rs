@@ -64,7 +64,7 @@ pub fn definitions() -> Vec<Value> {
         ),
         def(
             "upload_document",
-            "Upload a PDF file into a project. Only files whose content starts with %PDF- are sent. Returns the document id.",
+            "Upload a PDF file from the documents directory into a project. Only files inside that directory whose content starts with %PDF- and that are at most 100 MB are sent. Returns the document id.",
             obj(
                 json!({ "project": id("Project id."), "path": { "type": "string", "minLength": 1, "description": "Local path of the PDF file." } }),
                 &["project", "path"],
@@ -129,7 +129,7 @@ pub fn definitions() -> Vec<Value> {
         ),
         def(
             "recompute",
-            "Recompute a job with the current engine version.",
+            "Recompute a job with the current engine version. This is a write: it supersedes the job and records an audit entry.",
             obj(json!({ "job": id("Calculation job id.") }), &["job"]),
         ),
         def(

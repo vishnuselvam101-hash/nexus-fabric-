@@ -5,8 +5,19 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::Path;
 
+/// Where step records go: a file in production, any writer in tests. `persist` makes a record durable.
+pub trait Sink: Write + Send {
+    fn persist(&mut self) -> io::Result<()>;
+}
+
+impl Sink for File {
+    fn persist(&mut self) -> io::Result<()> {
+        self.sync_data()
+    }
+}
+
 pub struct StepLog {
-    file: File,
+    sink: Box<dyn Sink>,
     count: u64,
 }
 
@@ -19,17 +30,22 @@ impl StepLog {
         }
         let count = existing.iter().filter(|b| **b == b'\n').count() as u64;
         let file = OpenOptions::new().create(true).append(true).open(path)?;
-        Ok(Self { file, count })
+        Ok(Self::with_sink(Box::new(file), count))
     }
 
-    /// Appends one record and returns its step number.
+    /// A step log over any sink; `count` is the number of records already written.
+    pub fn with_sink(sink: Box<dyn Sink>, count: u64) -> Self {
+        Self { sink, count }
+    }
+
+    /// Appends one record and returns its step number. An error means the record is not durable.
     pub fn append(&mut self, mut record: Map<String, Value>) -> io::Result<u64> {
         let step = self.count + 1;
         record.insert("step".into(), Value::from(step));
         let mut line = serde_json::to_string(&Value::Object(record)).map_err(io::Error::other)?;
         line.push('\n');
-        self.file.write_all(line.as_bytes())?;
-        self.file.sync_data()?;
+        self.sink.write_all(line.as_bytes())?;
+        self.sink.persist()?;
         self.count = step;
         Ok(step)
     }

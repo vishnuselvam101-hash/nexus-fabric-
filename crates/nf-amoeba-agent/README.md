@@ -13,10 +13,15 @@ dedicated engineer account on that server. Create it in the UI or with the API. 
 
 ```
 NF_AGENT_USER=<account> NF_AGENT_PASS=<password> \
-  nf-amoeba-tools --base http://127.0.0.1:<port> --steps /path/to/steps.jsonl
+  nf-amoeba-tools --base http://127.0.0.1:<port> --steps /path/to/steps.jsonl --docs-dir /path/to/pdfs
 ```
 
 - `--base` must be a loopback address (`127.0.0.1` or `localhost`). The bridge signs in once at start-up.
+- The account must be an engineer account. The bridge refuses to start for an administrator account (it checks the
+  role with `/api/me`) and exits non-zero.
+- `--docs-dir` is required. Uploads may name only files inside it: symlinks are resolved first, a file of more than
+  100 MB is refused, and a missing file and a file outside the directory get the same answer.
+- If a step record cannot be written, the bridge stops with a non-zero exit and gives no answer for that call.
 - The password is read from the environment, sent once to `/api/login`, and never printed or written to the steps file.
 - `--steps` is append-only evidence. Step numbers continue across runs.
 
@@ -32,7 +37,7 @@ One JSON request per line on stdin. One JSON answer per line on stdout, in the s
 - `ok: false` answers carry `error` instead of `result`. A refused request has `error: "tool not available"`.
 - A server refusal (other 4xx) is data, not a crash: `result` is `{"http_status": N, "rejected": <server body>}`.
 - A withheld DXF is data too: `get_dxf_digest` returns `{"held": true, "http_status", "hold": <server body unchanged>}`
-  and no bytes or hash.
+  (HTTP 409 only) and no bytes or hash. Other refusals of a DXF request are rejections, not holds.
 
 ## Tools
 
@@ -47,6 +52,8 @@ Read and compute tools: `list_projects`, `get_project`, `upload_document` (PDF c
 Not available, by construction: corrections, obligation resolution, setup, account and membership changes, password
 changes, sign-out of others, audit writes, and any approval or release. A call to any of these names returns
 `tool not available` and makes no HTTP request.
+
+`recompute` is a write: it supersedes the job and records an audit entry. Call it only when a new engine result is wanted.
 
 `propose_read` records a CANDIDATE reading (document, page, box, value, unit, kind) in the steps file. It is never
 sent to the server, and `calculate` never reads it. Every parameter of a calculation must be given explicitly.

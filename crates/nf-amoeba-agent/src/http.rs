@@ -5,6 +5,9 @@ use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
+/// The largest answer the bridge accepts from the server (the DXF and PDF downloads are the big ones).
+pub const MAX_ANSWER: u64 = 256 * 1024 * 1024;
+
 #[derive(Debug, Clone)]
 pub struct Request {
     pub method: &'static str,
@@ -57,11 +60,24 @@ impl Transport for Tcp {
         s.write_all(head.as_bytes())
             .and_then(|()| s.write_all(&req.body))
             .map_err(|e| format!("cannot send the request: {e}"))?;
-        let mut raw = Vec::new();
-        s.read_to_end(&mut raw)
-            .map_err(|e| format!("cannot read the answer: {e}"))?;
+        let raw = read_capped(&mut s, MAX_ANSWER)?;
         parse_reply(&raw)
     }
+}
+
+/// Reads a whole answer, refusing one larger than `cap` bytes instead of holding it in memory.
+pub fn read_capped<R: Read>(r: R, cap: u64) -> Result<Vec<u8>, String> {
+    let mut raw = Vec::new();
+    r.take(cap.saturating_add(1))
+        .read_to_end(&mut raw)
+        .map_err(|e| format!("cannot read the answer: {e}"))?;
+    if raw.len() as u64 > cap {
+        return Err(format!(
+            "the answer is larger than {} MiB: refused",
+            cap / (1024 * 1024)
+        ));
+    }
+    Ok(raw)
 }
 
 /// Splits a raw HTTP/1.1 answer into status, first Set-Cookie and the body (chunked or length-delimited).
@@ -121,7 +137,8 @@ fn dechunk(mut data: &[u8]) -> Result<Vec<u8>, String> {
         if size == 0 {
             return Ok(out);
         }
-        if data.len() < size + 2 {
+        let need = size.checked_add(2).ok_or("malformed chunk size")?;
+        if data.len() < need {
             return Err("truncated chunked answer".into());
         }
         out.extend_from_slice(&data[..size]);
@@ -159,5 +176,54 @@ mod tests {
     #[test]
     fn missing_headers_end_is_an_error() {
         assert!(parse_reply(b"HTTP/1.1 200 OK\r\n").is_err());
+    }
+
+    #[test]
+    fn chunk_size_that_overflows_is_an_error() {
+        // size + 2 would overflow usize: this must be an error, not a panic or a wrapped length
+        let raw = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nffffffffffffffff\r\nabc";
+        assert!(parse_reply(raw).is_err());
+    }
+
+    #[test]
+    fn answer_larger_than_the_cap_is_refused() {
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader, Write};
+            let (mut s, _) = listener.accept().unwrap();
+            let mut head = BufReader::new(s.try_clone().unwrap());
+            loop {
+                let mut line = String::new();
+                if head.read_line(&mut line).unwrap() == 0 || line == "\r\n" {
+                    break;
+                }
+            }
+            // no length header: the body runs to the close, and it is one byte over the cap
+            s.write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n")
+                .unwrap();
+            let chunk = vec![b'a'; 1 << 20];
+            for _ in 0..(MAX_ANSWER >> 20) {
+                if s.write_all(&chunk).is_err() {
+                    return;
+                }
+            }
+            let _ = s.write_all(b"a");
+        });
+        let mut t = Tcp {
+            host: "127.0.0.1".into(),
+            port,
+        };
+        let req = Request {
+            method: "GET",
+            path: "/big".into(),
+            headers: Vec::new(),
+            body: Vec::new(),
+        };
+        let err = t
+            .send(&req)
+            .expect_err("an answer over the cap is an error");
+        assert!(err.contains("larger"), "{err}");
+        server.join().unwrap();
     }
 }
