@@ -23,6 +23,10 @@
 
 - Linux: `sha256sum -c SHA256SUMS`
 - Windows (PowerShell): `Get-FileHash <file> -Algorithm SHA256` and compare with `SHA256SUMS`.
+- Signature of `SHA256SUMS` (needs OpenSSL 1.1.1 or later, on Linux or Windows): get `SHA256SUMS.sig` and the public key `nf-release-public.pem` (an Ed25519 public key in PEM format, beginning `-----BEGIN PUBLIC KEY-----`) from the same page as the download. Then run:
+  `openssl pkeyutl -verify -pubin -inkey nf-release-public.pem -rawin -in SHA256SUMS -sigfile SHA256SUMS.sig`
+  It prints `Signature Verified Successfully` only if `SHA256SUMS` was made by NEXUS FABRIC's release key. Any other answer: do not use the files. Then run the SHA-256 check above on the packages.
+  (`packaging/verify_sums.sh <folder> nf-release-public.pem` runs the same check from the source tree.)
 
 ### Windows: install
 
@@ -95,6 +99,10 @@ The first-run screen in the browser shows the same information.
 
 - Linux: `sha256sum -c SHA256SUMS`
 - Windows（PowerShell）: `Get-FileHash <ファイル> -Algorithm SHA256` を実行し、`SHA256SUMS` と比べます。
+- `SHA256SUMS` の署名確認（OpenSSL 1.1.1 以降が必要。Linux でも Windows でも可）: `SHA256SUMS.sig` と公開鍵 `nf-release-public.pem`（PEM 形式の Ed25519 公開鍵。先頭は `-----BEGIN PUBLIC KEY-----`）を、ダウンロードしたページと同じ場所から取得し、次を実行します。
+  `openssl pkeyutl -verify -pubin -inkey nf-release-public.pem -rawin -in SHA256SUMS -sigfile SHA256SUMS.sig`
+  `Signature Verified Successfully` と表示された場合だけ、NEXUS FABRIC のリリース鍵で作られた `SHA256SUMS` です。それ以外の結果ならファイルを使わないでください。そのうえで上の SHA-256 確認をパッケージごとに行います。
+  （ソースツリーからは `packaging/verify_sums.sh <フォルダ> nf-release-public.pem` で同じ確認ができます。）
 
 ### Windows: インストール
 
