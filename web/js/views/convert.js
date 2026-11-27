@@ -12,7 +12,7 @@ const MEMBRANE = {
 
 const RECENT_KEY = 'nf_recent', MAX_RECENT = 5, SCALE_KEY = 'nf.scale';
 const STAGES = ['cv2.stage.upload', 'cv2.stage.read', 'cv2.stage.write'];
-let root, runId = 0, stopPoll, timerH, timerT0, dragN = 0;
+let root, starting = false, runId = 0, stopPoll, timerH, timerT0, dragN = 0;
 
 function el(tag, cls, txt) {
   const e = document.createElement(tag); if (cls) e.className = cls;
@@ -175,8 +175,14 @@ async function handleFile(file) {
   const scale = readScale(), scaleValue = scaleNumber(scale);
   if (scaleValue == null) { showScaleError(); return; }
   saveScale({ kind: scale.kind, value: scale.value });
+  if (starting) return;
   const fxMs = getState().convert.phase === 'idle' ? splitFx() : 0;
-  if (fxMs) await wait(fxMs);
+  if (fxMs) {
+    const seen = runId; starting = true;
+    await wait(fxMs); starting = false;
+    // the screen was left, a run started meanwhile, or the phase moved on: this drop is void
+    if (seen !== runId || !root || getState().convert.phase !== 'idle') return;
+  }
   const run = ++runId; teardown();
   const pgEl = root && root.querySelector('#conv-page');
   const page = pgEl ? parseInt(pgEl.value, 10) || 1 : 1;
@@ -355,7 +361,13 @@ function buildPanels() {
     ad.textContent = '';
     if (am) {
       const records = am.records_by_kind.reduce((n, r) => n + r.count, 0);
-      const held = (jobs || []).reduce((n, c) => n + ((c.export && c.export.amoeba_holds) || []).length + ((c.export && c.export.withheld) || []).length, 0);
+      // each (job, part) once, superseded jobs left out (their files are withheld as a whole)
+      const heldSet = new Set();
+      for (const c of (jobs || [])) {
+        if (c.superseded || c.state === 'superseded' || !c.export) continue;
+        for (const w of [...(c.export.amoeba_holds || []), ...(c.export.withheld || [])]) heldSet.add(c.id + '|' + w.part);
+      }
+      const held = heldSet.size;
       stat('home.a.records', records); stat('home.a.open', am.obligations.open, am.obligations.open > 0); stat('home.a.held', held, held > 0);
     } else ad.appendChild(el('div', 'fp-muted', t('home.na')));
     // the engine id comes from the newest job (the health answer carries none)
@@ -377,6 +389,21 @@ function statusStrip() {
   return s;
 }
 
+/* Japanese subline: the status words stay whole (nowrap) and lines may break after 。 and ・ only */
+function heroSub(text) {
+  const p = el('p', 'hero-sub');
+  if (document.documentElement.lang !== 'ja') { p.textContent = text; return p; }
+  for (const part of text.split(/(未検証|未リリース|板展開ではありません。|[。・])/)) {
+    if (!part) continue;
+    if (part === '。' || part === '・') { p.appendChild(document.createTextNode(part)); p.appendChild(document.createElement('wbr')); continue; }
+    if (part === '未検証' || part === '未リリース' || part === '板展開ではありません。') {
+      p.appendChild(el('span', 'nb', part));
+      if (part.endsWith('。')) p.appendChild(document.createElement('wbr'));
+    } else p.appendChild(document.createTextNode(part));
+  }
+  return p;
+}
+
 function renderIdle() {
   dropSteel();
   const seq = ++sceneSeq;
@@ -388,7 +415,7 @@ function renderIdle() {
   const h1 = el('h1', 'hero-title');
   h1.appendChild(el('span', 'ht-a', t('home.h1a'))); h1.appendChild(el('span', 'ht-b', t('home.h1b')));
   top.appendChild(h1);
-  top.appendChild(el('p', 'hero-sub', t('cv2.sub')));
+  top.appendChild(heroSub(t('cv2.sub')));
   if (notice) { const noticeEl = el('div', 'alert warn'); noticeEl.appendChild(el('p', null, notice)); top.appendChild(noticeEl); }
   const zone = el('div', 'dropzone');
   const main = el('div', 'dz-main');
@@ -420,6 +447,7 @@ function renderIdle() {
   fld.appendChild(pg); det.appendChild(fld); row.appendChild(det);
   zone.appendChild(row);
   zone.addEventListener('click', (e) => {
+    if (e.target.closest('button, input, select, summary, a, label')) return;
     const e2 = e.target.closest('.dz-icon, .dz-hint, .dz-main') || e.target;
     if (e2 === zone || e2.classList.contains('dz-icon') || e2.classList.contains('dz-hint') || e2.classList.contains('dz-main')) inp.click();
   });

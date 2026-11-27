@@ -101,7 +101,10 @@ function plateGeometry() {
   const lineGeo = new THREE.BufferGeometry();
   lineGeo.setAttribute('position', geo.attributes.position);
   lineGeo.setIndex(edge);
+  let lastQ = NaN;
   return { geo, lineGeo, set(q) {
+    if (q === lastQ) return;
+    lastQ = q;
     const flatLen = PLATE_L * q, rolledLen = PLATE_L - flatLen;
     const xc = PLATE_L / 2 - flatLen;                     // contact point of the roll with the floor
     for (let j = 0; j <= PL_NZ; j++) {
@@ -115,7 +118,7 @@ function plateGeometry() {
           const phi = a / PL_R;
           x = xc + rho * Math.sin(phi); y = rho * (1 - Math.cos(phi));
         }
-        pos.set([x, y, z], (j * (PL_NX + 1) + i) * 3);
+        const o = (j * (PL_NX + 1) + i) * 3; pos[o] = x; pos[o + 1] = y; pos[o + 2] = z;
       }
     }
     geo.attributes.position.needsUpdate = true;
