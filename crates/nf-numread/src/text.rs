@@ -155,22 +155,34 @@ fn comma_reading(core: &str) -> (String, Option<f64>, bool) {
 /// Clean and classify one token; None when it is not a number in the sense of this reader
 /// (an optional sign or prefix mark, a decimal number, an optional unit mark; or a date/fraction like 1/1).
 pub fn parse(raw: &str) -> Option<Parsed> {
+    // full-width digits and punctuation become ASCII first (the token is then flagged repaired)
     let mut s: Vec<char> = raw
         .chars()
         .map(|c| match c {
             'Φ' | 'Ø' | 'ø' | '⌀' | '∅' | 'Ф' => 'φ',
+            '０'..='９' => char::from(b'0' + (c as u32 - '０' as u32) as u8),
             '＋' => '+',
-            '−' => '-',
+            '−' | '－' => '-',
             '．' => '.',
+            '，' => ',',
             c => c,
         })
         .collect();
+    // A stripped or added leading dot or sign is not known to be right: the item is flagged ambiguous.
+    let mut lead_repair = false;
+    // ".5", "-.5", "+.5": the missing zero is put back, so the value is 0.5 and not 5
+    let at = usize::from(matches!(s.first(), Some('+' | '-')));
+    if s.get(at) == Some(&'.') && s.get(at + 1).is_some_and(char::is_ascii_digit) {
+        s.insert(at, '0');
+        lead_repair = true;
+    }
     // A leading + or - right before a digit is a sign, not a stroke: it is kept.
     let signed = |s: &[char]| {
         matches!(s.first(), Some('+' | '-')) && s.get(1).is_some_and(char::is_ascii_digit)
     };
     // junk (arrow heads, dimension-line strokes) glued to either end
     while s.first().is_some_and(|c| JUNK.contains(*c) && *c != '±') && s.len() > 1 && !signed(&s) {
+        lead_repair |= matches!(s[0], '.' | '+' | '-');
         s.remove(0);
     }
     while s.last().is_some_and(|c| JUNK.contains(*c)) && s.len() > 1 {
@@ -226,7 +238,7 @@ pub fn parse(raw: &str) -> Option<Parsed> {
     );
     let ends_ok = span.first().is_some_and(char::is_ascii_digit)
         && span.last().is_some_and(char::is_ascii_digit);
-    let mut ambiguous = stroke_sign;
+    let mut ambiguous = stroke_sign || lead_repair;
     let mut forced: Option<Option<f64>> = None;
     let mut core: Vec<char> = span.clone();
     if ends_ok && span.iter().any(|c| matches!(c, ':' | ';')) {
@@ -241,6 +253,8 @@ pub fn parse(raw: &str) -> Option<Parsed> {
         if let [i] = seps[..] {
             if matches!(span[i], ':' | ';') && i >= 3 && span.len() - i - 1 <= 2 {
                 core[i] = '.';
+                // the value is kept, but a colon or semicolon read as a point is never silent
+                ambiguous = true;
             }
         }
     } else if ends_ok && span.contains(&',') {
@@ -466,6 +480,79 @@ mod tests {
         );
         // no comma: never ambiguous
         assert!(!full("12.5").unwrap().3);
+    }
+
+    /// REVIEW-2 round 2: (input, text, value, kind, ambiguous). A stripped leading dot or sign,
+    /// and every ':' / ';' read as a decimal point, is kept with its value and flagged.
+    #[test]
+    fn review2_stripped_lead_and_colon_repairs_are_ambiguous() {
+        let cases: &[(&str, &str, Option<f64>, Kind, bool)] = &[
+            (".5", "0.5", Some(0.5), Kind::Number, true),
+            ("-.5", "-0.5", Some(-0.5), Kind::Tolerance, true),
+            ("+.5", "+0.5", Some(0.5), Kind::Tolerance, true),
+            ("-φ5", "φ5", Some(5.0), Kind::Diameter, true),
+            ("+φ0.5", "φ0.5", Some(0.5), Kind::Diameter, true),
+            ("-L2924.8", "L2924.8", Some(2924.8), Kind::Length, true),
+            ("100:1", "100.1", Some(100.1), Kind::Number, true),
+            ("500:1", "500.1", Some(500.1), Kind::Number, true),
+            ("100;5", "100.5", Some(100.5), Kind::Number, true),
+            ("1467:12", "1467.12", Some(1467.12), Kind::Number, true),
+        ];
+        for &(raw, text, value, kind, amb) in cases {
+            let x = parse(raw).unwrap_or_else(|| panic!("{raw}: no reading"));
+            assert_eq!(
+                (x.text.as_str(), x.value, x.kind, x.ambiguous),
+                (text, value, kind, amb),
+                "{raw}"
+            );
+            assert!(x.repaired, "{raw}");
+        }
+    }
+
+    /// REVIEW-2 "correct" list, kept as regression: (input, text, value, kind, ambiguous).
+    #[test]
+    fn review2_correct_list_is_unchanged() {
+        let cases: &[(&str, &str, Option<f64>, Kind, bool)] = &[
+            ("1:50", "1:50", None, Kind::Number, true),
+            ("12:30", "12:30", None, Kind::Number, true),
+            ("2026.11.27", "2026.11.27", None, Kind::Number, false),
+            ("10-20", "10-20", None, Kind::Number, false),
+            ("1.500,5", "1.500.5", None, Kind::Number, true),
+            ("-0.5", "-0.5", Some(-0.5), Kind::Tolerance, false),
+            ("-10.5", "10.5", Some(10.5), Kind::Number, true),
+            ("-5", "5", Some(5.0), Kind::Number, true),
+            ("±0.1", "±0.1", Some(0.1), Kind::Tolerance, false),
+            ("1,500", "1500", Some(1500.0), Kind::Number, false),
+            ("1,500.5", "1500.5", Some(1500.5), Kind::Number, false),
+        ];
+        for &(raw, text, value, kind, amb) in cases {
+            let x = parse(raw).unwrap_or_else(|| panic!("{raw}: no reading"));
+            assert_eq!(
+                (x.text.as_str(), x.value, x.kind, x.ambiguous),
+                (text, value, kind, amb),
+                "{raw}"
+            );
+        }
+    }
+
+    #[test]
+    fn full_width_digits_and_punctuation_are_normalised_and_flagged() {
+        let cases: &[(&str, &str, Option<f64>, Kind, bool)] = &[
+            ("１２．５", "12.5", Some(12.5), Kind::Number, false),
+            ("φ９４４．０", "φ944.0", Some(944.0), Kind::Diameter, false),
+            ("＋０．２", "+0.2", Some(0.2), Kind::Tolerance, false),
+            ("－０．５", "-0.5", Some(-0.5), Kind::Tolerance, false),
+            ("１，５００", "1500", Some(1500.0), Kind::Number, false),
+        ];
+        for &(raw, text, value, kind, amb) in cases {
+            let x = parse(raw).unwrap_or_else(|| panic!("{raw}: no reading"));
+            assert_eq!(
+                (x.text.as_str(), x.value, x.kind, x.ambiguous),
+                (text, value, kind, amb),
+                "{raw}"
+            );
+            assert!(x.repaired, "{raw}");
+        }
     }
 
     #[test]
