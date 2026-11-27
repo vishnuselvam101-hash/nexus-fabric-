@@ -683,6 +683,8 @@ impl RealEngine for RustShapes {
             "s05" => eval_s05(n),
             "s10" => eval_s10(n),
             "s11" => eval_s11(n),
+            "s12" => eval_s12(n),
+            "s13" => eval_s13(n),
             _ => None,
         }
     }
@@ -2061,12 +2063,47 @@ fn derived_tee_cases_are_computed_but_not_counted() {
 // ======================================================================================================
 
 /// (main D, main t, d, t, H, L, x0, e, angle, mount) of the three lateral examples (test_build.mjs:430-436).
+#[allow(clippy::type_complexity)]
 const LAT_EX: [(f64, f64, f64, f64, f64, f64, f64, f64, f64, Mount); 3] = [
-    (1016.0, 12.0, 1016.0, 12.0, 1400.0, 2400.0, 900.0, 0.0, 45.0, Mount::SetOn),
-    (1016.0, 12.0, 610.0, 9.0, 1200.0, 2000.0, 700.0, 0.0, 45.0, Mount::SetOn),
-    (1016.0, 12.0, 406.4, 9.0, 1000.0, 1600.0, 600.0, 150.0, 60.0, Mount::SetIn),
+    (
+        1016.0,
+        12.0,
+        1016.0,
+        12.0,
+        1400.0,
+        2400.0,
+        900.0,
+        0.0,
+        45.0,
+        Mount::SetOn,
+    ),
+    (
+        1016.0,
+        12.0,
+        610.0,
+        9.0,
+        1200.0,
+        2000.0,
+        700.0,
+        0.0,
+        45.0,
+        Mount::SetOn,
+    ),
+    (
+        1016.0,
+        12.0,
+        406.4,
+        9.0,
+        1000.0,
+        1600.0,
+        600.0,
+        150.0,
+        60.0,
+        Mount::SetIn,
+    ),
 ];
 
+#[allow(clippy::too_many_arguments)]
 fn lat_piece(
     d: f64,
     t: f64,
@@ -2089,8 +2126,20 @@ fn lat_piece(
     })
 }
 
+#[allow(clippy::type_complexity)]
 fn lat_main(
-    (dm, tm, d, t, _h, l, x0, e, ang, mount): (f64, f64, f64, f64, f64, f64, Option<f64>, f64, Option<f64>, Mount),
+    (dm, tm, d, t, _h, l, x0, e, ang, mount): (
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        f64,
+        Option<f64>,
+        f64,
+        Option<f64>,
+        Mount,
+    ),
 ) -> Result<TeeMainResult, nf_core::shapes::ShapeRefusal> {
     let mut b = BranchOnMain::new("1", d, t, x0, 0.0, e);
     b.angle_deg = ang;
@@ -2144,33 +2193,115 @@ fn eval_s11(n: usize) -> Option<Got> {
         };
     }
     let plate0 = |r: f64, rr: f64, e: f64, a: f64| {
-        let b = lat_piece(2.0 * rr, 1e-6, 2.0 * r, 1e-6, 5.0 * r, e, Some(a), Mount::SetOn).ok()?;
-        let m = lat_main((2.0 * r, 1e-6, 2.0 * rr, 1e-6, 0.0, 20.0 * r, Some(10.0 * r), e, Some(a), Mount::SetOn)).ok()?;
+        let b = lat_piece(
+            2.0 * rr,
+            1e-6,
+            2.0 * r,
+            1e-6,
+            5.0 * r,
+            e,
+            Some(a),
+            Mount::SetOn,
+        )
+        .ok()?;
+        let m = lat_main((
+            2.0 * r,
+            1e-6,
+            2.0 * rr,
+            1e-6,
+            0.0,
+            20.0 * r,
+            Some(10.0 * r),
+            e,
+            Some(a),
+            Mount::SetOn,
+        ))
+        .ok()?;
         Some((b.cut_length, hole_perimeter(&m.holes[0])))
     };
     match n {
         76 => num(ex_main(2)?.holes[0].marks[0][1]),
         77 => num(ex_main(2)?.holes[0].marks[8][1]),
-        83 => num(
-            lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 2000.0, None, 0.0, Some(45.0), Mount::SetOn))
-                .ok()?
-                .holes[0]
-                .hole_x,
-        ),
+        83 => num(lat_main((
+            1016.0,
+            12.0,
+            610.0,
+            9.0,
+            0.0,
+            2000.0,
+            None,
+            0.0,
+            Some(45.0),
+            Mount::SetOn,
+        ))
+        .ok()?
+        .holes[0]
+            .hole_x),
         84 => {
-            let a = lat_piece(610.0, 9.0, 1016.0, 12.0, 900.0, 150.0, Some(90.0), Mount::SetOn).ok()?;
+            let a = lat_piece(
+                610.0,
+                9.0,
+                1016.0,
+                12.0,
+                900.0,
+                150.0,
+                Some(90.0),
+                Mount::SetOn,
+            )
+            .ok()?;
             let b = lat_piece(610.0, 9.0, 1016.0, 12.0, 900.0, 150.0, None, Mount::SetOn).ok()?;
             flag(a.marks.iter().zip(&b.marks).all(|(p, q)| p.len == q.len))
         }
         85 => {
-            let a = lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 1500.0, Some(750.0), 150.0, Some(90.0), Mount::SetOn)).ok()?;
-            let b = lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 1500.0, Some(750.0), 150.0, None, Mount::SetOn)).ok()?;
+            let a = lat_main((
+                1016.0,
+                12.0,
+                610.0,
+                9.0,
+                0.0,
+                1500.0,
+                Some(750.0),
+                150.0,
+                Some(90.0),
+                Mount::SetOn,
+            ))
+            .ok()?;
+            let b = lat_main((
+                1016.0,
+                12.0,
+                610.0,
+                9.0,
+                0.0,
+                1500.0,
+                Some(750.0),
+                150.0,
+                None,
+                Mount::SetOn,
+            ))
+            .ok()?;
             let (ha, hb) = (&a.holes[0], &b.holes[0]);
-            flag(ha.hole_w == hb.hole_w && ha.hole_h == hb.hole_h && ha.hole_u == hb.hole_u && ha.hole_x == hb.hole_x)
+            flag(
+                ha.hole_w == hb.hole_w
+                    && ha.hole_h == hb.hole_h
+                    && ha.hole_u == hb.hole_u
+                    && ha.hole_x == hb.hole_x,
+            )
         }
         86..=89 => {
             let k = [0usize, 4, 8, 12][n - 86];
-            num(lat_piece(610.0, 9.0, 1016.0, 12.0, 900.0, 150.0, Some(89.99), Mount::SetOn).ok()?.marks[k].len)
+            num(lat_piece(
+                610.0,
+                9.0,
+                1016.0,
+                12.0,
+                900.0,
+                150.0,
+                Some(89.99),
+                Mount::SetOn,
+            )
+            .ok()?
+            .marks[k]
+                .len)
         }
         90 => num(plate0(508.0, 305.0, 150.0, 60.0)?.0),
         91 => num(plate0(508.0, 305.0, 150.0, 60.0)?.1),
@@ -2195,19 +2326,51 @@ fn eval_s11(n: usize) -> Option<Got> {
             num(worst)
         }
         // the reading H_lateral.json is the example 2 geometry (main 1016x12 L2000 x0 700 angle 45, branch 610x9 H1200)
+        78..=82 => {
+            let r = pad::pad(&lat_pad_spec(None, SplitCut::Cross)).ok()?;
+            match n {
+                78 => num(r.w),
+                79 => num(r.h),
+                80 => num(r.hole_w),
+                81 => num(r.hole_h),
+                _ => num(r.mass_kg),
+            }
+        }
+        103 => num(pad::pad(&lat_pad_spec(None, SplitCut::Cross)).ok()?.mass_kg),
         99 => num(ex_piece(1)?.marks[0].len),
         100 => num(ex_piece(1)?.marks[12].len),
         101 => num(ex_main(1)?.holes[0].xmin),
         102 => num(ex_main(1)?.mass_kg),
         108 => num(ex_main(1)?.holes[0].hole_x),
-        110 => num(
-            lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 2000.0, None, 0.0, Some(45.0), Mount::SetOn))
-                .ok()?
-                .holes[0]
-                .hole_x,
-        ),
+        110 => num(lat_main((
+            1016.0,
+            12.0,
+            610.0,
+            9.0,
+            0.0,
+            2000.0,
+            None,
+            0.0,
+            Some(45.0),
+            Mount::SetOn,
+        ))
+        .ok()?
+        .holes[0]
+            .hole_x),
         109 => {
-            let r = lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 2000.0, None, 0.0, Some(45.0), Mount::SetOn)).ok()?;
+            let r = lat_main((
+                1016.0,
+                12.0,
+                610.0,
+                9.0,
+                0.0,
+                2000.0,
+                None,
+                0.0,
+                Some(45.0),
+                Mount::SetOn,
+            ))
+            .ok()?;
             flag(r.questions.contains(&tee::TEE_X_QUESTION))
         }
         112 => {
@@ -2215,33 +2378,118 @@ fn eval_s11(n: usize) -> Option<Got> {
             num(ex_piece(1)?.marks[12].len)
         }
         113 => {
-            let r = lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 4000.0, Some(700.0), 0.0, Some(25.0), Mount::SetOn)).ok()?;
+            let r = lat_main((
+                1016.0,
+                12.0,
+                610.0,
+                9.0,
+                0.0,
+                4000.0,
+                Some(700.0),
+                0.0,
+                Some(25.0),
+                Mount::SetOn,
+            ))
+            .ok()?;
             flag(r.has_hold("tee_lateral_angle_below_30"))
         }
         114 => {
-            let m = lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 4000.0, Some(700.0), 0.0, Some(25.0), Mount::SetOn));
-            let b = lat_piece(610.0, 9.0, 1016.0, 12.0, 2500.0, 0.0, Some(25.0), Mount::SetOn);
+            let m = lat_main((
+                1016.0,
+                12.0,
+                610.0,
+                9.0,
+                0.0,
+                4000.0,
+                Some(700.0),
+                0.0,
+                Some(25.0),
+                Mount::SetOn,
+            ));
+            let b = lat_piece(
+                610.0,
+                9.0,
+                1016.0,
+                12.0,
+                2500.0,
+                0.0,
+                Some(25.0),
+                Mount::SetOn,
+            );
             flag(m.is_ok() && b.is_ok())
         }
         115 => flag(tee_refused_with(
-            lat_piece(610.0, 9.0, 1016.0, 12.0, 1200.0, 0.0, Some(0.0), Mount::SetOn),
+            lat_piece(
+                610.0,
+                9.0,
+                1016.0,
+                12.0,
+                1200.0,
+                0.0,
+                Some(0.0),
+                Mount::SetOn,
+            ),
             "tee_branch_angle_invalid",
         )),
-        116 => num(
-            lat_piece(610.0, 9.0, 1016.0, 12.0, 1200.0, 0.0, Some(0.0), Mount::SetOn)
-                .map(|_| 1.0)
-                .unwrap_or(0.0),
-        ),
+        116 => num(lat_piece(
+            610.0,
+            9.0,
+            1016.0,
+            12.0,
+            1200.0,
+            0.0,
+            Some(0.0),
+            Mount::SetOn,
+        )
+        .map(|_| 1.0)
+        .unwrap_or(0.0)),
         117 => flag(tee_refused_with(
-            lat_piece(610.0, 9.0, 1016.0, 12.0, 600.0, 0.0, Some(45.0), Mount::SetOn),
+            lat_piece(
+                610.0,
+                9.0,
+                1016.0,
+                12.0,
+                600.0,
+                0.0,
+                Some(45.0),
+                Mount::SetOn,
+            ),
             "tee_branch_end_inside_main",
         )),
         118 => flag(tee_refused_with(
-            lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 2000.0, Some(-100.0), 0.0, Some(45.0), Mount::SetOn)),
+            lat_main((
+                1016.0,
+                12.0,
+                610.0,
+                9.0,
+                0.0,
+                2000.0,
+                Some(-100.0),
+                0.0,
+                Some(45.0),
+                Mount::SetOn,
+            )),
             "tee_hole_beyond_pipe_end",
         )),
-        119 => flag(lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 2000.0, Some(-50.0), 0.0, Some(45.0), Mount::SetOn)).is_ok()),
-        120 => flag(tee_refused_with(tee::rib_on_branch(Some(45.0)), "tee_rib_on_lateral_unsupported")),
+        119 => flag(
+            lat_main((
+                1016.0,
+                12.0,
+                610.0,
+                9.0,
+                0.0,
+                2000.0,
+                Some(-50.0),
+                0.0,
+                Some(45.0),
+                Mount::SetOn,
+            ))
+            .is_ok(),
+        ),
+        120 => flag(tee_refused_with(
+            tee::rib_on_branch(Some(45.0)),
+            "tee_rib_on_lateral_unsupported",
+        )),
         122 => num(ex_piece(2)?.marks[4].len),
         123 => num(ex_main(2)?.holes[0].xmax),
         124 => {
@@ -2258,7 +2506,11 @@ fn eval_s11(n: usize) -> Option<Got> {
 #[test]
 fn real_engine_status_lateral() {
     let (cases, _) = load_cases();
-    let part: Vec<Case> = cases.iter().filter(|c| c.section == "s11").cloned().collect();
+    let part: Vec<Case> = cases
+        .iter()
+        .filter(|c| c.section == "s11")
+        .cloned()
+        .collect();
     let r = run_real(&RustShapes, &part);
     println!(
         "s11: {} OK, {} NG, {} PENDING, {} derived (not counted) of {}",
@@ -2272,4 +2524,307 @@ fn real_engine_status_lateral() {
         println!("{l}");
     }
     assert_eq!(r.ng, 0, "NG cases in s11");
+}
+
+use nf_core::tee_pad::{self as pad, PadOutline, PadSpec, SplitCut};
+
+/// The lateral example 2 pad (test_build.mjs:446-447): main 1016, branch 610, width 150, e 0, 45 deg, t 12.
+fn lat_pad_spec(split: Option<u32>, cut: SplitCut) -> PadSpec {
+    PadSpec {
+        main_d: 1016.0,
+        t: 12.0,
+        d: 610.0,
+        e: 0.0,
+        angle_deg: Some(45.0),
+        outline: PadOutline::Width(150.0),
+        split,
+        cut,
+    }
+}
+
+// ======================================================================================================
+// Section s12 (test_build.mjs:502-581, pad split) and s13 (583-621, review cases).
+// ======================================================================================================
+
+/// The four pad examples of test_build.mjs:513-526: (main D, d, outline, e, t) and the (split, cut) lists.
+fn pad_ex(i: usize) -> (PadSpec, &'static [(u32, SplitCut)]) {
+    use SplitCut::{Along, Cross};
+    const L1: [(u32, SplitCut); 3] = [(2, Cross), (2, Along), (4, Cross)];
+    const L2: [(u32, SplitCut); 4] = [(2, Cross), (2, Along), (3, Cross), (4, Cross)];
+    const L4: [(u32, SplitCut); 2] = [(2, Cross), (2, Along)];
+    let mk = |main_d, d, outline, e, t| PadSpec {
+        main_d,
+        t,
+        d,
+        e,
+        angle_deg: None,
+        outline,
+        split: None,
+        cut: Cross,
+    };
+    match i {
+        0 => (
+            mk(1016.0, 610.0, PadOutline::Circle(1000.0), 0.0, 12.0),
+            &L1,
+        ),
+        1 => (
+            mk(1016.0, 610.0, PadOutline::Width(150.0), 150.0, 12.0),
+            &L2,
+        ),
+        2 => (mk(2438.4, 1524.0, PadOutline::Width(100.0), 0.0, 9.0), &L1),
+        _ => (
+            mk(1016.0, 406.4, PadOutline::Circle(700.0), 150.0, 12.0),
+            &L4,
+        ),
+    }
+}
+
+fn eval_s12(n: usize) -> Option<Got> {
+    // blocks of ids: example start, then one block per (split, cut): pieces P (1 for the perpendicular cross two-way,
+    // else the split count), ids = 1 count + 3 P + split seams + angle, sum, n, gross, closed-shape flag
+    if n <= 188 {
+        let mut at = 1usize;
+        for ex in 0..4 {
+            let (base, list) = pad_ex(ex);
+            if n == at {
+                return num(pad::pad(&base).ok()?.mass_kg);
+            }
+            at += 1;
+            for &(sp, cut) in list {
+                let p_cnt = if sp == 2 && cut == SplitCut::Cross {
+                    1
+                } else {
+                    sp as usize
+                };
+                let len = 1 + 3 * p_cnt + sp as usize + 5;
+                if n >= at && n < at + len {
+                    let k = n - at;
+                    let r = pad::pad(&PadSpec {
+                        split: Some(sp),
+                        cut,
+                        ..base
+                    })
+                    .ok()?;
+                    let pc = r.pieces.len();
+                    return match k {
+                        0 => num(pc as f64),
+                        k if k <= 3 * pc => {
+                            let q = &r.pieces[(k - 1) / 3];
+                            match (k - 1) % 3 {
+                                0 => num(q.w),
+                                1 => num(q.h),
+                                _ => num(q.mass_kg),
+                            }
+                        }
+                        k if k <= 3 * pc + sp as usize => num(r.seams[k - 1 - 3 * pc]),
+                        k => match k - (3 * pc + sp as usize) {
+                            1 => num(r.seam_angle_deg),
+                            2 => num(r.pieces_mass_kg),
+                            3 => num(f64::from(r.split)),
+                            4 => num(r.gross_box_mass_kg),
+                            _ => flag(r.pieces.iter().all(|q| {
+                                let (a, b) = (q.pts[0], q.pts[q.pts.len() - 1]);
+                                (a[0] - b[0]).hypot(a[1] - b[1]) < 1e-9
+                            })),
+                        },
+                    };
+                }
+                at += len;
+            }
+        }
+        return None;
+    }
+    let ex1 = |sp: u32, cut| {
+        pad::pad(&PadSpec {
+            split: Some(sp),
+            cut,
+            ..pad_ex(0).0
+        })
+        .ok()
+    };
+    let lat = |sp: u32| pad::pad(&lat_pad_spec(Some(sp), SplitCut::Cross)).ok();
+    match n {
+        189 => flag(
+            ex1(2, SplitCut::Cross)?
+                .cuts
+                .iter()
+                .all(|c| c[0][1].abs() < 1e-9 && c[1][1].abs() < 1e-9),
+        ),
+        191..=193 => num(lat((n - 189) as u32)?.pieces.len() as f64),
+        195 => num(ex1(2, SplitCut::Cross)?.pieces[0].w),
+        196 => num(ex1(2, SplitCut::Cross)?.pieces[0].h),
+        197 => num(ex1(2, SplitCut::Cross)?.pieces_mass_kg),
+        198 => num(f64::from(ex1(2, SplitCut::Cross)?.split)),
+        199 => num(ex1(2, SplitCut::Cross)?.gross_box_mass_kg),
+        205 => num(ex1(2, SplitCut::Along)?.pieces[0].w),
+        206 => num(ex1(2, SplitCut::Along)?.pieces[0].h),
+        207 => num(f64::from(ex1(2, SplitCut::Along)?.split)),
+        209 => num(f64::from(ex1(4, SplitCut::Cross)?.split)),
+        210 => num(ex1(4, SplitCut::Cross)?.pieces_mass_kg),
+        211 => num(ex1(4, SplitCut::Cross)?
+            .pieces
+            .iter()
+            .map(|q| q.w)
+            .fold(0.0, f64::max)),
+        215 => num(f64::from(pad::pad(&pad_ex(0).0).ok()?.split)),
+        216 => num(pad::pad(&pad_ex(0).0).ok()?.w),
+        219 => num(f64::from(pad::pad(&pad_ex(0).0).ok()?.split)),
+        221 => flag(tee_refused_with(
+            pad::pad(&PadSpec {
+                split: Some(13),
+                ..pad_ex(0).0
+            }),
+            "pad_split_out_of_range",
+        )),
+        223 | 224 => {
+            let r = pad::pad(&PadSpec {
+                split: Some(2),
+                cut: SplitCut::Cross,
+                ..pad_ex(1).0
+            })
+            .ok()?;
+            num(if n == 223 {
+                r.pieces[0].w
+            } else {
+                r.pieces[0].h
+            })
+        }
+        225 => num(f64::from(lat(2)?.split)),
+        226 => num(lat(2)?.pieces_mass_kg),
+        _ => None,
+    }
+}
+
+fn seg_dist(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
+    let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+    let l2 = dx * dx + dy * dy;
+    let t = if l2 > 0.0 {
+        (((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    (p[0] - a[0] - t * dx).hypot(p[1] - a[1] - t * dy)
+}
+
+fn eval_s13(n: usize) -> Option<Got> {
+    let deg = 180.0 / std::f64::consts::PI;
+    if (1..=4).contains(&n) {
+        // (D, T, d, tb, e, mount) of test_build.mjs:589-592
+        let rows = [
+            (609.6, 6.0, 216.3, 5.8, (609.6 - 216.3) / 2.0, Mount::SetOn),
+            (
+                2641.6,
+                16.0,
+                609.6,
+                9.0,
+                (2641.6 - 609.6) / 2.0,
+                Mount::SetOn,
+            ),
+            (1016.0, 12.0, 216.3, 5.8, 300.0, Mount::SetIn),
+            (1016.0, 12.0, 610.0, 9.0, 150.0, Mount::SetOn),
+        ];
+        let (dm, tm, d, tb, e, mount) = rows[n - 1];
+        let mut b = BranchOnMain::new("1", d, tb, Some(2.0 * d + 500.0), 0.0, e);
+        b.angle_deg = None;
+        let mut sp = TeeMainSpec::new(dm, tm, 4.0 * d + 1000.0, vec![b]);
+        sp.mount = mount;
+        return num(tee::tee_main(&sp).ok()?.holes[0].from_deg);
+    }
+    let pads: [(f64, f64, f64, f64, Option<f64>, f64); 6] = [
+        (1016.0, 216.3, 60.0, 399.85, None, 6.0),
+        (1016.0, 406.4, 100.0, (1016.0 - 406.4) / 2.0, None, 12.0),
+        (609.6, 216.3, 60.0, (609.6 - 216.3) / 2.0, None, 6.0),
+        (1016.0, 1016.0, 150.0, 0.0, None, 12.0),
+        (1016.0, 1016.0, 150.0, 0.0, Some(45.0), 12.0),
+        (1016.0, 610.0, 150.0, 150.0, None, 12.0),
+    ];
+    let pad_of = |i: usize| {
+        let (dm, d, b, e, ang, t) = pads[i];
+        pad::pad(&PadSpec {
+            main_d: dm,
+            t,
+            d,
+            e,
+            angle_deg: ang,
+            outline: PadOutline::Width(b),
+            split: None,
+            cut: SplitCut::Cross,
+        })
+        .ok()
+    };
+    match n {
+        5..=16 => {
+            let (i, which) = ((n - 5) / 2, (n - 5) % 2);
+            let r = pad_of(i)?;
+            if which == 1 {
+                return flag(r.outline.len() - 1 == r.hole.len());
+            }
+            let mut mn = f64::INFINITY;
+            for j in 0..r.outline.len() - 1 {
+                for k in 0..8 {
+                    let f = f64::from(k) / 8.0;
+                    let q = [
+                        r.outline[j][0] + (r.outline[j + 1][0] - r.outline[j][0]) * f,
+                        r.outline[j][1] + (r.outline[j + 1][1] - r.outline[j][1]) * f,
+                    ];
+                    for h in 0..r.hole.len() {
+                        mn = mn.min(seg_dist(q, r.hole[h], r.hole[(h + 1) % r.hole.len()]));
+                    }
+                }
+            }
+            flag(mn >= pads[i].2 - 0.1)
+        }
+        17 => {
+            let r = pad_of(0)?;
+            let _ = deg;
+            num(r.hole.iter().map(|q| q[0]).fold(f64::INFINITY, f64::min))
+        }
+        22 | 23 => {
+            let mut b = BranchOnMain::new("1", 610.0, 9.0, None, 0.0, 1200.0);
+            b.angle_deg = Some(45.0);
+            let sp = TeeMainSpec::new(1016.0, 12.0, 2000.0, vec![b]);
+            flag(tee_refused_with(tee::tee_main(&sp), "tee_hole_off_pipe"))
+        }
+        _ => None,
+    }
+}
+
+#[test]
+fn real_engine_status_pads_and_review() {
+    let (cases, _) = load_cases();
+    let mut tot = RealReport::default();
+    for sec in ["s11", "s12", "s13"] {
+        let part: Vec<Case> = cases.iter().filter(|c| c.section == sec).cloned().collect();
+        let r = run_real(&RustShapes, &part);
+        println!(
+            "{sec}: {} OK, {} NG, {} PENDING, {} derived (not counted) of {}",
+            r.ok,
+            r.ng,
+            r.pending,
+            r.derived_uncounted,
+            part.len()
+        );
+        for l in &r.ng_lines {
+            println!("{l}");
+        }
+        tot.ok += r.ok;
+        tot.ng += r.ng;
+        tot.pending += r.pending;
+        tot.derived_uncounted += r.derived_uncounted;
+    }
+    {
+        for c in cases
+            .iter()
+            .filter(|c| ["s08", "s11", "s12", "s13"].contains(&c.section.as_str()))
+        {
+            if c.derived.is_empty() && RustShapes.eval(&key_of(c)).is_none() {
+                println!("PENDING {} {}", c.id, c.name);
+            }
+        }
+    }
+    println!(
+        "lane L7b s11+s12+s13: {} OK, {} NG, {} PENDING, {} derived uncounted",
+        tot.ok, tot.ng, tot.pending, tot.derived_uncounted
+    );
+    assert_eq!(tot.ng, 0, "NG cases in the L7b sections");
 }

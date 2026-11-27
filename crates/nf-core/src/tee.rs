@@ -314,7 +314,7 @@ fn wall(name_t: &'static str, name_d: &'static str, t: f64, d: f64) -> Result<()
 
 /// Branch angle: absent or 90 is the perpendicular branch; below 90 (and above 0) is lateral; anything else is
 /// invalid (obtuse angles are refused, not converted).
-fn check_angle(a: Option<f64>) -> Result<(), ShapeRefusal> {
+pub(crate) fn check_angle(a: Option<f64>) -> Result<(), ShapeRefusal> {
     let Some(a) = a else { return Ok(()) };
     if !(a.is_finite() && a > 0.0 && a <= 90.0) {
         return Err(refuse(
@@ -384,10 +384,10 @@ pub fn signed_offset(e: f64, side_deg: Option<f64>, dir_deg: f64) -> Result<f64,
 
 // ---------------------------------------------------------------- closed forms
 
-fn clamp1(v: f64) -> f64 {
+pub(crate) fn clamp1(v: f64) -> f64 {
     v.clamp(-1.0, 1.0)
 }
-fn mod_p(a: f64, m: f64) -> f64 {
+pub(crate) fn mod_p(a: f64, m: f64) -> f64 {
     a - m * (a / m).floor()
 }
 fn wrap_a(a: f64, c: f64) -> f64 {
@@ -479,22 +479,22 @@ fn lat_span(r1: f64, r2: f64, rh: f64, e: f64, ca_sa: (f64, f64), phi: f64) -> O
     Some([at(pick(-1.0), -1.0), at(pick(1.0), 1.0)])
 }
 
-struct ThickHole {
-    ring: Vec<[f64; 2]>,
-    p0: f64,
-    p1: f64,
-    xmin: f64,
-    xmax: f64,
-    edge: f64,
-    edge_a: f64,
-    r1: f64,
-    r2: f64,
-    rh: f64,
-    e: f64,
-    ca_sa: (f64, f64),
+pub(crate) struct ThickHole {
+    pub(crate) ring: Vec<[f64; 2]>,
+    pub(crate) p0: f64,
+    pub(crate) p1: f64,
+    pub(crate) xmin: f64,
+    pub(crate) xmax: f64,
+    pub(crate) edge: f64,
+    pub(crate) edge_a: f64,
+    pub(crate) r1: f64,
+    pub(crate) r2: f64,
+    pub(crate) rh: f64,
+    pub(crate) e: f64,
+    pub(crate) ca_sa: (f64, f64),
     /// ESTIMATE of the ring-to-curve distance: largest axial deviation of the exact outline at the mid angle of every
     /// ring edge from the edge's chord.
-    eps: f64,
+    pub(crate) eps: f64,
 }
 
 impl ThickHole {
@@ -504,7 +504,7 @@ impl ThickHole {
 }
 
 /// Hole through the whole main wall (offset larger than the bore, e.g. a drain branch on the invert). ZK `latHole`.
-fn lat_hole(r1: f64, r2: f64, rh: f64, e: f64, ca_sa: (f64, f64)) -> Option<ThickHole> {
+pub(crate) fn lat_hole(r1: f64, r2: f64, rh: f64, e: f64, ca_sa: (f64, f64)) -> Option<ThickHole> {
     let n = 180usize;
     let d0 = if e - rh < 0.0 { r1 } else { r2 };
     let d1 = if e + rh > 0.0 { r1 } else { r2 };
@@ -570,7 +570,7 @@ fn ring_at(pts: &[[f64; 2]], th: f64) -> [f64; 2] {
     [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f]
 }
 
-fn bbox(pts: &[[f64; 2]]) -> (f64, f64) {
+pub(crate) fn bbox(pts: &[[f64; 2]]) -> (f64, f64) {
     let (mut x0, mut y0, mut x1, mut y1) = (1e9f64, 1e9f64, -1e9f64, -1e9f64);
     for p in pts {
         x0 = x0.min(p[0]);
@@ -581,7 +581,7 @@ fn bbox(pts: &[[f64; 2]]) -> (f64, f64) {
     (x1 - x0, y1 - y0)
 }
 
-fn shoelace(pts: &[[f64; 2]]) -> f64 {
+pub(crate) fn shoelace(pts: &[[f64; 2]]) -> f64 {
     let n = pts.len();
     let mut s = 0.0;
     for i in 0..n {
@@ -747,7 +747,7 @@ fn hole_a(b: &BranchOnMain, ri: f64, ro_main: f64, mount: Mount, gg: f64, l: f64
     })
 }
 
-fn in_poly(q: [f64; 2], poly: &[[f64; 2]]) -> bool {
+pub(crate) fn in_poly(q: [f64; 2], poly: &[[f64; 2]]) -> bool {
     let mut c = false;
     let n = poly.len();
     let mut j = n - 1;
@@ -1037,6 +1037,7 @@ fn max_tau(rc: f64, ri: f64, ro: f64, e: f64, alpha: Option<f64>) -> f64 {
     best.max(f(0.5 * (a + b)))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn check_branch_fits(
     d: f64,
     t: f64,
