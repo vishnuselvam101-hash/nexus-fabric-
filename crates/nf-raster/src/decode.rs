@@ -564,16 +564,16 @@ fn region_prescan(data: &[u8], max_pixels: u64) -> Result<(), Fault> {
         p = next + if flags & 0x40 != 0 { 4 } else { 1 };
         let Some(len) = be(p) else { return Ok(()) };
         p += 4;
-        if len == u32::MAX {
-            return Ok(());
-        }
         // Region segments: text, halftone, generic and refinement regions; each starts with
-        // the region segment information field (width, height, ...).
+        // the region segment information field (width, height, ...). The page information
+        // segment (48) starts with the page width and height; an unknown height is 0xFFFFFFFF.
+        let kind = flags & 0x3F;
         if matches!(
-            flags & 0x3F,
-            4 | 6 | 7 | 20 | 22 | 23 | 36 | 38 | 39 | 40 | 42 | 43
+            kind,
+            4 | 6 | 7 | 20 | 22 | 23 | 36 | 38 | 39 | 40 | 42 | 43 | 48
         ) {
             if let (Some(w), Some(h)) = (be(p), be(p + 4)) {
+                let h = if kind == 48 && h == u32::MAX { 0 } else { h };
                 if u64::from(w) * u64::from(h) > max_pixels {
                     return Err(Fault::Limit(
                         "image_pixels",
@@ -581,6 +581,9 @@ fn region_prescan(data: &[u8], max_pixels: u64) -> Result<(), Fault> {
                     ));
                 }
             }
+        }
+        if len == u32::MAX {
+            return Ok(());
         }
         let Some(n) = p.checked_add(len as usize) else {
             return Ok(());

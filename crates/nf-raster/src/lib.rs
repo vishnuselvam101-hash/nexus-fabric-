@@ -64,7 +64,7 @@ impl Default for RasterLimits {
     fn default() -> Self {
         RasterLimits {
             pdf: Limits::default(),
-            max_draw_work: 1_500_000_000,
+            max_draw_work: 200_000_000,
             max_image_pixels: 100_000_000,
             max_canvas_bytes: 200_000_000,
             max_total_image_bytes: 800_000_000,

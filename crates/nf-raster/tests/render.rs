@@ -542,6 +542,26 @@ fn a_huge_placement_count_ends_with_a_coded_limit() {
 }
 
 #[test]
+fn wide_one_pixel_inline_images_end_with_a_coded_limit_in_time() {
+    // 1,500,000 x 128 px canvas, 4096 inline 1 x 1 images each covering rows 1..63
+    let one = "q 1500000 0 0 62 0 65 cm BI /W 1 /H 1 /CS /G /BPC 8 ID \x70 EI Q\n";
+    let pdf = tiny_pdf([0.0, 0.0, 1_500_000.0, 128.0], &one.repeat(4096));
+    let mut o = gray_opts();
+    o.dpi = 72;
+    let t = Instant::now();
+    let f = failure_of(&pdf, &o);
+    assert_eq!(
+        (f.kind, f.code, f.limit),
+        (
+            FailureKind::LimitExceeded,
+            "limit_exceeded",
+            Some("draw_work")
+        )
+    );
+    assert!(t.elapsed().as_secs_f64() < 60.0, "{:?}", t.elapsed());
+}
+
+#[test]
 fn a_reduced_image_placed_many_times_is_reduced_once() {
     // 2000 x 2000 source drawn at 100 x 100 pixels, 40 times: the reduction (4e6 reads) is
     // charged once, so a budget of 20M passes; 40 reductions would need 1.6e8.
@@ -635,6 +655,38 @@ fn a_jbig2_region_over_the_pixel_limit_is_a_coded_limit() {
             Some("image_pixels")
         )
     );
+}
+
+fn jbig2_pdf(j: &[u8]) -> Vec<u8> {
+    image_pdf(
+        100.0,
+        "/Width 8 /Height 8 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /JBIG2Decode",
+        j,
+        "q 100 0 0 100 0 0 cm /Im0 Do Q",
+    )
+}
+
+#[test]
+fn a_jbig2_region_of_unknown_length_is_checked_too() {
+    let mut j: Vec<u8> = Vec::new();
+    j.extend_from_slice(&[0, 0, 0, 0, 48, 0, 1, 0, 0, 0, 19]);
+    j.extend_from_slice(&[0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    // immediate generic region, data length 0xFFFFFFFF, 2^31 x 2^31 pixels
+    j.extend_from_slice(&[0, 0, 0, 1, 38, 0, 1, 0xFF, 0xFF, 0xFF, 0xFF]);
+    j.extend_from_slice(&[0x80, 0, 0, 0, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    let f = failure_of(&jbig2_pdf(&j), &gray_opts());
+    assert_eq!(f.limit, Some("image_pixels"));
+}
+
+#[test]
+fn a_jbig2_page_information_segment_over_the_limit_is_checked() {
+    let mut j: Vec<u8> = Vec::new();
+    j.extend_from_slice(&[0, 0, 0, 0, 48, 0, 1, 0, 0, 0, 19]);
+    j.extend_from_slice(&[
+        0x80, 0, 0, 0, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ]);
+    let f = failure_of(&jbig2_pdf(&j), &gray_opts());
+    assert_eq!(f.limit, Some("image_pixels"));
 }
 
 #[test]

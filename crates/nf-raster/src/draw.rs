@@ -223,9 +223,15 @@ impl Canvas {
             return Ok(());
         }
         let (sw, sh) = (f64::from(src.w), f64::from(src.h));
+        // The whole destination box is charged before any pixel is visited, so a placement
+        // cannot do unbounded work between clock reads.
+        let area = (x_hi - x_lo).max(0.0) as u64 * (y_hi - y_lo).max(0.0) as u64;
+        self.charge(area, dl)?;
+        // The clock is read about every 64k pixels.
+        let every = (65_536 / ((x_hi - x_lo).max(1.0) as i64)).max(1);
         for y in (y_lo as i64)..(y_hi as i64) {
-            if y % 64 == 0 {
-                self.charge(64 * (x_hi - x_lo).max(0.0) as u64, dl)?;
+            if (y - y_lo as i64) % every == every - 1 {
+                dl.check()?;
             }
             let yy = hh - (y as f64 + 0.5);
             for x in (x_lo as i64)..(x_hi as i64) {
