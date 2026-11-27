@@ -115,3 +115,88 @@ fn malformed_escapes_are_kept_as_written() {
     let drawing = drawing_of(&bytes).expect("kept literally");
     assert_eq!(text_of(&drawing).1, "\\U+ZZZZ \\M+2");
 }
+
+/// A file with one MTEXT entity whose string is `bytes`.
+fn mtext_file(version: &str, codepage: Option<&str>, bytes: &[u8]) -> Vec<u8> {
+    let mut header = common::header(version, Some(4));
+    if let Some(cp) = codepage {
+        header.push_str(&format!("9\n$DWGCODEPAGE\n3\n{cp}\n"));
+    }
+    let body = common::section(
+        "ENTITIES",
+        "0\nMTEXT\n8\nNOTE\n10\n0\n20\n0\n40\n2\n1\n@TXT@\n",
+    );
+    common::with_bytes(&common::dxf(&header, &body), "@TXT@", bytes)
+}
+
+fn plain_of(drawing: &Drawing) -> String {
+    match &drawing.entities[0] {
+        Entity::Text { plain, .. } | Entity::MText { plain, .. } => plain.clone(),
+        other => panic!("expected TEXT or MTEXT, got {other:?}"),
+    }
+}
+
+#[test]
+fn two_byte_escape_digit_selects_the_code_page() {
+    // \M+1 Shift_JIS, \M+2 Big5, \M+3 EUC-KR, \M+5 GBK, whatever the file's own encoding is.
+    let cases = [
+        ("\\M+19266", "断"),
+        ("\\M+2A4A4", "中"),
+        ("\\M+3C7D1", "한"),
+        ("\\M+5D6D0", "中"),
+    ];
+    let files = [
+        ("AC1021", None),
+        ("AC1009", Some("ANSI_1252")),
+        ("AC1009", Some("ANSI_932")),
+    ];
+    for (raw, want) in cases {
+        for (version, codepage) in files {
+            let bytes = text_file(version, codepage, raw.as_bytes());
+            let drawing = drawing_of(&bytes)
+                .unwrap_or_else(|e| panic!("{raw} in {version} {codepage:?}: {e:?}"));
+            assert_eq!(plain_of(&drawing), want, "{raw} in {version} {codepage:?}");
+        }
+    }
+}
+
+#[test]
+fn two_byte_escape_with_other_digit_or_undecodable_bytes_is_kept() {
+    // \M+4 has no code page here, and 0x81 0x20 is not a Shift_JIS pair. Both stay as written.
+    for raw in ["\\M+41234", "\\M+18120"] {
+        let bytes = text_file("AC1021", None, raw.as_bytes());
+        let drawing = drawing_of(&bytes).expect("kept as written, not refused");
+        assert_eq!(plain_of(&drawing), raw);
+    }
+}
+
+#[test]
+fn backslash_escapes_are_mtext_only() {
+    // In TEXT a backslash is literal, so \\ is two characters and \{ is kept.
+    let raw = r"a\\b \{c\} \\U+0041";
+    let drawing = drawing_of(&text_file("AC1021", None, raw.as_bytes())).expect("TEXT");
+    assert_eq!(plain_of(&drawing), raw);
+    // In MTEXT \\ is one backslash and \{ \} are braces.
+    let drawing = drawing_of(&mtext_file("AC1021", None, raw.as_bytes())).expect("MTEXT");
+    assert_eq!(plain_of(&drawing), r"a\b {c} \U+0041");
+}
+
+#[test]
+fn mtext_fraction_stacks_keep_numerator_over_denominator() {
+    let raw = r"\S1^2;x \S3/4;y \S5#6;";
+    let drawing = drawing_of(&mtext_file("AC1021", None, raw.as_bytes())).expect("MTEXT");
+    assert_eq!(plain_of(&drawing), "1/2x 3/4y 5/6");
+}
+
+#[test]
+fn formatting_code_ends_at_a_semicolon_within_256_chars() {
+    let raw = format!(r"\H{};after", "x".repeat(100));
+    let drawing = drawing_of(&mtext_file("AC1021", None, raw.as_bytes())).expect("MTEXT");
+    assert_eq!(plain_of(&drawing), "after");
+}
+
+#[test]
+fn text_percent_codes_become_symbols() {
+    let drawing = drawing_of(&text_file("AC1021", None, b"%%c25 %%d 90 %%p0.1")).expect("TEXT");
+    assert_eq!(plain_of(&drawing), "⌀25 ° 90 ±0.1");
+}

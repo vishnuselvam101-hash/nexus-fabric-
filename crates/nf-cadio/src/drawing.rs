@@ -32,6 +32,8 @@ pub struct Drawing {
     pub entities: Vec<Entity>,
     /// Entity kinds this reader does not model, with how many of each were skipped.
     pub skipped: BTreeMap<String, usize>,
+    /// Notes on what was read but not applied, for example an entity whose extrusion is not +Z.
+    pub warnings: Vec<String>,
 }
 
 /// One layer of the LAYER table.
@@ -93,15 +95,19 @@ pub enum Entity {
         layer: String,
         start: Point3,
         end: Point3,
+        /// True when the extrusion direction (groups 210 to 230) is not +Z. See [`Entity::non_z_extrusion`].
+        non_z_extrusion: bool,
     },
     Point {
         layer: String,
         at: Point3,
+        non_z_extrusion: bool,
     },
     Circle {
         layer: String,
         center: Point3,
         radius: f64,
+        non_z_extrusion: bool,
     },
     /// Counter-clockwise from `start_angle` to `end_angle`, in degrees.
     Arc {
@@ -110,12 +116,14 @@ pub enum Entity {
         radius: f64,
         start_angle: f64,
         end_angle: f64,
+        non_z_extrusion: bool,
     },
     /// A LWPOLYLINE. `z` of every vertex is the elevation (group 38).
     LwPolyline {
         layer: String,
         closed: bool,
         vertices: Vec<Vertex>,
+        non_z_extrusion: bool,
     },
     /// A POLYLINE with its VERTEX records. Polygon and polyface meshes are not modelled and are skipped.
     Polyline {
@@ -123,6 +131,7 @@ pub enum Entity {
         closed: bool,
         is_3d: bool,
         vertices: Vec<Vertex>,
+        non_z_extrusion: bool,
     },
     Text {
         layer: String,
@@ -133,6 +142,7 @@ pub enum Entity {
         raw: String,
         /// The string with `\U+` and `\M+` decoded.
         plain: String,
+        non_z_extrusion: bool,
     },
     MText {
         layer: String,
@@ -142,13 +152,52 @@ pub enum Entity {
         raw: String,
         /// The text with escapes decoded and formatting codes removed; `\P` is a new line.
         plain: String,
+        non_z_extrusion: bool,
     },
     /// The four corners in the order of the file (groups 10 to 13). The third and fourth corners
     /// are swapped in the drawing, as in the DXF format. A missing fourth corner is the third.
     Solid {
         layer: String,
         corners: [Point3; 4],
+        non_z_extrusion: bool,
     },
+}
+
+impl Entity {
+    /// True when the entity's extrusion direction (groups 210, 220, 230) is not +Z. Its coordinates
+    /// are kept exactly as the file gives them; they are not mirrored or rotated into the drawing
+    /// plane. Each such entity also has a note in [`Drawing::warnings`].
+    pub fn non_z_extrusion(&self) -> bool {
+        match self {
+            Entity::Line {
+                non_z_extrusion, ..
+            }
+            | Entity::Point {
+                non_z_extrusion, ..
+            }
+            | Entity::Circle {
+                non_z_extrusion, ..
+            }
+            | Entity::Arc {
+                non_z_extrusion, ..
+            }
+            | Entity::LwPolyline {
+                non_z_extrusion, ..
+            }
+            | Entity::Polyline {
+                non_z_extrusion, ..
+            }
+            | Entity::Text {
+                non_z_extrusion, ..
+            }
+            | Entity::MText {
+                non_z_extrusion, ..
+            }
+            | Entity::Solid {
+                non_z_extrusion, ..
+            } => *non_z_extrusion,
+        }
+    }
 }
 
 /// Longest entity kind name kept as a key of `Drawing::skipped`.
@@ -173,6 +222,7 @@ pub(crate) fn build(doc: &Document) -> Result<Drawing, CadError> {
         blocks: Vec::new(),
         entities: Vec::new(),
         skipped: BTreeMap::new(),
+        warnings: Vec::new(),
     };
     for section in doc.sections.iter().filter(|s| s.name == "TABLES") {
         tables::read(&section.pairs, &enc, &mut drawing)?;
@@ -181,6 +231,13 @@ pub(crate) fn build(doc: &Document) -> Result<Drawing, CadError> {
         entities::read(&section.pairs, &enc, &mut drawing)?;
     }
     Ok(drawing)
+}
+
+/// Notes that an entity with an extrusion other than +Z was read as written.
+pub(crate) fn warn_extrusion(drawing: &mut Drawing, kind: &str, line: usize) {
+    drawing.warnings.push(format!(
+        "{kind} at line {line}: extrusion is not +Z; coordinates kept as written, not transformed"
+    ));
 }
 
 /// Counts one entity kind this reader does not model.

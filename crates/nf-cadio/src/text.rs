@@ -4,7 +4,7 @@
 //! decoded. Files from AC1021 (R2007) on are UTF-8. Older files use `$DWGCODEPAGE`. A code page that
 //! is not listed is refused for non-ASCII text, never replaced.
 
-use encoding_rs::{Encoding, SHIFT_JIS, WINDOWS_1252};
+use encoding_rs::{Encoding, BIG5, EUC_KR, GBK, SHIFT_JIS, WINDOWS_1252};
 
 use crate::error::Reason;
 
@@ -74,16 +74,26 @@ fn from_codec(codec: &'static Encoding, bytes: &[u8]) -> Result<String, Reason> 
 
 /// The plain text of a TEXT (`mtext` false) or MTEXT (`mtext` true) string.
 ///
-/// `\U+XXXX` gives the Unicode character. `\M+1XXXX` gives the two-byte character XXXX in the file's
-/// encoding. In MTEXT, `\P` is a new line, `\~` a space, `{` and `}` are group braces (dropped), and
-/// formatting codes with a `;` end (`\H2.5;`, `\fArial|b0;`) are dropped. Other escapes, and escapes
+/// `\U+XXXX` gives the Unicode character. `\M+dXXXX` gives the two bytes XXXX in the code page of
+/// digit `d` (see [`two_byte_codec`]); when that fails, the escape is kept as written. In TEXT,
+/// `%%c`, `%%d` and `%%p` give the diameter, degree and plus-minus signs, and a backslash is
+/// otherwise literal. In MTEXT, `\\`, `\{` and `\}` give the character, `\P` is a new line, `\~` a
+/// space, `{` and `}` are group braces (dropped), `\S a^b;` is the stack `a/b`, and formatting codes
+/// with a `;` end (`\H2.5;`, `\fArial|b0;`, up to 256 chars) are dropped. Other escapes, and escapes
 /// with malformed arguments, are kept as written. The raw string is never changed.
-pub(crate) fn plain(raw: &str, enc: &TextEncoding, mtext: bool) -> Result<String, Reason> {
+pub(crate) fn plain(raw: &str, mtext: bool) -> String {
     let chars: Vec<char> = raw.chars().collect();
     let mut out = String::with_capacity(raw.len());
     let mut i = 0;
     while let Some(&c) = chars.get(i) {
         if c != '\\' {
+            if !mtext {
+                if let Some(symbol) = percent_code(&chars, i) {
+                    out.push(symbol);
+                    i += 3;
+                    continue;
+                }
+            }
             if mtext && (c == '{' || c == '}') {
                 // group braces only; the text inside them is kept
             } else {
@@ -97,15 +107,25 @@ pub(crate) fn plain(raw: &str, enc: &TextEncoding, mtext: bool) -> Result<String
             i += used;
             continue;
         }
-        if let Some((code, used)) = two_byte_escape(&chars, i) {
-            out.push_str(&decode_bytes(&code, enc)?);
-            i += used;
+        if let Some((digit, code)) = two_byte_escape(&chars, i) {
+            let decoded = two_byte_codec(digit)
+                .and_then(|codec| codec.decode_without_bom_handling_and_without_replacement(&code));
+            match decoded {
+                Some(text) => out.push_str(&text),
+                None => out.extend(&chars[i..i + 8]),
+            }
+            i += 8;
             continue;
         }
         let next = chars.get(i + 1).copied();
         match next {
-            Some('\\' | '{' | '}') => {
+            Some('\\' | '{' | '}') if mtext => {
                 out.extend(next);
+                i += 2;
+            }
+            Some('\\') => {
+                // TEXT: a literal pair, so the second backslash cannot start an escape.
+                out.push_str("\\\\");
                 i += 2;
             }
             Some('P') if mtext => {
@@ -117,8 +137,23 @@ pub(crate) fn plain(raw: &str, enc: &TextEncoding, mtext: bool) -> Result<String
                 i += 2;
             }
             Some('L' | 'l' | 'O' | 'o' | 'K' | 'k') if mtext => i += 2,
+            Some('S') if mtext => {
+                match chars[i + 2..].iter().take(CODE_CAP).position(|&d| d == ';') {
+                    Some(end) => {
+                        out.extend(chars[i + 2..i + 2 + end].iter().map(|&d| match d {
+                            '^' | '#' => '/',
+                            other => other,
+                        }));
+                        i += 2 + end + 1;
+                    }
+                    None => {
+                        out.push('\\');
+                        i += 1;
+                    }
+                }
+            }
             Some('H' | 'W' | 'C' | 'f' | 'F' | 'A' | 'Q' | 'T' | 'p') if mtext => {
-                match chars[i + 2..].iter().take(32).position(|&d| d == ';') {
+                match chars[i + 2..].iter().take(CODE_CAP).position(|&d| d == ';') {
                     Some(end) => i += 2 + end + 1,
                     None => {
                         out.push('\\');
@@ -132,8 +167,11 @@ pub(crate) fn plain(raw: &str, enc: &TextEncoding, mtext: bool) -> Result<String
             }
         }
     }
-    Ok(out)
+    out
 }
+
+/// Longest formatting code or stack, in chars, that is searched for its closing `;`.
+const CODE_CAP: usize = 256;
 
 /// `\U+XXXX` at `at`: the character and the number of chars used.
 fn unicode_escape(chars: &[char], at: usize) -> Option<(char, usize)> {
@@ -144,18 +182,40 @@ fn unicode_escape(chars: &[char], at: usize) -> Option<(char, usize)> {
     Some((char::from_u32(code)?, 7))
 }
 
-/// `\M+1XXXX` at `at`: the two bytes XXXX, and the number of chars used.
-fn two_byte_escape(chars: &[char], at: usize) -> Option<([u8; 2], usize)> {
-    if chars.get(at + 1) != Some(&'M')
-        || chars.get(at + 2) != Some(&'+')
-        || chars.get(at + 3) != Some(&'1')
-    {
+/// `\M+dXXXX` at `at`: the code page digit `d` and the two bytes XXXX. The escape is 8 chars.
+fn two_byte_escape(chars: &[char], at: usize) -> Option<(char, [u8; 2])> {
+    if chars.get(at + 1) != Some(&'M') || chars.get(at + 2) != Some(&'+') {
         return None;
     }
+    let digit = *chars.get(at + 3)?;
     let code = hex_at(chars, at + 4, 4)?;
     let hi = u8::try_from(code >> 8).ok()?;
     let lo = u8::try_from(code & 0xff).ok()?;
-    Some(([hi, lo], 8))
+    Some((digit, [hi, lo]))
+}
+
+/// The code page of a `\M+d` escape: 1 Shift_JIS, 2 Big5, 3 EUC-KR, 5 GBK. Other digits have none.
+fn two_byte_codec(digit: char) -> Option<&'static Encoding> {
+    match digit {
+        '1' => Some(SHIFT_JIS),
+        '2' => Some(BIG5),
+        '3' => Some(EUC_KR),
+        '5' => Some(GBK),
+        _ => None,
+    }
+}
+
+/// `%%c`, `%%d` or `%%p` at `at`: the diameter, degree or plus-minus sign.
+fn percent_code(chars: &[char], at: usize) -> Option<char> {
+    if chars.get(at + 1) != Some(&'%') {
+        return None;
+    }
+    match chars.get(at + 2)? {
+        'c' => Some('\u{2300}'),
+        'd' => Some('\u{b0}'),
+        'p' => Some('\u{b1}'),
+        _ => None,
+    }
 }
 
 /// `n` hex digits starting at `start`.

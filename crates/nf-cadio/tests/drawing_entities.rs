@@ -34,6 +34,7 @@ fn line_point_circle_and_arc_fields_are_read() {
             layer: "CUT".into(),
             start: p(1.5, 2.0, 0.0),
             end: p(10.0, -4.0, 0.0),
+            non_z_extrusion: false,
         }
     );
     assert_eq!(
@@ -41,6 +42,7 @@ fn line_point_circle_and_arc_fields_are_read() {
         Entity::Point {
             layer: "MARK".into(),
             at: p(3.0, 4.0, 5.0),
+            non_z_extrusion: false,
         }
     );
     assert_eq!(
@@ -49,6 +51,7 @@ fn line_point_circle_and_arc_fields_are_read() {
             layer: "0".into(),
             center: p(1.0, 2.0, 0.0),
             radius: 6.5,
+            non_z_extrusion: false,
         }
     );
     assert_eq!(
@@ -59,6 +62,7 @@ fn line_point_circle_and_arc_fields_are_read() {
             radius: 10.0,
             start_angle: 30.0,
             end_angle: 120.0,
+            non_z_extrusion: false,
         }
     );
 }
@@ -79,6 +83,7 @@ fn lwpolyline_bulge_keeps_its_sign() {
             layer,
             closed,
             vertices,
+            ..
         } => {
             assert_eq!(layer, "CUT");
             assert!(*closed, "bit 1 of group 70 closes the polyline");
@@ -156,6 +161,7 @@ fn polyline_2d_and_3d_with_vertices() {
                     bulge: 0.0
                 },
             ],
+            non_z_extrusion: false,
         }
     );
     assert_eq!(
@@ -178,6 +184,7 @@ fn polyline_2d_and_3d_with_vertices() {
                     bulge: 0.0
                 },
             ],
+            non_z_extrusion: false,
         }
     );
 }
@@ -200,6 +207,7 @@ fn text_and_mtext_keep_raw_and_plain_strings() {
             rotation: 90.0,
             raw: "PART 1\\U+0041".into(),
             plain: "PART 1A".into(),
+            non_z_extrusion: false,
         }
     );
     assert_eq!(
@@ -210,10 +218,11 @@ fn text_and_mtext_keep_raw_and_plain_strings() {
             height: 2.0,
             raw: "{\\H2.5;\\fArial|b0;SS400\\PNOTE\\~A\\\\".into(),
             plain: "SS400\nNOTE A\\".into(),
+            non_z_extrusion: false,
         }
     );
     match &drawing.entities[2] {
-        Entity::Solid { layer, corners } => {
+        Entity::Solid { layer, corners, .. } => {
             assert_eq!(layer, "CUT");
             assert_eq!(corners[0], p(0.0, 0.0, 0.0));
             assert_eq!(corners[1], p(10.0, 0.0, 0.0));
@@ -315,4 +324,37 @@ fn truncated_drawings_never_panic() {
         }
     }
     assert!(entities_of("0\nARC\n").is_err());
+}
+
+#[test]
+fn extrusion_not_plus_z_sets_the_flag_and_warns() {
+    // First LINE: extrusion (0, 0, -1), so the flag is set and the coordinates are kept as written.
+    // Second LINE: no extrusion group. Third LINE: extrusion (0, 0, 1). Neither sets the flag.
+    let drawing = entities_of(
+        "0\nLINE\n8\nCUT\n10\n1\n20\n2\n11\n3\n21\n4\n230\n-1\n\
+         0\nLINE\n8\nCUT\n10\n1\n20\n2\n11\n3\n21\n4\n\
+         0\nLINE\n8\nCUT\n10\n1\n20\n2\n11\n3\n21\n4\n210\n0\n220\n0\n230\n1\n",
+    )
+    .expect("extrusion is read, not refused");
+    let flags: Vec<bool> = drawing
+        .entities
+        .iter()
+        .map(Entity::non_z_extrusion)
+        .collect();
+    assert_eq!(flags, [true, false, false]);
+    assert_eq!(
+        drawing.entities[0],
+        Entity::Line {
+            layer: "CUT".into(),
+            start: p(1.0, 2.0, 0.0),
+            end: p(3.0, 4.0, 0.0),
+            non_z_extrusion: true,
+        }
+    );
+    assert_eq!(drawing.warnings.len(), 1, "{:?}", drawing.warnings);
+    assert!(
+        drawing.warnings[0].contains("extrusion"),
+        "{:?}",
+        drawing.warnings
+    );
 }
