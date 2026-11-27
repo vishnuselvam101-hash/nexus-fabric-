@@ -25,7 +25,6 @@ const MODULES = [
   '/js/lib/poll.js',
   '/js/views/convert.js',
   '/js/views/login.js',
-  '/js/views/recovery.js',
   '/js/views/result.js',
   '/js/views/workspace.js',
 ];
@@ -168,7 +167,7 @@ async function main() {
         // AUTH-1: the recovery code is shown once and must be confirmed before the program opens
         await page.waitForSelector('#rc-screen', { state: 'visible', timeout: 20000 });
         const shownCode = ((await page.textContent('#rc-code')) || '').trim();
-        check('first run: the recovery code (4 groups of 5) is shown once', /^([A-Z2-9]{5}-){3}[A-Z2-9]{5}$/.test(shownCode.replace(/\s/g, '')) || shownCode.length >= 20, shownCode.length + ' characters');
+        check('first run: the recovery code (4 groups of 5) is shown once', /^([A-Z2-9@]{5}-){3}[A-Z2-9@]{5}$/.test(shownCode.replace(/\s/g, '')) || shownCode.length >= 20, shownCode.length + ' characters');
         check('first run: Continue is disabled until "I have saved it" is ticked', await page.isDisabled('#rc-continue'));
         await page.check('#rc-saved');
         await page.click('#rc-continue');

@@ -115,11 +115,34 @@ async function renderRoute() {
     if (location.hash === href || location.hash.startsWith(href + '/')) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   }
   updateUserButton();
+  updateRecoveryNotice(route);
   closeMenus();
   viewEl.focus({ preventScroll: true });
 }
 
 const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+
+// an administrator whose account has no recovery code yet (an installation made before recovery codes) is asked to create one
+function updateRecoveryNotice(route) {
+  const user = getState().user;
+  const want = user?.role === 'admin' && user.has_recovery_code === false && route?.view !== 'login'
+    && !(route?.view === 'admin' && route.params?.tab === 'security');
+  let note = byId('rc-notice');
+  if (!want) { note?.remove(); return; }
+  if (!note) {
+    note = document.createElement('div');
+    note.id = 'rc-notice';
+    note.className = 'alert warn rc-notice';
+    note.setAttribute('role', 'status');
+    const text = document.createElement('span');
+    const link = document.createElement('a');
+    link.href = '#/admin/security';
+    note.append(text, ' ', link);
+    byId('view').before(note);
+  }
+  note.firstChild.textContent = t('rc.notice');
+  note.querySelector('a').textContent = t('rc.notice.go');
+}
 
 function startRouter() {
   initFx();
@@ -303,6 +326,9 @@ async function boot() {
     // only a session that was signed in has ended; a first visit that is not signed in gets no message
     if (getState().user) setState({ user: null, sessionEnded: true });
     if (!getState().setupToken) navigate('#/login');   // the setup link keeps the bare address (see resolveRoute)
+  }, () => {
+    const user = getState().user;
+    if (user && !user.must_change_password) { setState({ user: { ...user, must_change_password: true } }); navigate('#/login'); }
   });
 
   /* restore saved preferences */

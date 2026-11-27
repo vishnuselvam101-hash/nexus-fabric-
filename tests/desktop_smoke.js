@@ -4,7 +4,7 @@
 //  - the fragment is removed from the address bar, and the setup link is dead after setup;
 //  - a second copy on the same data folder is refused;
 //  - Ctrl+C (SIGINT) stops the program cleanly, with the database checkpointed.
-// Usage: node tests/desktop_smoke.js <path to nf-server binary> [port 8860-8869]
+// Usage: node tests/desktop_smoke.js <path to nf-server binary> [port 8845-8869]
 // Only 127.0.0.1 is used. Exits 0 only if every check passes; prints each check and the pass/fail counts.
 const { spawn } = require('child_process');
 const { chromium } = require('playwright');
@@ -15,8 +15,8 @@ const http = require('http');
 
 const BIN = process.argv[2];
 const PORT = Number(process.argv[3] || 8860);
-if (!BIN || !(PORT >= 8860 && PORT <= 8869)) {
-  console.error('usage: node tests/desktop_smoke.js <nf-server binary> [port 8860-8869]');
+if (!BIN || !(PORT >= 8845 && PORT <= 8869)) {
+  console.error('usage: node tests/desktop_smoke.js <nf-server binary> [port 8845-8869]');
   process.exit(2);
 }
 const WIN = process.platform === 'win32';

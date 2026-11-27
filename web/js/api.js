@@ -1,6 +1,7 @@
 const esc = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
 
 let onAuthLost = null;
+let onMustChange = null;
 
 async function api(path, opts = {}) {
   const { json, method, body, headers: extra } = opts;
@@ -19,6 +20,8 @@ async function api(path, opts = {}) {
   if (!res.ok) {
     let detail;
     try { detail = await res.json(); } catch { detail = {}; }
+    // an administrator reset this password: every call but the password change is refused until it is changed
+    if (res.status === 403 && detail.must_change_password && onMustChange) onMustChange();
     throw new ApiError(detail.error || detail.message || res.statusText, { status: res.status, ...detail });
   }
   if (res.status === 204) return null;
@@ -57,4 +60,4 @@ function uploadFile(url, file, onProgress) {
 }
 
 export { api, ApiError, uploadFile, esc, onAuthLost };
-export function setAuthHandler(fn) { onAuthLost = fn; }
+export function setAuthHandler(fn, mustChange) { onAuthLost = fn; onMustChange = mustChange || null; }

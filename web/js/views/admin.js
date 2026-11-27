@@ -1,8 +1,8 @@
 import { api, esc } from '../api.js';
-import { getState } from '../store.js';
+import { getState, setState } from '../store.js';
 import { t, h, idLabel, engineJa, lang } from '../i18n.js';
 import { el, $, $$, toast } from '../ui.js';
-import { codeScreen, resetForm, securityPanels } from './recovery.js';
+import { codeScreen, resetForm, securityPanels } from './login.js';
 
 // advisories belong to a job and are acknowledged on the job screen; the server has no list of them
 const TABS = ['users', 'security', 'audit', 'lessons'];
@@ -51,7 +51,7 @@ function usersHtml() {
     esc(roleText(u.role)),
     tg('', t(u.active ? 'adm.active' : 'adm.inactive')),
     when(u.created_at),
-    u.id === me.id ? '' : `<button class="btn btn-secondary" type="button" data-act="reset" data-user="${esc(u.id)}" data-name="${esc(u.username)}">${esc(t('adm.reset'))}</button> <button class="btn btn-secondary" type="button" data-act="active" data-user="${esc(u.id)}" data-name="${esc(u.username)}" data-to="${u.active ? 0 : 1}">${esc(t(u.active ? 'adm.deactivate' : 'adm.reactivate'))}</button>`,
+    u.id === me.id ? '' : `${String(u.username).startsWith('os:') ? '' : `<button class="btn btn-secondary" type="button" data-act="reset" data-user="${esc(u.id)}" data-name="${esc(u.username)}">${esc(t('adm.reset'))}</button> `}<button class="btn btn-secondary" type="button" data-act="active" data-user="${esc(u.id)}" data-name="${esc(u.username)}" data-to="${u.active ? 0 : 1}">${esc(t(u.active ? 'adm.deactivate' : 'adm.reactivate'))}</button>`,
   ]);
   const form = `<form id="nu" class="calc-form" novalidate>
     ${fld('nuu', t('th.username'), '<input id="nuu" name="username" autocomplete="off" autocapitalize="none" spellcheck="false">')}
@@ -137,6 +137,7 @@ function render() {
 function showCode(code) {
   if (!root) return;
   const me = getState().user || {};
+  if (me.id !== undefined) setState({ user: { ...me, has_recovery_code: true } });
   root.replaceChildren(codeScreen({ code, user: me.username, title: t('rc.new.title'), lead: t('rc.new.lead'), onDone: () => render() }));
   $('#rc-code', root)?.focus();
 }

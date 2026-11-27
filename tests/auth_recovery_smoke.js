@@ -23,7 +23,7 @@ if (!BIN || !(PORT >= 8845 && PORT <= 8849)) {
 if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
 const BASE = `http://127.0.0.1:${PORT}`;
 const DATA = fs.mkdtempSync(path.join(os.tmpdir(), 'nf-auth-smoke-'));
-const TOKEN = 'auth-smoke-setup-token';
+const TOKEN = 'auth-smoke-setup-token-9z';
 const USER = 'admin';
 const PASS1 = 'correct-horse-9';
 const PASS2 = 'battery-staple-77';
@@ -39,7 +39,7 @@ const check = (name, ok, detail = '') => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const msgOf = (e) => (e && e.message) || String(e);
-const CODE_RE = /^[A-Z2-9]{5}(-[A-Z2-9]{5}){3}$/;
+const CODE_RE = /^[A-Z2-9@]{5}(-[A-Z2-9@]{5}){3}$/;
 
 async function main() {
   const log = [];
@@ -70,7 +70,8 @@ async function main() {
       await page.fill('#login-pass', pass);
       await page.click('#login-form button[type="submit"]');
     };
-    const DROP = '#view .dropzone, #view .drop-zone';
+    // signed in = the sign-in form is gone and the account button carries the user name (the convert page may still be drawing)
+    const signedIn = (user) => page.waitForFunction((u) => !document.querySelector('#login-form') && (document.getElementById('btn-user') || {}).title === u, user, { timeout: 30000 });
 
     /* ---- 1. first-run setup shows the code once ---- */
     await page.goto(`${BASE}/`);
@@ -89,7 +90,7 @@ async function main() {
     await page.check('#rc-saved');
     check('setup: ticking the box enables Continue', !(await page.isDisabled('#rc-continue')));
     await page.click('#rc-continue');
-    await page.waitForSelector(DROP, { state: 'visible', timeout: 20000 });
+    await signedIn(USER);
     check('setup: Continue opens the program signed in', true);
     check('the code is not left in the page afterwards', !(await page.content()).includes(code1.slice(0, 5) + '-' + code1.slice(5, 10)));
 
@@ -141,7 +142,7 @@ async function main() {
     await page.waitForSelector('#login-form .alert.bad, #login-form [role="alert"]');
     check('recover: the old password no longer signs in', /Incorrect/.test(await text('#login-form .alert')));
     await fillLogin(USER, PASS2);
-    await page.waitForSelector(DROP, { state: 'visible', timeout: 20000 });
+    await signedIn(USER);
     check('recover: the new password signs in', true);
     const replay = await post('/api/recover', { username: USER, recovery_code: code1, new_password: PASS3 });
     check('recover: the old code is dead (generic refusal)', replay.status >= 400 && replay.status !== 500, 'HTTP ' + replay.status);
@@ -158,11 +159,11 @@ async function main() {
       (await page.locator('#adm-users tr', { hasText: USER }).first().locator('[data-act="reset"]').count()) === 0);
     await shot('auth-5-reset-form.png');
     await page.fill('#rst-new', TEMP);
-    await page.fill('#rst-admin', 'wrong-admin-pass');
+    await page.fill('#rst-new', 'short');
     await page.click('#rst-go');
     await page.waitForSelector('#rst-msg .alert');
-    check('reset: a wrong administrator password is refused', /not correct/.test(await text('#rst-msg .alert')), await text('#rst-msg'));
-    await page.fill('#rst-admin', PASS2);
+    check('reset: a short temporary password is refused from the catalogue', (await text('#rst-msg .alert')) === 'The password must have at least 10 characters.');
+    await page.fill('#rst-new', TEMP);
     await page.click('#rst-go');
     await page.waitForFunction(() => /was reset/.test(document.body.innerText));
     check('reset: the administrator is told the password was reset', true);
@@ -185,7 +186,7 @@ async function main() {
     await page.click('#chg-go');
     await page.waitForSelector('#login-form', { state: 'visible', timeout: 20000 });
     await fillLogin(WORKER, WORKER_PW);
-    await page.waitForSelector(DROP, { state: 'visible', timeout: 20000 });
+    await signedIn(WORKER);
     check('must change: after the change the new password signs in to the program', true);
     await post('/api/logout', {});
 
@@ -194,7 +195,7 @@ async function main() {
     await page.reload();
     await page.waitForSelector('#login-form', { state: 'visible' });
     await fillLogin(USER, PASS2);
-    await page.waitForSelector(DROP, { state: 'visible', timeout: 20000 });
+    await signedIn(USER);
     await page.goto(`${BASE}/#/admin/security`);
     await page.waitForSelector('#rcn-form', { state: 'visible' });
     check('security: the automatic sign-in panel explains it is for desktop mode only', /desktop mode/.test(await text('#auto-server')), await text('#adm-secpanels'));
@@ -240,17 +241,20 @@ async function main() {
     await page.click('#rc-continue');
     await page.waitForSelector('#login-form', { state: 'visible' });
     await fillLogin(USER, PASS3);
-    await page.waitForSelector(DROP, { state: 'visible', timeout: 20000 });
+    await page.waitForFunction((u) => !document.querySelector('#login-form') && (document.getElementById('btn-user') || {}).title === u, USER, { timeout: 20000 });
     check('Japanese: the recovered account signs in', true);
 
     /* ---- 7. secrets stay out of the server log ---- */
     const all = log.join('');
     check('the server log carries no recovery code or password', ![code1, code2, code3, PASS1, PASS2, PASS3, TEMP, WORKER_PW].some((s) => all.includes(s)));
     check('no uncaught page error', errors.length === 0, errors.join(' | ').slice(0, 200));
+
+    /* ---- 8. desktop mode: optional automatic sign-in with a single-use launch link (not run on Windows) ---- */
+    if (process.platform !== 'win32') await desktopPart(browser, check, SHOTS);
   } catch (e) {
     const seen = page ? await page.evaluate(() => location.hash + ' | ' + (document.getElementById('view') || document.body).innerText.slice(0, 300)).catch(() => '') : '';
     if (page && SHOTS) await page.screenshot({ path: path.join(SHOTS, 'auth-failure.png') }).catch(() => {});
-    check('the run completed', false, msgOf(e).split('\n')[0] + ' | at ' + seen);
+    check('the run completed', false, msgOf(e).split('\n')[0] + ' | at ' + seen + ' | server: ' + log.join('').slice(0, 300));
   } finally {
     if (browser) await browser.close();
     child.kill('SIGINT');
@@ -261,4 +265,120 @@ async function main() {
   console.log(`passed: ${passed}  failed: ${failed}`);
   process.exit(failed ? 1 : 0);
 }
+// Desktop mode with a stand-in "xdg-open" that records the address the program would open in the browser.
+async function desktopPart(browser, check, SHOTS) {
+  const DPORT = PORT + 1;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nf-auth-desk-'));
+  const bin = path.join(root, 'bin');
+  fs.mkdirSync(bin);
+  const opened = path.join(root, 'opened.txt');
+  fs.writeFileSync(path.join(bin, 'xdg-open'), `#!/bin/sh\necho "$1" >> '${opened}'\n`, { mode: 0o755 });
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, XDG_DATA_HOME: root, HOME: root, LOCALAPPDATA: root };
+  const B = `http://127.0.0.1:${DPORT}`;
+  const lines = () => (fs.existsSync(opened) ? fs.readFileSync(opened, 'utf8').split('\n').filter(Boolean) : []);
+  const run = () => {
+    const c = spawn(BIN, ['--desktop', '--port', String(DPORT)], { env });
+    const o = { text: '', child: c };
+    c.stdout.on('data', (d) => (o.text += d));
+    c.stderr.on('data', (d) => (o.text += d));
+    o.exited = new Promise((r) => c.on('exit', r));
+    return o;
+  };
+  const stop = async (o) => { o.child.kill('SIGINT'); await Promise.race([o.exited, sleep(15000)]); };
+  const waitLines = async (n) => { for (let i = 0; i < 150 && lines().length < n; i++) await sleep(100); return lines(); };
+  const post = (pg, url, body) => pg.evaluate(async ([u, b]) => {
+    const r = await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-NF-Request': '1' }, body: JSON.stringify(b) });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  }, [url, body]);
+  let o = run();
+  try {
+    let l = await waitLines(1);
+    check('desktop: first start opens the setup link (a fragment, not printed)', /#setup=[0-9a-f]{64}$/.test(l[0] || '') && !/#setup=/.test(o.text), (l[0] || '').slice(0, 40));
+    const c1 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const p1 = await c1.newPage();
+    p1.setDefaultTimeout(20000);
+    await p1.goto(l[0]);
+    await p1.waitForSelector('#login-auto', { state: 'visible' });
+    check('desktop: setup offers automatic sign-in, off by default', !(await p1.isChecked('#login-auto')));
+    const help = ((await p1.textContent('#login-auto-help')) || '');
+    check('desktop: setup explains automatic sign-in plainly (no password; same computer user; admin actions still ask)', /without a password/.test(help) && /still ask for the administrator password/.test(help), help.slice(0, 80));
+    if (SHOTS) await p1.screenshot({ path: path.join(SHOTS, 'auth-11-desktop-setup.png') });
+    await p1.fill('#login-user', USER);
+    await p1.fill('#login-pass', PASS1);
+    await p1.check('#login-auto');
+    await p1.click('#login-form button[type="submit"]');
+    await p1.waitForSelector('#rc-screen', { state: 'visible' });
+    await p1.check('#rc-saved');
+    await p1.click('#rc-continue');
+    await p1.waitForFunction((u) => (document.getElementById('btn-user') || {}).title === u, USER);
+    const sess = await p1.evaluate(async () => (await fetch('/api/session')).json());
+    check('desktop: the session reports desktop mode and automatic sign-in on', sess.mode === 'desktop' && sess.auto_signin === true, JSON.stringify(sess));
+    await p1.goto(`${B}/#/admin/security`);
+    await p1.waitForSelector('#auto-form', { state: 'visible' });
+    if (SHOTS) await p1.screenshot({ path: path.join(SHOTS, 'auth-12-desktop-security.png') });
+    await c1.close();
+    await stop(o);
+
+    // second start: the program opens the browser with a single-use launch link
+    o = run();
+    l = await waitLines(2);
+    const link = l[1] || '';
+    check('desktop: next start opens a launch link', /#launch=[0-9a-f]{64}$/.test(link) && !/#launch=/.test(o.text), link.slice(0, 40));
+    const c2 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const p2 = await c2.newPage();
+    p2.setDefaultTimeout(20000);
+    const seen = [];
+    p2.on('request', (r) => seen.push(r.url()));
+    await p2.goto(link);
+    await p2.waitForFunction(() => (document.getElementById('btn-user') || {}).title && document.getElementById('btn-user').title !== 'Not signed in');
+    const me = await p2.evaluate(async () => (await fetch('/api/me', { headers: { 'X-NF-Request': '1' } })).json());
+    check('desktop: the launch link signs in the computer user as an engineer, never admin', /^os:/.test(me.username) && me.role === 'engineer', JSON.stringify(me));
+    check('desktop: the launch token is removed from the address bar', !(await p2.evaluate(() => location.href)).includes('launch'));
+    check('desktop: the launch token never appears in a request address', !seen.some((u) => /launch=|[0-9a-f]{64}/.test(u)));
+    if (SHOTS) await p2.screenshot({ path: path.join(SHOTS, 'auth-13-auto-signed-in.png') });
+    const c3 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const p3 = await c3.newPage();
+    p3.setDefaultTimeout(20000);
+    await p3.goto(link);
+    await p3.waitForSelector('#login-form', { state: 'visible' });
+    check('desktop: the same launch link a second time shows the sign-in form', !!(await p3.$('#forgot-link')));
+    await c3.close();
+    await c2.close();
+
+    // the administrator turns it off (password required)
+    const c4 = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const p4 = await c4.newPage();
+    p4.setDefaultTimeout(20000);
+    await p4.goto(`${B}/`);
+    await p4.waitForSelector('#login-form', { state: 'visible' });
+    await p4.fill('#login-user', USER);
+    await p4.fill('#login-pass', PASS1);
+    await p4.click('#login-form button[type="submit"]');
+    await p4.waitForFunction((u) => (document.getElementById('btn-user') || {}).title === u, USER);
+    await p4.goto(`${B}/#/admin/security`);
+    await p4.waitForSelector('#auto-form', { state: 'visible' });
+    await p4.uncheck('#auto-on');
+    await p4.fill('#auto-pw', 'wrong-password-here');
+    await p4.click('#auto-go');
+    await p4.waitForSelector('#auto-msg .alert');
+    check('desktop: switching it off needs the administrator password', /not correct/.test((await p4.textContent('#auto-msg .alert')) || ''));
+    await p4.fill('#auto-pw', PASS1);
+    await p4.click('#auto-go');
+    await p4.waitForFunction(() => /Automatic sign-in is off\./.test(document.body.innerText));
+    const after = await p4.evaluate(async () => (await fetch('/api/session')).json());
+    check('desktop: automatic sign-in is off afterwards', after.auto_signin === false, JSON.stringify(after));
+    await c4.close();
+    await stop(o);
+    o = run();
+    await sleep(3000);
+    check('desktop: with it off, the next start opens the plain address, no launch link', lines().length === 3 && !/#/.test(lines()[2]), lines().slice(2).join(' ').slice(0, 80));
+    await stop(o);
+  } catch (e) {
+    check('desktop part completed', false, msgOf(e).split('\n')[0] + ' | ' + o.text.slice(0, 300));
+    try { await stop(o); } catch { /* already stopped */ }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 main();

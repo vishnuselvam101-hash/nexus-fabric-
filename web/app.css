@@ -1073,3 +1073,4 @@
 }
 #adm-secpanels { display: grid; gap: var(--sp-5); margin-top: var(--sp-5); }
 #rst-panel { margin-top: var(--sp-5); }
+.rc-notice { margin: var(--sp-3) auto 0; max-width: 960px; }
