@@ -95,6 +95,9 @@ def main():
                               "same": bool(r["this_run"]) and r["this_run"] == r["second_build"]})
     if repro["rows"]:
         repro["bit_reproducible"] = len(repro["rows"]) == 3 and all(x["same"] for x in repro["rows"])
+    if (facts.get("signing") or "").startswith("signed"):
+        repro["signed_build_note"] = ("Signed build: each Authenticode signature carries its own signing time, so two signed builds "
+                                      "differ by design. Bit-for-bit reproducibility is judged on the unsigned build.")
 
     versions_ok = all(v["agrees"] == "yes" for v in versions) and bool(versions)
     failed = [r for r in results if r["status"] == "failed"]
@@ -159,7 +162,7 @@ def main():
                     "timestamp": facts.get("signing_timestamp"), "signer_subject": facts.get("signer_subject")},
         "not_shown": not_shown,
     }
-    if repro["bit_reproducible"] is False:
+    if repro["bit_reproducible"] is False and not repro.get("signed_build_note"):
         manifest["not_shown"] = not_shown + [
             "The build is NOT bit-reproducible: the two builds of the same commit produced different SHA-256 values. Both sets are recorded in the reproducibility section."
         ]
@@ -281,12 +284,16 @@ def markdown(m):
     if r["rows"]:
         o.append("")
         o.append(f"Bit-for-bit identical in the two builds: **{'yes' if r['bit_reproducible'] else 'NO'}**")
+    if r["rows"]:
         o.append("")
         o.append("| File | SHA-256, build 1 (artefacts in this folder) | SHA-256, build 2 | Same |")
         o.append("|---|---|---|---|")
         for d in r["rows"]:
             o.append(f"| {d['file']} | `{d['this_run']}` | `{d['second_build']}` | {'yes' if d['same'] else 'no'} |")
-        if not r["bit_reproducible"]:
+        if r.get("signed_build_note"):
+            o.append("")
+            o.append(r["signed_build_note"])
+        elif not r["bit_reproducible"]:
             o.append("")
             o.append("The builds are NOT bit-identical. Both sets of SHA-256 values are shown above.")
     o.append("")
