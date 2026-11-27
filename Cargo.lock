@@ -767,6 +767,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nf-jobout"
+version = "0.1.0"
+dependencies = [
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "nf-licence"
 version = "0.1.0"
 dependencies = [
