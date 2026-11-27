@@ -1242,7 +1242,8 @@ async fn l1r1_the_ai_operator_gives_a_reason_for_every_order_write() {
         .send("PUT", &parts, Some(json!({ "parts": [{ "no": "9", "shape": "cylinder", "qty": 2 }], "note": "qty per drawing" })), &ac)
         .await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
-    assert_eq!(audit_details(&t, "order_parts_reason").len(), 1);
+    // the refused edit above (no reason) and this accepted one each keep their reason row
+    assert_eq!(audit_details(&t, "order_parts_reason").len(), 2);
     let undo = format!("{dec}/{did}/undo");
     // an undo by the operator needs a reason as well
     let (st, _, b) = t.send("POST", &undo, Some(json!({})), &ac).await;
@@ -1440,6 +1441,14 @@ async fn l1r2_the_ai_operator_gives_a_reason_on_create_and_upload() {
         String::from_utf8_lossy(&body)
     );
     assert_eq!(code_of(&body), json!("decision_reason"));
+    // the refusal is on record, in its own transaction
+    assert_eq!(
+        audit_details(&t, "order_refused")
+            .iter()
+            .filter(|x| x.contains("file upload refused: decision_reason"))
+            .count(),
+        1
+    );
     let (st, body) = raw(
         &t,
         "POST",

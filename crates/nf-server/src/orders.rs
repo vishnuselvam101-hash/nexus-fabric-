@@ -253,7 +253,7 @@ fn record_alone(app: &App, who: &str, action: &str, detail: &str) -> Result<(), 
 
 /// Answers a write. A refusal that is evidence is written down in its own transaction, after the refused
 /// request's transaction has rolled back: a limit (parts_limit, values_limit), any conflict (409), and any
-/// refusal of the AI operator (403). An AI operator's refused parts edit keeps its reason row too.
+/// refusal of the AI operator (403) and a decision or upload the AI operator sent without a reason (422). An AI operator's refused parts edit keeps its reason row too.
 async fn settle(app: &App, u: &User, oid: i64, what: &str, note: String, res: Api) -> Api {
     let resp = match res {
         Ok(r) => return Ok(r),
@@ -272,6 +272,7 @@ async fn settle(app: &App, u: &User, oid: i64, what: &str, note: String, res: Ap
     if limit
         || parts.status == StatusCode::CONFLICT
         || (agent && parts.status == StatusCode::FORBIDDEN)
+        || (agent && code == "decision_reason")
     {
         let note_text = if note.trim().is_empty() {
             String::new()
@@ -418,10 +419,13 @@ fn reading(tok: &str) -> Option<(f64, bool)> {
         Some((a, b)) => (a, Some(b)),
         None => (tok, None),
     };
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
     let groups: Vec<&str> = int_part.split(',').collect();
     let grouped = groups.len() > 1
-        && !groups[0].is_empty()
-        && groups[1..].iter().all(|g| g.len() == 3)
+        && digits(groups[0])
+        && groups[0].len() <= 3
+        && !groups[0].starts_with('0')
+        && groups[1..].iter().all(|g| g.len() == 3 && digits(g))
         && !frac.is_some_and(|f| f.contains(','));
     if grouped {
         tok.replace(',', "").parse::<f64>().ok().map(|f| (f, false))
@@ -704,19 +708,31 @@ async fn upload_file(
 ) -> Api {
     let u = write_access(&app, &headers, oid, "order file")?;
     let reason = query.get("reason").cloned().unwrap_or_default();
+    let res = upload_file_do(&app, &headers, &u, oid, &reason, body).await;
+    settle(&app, &u, oid, "file upload", reason, res).await
+}
+
+async fn upload_file_do(
+    app: &App,
+    headers: &HeaderMap,
+    u: &User,
+    oid: i64,
+    reason: &str,
+    body: axum::body::Body,
+) -> Api {
     if reason.chars().count() > MAX_NOTE_CHARS {
         return Err(unprocessable(
             "field_too_long",
             &format!("'reason' is longer than {MAX_NOTE_CHARS} characters"),
         ));
     }
-    agent_reason(&u, &reason)?;
-    let (bytes, _slot) = read_upload_body(&app, &headers, body).await?;
-    let filename = upload_filename(&headers);
+    agent_reason(u, reason)?;
+    let (bytes, _slot) = read_upload_body(app, headers, body).await?;
+    let filename = upload_filename(headers);
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    still_writer(&tx, &u)?;
-    let head = guard_order(&app, &tx, &u, oid, "order file")?;
+    still_writer(&tx, u)?;
+    let head = guard_order(app, &tx, u, oid, "order file")?;
     let detected = match membrane::admit(&bytes) {
         membrane::Admission::Accepted { detected_type } => detected_type,
         membrane::Admission::Rejected { reason } => {
@@ -774,7 +790,7 @@ async fn upload_file(
             ),
         ));
     }
-    let doc = register_document(&app, &tx, &u, head.project, &filename, &bytes, detected)?;
+    let doc = register_document(app, &tx, u, head.project, &filename, &bytes, detected)?;
     tx.execute(
         "INSERT INTO order_files(order_id, document_id, ord) VALUES (?, ?, ?)",
         params![oid, doc.id, files + 1],
@@ -793,7 +809,7 @@ async fn upload_file(
     let reason_text = if reason.trim().is_empty() {
         String::new()
     } else {
-        format!(" reason: {}", clip(&reason, 300))
+        format!(" reason: {}", clip(reason, 300))
     };
     app.audit(
         &tx,
@@ -2198,4 +2214,44 @@ async fn get_order(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) ->
         "checked": checked,
         "limits": { "files": MAX_ORDER_FILES, "pages": MAX_ORDER_PAGES, "parts": MAX_ORDER_PARTS, "upload_mib": membrane::MAX_UPLOAD_BYTES / (1024 * 1024) },
     }))
+}
+
+#[cfg(test)]
+mod reading_tests {
+    use super::*;
+
+    #[test]
+    fn thousands_groups_are_strict() {
+        // (token, value, ambiguous): only a 1-3 digit first group, no leading zero, then exact 3-digit groups.
+        let table: &[(&str, f64, bool)] = &[
+            ("1,500", 1500.0, false),
+            ("12,345,678", 12_345_678.0, false),
+            ("12,345.6", 12_345.6, false),
+            ("0,500", 0.5, true),
+            ("01,500", 1.5, true),
+            ("1234,567", 1234.567, true),
+            (",500", 0.5, true),
+            ("1,5", 1.5, true),
+            ("1,50", 1.5, true),
+            ("1,5000", 1.5, true),
+            ("0,5", 0.5, true),
+        ];
+        for &(tok, want, amb) in table {
+            let (got, flag) = reading(tok).unwrap_or_else(|| panic!("{tok}: no reading"));
+            assert_eq!((got, flag), (want, amb), "token {tok}");
+        }
+    }
+
+    #[test]
+    fn sign_and_full_width_comma_are_kept() {
+        let r = numbers_in("-1,500");
+        assert_eq!((r.len(), r[0].value, r[0].ambiguous), (1, -1500.0, false));
+        let r = numbers_in("１２，３４５，６７８");
+        assert_eq!(
+            (r.len(), r[0].value, r[0].ambiguous),
+            (1, 12_345_678.0, false)
+        );
+        let r = numbers_in("0,500");
+        assert_eq!((r.len(), r[0].value, r[0].ambiguous), (1, 0.5, true));
+    }
 }
