@@ -11,6 +11,7 @@
 #![forbid(unsafe_code)]
 
 mod drawing;
+mod entities;
 mod error;
 mod header;
 mod parse;

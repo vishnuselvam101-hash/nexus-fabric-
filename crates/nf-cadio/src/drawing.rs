@@ -11,7 +11,7 @@ use crate::header::{int_value, real, HeaderValue};
 use crate::text::{self, TextEncoding};
 use crate::tokenizer::Pair;
 use crate::units::Units;
-use crate::{tables, Document};
+use crate::{entities, tables, Document};
 
 /// A drawing read from a DXF file.
 #[derive(Debug, Clone, PartialEq)]
@@ -177,7 +177,16 @@ pub(crate) fn build(doc: &Document) -> Result<Drawing, CadError> {
     for section in doc.sections.iter().filter(|s| s.name == "TABLES") {
         tables::read(&section.pairs, &enc, &mut drawing)?;
     }
+    for section in doc.sections.iter().filter(|s| s.name == "ENTITIES") {
+        entities::read(&section.pairs, &enc, &mut drawing)?;
+    }
     Ok(drawing)
+}
+
+/// Counts one entity kind this reader does not model.
+pub(crate) fn skip(drawing: &mut Drawing, kind: &str) {
+    let key: String = kind.chars().take(MAX_KIND_CHARS).collect();
+    *drawing.skipped.entry(key).or_insert(0) += 1;
 }
 
 /// One record: a group 0 pair and the pairs up to the next group 0.
@@ -251,6 +260,35 @@ impl<'a> Record<'a> {
     /// The real number of this group, or None when absent.
     pub fn real(&self, code: u16) -> Result<Option<f64>, CadError> {
         self.pair(code).map(real).transpose()
+    }
+
+    /// The real number of this group, or a refusal when absent.
+    pub fn required_real(&self, code: u16) -> Result<f64, CadError> {
+        self.real(code)?.ok_or_else(|| self.missing(code))
+    }
+
+    /// The point whose coordinates are groups `code`, `code + 10` and `code + 20`. The z value is 0
+    /// when group `code + 20` is absent. None when no coordinate is given; a refusal when only one of x
+    /// and y is given.
+    pub fn point(&self, code: u16) -> Result<Option<Point3>, CadError> {
+        let x = self.real(code)?;
+        let y = self.real(code + 10)?;
+        let z = self.real(code + 20)?;
+        match (x, y) {
+            (Some(x), Some(y)) => Ok(Some(Point3 {
+                x,
+                y,
+                z: z.unwrap_or(0.0),
+            })),
+            (None, None) => Ok(None),
+            (Some(_), None) => Err(self.missing(code + 10)),
+            (None, Some(_)) => Err(self.missing(code)),
+        }
+    }
+
+    /// The point of [`Record::point`], or a refusal when absent.
+    pub fn required_point(&self, code: u16) -> Result<Point3, CadError> {
+        self.point(code)?.ok_or_else(|| self.missing(code))
     }
 
     /// A refusal that this record has no group `code`.
