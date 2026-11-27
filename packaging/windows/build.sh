@@ -58,6 +58,7 @@ rm -f "$SETUP"
 # installer after it is built. Without a signing environment neither step runs and the output is unchanged.
 SIGN_NSIS=()
 SIGN_SETUP=0
+"$ROOT/packaging/windows/sign.sh" --preflight || { echo "build.sh: signing setup incomplete (see above)" >&2; exit 1; }
 if "$ROOT/packaging/windows/sign.sh" --requested; then
   SIGN_NSIS=(-DNF_SIGN_UNINST="$ROOT/packaging/windows/sign.sh")
   SIGN_SETUP=1

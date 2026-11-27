@@ -180,6 +180,7 @@ run_windows_checks() {
   local LOGS="$OUT/logs" SETUP="$OUT/nexus-fabric-$VER-windows-x64-setup.exe"
   local ZIP="$OUT/nexus-fabric-$VER-windows-x64-portable.zip"
   local HOW P1 U INST SM DESK DATA L rc line i P2 PDIR reg
+  INSTALL_RAN=0
   WINE_HOME="$WORK/home"
   mkdir -p "$WINE_HOME"
   WINE_VER=$(wine_env "$WORK/wp-version" timeout 60 wine --version 2>/dev/null | head -1)
@@ -214,6 +215,7 @@ run_windows_checks() {
   wine_env "$P1" timeout 400 wine "$SETUP" /S >"$L" 2>&1
   rc=$?
   if [ "$rc" = 0 ]; then
+    INSTALL_RAN=1
     rec win.install.exit "Silent install (setup.exe /S) exits 0" "$HOW" passed "" "exit 0" win-install.log
   else
     rec win.install.exit "Silent install (setup.exe /S) exits 0" "$HOW" failed "exit $rc" "exit $rc" win-install.log
@@ -221,9 +223,12 @@ run_windows_checks() {
   local missing=""
   for i in nexus-fabric.exe README.txt NOTICE.txt THIRD_PARTY_NOTICES.txt uninstall.exe; do [ -f "$INST/$i" ] || missing="$missing $i"; done
   if [ -z "$missing" ]; then
-    rec win.install.files "Installed files present in the per-user folder" "$HOW" passed "" "$(ls "$INST" | tr '\n' ' ')" win-install.log
-    # Copy for the signature check (the uninstaller is removed by the silent uninstall below).
-    cp "$INST/uninstall.exe" "$WORK/uninstall-installed.exe" 2>/dev/null || true
+    # Copy for the signature check (the uninstaller is removed by the silent uninstall below). A failed copy fails this check.
+    if cp "$INST/uninstall.exe" "$WORK/uninstall-installed.exe" 2>/dev/null; then
+      rec win.install.files "Installed files present in the per-user folder" "$HOW" passed "" "$(ls "$INST" | tr '\n' ' ')" win-install.log
+    else
+      rec win.install.files "Installed files present in the per-user folder" "$HOW" failed "copy of uninstall.exe for the signature check failed" "$(ls "$INST" | tr '\n' ' ')" win-install.log
+    fi
   else
     rec win.install.files "Installed files present in the per-user folder" "$HOW" failed "missing:$missing" "$(ls "$INST" 2>/dev/null | tr '\n' ' ')" win-install.log
   fi
@@ -287,10 +292,11 @@ run_windows_checks() {
     [ -e "$INST/nexus-fabric.exe" ] || [ -e "$INST/uninstall.exe" ] || break
     sleep 1
   done
-  if [ ! -e "$INST/nexus-fabric.exe" ] && [ ! -e "$INST/uninstall.exe" ] && [ ! -e "$INST/README.txt" ] && [ ! -d "$INST" ]; then
+  # Passed only if the uninstaller exited 0 (wine could not load uninstall.exe before: c0000135) and the program folder is gone.
+  if [ "$rc" = 0 ] && [ -d "$U" ] && [ ! -e "$INST/nexus-fabric.exe" ] && [ ! -e "$INST/uninstall.exe" ] && [ ! -e "$INST/README.txt" ] && [ ! -d "$INST" ]; then
     rec win.uninstall.program "Silent uninstall (uninstall.exe /S, exit $rc) removes the program folder" "$HOW" passed "" "program folder gone" win-uninstall.log
   else
-    rec win.uninstall.program "Silent uninstall (uninstall.exe /S, exit $rc) removes the program folder" "$HOW" failed "files remain: $(ls "$INST" 2>/dev/null | tr '\n' ' ')" "" win-uninstall.log
+    rec win.uninstall.program "Silent uninstall (uninstall.exe /S, exit $rc) removes the program folder" "$HOW" failed "exit $rc; files remain: $(ls "$INST" 2>/dev/null | tr '\n' ' ')" "" win-uninstall.log
   fi
   if [ ! -e "$SM/NEXUS FABRIC.lnk" ] && [ ! -e "$SM/Uninstall NEXUS FABRIC.lnk" ] && [ ! -e "$DESK/NEXUS FABRIC.lnk" ]; then
     rec win.uninstall.shortcuts "Start-menu and desktop shortcuts removed" "$HOW" passed "" "none remain" win-uninstall.log
@@ -303,11 +309,11 @@ run_windows_checks() {
   else
     rec win.uninstall.registry "Uninstall registry entry removed" "$HOW" failed "key still present" "$(printf '%s' "$reg" | tail -1)" win-uninstall.log
   fi
-  if [ -f "$DATA/nexus-fabric.sqlite" ]; then
+  if [ "$rc" = 0 ] && [ -d "$U" ] && [ -f "$DATA/nexus-fabric.sqlite" ]; then
     rec win.uninstall.data_kept "Data folder kept after uninstall (database file present)" "$HOW" passed "" \
       "$(ls -la "$DATA" | awk 'NR>1{print $NF}' | tr '\n' ' ')" win-uninstall.log
   else
-    rec win.uninstall.data_kept "Data folder kept after uninstall (database file present)" "$HOW" failed "database file missing" "" win-uninstall.log
+    rec win.uninstall.data_kept "Data folder kept after uninstall (database file present)" "$HOW" failed "uninstall exit $rc, or database file missing" "" win-uninstall.log
   fi
 
   # Upgrade: previous installer first, a job created with it, the new installer installed over it.
@@ -425,6 +431,9 @@ run_sign_checks() {
   sign_check converter "Converter signature verifies (nf-pdf2dxf.exe, portable zip copy)" "$ZDIR/nexus-fabric-$VER/nf-pdf2dxf.exe"
   if [ -f "$WORK/uninstall-installed.exe" ]; then
     sign_check uninstaller "Uninstaller signature verifies (uninstall.exe, copy from the silent install)" "$WORK/uninstall-installed.exe"
+  elif [ "${INSTALL_RAN:-0}" = 1 ]; then
+    rec "win.sign.uninstaller" "Uninstaller signature verifies (uninstall.exe, copy from the silent install)" "$HOW" failed \
+      "silent install ran but the installed uninstaller copy is missing" "" ""
   else
     rec "win.sign.uninstaller" "Uninstaller signature verifies (uninstall.exe, copy from the silent install)" "$HOW" "not run" \
       "no silent install under wine: the installed uninstaller was not available" "" ""

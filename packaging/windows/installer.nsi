@@ -22,9 +22,10 @@ ShowUninstDetails show
 !endif
 
 ; Signed builds only (packaging/windows/build.sh passes NF_SIGN_UNINST = packaging/windows/sign.sh):
-; the uninstaller is signed before it is embedded in the installer.
+; the uninstaller is signed before it is embedded in the installer. "= 0": if the signing command exits with any
+; other status, makensis fails and no installer is written (an unsigned uninstaller is never embedded).
 !ifdef NF_SIGN_UNINST
-  !uninstfinalize '"${NF_SIGN_UNINST}" "%1"'
+  !uninstfinalize '"${NF_SIGN_UNINST}" "%1"' = 0
 !endif
 
 !define APPNAME "NEXUS FABRIC"

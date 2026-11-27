@@ -27,6 +27,7 @@
   `openssl pkeyutl -verify -pubin -inkey nf-release-public.pem -rawin -in SHA256SUMS -sigfile SHA256SUMS.sig`
   It prints `Signature Verified Successfully` only if `SHA256SUMS` was made by NEXUS FABRIC's release key. Any other answer: do not use the files. Then run the SHA-256 check above on the packages.
   (`packaging/verify_sums.sh <folder> nf-release-public.pem` runs the same check from the source tree.)
+  Key fingerprint (SHA-256 of the public key in DER form; compare your copy of the key with it before you trust the signature): `openssl pkey -pubin -in nf-release-public.pem -outform DER | sha256sum`. The fingerprint of the release key is printed by `packaging/sign_sums.sh` when a release is signed and is published with the release. The same key is kept in the source repository at `packaging/nf-release-public.pem`. **Not yet issued:** the repository file is a placeholder until the founder generates the real key; until then the check above fails, and that is the correct result.
 
 ### Windows: install
 
@@ -103,6 +104,7 @@ The first-run screen in the browser shows the same information.
   `openssl pkeyutl -verify -pubin -inkey nf-release-public.pem -rawin -in SHA256SUMS -sigfile SHA256SUMS.sig`
   `Signature Verified Successfully` と表示された場合だけ、NEXUS FABRIC のリリース鍵で作られた `SHA256SUMS` です。それ以外の結果ならファイルを使わないでください。そのうえで上の SHA-256 確認をパッケージごとに行います。
   （ソースツリーからは `packaging/verify_sums.sh <フォルダ> nf-release-public.pem` で同じ確認ができます。）
+  鍵のフィンガープリント（公開鍵の DER 形式の SHA-256。信頼する前に、取得した鍵をこれと照合してください）: `openssl pkey -pubin -in nf-release-public.pem -outform DER | sha256sum`。リリース鍵のフィンガープリントは、リリース時に `packaging/sign_sums.sh` が表示し、リリースと一緒に公開されます。同じ鍵はソースリポジトリの `packaging/nf-release-public.pem` にもあります。**未発行:** リポジトリのファイルは、創業者が本番の鍵を生成するまでプレースホルダーです。それまでは上の確認は失敗します。これは正しい結果です。
 
 ### Windows: インストール
 

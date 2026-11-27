@@ -30,6 +30,7 @@ mkdir -p "$DIST"
 . "$ROOT/packaging/reproducible.sh"
 nf_source_date_epoch "$ROOT"
 echo "NEXUS FABRIC $VERSION packages -> $DIST (SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH)"
+"$ROOT/packaging/windows/sign.sh" --preflight || { echo "build stopped: signing setup incomplete (packaging/windows/sign.sh)" >&2; exit 1; }
 if "$ROOT/packaging/windows/sign.sh" --requested; then
   echo "signing enabled: Windows programs and installer are signed (packaging/windows/sign.sh)"
 else
@@ -95,6 +96,12 @@ case "$(uname -s)" in
     fi
     ;;
   MINGW*|MSYS*|CYGWIN*)
+    # Signed releases are built on Linux only (the cross-build with mingw-w64): signing is not supported in this
+    # native branch, so a signing environment here is an error rather than a silently unsigned or half-signed build.
+    if "$ROOT/packaging/windows/sign.sh" --requested; then
+      echo "signing is not supported on a native Windows host: build the signed release on Linux (cross-build)" >&2
+      exit 1
+    fi
     # Native Windows build (normally x86_64-pc-windows-msvc). The C compiler there may be cl.exe, which does not
     # take GCC's -ffile-prefix-map, so CFLAGS is only set for a GNU host toolchain.
     case "$HOST_TRIPLE" in
