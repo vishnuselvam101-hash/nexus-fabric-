@@ -1058,7 +1058,7 @@
 }
 
 /* account recovery: the recovery code screen, the "keep" checkbox rows and the print sheet */
-.rc-code { display: block; padding: var(--sp-4); border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--fill-1, transparent); color: var(--text-1); font-size: 1.35rem; font-weight: 600; letter-spacing: .08em; text-align: center; overflow-wrap: anywhere; user-select: all; }
+.rc-code { display: block; padding: var(--sp-4); border: 1px solid var(--border-strong); border-radius: var(--r-md); background: var(--fill-1, transparent); color: var(--text-1); font-size: 1.1rem; font-weight: 600; letter-spacing: .04em; text-align: center; overflow-wrap: anywhere; user-select: all; }
 .rc-code:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .rc-card .rc-actions { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
 .rc-card .rc-actions .btn { min-height: 44px; }
@@ -1071,3 +1071,5 @@
   body.rc-printing .rc-print { display: block; padding: 24mm 20mm; color: #000; background: #fff; }
   body.rc-printing .rc-print .rc-code { font-size: 20pt; border: 1px solid #000; color: #000; background: #fff; }
 }
+#adm-secpanels { display: grid; gap: var(--sp-5); margin-top: var(--sp-5); }
+#rst-panel { margin-top: var(--sp-5); }

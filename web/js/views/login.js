@@ -19,12 +19,6 @@ export function mount(container) {
   let setup = getState().setupRequired;
   let setupFields = [];
 
-  // the recovery code is shown once and kept in memory only (a language switch must not lose it)
-  const pending = getState().pendingCode;
-  if (pending) { showCode(container, pending); return; }
-  // an administrator reset the password: the new one is chosen before anything else
-  if (getState().user?.must_change_password) { showChange(container); return; }
-
   // the session was signed in and has ended: say so once, here
   if (getState().sessionEnded) {
     setState({ sessionEnded: false });
@@ -140,6 +134,12 @@ export function mount(container) {
     }
   };
   form.addEventListener('submit', onSubmit);
+
+  // the recovery code is shown once and kept in memory only (a language switch must not lose it)
+  const pending = getState().pendingCode;
+  if (pending) showCode(container, pending);
+  // an administrator reset the password: the new one is chosen before anything else
+  else if (getState().user?.must_change_password) showChange(container);
 }
 
 // optional automatic sign-in (desktop mode only), off unless the person ticks it

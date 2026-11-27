@@ -47,6 +47,7 @@ async function main() {
   child.stdout.on('data', (d) => log.push(String(d)));
   child.stderr.on('data', (d) => log.push(String(d)));
   let browser = null;
+  let page = null;
   try {
     for (let i = 0; i < 100; i++) {
       try { if ((await fetch(`${BASE}/api/health`)).ok) break; } catch { /* not yet */ }
@@ -54,7 +55,7 @@ async function main() {
     }
     browser = await chromium.launch();
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-    const page = await ctx.newPage();
+    page = await ctx.newPage();
     page.setDefaultTimeout(15000);
     const errors = [];
     page.on('pageerror', (e) => errors.push(msgOf(e)));
@@ -247,7 +248,9 @@ async function main() {
     check('the server log carries no recovery code or password', ![code1, code2, code3, PASS1, PASS2, PASS3, TEMP, WORKER_PW].some((s) => all.includes(s)));
     check('no uncaught page error', errors.length === 0, errors.join(' | ').slice(0, 200));
   } catch (e) {
-    check('the run completed', false, msgOf(e));
+    const seen = page ? await page.evaluate(() => location.hash + ' | ' + (document.getElementById('view') || document.body).innerText.slice(0, 300)).catch(() => '') : '';
+    if (page && SHOTS) await page.screenshot({ path: path.join(SHOTS, 'auth-failure.png') }).catch(() => {});
+    check('the run completed', false, msgOf(e).split('\n')[0] + ' | at ' + seen);
   } finally {
     if (browser) await browser.close();
     child.kill('SIGINT');
