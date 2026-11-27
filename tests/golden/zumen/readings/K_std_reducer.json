@@ -1,0 +1,142 @@
+{
+ "_note": "11/22 規格の寸法表の確かめ用に手で作った読み取り（実在の図面ではない）。片落管 1000×600 F25（同心）。大径側の管だけ外径が図にある。期待値は verify_stdtable.py の例3",
+ "page": {
+  "kind": "drawing",
+  "title": "片落管 1000A×600A（JWWA G 118・F25）",
+  "drawing_no": "K-STD3",
+  "job_no": "",
+  "scale": "NONE",
+  "company": "",
+  "qty": 1,
+  "unit_mass_kg": null
+ },
+ "material_table": [],
+ "parts": [
+  {
+   "no": "1",
+   "name": "大径側の管",
+   "shape": "cylinder",
+   "attach": "",
+   "table_rows": [],
+   "params": {
+    "D": {
+     "value": 1016,
+     "text": "φ1016",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "nom": {
+     "value": 1000,
+     "text": "1000×600",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "nom2": {
+     "value": 600,
+     "text": "1000×600",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "pclass": {
+     "value": 25,
+     "text": "F25",
+     "bbox": null,
+     "source": "drawing"
+    }
+   },
+   "notes": [],
+   "dims": [],
+   "std": {
+    "item": "reducer",
+    "text": "JWWA G 118",
+    "bbox": [
+     120,
+     80,
+     420,
+     110
+    ]
+   }
+  },
+  {
+   "no": "2",
+   "name": "円すい",
+   "shape": "cone",
+   "attach": "",
+   "table_rows": [],
+   "params": {
+    "nom": {
+     "value": 1000,
+     "text": "1000×600",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "nom2": {
+     "value": 600,
+     "text": "1000×600",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "pclass": {
+     "value": 25,
+     "text": "F25",
+     "bbox": null,
+     "source": "drawing"
+    }
+   },
+   "notes": [],
+   "dims": [],
+   "std": {
+    "item": "reducer",
+    "text": "JWWA G 118",
+    "bbox": [
+     120,
+     80,
+     420,
+     110
+    ]
+   }
+  },
+  {
+   "no": "3",
+   "name": "小径側の管",
+   "shape": "cylinder",
+   "attach": "",
+   "table_rows": [],
+   "params": {
+    "nom": {
+     "value": 1000,
+     "text": "1000×600",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "nom2": {
+     "value": 600,
+     "text": "1000×600",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "pclass": {
+     "value": 25,
+     "text": "F25",
+     "bbox": null,
+     "source": "drawing"
+    }
+   },
+   "notes": [],
+   "dims": [],
+   "std": {
+    "item": "reducer",
+    "text": "JWWA G 118",
+    "bbox": [
+     120,
+     80,
+     420,
+     110
+    ]
+   }
+  }
+ ],
+ "seam": null,
+ "notes": [],
+ "unreadable": []
+}

@@ -1,0 +1,21 @@
+{
+  "_note": "11/22 二股（Y字管）の確かめ用に手で作った読み取り（実在の図面ではない）。寸法は reader/research/spec_yfork.md の例4（本管 1016×12・枝 610×9・挟む角 60°・枝を円すいで細くする・交点から円すいの小さい口まで 900）。材料表の重さは verify_yfork.py の片の重さの合計 583.394 kg を丸めた値、長さは L＋H＋H2",
+  "page": {"kind": "drawing", "title": "1000A×12.0×600A 60° 二股管", "drawing_no": "K-YF2", "job_no": "", "scale": "1/20", "company": "", "qty": 1, "unit_mass_kg": 583.4},
+  "material_table": [
+    {"no": "1", "name": "二股管", "material": "SS400", "size": "φ1016×12.0t×φ609.6×9.0t", "length": "3500", "qty": "1", "unit_mass": "", "mass": "583.4", "note": "", "bbox": null}
+  ],
+  "parts": [
+    {"no": "1", "name": "二股管", "shape": "wye", "table_rows": ["1"], "params": {
+      "D": {"value": 1016, "text": "φ1016", "bbox": null, "source": "drawing"},
+      "t": {"value": 12, "text": "12.0", "bbox": null, "source": "drawing"},
+      "wye_angle": {"value": 60, "text": "60°", "bbox": null, "source": "drawing"},
+      "L": {"value": 500, "text": "500", "bbox": null, "source": "drawing"},
+      "H": {"value": 1500, "text": "1500", "bbox": null, "source": "drawing"},
+      "branch_D": {"value": 610, "text": "φ610", "bbox": null, "source": "drawing"},
+      "branch_t": {"value": 9, "text": "9.0", "bbox": null, "source": "drawing"},
+      "cone_s": {"value": 900, "text": "900", "bbox": null, "source": "drawing"}}, "notes": [], "dims": []}
+  ],
+  "seam": null,
+  "notes": [],
+  "unreadable": []
+}

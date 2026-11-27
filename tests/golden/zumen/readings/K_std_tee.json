@@ -1,0 +1,97 @@
+{
+ "_note": "11/22 規格の寸法表の確かめ用に手で作った読み取り（実在の図面ではない）。T字管 1000×600 F12（JIS G 3443-2 表10。補強板なし）。期待値は verify_stdtable.py の例2",
+ "page": {
+  "kind": "drawing",
+  "title": "T字管 1000A×600A（JWWA G 118・F12）",
+  "drawing_no": "K-STD2",
+  "job_no": "",
+  "scale": "NONE",
+  "company": "",
+  "qty": 1,
+  "unit_mass_kg": null
+ },
+ "material_table": [],
+ "parts": [
+  {
+   "no": "1",
+   "name": "本管",
+   "shape": "tee_main",
+   "attach": "",
+   "table_rows": [],
+   "params": {
+    "nom": {
+     "value": 1000,
+     "text": "1000A×600A",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "nom2": {
+     "value": 600,
+     "text": "1000A×600A",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "pclass": {
+     "value": 12,
+     "text": "F12",
+     "bbox": null,
+     "source": "drawing"
+    }
+   },
+   "notes": [],
+   "dims": [],
+   "std": {
+    "item": "tee",
+    "text": "JWWA G 118",
+    "bbox": [
+     120,
+     80,
+     420,
+     110
+    ]
+   }
+  },
+  {
+   "no": "2",
+   "name": "枝管",
+   "shape": "tee_branch",
+   "attach": "1",
+   "table_rows": [],
+   "params": {
+    "nom": {
+     "value": 1000,
+     "text": "1000A×600A",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "nom2": {
+     "value": 600,
+     "text": "1000A×600A",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "pclass": {
+     "value": 12,
+     "text": "F12",
+     "bbox": null,
+     "source": "drawing"
+    }
+   },
+   "notes": [],
+   "dims": [],
+   "std": {
+    "item": "tee",
+    "text": "JWWA G 118",
+    "bbox": [
+     120,
+     80,
+     420,
+     110
+    ]
+   }
+  }
+ ],
+ "seam": null,
+ "notes": [],
+ "unreadable": []
+}

@@ -1,0 +1,24 @@
+{
+  "_note": "手で作った大きい管の読み取り（協力工場の図面ではない）。2600A（外径2641.6・板厚16）の直管とえび曲げで、縦の継ぎ目の数と板の大きさの照らしを確かめる。期待値は reader/research/verify_stock.py",
+  "page": { "kind": "drawing", "title": "大きい管（確かめ用の例）", "drawing_no": "H-STOCK", "job_no": "", "scale": "", "company": "", "qty": 1, "unit_mass_kg": null },
+  "material_table": [
+    { "no": "1", "name": "管", "material": "SS400", "size": "PL-16×1500", "length": "4124.3", "qty": "1", "unit_mass": "", "mass": "1554.0", "note": "2枚巻き", "bbox": null },
+    { "no": "2", "name": "曲管", "material": "SS400", "size": "φ2641.6×16", "length": "", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null },
+    { "no": "3", "name": "管", "material": "SS400", "size": "φ2641.6×16", "length": "2500", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null }
+  ],
+  "parts": [
+    { "no": "1", "name": "管", "shape": "cylinder", "table_rows": ["1"], "notes": [], "dims": [],
+      "params": { "D": { "value": 2641.6, "text": "φ2641.6", "bbox": null, "source": "drawing" }, "t": { "value": 16, "text": "16", "bbox": null, "source": "drawing" }, "L": { "value": 1500, "text": "1500", "bbox": null, "source": "drawing" },
+        "split": { "value": 2, "text": "2枚巻き", "bbox": null, "source": "table" } } },
+    { "no": "2", "name": "曲管", "shape": "miter_bend", "table_rows": ["2"], "notes": [], "dims": [],
+      "params": { "D": { "value": 2641.6, "text": "φ2641.6", "bbox": null, "source": "drawing" }, "t": { "value": 16, "text": "16", "bbox": null, "source": "drawing" }, "R": { "value": 2600, "text": "R2600", "bbox": null, "source": "drawing" },
+        "angle": { "value": 90, "text": "90°", "bbox": null, "source": "drawing" }, "joints": { "value": 3, "text": "3", "bbox": null, "source": "count" },
+        "start_straight": { "value": 300, "text": "300", "bbox": null, "source": "drawing" }, "end_straight": { "value": 300, "text": "300", "bbox": null, "source": "drawing" },
+        "split": { "value": 3, "text": "縦継手3か所", "bbox": null, "source": "note" } } },
+    { "no": "3", "name": "管", "shape": "cylinder", "table_rows": ["3"], "notes": [], "dims": [],
+      "params": { "D": { "value": 2641.6, "text": "φ2641.6", "bbox": null, "source": "drawing" }, "t": { "value": 16, "text": "16", "bbox": null, "source": "drawing" }, "L": { "value": 2500, "text": "2500", "bbox": null, "source": "drawing" } } }
+  ],
+  "seam": null,
+  "notes": [],
+  "unreadable": []
+}

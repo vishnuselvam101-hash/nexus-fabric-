@@ -20,8 +20,11 @@
 //! exploration, investigations, coverage ledger, lanes/overlays, quarantine,
 //! engineer approval.
 
+pub mod bend;
 pub mod deps;
 pub mod job;
+pub mod order;
+pub mod shapes;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

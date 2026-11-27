@@ -1,0 +1,20 @@
+{
+  "_note": "手で作った偏心円すいに立つ枝の読み取り（協力工場の図面ではない）。reader/research/spec_conebranch.md の例4（偏心 1219.2→914.4・長さ1200・板厚12・二つ割・平らな側 天、枝 外径406.4・板厚9・右・大きい口から600・大きい口の中心線から枝の管端まで900）を、小さい口から見た書き方にしたもの（D1＝小さい口 914.4、枝は左・片寄せ 152.4 が地の側・小さい口から600・H は小さい口の中心線から 900）。材料表の重さは verify_conebranch.py の値（円すいは穴を抜いた後）",
+  "page": { "kind": "drawing", "title": "偏心片落管に立つ枝（確かめ用の例）", "drawing_no": "K-CB4", "job_no": "", "scale": "", "company": "", "qty": 1, "unit_mass_kg": null },
+  "material_table": [
+    { "no": "1", "name": "偏心片落管", "material": "SS400", "size": "PL-12", "length": "", "qty": "2", "unit_mass": "", "mass": "367.3", "note": "二つ割", "bbox": null },
+    { "no": "2", "name": "枝管", "material": "STW400", "size": "φ406.4×9", "length": "", "qty": "1", "unit_mass": "", "mass": "34.5", "note": "", "bbox": null }
+  ],
+  "parts": [
+    { "no": "1", "name": "偏心片落管", "shape": "eccentric_cone", "attach": "", "table_rows": ["1"], "notes": [], "dims": [],
+      "params": { "D1": { "value": 914.4, "text": "φ914.4", "bbox": null, "source": "drawing" }, "D2": { "value": 1219.2, "text": "φ1219.2", "bbox": null, "source": "drawing" },
+        "L": { "value": 1200, "text": "1200", "bbox": null, "source": "drawing" }, "t": { "value": 12, "text": "12", "bbox": null, "source": "drawing" },
+        "split": { "value": 2, "text": "二つ割", "bbox": null, "source": "note" }, "flat_side": { "value": 0, "text": "天端そろえ", "bbox": null, "source": "drawing" } } },
+    { "no": "2", "name": "枝管", "shape": "tee_branch", "attach": "1", "table_rows": ["2"], "notes": [], "dims": [],
+      "params": { "D": { "value": 406.4, "text": "φ406.4", "bbox": null, "source": "drawing" }, "t": { "value": 9, "text": "9", "bbox": null, "source": "drawing" },
+        "H": { "value": 900, "text": "900", "bbox": null, "source": "drawing" }, "branch_x": { "value": 600, "text": "600", "bbox": null, "source": "drawing" },
+        "dir": { "value": 270, "text": "左", "bbox": null, "source": "drawing" }, "e": { "value": 152.4, "text": "152.4", "bbox": null, "source": "drawing" },
+        "e_side": { "value": 180, "text": "地", "bbox": null, "source": "drawing" } } }
+  ],
+  "seam": null, "notes": [], "unreadable": []
+}

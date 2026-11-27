@@ -1,0 +1,19 @@
+{
+  "_note": "手で作った T字管の読み取り（協力工場の図面ではない）。E_tee_public.json の補強板を二つ割にした形（材料表の数量 2・備考に二つ割）。補強板の重さ 59.2 は reader/research/verify_padsplit.py の例1（画面と同じ 360 点の片の合計 59.2414 kg）",
+  "page": { "kind": "drawing", "title": "T字管・補強板 二つ割（確かめ用の例）", "drawing_no": "H-PAD2", "job_no": "", "scale": "", "company": "", "qty": 1, "unit_mass_kg": null },
+  "material_table": [
+    { "no": "1", "name": "本管", "material": "STW400", "size": "φ1016×12", "length": "1500", "qty": "1", "unit_mass": "", "mass": "445.7", "note": "", "bbox": null },
+    { "no": "2", "name": "枝管", "material": "STW400", "size": "φ610×9", "length": "", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null },
+    { "no": "3", "name": "補強板", "material": "SS400", "size": "PL-12×φ1000", "length": "", "qty": "2", "unit_mass": "", "mass": "59.2", "note": "二つ割", "bbox": null }
+  ],
+  "parts": [
+    { "no": "1", "name": "本管", "shape": "tee_main", "table_rows": ["1"], "notes": [], "dims": [],
+      "params": { "D": { "value": 1016, "text": "φ1016", "bbox": null, "source": "drawing" }, "t": { "value": 12, "text": "12", "bbox": null, "source": "drawing" }, "L": { "value": 1500, "text": "1500", "bbox": null, "source": "drawing" } } },
+    { "no": "2", "name": "枝管", "shape": "tee_branch", "table_rows": ["2"], "notes": [], "dims": [],
+      "params": { "D": { "value": 610, "text": "φ610", "bbox": null, "source": "drawing" }, "t": { "value": 9, "text": "9", "bbox": null, "source": "drawing" }, "H": { "value": 900, "text": "900", "bbox": null, "source": "drawing" } } },
+    { "no": "3", "name": "補強板", "shape": "tee_pad", "table_rows": ["3"], "notes": [], "dims": [],
+      "params": { "t": { "value": 12, "text": "12", "bbox": null, "source": "table" }, "pad_D": { "value": 1000, "text": "φ1000", "bbox": null, "source": "drawing" },
+        "split": { "value": 2, "text": "二つ割", "bbox": null, "source": "table" } } }
+  ],
+  "seam": null, "notes": [], "unreadable": []
+}
