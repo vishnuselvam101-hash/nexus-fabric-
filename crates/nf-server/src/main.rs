@@ -3566,7 +3566,7 @@ fn dxf_withheld(records: &RecordsCheck) -> BTreeMap<String, Vec<(String, String)
             (
                 c["name"].as_str().unwrap_or("").to_string(),
                 c["scope"].as_str().unwrap_or("").to_string(),
-                c["reason"].as_str().unwrap_or("").to_string(),
+                withheld_reason(&c),
             )
         })
         .collect();
@@ -3582,6 +3582,24 @@ fn dxf_withheld(records: &RecordsCheck) -> BTreeMap<String, Vec<(String, String)
         }
     }
     out
+}
+
+/// Why a check on a cut geometry is not confirmed. The engine's reason when it set one; otherwise the check's own
+/// figures (difference and tolerance), so that an empty reason never reaches the screen (no engine change).
+fn withheld_reason(c: &Value) -> String {
+    if let Some(r) = c["reason"].as_str().filter(|r| !r.is_empty()) {
+        return r.to_string();
+    }
+    match (c["difference"].as_f64(), c["tolerance"].as_f64()) {
+        (Some(d), Some(tol)) if d.is_finite() && tol.is_finite() && d <= tol => format!(
+            "difference {d} is within tolerance {tol}, but the check is not confirmed (no reason recorded)"
+        ),
+        (Some(d), Some(tol)) if d.is_finite() && tol.is_finite() => format!(
+            "difference {d} exceeds tolerance {tol}; the check is not confirmed (no reason recorded)"
+        ),
+        _ => "a value of the check is not a finite number; the check is not confirmed (no reason recorded)"
+            .to_string(),
+    }
 }
 
 /// Stage view of a job for polling: surround, engulf, digest per check, confirm or hold, export.

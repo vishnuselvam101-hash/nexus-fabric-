@@ -842,6 +842,10 @@ async fn dxf_is_withheld_only_while_a_check_on_the_cut_geometry_is_undecided() {
         let err = v["error"].as_str().unwrap();
         assert!(err.contains("could not be confirmed"));
         assert_eq!(v["checks"].as_array().unwrap().len(), names.len());
+        // every withheld check says why it is not confirmed (R3-8: an empty reason is never sent)
+        for c in v["checks"].as_array().unwrap() {
+            assert!(!c["reason"].as_str().unwrap_or("").is_empty(), "{c}");
+        }
     }
     assert!(t.count("SELECT COUNT(*) FROM audit WHERE action = 'dxf_withheld'") >= 1);
 }
@@ -5285,4 +5289,19 @@ fn export_rule_holds_fail_not_run_and_unlisted_inconclusive_gates() {
             .starts_with("held by AMOEBA: gate G05 (n) is FAIL: d Fix: "),
         "{h}"
     );
+}
+
+/// R3-8: a withheld check with no engine reason is explained by its own figures, never by an empty string.
+#[test]
+fn withheld_reason_falls_back_to_the_check_figures() {
+    let engine = json!({ "reason": "surface unknown", "difference": 0.0, "tolerance": 1.0 });
+    assert_eq!(withheld_reason(&engine), "surface unknown");
+    let within = json!({ "difference": 1e-9, "tolerance": 1e-6 });
+    assert!(
+        withheld_reason(&within).starts_with("difference 0.000000001 is within tolerance 0.000001")
+    );
+    let beyond = json!({ "reason": "", "difference": 2.5, "tolerance": 1.0 });
+    assert!(withheld_reason(&beyond).starts_with("difference 2.5 exceeds tolerance 1"));
+    let nan = json!({ "difference": null, "tolerance": 1.0 });
+    assert!(withheld_reason(&nan).starts_with("a value of the check is not a finite number"));
 }
