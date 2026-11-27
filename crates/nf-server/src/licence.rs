@@ -306,13 +306,19 @@ fn refresh(app: &App, mode: Mode<'_>) {
 /// The POST endpoints that start new work. Every GET, the review workflow
 /// (obligations, advisories), project creation, the audit endpoints and
 /// /api/licence itself are exempt.
-fn gated(method: &Method, path: &str) -> bool {
+pub(crate) fn gated(method: &Method, path: &str) -> bool {
     if *method != Method::POST {
         return false;
     }
     let seg: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
     match seg.as_slice() {
-        ["api", "projects", id, "calculations" | "documents"]
+        [
+            "api",
+            "projects",
+            id,
+            "calculations" | "documents" | "orders",
+        ]
+        | ["api", "orders", id, "files"]
         | ["api", "documents", id, "pdf-to-dxf"]
         | [
             "api",

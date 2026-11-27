@@ -895,6 +895,7 @@ fn be007_no_unwrap_or_expect_in_product_code() {
         ("main.rs", include_str!("main.rs")),
         ("storage.rs", include_str!("storage.rs")),
         ("membrane.rs", include_str!("membrane.rs")),
+        ("orders.rs", include_str!("orders.rs")),
         ("crypto.rs", include_str!("crypto.rs")),
         ("licence.rs", include_str!("licence.rs")),
     ] {
@@ -3945,6 +3946,9 @@ fn rc01_compare_with_records_finds_every_difference() {
 }
 /// Task 3.1: PDF to DXF through the server.
 mod pdfconv;
+
+/// NFJ-1 S1-L1: orders (job data, files, pages, parts, values, decisions).
+mod orders;
 
 /// Licence system: state machine glue, the read-only gate, seats, renewal (plan cases 12-22
 /// and the owner's enforcement-off cases).
