@@ -702,7 +702,7 @@ fn every_refusal_code_is_reachable_and_inputs_are_never_ignored() {
     want("tee_branch_angle_invalid", code_of(tee::tee_main(&s)));
     s = ok();
     s.branches[0].angle_deg = Some(60.0);
-    want("tee_branch_angle_unsupported", code_of(tee::tee_main(&s)));
+    assert!(tee::tee_main(&s).is_ok(), "60 deg is a lateral branch now");
     s = ok();
     s.mount = Mount::SetIn;
     s.branches[0] = br("1", 1016.0, 12.0, 750.0, 0.0, 0.0);
@@ -728,12 +728,20 @@ fn every_refusal_code_is_reachable_and_inputs_are_never_ignored() {
         "tee_offset_side_not_perpendicular",
         code_of(tee::signed_offset(100.0, Some(90.0), 90.0)),
     );
+    want(
+        "tee_offset_negative_without_side",
+        code_of(tee::signed_offset(-100.0, None, 0.0)),
+    );
+    want(
+        "tee_rib_on_lateral_unsupported",
+        code_of(tee::rib_on_branch(Some(45.0))),
+    );
     for c in TEE_REFUSAL_CODES {
         assert!(seen.contains(c), "code {c} has no test case");
         assert!(c.starts_with("tee_"));
     }
     assert_eq!(seen.len(), TEE_REFUSAL_CODES.len());
-    // a branch angle given on the branch piece is refused the same way
+    // an obtuse angle given on the branch piece is refused (the sharp angle is asked for)
     let mut bp = BranchPieceSpec {
         d: 610.0,
         t: 9.0,
@@ -742,12 +750,9 @@ fn every_refusal_code_is_reachable_and_inputs_are_never_ignored() {
         h: 900.0,
         e: 0.0,
         mount: Mount::SetOn,
-        angle_deg: Some(45.0),
+        angle_deg: Some(135.0),
     };
-    assert_eq!(
-        code_of(tee::branch_piece(&bp)),
-        "tee_branch_angle_unsupported"
-    );
+    assert_eq!(code_of(tee::branch_piece(&bp)), "tee_branch_angle_invalid");
     bp.angle_deg = Some(90.0);
     assert!(
         tee::branch_piece(&bp).is_ok(),
@@ -760,9 +765,14 @@ fn every_refusal_code_is_reachable_and_inputs_are_never_ignored() {
         -100.0
     );
     assert_eq!(
-        tee::signed_offset(-100.0, None, 0.0).unwrap(),
+        tee::signed_offset(100.0, None, 0.0).unwrap(),
         100.0,
-        "no direction: magnitude"
+        "no side: a non-negative offset is taken as given"
+    );
+    assert_eq!(
+        tee::signed_offset(-100.0, Some(180.0), 90.0).unwrap(),
+        100.0,
+        "with a side the side decides the sign"
     );
     assert_eq!(tee::signed_offset(0.0, Some(33.0), 0.0).unwrap(), 0.0);
     for c in TEE_EXTRA_REFUSAL_CODES {

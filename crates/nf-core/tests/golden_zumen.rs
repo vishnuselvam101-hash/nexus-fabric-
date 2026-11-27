@@ -682,6 +682,7 @@ impl RealEngine for RustShapes {
             "s03" => eval_s03(n),
             "s05" => eval_s05(n),
             "s10" => eval_s10(n),
+            "s11" => eval_s11(n),
             _ => None,
         }
     }
@@ -2052,4 +2053,223 @@ fn derived_tee_cases_are_computed_but_not_counted() {
     }
     println!("derived tee cases computed (still uncounted): {computed}");
     assert!(computed >= 8);
+}
+
+// ======================================================================================================
+// Lane S1-L7b: section s11 (test_build.mjs:416-499, lateral branch). Every input value below is written from the ZK
+// test source; every answer is computed by nf_core::tee (and tee_pad for the pad cases).
+// ======================================================================================================
+
+/// (main D, main t, d, t, H, L, x0, e, angle, mount) of the three lateral examples (test_build.mjs:430-436).
+const LAT_EX: [(f64, f64, f64, f64, f64, f64, f64, f64, f64, Mount); 3] = [
+    (1016.0, 12.0, 1016.0, 12.0, 1400.0, 2400.0, 900.0, 0.0, 45.0, Mount::SetOn),
+    (1016.0, 12.0, 610.0, 9.0, 1200.0, 2000.0, 700.0, 0.0, 45.0, Mount::SetOn),
+    (1016.0, 12.0, 406.4, 9.0, 1000.0, 1600.0, 600.0, 150.0, 60.0, Mount::SetIn),
+];
+
+fn lat_piece(
+    d: f64,
+    t: f64,
+    main_d: f64,
+    main_t: f64,
+    h: f64,
+    e: f64,
+    ang: Option<f64>,
+    mount: Mount,
+) -> Result<tee::BranchPieceResult, nf_core::shapes::ShapeRefusal> {
+    tee::branch_piece(&BranchPieceSpec {
+        d,
+        t,
+        main_d,
+        main_t,
+        h,
+        e,
+        mount,
+        angle_deg: ang,
+    })
+}
+
+fn lat_main(
+    (dm, tm, d, t, _h, l, x0, e, ang, mount): (f64, f64, f64, f64, f64, f64, Option<f64>, f64, Option<f64>, Mount),
+) -> Result<TeeMainResult, nf_core::shapes::ShapeRefusal> {
+    let mut b = BranchOnMain::new("1", d, t, x0, 0.0, e);
+    b.angle_deg = ang;
+    let mut sp = TeeMainSpec::new(dm, tm, l, vec![b]);
+    sp.mount = mount;
+    tee::tee_main(&sp)
+}
+
+fn ex_main(i: usize) -> Option<TeeMainResult> {
+    let (dm, tm, d, t, h, l, x0, e, a, m) = LAT_EX[i];
+    lat_main((dm, tm, d, t, h, l, Some(x0), e, Some(a), m)).ok()
+}
+fn ex_piece(i: usize) -> Option<tee::BranchPieceResult> {
+    let (dm, tm, d, t, h, _l, _x0, e, a, m) = LAT_EX[i];
+    lat_piece(d, t, dm, tm, h, e, Some(a), m).ok()
+}
+
+/// Independent brute force of the cut position: the wall (radii ri..ro) cut in 4000 steps (ZK check 2, written here
+/// from the geometry, not from `cut_tau`).
+fn tau_brute(rc: f64, ri: f64, ro: f64, e: f64, th: f64, a_deg: f64) -> f64 {
+    let a = a_deg.to_radians();
+    let (s, c) = (th.sin(), th.cos());
+    let mut best = f64::NEG_INFINITY;
+    for j in 0..=4000 {
+        let rho = ri + (ro - ri) * j as f64 / 4000.0;
+        let z = e + rho * s;
+        if z.abs() <= rc {
+            best = best.max(((rc * rc - z * z).sqrt() + rho * c * a.cos()) / a.sin());
+        }
+    }
+    best
+}
+
+fn eval_s11(n: usize) -> Option<Got> {
+    if (1..=75).contains(&n) {
+        let (i, k) = ((n - 1) / 25, (n - 1) % 25 + 1);
+        return match k {
+            1 => num(ex_piece(i)?.circ),
+            2..=17 => num(ex_piece(i)?.marks[k - 2].len),
+            18 => num(ex_piece(i)?.shortest),
+            19 => num(ex_piece(i)?.longest),
+            20 => num(ex_piece(i)?.mass_kg),
+            21 => num(ex_main(i)?.holes[0].hole_w),
+            22 => num(ex_main(i)?.holes[0].xmin),
+            23 => num(ex_main(i)?.holes[0].xmax),
+            24 => {
+                let h = &ex_main(i)?.holes[0];
+                num(h.xmax - h.xmin)
+            }
+            _ => num(ex_main(i)?.mass_kg),
+        };
+    }
+    let plate0 = |r: f64, rr: f64, e: f64, a: f64| {
+        let b = lat_piece(2.0 * rr, 1e-6, 2.0 * r, 1e-6, 5.0 * r, e, Some(a), Mount::SetOn).ok()?;
+        let m = lat_main((2.0 * r, 1e-6, 2.0 * rr, 1e-6, 0.0, 20.0 * r, Some(10.0 * r), e, Some(a), Mount::SetOn)).ok()?;
+        Some((b.cut_length, hole_perimeter(&m.holes[0])))
+    };
+    match n {
+        76 => num(ex_main(2)?.holes[0].marks[0][1]),
+        77 => num(ex_main(2)?.holes[0].marks[8][1]),
+        83 => num(
+            lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 2000.0, None, 0.0, Some(45.0), Mount::SetOn))
+                .ok()?
+                .holes[0]
+                .hole_x,
+        ),
+        84 => {
+            let a = lat_piece(610.0, 9.0, 1016.0, 12.0, 900.0, 150.0, Some(90.0), Mount::SetOn).ok()?;
+            let b = lat_piece(610.0, 9.0, 1016.0, 12.0, 900.0, 150.0, None, Mount::SetOn).ok()?;
+            flag(a.marks.iter().zip(&b.marks).all(|(p, q)| p.len == q.len))
+        }
+        85 => {
+            let a = lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 1500.0, Some(750.0), 150.0, Some(90.0), Mount::SetOn)).ok()?;
+            let b = lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 1500.0, Some(750.0), 150.0, None, Mount::SetOn)).ok()?;
+            let (ha, hb) = (&a.holes[0], &b.holes[0]);
+            flag(ha.hole_w == hb.hole_w && ha.hole_h == hb.hole_h && ha.hole_u == hb.hole_u && ha.hole_x == hb.hole_x)
+        }
+        86..=89 => {
+            let k = [0usize, 4, 8, 12][n - 86];
+            num(lat_piece(610.0, 9.0, 1016.0, 12.0, 900.0, 150.0, Some(89.99), Mount::SetOn).ok()?.marks[k].len)
+        }
+        90 => num(plate0(508.0, 305.0, 150.0, 60.0)?.0),
+        91 => num(plate0(508.0, 305.0, 150.0, 60.0)?.1),
+        92 => num(plate0(1.0, 1.0, 0.0, 45.0)?.0),
+        93 => num(plate0(1.0, 1.0, 0.0, 45.0)?.1),
+        94 => num(plate0(1.0, 0.5, 0.25, 45.0)?.0),
+        95 => num(plate0(1.0, 0.5, 0.25, 45.0)?.1),
+        96 => {
+            let mut worst = 0.0f64;
+            for (rc, ri, ro, e, a) in [
+                (508.0, 296.0, 305.0, 0.0, 45.0),
+                (508.0, 296.0, 305.0, 150.0, 60.0),
+                (496.0, 194.2, 203.2, 150.0, 60.0),
+                (508.0, 296.0, 305.0, 200.0, 30.0),
+            ] {
+                for k in 0..64 {
+                    let th = 2.0 * std::f64::consts::PI * k as f64 / 64.0;
+                    let want = tau_brute(rc, ri, ro, e, th, a);
+                    worst = worst.max((tee::cut_tau(rc, ri, ro, e, th, Some(a)) - want).abs());
+                }
+            }
+            num(worst)
+        }
+        // the reading H_lateral.json is the example 2 geometry (main 1016x12 L2000 x0 700 angle 45, branch 610x9 H1200)
+        99 => num(ex_piece(1)?.marks[0].len),
+        100 => num(ex_piece(1)?.marks[12].len),
+        101 => num(ex_main(1)?.holes[0].xmin),
+        102 => num(ex_main(1)?.mass_kg),
+        108 => num(ex_main(1)?.holes[0].hole_x),
+        110 => num(
+            lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 2000.0, None, 0.0, Some(45.0), Mount::SetOn))
+                .ok()?
+                .holes[0]
+                .hole_x,
+        ),
+        109 => {
+            let r = lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 2000.0, None, 0.0, Some(45.0), Mount::SetOn)).ok()?;
+            flag(r.questions.contains(&tee::TEE_X_QUESTION))
+        }
+        112 => {
+            // the corrected (sharp) angle is what the engine takes; a 135 deg input is refused, not converted
+            num(ex_piece(1)?.marks[12].len)
+        }
+        113 => {
+            let r = lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 4000.0, Some(700.0), 0.0, Some(25.0), Mount::SetOn)).ok()?;
+            flag(r.has_hold("tee_lateral_angle_below_30"))
+        }
+        114 => {
+            let m = lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 4000.0, Some(700.0), 0.0, Some(25.0), Mount::SetOn));
+            let b = lat_piece(610.0, 9.0, 1016.0, 12.0, 2500.0, 0.0, Some(25.0), Mount::SetOn);
+            flag(m.is_ok() && b.is_ok())
+        }
+        115 => flag(tee_refused_with(
+            lat_piece(610.0, 9.0, 1016.0, 12.0, 1200.0, 0.0, Some(0.0), Mount::SetOn),
+            "tee_branch_angle_invalid",
+        )),
+        116 => num(
+            lat_piece(610.0, 9.0, 1016.0, 12.0, 1200.0, 0.0, Some(0.0), Mount::SetOn)
+                .map(|_| 1.0)
+                .unwrap_or(0.0),
+        ),
+        117 => flag(tee_refused_with(
+            lat_piece(610.0, 9.0, 1016.0, 12.0, 600.0, 0.0, Some(45.0), Mount::SetOn),
+            "tee_branch_end_inside_main",
+        )),
+        118 => flag(tee_refused_with(
+            lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 2000.0, Some(-100.0), 0.0, Some(45.0), Mount::SetOn)),
+            "tee_hole_beyond_pipe_end",
+        )),
+        119 => flag(lat_main((1016.0, 12.0, 610.0, 9.0, 0.0, 2000.0, Some(-50.0), 0.0, Some(45.0), Mount::SetOn)).is_ok()),
+        120 => flag(tee_refused_with(tee::rib_on_branch(Some(45.0)), "tee_rib_on_lateral_unsupported")),
+        122 => num(ex_piece(2)?.marks[4].len),
+        123 => num(ex_main(2)?.holes[0].xmax),
+        124 => {
+            let (dm, tm, d, t, h, l, x0, e, a, _) = LAT_EX[2];
+            flag(
+                lat_piece(d, t, dm, tm, h, e, Some(a), Mount::SetOn).is_ok()
+                    && lat_main((dm, tm, d, t, h, l, Some(x0), e, Some(a), Mount::SetOn)).is_ok(),
+            )
+        }
+        _ => None,
+    }
+}
+
+#[test]
+fn real_engine_status_lateral() {
+    let (cases, _) = load_cases();
+    let part: Vec<Case> = cases.iter().filter(|c| c.section == "s11").cloned().collect();
+    let r = run_real(&RustShapes, &part);
+    println!(
+        "s11: {} OK, {} NG, {} PENDING, {} derived (not counted) of {}",
+        r.ok,
+        r.ng,
+        r.pending,
+        r.derived_uncounted,
+        part.len()
+    );
+    for l in &r.ng_lines {
+        println!("{l}");
+    }
+    assert_eq!(r.ng, 0, "NG cases in s11");
 }

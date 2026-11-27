@@ -19,8 +19,11 @@
 //! above `AREA_REL_TOL`). The nearest distance between two holes or two welds is a coarse-then-fine search: an
 //! estimate (`certified: false`), not interval-certified.
 //!
-//! Not in this lane: branch angle below 90 deg (lateral, L7b: refused with `tee_branch_angle_unsupported`), reinforcing
-//! pads, ribs (L7b), the JIS table and the order layer (grouping, notes, holds from the drawing).
+//! L7b adds the lateral (angled) branch: `angle_deg` in (0, 90] is the sharp angle between the main axis and the branch
+//! axis (90 or absent = the perpendicular branch, which takes the unchanged L7a code path). The lateral cut and hole use
+//! the closed forms of `cut_tau` / `lat_span`; the hole through the main wall is the rule `TEE_LATERAL_HOLE_THROUGH_WALL`
+//! (UNVERIFIED). A branch below 30 deg is built but held (`tee_lateral_angle_below_30`, blocks the DXF). Pads and their
+//! split are in `tee_pad.rs`. Not here: the JIS table and the order layer (grouping, notes, holds from the drawing).
 
 use crate::shapes::{ShapeRefusal, adaptive_simpson, mass_kg, refuse};
 use std::f64::consts::PI;
@@ -38,6 +41,10 @@ pub const TEE_POLY_SAMPLES: usize = 360;
 pub const TEE_MARKS: usize = 16;
 /// IMPLEMENTATION LIMITS (not fabrication rules, UNVERIFIED): branches per main, longitudinal seams per main.
 pub const MAX_TEE_BRANCHES: usize = 16;
+/// A lateral branch below this sharp angle is built but held (`tee_lateral_angle_below_30`).
+pub const LATERAL_MIN_ANGLE_DEG: f64 = 30.0;
+/// Polyline points round a lateral branch cut (the perpendicular branch keeps `TEE_POLY_SAMPLES`).
+pub const TEE_LATERAL_POLY_SAMPLES: usize = 720;
 pub const MAX_TEE_SEAMS: u32 = 12;
 /// RULE `TEE_SEAM_FROM_BOTTOM_DEG`, UNVERIFIED (ZK parity): longitudinal seam 45 deg from the bottom (ground side).
 pub const TEE_SEAM_DEG: f64 = 45.0;
@@ -48,7 +55,7 @@ pub const TEE_X_QUESTION: &str =
     "branch position along the main not on the drawing: placed at half the length, confirm";
 
 /// (name, value, kind, status)
-pub const TEE_NAMED_RULES: [(&str, &str, &str, &str); 9] = [
+pub const TEE_NAMED_RULES: [(&str, &str, &str, &str); 11] = [
     (
         "TEE_MOUNT_DEFAULT",
         "set-on (branch rests on the main)",
@@ -98,6 +105,18 @@ pub const TEE_NAMED_RULES: [(&str, &str, &str, &str); 9] = [
         "UNVERIFIED",
     ),
     (
+        "TEE_LATERAL_HOLE_THROUGH_WALL",
+        "a lateral branch (angle below 90 deg) cuts its hole so that the bore touches the main wall nowhere across the whole wall thickness (outermost envelope over the wall); the perpendicular hole rule is unchanged",
+        "rule (hole construction)",
+        "UNVERIFIED",
+    ),
+    (
+        "TEE_LATERAL_MIN_ANGLE_DEG",
+        "30 (a lateral branch below this is built but held for confirmation)",
+        "rule (hold threshold)",
+        "UNVERIFIED",
+    ),
+    (
         "TEE_LIMITS",
         "16 branches, 12 seams, 360 point polylines",
         "implementation limit",
@@ -106,7 +125,7 @@ pub const TEE_NAMED_RULES: [(&str, &str, &str, &str); 9] = [
 ];
 
 /// Stable refusal codes of this module (documented in docs/backend/REFUSAL_CODES.md when wired into the engine).
-pub const TEE_REFUSAL_CODES: [&str; 17] = [
+pub const TEE_REFUSAL_CODES: [&str; 18] = [
     "tee_value_not_finite",
     "tee_value_not_positive",
     "tee_value_too_large",
@@ -116,7 +135,6 @@ pub const TEE_REFUSAL_CODES: [&str; 17] = [
     "tee_seams_out_of_range",
     "tee_seam_angle_invalid",
     "tee_branch_angle_invalid",
-    "tee_branch_angle_unsupported",
     "tee_branch_too_large_to_insert",
     "tee_branch_bore_beyond_main",
     "tee_branch_end_inside_main",
@@ -124,6 +142,8 @@ pub const TEE_REFUSAL_CODES: [&str; 17] = [
     "tee_hole_beyond_pipe_end",
     "tee_holes_overlap",
     "tee_offset_side_not_perpendicular",
+    "tee_offset_negative_without_side",
+    "tee_rib_on_lateral_unsupported",
 ];
 /// Codes that are not in the list above but are raised by the shared numerics.
 pub const TEE_EXTRA_REFUSAL_CODES: [&str; 2] = ["tee_area_not_converged", "tee_result_not_finite"];
@@ -155,7 +175,8 @@ pub struct BranchOnMain {
     pub dir_deg: f64,
     /// Signed offset of the branch centre line from the main centre line (positive towards increasing azimuth).
     pub e: f64,
-    /// Angle between the axes (deg). `None` or 90: perpendicular. Less than 90 is refused (lateral, L7b).
+    /// Sharp angle between the axes (deg), 0 < angle <= 90. `None` or 90: perpendicular. Below 90: lateral. Above 90 is
+    /// refused (give the sharp angle; 135 is 45).
     pub angle_deg: Option<f64>,
 }
 
@@ -291,7 +312,8 @@ fn wall(name_t: &'static str, name_d: &'static str, t: f64, d: f64) -> Result<()
     Ok(())
 }
 
-/// Perpendicular branch only. 90 or absent: fine. Below 90: lateral, not in this lane. Anything else: invalid.
+/// Branch angle: absent or 90 is the perpendicular branch; below 90 (and above 0) is lateral; anything else is
+/// invalid (obtuse angles are refused, not converted).
 fn check_angle(a: Option<f64>) -> Result<(), ShapeRefusal> {
     let Some(a) = a else { return Ok(()) };
     if !(a.is_finite() && a > 0.0 && a <= 90.0) {
@@ -301,25 +323,45 @@ fn check_angle(a: Option<f64>) -> Result<(), ShapeRefusal> {
             format!("branch angle must be greater than 0 and at most 90 deg (got {a})"),
         ));
     }
-    if a < 90.0 {
-        return Err(refuse(
-            "tee_branch_angle_unsupported",
-            "angle_deg",
-            format!(
-                "a branch at {a} deg (lateral) is not built by this module; only 90 deg is (lane L7b)"
-            ),
-        ));
-    }
     Ok(())
 }
 
+/// (cos, sin) of the sharp angle; (0, 1) for the perpendicular branch (ZK `latCS`).
+pub(crate) fn lat_cs(a: Option<f64>) -> (f64, f64) {
+    match a {
+        Some(a) if a * PI / 180.0 < PI / 2.0 - 1e-12 => {
+            let r = a * PI / 180.0;
+            (r.cos(), r.sin())
+        }
+        _ => (0.0, 1.0),
+    }
+}
+
+/// True when the angle makes a lateral (below 90 deg) branch.
+pub fn is_lateral(a: Option<f64>) -> bool {
+    lat_cs(a).0 != 0.0
+}
+
 /// Offset side stated on the drawing: a non-zero offset whose stated side is not perpendicular to the branch direction
-/// is refused; otherwise the signed offset (positive towards increasing azimuth). ZK `signedE`. No side stated: the
-/// magnitude, towards increasing azimuth (the rule, with a note for the caller to attach).
+/// is refused; otherwise the signed offset (positive towards increasing azimuth). ZK `signedE`. No side stated: a
+/// non-negative offset is taken towards increasing azimuth (the rule, with a note for the caller to attach); a negative
+/// offset without a side is refused (`tee_offset_negative_without_side`), never abs()'d.
 pub fn signed_offset(e: f64, side_deg: Option<f64>, dir_deg: f64) -> Result<f64, ShapeRefusal> {
-    let e = signed("e", e)?.abs();
+    let e = signed("e", e)?;
     signed("dir_deg", dir_deg)?;
-    let Some(s) = side_deg else { return Ok(e) };
+    let Some(s) = side_deg else {
+        if e < 0.0 {
+            return Err(refuse(
+                "tee_offset_negative_without_side",
+                "e",
+                format!(
+                    "a negative offset ({e}) needs the side it lies on; a sign without a side is not used (give e_side_deg or a positive e)"
+                ),
+            ));
+        }
+        return Ok(e);
+    };
+    let e = e.abs();
     signed("e_side_deg", s)?;
     if e == 0.0 {
         return Ok(0.0);
@@ -367,11 +409,51 @@ pub fn tee_y(rc: f64, ri: f64, ro: f64, e: f64, th: f64) -> f64 {
     (rc * rc - m * m).max(0.0).sqrt()
 }
 
-/// Lateral-plane span (perpendicular branch) at azimuth `phi` through the wall (radii `r1..r2`): the `x` range the
-/// bore `rh` leaves through the wall. ZK `latSpan` with a = 90 deg.
-fn lat_span(r1: f64, r2: f64, rh: f64, e: f64, phi: f64) -> Option<[f64; 2]> {
-    let s = phi.sin();
+/// Position along the branch axis (from the intersection point of the axes) of the first point where the branch wall
+/// (radii `ri..ro`) meets the main surface of radius `rc`, at angle `th` round the branch (0 = the sharp-angle side,
+/// 90 deg = the side), offset `e`, sharp angle `alpha` (`None` or 90: the perpendicular `tee_y`, unchanged).
+///
+/// Closed form: `tau(th, rho) = (sqrt(rc^2 - z^2) + rho cos(th) cos(a)) / sin(a)` with `z = e + rho sin(th)` is concave
+/// in `rho`, so its maximum over the wall is the clamped stationary point `z* = sign(k s) |k| rc / sqrt(s^2 + k^2)`
+/// (`k = cos(th) cos(a)`, `s = sin(th)`), kept inside the wall and inside `|z| <= rc`.
+pub fn cut_tau(rc: f64, ri: f64, ro: f64, e: f64, th: f64, alpha: Option<f64>) -> f64 {
+    let (ca, sa) = lat_cs(alpha);
+    if ca == 0.0 {
+        return tee_y(rc, ri, ro, e, th);
+    }
+    let (s, c) = (th.sin(), th.cos());
+    let k = c * ca;
+    let (mut lo, mut hi) = (ri, ro);
+    if s.abs() > 1e-15 {
+        let (b1, b2) = ((-rc - e) / s, (rc - e) / s);
+        lo = lo.max(b1.min(b2));
+        hi = hi.min(b1.max(b2));
+    }
+    let rho = if s.abs() <= 1e-15 {
+        if k > 0.0 { hi } else { lo }
+    } else if lo > hi {
+        (lo + hi) / 2.0
+    } else {
+        let zs = if k.abs() < 1e-15 {
+            0.0
+        } else {
+            (if k * s > 0.0 { 1.0 } else { -1.0 }) * k.abs() * rc / (s * s + k * k).sqrt()
+        };
+        ((zs - e) / s).clamp(lo, hi)
+    };
+    let z = e + rho * s;
+    ((rc * rc - z * z).max(0.0).sqrt() + rho * c * ca) / sa
+}
+
+/// Span (axial `x` from the intersection point) the bore `rh` leaves through the main wall (radii `r1..r2`) at
+/// azimuth `phi` from the branch direction, for the sharp angle (cos `ca`, sin `sa`; (0, 1) = perpendicular). ZK
+/// `latSpan`.
+fn lat_span(r1: f64, r2: f64, rh: f64, e: f64, ca_sa: (f64, f64), phi: f64) -> Option<[f64; 2]> {
+    let (ca, sa) = ca_sa;
+    let (s, c) = (phi.sin(), phi.cos());
     let (mut lo, mut hi) = (r1, r2);
+    let kk = c * ca;
+    let d = (s * s + kk * kk).sqrt();
     if s.abs() > 1e-15 {
         let (b1, b2) = ((e - rh) / s, (e + rh) / s);
         lo = lo.max(b1.min(b2));
@@ -385,13 +467,13 @@ fn lat_span(r1: f64, r2: f64, rh: f64, e: f64, phi: f64) -> Option<[f64; 2]> {
     hi = hi.max(lo);
     let at = |r: f64, sg: f64| {
         let u = r * s - e;
-        sg * (rh * rh - u * u).max(0.0).sqrt()
+        (r * kk + sg * (rh * rh - u * u).max(0.0).sqrt()) / sa
     };
-    let pick = |_sg: f64| {
+    let pick = |sg: f64| {
         if s.abs() <= 1e-15 {
-            hi
+            if sg * kk >= 0.0 { hi } else { lo }
         } else {
-            (e / s).clamp(lo, hi)
+            ((sg * (if s > 0.0 { 1.0 } else { -1.0 }) * kk * rh / d + e) / s).clamp(lo, hi)
         }
     };
     Some([at(pick(-1.0), -1.0), at(pick(1.0), 1.0)])
@@ -409,6 +491,7 @@ struct ThickHole {
     r2: f64,
     rh: f64,
     e: f64,
+    ca_sa: (f64, f64),
     /// ESTIMATE of the ring-to-curve distance: largest axial deviation of the exact outline at the mid angle of every
     /// ring edge from the edge's chord.
     eps: f64,
@@ -416,12 +499,12 @@ struct ThickHole {
 
 impl ThickHole {
     fn span(&self, q: f64) -> Option<[f64; 2]> {
-        lat_span(self.r1, self.r2, self.rh, self.e, q)
+        lat_span(self.r1, self.r2, self.rh, self.e, self.ca_sa, q)
     }
 }
 
 /// Hole through the whole main wall (offset larger than the bore, e.g. a drain branch on the invert). ZK `latHole`.
-fn lat_hole(r1: f64, r2: f64, rh: f64, e: f64) -> Option<ThickHole> {
+fn lat_hole(r1: f64, r2: f64, rh: f64, e: f64, ca_sa: (f64, f64)) -> Option<ThickHole> {
     let n = 180usize;
     let d0 = if e - rh < 0.0 { r1 } else { r2 };
     let d1 = if e + rh > 0.0 { r1 } else { r2 };
@@ -431,7 +514,7 @@ fn lat_hole(r1: f64, r2: f64, rh: f64, e: f64) -> Option<ThickHole> {
     let (mut xmin, mut xmax) = (f64::INFINITY, f64::NEG_INFINITY);
     for i in 0..=n {
         let p = p0 + (p1 - p0) * (1.0 - (PI * i as f64 / n as f64).cos()) / 2.0;
-        if let Some(sp) = lat_span(r1, r2, rh, e, p) {
+        if let Some(sp) = lat_span(r1, r2, rh, e, ca_sa, p) {
             lo.push([p, sp[0]]);
             hi.push([p, sp[1]]);
             xmin = xmin.min(sp[0]);
@@ -453,7 +536,7 @@ fn lat_hole(r1: f64, r2: f64, rh: f64, e: f64) -> Option<ThickHole> {
     let mut eps = 0.0f64;
     for i in 0..nn.saturating_sub(1) {
         let pm = 0.5 * (lo[i][0] + lo[i + 1][0]);
-        if let Some(sp) = lat_span(r1, r2, rh, e, pm) {
+        if let Some(sp) = lat_span(r1, r2, rh, e, ca_sa, pm) {
             eps = eps
                 .max((sp[0] - 0.5 * (lo[i][1] + lo[i + 1][1])).abs())
                 .max((sp[1] - 0.5 * (hi[i][1] + hi[i + 1][1])).abs());
@@ -473,6 +556,7 @@ fn lat_hole(r1: f64, r2: f64, rh: f64, e: f64) -> Option<ThickHole> {
         r2,
         rh,
         e,
+        ca_sa,
         eps,
     })
 }
@@ -532,6 +616,9 @@ struct HoleA {
     edge: f64,
     edge_a: f64,
     eps_thick: f64,
+    /// (cos, sin) of the sharp branch angle; (0, 1) for the perpendicular branch.
+    ca_sa: (f64, f64),
+    angle_deg: Option<f64>,
 }
 
 impl HoleA {
@@ -549,7 +636,14 @@ impl HoleA {
     /// The line where the outer face of the branch meets the main outer face.
     fn wat(&self, th: f64) -> [f64; 2] {
         let q = clamp1((self.e + self.ro * th.sin()) / self.ro_main).asin();
-        [self.dir + q, self.x0 + self.ro * th.cos()]
+        if self.ca_sa.0 == 0.0 {
+            return [self.dir + q, self.x0 + self.ro * th.cos()];
+        }
+        let cot = self.ca_sa.0 / self.ca_sa.1;
+        [
+            self.dir + q,
+            self.x0 + self.ro_main * q.cos() * cot + self.ro * th.cos() / self.ca_sa.1,
+        ]
     }
 }
 
@@ -558,9 +652,10 @@ fn hole_a(b: &BranchOnMain, ri: f64, ro_main: f64, mount: Mount, gg: f64, l: f64
     let rh = if mount == Mount::SetIn { ro } else { ro - b.t };
     let e = b.e;
     let dir = b.dir_deg * PI / 180.0;
-    let thick = e.abs() > rh;
+    let ca_sa = lat_cs(b.angle_deg);
+    let thick = ca_sa.0 != 0.0 || e.abs() > rh;
     let hl = if thick {
-        Some(lat_hole(ri, ro_main, rh, e)?)
+        Some(lat_hole(ri, ro_main, rh, e, ca_sa)?)
     } else {
         None
     };
@@ -647,6 +742,8 @@ fn hole_a(b: &BranchOnMain, ri: f64, ro_main: f64, mount: Mount, gg: f64, l: f64
         edge,
         edge_a,
         eps_thick: hl.as_ref().map_or(0.0, |h| h.eps),
+        ca_sa,
+        angle_deg: b.angle_deg,
     })
 }
 
@@ -768,6 +865,8 @@ pub struct HoleOut {
     pub to_deg: f64,
     pub dir_deg: f64,
     pub e: f64,
+    /// Sharp branch angle (deg); 90 for the perpendicular branch.
+    pub angle_deg: f64,
     /// True when the hole is cut through the whole wall (offset beyond the bore).
     pub thick: bool,
     /// Length of the hole edge that runs along the main's lateral line (invert) when the bore leaves the inner face.
@@ -883,6 +982,10 @@ pub struct BranchPieceResult {
     pub area_err: f64,
     pub area_drawn: f64,
     pub mass_kg: f64,
+    /// Sharp branch angle (deg); 90 for the perpendicular branch.
+    pub angle_deg: f64,
+    /// Codes the caller must turn into a hold (never dropped): `tee_lateral_angle_below_30`.
+    pub flags: Vec<&'static str>,
     pub certified: bool,
     pub method: &'static str,
     pub rules: &'static [(&'static str, &'static str, &'static str, &'static str)],
@@ -898,6 +1001,42 @@ fn contact_radius(mount: Mount, ro_main: f64, ri_main: f64) -> f64 {
     }
 }
 
+/// Largest `cut_tau` round the branch (dense scan, then golden-section refinement of the best sample).
+fn max_tau(rc: f64, ri: f64, ro: f64, e: f64, alpha: Option<f64>) -> f64 {
+    let n = 7200usize;
+    let f = |th: f64| cut_tau(rc, ri, ro, e, th, alpha);
+    let hstep = 2.0 * PI / n as f64;
+    let (mut best, mut ib) = (f64::NEG_INFINITY, 0usize);
+    for i in 0..n {
+        let v = f(hstep * i as f64);
+        if v > best {
+            best = v;
+            ib = i;
+        }
+    }
+    let c = hstep * ib as f64;
+    let (mut a, mut b) = (c - hstep, c + hstep);
+    let g = (5f64.sqrt() - 1.0) / 2.0;
+    let (mut x1, mut x2) = (b - g * (b - a), a + g * (b - a));
+    let (mut f1, mut f2) = (f(x1), f(x2));
+    for _ in 0..80 {
+        if f1 > f2 {
+            b = x2;
+            x2 = x1;
+            f2 = f1;
+            x1 = b - g * (b - a);
+            f1 = f(x1);
+        } else {
+            a = x1;
+            x1 = x2;
+            f1 = f2;
+            x2 = a + g * (b - a);
+            f2 = f(x2);
+        }
+    }
+    best.max(f(0.5 * (a + b)))
+}
+
 fn check_branch_fits(
     d: f64,
     t: f64,
@@ -906,6 +1045,7 @@ fn check_branch_fits(
     main_t: f64,
     h: Option<f64>,
     mount: Mount,
+    angle: Option<f64>,
 ) -> Result<(), ShapeRefusal> {
     let (ro_main, ri_main) = (main_d / 2.0, main_d / 2.0 - main_t);
     let (ro, ri) = (d / 2.0, d / 2.0 - t);
@@ -931,11 +1071,15 @@ fn check_branch_fits(
     }
     if let Some(h) = h {
         let rc = contact_radius(mount, ro_main, ri_main);
-        let e = e.abs();
-        let y_top = if e <= ro {
-            rc
+        let y_top = if is_lateral(angle) {
+            max_tau(rc, ri, ro, e, angle)
         } else {
-            (rc * rc - (e - ro) * (e - ro)).max(0.0).sqrt()
+            let e = e.abs();
+            if e <= ro {
+                rc
+            } else {
+                (rc * rc - (e - ro) * (e - ro)).max(0.0).sqrt()
+            }
         };
         if h <= y_top {
             return Err(refusal(
@@ -963,20 +1107,34 @@ pub fn branch_piece(s: &BranchPieceSpec) -> Result<BranchPieceResult, ShapeRefus
     check_angle(s.angle_deg)?;
     wall("t", "d", s.t, s.d)?;
     wall("main_t", "main_d", s.main_t, s.main_d)?;
-    check_branch_fits(s.d, s.t, s.e, s.main_d, s.main_t, Some(s.h), s.mount)?;
+    check_branch_fits(
+        s.d,
+        s.t,
+        s.e,
+        s.main_d,
+        s.main_t,
+        Some(s.h),
+        s.mount,
+        s.angle_deg,
+    )?;
     let (ro_main, ri_main) = (s.main_d / 2.0, s.main_d / 2.0 - s.main_t);
     let rc = contact_radius(s.mount, ro_main, ri_main);
     let (ro, ri) = (s.d / 2.0, s.d / 2.0 - s.t);
     let rm = ro - s.t / 2.0;
     let w = 2.0 * PI * rm;
     let th0 = PI / 2.0;
-    let len_at = |th: f64| s.h - tee_y(rc, ri, ro, s.e, th);
+    let len_at = |th: f64| s.h - cut_tau(rc, ri, ro, s.e, th, s.angle_deg);
+    let poly_n = if is_lateral(s.angle_deg) {
+        TEE_LATERAL_POLY_SAMPLES
+    } else {
+        TEE_POLY_SAMPLES
+    };
     let len_k = |k: usize, n: usize| len_at(th0 + 2.0 * PI * k as f64 / n as f64);
-    let mut cut = Vec::with_capacity(TEE_POLY_SAMPLES + 1);
+    let mut cut = Vec::with_capacity(poly_n + 1);
     let (mut lo_s, mut hi_s) = (f64::INFINITY, f64::NEG_INFINITY);
-    for i in 0..=TEE_POLY_SAMPLES {
-        let l = len_k(i, TEE_POLY_SAMPLES);
-        cut.push([w * i as f64 / TEE_POLY_SAMPLES as f64, l]);
+    for i in 0..=poly_n {
+        let l = len_k(i, poly_n);
+        cut.push([w * i as f64 / poly_n as f64, l]);
         lo_s = lo_s.min(l);
         hi_s = hi_s.max(l);
     }
@@ -1072,6 +1230,12 @@ pub fn branch_piece(s: &BranchPieceSpec) -> Result<BranchPieceResult, ShapeRefus
         area_err,
         area_drawn,
         mass_kg: mass,
+        angle_deg: s.angle_deg.unwrap_or(90.0),
+        flags: if s.angle_deg.is_some_and(|a| a < LATERAL_MIN_ANGLE_DEG) {
+            vec!["tee_lateral_angle_below_30"]
+        } else {
+            vec![]
+        },
         certified: false,
         method: TEE_METHOD,
         rules: &TEE_NAMED_RULES,
@@ -1161,7 +1325,7 @@ fn validate_main(s: &TeeMainSpec) -> Result<(), ShapeRefusal> {
                 ),
             ));
         }
-        check_branch_fits(b.d, b.t, b.e, s.d, s.t, None, s.mount)?;
+        check_branch_fits(b.d, b.t, b.e, s.d, s.t, None, s.mount, b.angle_deg)?;
     }
     Ok(())
 }
@@ -1293,6 +1457,7 @@ pub fn tee_main(s: &TeeMainSpec) -> Result<TeeMainResult, ShapeRefusal> {
             to_deg: from + (h.hi - h.lo) * 180.0 / PI,
             dir_deg: h.dir * 180.0 / PI,
             e: h.e,
+            angle_deg: h.angle_deg.unwrap_or(90.0),
             thick: h.thick,
             edge: h.edge,
             edge_deg: mod_p(h.edge_a * 180.0 / PI, 360.0),
@@ -1384,6 +1549,17 @@ pub fn tee_main(s: &TeeMainSpec) -> Result<TeeMainResult, ShapeRefusal> {
             message: "no seam position keeps every hole (with the clear distance) off the longitudinal seams; the person must choose a seam count or side".into(),
         });
     }
+    for b in &s.branches {
+        if b.angle_deg.is_some_and(|a| a < LATERAL_MIN_ANGLE_DEG) {
+            holds.push(TeeHold {
+                code: "tee_lateral_angle_below_30",
+                message: format!(
+                    "branch {} stands at less than {LATERAL_MIN_ANGLE_DEG} deg to the main: built, but the person must confirm the angle before a cut file is served",
+                    b.name
+                ),
+            });
+        }
+    }
     let questions: Vec<&'static str> = if holes.iter().any(|h| !h.x_given) {
         vec![TEE_X_QUESTION]
     } else {
@@ -1430,4 +1606,21 @@ pub fn tee_main(s: &TeeMainSpec) -> Result<TeeMainResult, ShapeRefusal> {
         ));
     }
     Ok(res)
+}
+
+/// A rib stands on the branch only when the branch is perpendicular to the main. A rib on a lateral branch is not
+/// built (ZK says so too): it is refused with a code, never dropped. Call it with the branch angle of the rib's branch.
+pub fn rib_on_branch(angle_deg: Option<f64>) -> Result<(), ShapeRefusal> {
+    check_angle(angle_deg)?;
+    if is_lateral(angle_deg) {
+        return Err(refuse(
+            "tee_rib_on_lateral_unsupported",
+            "angle_deg",
+            format!(
+                "a rib on a lateral branch ({} deg) is not built; ribs stand on perpendicular branches only",
+                angle_deg.unwrap_or(90.0)
+            ),
+        ));
+    }
+    Ok(())
 }
