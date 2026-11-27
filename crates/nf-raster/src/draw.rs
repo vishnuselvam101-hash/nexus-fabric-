@@ -6,6 +6,8 @@
 // Indexing here is on fixed three-element arrays with loop bounds of three.
 #![allow(clippy::indexing_slicing)]
 
+use std::collections::BTreeMap;
+
 use nf_pdf::raster::{Deadline, Fault, Matrix};
 
 use crate::decode::{luma, Pixmap};
@@ -15,16 +17,41 @@ pub struct Canvas {
     pub h: u32,
     pub ch: usize,
     pub data: Vec<u8>,
+    /// Pixel visits so far (stamps, source pixels read, destination pixels), against `max_work`.
+    work: u64,
+    max_work: u64,
+    /// Reduced copies of images by (image key, factors), while they fit `SHRUNK_CACHE_BYTES`.
+    shrunk: BTreeMap<(usize, u32, u32), Pixmap>,
+    shrunk_bytes: usize,
 }
 
+/// Reduced images kept for reuse across placements of the same image.
+const SHRUNK_CACHE_BYTES: usize = 64_000_000;
+
 impl Canvas {
-    pub fn new(w: u32, h: u32, ch: usize) -> Self {
+    pub fn new(w: u32, h: u32, ch: usize, max_work: u64) -> Self {
         Canvas {
             w,
             h,
             ch,
             data: vec![255; (w as usize) * (h as usize) * ch],
+            work: 0,
+            max_work,
+            shrunk: BTreeMap::new(),
+            shrunk_bytes: 0,
         }
+    }
+
+    /// Counts `n` pixel visits; a coded limit past the budget, and the clock is read.
+    fn charge(&mut self, n: u64, dl: &Deadline) -> Result<(), Fault> {
+        self.work = self.work.saturating_add(n);
+        if self.work > self.max_work {
+            return Err(Fault::Limit(
+                "draw_work",
+                "the page holds more drawing than the limit allows".into(),
+            ));
+        }
+        dl.check()
     }
 
     fn at(&mut self, x: i64, y: i64) -> Option<&mut [u8]> {
@@ -48,27 +75,42 @@ impl Canvas {
     }
 
     /// A line of `width` pixels along the polyline (y up). Stamps discs every half pixel.
-    pub fn polyline(&mut self, pts: &[(f64, f64)], closed: bool, width: f64, gray: u8) {
+    pub fn polyline(
+        &mut self,
+        pts: &[(f64, f64)],
+        closed: bool,
+        width: f64,
+        gray: u8,
+        dl: &Deadline,
+    ) -> Result<(), Fault> {
         let r = (width.max(1.0) / 2.0).min(50.0);
         let n = pts.len();
         for i in 0..n.saturating_sub(1) + usize::from(closed && n > 2) {
             let (Some(&p), Some(&q)) = (pts.get(i), pts.get((i + 1) % n)) else {
                 continue;
             };
-            self.segment(p, q, r, gray);
+            self.segment(p, q, r, gray, dl)?;
         }
         if n == 1 {
             if let Some(&p) = pts.first() {
-                self.segment(p, p, r, gray);
+                self.segment(p, p, r, gray, dl)?;
             }
         }
+        Ok(())
     }
 
-    fn segment(&mut self, p: (f64, f64), q: (f64, f64), r: f64, gray: u8) {
+    fn segment(
+        &mut self,
+        p: (f64, f64),
+        q: (f64, f64),
+        r: f64,
+        gray: u8,
+        dl: &Deadline,
+    ) -> Result<(), Fault> {
         let hh = f64::from(self.h);
         let (mut x0, mut y0, mut x1, mut y1) = (p.0, hh - p.1, q.0, hh - q.1);
         if ![x0, y0, x1, y1].iter().all(|v| v.is_finite()) {
-            return;
+            return Ok(());
         }
         // Clip to the canvas grown by the radius (Liang-Barsky), so that huge segments cost
         // only their visible length.
@@ -84,7 +126,7 @@ impl Canvas {
         ] {
             if pp == 0.0 {
                 if qq < 0.0 {
-                    return;
+                    return Ok(());
                 }
             } else {
                 let t = qq / pp;
@@ -96,12 +138,18 @@ impl Canvas {
             }
         }
         if t0 > t1 {
-            return;
+            return Ok(());
         }
         (x0, y0, x1, y1) = (x0 + t0 * dx, y0 + t0 * dy, x0 + t1 * dx, y0 + t1 * dy);
         let len = (x1 - x0).hypot(y1 - y0);
         let steps = ((len * 2.0).ceil() as u64).max(1);
         let reach = r.ceil() as i64 + 1;
+        // Charged before the stamping, so that one huge stroke is refused at once.
+        let side = 2 * reach as u64 + 1;
+        self.charge(
+            (steps.saturating_add(1)).saturating_mul(side.saturating_mul(side)),
+            dl,
+        )?;
         for s in 0..=steps {
             let t = s as f64 / steps as f64;
             let (cx, cy) = (x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
@@ -116,11 +164,13 @@ impl Canvas {
                 }
             }
         }
+        Ok(())
     }
 
     /// Paints `img` through `ctm` (unit square to pixels, y up). `fill` is the stencil colour.
     pub fn image(
         &mut self,
+        key: usize,
         img: &Pixmap,
         ctm: &Matrix,
         fill: u8,
@@ -130,17 +180,33 @@ impl Canvas {
         if !det.is_finite() || det.abs() < 1e-9 || img.w == 0 || img.h == 0 {
             return Ok(());
         }
-        let hh = f64::from(self.h);
         // Source pixels per destination pixel along each image axis.
         let fx = (f64::from(img.w) / ctm.a.hypot(ctm.b)).floor().max(1.0) as u32;
         let fy = (f64::from(img.h) / ctm.c.hypot(ctm.d)).floor().max(1.0) as u32;
-        let shrunk;
-        let src: &Pixmap = if fx > 1 || fy > 1 {
-            shrunk = shrink(img, fx.min(img.w), fy.min(img.h));
-            &shrunk
-        } else {
-            img
-        };
+        let (fx, fy) = (fx.min(img.w), fy.min(img.h));
+        if fx <= 1 && fy <= 1 {
+            return self.paint(img, ctm, fill, dl);
+        }
+        // The reduced copy is made once per (image, factors) while the cache has room.
+        let at = (key, fx, fy);
+        if let Some(s) = self.shrunk.remove(&at) {
+            let r = self.paint(&s, ctm, fill, dl);
+            self.shrunk.insert(at, s);
+            return r;
+        }
+        self.charge(u64::from(img.w) * u64::from(img.h), dl)?;
+        let s = shrink(img, fx, fy, dl)?;
+        let r = self.paint(&s, ctm, fill, dl);
+        if self.shrunk_bytes + s.data.len() <= SHRUNK_CACHE_BYTES {
+            self.shrunk_bytes += s.data.len();
+            self.shrunk.insert(at, s);
+        }
+        r
+    }
+
+    fn paint(&mut self, src: &Pixmap, ctm: &Matrix, fill: u8, dl: &Deadline) -> Result<(), Fault> {
+        let det = ctm.a * ctm.d - ctm.b * ctm.c;
+        let hh = f64::from(self.h);
         let corners = [
             (ctm.e, ctm.f),
             (ctm.a + ctm.e, ctm.b + ctm.f),
@@ -159,7 +225,7 @@ impl Canvas {
         let (sw, sh) = (f64::from(src.w), f64::from(src.h));
         for y in (y_lo as i64)..(y_hi as i64) {
             if y % 64 == 0 {
-                dl.check()?;
+                self.charge(64 * (x_hi - x_lo).max(0.0) as u64, dl)?;
             }
             let yy = hh - (y as f64 + 0.5);
             for x in (x_lo as i64)..(x_hi as i64) {
@@ -248,7 +314,7 @@ fn sample(img: &Pixmap, x: f64, y: f64) -> [f32; 3] {
 }
 
 /// Box-filter reduction by whole factors; the last partial block averages what exists.
-fn shrink(img: &Pixmap, fx: u32, fy: u32) -> Pixmap {
+fn shrink(img: &Pixmap, fx: u32, fy: u32, dl: &Deadline) -> Result<Pixmap, Fault> {
     let nw = img.w.div_ceil(fx);
     let nh = img.h.div_ceil(fy);
     let ch = img.ch;
@@ -256,6 +322,9 @@ fn shrink(img: &Pixmap, fx: u32, fy: u32) -> Pixmap {
     let mut acc = vec![0u32; nw as usize * ch];
     let mut cnt = vec![0u32; nw as usize];
     for by in 0..nh {
+        if by % 64 == 0 {
+            dl.check()?;
+        }
         acc.fill(0);
         cnt.fill(0);
         for y in (by * fy)..((by + 1) * fy).min(img.h) {
@@ -282,11 +351,11 @@ fn shrink(img: &Pixmap, fx: u32, fy: u32) -> Pixmap {
             }
         }
     }
-    Pixmap {
+    Ok(Pixmap {
         w: nw,
         h: nh,
         ch,
         data: out,
         mask: img.mask,
-    }
+    })
 }

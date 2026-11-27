@@ -132,7 +132,6 @@ fn dedupe(pts: &[(f64, f64)]) -> Vec<(f64, f64)> {
     out
 }
 
-/// Implementation limit: lines and image placements recorded for one page in capture mode.
 /// Implementation limit: image placements recorded for one page in capture mode.
 pub const MAX_IMAGES: u64 = 4096;
 pub const MAX_ITEMS: usize = 2_000_000;
@@ -171,7 +170,7 @@ pub struct Interp<'d, 'a> {
     pub form_depth: usize,
     /// Lines and images in paint order, when `opt.capture` is set.
     pub items: Vec<Item>,
-    /// Names of the colour space resources are looked up here for inline images.
+    /// Image placements recorded in capture mode (bounded by `MAX_IMAGES`).
     pub images_placed: u64,
 }
 
@@ -791,6 +790,9 @@ impl<'d, 'a> Interp<'d, 'a> {
             match t {
                 Tok::Kw(b"ID") => break,
                 Tok::Eof => return malformed("inline image without ID"),
+                // Not capturing: skip tokens exactly as before, so a dictionary that was
+                // never read cannot fail the conversion.
+                _ if !self.opt.capture => {}
                 Tok::Kw(b"true") => self.inline_value(&mut key, &mut entries, Obj::Bool(true)),
                 Tok::Kw(b"false") => self.inline_value(&mut key, &mut entries, Obj::Bool(false)),
                 Tok::Kw(b"null") => self.inline_value(&mut key, &mut entries, Obj::Null),

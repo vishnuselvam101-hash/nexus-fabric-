@@ -48,6 +48,8 @@ pub const SCAN_MAX_PATHS: u64 = 10;
 #[derive(Clone, Debug)]
 pub struct RasterLimits {
     pub pdf: Limits,
+    /// Pixel visits of all drawing on one page (line stamps, image reads and writes).
+    pub max_draw_work: u64,
     /// Pixels of one decoded image (width times height).
     pub max_image_pixels: u64,
     /// Bytes of the output canvas (pixels times channels).
@@ -62,6 +64,7 @@ impl Default for RasterLimits {
     fn default() -> Self {
         RasterLimits {
             pdf: Limits::default(),
+            max_draw_work: 1_500_000_000,
             max_image_pixels: 100_000_000,
             max_canvas_bytes: 200_000_000,
             max_total_image_bytes: 800_000_000,
@@ -284,7 +287,7 @@ pub fn render(input: &[u8], opts: &Options) -> Result<Rendered, Box<Failure>> {
     let fail = |f: Fault| to_failure(f, Some(count));
     let (kind, images, lines) = classify(&scene);
     let (wpx, hpx) = (scene.width.round(), scene.height.round());
-    if !(wpx >= 1.0 && hpx >= 1.0) || !wpx.is_finite() || !hpx.is_finite() {
+    if !(wpx >= 1.0 && hpx >= 1.0 && wpx.is_finite() && hpx.is_finite()) {
         return Err(fail(Fault::Malformed("the page has no usable size".into())));
     }
     if wpx > f64::from(u32::MAX >> 4) || hpx > f64::from(u32::MAX >> 4) {
@@ -294,6 +297,13 @@ pub fn render(input: &[u8], opts: &Options) -> Result<Rendered, Box<Failure>> {
         )));
     }
     let (w, h) = (wpx as u32, hpx as u32);
+    // Early: even a one-channel canvas must fit, before anything is decoded.
+    if u64::from(w) * u64::from(h) > opts.limits.max_canvas_bytes {
+        return Err(fail(Fault::Limit(
+            "output_pixels",
+            "the page image would be larger than the limit allows; lower the resolution".into(),
+        )));
+    }
     let mut stats = Warn::default();
     for (k, (n, m)) in &scene.stats.warnings {
         stats.add(k, *n, m);
@@ -337,7 +347,7 @@ pub fn render(input: &[u8], opts: &Options) -> Result<Rendered, Box<Failure>> {
                 };
                 *filters.entry(label).or_insert(0) += 1;
                 let pix =
-                    decode::decode(&raw, &doc.deadline(), max_px, &mut warnings).map_err(fail)?;
+                    decode::decode(raw, &doc.deadline(), max_px, &mut warnings).map_err(fail)?;
                 if pix.ch == 3 && !pix.mask && any_colour_possible {
                     ch = 3;
                 }
@@ -365,7 +375,7 @@ pub fn render(input: &[u8], opts: &Options) -> Result<Rendered, Box<Failure>> {
             "the page image would be larger than the limit allows; lower the resolution".into(),
         )));
     }
-    let mut canvas = draw::Canvas::new(w, h, ch);
+    let mut canvas = draw::Canvas::new(w, h, ch, opts.limits.max_draw_work);
     let dl = doc.deadline();
     for (idx, item) in scene.items.iter().enumerate() {
         if idx % 1024 == 0 {
@@ -377,11 +387,13 @@ pub fn render(input: &[u8], opts: &Options) -> Result<Rendered, Box<Failure>> {
                 closed,
                 width,
                 gray,
-            } => canvas.polyline(pts, *closed, *width, *gray),
+            } => canvas
+                .polyline(pts, *closed, *width, *gray, &dl)
+                .map_err(fail)?,
             Item::Image { ctm, fill, .. } => {
                 let key = keys.get(idx).copied().unwrap_or(usize::MAX);
                 if let Some(Some(pix)) = decoded.get(&key) {
-                    canvas.image(pix, ctm, *fill, &dl).map_err(fail)?;
+                    canvas.image(key, pix, ctm, *fill, &dl).map_err(fail)?;
                 }
             }
         }

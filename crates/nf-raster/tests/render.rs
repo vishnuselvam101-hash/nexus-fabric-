@@ -454,3 +454,200 @@ fn decoded_images_of_a_page_are_bounded_together() {
         ("limit_exceeded", Some("image_bytes_total"))
     );
 }
+
+/// A one-page PDF whose content draws `/Im0` (a stream with `dict` extras and `data`).
+fn image_pdf(media: f64, dict: &str, data: &[u8], content: &str) -> Vec<u8> {
+    let mut v = format!(
+        "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {media} {media}] /Contents 4 0 R /Resources << /XObject << /Im0 5 0 R >> >> >>\nendobj\n4 0 obj\n<< /Length {} >>\nstream\n{}\nendstream\nendobj\n5 0 obj\n<< /Type /XObject /Subtype /Image {dict} /Length {} >>\nstream\n",
+        content.len(),
+        content,
+        data.len()
+    )
+    .into_bytes();
+    v.extend_from_slice(data);
+    v.extend_from_slice(b"\nendstream\nendobj\ntrailer\n<< /Root 1 0 R /Size 6 >>\n%%EOF\n");
+    v
+}
+
+fn failure_of(pdf: &[u8], o: &Options) -> nf_raster::Failure {
+    match render(pdf, o) {
+        Ok(_) => panic!("the render must fail"),
+        Err(f) => *f,
+    }
+}
+
+#[test]
+fn a_pathological_stroke_ends_with_a_coded_work_limit() {
+    // 300 strokes of a 100 pt wide line across a 1000 pt page at 200 dpi: about 1e11 pixel visits
+    let content = "100 w 0 0 m 1000 1000 l S\n".repeat(300);
+    let pdf = tiny_pdf([0.0, 0.0, 1000.0, 1000.0], &content);
+    let mut o = gray_opts();
+    o.limits.max_draw_work = 20_000_000;
+    let t = Instant::now();
+    let f = failure_of(&pdf, &o);
+    assert_eq!(
+        (f.kind, f.code, f.limit),
+        (
+            FailureKind::LimitExceeded,
+            "limit_exceeded",
+            Some("draw_work")
+        )
+    );
+    assert!(t.elapsed().as_secs_f64() < 20.0, "{:?}", t.elapsed());
+}
+
+#[test]
+fn a_pathological_stroke_ends_at_the_time_limit_inside_the_stroke() {
+    let content = "100 w 0 0 m 1000 1000 l S\n".repeat(300);
+    let pdf = tiny_pdf([0.0, 0.0, 1000.0, 1000.0], &content);
+    let mut o = gray_opts();
+    o.time_limit = std::time::Duration::from_millis(100);
+    let t = Instant::now();
+    let f = failure_of(&pdf, &o);
+    assert_eq!(
+        (f.kind, f.code, f.limit),
+        (
+            FailureKind::LimitExceeded,
+            "limit_exceeded",
+            Some("wall_clock")
+        )
+    );
+    assert!(t.elapsed().as_secs_f64() < 20.0, "{:?}", t.elapsed());
+}
+
+#[test]
+fn a_huge_placement_count_ends_with_a_coded_limit() {
+    // one 300 x 300 image placed 4000 times over the whole page
+    let content = "q 500 0 0 500 0 0 cm /Im0 Do Q\n".repeat(4000);
+    let pdf = image_pdf(
+        500.0,
+        "/Width 300 /Height 300 /ColorSpace /DeviceGray /BitsPerComponent 8",
+        &vec![128u8; 300 * 300],
+        &content,
+    );
+    let mut o = gray_opts();
+    o.dpi = 72;
+    o.limits.max_draw_work = 20_000_000;
+    let t = Instant::now();
+    let f = failure_of(&pdf, &o);
+    assert_eq!(
+        (f.kind, f.code, f.limit),
+        (
+            FailureKind::LimitExceeded,
+            "limit_exceeded",
+            Some("draw_work")
+        )
+    );
+    assert!(t.elapsed().as_secs_f64() < 20.0, "{:?}", t.elapsed());
+}
+
+#[test]
+fn a_reduced_image_placed_many_times_is_reduced_once() {
+    // 2000 x 2000 source drawn at 100 x 100 pixels, 40 times: the reduction (4e6 reads) is
+    // charged once, so a budget of 20M passes; 40 reductions would need 1.6e8.
+    let content = "q 100 0 0 100 0 0 cm /Im0 Do Q\n".repeat(40);
+    let pdf = image_pdf(
+        100.0,
+        "/Width 2000 /Height 2000 /ColorSpace /DeviceGray /BitsPerComponent 8",
+        &vec![100u8; 2000 * 2000],
+        &content,
+    );
+    let mut o = gray_opts();
+    o.dpi = 72;
+    o.limits.max_draw_work = 20_000_000;
+    render(&pdf, &o).expect("one reduction is charged once");
+}
+
+#[test]
+fn an_unsupported_bits_per_component_is_refused() {
+    let pdf = image_pdf(
+        100.0,
+        "/Width 4 /Height 4 /ColorSpace /DeviceGray /BitsPerComponent 3",
+        &[0x55; 16],
+        "q 100 0 0 100 0 0 cm /Im0 Do Q",
+    );
+    let f = failure_of(&pdf, &gray_opts());
+    assert_eq!((f.kind, f.code), (FailureKind::Refused, "unsupported_bpc"));
+}
+
+#[test]
+fn an_image_mask_in_a_jpeg_is_refused_with_a_code() {
+    let jpeg = fixture("scan_dct_gray.pdf");
+    let pdf = image_pdf(
+        100.0,
+        "/Width 4 /Height 4 /ImageMask true /Filter /DCTDecode",
+        &jpeg[..64],
+        "q 100 0 0 100 0 0 cm /Im0 Do Q",
+    );
+    let f = failure_of(&pdf, &gray_opts());
+    assert_eq!(
+        (f.kind, f.code),
+        (FailureKind::Refused, "unsupported_filter")
+    );
+}
+
+#[test]
+fn an_indexed_decode_array_inverts_the_palette_order() {
+    // two entries: 0 = black, 1 = white; /Decode [1 0] swaps them
+    let dict = |d: &str| {
+        format!("/Width 2 /Height 2 /ColorSpace [/Indexed /DeviceGray 1 <00FF>] /BitsPerComponent 1 {d}")
+    };
+    let px = |d: &str| {
+        let pdf = image_pdf(
+            100.0,
+            &dict(d),
+            &[0b0100_0000, 0b0100_0000],
+            "q 100 0 0 100 0 0 cm /Im0 Do Q",
+        );
+        let o = Options {
+            dpi: 72,
+            gray: true,
+            ..Options::default()
+        };
+        let p = decode_png(&render(&pdf, &o).unwrap().png);
+        (p.px[10 * p.w + 10], p.px[10 * p.w + 90])
+    };
+    assert_eq!(px(""), (0, 255));
+    assert_eq!(px("/Decode [1 0]"), (255, 0));
+}
+
+#[test]
+fn a_jbig2_region_over_the_pixel_limit_is_a_coded_limit() {
+    let mut j: Vec<u8> = Vec::new();
+    // page information segment: 8 x 8
+    j.extend_from_slice(&[0, 0, 0, 0, 48, 0, 1, 0, 0, 0, 19]);
+    j.extend_from_slice(&[0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    // immediate generic region of 2^31 x 2^31 pixels
+    j.extend_from_slice(&[0, 0, 0, 1, 38, 0, 1, 0, 0, 0, 18]);
+    j.extend_from_slice(&[0x80, 0, 0, 0, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    let pdf = image_pdf(
+        100.0,
+        "/Width 8 /Height 8 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /JBIG2Decode",
+        &j,
+        "q 100 0 0 100 0 0 cm /Im0 Do Q",
+    );
+    let f = failure_of(&pdf, &gray_opts());
+    assert_eq!(
+        (f.kind, f.code, f.limit),
+        (
+            FailureKind::LimitExceeded,
+            "limit_exceeded",
+            Some("image_pixels")
+        )
+    );
+}
+
+#[test]
+fn a_canvas_over_the_limit_is_refused_before_images_are_decoded() {
+    // the image would fail to decode (bad bpc); the size limit must be reported first
+    let pdf = image_pdf(
+        2000.0,
+        "/Width 4 /Height 4 /ColorSpace /DeviceGray /BitsPerComponent 3",
+        &[0; 16],
+        "q 2000 0 0 2000 0 0 cm /Im0 Do Q",
+    );
+    let mut o = gray_opts();
+    o.limits.max_canvas_bytes = 1_000_000;
+    let f = failure_of(&pdf, &o);
+    assert_eq!(f.limit, Some("output_pixels"));
+}

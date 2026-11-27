@@ -37,21 +37,32 @@ struct Packed {
 
 /// Decodes `raw` to pixels. `max_pixels` bounds width times height.
 pub fn decode(
-    raw: &RawImage,
+    mut raw: RawImage,
     dl: &Deadline,
     max_pixels: u64,
     warn: &mut Warnings,
 ) -> Result<Pixmap, Fault> {
     let mut color = raw.color.clone();
+    if raw.mask && matches!(raw.filter, ImageFilter::Dct | ImageFilter::Jpx) {
+        return Err(Fault::Unsupported(
+            "stream filter /DCTDecode on an image mask".into(),
+        ));
+    }
     let packed = match &raw.filter {
         ImageFilter::Raw => {
+            if !matches!(raw.bpc, 1 | 2 | 4 | 8 | 16) {
+                return Err(Fault::Refused(
+                    "unsupported_bpc",
+                    format!("{} bits per component is not supported", raw.bpc),
+                ));
+            }
             let comps = if raw.mask { 1 } else { color.components() };
             let bits = (raw.width as usize)
                 .checked_mul(comps)
                 .and_then(|v| v.checked_mul(raw.bpc as usize))
                 .ok_or_else(|| Fault::Malformed("image row size overflows".into()))?;
             Packed {
-                data: raw.data.clone(),
+                data: std::mem::take(&mut raw.data),
                 stride: bits.div_ceil(8),
                 width: raw.width,
                 height: raw.height,
@@ -59,12 +70,15 @@ pub fn decode(
                 comps,
             }
         }
-        ImageFilter::Ccitt(p) => ccitt(raw, p, max_pixels, warn)?,
-        ImageFilter::Jbig2 { globals } => {
-            jbig2(raw, globals.as_deref().map(Vec::as_slice), max_pixels, warn)?
-        }
+        ImageFilter::Ccitt(p) => ccitt(&raw, p, max_pixels, warn)?,
+        ImageFilter::Jbig2 { globals } => jbig2(
+            &raw,
+            globals.as_deref().map(Vec::as_slice),
+            max_pixels,
+            warn,
+        )?,
         ImageFilter::Dct => {
-            let (packed, c) = jpeg(raw, max_pixels)?;
+            let (packed, c) = jpeg(&raw, max_pixels)?;
             color = c;
             packed
         }
@@ -75,7 +89,7 @@ pub fn decode(
     if raw.has_alpha {
         warn.0.push("image_alpha_ignored");
     }
-    to_pixmap(&packed, &color, raw, dl, warn)
+    to_pixmap(&packed, &color, &raw, dl, warn)
 }
 
 fn ccitt(raw: &RawImage, p: &Ccitt, max_pixels: u64, warn: &mut Warnings) -> Result<Packed, Fault> {
@@ -176,6 +190,7 @@ fn jbig2(
     max_pixels: u64,
     warn: &mut Warnings,
 ) -> Result<Packed, Fault> {
+    region_prescan(&raw.data, max_pixels)?;
     let settings = hayro_jbig2::DecodeSettings::default();
     let g = match globals {
         Some(d) => match hayro_jbig2::Globals::new(d, &settings) {
@@ -334,14 +349,19 @@ fn to_pixmap(
     let ncomp = p.comps.max(1);
     let luts: Vec<[u8; 256]> = (0..ncomp)
         .map(|c| {
-            let (d0, d1) = match (indexed, raw.decode.get(2 * c), raw.decode.get(2 * c + 1)) {
-                (false, Some(&a), Some(&b)) => (a, b),
+            let (d0, d1) = match (raw.decode.get(2 * c), raw.decode.get(2 * c + 1)) {
+                (Some(&a), Some(&b)) => (a, b),
+                _ if indexed => (0.0, f64::from((1u32 << p.bpc.min(8)) - 1)),
                 _ => (0.0, 1.0),
             };
             let mut t = [0u8; 256];
+            // Indexed samples are palette indices: /Decode maps 0..2^bpc-1 onto d0..d1.
+            let imax = f64::from((1u32 << p.bpc.clamp(1, 8)) - 1);
             for (i, slot) in t.iter_mut().enumerate() {
                 *slot = if indexed {
-                    i as u8
+                    (d0 + (i as f64) * (d1 - d0) / imax)
+                        .round()
+                        .clamp(0.0, 255.0) as u8
                 } else {
                     let v = d0 + (i as f64 / 255.0) * (d1 - d0);
                     (v.clamp(0.0, 1.0) * 255.0).round() as u8
@@ -395,6 +415,9 @@ fn to_pixmap(
             Color::Gray if raw.decode.is_empty() => out.extend_from_slice(&row_samples),
             Color::Indexed { .. } => {
                 for &s in &row_samples {
+                    let s = luts
+                        .first()
+                        .map_or(s, |l| l.get(s as usize).copied().unwrap_or(s));
                     let n = palette.len() / out_ch.max(1);
                     let at = (s as usize).min(n.saturating_sub(1)) * out_ch;
                     match palette.get(at..at + out_ch) {
@@ -494,4 +517,75 @@ fn unpack(row: &[u8], bpc: u32, out: &mut [u8], raw_values: bool) {
         }
         _ => out.fill(0),
     }
+}
+
+/// Walks the segment headers of an embedded JBIG2 stream and refuses a region bigger than
+/// `max_pixels` before the decoder allocates it (the decoder allocates region bitmaps without
+/// a bound and an impossible size aborts the process). Anything this walk cannot follow is
+/// left to the decoder.
+fn region_prescan(data: &[u8], max_pixels: u64) -> Result<(), Fault> {
+    let be = |at: usize| -> Option<u32> {
+        let b = data.get(at..at.checked_add(4)?)?;
+        Some(u32::from_be_bytes([
+            *b.first()?,
+            *b.get(1)?,
+            *b.get(2)?,
+            *b.get(3)?,
+        ]))
+    };
+    let mut at = 0usize;
+    for _ in 0..100_000 {
+        let Some(num) = be(at) else { return Ok(()) };
+        let Some(&flags) = data.get(at + 4) else {
+            return Ok(());
+        };
+        let mut p = at + 5;
+        let Some(&rt) = data.get(p) else {
+            return Ok(());
+        };
+        let count = if rt >> 5 == 7 {
+            let Some(c) = be(p) else { return Ok(()) };
+            p += 4 + ((c & 0x1FFF_FFFF) as usize + 1).div_ceil(8);
+            (c & 0x1FFF_FFFF) as usize
+        } else {
+            p += 1;
+            usize::from(rt >> 5)
+        };
+        let rsize = if num <= 256 {
+            1
+        } else if num <= 65536 {
+            2
+        } else {
+            4
+        };
+        let Some(next) = count.checked_mul(rsize).and_then(|n| p.checked_add(n)) else {
+            return Ok(());
+        };
+        p = next + if flags & 0x40 != 0 { 4 } else { 1 };
+        let Some(len) = be(p) else { return Ok(()) };
+        p += 4;
+        if len == u32::MAX {
+            return Ok(());
+        }
+        // Region segments: text, halftone, generic and refinement regions; each starts with
+        // the region segment information field (width, height, ...).
+        if matches!(
+            flags & 0x3F,
+            4 | 6 | 7 | 20 | 22 | 23 | 36 | 38 | 39 | 40 | 42 | 43
+        ) {
+            if let (Some(w), Some(h)) = (be(p), be(p + 4)) {
+                if u64::from(w) * u64::from(h) > max_pixels {
+                    return Err(Fault::Limit(
+                        "image_pixels",
+                        "a JBIG2 region has more pixels than the limit allows".into(),
+                    ));
+                }
+            }
+        }
+        let Some(n) = p.checked_add(len as usize) else {
+            return Ok(());
+        };
+        at = n;
+    }
+    Ok(())
 }

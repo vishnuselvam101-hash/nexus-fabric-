@@ -18,7 +18,7 @@ nf-raster page <N> --in <pdf> --out <png> --report <json> [--dpi 200] [--gray]
 - Image XObjects and inline images, in paint order, composited through their matrices (rotation, flips, several images on one page). Box-filter reduction by whole factors, then bilinear sampling: a 1-bit scan at its own resolution is reproduced bit for bit (tests compare against the source bitmap).
 - Filters: Flate, ASCIIHex, ASCII85, RunLength (nf-pdf's bounded filters, with PNG and TIFF predictors) and the image filters DCT, CCITTFaxDecode (G3 1-D, G3 2-D, G4), JBIG2Decode (with `JBIG2Globals`; the crate implements generic, symbol, text, halftone and refinement regions, only generic regions with arithmetic coding and MMR are covered by tests here). Colour: DeviceGray/RGB/CMYK, Cal*, ICCBased by component count, Indexed, Separation and one-colour DeviceN as a tint, ImageMask stencils (painted in the fill gray), `/Decode`, 1/2/4/8/16 bits.
 - Vector fallback: stroked paths and the outlines of filled paths as lines (dashes, width, gray from the device colour operators; white fills and strokes are skipped, so a white background rectangle does not draw a border). No text (no fonts), no fill areas, no clipping, no shadings, no patterns: a vector page is a line drawing of its geometry. This is deliberate for a fallback; vector pages go to `nf-pdf2dxf`.
-- Not applied (a warning in the report, the image is drawn without it): `/SMask`, `/Mask`. Refused with a code: JPXDecode (`unsupported_filter`), LZWDecode (`unsupported_filter`), other colour spaces (`unsupported_colorspace`).
+- Not applied (a warning in the report, the image is drawn without it): `/SMask`, `/Mask`. Refused with a code: JPXDecode (`unsupported_filter`), an ImageMask in DCT (`unsupported_filter`), bits per component other than 1, 2, 4, 8, 16 (`unsupported_bpc`), LZWDecode (`unsupported_filter`), other colour spaces (`unsupported_colorspace`).
 
 ## Refusals (exit 2) and limits (exit 3)
 
@@ -32,6 +32,7 @@ Codes of nf-pdf (`malformed`, `encrypted`, `unsupported_filter`, `page_out_of_ra
 | `image_bytes_total` | 800,000,000 bytes of decoded images per page | `render` |
 | `output_pixels` | 200,000,000 bytes of canvas (pixels times channels) | `render`; lower the dpi |
 | `scene_items` | 2,000,000 lines and images, at most 4,096 image placements | `interp.rs` capture |
+| `draw_work` | 1,500,000,000 pixel visits of lines and image placements on one page | `Canvas` (charged per stroke segment, per reduction and per image row block) |
 | `wall_clock` | 60 s in the library; the parent stops the worker after 150 s | `Deadline`, `nf-raster` parent |
 | `cpu_time` | 120 s (RLIMIT_CPU) | sandbox |
 
@@ -75,3 +76,5 @@ Additive only (its 116 tests pass unchanged): `pub mod raster` (`PdfDoc`: open, 
 - rotation by 180 and 90 with boxes checked against the upright rendering;
 - every hostile file gives its coded refusal; 28,000 random mutations (bit flips, truncation, overwrites) of seven fixtures and random garbage never panic (`NF_RASTER_FUZZ_ROUNDS=4000`);
 - A3 200 dpi under 3 s (measured 0.49 s G4, 0.64 s DCT in the library, 0.6 to 0.7 s for the whole program including the sandbox).
+
+JBIG2: `hayro-jbig2` allocates region bitmaps without a bound, so a region of impossible size would abort the worker (code 70). The region segment headers of the embedded stream are walked first and a region above `image_pixels` is a coded limit. Regions inside `JBIG2Globals` and sizes declared by symbol dictionaries are not pre-checked; the worker's memory limit still ends those with code 70.
