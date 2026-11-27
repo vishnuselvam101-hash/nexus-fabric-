@@ -54,9 +54,22 @@ echo "built $ZIP"
 # Installer (NSIS). The installer needs no administrator rights.
 SETUP="$DIST/$NAME-windows-x64-setup.exe"
 rm -f "$SETUP"
+# Signing (optional): the uninstaller is signed inside the NSIS build (!uninstfinalize, through sign.sh), the
+# installer after it is built. Without a signing environment neither step runs and the output is unchanged.
+SIGN_NSIS=()
+SIGN_SETUP=0
+"$ROOT/packaging/windows/sign.sh" --preflight || { echo "build.sh: signing setup incomplete (see above)" >&2; exit 1; }
+if "$ROOT/packaging/windows/sign.sh" --requested; then
+  SIGN_NSIS=(-DNF_SIGN_UNINST="$ROOT/packaging/windows/sign.sh")
+  SIGN_SETUP=1
+fi
 makensis -V2 \
   -DVERSION="$VERSION" \
   -DSTAGE="$(winpath "$STAGE/$NAME")" \
   -DOUTFILE="$(winpath "$SETUP")" \
+  ${SIGN_NSIS[@]+"${SIGN_NSIS[@]}"} \
   "$(winpath "$ROOT/packaging/windows/installer.nsi")"
+if [ "$SIGN_SETUP" = 1 ]; then
+  "$ROOT/packaging/windows/sign.sh" "$SETUP"
+fi
 echo "built $SETUP"
