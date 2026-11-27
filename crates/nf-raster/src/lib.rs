@@ -48,11 +48,29 @@ pub const SCAN_MAX_PATHS: u64 = 10;
 #[derive(Clone, Debug)]
 pub struct RasterLimits {
     pub pdf: Limits,
-    /// Pixel visits of all drawing on one page (line stamps, image reads and writes).
+    /// Pixel visits of all drawing on one page (line stamps, image reads and writes): the
+    /// allowance for small pages. The allowance actually used is the larger of this and
+    /// `draw_work_per_pixel` times the page's pixel count (see `render`).
     pub max_draw_work: u64,
-    /// Pixels of one decoded image (width times height).
+    /// Pixel visits allowed per output pixel, so that large pages get a proportional allowance.
+    /// Measured on A0 at 300 dpi (139.5 Mpx) on the build host at load 20-24 (8 cores): one
+    /// full-page paint about 9-43 s wall (25-29 s CPU), one reduction of the same scan about
+    /// 6 s, so 4 visits per pixel allows about three full-page placements. The canvas limit
+    /// bounds the page size, so this bounds the allowance too (at most 4 x 210 Mpx).
+    pub draw_work_per_pixel: u64,
+    /// Pixels of one decoded image (width times height). 210 Mpx is 1.5 times one A0 scan at
+    /// 300 dpi (9933 x 14043 = 139.5 Mpx).
     pub max_image_pixels: u64,
-    /// Bytes of the output canvas (pixels times channels).
+    /// Bytes of the output canvas (pixels times channels). 210 MB is 1.5 times the gray A0 page
+    /// at 300 dpi (139.5 MB).
+    ///
+    /// Colour decision (explicit): colour A0 scans are REFUSED, not admitted. An RGB A0 scan at
+    /// 300 dpi is 418 MB decoded, which is above the parser's 256 MiB decode cap, so it stops
+    /// with `decoded_bytes`. A colour page whose RGB canvas would exceed this limit (for
+    /// example 418 MB at A0/300) stops with `output_pixels` before its image is decoded. Peak
+    /// RSS of a gray A0 page at 300 dpi is about 280 MB; colour A0 at 200 dpi measured 823 MB
+    /// with the caps lifted, which is why colour is refused rather than admitted. Render with
+    /// `--gray` for A0 at 300 dpi.
     pub max_canvas_bytes: u64,
     /// Bytes of all decoded images of one page together.
     pub max_total_image_bytes: u64,
@@ -63,10 +81,20 @@ pub struct RasterLimits {
 impl Default for RasterLimits {
     fn default() -> Self {
         RasterLimits {
-            pdf: Limits::default(),
+            // A flate-compressed drawing scan is mostly white: an A0 1-bit or 8-bit gray page
+            // compresses about 230:1 (17.4 MB from 77 KB; 139.5 MB from 609 KB). The parser's
+            // default of 100:1 refused those. 400:1 keeps 1.7x headroom over the measured
+            // drawing scans and still refuses the 200 MiB zero bomb (about 1000:1). The memory
+            // bound itself stays with the parser's 256 MiB decode cap and the pixel and byte
+            // limits below.
+            pdf: Limits {
+                max_ratio: 400,
+                ..Limits::default()
+            },
             max_draw_work: 200_000_000,
-            max_image_pixels: 100_000_000,
-            max_canvas_bytes: 200_000_000,
+            draw_work_per_pixel: 4,
+            max_image_pixels: 210_000_000,
+            max_canvas_bytes: 210_000_000,
             max_total_image_bytes: 800_000_000,
             max_info_pages: 2_000,
         }
@@ -91,7 +119,10 @@ impl Default for Options {
             dpi: DEFAULT_DPI,
             gray: false,
             limits: RasterLimits::default(),
-            time_limit: Duration::from_secs(60),
+            // A0 at 300 dpi measured 9-43 s wall on the build host (8 cores, load 20-24), with
+            // 25-29 s CPU; the gray run reached the old 60 s limit under that load. The worker's
+            // own wall limit (150 s, src/bin) stays above this.
+            time_limit: Duration::from_secs(120),
         }
     }
 }
@@ -338,6 +369,18 @@ pub fn render(input: &[u8], opts: &Options) -> Result<Rendered, Box<Failure>> {
                     by_obj.insert(i, k);
                 }
                 let raw = doc.load_image(src, max_px).map_err(fail)?;
+                // Colour output is decided by the first colour image; refuse before decoding
+                // one whose RGB canvas would exceed the canvas limit (see max_canvas_bytes).
+                if !opts.gray
+                    && !raw.mask
+                    && raw.color.components() != 1
+                    && u64::from(w) * u64::from(h) * 3 > opts.limits.max_canvas_bytes
+                {
+                    return Err(fail(Fault::Limit(
+                        "output_pixels",
+                        "the page in colour would be larger than the limit allows; render with --gray or lower the resolution".into(),
+                    )));
+                }
                 let label = match &raw.filter {
                     nf_pdf::raster::ImageFilter::Raw => "raw",
                     nf_pdf::raster::ImageFilter::Dct => "dct",
@@ -375,7 +418,12 @@ pub fn render(input: &[u8], opts: &Options) -> Result<Rendered, Box<Failure>> {
             "the page image would be larger than the limit allows; lower the resolution".into(),
         )));
     }
-    let mut canvas = draw::Canvas::new(w, h, ch, opts.limits.max_draw_work);
+    let page_px = u64::from(w) * u64::from(h);
+    let work = opts
+        .limits
+        .max_draw_work
+        .max(opts.limits.draw_work_per_pixel.saturating_mul(page_px));
+    let mut canvas = draw::Canvas::new(w, h, ch, work);
     let dl = doc.deadline();
     for (idx, item) in scene.items.iter().enumerate() {
         if idx % 1024 == 0 {

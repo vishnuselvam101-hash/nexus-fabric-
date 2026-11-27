@@ -548,6 +548,9 @@ fn wide_one_pixel_inline_images_end_with_a_coded_limit_in_time() {
     let pdf = tiny_pdf([0.0, 0.0, 1_500_000.0, 128.0], &one.repeat(4096));
     let mut o = gray_opts();
     o.dpi = 72;
+    // The page-scaled allowance (4 visits per page pixel, 768 M here) would let the time limit
+    // stop this first; the test is about the flat allowance, so the scaling is off.
+    o.limits.draw_work_per_pixel = 0;
     let t = Instant::now();
     let f = failure_of(&pdf, &o);
     assert_eq!(
