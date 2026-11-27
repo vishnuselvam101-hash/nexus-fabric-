@@ -1700,7 +1700,7 @@ const JA = {
 Object.assign(EN, {
   'st.caption': 'Illustration of a steel plate unrolling. Not your drawing.',
   'home.h1a': 'Drawing in.',
-  'home.h1b': 'Checked DXF out.',
+  'home.h1b': 'DXF out.',
   'home.recent': 'Recent jobs',
   'home.amoeba': 'AMOEBA status',
   'home.quick': 'Quick links',
@@ -1724,7 +1724,7 @@ Object.assign(EN, {
 Object.assign(JA, {
   'st.caption': 'イメージ図：鋼板の展開です。お客様の図面ではありません。',
   'home.h1a': '図面を入れて、',
-  'home.h1b': '確認済みのDXFへ。',
+  'home.h1b': 'DXFへ。',
   'home.recent': '最近のジョブ',
   'home.amoeba': 'AMOEBA の状況',
   'home.quick': 'クイックリンク',

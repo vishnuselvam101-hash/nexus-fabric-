@@ -981,7 +981,8 @@
   .hero-title { font-size: clamp(40px, 5.6vw, 92px); font-weight: 600; line-height: .98; letter-spacing: -.045em; margin: 0; color: var(--text-1); }
   .hero-title .ht-a, .hero-title .ht-b { display: block; }
   .hero-title .ht-b { color: var(--accent); }
-  :lang(ja) .hero-title { word-break: keep-all; line-height: 1.15; letter-spacing: -.02em; font-size: clamp(34px, 4.6vw, 76px); }
+  :lang(ja) .hero-title { word-break: keep-all; line-height: 1.02; letter-spacing: -.02em; font-size: clamp(34px, 4.6vw, 76px); }
+  :lang(ja) .hero-title .ht-a, :lang(ja) .hero-title .ht-b { height: 1.08em; }
   .hero-sub { margin-top: var(--sp-4); font-size: var(--fs-md); max-width: 36em; color: var(--text-2); }
   .hero-top > .alert { margin-top: var(--sp-4); }
 
