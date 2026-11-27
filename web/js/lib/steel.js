@@ -1,252 +1,342 @@
-/* NEXUS FABRIC — steel part stage (home). A generic steel shell with a branch pipe: it turns in 3D and unrolls
-   into its flat blank as the page scrolls. One WebGL canvas per host element, so the part can never leave its
-   column and can never cover text outside it. It is an illustration, not the user's drawing (the page says so).
-   Off-screen stages stop rendering; reduced motion renders one frame per change. Without WebGL the function
-   returns null and the host keeps its CSS fallback. */
+/* NEXUS FABRIC — start screen scene. A dark 3D room with a fine perspective grid, a huge extruded steel NF mark with a
+   molten-orange rim, and a steel plate that unrolls under it (the signature motion). One WebGL canvas that fills the
+   host; the mark sits where the `anchor` element is, so the text column is never covered. The scene is an illustration:
+   it shows no data. Everything the user needs (PDF drop, scale, recent jobs) is plain DOM above it.
+
+   Quality tiers (decided here, on the user's own machine):
+     full   WebGL2, one post pass (chromatic RGB split on the open and drop transitions, vignette)
+     lite   same scene rendered straight to the screen, no post pass
+     static no WebGL, prefers-reduced-motion, or a machine that cannot hold 30 fps: an inline SVG picture
+   A frame-time monitor demotes full -> lite -> static when the average of 40 frames is slower than 34 ms.
+   `?tier=full|lite|static` forces a tier (for measurement). No network, no extra libraries: three.js is vendored. */
 import * as THREE from '../../vendor/three/three.module.js';
-import { reducedMotion, webglAvailable } from './motion.js';
+import { reducedMotion } from './motion.js';
 
-const R = 1.6;                  // shell radius
-const ARC = Math.PI * 1.6;      // shell arc (leaves a seam gap at the back)
-const H = 2.6;                  // shell height
-const NU = 72;
-const NV = 18;
-const BR = 0.5;                 // branch radius
-const BL = 1.7;                 // branch length
-const BNU = 40;
-const BNV = 8;
-const BRANCH_Y = 0.15;
-const W = R * ARC;              // flat width of the shell
-const GAP = 0.9;
-const SHIFT = (GAP + 2 * Math.PI * BR) / 2;   // centres the flat blank on the origin
-export const FLAT = { w: W + GAP + 2 * Math.PI * BR, h: H };
-
-const FOV = 30;
-const CAM_Z = 10;
 const ACCENT = 0xff6a1a;
 const COOL = 0x7fb4d9;
+const SLOW_MS = 34;          // above this average frame time the tier is lowered
+const CYCLE = 26;            // seconds per unroll loop
+
+// the NF mark: two polygons on a 6.6 x 4 grid (N, then F)
+export const MARK_W = 6.6;
+export const MARK_H = 4;
+const N_PTS = [[0, 0], [0.8, 0], [0.8, 2.5], [2.2, 0], [3, 0], [3, 4], [2.2, 4], [2.2, 1.5], [0.8, 4], [0, 4]];
+const F_PTS = [[0, 0], [0.8, 0], [0.8, 1.6], [2.4, 1.6], [2.4, 2.3], [0.8, 2.3], [0.8, 3.3], [3, 3.3], [3, 4], [0, 4]];
+const LETTERS = [{ pts: N_PTS, dx: 0 }, { pts: F_PTS, dx: 3.6 }];
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const seg = (t, a, b) => clamp01((t - a) / (b - a));
 const smooth = (x) => x * x * (3 - 2 * x);
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
 
-// shared surface builder: returns the 3D positions, the flat positions, triangles and the perimeter (cut lines)
-function surface(nu, nv, fn) {
-  const n = (nu + 1) * (nv + 1);
-  const p3 = new Float32Array(n * 3);
-  const pf = new Float32Array(n * 3);
-  let k = 0;
-  for (let j = 0; j <= nv; j++) {
-    for (let i = 0; i <= nu; i++) {
-      const [a, b] = fn(i / nu, j / nv);
-      p3.set(a, k * 3);
-      pf.set(b, k * 3);
-      k++;
-    }
+/* The static picture (also the WebGL-off fallback): the NF mark and a flat plate on a perspective grid. Colours come
+   from the theme tokens, so it follows light/dark. Returns an <svg>. */
+export function staticArt() {
+  const NS = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+  const svg = mk('svg', { viewBox: '0 0 800 500', class: 'home-art', 'aria-hidden': 'true', preserveAspectRatio: 'xMidYMid slice' });
+  const g = mk('g', { class: 'art-grid' });
+  for (let i = -10; i <= 10; i++) g.appendChild(mk('line', { x1: 400 + i * 20, y1: 300, x2: 400 + i * 85, y2: 500 }));
+  for (let j = 0; j < 9; j++) { const y = 300 + 200 * Math.pow(j / 8, 1.8); g.appendChild(mk('line', { x1: 0, y1: y, x2: 800, y2: y })); }
+  svg.appendChild(g);
+  svg.appendChild(mk('path', { class: 'art-plate', d: 'M120 430 L680 430 L740 480 L60 480 Z' }));
+  const s = 52, ox = 400 - (MARK_W * s) / 2, oy = 420;
+  for (const L of LETTERS) {
+    const d = L.pts.map(([x, y], i) => `${i ? 'L' : 'M'}${(ox + (x + L.dx) * s).toFixed(1)} ${(oy - y * s).toFixed(1)}`).join(' ') + ' Z';
+    svg.appendChild(mk('path', { class: 'art-mark', d }));
   }
-  const idx = [];
-  for (let j = 0; j < nv; j++) {
-    for (let i = 0; i < nu; i++) {
-      const a = j * (nu + 1) + i;
-      const b = a + 1;
-      const c = a + (nu + 1);
-      const d = c + 1;
-      idx.push(a, c, b, b, c, d);
-    }
-  }
-  const loop = [];
-  for (let i = 0; i <= nu; i++) loop.push(i);
-  for (let j = 1; j <= nv; j++) loop.push(j * (nu + 1) + nu);
-  for (let i = nu - 1; i >= 0; i--) loop.push(nv * (nu + 1) + i);
-  for (let j = nv - 1; j >= 1; j--) loop.push(j * (nu + 1));
-  const edge = [];
-  for (let q = 0; q < loop.length; q++) edge.push(loop[q], loop[(q + 1) % loop.length]);
-  return { p3, pf, idx, edge };
+  return svg;
 }
 
-function makePiece(data, mats) {
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(data.p3), 3));
-  geo.setIndex(data.idx);
-  geo.computeVertexNormals();
-  const lineGeo = new THREE.BufferGeometry();
-  lineGeo.setAttribute('position', geo.attributes.position);   // shares the live positions
-  lineGeo.setIndex(data.edge);
-  const group = new THREE.Group();
-  group.add(new THREE.Mesh(geo, mats.solid), new THREE.LineSegments(lineGeo, mats.edge));
-  return { group, geo, data, lastU: -1 };
-}
-
-function applyFold(piece, u) {
-  if (Math.abs(u - piece.lastU) < 1e-4) return;
-  piece.lastU = u;
-  const arr = piece.geo.attributes.position.array;
-  const { p3, pf } = piece.data;
-  for (let k = 0; k < arr.length; k++) arr[k] = p3[k] + (pf[k] - p3[k]) * u;
-  piece.geo.attributes.position.needsUpdate = true;
-  piece.geo.computeVertexNormals();
-}
-
-// Studio reflections from a few emissive panels (no external HDR file).
 function studioEnvironment(renderer) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const env = new THREE.Scene();
   env.background = new THREE.Color(0x0a0b0d);
   const panel = (w, h, color, k, pos) => {
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
-      new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(k), side: THREE.DoubleSide }));
-    m.position.set(...pos);
-    m.lookAt(0, 0, 0);
-    env.add(m);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(k), side: THREE.DoubleSide }));
+    m.position.set(...pos); m.lookAt(0, 0, 0); env.add(m);
   };
-  panel(12, 3, 0xffffff, 1.5, [0, 9, 3]);
-  panel(10, 6, 0xdfe8f2, 0.4, [0, 2, 10]);
+  panel(12, 3, 0xffffff, 1.6, [0, 9, 3]);
+  panel(10, 6, 0xdfe8f2, 0.45, [0, 2, 10]);
   panel(3, 14, COOL, 1.8, [-10, 0, 2]);
-  panel(2, 11, ACCENT, 1.3, [10, -1, 1]);
+  panel(2, 11, ACCENT, 1.5, [10, -1, 1]);
   const tex = pmrem.fromScene(env, 0.03).texture;
   pmrem.dispose();
   return tex;
 }
 
-/* Pose for scroll progress p in [0,1] and time t (seconds). Unrolls between p 0.35 and 0.75; the glow comes last. */
-export function steelPose(p, t) {
-  const unroll = smooth(seg(p, 0.35, 0.75));
-  const free = 1 - unroll;
-  return {
-    unroll,
-    glow: seg(p, 0.8, 0.95),
-    rotY: free * (0.55 * Math.sin(t * 0.45) + 0.18 + 2.4 * p),
-    rotX: free * 0.22 * Math.sin(t * 0.31),
-  };
+function markGeometry() {
+  const geos = [];
+  for (const L of LETTERS) {
+    const sh = new THREE.Shape();
+    L.pts.forEach(([x, y], i) => (i ? sh.lineTo(x + L.dx, y) : sh.moveTo(x + L.dx, y)));
+    sh.closePath();
+    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.7, bevelEnabled: true, bevelThickness: 0.07, bevelSize: 0.06, bevelSegments: 2, curveSegments: 1 });
+    g.translate(-MARK_W / 2, 0, -0.35);
+    geos.push(g);
+  }
+  return geos;
 }
 
-/* createSteelStage(host): returns { set(p), dispose(), onresize }, or null without WebGL. p is the scroll progress. */
-export function createSteelStage(host) {
-  // without WebGL three.js writes a console error before it throws: decide first, so the page stays clean
-  if (!webglAvailable()) return null;
+const PLATE_L = 9, PLATE_D = 3.4, PL_NX = 150, PL_NZ = 6, PL_R = 0.55;
+/* plate unrolled by q in [0,1]: 0 = a tight roll, 1 = flat. The roll lies on its end and travels as it opens. */
+function plateGeometry() {
+  const n = (PL_NX + 1) * (PL_NZ + 1);
+  const pos = new Float32Array(n * 3);
+  const idx = [];
+  for (let j = 0; j < PL_NZ; j++) for (let i = 0; i < PL_NX; i++) {
+    const a = j * (PL_NX + 1) + i, b = a + 1, c = a + PL_NX + 1, d = c + 1;
+    idx.push(a, c, b, b, c, d);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+  const edge = [];
+  const lp = [];
+  for (let i = 0; i <= PL_NX; i++) lp.push(i);
+  for (let j = 1; j <= PL_NZ; j++) lp.push(j * (PL_NX + 1) + PL_NX);
+  for (let i = PL_NX - 1; i >= 0; i--) lp.push(PL_NZ * (PL_NX + 1) + i);
+  for (let j = PL_NZ - 1; j >= 1; j--) lp.push(j * (PL_NX + 1));
+  for (let k = 0; k < lp.length; k++) edge.push(lp[k], lp[(k + 1) % lp.length]);
+  const lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute('position', geo.attributes.position);
+  lineGeo.setIndex(edge);
+  let lastQ = NaN;
+  return { geo, lineGeo, set(q) {
+    if (q === lastQ) return;
+    lastQ = q;
+    const flatLen = PLATE_L * q, rolledLen = PLATE_L - flatLen;
+    const xc = PLATE_L / 2 - flatLen;                     // contact point of the roll with the floor
+    for (let j = 0; j <= PL_NZ; j++) {
+      const z = (j / PL_NZ) * PLATE_D - 0.4;
+      for (let i = 0; i <= PL_NX; i++) {
+        const s = (i / PL_NX) * PLATE_L, a = s - rolledLen;   // arc length from the contact point
+        let x, y;
+        if (a >= 0) { x = xc + a; y = 0; }
+        else {
+          const rho = PL_R * (1 - 0.3 * (-a / PLATE_L));
+          const phi = a / PL_R;
+          x = xc + rho * Math.sin(phi); y = rho * (1 - Math.cos(phi));
+        }
+        const o = (j * (PL_NX + 1) + i) * 3; pos[o] = x; pos[o + 1] = y; pos[o + 2] = z;
+      }
+    }
+    geo.attributes.position.needsUpdate = true;
+    geo.computeVertexNormals();
+  } };
+}
+
+const POST_VS = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+const POST_FS = `
+precision highp float;
+uniform sampler2D tex; uniform float amt; uniform float time; varying vec2 vUv;
+float hash(float n){ return fract(sin(n) * 43758.5453); }
+void main(){
+  vec2 uv = vUv; vec2 d = uv - 0.5;
+  float band = step(0.5, hash(floor(uv.y * 14.0) + floor(time * 18.0))) * amt;
+  uv.x += (hash(floor(uv.y * 14.0) + 3.0) - 0.5) * 0.06 * band;
+  float k = 0.0012 + amt * 0.018;
+  vec2 o = d * k * (1.0 + 4.0 * dot(d, d)) + vec2(amt * 0.004, 0.0);
+  vec3 c = vec3(texture2D(tex, uv + o).r, texture2D(tex, uv).g, texture2D(tex, uv - o).b);
+  c *= 1.0 - 0.55 * dot(d, d);
+  gl_FragColor = vec4(c, 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
+
+const palette = (light) => light
+  ? { bg: 0xeef1f4, grid: 0x2b6c97, gridOp: 0.28, fog: 0xeef1f4, exposure: 1.0 }
+  : { bg: 0x0a0c0f, grid: 0x7fb4d9, gridOp: 0.34, fog: 0x0a0c0f, exposure: 1.1 };
+const isLight = () => getComputedStyle(document.documentElement).colorScheme === 'light';
+
+/* 0 = no WebGL2, 1 = software renderer (no GPU: the picture stays static), 2 = a GPU */
+function gpuClass() {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl2');
+    if (!gl) return 0;
+    const x = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = String((x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) || '');
+    const soft = /swiftshader|llvmpipe|softpipe|software|basic render/i.test(name);
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return soft ? 1 : 2;
+  } catch { return 0; }
+}
+
+/* createHomeScene(host, anchor): returns { tier, pulse(), dispose(), onTier } or null when the tier is static.
+   host: element the canvas fills (position: relative). anchor: element whose box the mark fills. */
+export function createHomeScene(host, anchor) {
+  const forced = new URLSearchParams(location.search).get('tier');
+  if (reducedMotion() || forced === 'static') return null;
+  const gc = gpuClass();
+  if (gc === 0 || (gc === 1 && forced !== 'full' && forced !== 'lite')) return null;
+  const weak = (navigator.deviceMemory && navigator.deviceMemory <= 4) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+  let tier = forced === 'full' || forced === 'lite' ? forced : (weak ? 'lite' : 'full');
+  const auto = !(forced === 'full' || forced === 'lite');
+
   const canvas = document.createElement('canvas');
+  canvas.className = 'home-canvas';
   canvas.setAttribute('aria-hidden', 'true');
   let renderer;
-  try {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-  } catch {
-    return null;
-  }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-  renderer.setClearColor(0x000000, 0);
+  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: tier === 'full', powerPreference: 'high-performance' }); } catch { return null; }
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  host.appendChild(canvas);
+  host.prepend(canvas);
 
   const scene = new THREE.Scene();
   scene.environment = studioEnvironment(renderer);
-  scene.environmentIntensity = 0.75;
-  const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 200);
-  camera.position.set(0, 0, CAM_Z);
-  scene.add(new THREE.HemisphereLight(0xdfe8f2, 0x0e1013, 0.3));
-  const key = new THREE.DirectionalLight(0xffffff, 1.1);
-  key.position.set(4, 6, 8);
-  scene.add(key);
-  const rim = new THREE.DirectionalLight(COOL, 2.0);
-  rim.position.set(-6, 2, -4);
-  scene.add(rim);
-  const warm = new THREE.PointLight(ACCENT, 14, 24, 1.6);
-  warm.position.set(-3, -3, 6);
-  scene.add(warm);
+  scene.environmentIntensity = 1.0;
+  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 120);
+  const CAM = new THREE.Vector3(0, 2.4, 13), LOOK = new THREE.Vector3(0, 1.0, 0);
+  scene.add(new THREE.HemisphereLight(0xdfe8f2, 0x0e1013, 0.25));
+  const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(4, 7, 8); scene.add(key);
+  const rim = new THREE.DirectionalLight(COOL, 1.8); rim.position.set(-6, 3, -4); scene.add(rim);
+  const orange = new THREE.DirectionalLight(ACCENT, 3.2); orange.position.set(6, 2.5, -5); scene.add(orange);
+  const warm = new THREE.PointLight(ACCENT, 7, 20, 1.8); warm.position.set(-6, -0.5, 4); scene.add(warm);
 
-  const mats = {
-    solid: new THREE.MeshStandardMaterial({ color: 0xaab4bf, metalness: 1.0, roughness: 0.28, side: THREE.DoubleSide, envMapIntensity: 1.3 }),
-    edge: new THREE.LineBasicMaterial({ color: new THREE.Color(ACCENT).multiplyScalar(1.8), transparent: true, opacity: 0, depthWrite: false }),
+  // perspective grid: floor and back wall; the floor drifts toward the viewer
+  const gridMat = new THREE.LineBasicMaterial({ transparent: true, depthWrite: false });
+  const floor = new THREE.GridHelper(120, 120, 0xffffff, 0xffffff); floor.material = gridMat; floor.position.y = -0.04;
+  const wall = new THREE.GridHelper(120, 120, 0xffffff, 0xffffff); wall.material = gridMat; wall.rotation.x = Math.PI / 2; wall.position.z = -22; wall.position.y = 20;
+  scene.add(floor, wall);
+
+  // the part: NF mark + plate share one group, scaled to the anchor
+  const world = new THREE.Group(); scene.add(world);
+  const steel = new THREE.MeshStandardMaterial({ color: 0xd2dae2, metalness: 1, roughness: 0.3, envMapIntensity: 2.4 });
+  const plateMat = new THREE.MeshStandardMaterial({ color: 0xc3ccd6, metalness: 0.9, roughness: 0.32, side: THREE.DoubleSide, envMapIntensity: 1.2 });
+  const edgeMat = new THREE.LineBasicMaterial({ color: new THREE.Color(ACCENT).multiplyScalar(1.6), transparent: true, opacity: 0.9 });
+  const mark = new THREE.Group();
+  const markGeos = markGeometry();
+  for (const g of markGeos) {
+    mark.add(new THREE.Mesh(g, steel));
+    mark.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 35), edgeMat));
+  }
+  mark.position.set(0, 0.02, 0.2);
+  const plate = plateGeometry();
+  const plateMesh = new THREE.Mesh(plate.geo, plateMat);
+  const plateEdge = new THREE.LineSegments(plate.lineGeo, edgeMat);
+  const plateGroup = new THREE.Group(); plateGroup.add(plateMesh, plateEdge); plateGroup.position.set(0.0, 0.0, -0.3);
+  world.add(mark, plateGroup);
+
+  // post pass (full tier only)
+  let rt = null, post = null, quad = null;
+  const pu = { tex: { value: null }, amt: { value: 0 }, time: { value: 0 } };
+  const pass = () => {
+    if (rt) return;
+    rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
+    post = new THREE.ShaderMaterial({ vertexShader: POST_VS, fragmentShader: POST_FS, uniforms: pu, depthTest: false, depthWrite: false });
+    quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), post); quad.frustumCulled = false;
   };
-  const shell = surface(NU, NV, (u, v) => {
-    const th = -ARC / 2 + u * ARC;
-    const y = (v - 0.5) * H;
-    return [[R * Math.cos(th), y, R * Math.sin(th)], [(u - 0.5) * W - SHIFT, y, 0]];
-  });
-  const branch = surface(BNU, BNV, (u, v) => {
-    const ph = u * Math.PI * 2;
-    const z = R * 0.85 + v * BL;
-    return [[BR * Math.cos(ph), BRANCH_Y + BR * Math.sin(ph), z], [W / 2 - SHIFT + GAP + u * 2 * Math.PI * BR, (v - 0.5) * BL, 0]];
-  });
-  const shellPiece = makePiece(shell, mats);
-  const branchPiece = makePiece(branch, mats);
-  const group = new THREE.Group();
-  group.add(shellPiece.group, branchPiece.group);
-  scene.add(group);
+  const postScene = new THREE.Scene(), postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-  const stage = { canvas, p: 0, dirty: true, visible: true, disposed: false, onresize: null };
-  let k = 1;             // world units per CSS pixel at z = 0
-  let scale3D = 1;
-  let scaleFlat = 1;
-  let w = 1;
-  let h = 1;
+  const S = { w: 1, h: 1, scale: 1, disposed: false, visible: true, raf: 0, t0: performance.now(), pulseAt: -10, mx: 0, my: 0, cx: 0, cy: 0, frames: [], last: 0, fpsN: 0, fpsT: 0 };
+  const api = { get tier() { return tier; }, onTier: null, fps: 0 };
 
+  function applyTheme() {
+    const p = palette(isLight());
+    scene.background = new THREE.Color(p.bg);
+    scene.fog = new THREE.Fog(p.fog, 14, 52);
+    gridMat.color.set(p.grid); gridMat.opacity = p.gridOp; gridMat.fog = true;
+    renderer.toneMappingExposure = p.exposure;
+  }
+  function setTier(next) {
+    tier = next;
+    host.dataset.tier = next;
+    renderer.setPixelRatio(next === 'full' ? Math.min(window.devicePixelRatio || 1, 1.5) : 1);
+    if (next === 'full') pass(); else if (rt) { rt.dispose(); post.dispose(); rt = post = null; }
+    resize();
+    if (api.onTier) api.onTier(next);
+  }
   function resize() {
-    const rect = host.getBoundingClientRect();
-    w = Math.max(1, Math.round(rect.width));
-    h = Math.max(1, Math.round(rect.height));
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
+    const r = host.getBoundingClientRect();
+    S.w = Math.max(1, Math.round(r.width)); S.h = Math.max(1, Math.round(r.height));
+    renderer.setSize(S.w, S.h, false);
+    if (rt) { const pr = renderer.getPixelRatio(); rt.setSize(Math.round(S.w * pr), Math.round(S.h * pr)); }
+    camera.aspect = S.w / S.h;
+    // world size per CSS pixel at the distance of the mark
+    const k = (2 * CAM.distanceTo(LOOK) * Math.tan(THREE.MathUtils.degToRad(16))) / S.h;
+    const a = anchor.getBoundingClientRect(), hr = r;
+    const aw = Math.max(80, a.width), ah = Math.max(80, a.height);
+    S.scale = Math.min((aw * k * 0.62) / MARK_W, (ah * k * 0.5) / MARK_H);
+    world.scale.setScalar(S.scale);
+    // shift the picture so that the world origin lands in the middle of the anchor
+    S.cx = a.left - hr.left + a.width / 2 - S.w / 2; S.cy = a.top - hr.top + a.height / 2 - S.h / 2;
+    camera.setViewOffset(S.w, S.h, -S.cx, -S.cy + ah * 0.08, S.w, S.h);
     camera.updateProjectionMatrix();
-    k = (2 * CAM_Z * Math.tan(THREE.MathUtils.degToRad(FOV / 2))) / h;
-    const worldW = w * k;
-    const worldH = h * k;
-    // the blank fits 92 % of the width; the 3D part fits the column and keeps clear of the caption
-    scaleFlat = Math.min((0.92 * worldW) / FLAT.w, (0.7 * worldH) / FLAT.h);
-    scale3D = Math.min((0.6 * worldW) / (2 * R + BL * 0.5), (0.7 * worldH) / H);
-    stage.dirty = true;
-    stage.layout = { w, h, k, scaleFlat, scale3D };
-    if (stage.onresize) stage.onresize(stage.layout);
   }
 
-  let raf = 0;
-  const reduce = reducedMotion();
-  const t0 = performance.now();
-  const kick = () => { if (!raf && !stage.disposed) raf = requestAnimationFrame(frame); };
-  function frame() {
-    raf = 0;
-    if (stage.disposed || !stage.visible || (reduce && !stage.dirty)) return;
-    const t = reduce ? 0 : (performance.now() - t0) / 1000;
-    const s = steelPose(stage.p, t);
-    applyFold(shellPiece, s.unroll);
-    applyFold(branchPiece, s.unroll);
-    group.scale.setScalar(scale3D + (scaleFlat - scale3D) * s.unroll);
-    group.rotation.set(s.rotX, s.rotY, 0);
-    mats.edge.opacity = Math.max(s.glow, s.unroll * 0.85);
-    renderer.render(scene, camera);
-    stage.dirty = false;
-    if (!reduce) raf = requestAnimationFrame(frame);
+  function frame(now) {
+    S.raf = 0;
+    if (S.disposed || !S.visible || document.hidden) return;
+    const t = (now - S.t0) / 1000;
+    // frame-time monitor
+    if (S.last) {
+      S.frames.push(now - S.last);
+      const sum0 = S.frames.reduce((a, b) => a + b, 0);
+      if (S.frames.length >= 40 || (S.frames.length >= 3 && sum0 > 1200)) {
+        const avg = sum0 / S.frames.length;
+        api.fps = Math.round(1000 / avg); host.dataset.fps = String(api.fps);
+        S.frames.length = 0;
+        if (auto && avg > SLOW_MS && !(t - S.stamp < 0.5)) {
+          if (tier === 'full') { setTier('lite'); S.stamp = t; }
+          else { api.demoted = true; if (api.onTier) api.onTier('static'); return; }
+        }
+      }
+    }
+    S.last = now;
+    // timeline: rise + unroll at the start, long hold, roll up, hold
+    const c = t % CYCLE, first = t < CYCLE;
+    const open = easeOut(seg(t, 0.05, 1.5));
+    let q = smooth(seg(c, 0.5, 4.8)) * (1 - smooth(seg(c, 17, 21.5)));
+    if (first && c > 17) q = Math.max(q, 0);
+    plate.set(q);
+    mark.scale.set(1, 0.001 + 0.999 * open, 1);
+    mark.position.y = 0.02;
+    const sway = Math.sin(t * 0.32) * 0.28, mouse = S.mx * 0.22;
+    world.rotation.y = sway + mouse;
+    edgeMat.opacity = 0.55 + 0.35 * Math.sin(t * 0.8 + 1) * 0.5 + 0.2 * q;
+    floor.position.z = (t * 0.35) % 1;
+    // pulse (open / drop): 450 ms
+    const pk = seg(now / 1000 - S.pulseAt, 0, 0.45);
+    pu.amt.value = pk > 0 && pk < 1 ? Math.sin(pk * Math.PI) : 0;
+    pu.time.value = t;
+    camera.position.set(CAM.x + S.mx * 0.9, CAM.y + S.my * -0.35, CAM.z);
+    camera.lookAt(LOOK);
+    if (tier === 'full' && rt) {
+      renderer.setRenderTarget(rt); renderer.render(scene, camera); renderer.setRenderTarget(null);
+      pu.tex.value = rt.texture;
+      if (!postScene.children.length) postScene.add(quad);
+      renderer.render(postScene, postCam);
+    } else renderer.render(scene, camera);
+    S.raf = requestAnimationFrame(frame);
   }
+  const kick = () => { if (!S.raf && !S.disposed) S.raf = requestAnimationFrame(frame); };
 
-  // Scroll progress drives the pose; the loop runs only while the host is on screen.
-  stage.set = (p) => {
-    const q = clamp01(p);
-    if (Math.abs(q - stage.p) > 1e-4) { stage.p = q; stage.dirty = true; kick(); }
-  };
-  stage.dispose = () => {
-    stage.disposed = true;
-    if (raf) cancelAnimationFrame(raf);
-    ro.disconnect();
-    io.disconnect();
-    scene.environment?.dispose?.();
-    shellPiece.geo.dispose();
-    branchPiece.geo.dispose();
-    mats.solid.dispose();
-    mats.edge.dispose();
-    renderer.dispose();
-    renderer.forceContextLoss();
-    canvas.remove();
-  };
-
-  const ro = new ResizeObserver(() => { resize(); kick(); });
-  ro.observe(host);
-  const io = new IntersectionObserver((entries) => {
-    stage.visible = entries.some((e) => e.isIntersecting);
-    if (stage.visible) { stage.dirty = true; kick(); }
-  });
+  const onMove = (e) => { S.mx = (e.clientX / window.innerWidth - 0.5) * 2; S.my = (e.clientY / window.innerHeight - 0.5) * 2; };
+  window.addEventListener('pointermove', onMove, { passive: true });
+  const ro = new ResizeObserver(() => { resize(); kick(); }); ro.observe(host); ro.observe(anchor);
+  const io = new IntersectionObserver((es) => { S.visible = es.some((e) => e.isIntersecting); if (S.visible) { S.last = 0; kick(); } });
   io.observe(host);
-  resize();
+  const onVis = () => { S.last = 0; kick(); };
+  document.addEventListener('visibilitychange', onVis);
+  const mo = new MutationObserver(applyTheme); mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  const mq = matchMedia('(prefers-color-scheme: light)'); mq.addEventListener('change', applyTheme);
+
+  api.pulse = () => { S.pulseAt = performance.now() / 1000; };
+  api.dispose = () => {
+    S.disposed = true; if (S.raf) cancelAnimationFrame(S.raf);
+    ro.disconnect(); io.disconnect(); mo.disconnect(); mq.removeEventListener('change', applyTheme);
+    window.removeEventListener('pointermove', onMove); document.removeEventListener('visibilitychange', onVis);
+    scene.environment?.dispose?.();
+    for (const g of markGeos) g.dispose();
+    plate.geo.dispose(); plate.lineGeo.dispose(); steel.dispose(); plateMat.dispose(); edgeMat.dispose(); gridMat.dispose();
+    floor.geometry.dispose(); wall.geometry.dispose();
+    if (rt) { rt.dispose(); post.dispose(); quad.geometry.dispose(); }
+    renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
+  };
+  applyTheme();
+  setTier(tier);
+  S.stamp = -10;
+  api.pulse();
   kick();
-  return stage;
+  return api;
 }
