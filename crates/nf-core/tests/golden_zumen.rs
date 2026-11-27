@@ -676,6 +676,7 @@ impl RealEngine for RustShapes {
             "s07" => eval_s07(n),
             "s08" => eval_s08(n),
             "s09" => eval_s09(n),
+            "s14" => eval_s14(n),
             _ => None,
         }
     }
@@ -1081,6 +1082,341 @@ fn eval_s09(n: usize) -> Option<Got> {
     }
 }
 
+// ---------------------------------------------------------------- s14: reducing mitered bend (NFJ-1 S1-L6b)
+// Inputs below are written from test_build.mjs:622-743 (examples `cases`, readings K_redbend.json and the R800 / J1 / steep
+// literals). Cases that need the engine's check list, labels or the DXF writer stay PENDING (the engine is not wired).
+
+use nf_core::bend::{self, BendResult, BendSpec, SwingRule};
+
+#[derive(Clone, Copy)]
+struct BendEx {
+    d: f64,
+    de: f64,
+    t: f64,
+    r: f64,
+    ang: f64,
+    j: u32,
+    s1: f64,
+    s2: f64,
+    taper: Option<u32>,
+    th: f64,
+}
+
+const BEND_EX: [BendEx; 4] = [
+    BendEx {
+        d: 2641.6,
+        de: 2438.4,
+        t: 16.0,
+        r: 2600.0,
+        ang: 90.0,
+        j: 3,
+        s1: 300.0,
+        s2: 300.0,
+        taper: None,
+        th: 2.0894,
+    },
+    BendEx {
+        d: 1625.6,
+        de: 1371.6,
+        t: 12.0,
+        r: 2400.0,
+        ang: 90.0,
+        j: 4,
+        s1: 400.0,
+        s2: 400.0,
+        taper: None,
+        th: 2.5412,
+    },
+    BendEx {
+        d: 1625.6,
+        de: 1371.6,
+        t: 12.0,
+        r: 2400.0,
+        ang: 90.0,
+        j: 4,
+        s1: 400.0,
+        s2: 400.0,
+        taper: Some(3),
+        th: 7.6439,
+    },
+    BendEx {
+        d: 1524.0,
+        de: 1625.6,
+        t: 12.0,
+        r: 1500.0,
+        ang: 45.0,
+        j: 2,
+        s1: 500.0,
+        s2: 400.0,
+        taper: None,
+        th: -4.8835,
+    },
+];
+
+/// ZK's test options: basis mid, amp outer (swing = outer), allow 4, seam 45 deg from the heel.
+fn bend_spec(e: &BendEx, split: u32) -> BendSpec {
+    let mut s = BendSpec::new(e.d, e.t, e.r, e.ang, Some(f64::from(e.j)), e.s1, e.s2);
+    s.d_end = Some(e.de);
+    s.taper_piece = e.taper;
+    s.basis = Basis::Mid;
+    s.swing = SwingRule::Outer;
+    s.split = split;
+    s
+}
+
+fn bend_of(e: &BendEx, split: u32) -> Option<BendResult> {
+    bend::bend(&bend_spec(e, split)).ok()
+}
+
+/// The readings K_redbend.json part 1 (= example 1 with 3 vertical seams).
+fn k_spec() -> BendSpec {
+    bend_spec(&BEND_EX[0], 3)
+}
+
+fn refused_with(s: &BendSpec, code: &str) -> bool {
+    match bend::bend(s) {
+        Err(r) => r.code == code && r.message.chars().all(|c| c != '\0'),
+        Ok(_) => false,
+    }
+}
+
+fn eval_s14(n: usize) -> Option<Got> {
+    let idx = n - 1;
+    let starts = [0usize, 47, 105, 163];
+    let npieces = [4usize, 5, 5, 3];
+    if idx < 199 {
+        let b = (0..4).rev().find(|&b| idx >= starts[b])?;
+        let e = &BEND_EX[b];
+        let r = bend_of(e, 1)?;
+        let rel = idx - starts[b];
+        if rel < npieces[b] * 11 {
+            let p = &r.pieces[rel / 11];
+            let band = &p.bands[0];
+            return num(match rel % 11 {
+                0 => band.w,
+                1 => band.h,
+                2 => p.axis,
+                3 => p.ten,
+                4 => p.chi,
+                5 => p.yo,
+                6 => p.seam_len,
+                7 => p.d_lo,
+                8 => p.d_hi,
+                9 => p.net_mass_kg,
+                _ => p.center,
+            });
+        }
+        return match rel - npieces[b] * 11 {
+            0 => num(r.total_net_mass_kg),
+            1 => num(r.total_axis),
+            _ => {
+                let cones: Vec<f64> = r
+                    .pieces
+                    .iter()
+                    .filter(|p| p.cone)
+                    .map(|p| p.th_deg)
+                    .collect();
+                let want = if e.taper.is_some() {
+                    1
+                } else {
+                    e.j as usize - 1
+                };
+                flag(
+                    cones.len() == want
+                        && cones.iter().all(|x| (x - e.th).abs() <= 1e-4)
+                        && r.pieces[0].th_deg == 0.0
+                        && r.pieces[e.j as usize].th_deg == 0.0,
+                )
+            }
+        };
+    }
+    match idx {
+        199 => num(bend_of(&BEND_EX[0], 1)?.pieces[1].fan_deg?),
+        200..=205 => {
+            let (b, m) = [(0, 2), (0, 3), (1, 2), (1, 3), (1, 4), (3, 2)][idx - 200];
+            num(bend_of(&BEND_EX[b], 1)?.pieces[m - 1].d_mid?)
+        }
+        206..=214 => {
+            let md = bend::model(&bend_spec(&BEND_EX[0], 1)).ok()?;
+            let j = &md.joints[(idx - 206) / 3];
+            num(match (idx - 206) % 3 {
+                0 => j.ph_a.to_degrees(),
+                1 => j.ph_b.to_degrees(),
+                _ => j.d,
+            })
+        }
+        215 => num(bend::model(&bend_spec(&BEND_EX[0], 1)).ok()?.pieces[0].zhi),
+        216 => num(bend::model(&bend_spec(&BEND_EX[0], 1)).ok()?.pieces[3].zlo),
+        217 => num(bend::model(&bend_spec(&BEND_EX[3], 1)).ok()?.pieces[0].zhi),
+        218 => num(bend::model(&bend_spec(&BEND_EX[3], 1)).ok()?.pieces[2].zlo),
+        219..=256 => {
+            // (example, piece, split, first id): 219 ex1 m2 n2; 230 ex1 m3 n3; 246 ex3 m2 n2
+            let (b, m, split, first) = match idx {
+                219..=229 => (0, 2, 2, 219),
+                230..=245 => (0, 3, 3, 230),
+                _ => (3, 2, 2, 246),
+            };
+            let r = bend_of(&BEND_EX[b], split)?;
+            let p = &r.pieces[m - 1];
+            let k = idx - first;
+            if k == 0 {
+                return count_num(p.bands.len());
+            }
+            let band = &p.bands[(k - 1) / 5];
+            num(match (k - 1) % 5 {
+                0 => band.w,
+                1 => band.h,
+                2 => band.area,
+                3 => band.left_edge,
+                _ => band.right_edge,
+            })
+        }
+        257..=265 => eval_s14_continuity(idx - 257),
+        266 => flag(refused_with(
+            &BendSpec {
+                d_end: Some(1371.6),
+                ..BendSpec::new(1625.6, 12.0, 2400.0, 30.0, Some(1.0), 400.0, 400.0)
+            },
+            "bend_reducing_needs_two_joints",
+        )),
+        267 => flag(refused_with(
+            &BendSpec {
+                d_end: Some(600.0),
+                swing: SwingRule::Outer,
+                basis: Basis::Mid,
+                ..BendSpec::new(1625.6, 12.0, 600.0, 30.0, Some(2.0), 400.0, 400.0)
+            },
+            "bend_cone_too_steep",
+        )),
+        268..=273 => {
+            let reducing = idx != 273;
+            let mut s = BendSpec::new(1625.6, 12.0, 800.0, 90.0, Some(3.0), 300.0, 300.0);
+            s.d_end = Some(if reducing { 1371.6 } else { 1625.6 });
+            s.swing = SwingRule::Outer;
+            let md = bend::model(&s).ok()?;
+            match idx {
+                268 => flag(md.cross == [3]),
+                269..=272 => num(md.pieces[idx - 269].chi),
+                _ => flag(md.cross == [2, 3]),
+            }
+        }
+        _ => eval_s14_k(idx),
+    }
+}
+
+fn count_num(n: usize) -> Option<Got> {
+    num(n as f64)
+}
+
+/// Same diameter: the reducing code equals the plain bend's cut curves (ZK `bendPiece`, written here from the spec:
+/// z = cl + up * k cos(psi), k = r_swing tan(gamma)), point for point, for 1, 2, 3 seams. Cases 257-265 (index 256..=264)
+/// are 3 positions (start, middle, end) x 3 seam counts.
+fn eval_s14_continuity(k: usize) -> Option<Got> {
+    let (pos, nseam) = (k / 3, k % 3 + 1);
+    let mut s = BendSpec::new(2641.6, 16.0, 2600.0, 90.0, Some(3.0), 300.0, 300.0);
+    s.d_end = Some(2641.6);
+    s.swing = SwingRule::Outer;
+    s.split = nseam as u32;
+    let md = bend::model(&s).ok()?;
+    let p = &md.pieces[if pos == 2 { 3 } else { pos }];
+    let gamma = (90.0f64 / 3.0 / 2.0).to_radians();
+    let kk = (2641.6 / 2.0) * gamma.tan();
+    let (lo, up) = match pos {
+        0 => (0.0, 1.0),
+        1 => (1.0, 1.0),
+        _ => (1.0, 0.0),
+    };
+    let cl = match pos {
+        0 => 300.0 + 2600.0 * gamma.tan(),
+        1 => 2.0 * 2600.0 * gamma.tan(),
+        _ => 300.0 + 2600.0 * gamma.tan(),
+    };
+    let ph = 135f64.to_radians();
+    let mut mx = 0.0f64;
+    for i in 0..=720 {
+        let psi = ph + 2.0 * std::f64::consts::PI * f64::from(i) / 720.0;
+        let c = psi.cos();
+        let lo_plain = -lo * kk * c;
+        let up_plain = cl + up * kk * c;
+        mx = mx
+            .max((bend::cut_z(p, psi, false) - p.zlo - lo_plain).abs())
+            .max((bend::cut_z(p, psi, true) - p.zlo - up_plain).abs());
+    }
+    flag(mx < 1e-6 && (p.axis - cl).abs() < 1e-9)
+}
+
+fn eval_s14_k(idx: usize) -> Option<Got> {
+    let r = bend::bend(&k_spec()).ok();
+    match idx {
+        276 => count_num(r?.pieces.len()),
+        278..=289 => {
+            let p = &r?.pieces[(idx - 278) / 3];
+            match (idx - 278) % 3 {
+                0 => num(p.mass_with_allow_kg),
+                1 => num(p.center),
+                _ => count_num(p.bands.len()),
+            }
+        }
+        294 => flag(r?.tilt_note_deg.is_none()),
+        297 => count_num(
+            bend::bend(&BendSpec {
+                d_end: Some(1371.6),
+                swing: SwingRule::Outer,
+                ..BendSpec::new(1625.6, 12.0, 2400.0, 30.0, Some(1.0), 400.0, 400.0)
+            })
+            .map_or(0, |r| r.pieces.len()),
+        ),
+        299 => {
+            let mut s = k_spec();
+            s.taper_piece = Some(1);
+            count_num(bend::bend(&s).ok()?.pieces.len())
+        }
+        301 => {
+            let mut s = k_spec();
+            s.taper_piece = Some(3);
+            num(bend::bend(&s).ok()?.pieces[1].th_deg)
+        }
+        310 => {
+            let mut s = BendSpec::new(1625.6, 12.0, 800.0, 90.0, Some(3.0), 300.0, 300.0);
+            s.d_end = Some(1371.6);
+            s.swing = SwingRule::Outer;
+            count_num(bend::bend(&s).map_or(0, |r| r.pieces.len()))
+        }
+        313..=318 => {
+            let mut s = k_spec();
+            let code = match idx {
+                313 => {
+                    s.joints = Some(0.0);
+                    "bend_joints_invalid"
+                }
+                314 => {
+                    s.joints = Some(0.0);
+                    s.d_end = Some(2641.6);
+                    "bend_joints_invalid"
+                }
+                315 => {
+                    s.joints = Some(2.5);
+                    "bend_joints_invalid"
+                }
+                316 => {
+                    s.joints = Some(f64::NAN);
+                    "bend_joints_invalid"
+                }
+                317 => {
+                    s.t = -5.0;
+                    "bend_value_not_positive"
+                }
+                _ => {
+                    s.d = 0.0;
+                    "bend_value_not_positive"
+                }
+            };
+            flag(refused_with(&s, code))
+        }
+        _ => None,
+    }
+}
+
 /// Sections whose every case is computed by the real engine and none carries derived inputs. Add a section id here
 /// only in the commit that makes it so: the test below then requires 0 NG and 0 PENDING and no derived case.
 const PORTED_SECTIONS: &[&str] = &["s06", "s07"];
@@ -1159,4 +1495,32 @@ fn real_engine_status() {
     // and the stub reports everything pending
     let none = run_real(&NotPorted, &cases);
     assert_eq!((none.ok, none.ng), (0, 0));
+}
+
+/// Lane S1-L6b: section s14 (test_build.mjs:622-743, reducing mitered bend). Computed by `nf_core::bend`; the cases that need
+/// the engine's check list, labels or the DXF writer stay PENDING (not wired), the 9 derived ones are never counted.
+#[test]
+fn real_engine_status_s14() {
+    let (cases, _) = load_cases();
+    let part: Vec<Case> = cases
+        .iter()
+        .filter(|c| c.section == "s14")
+        .cloned()
+        .collect();
+    assert_eq!(part.len(), 319);
+    let r = run_real(&RustShapes, &part);
+    println!(
+        "s14: {} OK, {} NG, {} PENDING, {} derived (not counted) of {}",
+        r.ok,
+        r.ng,
+        r.pending,
+        r.derived_uncounted,
+        part.len()
+    );
+    for l in &r.ng_lines {
+        println!("{l}");
+    }
+    assert_eq!(r.ng, 0, "NG cases in s14");
+    assert_eq!(r.derived_uncounted, 9);
+    assert!(r.ok >= 270, "only {} s14 cases computed", r.ok);
 }

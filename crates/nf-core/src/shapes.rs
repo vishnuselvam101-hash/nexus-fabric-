@@ -106,7 +106,11 @@ pub struct ShapeRefusal {
     pub message: String,
 }
 
-fn refuse(code: &'static str, field: &'static str, message: impl Into<String>) -> ShapeRefusal {
+pub(crate) fn refuse(
+    code: &'static str,
+    field: &'static str,
+    message: impl Into<String>,
+) -> ShapeRefusal {
     ShapeRefusal {
         code,
         fields: vec![field],
@@ -340,7 +344,7 @@ pub enum Basis {
 
 impl Basis {
     /// Radial offset from the entered (outer) radius to the surface that is developed.
-    fn offset(self, t: f64) -> f64 {
+    pub(crate) fn offset(self, t: f64) -> f64 {
         match self {
             Basis::Outer => 0.0,
             Basis::Mid => t / 2.0,
@@ -453,7 +457,7 @@ pub struct EccSplit {
 /// the sum over accepted leaves of `|S2 - S1|` (S1 one Simpson panel, S2 its two halves). When the depth limit or the
 /// evaluation budget stops a leaf early its (large) estimate is still added, so the result is refused later, never
 /// silently trusted.
-fn adaptive_simpson(f: &dyn Fn(f64) -> f64, a0: f64, a1: f64) -> (f64, f64) {
+pub(crate) fn adaptive_simpson(f: &dyn Fn(f64) -> f64, a0: f64, a1: f64) -> (f64, f64) {
     fn rec(
         f: &dyn Fn(f64) -> f64,
         (a, fa): (f64, f64),
