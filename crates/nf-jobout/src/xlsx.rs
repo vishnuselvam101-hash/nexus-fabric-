@@ -16,6 +16,11 @@ pub struct Sheet {
     pub rows: Vec<Vec<Cell>>,
 }
 
+/// Characters allowed by XML 1.0 (surrogates cannot occur in a `char`).
+fn is_xml_char(c: char) -> bool {
+    matches!(c, '\t' | '\n' | '\r' | '\u{20}'..='\u{d7ff}' | '\u{e000}'..='\u{fffd}' | '\u{10000}'..='\u{10ffff}')
+}
+
 fn esc(s: &str) -> String {
     let mut o = String::with_capacity(s.len());
     for c in s.chars() {
@@ -24,7 +29,7 @@ fn esc(s: &str) -> String {
             '<' => o.push_str("&lt;"),
             '>' => o.push_str("&gt;"),
             '"' => o.push_str("&quot;"),
-            c if (c as u32) < 0x20 && c != '\t' && c != '\n' && c != '\r' => {}
+            c if !is_xml_char(c) => {}
             c => o.push(c),
         }
     }

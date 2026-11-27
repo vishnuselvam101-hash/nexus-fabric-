@@ -12,6 +12,7 @@ pub mod xlsx;
 pub mod zip;
 
 use sha2::{Digest, Sha256};
+use std::collections::{HashMap, HashSet};
 use xlsx::{Cell, Sheet};
 
 pub use zip::{crc32, ZipError, ZipWriter};
@@ -249,6 +250,12 @@ pub fn material_cells(inp: &JobInput, ja: bool) -> Vec<Vec<Cell>> {
         .map(|s| Cell::Text((*s).to_string()))
         .collect::<Vec<_>>()];
     let status = marking(&inp.checked, ja);
+    if inp.material.is_empty() {
+        // Empty list: still one line carrying the marking and the check record.
+        let mut row = vec![Cell::Empty; 15];
+        row.push(Cell::Text(status.clone()));
+        rows.push(row);
+    }
     for r in &inp.material {
         let kind = match (r.kind, ja) {
             (RowKind::Piece, false) => "Piece",
@@ -286,7 +293,11 @@ fn csv_field(c: &Cell) -> String {
     };
     // Spreadsheet formula injection: text that would be read as a formula gets a leading quote.
     let guarded;
-    let s = if is_text && s.starts_with(['=', '+', '-', '@', '\t', '\r']) {
+    let formula = matches!(
+        s.chars().next(),
+        Some('=' | '+' | '-' | '@' | '\t' | '\r' | '＝' | '＋' | '－' | '＠')
+    );
+    let s = if is_text && formula {
         guarded = format!("'{s}");
         guarded.as_str()
     } else {
@@ -390,6 +401,11 @@ pub fn record_csv(inp: &JobInput) -> Vec<u8> {
         marking(&inp.checked, false),
         marking(&inp.checked, true)
     );
+    if inp.record.is_empty() {
+        let mut row = vec![Cell::Empty; 5];
+        row.push(Cell::Text(status.clone()));
+        rows.push(row);
+    }
     for r in &inp.record {
         rows.push(vec![
             text(&r.date),
@@ -415,7 +431,7 @@ fn safe_name(s: &str) -> String {
     o
 }
 
-fn piece_file_name(p: &Piece) -> String {
+fn piece_stem(p: &Piece) -> String {
     let mut stem = String::new();
     if !p.drawing.is_empty() {
         stem.push_str(&safe_name(&p.drawing));
@@ -430,11 +446,41 @@ fn piece_file_name(p: &Piece) -> String {
         stem.push('_');
         stem.push_str(&safe_name(l));
     }
-    let mut stem: String = stem.trim_matches(['.', ' ']).chars().take(100).collect();
+    let mut stem = cap_bytes(stem.trim_matches(['.', ' ']), NAME_CAP);
     if stem.is_empty() {
         stem = "part".to_string();
     }
-    format!("dxf/{stem}.dxf")
+    if is_reserved(&stem) {
+        stem.insert(0, '_');
+    }
+    stem
+}
+
+/// Longest stem kept, in bytes: a part name is at most 255 bytes, and a `_NNNNN.dxf` suffix must fit.
+const NAME_CAP: usize = 200;
+
+/// Truncate to at most `max` bytes on a char boundary.
+fn cap_bytes(s: &str, max: usize) -> String {
+    let mut end = 0;
+    for (i, c) in s.char_indices() {
+        if i + c.len_utf8() > max {
+            break;
+        }
+        end = i + c.len_utf8();
+    }
+    s[..end].trim_matches(['.', ' ']).to_string()
+}
+
+/// Windows device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9), with or without an extension, any case.
+fn is_reserved(stem: &str) -> bool {
+    let base = stem.split('.').next().unwrap_or("").to_ascii_uppercase();
+    match base.as_str() {
+        "CON" | "PRN" | "AUX" | "NUL" => true,
+        b if b.len() == 4 && (b.starts_with("COM") || b.starts_with("LPT")) => {
+            matches!(b.as_bytes()[3], b'1'..=b'9')
+        }
+        _ => false,
+    }
 }
 
 /// Manifest: values with source and state, rules, reading provenance, sha256 of every other file.
@@ -544,16 +590,26 @@ pub fn inputs_json(inp: &JobInput, files: &[(String, Vec<u8>)]) -> Vec<u8> {
 /// issues.txt, record.csv, inputs.json. Never panics on an empty job.
 pub fn build_job_zip(inp: &JobInput) -> Result<Vec<u8>, JoboutError> {
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
-    let mut used: Vec<String> = Vec::new();
+    // Names compare case-insensitively (Windows and macOS file systems). `next` remembers the next
+    // suffix per stem so duplicates cost O(1) each.
+    let mut used: HashSet<String> = HashSet::new();
+    let mut next: HashMap<String, u32> = HashMap::new();
     for p in &inp.pieces {
-        let base = piece_file_name(p);
-        let mut name = base.clone();
-        let mut k = 2;
-        while used.contains(&name) {
-            name = format!("{}_{k}.dxf", base.trim_end_matches(".dxf"));
+        let stem = piece_stem(p);
+        let key = stem.to_lowercase();
+        let mut k = next.get(&key).copied().unwrap_or(1);
+        let name = loop {
+            let cand = if k == 1 {
+                format!("dxf/{stem}.dxf")
+            } else {
+                format!("dxf/{stem}_{k}.dxf")
+            };
             k += 1;
-        }
-        used.push(name.clone());
+            if used.insert(cand.to_lowercase()) {
+                break cand;
+            }
+        };
+        next.insert(key, k);
         files.push((name, p.dxf.clone()));
     }
     files.push(("materials_en.csv".into(), material_csv(inp, false)));

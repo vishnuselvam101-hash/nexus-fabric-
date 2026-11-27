@@ -1,3 +1,4 @@
+use nf_jobout::xlsx::Cell;
 use nf_jobout::*;
 use std::path::PathBuf;
 use std::process::Command;
@@ -257,4 +258,156 @@ fn record_and_issues_text() {
     );
     let t = String::from_utf8(issues_txt(&sample())).unwrap();
     assert!(t.contains("Does not fit the plate") && t.contains("板に入らない"));
+}
+
+fn piece(drawing: &str, no: &str, name: &str) -> Piece {
+    Piece {
+        drawing: drawing.into(),
+        no: no.into(),
+        name: name.into(),
+        label: None,
+        dxf: b"0\nEOF\n".to_vec(),
+    }
+}
+
+fn zip_names(z: &[u8], tag: &str) -> Vec<String> {
+    let p = tmp(&format!("{tag}.zip"));
+    std::fs::write(&p, z).unwrap();
+    let o = Command::new("unzip").arg("-Z1").arg(&p).output().unwrap();
+    String::from_utf8(o.stdout)
+        .unwrap()
+        .lines()
+        .map(String::from)
+        .collect()
+}
+
+#[test]
+fn long_japanese_name_extracts_with_unzip() {
+    let inp = JobInput {
+        pieces: vec![
+            piece("G", "1", &"曲管".repeat(60)),
+            piece("G", "1", &"曲管".repeat(60)),
+        ],
+        ..Default::default()
+    };
+    let z = build_job_zip(&inp).unwrap();
+    let zp = tmp("long.zip");
+    std::fs::write(&zp, &z).unwrap();
+    let out = tmp("long_out");
+    let _ = std::fs::remove_dir_all(&out);
+    std::fs::create_dir_all(&out).unwrap();
+    let o = Command::new("unzip")
+        .arg("-q")
+        .arg(&zp)
+        .arg("-d")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    for n in zip_names(&z, "long") {
+        for part in n.split('/') {
+            assert!(part.len() <= 255, "{n}");
+        }
+    }
+}
+
+#[test]
+fn xlsx_drops_non_xml_characters() {
+    let mut inp = sample();
+    inp.material[0].name = "a\u{fffe}b\u{ffff}c\u{1}d".into();
+    let xp = tmp("badchars.xlsx");
+    std::fs::write(&xp, material_xlsx(&inp).unwrap()).unwrap();
+    let script = "import sys,zipfile,xml.etree.ElementTree as ET\n\
+        z=zipfile.ZipFile(sys.argv[1])\n\
+        for n in z.namelist():\n\
+        \tif n.endswith('.xml') or n.endswith('.rels'): ET.fromstring(z.read(n))\n\
+        print('XMLOK')\n";
+    let o = Command::new("python3")
+        .args(["-I", "-c", script])
+        .arg(&xp)
+        .output()
+        .unwrap();
+    let so = String::from_utf8_lossy(&o.stdout);
+    assert!(
+        so.contains("XMLOK"),
+        "{so} {}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+}
+
+#[test]
+fn empty_outputs_carry_marking_and_checked_by() {
+    let inp = JobInput {
+        checked: Some(Checked {
+            name: "関".into(),
+            date: "2026-11-27".into(),
+        }),
+        ..Default::default()
+    };
+    for (what, bytes) in [
+        ("materials_en", material_csv(&inp, false)),
+        ("materials_ja", material_csv(&inp, true)),
+        ("record", record_csv(&inp)),
+        ("issues", issues_txt(&inp)),
+    ] {
+        let t = String::from_utf8(bytes).unwrap();
+        assert!(
+            t.contains("NOT RELEASED") || t.contains("未リリース"),
+            "{what}: {t}"
+        );
+        assert!(t.contains("関"), "{what}: {t}");
+    }
+    let t = String::from_utf8(material_csv(&inp, true)).unwrap();
+    assert!(t.contains("未リリース"));
+}
+
+#[test]
+fn windows_reserved_and_case_duplicate_names() {
+    let mut inp = JobInput::default();
+    for n in ["CON", "prn", "Aux", "nul", "COM1", "lpt9", "con.txt"] {
+        inp.pieces.push(piece("", n, ""));
+    }
+    inp.pieces.push(piece("g", "1", "abc"));
+    inp.pieces.push(piece("G", "1", "ABC"));
+    inp.pieces.push(piece("G", "1", "abc"));
+    let names = zip_names(&build_job_zip(&inp).unwrap(), "win");
+    let dxf: Vec<&String> = names.iter().filter(|n| n.starts_with("dxf/")).collect();
+    assert_eq!(dxf.len(), 10);
+    let mut lower: Vec<String> = dxf.iter().map(|n| n.to_lowercase()).collect();
+    lower.sort();
+    lower.dedup();
+    assert_eq!(lower.len(), 10, "{dxf:?}");
+    for n in &dxf {
+        let stem = n.trim_start_matches("dxf/");
+        let base = stem.split('.').next().unwrap().to_ascii_uppercase();
+        assert!(
+            !["CON", "PRN", "AUX", "NUL", "COM1", "LPT9"].contains(&base.as_str()),
+            "{n}"
+        );
+    }
+}
+
+#[test]
+fn full_width_formula_prefixes_guarded() {
+    let rows = vec![vec![
+        Cell::Text("＝1".into()),
+        Cell::Text("＋1".into()),
+        Cell::Text("－1".into()),
+        Cell::Text("＠x".into()),
+    ]];
+    let t = String::from_utf8(cells_to_csv(&rows)).unwrap();
+    assert!(t.contains("'＝1,'＋1,'－1,'＠x"), "{t}");
+}
+
+#[test]
+fn ten_thousand_same_name_pieces_are_fast() {
+    let inp = JobInput {
+        pieces: (0..10_000).map(|_| piece("G", "1", "same")).collect(),
+        ..Default::default()
+    };
+    let t = std::time::Instant::now();
+    let z = build_job_zip(&inp).unwrap();
+    let el = t.elapsed();
+    assert!(el.as_secs_f64() < 1.0, "{el:?}");
+    assert!(z.len() > 10_000);
 }
