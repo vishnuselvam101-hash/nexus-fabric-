@@ -327,6 +327,9 @@ async function main() {
       if (!jobId) throw new Error('no job from check A');
       await page.click('#tab-pattern');
       await page.waitForSelector('#pattern-host svg', { timeout: 20000 });
+      // the curve table and the quantities are filled in when the part is shown, after the svg: wait for them
+      await page.waitForSelector('#pattern-host [data-curves] table', { timeout: 20000 }).catch(() => {});
+      await page.waitForSelector('#pattern-host [data-quant] dl', { timeout: 20000 }).catch(() => {});
       const curves = await page.locator('#pattern-host [data-curves] table').count();
       const quantities = await page.locator('#pattern-host [data-quant] dl').count();
       const errsBefore = pageErrors.length + consoleErrors.length;
