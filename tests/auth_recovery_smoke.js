@@ -159,6 +159,10 @@ async function main() {
       (await page.locator('#adm-users tr', { hasText: USER }).first().locator('[data-act="reset"]').count()) === 0);
     await shot('auth-5-reset-form.png');
     await page.fill('#rst-new', TEMP);
+    await page.click('#rst-go');
+    await page.waitForSelector('#rst-msg .alert');
+    check('reset: the administrator password is required', (await text('#rst-msg .alert')) !== '');
+    await page.fill('#rst-admin', PASS2);
     await page.fill('#rst-new', 'short');
     await page.click('#rst-go');
     await page.waitForSelector('#rst-msg .alert');

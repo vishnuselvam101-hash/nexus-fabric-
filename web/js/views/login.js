@@ -573,6 +573,7 @@ export async function securityPanels(host, showCode) {
 /* ---- reset of another user's password (Administration > Users) ---- */
 
 export function resetForm({ user, name, onDone, onCancel }) {
+  const me = pwRow('rst-admin', t('adm.reset.admin'), 'current-password');
   const nw = pwRow('rst-new', t('adm.reset.new'), 'new-password');
   const msg = el('div', { id: 'rst-msg' });
   const go = el('button', { id: 'rst-go', class: 'btn btn-primary', type: 'submit' }, t('adm.reset.go'));
@@ -581,15 +582,17 @@ export function resetForm({ user, name, onDone, onCancel }) {
   const form = el(
     'form', { id: 'rst-form', class: 'calc-form', novalidate: true },
     el('p', { class: 'sub' }, t('adm.reset.lead')),
-    nw.wrap, msg, el('div', { class: 'row' }, go, cancel)
+    me.wrap, nw.wrap, msg, el('div', { class: 'row' }, go, cancel)
   );
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     msg.replaceChildren();
+    if (!me.input.value) { showErr(msg, t('acc.e.cur')); me.input.focus(); return; }
     if (nw.input.value.length < MIN_PASSWORD) { showErr(msg, t('login.pw.short')); nw.input.focus(); return; }
     busy(go, true);
     try {
-      await api(`/api/users/${user}/reset-password`, { json: { [F.newPassword]: nw.input.value } });
+      await api(`/api/users/${user}/reset-password`, { json: { [F.adminPassword]: me.input.value, [F.newPassword]: nw.input.value } });
+      me.input.value = '';
       onDone();
     } catch (err) {
       showErr(msg, failText(err));

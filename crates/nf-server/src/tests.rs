@@ -5555,7 +5555,7 @@ async fn auth1_admin_reset_forces_a_change_and_never_on_self() {
             &adm,
             "POST",
             &path(admin_id),
-            json!({"new_password":"whatever-pass-12"})
+            json!({"new_password":"whatever-pass-12","password":A1_PW})
         )
         .await
         .0,
@@ -5579,7 +5579,7 @@ async fn auth1_admin_reset_forces_a_change_and_never_on_self() {
             &adm,
             "POST",
             &path(bob_id),
-            json!({"new_password":"short"})
+            json!({"new_password":"short","password":A1_PW})
         )
         .await
         .0,
@@ -5591,18 +5591,37 @@ async fn auth1_admin_reset_forces_a_change_and_never_on_self() {
             &adm,
             "POST",
             &path(999),
-            json!({"new_password":"whatever-pass-12"})
+            json!({"new_password":"whatever-pass-12","password":A1_PW})
         )
         .await
         .0,
         StatusCode::NOT_FOUND
     );
+    // the administrator's own password is required: missing and wrong change nothing
+    for body in [
+        json!({"new_password":"temporary-pass-55"}),
+        json!({"new_password":"temporary-pass-55","password":"wrong-password-1"}),
+    ] {
+        let (st, v) = a1_as(&t, &adm, "POST", &path(bob_id), body).await;
+        assert_eq!(st, StatusCode::FORBIDDEN, "{v}");
+    }
+    assert_eq!(
+        a1_as(&t, &bob, "GET", "/api/me", json!(null)).await.0,
+        StatusCode::OK,
+        "a refused reset leaves the user signed in"
+    );
+    assert!(a1_login(&t, "bob", "bobs-first-pass-1").await.is_some());
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM audit WHERE action = 'account.password_reset'"),
+        0
+    );
+    let bob = a1_login(&t, "bob", "bobs-first-pass-1").await.unwrap();
     let (st, v) = a1_as(
         &t,
         &adm,
         "POST",
         &path(bob_id),
-        json!({"new_password":"temporary-pass-55"}),
+        json!({"new_password":"temporary-pass-55","password":A1_PW}),
     )
     .await;
     assert_eq!(st, StatusCode::OK, "{v}");
@@ -5896,7 +5915,7 @@ async fn auth1_launch_token_single_use_expiry_replay_forged_and_os_user_never_ad
             &adm,
             "POST",
             &format!("/api/users/{os_id}/reset-password"),
-            json!({"new_password":"whatever-pass-12"})
+            json!({"new_password":"whatever-pass-12","password":A1_PW})
         )
         .await
         .0,
@@ -5932,6 +5951,16 @@ async fn auth1_launch_token_single_use_expiry_replay_forged_and_os_user_never_ad
         a1_launch(&t, tok4).await.0,
         StatusCode::UNAUTHORIZED,
         "tokens are dropped when the setting is off"
+    );
+    assert_eq!(
+        a1_as(&t, &cookie, "GET", "/api/me", json!(null)).await.0,
+        StatusCode::UNAUTHORIZED,
+        "an automatic sign-in session ends when the setting is turned off"
+    );
+    assert_eq!(
+        a1_as(&t, &adm, "GET", "/api/me", json!(null)).await.0,
+        StatusCode::OK,
+        "other sessions stay"
     );
     assert_eq!(auth::issue_launch_token(&t.app), None);
     // back on later, by the administrator

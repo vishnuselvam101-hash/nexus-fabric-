@@ -70,25 +70,47 @@ pub(crate) fn auto_signin_on(db: &Connection) -> bool {
         .is_some_and(|v| v == "1")
 }
 
-/// The operating-system user running this process. Windows: %USERNAME%. Elsewhere: the real uid looked up in
-/// /etc/passwd. None when it cannot be told.
+#[cfg(windows)]
+#[link(name = "advapi32")]
+unsafe extern "system" {
+    fn GetUserNameW(buf: *mut u16, len: *mut u32) -> i32;
+}
+
+/// Windows: the account of this process from the operating system (not the environment, which a launcher can set).
+#[cfg(windows)]
+fn raw_os_user() -> Option<String> {
+    let mut buf = [0u16; 257];
+    let mut len = buf.len() as u32;
+    // SAFETY: buf holds `len` u16 values; GetUserNameW writes at most that many and sets len (with the NUL).
+    let ok = unsafe { GetUserNameW(buf.as_mut_ptr(), &mut len) };
+    if ok == 0 || len == 0 {
+        return None;
+    }
+    Some(String::from_utf16_lossy(
+        &buf[..(len as usize - 1).min(buf.len())],
+    ))
+}
+
+/// Elsewhere: the real uid looked up in /etc/passwd.
+#[cfg(not(windows))]
+fn raw_os_user() -> Option<String> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let uid = status
+        .lines()
+        .find_map(|l| l.strip_prefix("Uid:"))?
+        .split_whitespace()
+        .next()?
+        .to_string();
+    let passwd = std::fs::read_to_string("/etc/passwd").ok()?;
+    passwd.lines().find_map(|l| {
+        let f: Vec<&str> = l.split(':').collect();
+        (f.len() > 2 && f[2] == uid).then(|| f[0].to_string())
+    })
+}
+
+/// The operating-system user running this process. None when it cannot be told.
 pub(crate) fn os_user_name() -> Option<String> {
-    let raw = if cfg!(windows) {
-        std::env::var("USERNAME").ok()
-    } else {
-        let status = std::fs::read_to_string("/proc/self/status").ok()?;
-        let uid = status
-            .lines()
-            .find_map(|l| l.strip_prefix("Uid:"))?
-            .split_whitespace()
-            .next()?
-            .to_string();
-        let passwd = std::fs::read_to_string("/etc/passwd").ok()?;
-        passwd.lines().find_map(|l| {
-            let f: Vec<&str> = l.split(':').collect();
-            (f.len() > 2 && f[2] == uid).then(|| f[0].to_string())
-        })
-    }?;
+    let raw = raw_os_user()?;
     let clean: String = raw.chars().filter(|c| !c.is_control()).collect();
     let clean = clean.trim().to_string();
     (!clean.is_empty()).then(|| clip(&clean, MAX_USERNAME - OS_PREFIX.len()))
@@ -290,16 +312,17 @@ pub(crate) async fn new_my_recovery_code(
     ok(json!({ "ok": true, "recovery_code": code }))
 }
 
-/// `POST /api/users/{id}/reset-password {new_password}` (administrator, not on oneself).
+/// `POST /api/users/{id}/reset-password {new_password, password}` (administrator, own password required, not on
+/// oneself).
 pub(crate) async fn reset_password(
     State(app): Ctx,
+    Extension(ClientAddr(client)): Extension<ClientAddr>,
     headers: HeaderMap,
     Path(id): Path<i64>,
     Json(body): Json<Value>,
 ) -> Api {
     let new = s(&body, "new_password");
-    let u = auth(&app, &headers)?;
-    require(&u, &["admin"])?;
+    let u = confirm_admin_password(&app, &client, &headers, s(&body, "password")).await?;
     if id == u.id {
         return Err(fail(
             StatusCode::BAD_REQUEST,
@@ -371,6 +394,13 @@ pub(crate) async fn set_auto_signin(
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     storage::meta_set(&tx, "auto_signin", if enabled { "1" } else { "0" })?;
+    if !enabled {
+        // sessions of automatic sign-in do not outlive the setting
+        tx.execute(
+            "DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE username LIKE 'os:%')",
+            [],
+        )?;
+    }
     app.audit(
         &tx,
         &u.username,
