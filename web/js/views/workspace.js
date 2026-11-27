@@ -1,6 +1,6 @@
 import { api, esc } from '../api.js';
 import { getState } from '../store.js';
-import { t } from '../i18n.js';
+import { t, projName } from '../i18n.js';
 
 const TABS = ['calculations', 'projects', 'obligations', 'audit', 'users'];
 
@@ -90,7 +90,7 @@ async function loadCalc(signal) {
     const [calcs, projects] = await Promise.all([api('/api/calculations'), api('/api/projects')]);
     if (signal.aborted) return;
     content.textContent = '';
-    const pnames = new Map((Array.isArray(projects) ? projects : []).map(p => [String(p.id), p.name]));
+    const pnames = new Map((Array.isArray(projects) ? projects : []).map(p => [String(p.id), projName(p.name)]));
 
     const hd = el('div', 'panel-h');
     hd.appendChild(el('h2', null, t('ws.calculations')));
@@ -174,7 +174,7 @@ async function showCalcForm(signal) {
     for (const p of projects) {
       const o = document.createElement('option');
       o.value = p.id;
-      o.textContent = p.name;
+      o.textContent = projName(p.name);
       psel.appendChild(o);
     }
   } catch { /* empty select */ }
@@ -246,7 +246,7 @@ async function loadProjects(signal) {
     }
     const rows = projects.map(p => ({
       data: p,
-      cells: [String(p.id), esc(p.name), esc(p.description || ''),
+      cells: [String(p.id), esc(projName(p.name)), esc(p.description || ''),
         String(p.documents_count ?? p.documents?.length ?? 0),
         String(p.calculations_count ?? p.calculations?.length ?? 0),
         fmtDate(p.created_at)],
@@ -309,7 +309,7 @@ async function showProjectDetail(proj, signal) {
   try {
     const p = await api('/api/projects/' + proj.id);
     if (signal.aborted) return;
-    content.appendChild(el('h2', null, esc(p.name)));
+    content.appendChild(el('h2', null, esc(projName(p.name))));
     if (p.description) content.appendChild(el('p', 'sub', esc(p.description)));
 
     if (p.documents && p.documents.length) {

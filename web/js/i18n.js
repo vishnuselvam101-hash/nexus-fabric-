@@ -39,6 +39,7 @@ function pick(key, p) {
 // ---- public text API ----
 export const t = (key, p) => fill(pick(key, p), p);
 export const h = (key, p) => fill(escHtml(pick(key, p)).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`(.+?)`/g, '<span class="mono">$1</span>'), p);
+export const projName = (name) => (name === 'Quick conversions' ? t('proj.quick') : name);
 export const has = (key) => MSG[cur][key] !== undefined || MSG.en[key] !== undefined;
 
 /** Apply translations to all [data-i18n] elements under `root`. */
@@ -115,6 +116,17 @@ const EN = {
   'login.failed': 'Sign-in failed. Try again.',
   'login.throttled': 'Too many failed attempts from this address. Wait a few minutes, then try again.',
   'login.tokenHelp': 'The setup token is in the first-run setup link the server printed when it started: the text after #setup=.',
+  'login.tokenRefused': 'The setup token was not accepted. Type the token printed by the program, or open the setup link again.',
+  'login.setupFailed': 'Setup failed. Check the entries and try again.',
+  'login.pw.short': 'The password must have at least 10 characters.',
+  'login.pw.long': 'The password is too long (at most 1024 bytes).',
+  'login.pw.user': 'The password must not be the user name.',
+  'login.pw.common': 'This password is on the list of commonly used passwords. Choose another.',
+  'login.user.rule': 'The user name must be 3-64 characters: letters, digits, dot, underscore or hyphen.',
+  'proj.quick': 'Quick conversions',
+  'cv2.rej.format': 'This file is not a PDF. Drop a vector PDF drawing.',
+  'cv2.rej.empty': 'This file is empty. Drop a vector PDF drawing.',
+  'cv2.rej.large': 'This file is too large for the converter.',
   // desktop mode, first-run screen (wording decided by the owner: docs/security/DESKTOP_KEY_ASSESSMENT.md section 6)
   'login.desktop.h': 'Desktop mode: how your data is kept',
   'login.desktop.p1': 'This program does not encrypt its database or the whole data folder. Stored files have their own encryption, but that does not make the data on this computer an encrypted data set.',
@@ -923,6 +935,17 @@ const JA = {
   'login.failed': 'ログインに失敗しました。もう一度お試しください。',
   'login.throttled': 'このアドレスからの失敗が多すぎます。数分待ってから、もう一度お試しください。',
   'login.tokenHelp': 'セットアップトークンは、初回起動時にサーバーが表示したセットアップリンクにあります（`#setup=` の後の文字列）。',
+  'login.tokenRefused': 'セットアップトークンが受け付けられませんでした。プログラムが表示したトークンを入力するか、セットアップリンクをもう一度開いてください。',
+  'login.setupFailed': 'セットアップに失敗しました。入力内容を確認して、もう一度お試しください。',
+  'login.pw.short': 'パスワードは10文字以上にしてください。',
+  'login.pw.long': 'パスワードが長すぎます（最大1024バイト）。',
+  'login.pw.user': 'パスワードをユーザー名と同じにすることはできません。',
+  'login.pw.common': 'このパスワードは、よく使われるパスワードの一覧にあります。別のものにしてください。',
+  'login.user.rule': 'ユーザー名は3〜64文字で、使えるのは英字、数字、. _ - です。',
+  'proj.quick': 'クイック変換',
+  'cv2.rej.format': 'このファイルはPDFではありません。ベクトルのPDF図面をドロップしてください。',
+  'cv2.rej.empty': 'このファイルは空です。ベクトルのPDF図面をドロップしてください。',
+  'cv2.rej.large': 'このファイルは大きすぎて変換できません。',
   // desktop mode, first-run screen (same notice as the English)
   'login.desktop.h': 'デスクトップモード：データの保存について',
   'login.desktop.p1': 'このプログラムは、データベースもデータフォルダー全体も暗号化しません。保存されたファイルには個別の暗号化がありますが、それによってこのコンピューター上のデータ全体が暗号化されるわけではありません。',

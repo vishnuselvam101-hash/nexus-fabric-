@@ -1,7 +1,7 @@
 import { mountAmoebas, unmountAmoebas } from '../lib/amoeba-mount.js';
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 import { api } from '../api.js';
-import { t, h, idLabel, lang } from '../i18n.js';
+import { t, h, idLabel, lang, projName } from '../i18n.js';
 import { $, $$ } from '../ui.js';
 
 const ja = () => lang() === 'ja';
@@ -48,7 +48,7 @@ const jobLink = (id, lc) => `<a href="#/job/${id}">${esc(t(lc ? 'job.n.lc' : 'jo
 
 let amHandles = [], amSeq = 0;
 let root = null, body = null, ac = null, data = null, projects = [], tabDefs = [], activeTab = 'records', depId = null, graph = null;
-const pnameHtml = (id) => { const p = projects.find((x) => x.id === id); return p ? ud(p.name) : esc(t('project.n', { id })); };
+const pnameHtml = (id) => { const p = projects.find((x) => x.id === id); return p ? ud(projName(p.name)) : esc(t('project.n', { id })); };
 const plink = (id) => `<a href="#/project/${id}" title="${esc(t('project.tip', { id }))}">${pnameHtml(id)}</a>`;
 const aborted = () => !ac || ac.signal.aborted;
 

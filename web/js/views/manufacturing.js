@@ -1,5 +1,5 @@
 import { api, esc } from '../api.js';
-import { t, h, idLabel, lang } from '../i18n.js';
+import { t, h, idLabel, lang, projName } from '../i18n.js';
 import { $, $$ } from '../ui.js';
 
 let root = null;
@@ -53,7 +53,7 @@ const summarise = (c) => {
 const effState = (row) => (row.superseded || (row.facts && row.facts.superseded_by) ? 'SUPERSEDED'
   : row.no_result || (row.facts && row.facts.noResult) ? 'NO_RESULT' : row.state);
 
-const pname = (id) => { const p = projects.find((x) => String(x.id) === String(id)); return p ? p.name : null; };
+const pname = (id) => { const p = projects.find((x) => String(x.id) === String(id)); return p ? projName(p.name) : null; };
 const pnameHtml = (id) => { const n = pname(id); return n === null ? esc(t('project.n', { id })) : ud(n); };
 const plink = (id) => `<a href="#/project/${esc(id)}" title="${esc(t('project.tip', { id }))}">${pnameHtml(id)}</a>`;
 const jobLink = (id) => `<a href="#/job/${esc(id)}">${esc(t('job.n', { id }))}</a>`;

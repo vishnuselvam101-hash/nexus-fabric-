@@ -5,6 +5,13 @@ import { t } from '../i18n.js';
 import { createSteelStage, FLAT } from '../lib/steel.js';
 import { mountAmoebas, unmountAmoebas } from '../lib/amoeba-mount.js';
 
+// the converter's upload refusals, shown as text instead of the internal wording
+const MEMBRANE = {
+  'file rejected at the membrane: unsupported_format': 'cv2.rej.format',
+  'file rejected at the membrane: empty': 'cv2.rej.empty',
+  'file rejected at the membrane: too_large': 'cv2.rej.large',
+};
+
 const RECENT_KEY = 'nf_recent', MAX_RECENT = 5, SCALE_KEY = 'nf.scale';
 const STAGES = ['cv2.stage.upload', 'cv2.stage.read', 'cv2.stage.write'];
 let root, runId = 0, stopPoll, timerH, timerT0, dragN = 0;
@@ -212,7 +219,7 @@ async function handleFile(file) {
         scale: { kind: scale.kind, value: scaleValue } });
       patchConvert({ phase: 'done', conversionId: c.id,
         result: { conversion: c, report: err.detail.report }, error: err.message });
-    } else { patchConvert({ phase: 'error', error: err.message }); }
+    } else { patchConvert({ phase: 'error', error: MEMBRANE[err.message] ? t(MEMBRANE[err.message]) : err.message }); }
     render();
   }
 }

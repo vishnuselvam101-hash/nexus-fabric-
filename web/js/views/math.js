@@ -4,7 +4,7 @@
 // an error, never a default.
 import { api, esc, ApiError } from '../api.js';
 import { getState } from '../store.js';
-import { t, h, has, idLabel, lang } from '../i18n.js';
+import { t, h, has, idLabel, lang, projName } from '../i18n.js';
 import { el, $, $$, toast, busy } from '../ui.js';
 
 // ---------------------------------------------------------------- geometry families (inputs the calculation API accepts)
@@ -249,7 +249,7 @@ export async function mount(container, params = {}) {
   const devNote = el('p', { class: 'sub', id: 'devnote' });
   const msg = el('div', { id: 'cmsg', 'aria-live': 'polite' });
   const run = el('button', { class: 'btn pri', id: 'run', type: 'submit' }, t('math.run'));
-  const projSel = selectField('project', t('math.f.project'), projects.map((p) => [p.id, `#${p.id} ${p.name}`]), pid, null, false);
+  const projSel = selectField('project', t('math.f.project'), projects.map((p) => [p.id, `#${p.id} ${projName(p.name)}`]), pid, null, false);
   const famSel = selectField('fam', t('math.f.family'), Object.keys(F).map((k) => [k, famLabel(k)]), fam0, null, false);
   const fromTag = el('span', { class: 'tag' }, sourceId ? t('math.tag.from', { id: sourceId }) : t('math.tag.example'));
   const hint = el('p', { class: 'sub' }, t(from || draft ? 'math.hint.from' : 'math.hint.example'));

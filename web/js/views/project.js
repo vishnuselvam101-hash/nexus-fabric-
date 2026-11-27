@@ -3,7 +3,7 @@
 // guessed: the conversion scale must be typed, and every computed number is shown as the server returned it.
 import { api, uploadFile, esc } from '../api.js';
 import { getState } from '../store.js';
-import { t, h, idLabel, lang } from '../i18n.js';
+import { t, h, idLabel, lang, projName } from '../i18n.js';
 import { el, frag, $, $$, toast, chip, busy } from '../ui.js';
 
 let root = null;
@@ -132,7 +132,7 @@ function renderError(err) {
 function header(p) {
   return el('div', { class: 'panel-h' },
     el('div', {},
-      el('h1', {}, ud(p.name)),
+      el('h1', {}, ud(projName(p.name))),
       el('p', { class: 'sub', html: `${p.description ? `${esc(p.description)} · ` : ''}${h('project.meta', { id: p.id, by: esc(p.created_by), when: when(p.created_at) })}` })),
     role() === 'viewer' ? null : el('a', { class: 'btn pri', href: `#/math/${p.id}` }, t('new.calc')));
 }
