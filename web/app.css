@@ -975,7 +975,7 @@
   .art-mark { fill: color-mix(in srgb, var(--text-2) 55%, var(--bg)); stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; }
   .hero-top { grid-area: top; min-width: 0; align-self: start; max-width: clamp(600px, 46vw, 900px); }
   .mark-anchor { grid-area: mark; position: relative; min-height: 300px; pointer-events: none; }
-  .mark-cap { position: absolute; right: 0; bottom: 0; margin: 0; font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: .08em; color: var(--text-3); text-align: right; max-width: 28em; }
+  .mark-cap { position: absolute; right: 0; bottom: 0; margin: 0; font-family: var(--font-mono); font-size: var(--fs-xs); letter-spacing: .08em; color: var(--text-3); text-align: right; max-width: 28em; word-break: keep-all; overflow-wrap: normal; }
   .eyebrow { color: var(--accent); }
   .eyebrow::before { background: linear-gradient(90deg, transparent, var(--accent)); }
   .hero-title { font-size: clamp(40px, 5.6vw, 92px); font-weight: 600; line-height: .98; letter-spacing: -.045em; margin: 0; color: var(--text-1); }
