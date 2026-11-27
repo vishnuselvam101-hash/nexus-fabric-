@@ -112,6 +112,8 @@ struct User {
     id: i64,
     username: String,
     role: String,
+    /// "person" or "agent" (the AI operator's own service identity). Set by an administrator, never by a request body.
+    kind: String,
 }
 
 /// Address of the client as far as it can be known (V-33).
@@ -613,9 +615,9 @@ fn auth_db(db: &Connection, app: &App, headers: &HeaderMap) -> Result<User, ApiE
     let token = session_token(app, headers).ok_or_else(deny)?;
     let th = nf_core::sha256_hex(token.as_bytes());
     db.query_row(
-        "SELECT u.id, u.username, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.active = 1",
+        "SELECT u.id, u.username, u.role, u.kind FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.active = 1",
         params![th, now() as i64],
-        |r| Ok(User { id: r.get(0)?, username: r.get(1)?, role: r.get(2)? }),
+        |r| Ok(User { id: r.get(0)?, username: r.get(1)?, role: r.get(2)?, kind: r.get(3)? }),
     )
     .optional()?
     .ok_or_else(deny)
@@ -1167,11 +1169,11 @@ async fn list_users(State(app): Ctx, headers: HeaderMap) -> Api {
     require(&u, &["admin"])?;
     let rows = q_all(
         &db,
-        "SELECT id, username, role, created_at, active FROM users ORDER BY id",
+        "SELECT id, username, role, created_at, active, kind FROM users ORDER BY id",
         [],
         |r| {
             Ok(
-                json!({ "id": r.get::<_, i64>(0)?, "username": r.get::<_, String>(1)?, "role": r.get::<_, String>(2)?, "created_at": r.get::<_, i64>(3)?, "active": r.get::<_, bool>(4)? }),
+                json!({ "id": r.get::<_, i64>(0)?, "username": r.get::<_, String>(1)?, "role": r.get::<_, String>(2)?, "created_at": r.get::<_, i64>(3)?, "active": r.get::<_, bool>(4)?, "kind": r.get::<_, String>(5)? }),
             )
         },
     )?;
@@ -1187,6 +1189,22 @@ async fn add_user(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value>) 
     let u = auth(&app, &headers)?;
     require(&u, &["admin"])?;
     check_new_user(&username, &password, &role)?;
+    let kind = match body.get("kind").and_then(Value::as_str) {
+        None | Some("person") => "person",
+        Some("agent") if role == "engineer" => "agent",
+        Some("agent") => {
+            return Err(fail(
+                StatusCode::BAD_REQUEST,
+                "an agent account has the engineer role",
+            ));
+        }
+        Some(_) => {
+            return Err(fail(
+                StatusCode::BAD_REQUEST,
+                "kind must be person or agent",
+            ));
+        }
+    };
     let salt = hex::encode(crypto::random_bytes::<16>());
     let hash = hash_blocking(&app, password, salt.clone()).await?;
     // seat allowance before the database lock (lock order, licence.rs)
@@ -1202,11 +1220,14 @@ async fn add_user(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value>) 
         return Err(e);
     }
     let id = insert_user(&tx, &username, &role, &salt, &hash)?;
+    if kind == "agent" {
+        tx.execute("UPDATE users SET kind = 'agent' WHERE id = ?", params![id])?;
+    }
     app.audit(
         &tx,
         &u.username,
         "user_created",
-        &format!("{username} ({role})"),
+        &format!("{username} ({role}, {kind})"),
     )?;
     tx.commit()?;
     ok(json!({ "id": id }))

@@ -91,6 +91,16 @@ async fn order_with_parts(t: &T) -> i64 {
     oid
 }
 
+/// The AI operator's own identity: an engineer account of kind "agent" in project 1.
+fn add_agent(t: &T, name: &str) -> String {
+    let c = add_session(&t.app, name, "engineer");
+    t.sql(&format!(
+        "UPDATE users SET kind = 'agent' WHERE username = '{name}'"
+    ));
+    t.sql(&format!("INSERT INTO project_members(project_id, user_id) SELECT 1, id FROM users WHERE username = '{name}'"));
+    c
+}
+
 fn audit_details(t: &T, action: &str) -> Vec<String> {
     let db = t.app.db();
     let mut st = db
@@ -577,20 +587,25 @@ async fn l1_a_decision_is_tied_to_its_value_and_can_be_undone() {
     let vals = format!("/api/orders/{oid}/values");
     let (st, _) = t.call("PUT", &vals, Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read" }] }))).await;
     assert_eq!(st, StatusCode::OK);
-    // automation confirms the value with its reason
+    // automation confirms the value with its reason, under its own service identity
     let dec = format!("/api/orders/{oid}/decisions");
-    let (st, v) = t
-        .call(
+    let agent = add_agent(&t, "operator-ai");
+    let ac = [("cookie", agent.as_str())];
+    let (st, _, v) = t
+        .send(
             "POST",
             &dec,
-            Some(json!({ "kind": "confirm", "part": "1", "key": "D", "source": "auto" })),
+            Some(json!({ "kind": "confirm", "part": "1", "key": "D" })),
+            &ac,
         )
         .await;
+    let v: Value = serde_json::from_slice(&v).unwrap();
     assert_eq!(
         (st, v["code"].as_str()),
         (StatusCode::UNPROCESSABLE_ENTITY, Some("decision_reason"))
     );
-    let (st, d) = t.call("POST", &dec, Some(json!({ "kind": "confirm", "part": "1", "key": "D", "source": "auto", "agent": "operator-ai", "reason": "in range of the standard table" }))).await;
+    let (st, _, d) = t.send("POST", &dec, Some(json!({ "kind": "confirm", "part": "1", "key": "D", "reason": "in range of the standard table" })), &ac).await;
+    let d: Value = serde_json::from_slice(&d).unwrap();
     assert_eq!(st, StatusCode::OK, "{d}");
     let did = d["id"].as_i64().unwrap();
     assert_eq!(
@@ -600,7 +615,12 @@ async fn l1_a_decision_is_tied_to_its_value_and_can_be_undone() {
             d["source"].clone(),
             d["decided_by"].clone()
         ),
-        (json!(true), json!(false), json!("auto"), json!("admin"))
+        (
+            json!(true),
+            json!(false),
+            json!("auto"),
+            json!("operator-ai")
+        )
     );
     assert!(d["decided_at"].as_i64().unwrap() > 0);
     let o = t.get(&format!("/api/orders/{oid}")).await;
@@ -786,7 +806,7 @@ async fn l1_a_failed_page_can_be_skipped_and_the_skip_undone() {
     assert_eq!((st, v["skipped"].clone()), (StatusCode::OK, json!(false)));
     let o = t.get(&format!("/api/orders/{oid}")).await;
     assert_eq!(o["issues"], json!([{ "code": "page_failed", "page": 2 }]));
-    assert_eq!(o["checked"]["effective"], false);
+    assert!(o["checked"].is_null(), "a stale mark is not 'checked': {o}");
     assert_eq!(audit_details(&t, "order_page_unskipped").len(), 1);
 }
 
@@ -800,5 +820,349 @@ async fn l1_licence_gate_covers_the_new_work_routes() {
     ));
     assert!(crate::licence::gated(&Method::POST, "/api/orders/1/files"));
     assert!(!crate::licence::gated(&Method::GET, "/api/orders/1"));
-    assert!(!crate::licence::gated(&Method::PUT, "/api/orders/1/values"));
+    assert!(!crate::licence::gated(&Method::PUT, "/api/orders/1"));
+}
+
+// ---------------------------------------------------------------- review round 1
+
+async fn mark(t: &T, oid: i64) -> i64 {
+    let (st, k) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions"),
+            Some(json!({ "kind": "mark_checked" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{k}");
+    k["id"].as_i64().unwrap()
+}
+
+async fn read_val(t: &T, oid: i64, key: &str, v: f64, text: &str) {
+    let (st, r) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{ "part": "1", "key": key, "value": v, "text": text, "source": "read" }] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{r}");
+}
+
+#[tokio::test]
+async fn l1r1_the_source_of_a_decision_comes_from_the_identity() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    read_val(&t, oid, "D", 216.3, "φ216.3").await;
+    let dec = format!("/api/orders/{oid}/decisions");
+    // a person cannot claim to be automation or a rule, and cannot name an agent
+    for claim in ["auto", "rule"] {
+        let (st, v) = t.call("POST", &dec, Some(json!({ "kind": "confirm", "part": "1", "key": "D", "source": claim, "reason": "x" }))).await;
+        assert_eq!(
+            (st, v["code"].as_str()),
+            (StatusCode::UNPROCESSABLE_ENTITY, Some("decision_source")),
+            "{v}"
+        );
+    }
+    let (st, d) = t
+        .call(
+            "POST",
+            &dec,
+            Some(json!({ "kind": "confirm", "part": "1", "key": "D", "agent": "someone" })),
+        )
+        .await;
+    assert_eq!(
+        (st, d["source"].clone(), d["agent"].clone()),
+        (StatusCode::OK, json!("person"), Value::Null),
+        "{d}"
+    );
+    // the agent cannot claim to be a person, and cannot mark checked
+    let agent = add_agent(&t, "operator-ai");
+    let ac = [("cookie", agent.as_str())];
+    let (st, _, b) = t
+        .send("POST", &dec, Some(json!({ "kind": "mark_checked" })), &ac)
+        .await;
+    let b: Value = serde_json::from_slice(&b).unwrap();
+    assert_eq!(
+        (st, b["code"].as_str()),
+        (StatusCode::FORBIDDEN, Some("agent_cannot_check")),
+        "{b}"
+    );
+    let (st, _, b) = t.send("POST", &dec, Some(json!({ "kind": "accept_flag", "part": "1", "key": "D", "flag": "f", "reason": "r", "source": "person" })), &ac).await;
+    let b: Value = serde_json::from_slice(&b).unwrap();
+    assert_eq!(
+        (st, b["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("decision_source")),
+        "{b}"
+    );
+    // bulk confirm and the confirm flag of a value edit follow the identity too, and the agent must give a reason
+    read_val(&t, oid, "t", 6.0, "t6").await;
+    let confirm = format!("/api/orders/{oid}/confirm");
+    let (st, _, b) = t
+        .send("POST", &confirm, Some(json!({ "all": true })), &ac)
+        .await;
+    let b: Value = serde_json::from_slice(&b).unwrap();
+    assert_eq!(
+        (st, b["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("decision_reason")),
+        "{b}"
+    );
+    let (st, _, b) = t
+        .send(
+            "POST",
+            &confirm,
+            Some(json!({ "all": true, "note": "in range" })),
+            &ac,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let n = t.count("SELECT COUNT(*) FROM order_decisions WHERE source = 'auto' AND agent = 'operator-ai' AND decided_by = 'operator-ai'");
+    assert_eq!(n, 1);
+    assert_eq!(
+        t.count(
+            "SELECT COUNT(*) FROM order_decisions WHERE source = 'person' AND decided_by = 'admin'"
+        ),
+        1
+    );
+}
+
+#[tokio::test]
+async fn l1r1_a_checked_mark_goes_stale_on_files_pages_and_value_changes() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    read_val(&t, oid, "D", 216.3, "φ216.3").await;
+    let dec = format!("/api/orders/{oid}/decisions");
+    let effective = |o: &Value, k: i64| decision(o, k)["effective"] == true;
+    // a new upload
+    let k = mark(&t, oid).await;
+    assert_eq!(add_file(&t, oid, jpeg(), "c.jpg").await.0, StatusCode::OK);
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert!(!effective(&o, k), "a new file must make the mark stale");
+    assert!(o["checked"].is_null());
+    // a confirmation made, then undone
+    let k = mark(&t, oid).await;
+    let (_, c) = t
+        .call(
+            "POST",
+            &dec,
+            Some(json!({ "kind": "confirm", "part": "1", "key": "D" })),
+        )
+        .await;
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert!(
+        !effective(&o, k),
+        "a later confirmation changes what was checked"
+    );
+    let k = mark(&t, oid).await;
+    let (st, _) = t
+        .call("POST", &format!("{dec}/{}/undo", c["id"]), None)
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(
+        !effective(&t.get(&format!("/api/orders/{oid}")).await, k),
+        "an undone confirmation"
+    );
+    // source and box
+    let k = mark(&t, oid).await;
+    let (st, _) = t.call("PUT", &format!("/api/orders/{oid}/values"), Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read", "bbox": [1, 2, 30, 40] }] }))).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(
+        !effective(&t.get(&format!("/api/orders/{oid}")).await, k),
+        "a moved box"
+    );
+    let k = mark(&t, oid).await;
+    let (st, _) = t.call("PUT", &format!("/api/orders/{oid}/values"), Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "drawing", "bbox": [1, 2, 30, 40] }] }))).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(
+        !effective(&t.get(&format!("/api/orders/{oid}")).await, k),
+        "a changed source"
+    );
+}
+
+#[tokio::test]
+async fn l1r1_a_confirmation_does_not_survive_a_changed_source_or_box() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    read_val(&t, oid, "D", 216.3, "φ216.3").await;
+    let dec = format!("/api/orders/{oid}/decisions");
+    let (_, c) = t
+        .call(
+            "POST",
+            &dec,
+            Some(json!({ "kind": "confirm", "part": "1", "key": "D" })),
+        )
+        .await;
+    let id = c["id"].as_i64().unwrap();
+    let (st, _) = t.call("PUT", &format!("/api/orders/{oid}/values"), Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read", "bbox": [5, 5, 50, 50] }] }))).await;
+    assert_eq!(st, StatusCode::OK);
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["parts"][0]["values"][0]["state"], "PROPOSED");
+    assert_eq!(decision(&o, id)["effective"], false, "{o}");
+}
+
+#[tokio::test]
+async fn l1r1_a_second_confirm_is_refused_and_undo_keeps_a_counting_confirm() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    read_val(&t, oid, "D", 216.3, "φ216.3").await;
+    let dec = format!("/api/orders/{oid}/decisions");
+    let body = json!({ "kind": "confirm", "part": "1", "key": "D" });
+    let (_, a) = t.call("POST", &dec, Some(body.clone())).await;
+    let (st, v) = t.call("POST", &dec, Some(body.clone())).await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::CONFLICT, Some("already_confirmed")),
+        "{v}"
+    );
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_decisions"), 1);
+    // change the value and back: the first decision counts again; confirm again, then undo the first
+    let vals = format!("/api/orders/{oid}/values");
+    read_val(&t, oid, "D", 219.1, "φ219.1").await;
+    assert_eq!(
+        decision(
+            &t.get(&format!("/api/orders/{oid}")).await,
+            a["id"].as_i64().unwrap()
+        )["effective"],
+        false
+    );
+    read_val(&t, oid, "D", 216.3, "φ216.3").await;
+    let _ = vals;
+    let (st, b2) = t.call("POST", &dec, Some(body)).await;
+    assert_eq!(st, StatusCode::OK, "{b2}");
+    let (st, _) = t
+        .call("POST", &format!("{dec}/{}/undo", a["id"]), None)
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(
+        o["parts"][0]["values"][0]["state"], "CONFIRMED",
+        "the second confirmation still counts: {o}"
+    );
+    assert_eq!(decision(&o, b2["id"].as_i64().unwrap())["effective"], true);
+}
+
+#[tokio::test]
+async fn l1r1_parts_and_values_are_capped_counting_excluded_rows() {
+    let t = boot();
+    let oid = new_order(&t).await;
+    let put = |nos: Vec<String>| {
+        let parts: Vec<Value> = nos
+            .iter()
+            .map(|n| json!({ "no": n, "shape": "cylinder" }))
+            .collect();
+        json!({ "parts": parts })
+    };
+    let path = format!("/api/orders/{oid}/parts");
+    let (st, v) = t
+        .call(
+            "PUT",
+            &path,
+            Some(put((0..500).map(|i| format!("a{i}")).collect())),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    // a list of one new part excludes the other 500; the rows stay, so the cap holds
+    let (st, v) = t.call("PUT", &path, Some(put(vec!["b0".into()]))).await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::CONFLICT, Some("parts_limit")),
+        "{v}"
+    );
+    assert_eq!(
+        t.count(&format!(
+            "SELECT COUNT(*) FROM order_parts WHERE order_id = {oid}"
+        )),
+        500
+    );
+    // values per part
+    let oid = order_with_parts(&t).await;
+    let vals = format!("/api/orders/{oid}/values");
+    for batch in 0..2 {
+        let list: Vec<Value> = (0..40).map(|i| json!({ "part": "1", "key": format!("k{batch}_{i}"), "value": 1, "source": "entered" })).collect();
+        let (st, v) = t.call("PUT", &vals, Some(json!({ "values": list }))).await;
+        if batch == 0 {
+            assert_eq!(st, StatusCode::OK, "{v}");
+        } else {
+            assert_eq!(
+                (st, v["code"].as_str()),
+                (StatusCode::CONFLICT, Some("values_limit")),
+                "{v}"
+            );
+        }
+    }
+    assert_eq!(t.count(&format!("SELECT COUNT(*) FROM order_values WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1')")), 40);
+}
+
+#[tokio::test]
+async fn l1r1_rename_to_an_unlisted_part_no_is_409_and_refusals_are_audited() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    let id1 = o["parts"][0]["id"].as_i64().unwrap();
+    // part 1 is renamed "2", while part "2" is left out of the list (to be excluded)
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/parts"),
+            Some(json!({ "parts": [{ "id": id1, "no": "2", "shape": "cylinder" }] })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::CONFLICT, Some("part_no_exists")),
+        "{v}"
+    );
+    // a file of a type that is no order file, and the file limit
+    let before = audit_details(&t, "order_file_rejected").len();
+    let (st, _) = add_file(&t, oid, b"MZ\x90\x00\x03\x00\x00\x00".to_vec(), "x.exe").await;
+    assert_ne!(st, StatusCode::OK);
+    t.sql(&format!("INSERT INTO order_pages(order_id, file_id, page_no, file_page, kind, read_state) SELECT {oid}, 1, 100 + value, 1, 'scan', 'none' FROM (WITH RECURSIVE c(value) AS (SELECT 1 UNION ALL SELECT value + 1 FROM c WHERE value < 300) SELECT value FROM c)"));
+    let (st, v) = add_file(&t, oid, png(10, 10), "d.png").await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::CONFLICT, Some("order_limit")),
+        "{v}"
+    );
+    let a = audit_details(&t, "order_file_rejected");
+    assert!(a.iter().any(|x| x.contains("order_limit")), "{a:?}");
+    assert!(a.len() > before);
+}
+
+#[tokio::test]
+async fn l1r1_numbers_keep_their_sign() {
+    for (text, v, want) in [
+        ("5", -5.0, false),
+        ("-5", -5.0, true),
+        ("－5", -5.0, true),
+        ("−5.5", -5.5, true),
+        ("-5", 5.0, false),
+        ("PL-9×200", 9.0, true),
+        ("100-200", 200.0, true),
+        ("φ216.3", 216.3, true),
+        ("L＝1,250", 1250.0, true),
+    ] {
+        assert_eq!(
+            crate::orders::text_contains_number(text, v),
+            want,
+            "{text} / {v}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn l1r1_a_read_only_licence_blocks_every_order_write() {
+    use axum::http::Method;
+    for (m, p) in [
+        (Method::PUT, "/api/orders/1/parts"),
+        (Method::PUT, "/api/orders/1/values"),
+        (Method::POST, "/api/orders/1/confirm"),
+        (Method::POST, "/api/orders/1/decisions"),
+        (Method::POST, "/api/orders/1/decisions/2/undo"),
+        (Method::POST, "/api/orders/1/pages/3/skip"),
+        (Method::POST, "/api/orders/1/pages/3/read"),
+        (Method::POST, "/api/orders/1/files"),
+        (Method::POST, "/api/projects/1/orders"),
+    ] {
+        assert!(crate::licence::gated(&m, p), "{m} {p}");
+    }
+    assert!(!crate::licence::gated(&Method::GET, "/api/orders/1"));
 }

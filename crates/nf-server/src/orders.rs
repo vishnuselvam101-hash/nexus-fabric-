@@ -28,6 +28,8 @@ const MAX_ORDER_PARTS: usize = 500;
 const MAX_VALUE_BATCH: usize = 500;
 const MAX_NAME_CHARS: usize = 200;
 const MAX_NOTE_CHARS: usize = 500;
+/// Distinct value keys one part may hold (the shapes use far fewer).
+const MAX_VALUES_PER_PART: i64 = 64;
 const MAX_RULES_BYTES: usize = 8 * 1024;
 
 const FILE_TYPES: [&str; 4] = ["pdf", "png", "jpeg", "tiff"];
@@ -37,7 +39,6 @@ const VALUE_SOURCES: [&str; 11] = [
 ];
 /// Sources that claim "this number is written on the page": their text must contain the number.
 const READ_SOURCES: [&str; 5] = ["read", "drawing", "table", "note", "count"];
-const DECISION_SOURCES: [&str; 3] = ["person", "auto", "rule"];
 /// Keys that must be larger than zero (lengths, diameters, thicknesses). Other keys (angles, offsets,
 /// counts) only have to be finite and within a sane range.
 const POSITIVE_KEYS: [&str; 26] = [
@@ -134,6 +135,8 @@ mod raster_seam {
         }
     }
 
+    /// NOTE for the raster lane: the header allows 100000 x 100000 pixels. `nf-raster` must cap width x height
+    /// (and the decoded size) itself before it decodes or renders; nothing here decodes the image.
     fn png_size(b: &[u8]) -> Option<(i64, i64)> {
         if b.len() < 24 || &b[12..16] != b"IHDR" {
             return None;
@@ -179,9 +182,31 @@ fn fmt_val(v: Option<f64>) -> String {
     v.map_or_else(|| "none".to_string(), |x| x.to_string())
 }
 
-/// Fingerprint of the value a decision is made against: the key, the number and the text it was read from.
-fn value_fp(key: &str, value: Option<f64>, text: &str) -> String {
-    nf_core::sha256_hex(json!([key, value, text]).to_string().as_bytes())
+/// Fingerprint of the value a decision is made against: the key, the number, the text it was read from, its
+/// box on the page and where it came from. A change to any of them drops the value out of "confirmed".
+fn value_fp(key: &str, value: Option<f64>, text: &str, bbox: Option<&str>, source: &str) -> String {
+    nf_core::sha256_hex(
+        json!([key, value, text, bbox, source])
+            .to_string()
+            .as_bytes(),
+    )
+}
+
+/// Who a request acts as comes from the session identity, never from the request body: a person's session
+/// records "person"; the AI operator's own service identity (user kind "agent") records "auto".
+fn actor_source(u: &User) -> &'static str {
+    if u.kind == "agent" { "auto" } else { "person" }
+}
+
+/// The AI operator has to say why for every confirmation it makes.
+fn agent_reason(u: &User, reason: &str) -> Result<(), ApiError> {
+    if u.kind == "agent" && reason.trim().is_empty() {
+        return Err(unprocessable(
+            "decision_reason",
+            "a decision made by automation must give its reason",
+        ));
+    }
+    Ok(())
 }
 
 struct OrderHead {
@@ -266,30 +291,54 @@ fn valid_key(s: &str) -> bool {
         && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
-/// Full-width digits and separators, as written in Japanese drawings, read as ASCII.
-fn ascii_digits(text: &str) -> String {
+/// Full-width digits and separators, as written in Japanese drawings, read as ASCII; every minus sign
+/// (hyphen, full-width, U+2212, dashes) read as '-'.
+fn ascii_digits(text: &str) -> Vec<char> {
     text.chars()
         .map(|c| match c {
             '０'..='９' => char::from_u32('0' as u32 + (c as u32 - '０' as u32)).unwrap_or(c),
             '．' => '.',
             '，' => ',',
+            '－' | '−' | '‐' | '‑' | '–' | '—' | '➖' => '-',
             c => c,
         })
         .collect()
 }
 
-/// True if some number written in `text` equals `value` (so a read value really is on the page).
-fn text_contains_number(text: &str, value: f64) -> bool {
+/// The numbers written in `text`, with their sign. A '-' is a sign only when it stands right before the digits
+/// and not right after a letter or digit ("PL-9" and "100-200" hold the unsigned 9, 100 and 200).
+fn numbers_in(text: &str) -> Vec<f64> {
     let t = ascii_digits(text);
-    let close = |a: f64| (a - value.abs()).abs() <= 1e-9 * value.abs().max(1.0);
-    t.split(|c: char| !(c.is_ascii_digit() || c == '.' || c == ','))
-        .filter(|tok| tok.chars().any(|c| c.is_ascii_digit()))
-        .any(|tok| {
-            let tok = tok.trim_matches(|c| c == '.' || c == ',');
-            [tok.replace(',', ""), tok.replace(',', ".")]
-                .iter()
-                .any(|s| s.parse::<f64>().is_ok_and(close))
-        })
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < t.len() {
+        let lead = t[i].is_ascii_digit()
+            || (t[i] == '.' && t.get(i + 1).is_some_and(char::is_ascii_digit));
+        if !lead {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < t.len() && (t[i].is_ascii_digit() || t[i] == '.' || t[i] == ',') {
+            i += 1;
+        }
+        let tok: String = t[start..i].iter().collect();
+        let tok = tok.trim_matches(|c| c == '.' || c == ',');
+        let neg =
+            start > 0 && t[start - 1] == '-' && (start < 2 || !t[start - 2].is_alphanumeric());
+        for s in [tok.replace(',', ""), tok.replace(',', ".")] {
+            if let Ok(f) = s.parse::<f64>() {
+                out.push(if neg { -f } else { f });
+            }
+        }
+    }
+    out
+}
+
+/// True if some number written in `text` equals `value`, sign included (so a read value really is on the page).
+pub(crate) fn text_contains_number(text: &str, value: f64) -> bool {
+    let close = |a: f64| (a - value).abs() <= 1e-9 * value.abs().max(1.0);
+    numbers_in(text).into_iter().any(close)
 }
 
 fn parse_bbox(v: Option<&Value>) -> Result<Option<String>, ApiError> {
@@ -347,12 +396,31 @@ fn recompute_part_state(db: &Connection, part: i64) -> rusqlite::Result<()> {
     Ok(())
 }
 
-/// Everything a "checked" mark is made against: the parts, their values and the skipped pages. Any change
-/// to one of them makes an earlier mark stale.
+/// Everything a "checked" mark is made against: the files, the pages (and which are skipped), the parts and
+/// every value with its text, box, source and state. Any change to one of them makes an earlier mark stale.
 fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
+    let files = q_all(
+        db,
+        "SELECT f.ord, d.sha256 FROM order_files f JOIN documents d ON d.id = f.document_id WHERE f.order_id = ? ORDER BY f.ord",
+        params![oid],
+        |r| Ok(json!([r.get::<_, i64>(0)?, r.get::<_, String>(1)?])),
+    )?;
+    let pages = q_all(
+        db,
+        "SELECT page_no, file_id, file_page, skipped FROM order_pages WHERE order_id = ? ORDER BY page_no",
+        params![oid],
+        |r| {
+            Ok(json!([
+                r.get::<_, i64>(0)?,
+                r.get::<_, i64>(1)?,
+                r.get::<_, i64>(2)?,
+                r.get::<_, bool>(3)?
+            ]))
+        },
+    )?;
     let parts = q_all(
         db,
-        "SELECT id, no, shape, qty, COALESCE(attach_part,''), COALESCE(group_key,'') FROM order_parts WHERE order_id = ? AND state <> 'EXCLUDED' ORDER BY no",
+        "SELECT id, no, name, shape, qty, COALESCE(attach_part,''), COALESCE(group_key,''), table_rows_json, (SELECT page_no FROM order_pages g WHERE g.id = page_id) FROM order_parts WHERE order_id = ? AND state <> 'EXCLUDED' ORDER BY no",
         params![oid],
         |r| {
             Ok((
@@ -360,9 +428,12 @@ fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
                 json!([
                     r.get::<_, String>(1)?,
                     r.get::<_, String>(2)?,
-                    r.get::<_, i64>(3)?,
-                    r.get::<_, String>(4)?,
-                    r.get::<_, String>(5)?
+                    r.get::<_, String>(3)?,
+                    r.get::<_, i64>(4)?,
+                    r.get::<_, String>(5)?,
+                    r.get::<_, String>(6)?,
+                    r.get::<_, String>(7)?,
+                    r.get::<_, Option<i64>>(8)?
                 ]),
             ))
         },
@@ -371,26 +442,25 @@ fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
     for (id, head) in parts {
         let vals = q_all(
             db,
-            "SELECT key, value, text FROM order_values WHERE part_id = ? ORDER BY key",
+            "SELECT key, value, text, bbox_json, source, state FROM order_values WHERE part_id = ? ORDER BY key",
             params![id],
             |r| {
-                Ok(value_fp(
-                    &r.get::<_, String>(0)?,
-                    r.get::<_, Option<f64>>(1)?,
-                    &r.get::<_, String>(2)?,
-                ))
+                Ok(json!([
+                    value_fp(
+                        &r.get::<_, String>(0)?,
+                        r.get::<_, Option<f64>>(1)?,
+                        &r.get::<_, String>(2)?,
+                        r.get::<_, Option<String>>(3)?.as_deref(),
+                        &r.get::<_, String>(4)?,
+                    ),
+                    r.get::<_, String>(5)?
+                ]))
             },
         )?;
         all.push(json!([head, vals]));
     }
-    let skipped = q_all(
-        db,
-        "SELECT page_no FROM order_pages WHERE order_id = ? AND skipped = 1 ORDER BY page_no",
-        params![oid],
-        |r| r.get::<_, i64>(0),
-    )?;
     Ok(nf_core::sha256_hex(
-        json!([all, skipped]).to_string().as_bytes(),
+        json!([files, pages, all]).to_string().as_bytes(),
     ))
 }
 
@@ -498,6 +568,13 @@ async fn upload_file(
         }
     };
     if !FILE_TYPES.contains(&detected) {
+        app.audit(
+            &tx,
+            &u.username,
+            "order_file_rejected",
+            &format!("order #{oid} '{filename}': type {detected} is not an order file"),
+        )?;
+        tx.commit()?;
         return Err(unprocessable(
             "order_file_type",
             &format!(
@@ -512,6 +589,16 @@ async fn upload_file(
         |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
     if files >= MAX_ORDER_FILES || pages + seeds.len() as i64 > MAX_ORDER_PAGES {
+        app.audit(
+            &tx,
+            &u.username,
+            "order_file_rejected",
+            &format!(
+                "order #{oid} '{filename}': order_limit ({files} files, {pages} pages, +{} page(s))",
+                seeds.len()
+            ),
+        )?;
+        tx.commit()?;
         return Err(refuse(
             StatusCode::CONFLICT,
             "order_limit",
@@ -870,7 +957,32 @@ async fn put_parts(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, ra
     )?
     .into_iter()
     .collect();
+    // every row counts, excluded ones too: they are kept, so they must not pile up without end
+    let new_rows = parts.iter().filter(|p| p.id.is_none()).count();
+    if existing.len() + new_rows > MAX_ORDER_PARTS {
+        return Err(refuse(
+            StatusCode::CONFLICT,
+            "parts_limit",
+            &format!(
+                "an order holds at most {MAX_ORDER_PARTS} parts (excluded ones count); it has {} and this adds {new_rows}",
+                existing.len()
+            ),
+        ));
+    }
+    let listed_ids: BTreeSet<i64> = parts.iter().filter_map(|p| p.id).collect();
     for p in &parts {
+        // a number held by a part that is not in this list (it is only excluded, never deleted) stays taken
+        if let Some((other, _)) = existing
+            .iter()
+            .find(|(id, no)| **no == p.no && !listed_ids.contains(id))
+            && p.id != Some(*other)
+        {
+            return Err(refuse(
+                StatusCode::CONFLICT,
+                "part_no_exists",
+                &format!("part no '{}' belongs to another part of this order", p.no),
+            ));
+        }
         match p.id {
             Some(id) if !existing.contains_key(&id) => {
                 return Err(unprocessable(
@@ -1183,6 +1295,9 @@ async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, r
         ));
     }
     let values: Vec<ValueIn> = list.iter().map(parse_value).collect::<Result<_, _>>()?;
+    for v in values.iter().filter(|v| v.confirm) {
+        agent_reason(&u, &v.note)?;
+    }
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     guard_order(&app, &tx, &u, oid, "edit values")?;
@@ -1243,6 +1358,21 @@ async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, r
                 (*id, format!("{} [{src} {state}]", fmt_val(*val)))
             }
             None => {
+                let held: i64 = tx.query_row(
+                    "SELECT COUNT(*) FROM order_values WHERE part_id = ?",
+                    params![pid],
+                    |r| r.get(0),
+                )?;
+                if held >= MAX_VALUES_PER_PART {
+                    return Err(refuse(
+                        StatusCode::CONFLICT,
+                        "values_limit",
+                        &format!(
+                            "part '{pno}' holds at most {MAX_VALUES_PER_PART} values; '{}' would be one more",
+                            v.key
+                        ),
+                    ));
+                }
                 tx.execute(
                     "INSERT INTO order_values(part_id, key, value, text, bbox_json, source, state, was, proposed_value, proposed_by, edited_by, edited_at) VALUES (?,?,?,?,?,?,?,NULL,?,?,?,?)",
                     params![pid, v.key, v.value, v.text, v.bbox, v.source, new_state, v.value, u.username, u.username, now() as i64],
@@ -1273,10 +1403,10 @@ async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, r
                     value: Some(vid),
                     kind: "confirm",
                     flag: None,
-                    source: "person",
-                    agent: None,
+                    source: actor_source(&u),
+                    agent: (u.kind == "agent").then_some(u.username.as_str()),
                     reason: &v.note,
-                    against: value_fp(&v.key, v.value, &v.text),
+                    against: value_fp(&v.key, v.value, &v.text, v.bbox.as_deref(), &v.source),
                     prev_state: old.as_ref().map(|o| o.5.as_str()),
                     who: &u.username,
                 },
@@ -1286,9 +1416,10 @@ async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, r
                 &u.username,
                 "order_decision",
                 &format!(
-                    "order #{oid} decision #{did} confirm part '{pno}' {} = {} by person",
+                    "order #{oid} decision #{did} confirm part '{pno}' {} = {} by {}",
                     v.key,
-                    fmt_val(v.value)
+                    fmt_val(v.value),
+                    actor_source(&u)
                 ),
             )?;
         }
@@ -1327,6 +1458,7 @@ async fn confirm(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw:
         ));
     }
     let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
+    agent_reason(&u, &note)?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     guard_order(&app, &tx, &u, oid, "confirm values")?;
@@ -1352,7 +1484,7 @@ async fn confirm(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw:
     for (pid, pno) in &parts {
         let rows = q_all(
             &tx,
-            "SELECT id, key, value, text, state FROM order_values WHERE part_id = ? ORDER BY key",
+            "SELECT id, key, value, text, state, bbox_json, source FROM order_values WHERE part_id = ? ORDER BY key",
             params![pid],
             |r| {
                 Ok((
@@ -1361,10 +1493,12 @@ async fn confirm(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw:
                     r.get::<_, Option<f64>>(2)?,
                     r.get::<_, String>(3)?,
                     r.get::<_, String>(4)?,
+                    r.get::<_, Option<String>>(5)?,
+                    r.get::<_, String>(6)?,
                 ))
             },
         )?;
-        for (vid, key, val, text, state) in rows {
+        for (vid, key, val, text, state, bbox, src) in rows {
             if val.is_none() {
                 missing += 1;
                 continue;
@@ -1384,10 +1518,10 @@ async fn confirm(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw:
                     value: Some(vid),
                     kind: "confirm",
                     flag: None,
-                    source: "person",
-                    agent: None,
+                    source: actor_source(&u),
+                    agent: (u.kind == "agent").then_some(u.username.as_str()),
                     reason: &note,
-                    against: value_fp(&key, val, &text),
+                    against: value_fp(&key, val, &text, bbox.as_deref(), &src),
                     prev_state: Some(&state),
                     who: &u.username,
                 },
@@ -1397,8 +1531,9 @@ async fn confirm(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw:
                 &u.username,
                 "order_decision",
                 &format!(
-                    "order #{oid} decision #{did} confirm part '{pno}' {key} = {} (was {state}) by person",
-                    fmt_val(val)
+                    "order #{oid} decision #{did} confirm part '{pno}' {key} = {} (was {state}) by {}",
+                    fmt_val(val),
+                    actor_source(&u)
                 ),
             )?;
             decisions.push(did);
@@ -1425,27 +1560,28 @@ async fn post_decision(
             "'kind' must be confirm, accept_flag or mark_checked",
         ));
     }
-    let source = text_field(&body, "source", 8)?.unwrap_or_else(|| "person".to_string());
-    if !DECISION_SOURCES.contains(&source.as_str()) {
+    // the source follows from who is signed in; a body that names a different one is refused
+    let source = actor_source(&u);
+    if let Some(claimed) = text_field(&body, "source", 8)?
+        && claimed != source
+    {
         return Err(unprocessable(
             "decision_source",
-            "'source' must be person, auto or rule",
+            &format!(
+                "the source of a decision follows the signed-in identity ({source}); it cannot be set in the request"
+            ),
         ));
     }
     let reason = text_field(&body, "reason", MAX_NOTE_CHARS)?.unwrap_or_default();
-    if source != "person" && reason.trim().is_empty() {
-        return Err(unprocessable(
-            "decision_reason",
-            "a decision made by automation must give its reason",
-        ));
-    }
-    if kind == "mark_checked" && source != "person" {
-        return Err(unprocessable(
-            "decision_source",
+    if kind == "mark_checked" && u.kind == "agent" {
+        return Err(refuse(
+            StatusCode::FORBIDDEN,
+            "agent_cannot_check",
             "only a person can mark an order as checked",
         ));
     }
-    let agent = text_field(&body, "agent", 64)?.filter(|s| !s.is_empty());
+    agent_reason(&u, &reason)?;
+    let agent = (u.kind == "agent").then_some(u.username.clone());
     let flag = text_field(&body, "flag", 64)?.filter(|s| !s.is_empty());
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -1456,7 +1592,7 @@ async fn post_decision(
         value: None,
         kind: &kind,
         flag: None,
-        source: &source,
+        source,
         agent: agent.as_deref(),
         reason: &reason,
         against: String::new(),
@@ -1479,11 +1615,27 @@ async fn post_decision(
                 &format!("part '{pno}' is excluded"),
             ));
         }
-        let (vid, val, text, state): (i64, Option<f64>, String, String) = tx
+        let (vid, val, text, state, bbox, src): (
+            i64,
+            Option<f64>,
+            String,
+            String,
+            Option<String>,
+            String,
+        ) = tx
             .query_row(
-                "SELECT id, value, text, state FROM order_values WHERE part_id = ? AND key = ?",
+                "SELECT id, value, text, state, bbox_json, source FROM order_values WHERE part_id = ? AND key = ?",
                 params![pid, key],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+                |r| {
+                    Ok((
+                        r.get(0)?,
+                        r.get(1)?,
+                        r.get(2)?,
+                        r.get(3)?,
+                        r.get(4)?,
+                        r.get(5)?,
+                    ))
+                },
             )
             .optional()?
             .ok_or_else(|| {
@@ -1500,7 +1652,14 @@ async fn post_decision(
         }
         d.part = Some(pid);
         d.value = Some(vid);
-        d.against = value_fp(&key, val, &text);
+        d.against = value_fp(&key, val, &text, bbox.as_deref(), &src);
+        if kind == "confirm" && state == "CONFIRMED" {
+            return Err(refuse(
+                StatusCode::CONFLICT,
+                "already_confirmed",
+                &format!("part '{pno}' {key} is confirmed already; undo that decision first"),
+            ));
+        }
         if kind == "accept_flag" {
             if !flag.as_deref().is_some_and(valid_key) {
                 return Err(unprocessable(
@@ -1604,17 +1763,34 @@ async fn undo_decision(
     if kind == "confirm"
         && let (Some(vid), Some(pid), Some(prev)) = (value, part, prev)
     {
-        let cur: Option<(String, Option<f64>, String, String)> = tx
+        type Cur = (String, Option<f64>, String, String, Option<String>, String);
+        let cur: Option<Cur> = tx
             .query_row(
-                "SELECT key, value, text, state FROM order_values WHERE id = ?",
+                "SELECT key, value, text, state, bbox_json, source FROM order_values WHERE id = ?",
                 params![vid],
-                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+                |r| {
+                    Ok((
+                        r.get(0)?,
+                        r.get(1)?,
+                        r.get(2)?,
+                        r.get(3)?,
+                        r.get(4)?,
+                        r.get(5)?,
+                    ))
+                },
             )
             .optional()?;
+        // another confirmation of this very value that still counts keeps it confirmed
+        let others = q_count(
+            &tx,
+            "SELECT COUNT(*) FROM order_decisions WHERE value_id = ? AND kind = 'confirm' AND undone_at IS NULL AND against_hash = ? AND id <> ?",
+            params![vid, against, did],
+        )?;
         // the value goes back to its earlier state only while it is still the value that was confirmed
-        if let Some((key, val, text, state)) = cur
+        if let Some((key, val, text, state, bbox, src)) = cur
             && state == "CONFIRMED"
-            && value_fp(&key, val, &text) == against
+            && others == 0
+            && value_fp(&key, val, &text, bbox.as_deref(), &src) == against
         {
             tx.execute(
                 "UPDATE order_values SET state = ?, edited_by = ?, edited_at = ? WHERE id = ?",
@@ -1644,7 +1820,7 @@ fn decision_view(db: &Connection, oid: i64, only: Option<i64>) -> Result<Vec<Val
     let order_fp = order_fingerprint(db, oid)?;
     let rows = q_all(
         db,
-        "SELECT d.id, d.part_id, p.no, d.value_id, v.key, v.value, v.text, d.kind, d.flag, d.source, d.agent, d.reason, d.against_hash, d.decided_by, d.decided_at, d.undone_by, d.undone_at, d.undo_note
+        "SELECT d.id, d.part_id, p.no, d.value_id, v.key, v.value, v.text, d.kind, d.flag, d.source, d.agent, d.reason, d.against_hash, d.decided_by, d.decided_at, d.undone_by, d.undone_at, d.undo_note, v.bbox_json, v.source
          FROM order_decisions d LEFT JOIN order_parts p ON p.id = d.part_id LEFT JOIN order_values v ON v.id = d.value_id
          WHERE d.order_id = ?1 AND (?2 IS NULL OR d.id = ?2) ORDER BY d.id",
         params![oid, only],
@@ -1652,8 +1828,10 @@ fn decision_view(db: &Connection, oid: i64, only: Option<i64>) -> Result<Vec<Val
             let key: Option<String> = r.get(4)?;
             let (value, text): (Option<f64>, Option<String>) = (r.get(5)?, r.get(6)?);
             let against: String = r.get(12)?;
-            let current = match (&key, &text) {
-                (Some(k), Some(t)) => value_fp(k, value, t),
+            let bbox: Option<String> = r.get(18)?;
+            let src: Option<String> = r.get(19)?;
+            let current = match (&key, &text, &src) {
+                (Some(k), Some(t), Some(sr)) => value_fp(k, value, t, bbox.as_deref(), sr),
                 _ => order_fp.clone(),
             };
             let undone = r.get::<_, Option<i64>>(16)?.is_some();
@@ -1750,7 +1928,7 @@ async fn get_order(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) ->
     let checked = decisions
         .iter()
         .rev()
-        .find(|d| d["kind"] == "mark_checked" && d["undone"] == false)
+        .find(|d| d["kind"] == "mark_checked" && d["effective"] == true)
         .cloned();
     ok(json!({
         "order": { "id": oid, "project_id": head.project, "name": head.name, "state": head.state,

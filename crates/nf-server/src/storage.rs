@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS order_decisions(id INTEGER PRIMARY KEY, order_id INTE
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 11] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 12] = [
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
@@ -60,6 +60,8 @@ const ADDED_COLUMNS: [(&str, &str, &str); 11] = [
     ("calculations", "result_bytes", "INTEGER"),
     // Task 3.1: the PDF conversion a document was produced by (NULL for an upload).
     ("documents", "conversion_id", "INTEGER"),
+    // NFJ-1: "person" or "agent" (the AI operator's service identity); decides the source of an order decision.
+    ("users", "kind", "TEXT NOT NULL DEFAULT 'person'"),
 ];
 
 /// Append-only at the database level (RC-20). Created at every start, so an older database gets them too.

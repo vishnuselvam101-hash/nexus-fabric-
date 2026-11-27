@@ -307,11 +307,22 @@ fn refresh(app: &App, mode: Mode<'_>) {
 /// (obligations, advisories), project creation, the audit endpoints and
 /// /api/licence itself are exempt.
 pub(crate) fn gated(method: &Method, path: &str) -> bool {
+    let seg: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    // every write to an order: parts and values are PUT, the rest POST
+    if *method == Method::PUT {
+        return matches!(seg.as_slice(), ["api", "orders", id, "parts" | "values"] if id.parse::<i64>().is_ok());
+    }
     if *method != Method::POST {
         return false;
     }
-    let seg: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
     match seg.as_slice() {
+        ["api", "orders", id, "confirm" | "decisions"] => id.parse::<i64>().is_ok(),
+        ["api", "orders", id, "decisions", did, "undo"] => {
+            id.parse::<i64>().is_ok() && did.parse::<i64>().is_ok()
+        }
+        ["api", "orders", id, "pages", n, "skip" | "read"] => {
+            id.parse::<i64>().is_ok() && n.parse::<i64>().is_ok()
+        }
         [
             "api",
             "projects",
