@@ -7,10 +7,13 @@
 #  4. runs the dynamic checks, each recorded as passed / failed / not run, with its real output kept in a log:
 #     Linux natively (unpack, --version, desktop mode in a browser, offline first launch in a loopback-only
 #     network namespace); Windows under wine only (silent install, shortcuts, registry, --version, desktop mode
-#     over HTTP, graceful stop, portable zip, upgrade if --previous is given, silent uninstall);
+#     over HTTP, graceful stop, portable zip, upgrade if --previous is given, silent uninstall); and the
+#     win.sign.* checks (osslsigncode verify of the signed programs; "not run" when the build is unsigned);
 #  5. writes docs/release/manifest-<short commit>.json and MANIFEST-<short commit>.md, and copies the artefacts,
 #     logs and manifests to --out.
 # Usage: packaging/verify_release.sh [--previous <older setup.exe>] [--out <dir>]
+#   Signing: the build is signed only if the signing environment is set (packaging/windows/sign.sh). For a test
+#   certificate, NF_SIGN_CAFILE=<its .crt> is the trust anchor for the win.sign.* checks.
 #   --previous  older Windows installer for the upgrade check; without it the upgrade check is "not run"
 #   --out       output folder (default dist/verify-<short commit>; dist/ is git-ignored)
 # Cargo runs offline (CARGO_NET_OFFLINE): nothing is downloaded. Reproducibility: the packages are built a second time.
@@ -99,6 +102,16 @@ PW_PATH=$(node -p "require('path').resolve(require.resolve('playwright/package.j
 PW_VER=$(node -p "require(require('path').resolve(require.resolve('playwright/package.json'),'..','package.json')).version" 2>/dev/null || true)
 fact playwright "${PW_VER:-not found} (module dir: ${PW_PATH:-not found})"
 fact target_triples "x86_64-unknown-linux-gnu (host) and x86_64-pc-windows-gnu (cross-build)"
+if "$ROOT/packaging/windows/sign.sh" --requested; then
+  if [ -n "${NF_SIGN_PFX:-}" ]; then fact signing_key "PKCS#12 file (NF_SIGN_PFX): test certificates only, not a release certificate"
+  else fact signing_key "PKCS#11 token or cloud HSM (NF_SIGN_PKCS11_MODULE)"; fi
+  if [ -n "${NF_SIGN_TS:-}" ]; then fact signing_timestamp "RFC 3161 timestamp from NF_SIGN_TS"
+  else fact signing_timestamp "none (NF_SIGN_TS not set)"; fi
+  fact signing "signed build (Windows programs and installer; osslsigncode, SHA-256)"
+else
+  fact signing "unsigned build"
+  fact signing_timestamp "not applicable (unsigned)"
+fi
 
 # 2. Build from a copy of the commit.
 SRC="$WORK/src"
@@ -216,6 +229,9 @@ if [ "$DO_DYNAMIC" = 1 ]; then
   vrow "engine identifier (Linux binary)" "${LINUX_ENGINE:-none}" "native Linux" "$( [ -n "$LINUX_ENGINE" ] && echo yes || echo no)" ""
   vrow "engine identifier (Windows exe under wine)" "${WIN_ENGINE:-none}" "emulated (wine $WINE_VER; not Windows)" "$( [ -n "$WIN_ENGINE" ] && [ "$WIN_ENGINE" = "$LINUX_ENGINE" ] && echo yes || echo no)" ""
 fi
+
+# 4c. Signatures (static; not run when the build is unsigned).
+run_sign_checks "$OUT" "$WORK" "$VERSION" "$DO_DYNAMIC"
 
 # 5. Manifests.
 python3 "$ROOT/packaging/verify/make_manifest.py" --out "$OUT" --docs "$ROOT/docs/release" --short "$SHORT" >"$LOGS/manifest.log" 2>&1

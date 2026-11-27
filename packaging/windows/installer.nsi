@@ -21,6 +21,12 @@ ShowUninstDetails show
   !error "OUTFILE is not defined: pass -DOUTFILE=<file>"
 !endif
 
+; Signed builds only (packaging/windows/build.sh passes NF_SIGN_UNINST = packaging/windows/sign.sh):
+; the uninstaller is signed before it is embedded in the installer.
+!ifdef NF_SIGN_UNINST
+  !uninstfinalize '"${NF_SIGN_UNINST}" "%1"'
+!endif
+
 !define APPNAME "NEXUS FABRIC"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\NexusFabric"
 !define APP_KEY "Software\NexusFabric"

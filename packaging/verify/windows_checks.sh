@@ -222,6 +222,8 @@ run_windows_checks() {
   for i in nexus-fabric.exe README.txt NOTICE.txt THIRD_PARTY_NOTICES.txt uninstall.exe; do [ -f "$INST/$i" ] || missing="$missing $i"; done
   if [ -z "$missing" ]; then
     rec win.install.files "Installed files present in the per-user folder" "$HOW" passed "" "$(ls "$INST" | tr '\n' ' ')" win-install.log
+    # Copy for the signature check (the uninstaller is removed by the silent uninstall below).
+    cp "$INST/uninstall.exe" "$WORK/uninstall-installed.exe" 2>/dev/null || true
   else
     rec win.install.files "Installed files present in the per-user folder" "$HOW" failed "missing:$missing" "$(ls "$INST" 2>/dev/null | tr '\n' ' ')" win-install.log
   fi
@@ -366,5 +368,67 @@ run_windows_checks() {
   fi
   rec win.upgrade.engine "Engine identifier before and after the upgrade (recorded)" "$HOW" passed "" \
     "previous: $(printf '%s' "$PREV_LINE" | grep -oE 'nf-engine [^ )]+') ; new: $(printf '%s' "$NEW_LINE" | grep -oE 'nf-engine [^ )]+')" ""
+  return 0
+}
+
+# sign_check ID TITLE FILE: Authenticode check of one signed program with osslsigncode verify (static: no wine).
+# Passed only if osslsigncode reports a verified signature and exits 0. With NF_SIGN_CAFILE set, that file is the
+# trust anchor (-CAfile); a test certificate needs it, and the report says which anchor was used.
+sign_check() {
+  local ID=$1 TITLE=$2 FILE=$3 LOG CA_ARGS=() RC OUTTXT SUBJ HOW
+  LOG="$OUT/logs/sign-$ID.log"
+  HOW="static (osslsigncode $(osslsigncode --version 2>&1 | head -1 | sed 's/,.*//'))"
+  if [ -n "${NF_SIGN_CAFILE:-}" ]; then CA_ARGS=(-CAfile "$NF_SIGN_CAFILE"); fi
+  if [ ! -f "$FILE" ]; then
+    rec "win.sign.$ID" "$TITLE" "$HOW" failed "file not found" "" ""
+    return 0
+  fi
+  osslsigncode verify ${CA_ARGS[@]+"${CA_ARGS[@]}"} -in "$FILE" >"$LOG" 2>&1
+  RC=$?
+  OUTTXT=$(tr -d '\r' <"$LOG")
+  SUBJ=$(printf '%s\n' "$OUTTXT" | sed -n 's/^[[:space:]]*Subject: //p' | head -1)
+  if [ "$RC" = 0 ] && printf '%s\n' "$OUTTXT" | grep -q 'Signature verification: ok' &&
+    printf '%s\n' "$OUTTXT" | grep -q 'Number of verified signatures: 1'; then
+    rec "win.sign.$ID" "$TITLE" "$HOW" passed "" "signer: ${SUBJ:-unknown}; trust anchor: ${NF_SIGN_CAFILE:+given (NF_SIGN_CAFILE)}${NF_SIGN_CAFILE:-none, system default}" "$(basename "$LOG")"
+  else
+    rec "win.sign.$ID" "$TITLE" "$HOW" failed "osslsigncode verify exit $RC" "$(printf '%s\n' "$OUTTXT" | grep -E 'verification|Failed|error' | tail -1)" "$(basename "$LOG")"
+  fi
+  [ -n "$SUBJ" ] && [ -z "${SIGN_SUBJECT:-}" ] && SIGN_SUBJECT=$SUBJ
+  return 0
+}
+
+# run_sign_checks OUT WORK VERSION DO_DYNAMIC: win.sign.* checks on the four signed programs. Without a signing
+# environment every check is "not run" (the build is unsigned). The installed uninstaller comes from the silent install
+# in run_windows_checks; if that did not run, its check is "not run" with the reason.
+run_sign_checks() {
+  local OUT=$1 WORK=$2 VER=$3 DYN=$4 ZDIR ID TITLE
+  SIGN_SUBJECT=""
+  local LOGS="$OUT/logs"
+  local HOW="static (osslsigncode)"
+  if ! "$ROOT/packaging/windows/sign.sh" --requested; then
+    for ID in setup exe converter uninstaller; do
+      rec "win.sign.$ID" "Authenticode signature check ($ID)" "$HOW" "not run" "unsigned build: no signing environment" "" ""
+    done
+    return 0
+  fi
+  if [ "$DYN" != 1 ]; then
+    for ID in setup exe converter uninstaller; do
+      rec "win.sign.$ID" "Authenticode signature check ($ID)" "$HOW" "not run" "build failed: nothing to check" "" build.log
+    done
+    return 0
+  fi
+  sign_check setup "Installer signature verifies (osslsigncode verify, setup.exe)" "$OUT/nexus-fabric-$VER-windows-x64-setup.exe"
+  ZDIR="$WORK/signed-zip"
+  mkdir -p "$ZDIR"
+  python3 -m zipfile -e "$OUT/nexus-fabric-$VER-windows-x64-portable.zip" "$ZDIR" >/dev/null 2>&1
+  sign_check exe "Program signature verifies (nexus-fabric.exe, portable zip copy)" "$ZDIR/nexus-fabric-$VER/nexus-fabric.exe"
+  sign_check converter "Converter signature verifies (nf-pdf2dxf.exe, portable zip copy)" "$ZDIR/nexus-fabric-$VER/nf-pdf2dxf.exe"
+  if [ -f "$WORK/uninstall-installed.exe" ]; then
+    sign_check uninstaller "Uninstaller signature verifies (uninstall.exe, copy from the silent install)" "$WORK/uninstall-installed.exe"
+  else
+    rec "win.sign.uninstaller" "Uninstaller signature verifies (uninstall.exe, copy from the silent install)" "$HOW" "not run" \
+      "no silent install under wine: the installed uninstaller was not available" "" ""
+  fi
+  fact signer_subject "${SIGN_SUBJECT:-not read}"
   return 0
 }
