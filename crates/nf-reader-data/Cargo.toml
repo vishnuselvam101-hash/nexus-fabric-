@@ -1,0 +1,21 @@
+[package]
+name = "nf-reader-data"
+version = "0.1.0"
+edition = "2024"
+license = "LicenseRef-Proprietary"
+publish = false
+description = "Synthetic engineering-drawing generator with exact ground truth (training data for the NF Reader). Not linked into nf-server."
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "nf-reader-data"
+path = "src/main.rs"
+
+[dependencies]
+nf-core = { version = "0.1.0", path = "../nf-core" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
+sha2 = "0.11.1"
+hex = "0.4.3"
