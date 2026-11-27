@@ -1,0 +1,98 @@
+{
+ "zk_commit": "f718c34011458e187fb625ac85482fb2e77c0eed",
+ "section": "手で描いた T字管の図面 2（test/G2_tee.png）を Claude が読んだ結果。枝の長さは本管の外面から 392、片寄せ 150、補強板は幅 150、注記は「差し込む」",
+ "section_source": "design-demos/assets/kirizu/test_build.mjs:62",
+ "cases": [
+  {
+   "name": "T字管2 本管の中心から枝の管端まで（392＋508）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:64",
+   "origin": {
+    "section_comment": "手で描いた T字管の図面 2（test/G2_tee.png）を Claude が読んだ結果。枝の長さは本管の外面から 392、片寄せ 150、補強板は幅 150、注記は「差し込む」",
+    "nearest_comment": "手で描いた T字管の図面 2（test/G2_tee.png）を Claude が読んだ結果。枝の長さは本管の外面から 392、片寄せ 150、補強板は幅 150、注記は「差し込む」"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [
+    "G2_tee_claude.json"
+   ],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 900,
+   "tol": 0,
+   "zk_got": 900,
+   "want_expr": "900",
+   "id": "s04-0001"
+  },
+  {
+   "name": "T字管2 補強板の幅",
+   "source": "design-demos/assets/kirizu/test_build.mjs:65",
+   "origin": {
+    "section_comment": "手で描いた T字管の図面 2（test/G2_tee.png）を Claude が読んだ結果。枝の長さは本管の外面から 392、片寄せ 150、補強板は幅 150、注記は「差し込む」",
+    "nearest_comment": "手で描いた T字管の図面 2（test/G2_tee.png）を Claude が読んだ結果。枝の長さは本管の外面から 392、片寄せ 150、補強板は幅 150、注記は「差し込む」"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 150,
+   "tol": 0,
+   "zk_got": 150,
+   "want_expr": "150",
+   "id": "s04-0002"
+  },
+  {
+   "name": "T字管2 注記の「差し込む」と工場の決まりが違うと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:66",
+   "origin": {
+    "section_comment": "手で描いた T字管の図面 2（test/G2_tee.png）を Claude が読んだ結果。枝の長さは本管の外面から 392、片寄せ 150、補強板は幅 150、注記は「差し込む」",
+    "nearest_comment": "手で描いた T字管の図面 2（test/G2_tee.png）を Claude が読んだ結果。枝の長さは本管の外面から 392、片寄せ 150、補強板は幅 150、注記は「差し込む」"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "注記と違う"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"注記と違う\"",
+   "id": "s04-0003"
+  },
+  {
+   "name": "T字管2 確認が要るものは注記の1件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:66",
+   "origin": {
+    "section_comment": "手で描いた T字管の図面 2（test/G2_tee.png）を Claude が読んだ結果。枝の長さは本管の外面から 392、片寄せ 150、補強板は幅 150、注記は「差し込む」",
+    "nearest_comment": "手で描いた T字管の図面 2（test/G2_tee.png）を Claude が読んだ結果。枝の長さは本管の外面から 392、片寄せ 150、補強板は幅 150、注記は「差し込む」"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 1,
+   "level": null,
+   "zk_got": 1,
+   "want_expr": "1",
+   "id": "s04-0004"
+  },
+  {
+   "name": "T字管2 差し込むにすると確認は0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:68",
+   "origin": {
+    "section_comment": "手で描いた T字管の図面 2（test/G2_tee.png）を Claude が読んだ結果。枝の長さは本管の外面から 392、片寄せ 150、補強板は幅 150、注記は「差し込む」",
+    "nearest_comment": "手で描いた T字管の図面 2（test/G2_tee.png）を Claude が読んだ結果。枝の長さは本管の外面から 392、片寄せ 150、補強板は幅 150、注記は「差し込む」"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [
+    "G2_tee_claude.json"
+   ],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s04-0005"
+  }
+ ]
+}

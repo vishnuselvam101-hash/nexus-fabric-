@@ -1,0 +1,99 @@
+{
+ "zk_commit": "f718c34011458e187fb625ac85482fb2e77c0eed",
+ "section": "手で描いた T字管の図面（test/G_tee.png）を Claude が読んだ結果。注記「枝管は本管に載せて溶接する」",
+ "section_source": "design-demos/assets/kirizu/test_build.mjs:54",
+ "cases": [
+  {
+   "name": "T字管（Claude が読んだ）枝 わき",
+   "source": "design-demos/assets/kirizu/test_build.mjs:56",
+   "origin": {
+    "section_comment": "手で描いた T字管の図面（test/G_tee.png）を Claude が読んだ結果。注記「枝管は本管に載せて溶接する」",
+    "nearest_comment": "手で描いた T字管の図面（test/G_tee.png）を Claude が読んだ結果。注記「枝管は本管に載せて溶接する」"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [
+    "G_tee_claude.json"
+   ],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 487.15,
+   "tol": 0.01,
+   "zk_got": 487.14651509282373,
+   "want_expr": "487.15",
+   "id": "s03-0001"
+  },
+  {
+   "name": "T字管（Claude が読んだ）穴の中心（管端から）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:56",
+   "origin": {
+    "section_comment": "手で描いた T字管の図面（test/G_tee.png）を Claude が読んだ結果。注記「枝管は本管に載せて溶接する」",
+    "nearest_comment": "手で描いた T字管の図面（test/G_tee.png）を Claude が読んだ結果。注記「枝管は本管に載せて溶接する」"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 750,
+   "tol": 0.1,
+   "zk_got": 750,
+   "want_expr": "750",
+   "id": "s03-0002"
+  },
+  {
+   "name": "T字管（Claude が読んだ）確認が要るものは0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:57",
+   "origin": {
+    "section_comment": "手で描いた T字管の図面（test/G_tee.png）を Claude が読んだ結果。注記「枝管は本管に載せて溶接する」",
+    "nearest_comment": "手で描いた T字管の図面（test/G_tee.png）を Claude が読んだ結果。注記「枝管は本管に載せて溶接する」"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s03-0003"
+  },
+  {
+   "name": "T字管 差し込むにすると注記と違うと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:58",
+   "origin": {
+    "section_comment": "手で描いた T字管の図面（test/G_tee.png）を Claude が読んだ結果。注記「枝管は本管に載せて溶接する」",
+    "nearest_comment": "手で描いた T字管の図面（test/G_tee.png）を Claude が読んだ結果。注記「枝管は本管に載せて溶接する」"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [
+    "G_tee_claude.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "注記と違う"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"注記と違う\"",
+   "id": "s03-0004"
+  },
+  {
+   "name": "枝の出てこない注記では付け方を照らさない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:60",
+   "origin": {
+    "section_comment": "手で描いた T字管の図面（test/G_tee.png）を Claude が読んだ結果。注記「枝管は本管に載せて溶接する」",
+    "nearest_comment": "手で描いた T字管の図面（test/G_tee.png）を Claude が読んだ結果。注記「枝管は本管に載せて溶接する」"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [
+    "G_tee_claude.json"
+   ],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s03-0005"
+  }
+ ]
+}

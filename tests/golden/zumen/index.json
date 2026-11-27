@@ -1,0 +1,128 @@
+{
+ "zk_commit": "f718c34011458e187fb625ac85482fb2e77c0eed",
+ "zk_run": {
+  "ok": 1894,
+  "ng": 0,
+  "total": 1894
+ },
+ "extracted": 1860,
+ "excluded": 34,
+ "by_kind": {
+  "num": 1383,
+  "check_text": 148,
+  "count": 29,
+  "bool": 214,
+  "refusal_kind": 86
+ },
+ "basis_names_a_verify_script": 1816,
+ "sections": [
+  {
+   "file": "s01_L25.json",
+   "section": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+   "source_line": 25,
+   "cases": 27
+  },
+  {
+   "file": "s02_L45.json",
+   "section": "板厚をほぼ0にすると、枝の切り口の長さと本管の穴の周の長さが同じになる（片寄せあり）",
+   "source_line": 45,
+   "cases": 2
+  },
+  {
+   "file": "s03_L54.json",
+   "section": "手で描いた T字管の図面（test/G_tee.png）を Claude が読んだ結果。注記「枝管は本管に載せて溶接する」",
+   "source_line": 54,
+   "cases": 5
+  },
+  {
+   "file": "s04_L62.json",
+   "section": "手で描いた T字管の図面 2（test/G2_tee.png）を Claude が読んだ結果。枝の長さは本管の外面から 392、片寄せ 150、補強板は幅 150、注記は「差し込む」",
+   "source_line": 62,
+   "cases": 5
+  },
+  {
+   "file": "s05_L70.json",
+   "section": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない",
+   "source_line": 70,
+   "cases": 7
+  },
+  {
+   "file": "s06_L88.json",
+   "section": "円板（輪で内径0。フランジ蓋など）: 穴を作らず、重さは円の面積",
+   "source_line": 88,
+   "cases": 2
+  },
+  {
+   "file": "s07_L95.json",
+   "section": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+   "source_line": 95,
+   "cases": 14
+  },
+  {
+   "file": "s08_L114.json",
+   "section": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+   "source_line": 114,
+   "cases": 62
+  },
+  {
+   "file": "s09_L196.json",
+   "section": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+   "source_line": 196,
+   "cases": 173
+  },
+  {
+   "file": "s10_L303.json",
+   "section": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+   "source_line": 303,
+   "cases": 129
+  },
+  {
+   "file": "s11_L416.json",
+   "section": "斜めの枝（ラテラル）。期待値は reader/research/verify_lateral.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+   "source_line": 416,
+   "cases": 124
+  },
+  {
+   "file": "s12_L502.json",
+   "section": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+   "source_line": 502,
+   "cases": 232
+  },
+  {
+   "file": "s13_L584.json",
+   "section": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+   "source_line": 584,
+   "cases": 23
+  },
+  {
+   "file": "s14_L622.json",
+   "section": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+   "source_line": 622,
+   "cases": 331
+  },
+  {
+   "file": "s15_L744.json",
+   "section": "円すいに立つ枝（同心・偏心）。期待値は reader/research/verify_conebranch.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+   "source_line": 744,
+   "cases": 377
+  },
+  {
+   "file": "s16_L874.json",
+   "section": "二股（Y字管）。期待値は reader/research/verify_yfork.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+   "source_line": 874,
+   "cases": 168
+  },
+  {
+   "file": "s17_L1000.json",
+   "section": "境目の期待値（符号付きの頂点の距離・負の周の長さ）は reader/research/verify_review_fixes.py で別に出した値",
+   "source_line": 1000,
+   "cases": 97
+  },
+  {
+   "file": "s18_L1069.json",
+   "section": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+   "source_line": 1069,
+   "cases": 82
+  }
+ ]
+}

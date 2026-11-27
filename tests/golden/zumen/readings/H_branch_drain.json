@@ -1,0 +1,20 @@
+{
+  "_note": "手で作った排水T字管の読み取り（協力工場の図面ではない）。寸法は JIS G 3443-2 表13・大阪広域水道企業団 標準図 6-92 の 600×200（本管 D2 609.6・T 6.0、枝 d2 216.3・t 5.8、H 750（本管の長さ 2H）、I 500）。枝は横（右）に出て、枝の下の外面が本管の管底にそろうので、片寄せは (609.6−216.3)/2・向きは地。期待値は reader/research/verify_branches.py の例3",
+  "page": { "kind": "drawing", "title": "排水T字管 600×200（確かめ用の例）", "drawing_no": "H-DRAIN", "job_no": "", "scale": "", "company": "", "qty": 1, "unit_mass_kg": null },
+  "material_table": [
+    { "no": "1", "name": "本管", "material": "STW400", "size": "φ609.6×6.0", "length": "1500", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null },
+    { "no": "2", "name": "排水の枝", "material": "STW400", "size": "φ216.3×5.8", "length": "", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null }
+  ],
+  "parts": [
+    { "no": "1", "name": "本管", "shape": "tee_main", "attach": "", "table_rows": ["1"], "notes": [], "dims": [],
+      "params": { "D": { "value": 609.6, "text": "D2 φ609.6", "bbox": null, "source": "drawing" }, "t": { "value": 6.0, "text": "T 6.0", "bbox": null, "source": "drawing" },
+        "L": { "value": 1500, "text": "2H（H 750）", "bbox": null, "source": "inferred" } } },
+    { "no": "2", "name": "排水の枝", "shape": "tee_branch", "attach": "1", "table_rows": ["2"], "notes": [], "dims": [],
+      "params": { "D": { "value": 216.3, "text": "d2 φ216.3", "bbox": null, "source": "drawing" }, "t": { "value": 5.8, "text": "t 5.8", "bbox": null, "source": "drawing" },
+        "H": { "value": 500, "text": "I 500", "bbox": null, "source": "drawing" }, "branch_x": { "value": 750, "text": "H 750", "bbox": null, "source": "drawing" },
+        "dir": { "value": 90, "text": "側面図で右に出る", "bbox": null, "source": "drawing" },
+        "e": { "value": 196.65, "text": "(609.6−216.3)/2（枝の下の外面が本管の管底にそろう）", "bbox": null, "source": "inferred" },
+        "e_side": { "value": 180, "text": "地（管底にそろう）", "bbox": null, "source": "inferred" } } }
+  ],
+  "seam": null, "notes": [], "unreadable": []
+}

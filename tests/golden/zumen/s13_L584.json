@@ -1,0 +1,400 @@
+{
+ "zk_commit": "f718c34011458e187fb625ac85482fb2e77c0eed",
+ "section": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+ "section_source": "design-demos/assets/kirizu/test_build.mjs:584",
+ "cases": [
+  {
+   "name": "排水T字管 600×200 穴の本管の中心の側の縁（方位）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:595",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 18.022063326346473,
+   "tol": 0.01,
+   "zk_got": 18.022063326346473,
+   "want_expr": "Math.asin((e - rh) / (thick ? Ro : Ri)) * deg",
+   "id": "s13-0001"
+  },
+  {
+   "name": "2600A に 600A の排水 穴の本管の中心の側の縁（方位）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:595",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 33.04349853632982,
+   "tol": 0.01,
+   "zk_got": 33.04349853632982,
+   "want_expr": "Math.asin((e - rh) / (thick ? Ro : Ri)) * deg",
+   "id": "s13-0002"
+  },
+  {
+   "name": "1000A に 200A 片寄せ300 差し込む 穴の本管の中心の側の縁（方位）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:595",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 22.188656876026297,
+   "tol": 0.01,
+   "zk_got": 22.188656876026297,
+   "want_expr": "Math.asin((e - rh) / (thick ? Ro : Ri)) * deg",
+   "id": "s13-0003"
+  },
+  {
+   "name": "1000A に 600A 片寄せ150（G2 と同じ） 穴の本管の中心の側の縁（方位）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:595",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": -17.118854717610056,
+   "tol": 0.01,
+   "zk_got": -17.118854717610077,
+   "want_expr": "Math.asin((e - rh) / (thick ? Ro : Ri)) * deg",
+   "id": "s13-0004"
+  },
+  {
+   "name": "補強板 排水 1016×216.3 片寄せ399.85 幅60 外周から穴まで幅のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:605",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周から穴までの一番近い所（外周の辺の上の点から穴の辺まで）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "mn >= geo.B - 0.1, mn.toFixed(2)",
+   "id": "s13-0005"
+  },
+  {
+   "name": "補強板 排水 1016×216.3 片寄せ399.85 幅60 外周と穴の点の数が同じ（3D でつなぐ）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:606",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周から穴までの一番近い所（外周の辺の上の点から穴の辺まで）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "u.pts.length - 1 === u.hole.length",
+   "id": "s13-0006"
+  },
+  {
+   "name": "補強板 1016 に 406.4 の排水 幅100 外周から穴まで幅のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:605",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周から穴までの一番近い所（外周の辺の上の点から穴の辺まで）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "mn >= geo.B - 0.1, mn.toFixed(2)",
+   "id": "s13-0007"
+  },
+  {
+   "name": "補強板 1016 に 406.4 の排水 幅100 外周と穴の点の数が同じ（3D でつなぐ）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:606",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周から穴までの一番近い所（外周の辺の上の点から穴の辺まで）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "u.pts.length - 1 === u.hole.length",
+   "id": "s13-0008"
+  },
+  {
+   "name": "補強板 609.6 に 216.3 の排水 幅60 外周から穴まで幅のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:605",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周から穴までの一番近い所（外周の辺の上の点から穴の辺まで）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "mn >= geo.B - 0.1, mn.toFixed(2)",
+   "id": "s13-0009"
+  },
+  {
+   "name": "補強板 609.6 に 216.3 の排水 幅60 外周と穴の点の数が同じ（3D でつなぐ）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:606",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周から穴までの一番近い所（外周の辺の上の点から穴の辺まで）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "u.pts.length - 1 === u.hole.length",
+   "id": "s13-0010"
+  },
+  {
+   "name": "補強板 同径の直角の枝 幅150 外周から穴まで幅のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:605",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周から穴までの一番近い所（外周の辺の上の点から穴の辺まで）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "mn >= geo.B - 0.1, mn.toFixed(2)",
+   "id": "s13-0011"
+  },
+  {
+   "name": "補強板 同径の直角の枝 幅150 外周と穴の点の数が同じ（3D でつなぐ）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:606",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周から穴までの一番近い所（外周の辺の上の点から穴の辺まで）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "u.pts.length - 1 === u.hole.length",
+   "id": "s13-0012"
+  },
+  {
+   "name": "補強板 同径の斜め45° 幅150 外周から穴まで幅のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:605",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周から穴までの一番近い所（外周の辺の上の点から穴の辺まで）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "mn >= geo.B - 0.1, mn.toFixed(2)",
+   "id": "s13-0013"
+  },
+  {
+   "name": "補強板 同径の斜め45° 幅150 外周と穴の点の数が同じ（3D でつなぐ）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:606",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周から穴までの一番近い所（外周の辺の上の点から穴の辺まで）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "u.pts.length - 1 === u.hole.length",
+   "id": "s13-0014"
+  },
+  {
+   "name": "補強板 G2 片寄せ150 幅150 外周から穴まで幅のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:605",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周から穴までの一番近い所（外周の辺の上の点から穴の辺まで）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "mn >= geo.B - 0.1, mn.toFixed(2)",
+   "id": "s13-0015"
+  },
+  {
+   "name": "補強板 G2 片寄せ150 幅150 外周と穴の点の数が同じ（3D でつなぐ）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:606",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "補強板の外周から穴までの一番近い所（外周の辺の上の点から穴の辺まで）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "u.pts.length - 1 === u.hole.length",
+   "id": "s13-0016"
+  },
+  {
+   "name": "補強板 排水 穴の本管の中心の側の縁",
+   "source": "design-demos/assets/kirizu/test_build.mjs:610",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "片寄せが枝の外半径より大きい補強板の穴も、補強板の板厚の中で枝が当たらない（本管の中心の側の縁は補強板の外面で決まる）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 308.37735595958975,
+   "tol": 0.01,
+   "zk_got": 308.37735595958975,
+   "want_expr": "Rp * Math.asin((e - ro) / Rt)",
+   "id": "s13-0017"
+  },
+  {
+   "name": "平板 穴の径が読めないと確認に出す",
+   "source": "design-demos/assets/kirizu/test_build.mjs:613",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "平板: 穴の径・面取りの大きさが読めないと確認に出す（切図は穴なし・面取りなしで出す）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [
+    "H_plate.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "穴の径が読めていない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"穴の径が読めていない\"",
+   "id": "s13-0018"
+  },
+  {
+   "name": "平板 穴の径が読めなくても切図は出す",
+   "source": "design-demos/assets/kirizu/test_build.mjs:613",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "平板: 穴の径・面取りの大きさが読めないと確認に出す（切図は穴なし・面取りなしで出す）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "!!pc(b, \"2\")",
+   "id": "s13-0019"
+  },
+  {
+   "name": "平板 2×2 の穴の径が読めないと確認に出す",
+   "source": "design-demos/assets/kirizu/test_build.mjs:614",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "平板: 穴の径・面取りの大きさが読めないと確認に出す（切図は穴なし・面取りなしで出す）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [
+    "H_plate.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "穴の径が読めていない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"穴の径が読めていない\"",
+   "id": "s13-0020"
+  },
+  {
+   "name": "平板 面取りの大きさが読めないと確認に出す",
+   "source": "design-demos/assets/kirizu/test_build.mjs:615",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "平板: 穴の径・面取りの大きさが読めないと確認に出す（切図は穴なし・面取りなしで出す）"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [
+    "H_plate.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "面取りの大きさが読めていない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"面取りの大きさが読めていない\"",
+   "id": "s13-0021"
+  },
+  {
+   "name": "斜めの枝 穴が本管から外れても止まらない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:619",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "斜めの枝で、管端から交点までが無く、穴が本管から外れる片寄せ"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [
+    "H_lateral.json"
+   ],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "!!b, err",
+   "id": "s13-0022"
+  },
+  {
+   "name": "斜めの枝 穴が本管から外れると作れないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:619",
+   "origin": {
+    "section_comment": "補強板の外周は穴の角でも幅 B を保つ。平板の穴の径・面取りの大きさが読めなければ確認に出す。穴が本管から外れる斜めの枝でも止まらずに確認に出す",
+    "nearest_comment": "斜めの枝で、管端から交点までが無く、穴が本管から外れる片寄せ"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "枝の穴が本管に収まらない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"枝の穴が本管に収まらない\"",
+   "id": "s13-0023"
+  }
+ ]
+}

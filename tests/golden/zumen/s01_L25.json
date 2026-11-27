@@ -1,0 +1,486 @@
+{
+ "zk_commit": "f718c34011458e187fb625ac85482fb2e77c0eed",
+ "section": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+ "section_source": "design-demos/assets/kirizu/test_build.mjs:25",
+ "cases": [
+  {
+   "name": "T字管 枝 板の幅",
+   "source": "design-demos/assets/kirizu/test_build.mjs:29",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [
+    "E_tee_public.json"
+   ],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1888.1,
+   "tol": 0.1,
+   "zk_got": 1888.1,
+   "want_expr": "1888.1",
+   "id": "s01-0001"
+  },
+  {
+   "name": "T字管 枝 わきの長さ（載せる）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:30",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 487.15,
+   "tol": 0.01,
+   "zk_got": 487.14651509282373,
+   "want_expr": "487.15",
+   "id": "s01-0002"
+  },
+  {
+   "name": "T字管 枝 背の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:30",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 392,
+   "tol": 0.01,
+   "zk_got": 392,
+   "want_expr": "392.0",
+   "id": "s01-0003"
+  },
+  {
+   "name": "T字管 枝 45°の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:30",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 437.12,
+   "tol": 0.01,
+   "zk_got": 437.12204632322357,
+   "want_expr": "437.12",
+   "id": "s01-0004"
+  },
+  {
+   "name": "T字管 本管 板の幅",
+   "source": "design-demos/assets/kirizu/test_build.mjs:31",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 3154.2,
+   "tol": 0.1,
+   "zk_got": 3154.2,
+   "want_expr": "3154.2",
+   "id": "s01-0005"
+  },
+  {
+   "name": "T字管 本管 穴の周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:31",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 642.03,
+   "tol": 0.05,
+   "zk_got": 642.0328183452743,
+   "want_expr": "642.03",
+   "id": "s01-0006"
+  },
+  {
+   "name": "T字管 本管 穴の軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:31",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 592,
+   "tol": 0.05,
+   "zk_got": 592,
+   "want_expr": "592.0",
+   "id": "s01-0007"
+  },
+  {
+   "name": "T字管 本管 穴の中心（継ぎ目から）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:32",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1182.81,
+   "tol": 0.05,
+   "zk_got": 1182.8096340765571,
+   "want_expr": "1182.81",
+   "id": "s01-0008"
+  },
+  {
+   "name": "T字管 本管 穴の中心（管端から）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:32",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 750,
+   "tol": 0.1,
+   "zk_got": 750,
+   "want_expr": "750",
+   "id": "s01-0009"
+  },
+  {
+   "name": "T字管 補強板 外周の周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:33",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1328.74,
+   "tol": 0.05,
+   "zk_got": 1328.7,
+   "want_expr": "1328.74",
+   "id": "s01-0010"
+  },
+  {
+   "name": "T字管 補強板 外周の軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:33",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1000,
+   "tol": 0.05,
+   "zk_got": 1000,
+   "want_expr": "1000.0",
+   "id": "s01-0011"
+  },
+  {
+   "name": "T字管 補強板 穴の周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:33",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 662.03,
+   "tol": 0.05,
+   "zk_got": 662.025138769689,
+   "want_expr": "662.03",
+   "id": "s01-0012"
+  },
+  {
+   "name": "T字管 本管の重さは切る前の四角で合う",
+   "source": "design-demos/assets/kirizu/test_build.mjs:34",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "ok",
+    "contains": "切る前と差"
+   },
+   "zk_got": true,
+   "want_expr": "\"ok\", \"切る前と差\"",
+   "id": "s01-0013"
+  },
+  {
+   "name": "T字管 確認が要るものは0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:34",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s01-0014"
+  },
+  {
+   "name": "T字管 枝の付け方の仮の決まりが出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:35",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "載せるで出している"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"載せるで出している\"",
+   "id": "s01-0015"
+  },
+  {
+   "name": "T字管 枝の位置を長さの半分に置いたことが出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:35",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "長さの半分"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"長さの半分\"",
+   "id": "s01-0016"
+  },
+  {
+   "name": "T字管 差し込む 枝 わき",
+   "source": "design-demos/assets/kirizu/test_build.mjs:37",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [
+    "E_tee_public.json"
+   ],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 502.01,
+   "tol": 0.01,
+   "zk_got": 502.005025157352,
+   "want_expr": "502.01",
+   "id": "s01-0017"
+  },
+  {
+   "name": "T字管 差し込む 枝 背",
+   "source": "design-demos/assets/kirizu/test_build.mjs:37",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 404,
+   "tol": 0.01,
+   "zk_got": 404,
+   "want_expr": "404.0",
+   "id": "s01-0018"
+  },
+  {
+   "name": "T字管 差し込む 本管 穴",
+   "source": "design-demos/assets/kirizu/test_build.mjs:37",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 664.93,
+   "tol": 0.05,
+   "zk_got": 664.9328322071319,
+   "want_expr": "664.93",
+   "id": "s01-0019"
+  },
+  {
+   "name": "T字管 本管の外径が部材どうしで合わないと確認に出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:39",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [
+    "E_tee_public.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "本管の外径が 1 と合わない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"本管の外径が 1 と合わない\"",
+   "id": "s01-0020"
+  },
+  {
+   "name": "同径T字管 割り出し0（当たる高さ）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:41",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [
+    "F_tee_same.json"
+   ],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 109.76,
+   "tol": 0.01,
+   "zk_got": 109.76338187209797,
+   "want_expr": "y",
+   "id": "s01-0021"
+  },
+  {
+   "name": "同径T字管 割り出し1（当たる高さ）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:41",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 219.26,
+   "tol": 0.01,
+   "zk_got": 219.26287661117,
+   "want_expr": "y",
+   "id": "s01-0022"
+  },
+  {
+   "name": "同径T字管 割り出し2（当たる高さ）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:41",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 367.5,
+   "tol": 0.01,
+   "zk_got": 367.4996598637881,
+   "want_expr": "y",
+   "id": "s01-0023"
+  },
+  {
+   "name": "同径T字管 割り出し3（当たる高さ）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:41",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 471.21,
+   "tol": 0.01,
+   "zk_got": 471.20673906491913,
+   "want_expr": "y",
+   "id": "s01-0024"
+  },
+  {
+   "name": "同径T字管 割り出し4（当たる高さ）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:41",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 508,
+   "tol": 0.01,
+   "zk_got": 508,
+   "want_expr": "y",
+   "id": "s01-0025"
+  },
+  {
+   "name": "同径T字管 確認が要るものは0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:42",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s01-0026"
+  },
+  {
+   "name": "同径T字管 差し込むと作れないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:44",
+   "origin": {
+    "section_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値",
+    "nearest_comment": "T字管（手で作った例・公開の計算例の寸法）。期待値は reader/research/verify_tee.py で別に出した値"
+   },
+   "basis": "verify_tee.py (named in the test comment)",
+   "reading_hint": [
+    "F_tee_same.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "差し込めない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"差し込めない\"",
+   "id": "s01-0027"
+  }
+ ]
+}

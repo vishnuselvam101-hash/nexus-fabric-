@@ -1,0 +1,20 @@
+{
+  "_note": "手で作った T字管の読み取り（協力工場の図面ではない）。寸法は公開の計算例（本管 外径1016・板厚12、枝 外径610・板厚9、補強板 板厚12・外径1000）。本管の重さ 445.7 は切る前の四角の計算値（照らし方の確かめ用）",
+  "page": { "kind": "drawing", "title": "T字管（確かめ用の例）", "drawing_no": "E-TEE", "job_no": "", "scale": "", "company": "", "qty": 1, "unit_mass_kg": null },
+  "material_table": [
+    { "no": "1", "name": "本管", "material": "STW400", "size": "φ1016×12", "length": "1500", "qty": "1", "unit_mass": "", "mass": "445.7", "note": "", "bbox": null },
+    { "no": "2", "name": "枝管", "material": "STW400", "size": "φ610×9", "length": "", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null },
+    { "no": "3", "name": "補強板", "material": "SS400", "size": "PL-12×φ1000", "length": "", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null },
+    { "no": "4", "name": "管フランジ", "material": "SS400", "size": "600A", "length": "", "qty": "1", "unit_mass": "", "mass": "", "note": "購入品", "bbox": null }
+  ],
+  "parts": [
+    { "no": "1", "name": "本管", "shape": "tee_main", "table_rows": ["1"], "notes": [], "dims": [],
+      "params": { "D": { "value": 1016, "text": "φ1016", "bbox": null, "source": "drawing" }, "t": { "value": 12, "text": "12", "bbox": null, "source": "drawing" }, "L": { "value": 1500, "text": "1500", "bbox": null, "source": "drawing" } } },
+    { "no": "2", "name": "枝管", "shape": "tee_branch", "table_rows": ["2"], "notes": [], "dims": [],
+      "params": { "D": { "value": 610, "text": "φ610", "bbox": null, "source": "drawing" }, "t": { "value": 9, "text": "9", "bbox": null, "source": "drawing" }, "H": { "value": 900, "text": "900", "bbox": null, "source": "drawing" } } },
+    { "no": "3", "name": "補強板", "shape": "tee_pad", "table_rows": ["3"], "notes": [], "dims": [],
+      "params": { "t": { "value": 12, "text": "12", "bbox": null, "source": "table" }, "pad_D": { "value": 1000, "text": "φ1000", "bbox": null, "source": "drawing" } } },
+    { "no": "4", "name": "管フランジ", "shape": "purchased", "table_rows": ["4"], "notes": [], "dims": [], "params": {} }
+  ],
+  "seam": null, "notes": [], "unreadable": []
+}

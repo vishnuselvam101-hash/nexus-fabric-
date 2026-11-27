@@ -1,0 +1,131 @@
+{
+ "zk_commit": "f718c34011458e187fb625ac85482fb2e77c0eed",
+ "section": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない",
+ "section_source": "design-demos/assets/kirizu/test_build.mjs:70",
+ "cases": [
+  {
+   "name": "補強板 枝が本管からはみ出すと作れないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:75",
+   "origin": {
+    "section_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない",
+    "nearest_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "補強板の穴を出せない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"補強板の穴を出せない\"",
+   "id": "s05-0001"
+  },
+  {
+   "name": "補強板 展開しない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:75",
+   "origin": {
+    "section_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない",
+    "nearest_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s05-0002"
+  },
+  {
+   "name": "本管 穴が管端からはみ出すと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:77",
+   "origin": {
+    "section_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない",
+    "nearest_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "管端からはみ出す"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"管端からはみ出す\"",
+   "id": "s05-0003"
+  },
+  {
+   "name": "本管 管端のはみ出しを継ぎ目の話にしない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:77",
+   "origin": {
+    "section_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない",
+    "nearest_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "r2, \"need\", \"管端からはみ出す\"",
+   "id": "s05-0004"
+  },
+  {
+   "name": "輪の DXF 長さ0の線",
+   "source": "design-demos/assets/kirizu/test_build.mjs:80",
+   "origin": {
+    "section_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない",
+    "nearest_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s05-0005"
+  },
+  {
+   "name": "補強板 穴が外周からはみ出すと作れないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:81",
+   "origin": {
+    "section_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない",
+    "nearest_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "外周からはみ出す"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"外周からはみ出す\"",
+   "id": "s05-0006"
+  },
+  {
+   "name": "片寄せた短い枝も作れる（一番短い所）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:83",
+   "origin": {
+    "section_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない",
+    "nearest_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 5.1,
+   "tol": 0.01,
+   "zk_got": 5.10205144336436,
+   "want_expr": "5.10",
+   "id": "s05-0007"
+  }
+ ]
+}

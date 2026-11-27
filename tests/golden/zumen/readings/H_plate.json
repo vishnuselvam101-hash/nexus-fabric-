@@ -1,0 +1,29 @@
+{
+  "_note": "手で作った平板の読み取り（協力工場の図面ではない）。寸法は reader/research/spec_plate.md の例1〜3。1 は図に外形が無く材料表の寸法だけ、2 は台形に穴1つ、3 は三角の当て板に直角の角の面取り、4 は水管橋の板の形の例（穴 2×2）",
+  "page": { "kind": "drawing", "title": "平板（確かめ用の例）", "drawing_no": "H-PLATE", "job_no": "", "scale": "", "company": "", "qty": 1, "unit_mass_kg": null },
+  "material_table": [
+    { "no": "1", "name": "当て板", "material": "SS400", "size": "ＰＬ－１２×３００×８０", "length": "", "qty": "1", "unit_mass": "", "mass": "2.24", "note": "", "bbox": null },
+    { "no": "2", "name": "台形の板", "material": "SS400", "size": "PL-9×300×200", "length": "", "qty": "1", "unit_mass": "", "mass": "4.24", "note": "", "bbox": null },
+    { "no": "3", "name": "三角の当て板", "material": "SS400", "size": "PL-9×200×150", "length": "", "qty": "2", "unit_mass": "", "mass": "2.10", "note": "", "bbox": null },
+    { "no": "4", "name": "支承の板", "material": "SS400", "size": "PL-16", "length": "400", "qty": "1", "unit_mass": "", "mass": "19.9", "note": "", "bbox": null }
+  ],
+  "parts": [
+    { "no": "1", "name": "当て板", "shape": "plate", "table_rows": ["1"], "notes": [], "dims": [],
+      "params": { "plate_C": { "value": 10, "text": "4隅C10", "bbox": null, "source": "drawing" }, "plate_C_at": { "value": 0, "text": "4隅", "bbox": null, "source": "drawing" } } },
+    { "no": "2", "name": "台形の板", "shape": "plate", "table_rows": ["2"], "notes": [], "dims": [],
+      "params": { "t": { "value": 9, "text": "t9", "bbox": null, "source": "drawing" }, "plate_W": { "value": 300, "text": "300", "bbox": null, "source": "drawing" }, "plate_H": { "value": 200, "text": "200", "bbox": null, "source": "drawing" },
+        "plate_W2": { "value": 150, "text": "150", "bbox": null, "source": "drawing" }, "plate_off": { "value": 0, "text": "左が直角", "bbox": null, "source": "drawing" },
+        "hole_d": { "value": 22, "text": "φ22", "bbox": null, "source": "drawing" }, "hole_x": { "value": 60, "text": "60", "bbox": null, "source": "drawing" }, "hole_y": { "value": 50, "text": "50", "bbox": null, "source": "drawing" } } },
+    { "no": "3", "name": "三角の当て板", "shape": "plate", "table_rows": ["3"], "notes": [], "dims": [],
+      "params": { "t": { "value": 9, "text": "9", "bbox": null, "source": "drawing" }, "plate_W": { "value": 200, "text": "200", "bbox": null, "source": "drawing" }, "plate_H": { "value": 150, "text": "150", "bbox": null, "source": "drawing" },
+        "plate_W2": { "value": 0, "text": "三角", "bbox": null, "source": "drawing" }, "plate_off": { "value": 0, "text": "直角", "bbox": null, "source": "drawing" },
+        "plate_C": { "value": 15, "text": "C15", "bbox": null, "source": "drawing" }, "plate_C_at": { "value": 1, "text": "直角の角", "bbox": null, "source": "drawing" } } },
+    { "no": "4", "name": "支承の板", "shape": "plate", "table_rows": ["4"], "notes": [], "dims": [],
+      "params": { "t": { "value": 16, "text": "16", "bbox": null, "source": "drawing" }, "plate_W": { "value": 400, "text": "400", "bbox": null, "source": "drawing" }, "plate_H": { "value": 400, "text": "400", "bbox": null, "source": "drawing" },
+        "hole_d": { "value": 24, "text": "4×φ24", "bbox": null, "source": "drawing" }, "hole_n": { "value": 4, "text": "4×φ24", "bbox": null, "source": "drawing" },
+        "hole_x": { "value": 50, "text": "50", "bbox": null, "source": "drawing" }, "hole_y": { "value": 50, "text": "50", "bbox": null, "source": "drawing" },
+        "hole_nx": { "value": 2, "text": "2", "bbox": null, "source": "count" }, "hole_ny": { "value": 2, "text": "2", "bbox": null, "source": "count" },
+        "hole_px": { "value": 300, "text": "300", "bbox": null, "source": "drawing" }, "hole_py": { "value": 300, "text": "300", "bbox": null, "source": "drawing" } } }
+  ],
+  "seam": null, "notes": [], "unreadable": []
+}

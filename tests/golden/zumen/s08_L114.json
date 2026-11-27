@@ -1,0 +1,1104 @@
+{
+ "zk_commit": "f718c34011458e187fb625ac85482fb2e77c0eed",
+ "section": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+ "section_source": "design-demos/assets/kirizu/test_build.mjs:114",
+ "cases": [
+  {
+   "name": "平板 四角 C10 四隅 面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:122",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例1 四角・四隅 C10（材料表の PL-12×300×80 から）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 23800,
+   "tol": 11.9,
+   "zk_got": 23800,
+   "want_expr": "23800.0",
+   "id": "s08-0001"
+  },
+  {
+   "name": "平板 四角 C10 四隅 周の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:123",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例1 四角・四隅 C10（材料表の PL-12×300×80 から）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 736.569,
+   "tol": 0.1,
+   "zk_got": 736.5685424949238,
+   "want_expr": "736.569",
+   "id": "s08-0002"
+  },
+  {
+   "name": "平板 台形 穴φ22 面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:125",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 台形・三角・丸穴"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 44619.887,
+   "tol": 22.309943500000003,
+   "zk_got": 44619.88658779596,
+   "want_expr": "44619.887",
+   "id": "s08-0003"
+  },
+  {
+   "name": "平板 台形 左右対称 面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:126",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 台形・三角・丸穴"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 45000,
+   "tol": 22.5,
+   "zk_got": 45000,
+   "want_expr": "45000.0",
+   "id": "s08-0004"
+  },
+  {
+   "name": "平板 三角 直角の角に C15 面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:127",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 台形・三角・丸穴"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 14887.5,
+   "tol": 7.4437500000000005,
+   "zk_got": 14887.5,
+   "want_expr": "14887.5",
+   "id": "s08-0005"
+  },
+  {
+   "name": "平板 三角 右下（鋭い角）に C15 面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:128",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 台形・三角・丸穴"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 14932.5,
+   "tol": 7.4662500000000005,
+   "zk_got": 14932.5,
+   "want_expr": "14932.5",
+   "id": "s08-0006"
+  },
+  {
+   "name": "平板 三角 右下に C15 外形の幅",
+   "source": "design-demos/assets/kirizu/test_build.mjs:129",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 台形・三角・丸穴"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 188,
+   "tol": 0.1,
+   "zk_got": 188,
+   "want_expr": "188.0",
+   "id": "s08-0007"
+  },
+  {
+   "name": "平板 穴 2×2 面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:131",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 穴の並び 4×φ24（2×2・間隔300）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 158190.535,
+   "tol": 79.0952675,
+   "zk_got": 158190.5345005824,
+   "want_expr": "158190.535",
+   "id": "s08-0008"
+  },
+  {
+   "name": "平板 穴 2×2 の DXF の線（外形4＋穴360×4）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:133",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 穴の並び 4×φ24（2×2・間隔300）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1444,
+   "tol": 0,
+   "zk_got": 1444,
+   "want_expr": "1444",
+   "id": "s08-0009"
+  },
+  {
+   "name": "平板 1 材料表から取った四角 C10 の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:136",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った平板の読み取り（H_plate.json）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [
+    "H_plate.json"
+   ],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2.24196,
+   "tol": 0.0011209800000000002,
+   "zk_got": 2.242,
+   "want_expr": "2.24196",
+   "id": "s08-0010"
+  },
+  {
+   "name": "平板 1 外形の幅",
+   "source": "design-demos/assets/kirizu/test_build.mjs:136",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った平板の読み取り（H_plate.json）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 300,
+   "tol": 0.1,
+   "zk_got": 300,
+   "want_expr": "300",
+   "id": "s08-0011"
+  },
+  {
+   "name": "平板 1 外形の高さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:136",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った平板の読み取り（H_plate.json）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 80,
+   "tol": 0.1,
+   "zk_got": 80,
+   "want_expr": "80",
+   "id": "s08-0012"
+  },
+  {
+   "name": "平板 1 材料表の寸法の四角で出したと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:137",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った平板の読み取り（H_plate.json）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "材料表の寸法の四角で出した"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"材料表の寸法の四角で出した\"",
+   "id": "s08-0013"
+  },
+  {
+   "name": "平板 2 台形 穴φ22 の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:138",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った平板の読み取り（H_plate.json）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 3.152395,
+   "tol": 0.0015761975,
+   "zk_got": 3.1524,
+   "want_expr": "3.152395",
+   "id": "s08-0014"
+  },
+  {
+   "name": "平板 2 切る前の四角の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:138",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った平板の読み取り（H_plate.json）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 4.239,
+   "tol": 0.0021195,
+   "zk_got": 4.239,
+   "want_expr": "4.239",
+   "id": "s08-0015"
+  },
+  {
+   "name": "平板 3 三角 C15 の重さ（2枚）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:139",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った平板の読み取り（H_plate.json）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2.103604,
+   "tol": 0.001051802,
+   "zk_got": 2.1036,
+   "want_expr": "2 * 1.051802",
+   "id": "s08-0016"
+  },
+  {
+   "name": "平板 3 切る前の四角（2枚）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:139",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った平板の読み取り（H_plate.json）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 4.239,
+   "tol": 0.0021195,
+   "zk_got": 4.239,
+   "want_expr": "2 * 2.1195",
+   "id": "s08-0017"
+  },
+  {
+   "name": "平板 4 穴 2×2 の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:140",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った平板の読み取り（H_plate.json）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 19.868731,
+   "tol": 0.0099343655,
+   "zk_got": 19.8687,
+   "want_expr": "19.868731",
+   "id": "s08-0018"
+  },
+  {
+   "name": "平板 2 台形は材料表の四角の重さで合う",
+   "source": "design-demos/assets/kirizu/test_build.mjs:141",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った平板の読み取り（H_plate.json）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "ok",
+    "contains": "切る前と差"
+   },
+   "zk_got": true,
+   "want_expr": "\"ok\", \"切る前と差\"",
+   "id": "s08-0019"
+  },
+  {
+   "name": "平板 3 三角は材料表の寸法と合う",
+   "source": "design-demos/assets/kirizu/test_build.mjs:141",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った平板の読み取り（H_plate.json）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "ok",
+    "contains": "外形を囲む四角 200×150"
+   },
+   "zk_got": true,
+   "want_expr": "\"ok\", \"外形を囲む四角 200×150\"",
+   "id": "s08-0020"
+  },
+  {
+   "name": "平板 確認が要るものは0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:142",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った平板の読み取り（H_plate.json）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s08-0021"
+  },
+  {
+   "name": "平板 材料表「12t×300×80」「」→ 12×300×80（期待 12×300×80）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:150",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "材料表の書き方"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s08-0022"
+  },
+  {
+   "name": "平板 材料表「PL-16×800」「2700」→ 16×800×2700（期待 16×800×2700）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:150",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "材料表の書き方"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s08-0023"
+  },
+  {
+   "name": "平板 材料表が φ の書き方なら外形を取らない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:151",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "材料表の書き方"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "平板の外形の寸法が足りない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"平板の外形の寸法が足りない\"",
+   "id": "s08-0024"
+  },
+  {
+   "name": "平板 図の板厚と材料表の板厚が違うと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:152",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "材料表の書き方"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "板厚が材料表と合わない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"板厚が材料表と合わない\"",
+   "id": "s08-0025"
+  },
+  {
+   "name": "平板 台形で上の辺の位置が無いと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:155",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "確認に出す条件"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "台形のどちら側が直角か分からない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"台形のどちら側が直角か分からない\"",
+   "id": "s08-0026"
+  },
+  {
+   "name": "平板 台形で上の辺の位置が無いと展開しない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:155",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "確認に出す条件"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s08-0027"
+  },
+  {
+   "name": "平板 三角で頂点の位置が無いと左下を直角にしたと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:157",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "確認に出す条件"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "左下を直角"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"左下を直角\"",
+   "id": "s08-0028"
+  },
+  {
+   "name": "平板 三角 左下を直角 面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:157",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "確認に出す条件"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 15000,
+   "tol": 7.5,
+   "zk_got": 15000,
+   "want_expr": "15000",
+   "id": "s08-0029"
+  },
+  {
+   "name": "平板 面取りの角が無いと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:158",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "確認に出す条件"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "どの角を面取りするか"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"どの角を面取りするか\"",
+   "id": "s08-0030"
+  },
+  {
+   "name": "平板 面取りが辺より長いと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:159",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "確認に出す条件"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "面取りが辺より長い"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"面取りが辺より長い\"",
+   "id": "s08-0031"
+  },
+  {
+   "name": "平板 穴の位置が無いと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:160",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "確認に出す条件"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "穴の位置が書いていない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"穴の位置が書いていない\"",
+   "id": "s08-0032"
+  },
+  {
+   "name": "平板 穴の数だけで並び方が無いと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:161",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "確認に出す条件"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "穴の並び方が分からない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"穴の並び方が分からない\"",
+   "id": "s08-0033"
+  },
+  {
+   "name": "平板 穴の数と並びの数が違うと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:162",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "確認に出す条件"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "穴の並び方が分からない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"穴の並び方が分からない\"",
+   "id": "s08-0034"
+  },
+  {
+   "name": "平板 穴が斜めの辺の外に出ると出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:163",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "確認に出す条件"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "穴が外形からはみ出す"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"穴が外形からはみ出す\"",
+   "id": "s08-0035"
+  },
+  {
+   "name": "平板 穴どうしが重なると出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:164",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "確認に出す条件"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "穴どうしが重なる"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"穴どうしが重なる\"",
+   "id": "s08-0036"
+  },
+  {
+   "name": "リブ 300×80 本管の円に沿うリブ 面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:169",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1424.951,
+   "tol": 0.7124755,
+   "zk_got": 1424.9527270743683,
+   "want_expr": "a",
+   "id": "s08-0037"
+  },
+  {
+   "name": "リブ 300×80 上の角と本管の間（頂点の x）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:169",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 15.003,
+   "tol": 0.1,
+   "zk_got": 15.00314120393162,
+   "want_expr": "xc",
+   "id": "s08-0038"
+  },
+  {
+   "name": "リブ 1000×300 本管の円に沿うリブ 面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:169",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 8084.564,
+   "tol": 4.042282,
+   "zk_got": 8084.571175758188,
+   "want_expr": "a",
+   "id": "s08-0039"
+  },
+  {
+   "name": "リブ 1000×300 上の角と本管の間（頂点の x）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:169",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 31.891,
+   "tol": 0.1,
+   "zk_got": 31.891470513896422,
+   "want_expr": "xc",
+   "id": "s08-0040"
+  },
+  {
+   "name": "リブ 2600×400 本管の円に沿うリブ 面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:169",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 20953.69,
+   "tol": 10.476844999999999,
+   "zk_got": 20953.714883152363,
+   "want_expr": "a",
+   "id": "s08-0041"
+  },
+  {
+   "name": "リブ 2600×400 上の角と本管の間（頂点の x）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:169",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 157.828,
+   "tol": 0.1,
+   "zk_got": 157.82843288092977,
+   "want_expr": "xc",
+   "id": "s08-0042"
+  },
+  {
+   "name": "リブ 仕切弁副管A1 500×100×100 上を尖らせた形 面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:171",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2302.321,
+   "tol": 1.1511605,
+   "zk_got": 2302.322937565033,
+   "want_expr": "2302.321",
+   "id": "s08-0043"
+  },
+  {
+   "name": "リブ 仕切弁副管A1 上が平ら（仮に幅20）面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:172",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2902.321,
+   "tol": 1.4511605,
+   "zk_got": 2902.322937565033,
+   "want_expr": "2902.321",
+   "id": "s08-0044"
+  },
+  {
+   "name": "リブ 本管の径が大きいと直角三角形に近づく",
+   "source": "design-demos/assets/kirizu/test_build.mjs:173",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1499.896,
+   "tol": 0.749948,
+   "zk_got": 1499.8958365366113,
+   "want_expr": "1499.896",
+   "id": "s08-0045"
+  },
+  {
+   "name": "リブ 300×80 片の数（円に沿う1・三角1）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:176",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [
+    "H_tee_rib.json"
+   ],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "2",
+   "id": "s08-0046"
+  },
+  {
+   "name": "リブ 300×80 円に沿うリブの重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:177",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0.067115,
+   "tol": 0.0000335575,
+   "zk_got": 0.0671,
+   "want_expr": "0.067115",
+   "id": "s08-0047"
+  },
+  {
+   "name": "リブ 300×80 三角のリブ2枚の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:177",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0.1413,
+   "tol": 0.00007065000000000001,
+   "zk_got": 0.1413,
+   "want_expr": "2 * 0.07065",
+   "id": "s08-0048"
+  },
+  {
+   "name": "リブ 300×80 枝の外径は枝管から取る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:178",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 89.1,
+   "tol": 0,
+   "zk_got": 89.1,
+   "want_expr": "89.1",
+   "id": "s08-0049"
+  },
+  {
+   "name": "リブ 材料表の重さ（3枚）と合う",
+   "source": "design-demos/assets/kirizu/test_build.mjs:179",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "ok",
+    "contains": "材料表 0.21 kg"
+   },
+   "zk_got": true,
+   "want_expr": "\"ok\", \"材料表 0.21 kg\"",
+   "id": "s08-0050"
+  },
+  {
+   "name": "リブ 片寄せた枝の中心の側に立てたと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:179",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "中心の側に立てて出した"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"中心の側に立てて出した\"",
+   "id": "s08-0051"
+  },
+  {
+   "name": "リブ 確認が要るものは0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:180",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s08-0052"
+  },
+  {
+   "name": "リブ 片寄せた枝の両側 中心の側の面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:183",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 3910.137,
+   "tol": 1.9550685,
+   "zk_got": 3910.1390609120235,
+   "want_expr": "3910.137",
+   "id": "s08-0053"
+  },
+  {
+   "name": "リブ 片寄せた枝の両側 反対の側の面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:183",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 3840.499,
+   "tol": 1.9202495,
+   "zk_got": 3840.5026832446533,
+   "want_expr": "3840.499",
+   "id": "s08-0054"
+  },
+  {
+   "name": "リブ 中心に立つ枝の両側は同じ形で2枚",
+   "source": "design-demos/assets/kirizu/test_build.mjs:185",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "2",
+   "id": "s08-0055"
+  },
+  {
+   "name": "リブ 中心に立つ枝 面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:185",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 3891.728,
+   "tol": 1.945864,
+   "zk_got": 3891.7300490040616,
+   "want_expr": "3891.728",
+   "id": "s08-0056"
+  },
+  {
+   "name": "リブ 排水の枝で反対の側に立てると作れないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:186",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "反対の側"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"反対の側\"",
+   "id": "s08-0057"
+  },
+  {
+   "name": "リブ 数が読めていないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:187",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "リブの立つ向きと数を決める"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"リブの立つ向きと数を決める\"",
+   "id": "s08-0058"
+  },
+  {
+   "name": "リブ 上が平らで幅が無いと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:189",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "リブの先の平らな幅が書いていない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"リブの先の平らな幅が書いていない\"",
+   "id": "s08-0059"
+  },
+  {
+   "name": "リブ 材料表の数量と数が違うと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:190",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "リブの数が材料表の数量と合わない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"リブの数が材料表の数量と合わない\"",
+   "id": "s08-0060"
+  },
+  {
+   "name": "リブ 先が本管の外面より内側になると出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:191",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "先が本管の外面より内側"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"先が本管の外面より内側\"",
+   "id": "s08-0061"
+  },
+  {
+   "name": "リブ 数量3でも「数量を扱えない」は出ない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:193",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s08-0062"
+  }
+ ]
+}

@@ -1,0 +1,27 @@
+{
+  "_note": "手で作った十字管（天と地に同じ枝）の読み取り（協力工場の図面ではない。十字管は規格表・標準図に図が無いので、T字管の公開の計算例の寸法を2本にした例）。枝と補強板は材料表の同じ行（数量2）を2つの部材が指す。材料表の重さは、この計算で出した値を入れた（照らし方の確かめ用）。期待値は reader/research/verify_branches.py の例2",
+  "page": { "kind": "drawing", "title": "十字管（確かめ用の例）", "drawing_no": "H-CROSS", "job_no": "", "scale": "", "company": "", "qty": 1, "unit_mass_kg": null },
+  "material_table": [
+    { "no": "1", "name": "本管", "material": "STW400", "size": "φ1016×12", "length": "1500", "qty": "1", "unit_mass": "", "mass": "390.5", "note": "", "bbox": null },
+    { "no": "2", "name": "枝管", "material": "STW400", "size": "φ610×9", "length": "", "qty": "2", "unit_mass": "", "mass": "116.9", "note": "", "bbox": null },
+    { "no": "3", "name": "補強板", "material": "SS400", "size": "PL-12×φ1000", "length": "", "qty": "2", "unit_mass": "", "mass": "", "note": "", "bbox": null }
+  ],
+  "parts": [
+    { "no": "1", "name": "本管", "shape": "tee_main", "attach": "", "table_rows": ["1"], "notes": [], "dims": [],
+      "params": { "D": { "value": 1016, "text": "φ1016", "bbox": null, "source": "drawing" }, "t": { "value": 12, "text": "12", "bbox": null, "source": "drawing" },
+        "L": { "value": 1500, "text": "1500", "bbox": null, "source": "drawing" } } },
+    { "no": "2-1", "name": "枝管（天）", "shape": "tee_branch", "attach": "1", "table_rows": ["2"], "notes": [], "dims": [],
+      "params": { "D": { "value": 610, "text": "φ610", "bbox": null, "source": "drawing" }, "t": { "value": 9, "text": "9", "bbox": null, "source": "drawing" },
+        "H": { "value": 900, "text": "900", "bbox": null, "source": "drawing" }, "branch_x": { "value": 750, "text": "750", "bbox": null, "source": "drawing" },
+        "dir": { "value": 0, "text": "天", "bbox": null, "source": "drawing" } } },
+    { "no": "2-2", "name": "枝管（地）", "shape": "tee_branch", "attach": "1", "table_rows": ["2"], "notes": [], "dims": [],
+      "params": { "D": { "value": 610, "text": "φ610", "bbox": null, "source": "drawing" }, "t": { "value": 9, "text": "9", "bbox": null, "source": "drawing" },
+        "H": { "value": 900, "text": "900", "bbox": null, "source": "drawing" }, "branch_x": { "value": 750, "text": "750", "bbox": null, "source": "drawing" },
+        "dir": { "value": 180, "text": "地", "bbox": null, "source": "drawing" } } },
+    { "no": "3-1", "name": "補強板（天）", "shape": "tee_pad", "attach": "2-1", "table_rows": ["3"], "notes": [], "dims": [],
+      "params": { "t": { "value": 12, "text": "12", "bbox": null, "source": "table" }, "pad_D": { "value": 1000, "text": "φ1000", "bbox": null, "source": "drawing" } } },
+    { "no": "3-2", "name": "補強板（地）", "shape": "tee_pad", "attach": "2-2", "table_rows": ["3"], "notes": [], "dims": [],
+      "params": { "t": { "value": 12, "text": "12", "bbox": null, "source": "table" }, "pad_D": { "value": 1000, "text": "φ1000", "bbox": null, "source": "drawing" } } }
+  ],
+  "seam": null, "notes": [], "unreadable": []
+}

@@ -1,0 +1,245 @@
+{
+ "zk_commit": "f718c34011458e187fb625ac85482fb2e77c0eed",
+ "section": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+ "section_source": "design-demos/assets/kirizu/test_build.mjs:95",
+ "cases": [
+  {
+   "name": "同心円すい 2枚割り 弦",
+   "source": "design-demos/assets/kirizu/test_build.mjs:100",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1808.39,
+   "tol": 0.05,
+   "zk_got": 1808.3891060807648,
+   "want_expr": "chord",
+   "id": "s07-0001"
+  },
+  {
+   "name": "同心円すい 2枚割り 高さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:100",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 785.33,
+   "tol": 0.05,
+   "zk_got": 785.3250693238235,
+   "want_expr": "h",
+   "id": "s07-0002"
+  },
+  {
+   "name": "同心円すい 3枚割り 弦",
+   "source": "design-demos/assets/kirizu/test_build.mjs:100",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1233.8,
+   "tol": 0.05,
+   "zk_got": 1233.7940266300122,
+   "want_expr": "chord",
+   "id": "s07-0003"
+  },
+  {
+   "name": "同心円すい 3枚割り 高さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:100",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 701.18,
+   "tol": 0.05,
+   "zk_got": 701.1804524461609,
+   "want_expr": "h",
+   "id": "s07-0004"
+  },
+  {
+   "name": "同心円すい 4枚割り 弦",
+   "source": "design-demos/assets/kirizu/test_build.mjs:100",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 932.82,
+   "tol": 0.05,
+   "zk_got": 932.8173981468443,
+   "want_expr": "chord",
+   "id": "s07-0005"
+  },
+  {
+   "name": "同心円すい 4枚割り 高さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:100",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 671.27,
+   "tol": 0.05,
+   "zk_got": 671.2683889502432,
+   "want_expr": "h",
+   "id": "s07-0006"
+  },
+  {
+   "name": "偏心円すい 2枚割り 片1 の展開角",
+   "source": "design-demos/assets/kirizu/test_build.mjs:106",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 47.005,
+   "tol": 0.01,
+   "zk_got": 47.005286617579586,
+   "want_expr": "a",
+   "id": "s07-0007"
+  },
+  {
+   "name": "偏心円すい 3枚割り 片1 の展開角",
+   "source": "design-demos/assets/kirizu/test_build.mjs:106",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 32.101,
+   "tol": 0.01,
+   "zk_got": 32.10120738808379,
+   "want_expr": "a",
+   "id": "s07-0008"
+  },
+  {
+   "name": "偏心円すい 3枚割り 片2 の展開角",
+   "source": "design-demos/assets/kirizu/test_build.mjs:106",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 29.808,
+   "tol": 0.01,
+   "zk_got": 29.80815845871337,
+   "want_expr": "a",
+   "id": "s07-0009"
+  },
+  {
+   "name": "偏心円すい 3枚割り 片3 の展開角",
+   "source": "design-demos/assets/kirizu/test_build.mjs:106",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 32.101,
+   "tol": 0.01,
+   "zk_got": 32.1012073881315,
+   "want_expr": "a",
+   "id": "s07-0010"
+  },
+  {
+   "name": "偏心円すい 4枚割り 片1 の展開角",
+   "source": "design-demos/assets/kirizu/test_build.mjs:106",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 24.538,
+   "tol": 0.01,
+   "zk_got": 24.538119280510582,
+   "want_expr": "a",
+   "id": "s07-0011"
+  },
+  {
+   "name": "偏心円すい 4枚割り 片2 の展開角",
+   "source": "design-demos/assets/kirizu/test_build.mjs:106",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 22.467,
+   "tol": 0.01,
+   "zk_got": 22.467167337042152,
+   "want_expr": "a",
+   "id": "s07-0012"
+  },
+  {
+   "name": "偏心円すい 4枚割り 片3 の展開角",
+   "source": "design-demos/assets/kirizu/test_build.mjs:106",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 22.467,
+   "tol": 0.01,
+   "zk_got": 22.4671673369925,
+   "want_expr": "a",
+   "id": "s07-0013"
+  },
+  {
+   "name": "偏心円すい 4枚割り 片4 の展開角",
+   "source": "design-demos/assets/kirizu/test_build.mjs:106",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 24.538,
+   "tol": 0.01,
+   "zk_got": 24.53811928045985,
+   "want_expr": "a",
+   "id": "s07-0014"
+  }
+ ]
+}

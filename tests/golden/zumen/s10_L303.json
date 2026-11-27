@@ -1,0 +1,2264 @@
+{
+ "zk_commit": "f718c34011458e187fb625ac85482fb2e77c0eed",
+ "section": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+ "section_source": "design-demos/assets/kirizu/test_build.mjs:303",
+ "cases": [
+  {
+   "name": "枝 照らし1 穴の周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:319",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし1: 枝1本・天・片寄せなしは今の T字管と同じ"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 642.03,
+   "tol": 0.05,
+   "zk_got": 642.0328183452743,
+   "want_expr": "642.03",
+   "id": "s10-0001"
+  },
+  {
+   "name": "枝 照らし1 穴の軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:319",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし1: 枝1本・天・片寄せなしは今の T字管と同じ"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 592,
+   "tol": 0.05,
+   "zk_got": 592,
+   "want_expr": "592.0",
+   "id": "s10-0002"
+  },
+  {
+   "name": "枝 照らし1 穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:319",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし1: 枝1本・天・片寄せなしは今の T字管と同じ"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1182.81,
+   "tol": 0.05,
+   "zk_got": 1182.8096340765571,
+   "want_expr": "1182.81",
+   "id": "s10-0003"
+  },
+  {
+   "name": "枝 照らし1 本管の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:320",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし1: 枝1本・天・片寄せなしは今の T字管と同じ"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 418.08,
+   "tol": 0.20904,
+   "zk_got": 418.0799292452641,
+   "want_expr": "418.08",
+   "id": "s10-0004"
+  },
+  {
+   "name": "枝 向き 45° 穴の中心（継ぎ目から）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:324",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし2: 枝の向きを回すと、穴は同じ形のまま Rm×角度 だけ動く"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1577.08,
+   "tol": 0.05,
+   "zk_got": 1577.0795121020763,
+   "want_expr": "u",
+   "id": "s10-0005"
+  },
+  {
+   "name": "枝 向き 45° 穴の周方向は同じ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:324",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし2: 枝の向きを回すと、穴は同じ形のまま Rm×角度 だけ動く"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 642.03,
+   "tol": 0.05,
+   "zk_got": 642.0328183452741,
+   "want_expr": "642.03",
+   "id": "s10-0006"
+  },
+  {
+   "name": "枝 向き 45° 継ぎ目を回さない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:324",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし2: 枝の向きを回すと、穴は同じ形のまま Rm×角度 だけ動く"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s10-0007"
+  },
+  {
+   "name": "枝 向き 90° 穴の中心（継ぎ目から）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:324",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし2: 枝の向きを回すと、穴は同じ形のまま Rm×角度 だけ動く"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1971.35,
+   "tol": 0.05,
+   "zk_got": 1971.3493901275951,
+   "want_expr": "u",
+   "id": "s10-0008"
+  },
+  {
+   "name": "枝 向き 90° 穴の周方向は同じ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:324",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし2: 枝の向きを回すと、穴は同じ形のまま Rm×角度 だけ動く"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 642.03,
+   "tol": 0.05,
+   "zk_got": 642.0328183452746,
+   "want_expr": "642.03",
+   "id": "s10-0009"
+  },
+  {
+   "name": "枝 向き 90° 継ぎ目を回さない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:324",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし2: 枝の向きを回すと、穴は同じ形のまま Rm×角度 だけ動く"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s10-0010"
+  },
+  {
+   "name": "枝 向き 180° 穴の中心（継ぎ目から）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:324",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし2: 枝の向きを回すと、穴は同じ形のまま Rm×角度 だけ動く"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2759.89,
+   "tol": 0.05,
+   "zk_got": 2759.8891461786334,
+   "want_expr": "u",
+   "id": "s10-0011"
+  },
+  {
+   "name": "枝 向き 180° 穴の周方向は同じ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:324",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし2: 枝の向きを回すと、穴は同じ形のまま Rm×角度 だけ動く"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 642.03,
+   "tol": 0.05,
+   "zk_got": 642.0328183452743,
+   "want_expr": "642.03",
+   "id": "s10-0012"
+  },
+  {
+   "name": "枝 向き 180° 継ぎ目を回さない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:324",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし2: 枝の向きを回すと、穴は同じ形のまま Rm×角度 だけ動く"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s10-0013"
+  },
+  {
+   "name": "枝 向き 270° 穴の中心（継ぎ目から）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:324",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし2: 枝の向きを回すと、穴は同じ形のまま Rm×角度 だけ動く"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 394.27,
+   "tol": 0.05,
+   "zk_got": 394.26987802551906,
+   "want_expr": "u",
+   "id": "s10-0014"
+  },
+  {
+   "name": "枝 向き 270° 穴の周方向は同じ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:324",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし2: 枝の向きを回すと、穴は同じ形のまま Rm×角度 だけ動く"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 642.03,
+   "tol": 0.05,
+   "zk_got": 642.0328183452743,
+   "want_expr": "642.03",
+   "id": "s10-0015"
+  },
+  {
+   "name": "枝 向き 270° 継ぎ目を回さない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:324",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし2: 枝の向きを回すと、穴は同じ形のまま Rm×角度 だけ動く"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s10-0016"
+  },
+  {
+   "name": "枝 板厚0 本管R500・枝r300・片寄せ0・向き0° 穴の周の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:328",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし3: 板厚ゼロで、穴の周の長さ ＝ 3D の交わりの線の長さ（展開しても長さは変わらない）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1936.272,
+   "tol": 0.968136,
+   "zk_got": 1936.2474528673583,
+   "want_expr": "L3",
+   "id": "s10-0017"
+  },
+  {
+   "name": "枝 板厚0 本管R500・枝r300・片寄せ150・向き90° 穴の周の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:328",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし3: 板厚ゼロで、穴の周の長さ ＝ 3D の交わりの線の長さ（展開しても長さは変わらない）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2036.191,
+   "tol": 1.0180955,
+   "zk_got": 2036.1631322993533,
+   "want_expr": "L3",
+   "id": "s10-0018"
+  },
+  {
+   "name": "枝 板厚0 本管R500・枝r100・片寄せ400・向き90° 穴の周の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:328",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし3: 板厚ゼロで、穴の周の長さ ＝ 3D の交わりの線の長さ（展開しても長さは変わらない）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1065.034,
+   "tol": 0.532517,
+   "zk_got": 1065.0245657178505,
+   "want_expr": "L3",
+   "id": "s10-0019"
+  },
+  {
+   "name": "枝 板厚0 本管R500・枝r300・片寄せ-150・向き200° 穴の周の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:328",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "照らし3: 板厚ゼロで、穴の周の長さ ＝ 3D の交わりの線の長さ（展開しても長さは変わらない）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2036.191,
+   "tol": 1.0180955,
+   "zk_got": 2036.1631322993535,
+   "want_expr": "L3",
+   "id": "s10-0020"
+  },
+  {
+   "name": "十字管 天と地 穴の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:331",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "2",
+   "id": "s10-0021"
+  },
+  {
+   "name": "十字管 天の穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:331",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1182.81,
+   "tol": 0.05,
+   "zk_got": 1182.8096340765571,
+   "want_expr": "1182.81",
+   "id": "s10-0022"
+  },
+  {
+   "name": "十字管 地の穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:331",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2759.89,
+   "tol": 0.05,
+   "zk_got": 2759.8891461786334,
+   "want_expr": "2759.89",
+   "id": "s10-0023"
+  },
+  {
+   "name": "十字管 地の穴の周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:332",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 642.03,
+   "tol": 0.05,
+   "zk_got": 642.0328183452743,
+   "want_expr": "642.03",
+   "id": "s10-0024"
+  },
+  {
+   "name": "十字管 穴どうしの一番近い所",
+   "source": "design-demos/assets/kirizu/test_build.mjs:332",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 935.05,
+   "tol": 0.1,
+   "zk_got": 935.0466937568021,
+   "want_expr": "935.05",
+   "id": "s10-0025"
+  },
+  {
+   "name": "十字管 地の穴と縦の継ぎ目",
+   "source": "design-demos/assets/kirizu/test_build.mjs:332",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 73.25,
+   "tol": 0.1,
+   "zk_got": 73.2534688528819,
+   "want_expr": "73.25",
+   "id": "s10-0026"
+  },
+  {
+   "name": "十字管 天と地は継ぎ目にかからない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:333",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "!x2[0].info.crossSeam",
+   "id": "s10-0027"
+  },
+  {
+   "name": "十字管 本管の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:333",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 390.48,
+   "tol": 0.19524000000000002,
+   "zk_got": 390.4771883704817,
+   "want_expr": "390.48",
+   "id": "s10-0028"
+  },
+  {
+   "name": "十字管 右と左 右の穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:335",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1971.35,
+   "tol": 0.05,
+   "zk_got": 1971.3493901275951,
+   "want_expr": "1971.35",
+   "id": "s10-0029"
+  },
+  {
+   "name": "十字管 右と左 左の穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:335",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 394.27,
+   "tol": 0.05,
+   "zk_got": 394.26987802551906,
+   "want_expr": "394.27",
+   "id": "s10-0030"
+  },
+  {
+   "name": "十字管 右と左 左の穴と縦の継ぎ目",
+   "source": "design-demos/assets/kirizu/test_build.mjs:335",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 73.25,
+   "tol": 0.1,
+   "zk_got": 73.2534688528819,
+   "want_expr": "73.25",
+   "id": "s10-0031"
+  },
+  {
+   "name": "天と右（同じ位置）穴どうし",
+   "source": "design-demos/assets/kirizu/test_build.mjs:337",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 146.51,
+   "tol": 0.1,
+   "zk_got": 146.5069377057639,
+   "want_expr": "146.51",
+   "id": "s10-0032"
+  },
+  {
+   "name": "天と右 枝の外面どうし（本管の外面で）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:337",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 143.67,
+   "tol": 0.1,
+   "zk_got": 143.6673151499358,
+   "want_expr": "143.67",
+   "id": "s10-0033"
+  },
+  {
+   "name": "DXF 十字管の線（四角4＋穴360×2）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:338",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 十字管（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 724,
+   "tol": 0,
+   "zk_got": 724,
+   "want_expr": "724",
+   "id": "s10-0034"
+  },
+  {
+   "name": "排水T字管 穴の周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:341",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 排水T字管 600×200（枝は右に出て、管底にそろう片寄せ）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 379.14,
+   "tol": 0.05,
+   "zk_got": 379.13684869491385,
+   "want_expr": "379.14",
+   "id": "s10-0035"
+  },
+  {
+   "name": "排水T字管 穴の軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:341",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 排水T字管 600×200（枝は右に出て、管底にそろう片寄せ）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 204.7,
+   "tol": 0.05,
+   "zk_got": 204.70000000000005,
+   "want_expr": "204.70",
+   "id": "s10-0036"
+  },
+  {
+   "name": "排水T字管 穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:341",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 排水T字管 600×200（枝は右に出て、管底にそろう片寄せ）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1401.96,
+   "tol": 0.05,
+   "zk_got": 1401.9595432513138,
+   "want_expr": "1401.96",
+   "id": "s10-0037"
+  },
+  {
+   "name": "排水T字管 穴の方位 始め",
+   "source": "design-demos/assets/kirizu/test_build.mjs:342",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 排水T字管 600×200（枝は右に出て、管底にそろう片寄せ）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 108.02,
+   "tol": 0.01,
+   "zk_got": 108.02206332634648,
+   "want_expr": "108.02",
+   "id": "s10-0038"
+  },
+  {
+   "name": "排水T字管 穴の方位 終わり",
+   "source": "design-demos/assets/kirizu/test_build.mjs:342",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 排水T字管 600×200（枝は右に出て、管底にそろう片寄せ）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 180,
+   "tol": 0.01,
+   "zk_got": 180,
+   "want_expr": "180.0",
+   "id": "s10-0039"
+  },
+  {
+   "name": "排水T字管 管底の線に沿う長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:342",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 排水T字管 600×200（枝は右に出て、管底にそろう片寄せ）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 12.79,
+   "tol": 0.01,
+   "zk_got": 12.79062156425553,
+   "want_expr": "12.79",
+   "id": "s10-0040"
+  },
+  {
+   "name": "排水T字管 縦の継ぎ目から穴まで",
+   "source": "design-demos/assets/kirizu/test_build.mjs:342",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 排水T字管 600×200（枝は右に出て、管底にそろう片寄せ）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 237.03,
+   "tol": 0.1,
+   "zk_got": 237.0331657133499,
+   "want_expr": "237.03",
+   "id": "s10-0041"
+  },
+  {
+   "name": "排水T字管 本管の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:343",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 排水T字管 600×200（枝は右に出て、管底にそろう片寄せ）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 131.48,
+   "tol": 0.06573999999999999,
+   "zk_got": 131.48125659179993,
+   "want_expr": "131.48",
+   "id": "s10-0042"
+  },
+  {
+   "name": "排水の枝 管底の側",
+   "source": "design-demos/assets/kirizu/test_build.mjs:345",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 排水T字管 600×200（枝は右に出て、管底にそろう片寄せ）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 440.82,
+   "tol": 0.01,
+   "zk_got": 440.82196353375684,
+   "want_expr": "440.82",
+   "id": "s10-0043"
+  },
+  {
+   "name": "排水の枝 管端の向き",
+   "source": "design-demos/assets/kirizu/test_build.mjs:345",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 排水T字管 600×200（枝は右に出て、管底にそろう片寄せ）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 267.12,
+   "tol": 0.01,
+   "zk_got": 267.12274155684497,
+   "want_expr": "267.12",
+   "id": "s10-0044"
+  },
+  {
+   "name": "排水の枝 上の側",
+   "source": "design-demos/assets/kirizu/test_build.mjs:345",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 排水T字管 600×200（枝は右に出て、管底にそろう片寄せ）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 208.33,
+   "tol": 0.01,
+   "zk_got": 208.33102667578783,
+   "want_expr": "208.33",
+   "id": "s10-0045"
+  },
+  {
+   "name": "排水の枝 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:345",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 排水T字管 600×200（枝は右に出て、管底にそろう片寄せ）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 8.783038,
+   "tol": 0.004391519,
+   "zk_got": 8.78303906788912,
+   "want_expr": "8.783038",
+   "id": "s10-0046"
+  },
+  {
+   "name": "仕切弁副管A1 弁口の穴 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:348",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 646.49,
+   "tol": 0.05,
+   "zk_got": 646.4929410371504,
+   "want_expr": "646.49",
+   "id": "s10-0047"
+  },
+  {
+   "name": "仕切弁副管A1 弁口の穴 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:348",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 597.6,
+   "tol": 0.05,
+   "zk_got": 597.5999999999999,
+   "want_expr": "597.60",
+   "id": "s10-0048"
+  },
+  {
+   "name": "仕切弁副管A1 弁口の穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:348",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1186.34,
+   "tol": 0.05,
+   "zk_got": 1186.3439258118456,
+   "want_expr": "1186.34",
+   "id": "s10-0049"
+  },
+  {
+   "name": "仕切弁副管A1 排水の穴 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:349",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 475.88,
+   "tol": 0.05,
+   "zk_got": 475.8776685166599,
+   "want_expr": "475.88",
+   "id": "s10-0050"
+  },
+  {
+   "name": "仕切弁副管A1 排水の穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:349",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2445.23,
+   "tol": 0.05,
+   "zk_got": 2445.227709040443,
+   "want_expr": "2445.23",
+   "id": "s10-0051"
+  },
+  {
+   "name": "仕切弁副管A1 排水の穴が管底の線に沿う長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:349",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 50.79,
+   "tol": 0.01,
+   "zk_got": 50.7858247939326,
+   "want_expr": "50.79",
+   "id": "s10-0052"
+  },
+  {
+   "name": "仕切弁副管A1 縦の継ぎ目から排水の穴まで",
+   "source": "design-demos/assets/kirizu/test_build.mjs:350",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 395.45,
+   "tol": 0.1,
+   "zk_got": 395.4479752706152,
+   "want_expr": "395.45",
+   "id": "s10-0053"
+  },
+  {
+   "name": "仕切弁副管A1 穴どうし",
+   "source": "design-demos/assets/kirizu/test_build.mjs:350",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1229.37,
+   "tol": 0.1,
+   "zk_got": 1229.3722333161038,
+   "want_expr": "1229.37",
+   "id": "s10-0054"
+  },
+  {
+   "name": "仕切弁副管A1 本管の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:350",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 532.83,
+   "tol": 0.266415,
+   "zk_got": 532.8289518981609,
+   "want_expr": "532.83",
+   "id": "s10-0055"
+  },
+  {
+   "name": "仕切弁副管A1 排水を左に出すと縦の継ぎ目にかかる",
+   "source": "design-demos/assets/kirizu/test_build.mjs:352",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "a4l[0].info.crossSeam && H(a4l, \"排水\").crossSeam",
+   "id": "s10-0056"
+  },
+  {
+   "name": "排水を左 継ぎ目を右（135°）に置いたときの空き",
+   "source": "design-demos/assets/kirizu/test_build.mjs:352",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 395.45,
+   "tol": 0.1,
+   "zk_got": 395.4479752706152,
+   "want_expr": "395.45",
+   "id": "s10-0057"
+  },
+  {
+   "name": "排水を左 継ぎ目を右に置くとかからない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:354",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "!a4r[0].info.crossSeam",
+   "id": "s10-0058"
+  },
+  {
+   "name": "継ぎ目を右 弁口の穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:354",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1977.24,
+   "tol": 0.05,
+   "zk_got": 1977.239876353076,
+   "want_expr": "1977.24",
+   "id": "s10-0059"
+  },
+  {
+   "name": "継ぎ目を右 排水の穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:354",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 718.36,
+   "tol": 0.05,
+   "zk_got": 718.3560931244787,
+   "want_expr": "718.36",
+   "id": "s10-0060"
+  },
+  {
+   "name": "仕切弁副管A1 弁口 わき",
+   "source": "design-demos/assets/kirizu/test_build.mjs:356",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 389.17,
+   "tol": 0.01,
+   "zk_got": 389.16845301267335,
+   "want_expr": "389.17",
+   "id": "s10-0061"
+  },
+  {
+   "name": "仕切弁副管A1 弁口 背",
+   "source": "design-demos/assets/kirizu/test_build.mjs:356",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 292,
+   "tol": 0.01,
+   "zk_got": 292,
+   "want_expr": "292.00",
+   "id": "s10-0062"
+  },
+  {
+   "name": "仕切弁副管A1 排水の枝 管底の側",
+   "source": "design-demos/assets/kirizu/test_build.mjs:356",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 593.45,
+   "tol": 0.01,
+   "zk_got": 593.4548499250283,
+   "want_expr": "593.45",
+   "id": "s10-0063"
+  },
+  {
+   "name": "仕切弁副管A1 排水の枝 上の側",
+   "source": "design-demos/assets/kirizu/test_build.mjs:356",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 254.1,
+   "tol": 0.01,
+   "zk_got": 254.09723492143024,
+   "want_expr": "254.10",
+   "id": "s10-0064"
+  },
+  {
+   "name": "仕切弁副管A1 弁口の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:357",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 30.304171,
+   "tol": 0.0151520855,
+   "zk_got": 30.304170706549442,
+   "want_expr": "30.304171",
+   "id": "s10-0065"
+  },
+  {
+   "name": "仕切弁副管A1 排水の枝の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:357",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 11.587536,
+   "tol": 0.005793768,
+   "zk_got": 11.587537941253117,
+   "want_expr": "11.587536",
+   "id": "s10-0066"
+  },
+  {
+   "name": "仕切弁副管A2 穴どうし（同じ位置）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:359",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 782.67,
+   "tol": 0.1,
+   "zk_got": 782.6677620472256,
+   "want_expr": "782.67",
+   "id": "s10-0067"
+  },
+  {
+   "name": "仕切弁副管A2 本管の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:359",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 343.96,
+   "tol": 0.17198,
+   "zk_got": 343.96537159676694,
+   "want_expr": "343.96",
+   "id": "s10-0068"
+  },
+  {
+   "name": "人孔と空気弁 人孔の穴 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:361",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 631.45,
+   "tol": 0.05,
+   "zk_got": 631.4470547223257,
+   "want_expr": "631.45",
+   "id": "s10-0069"
+  },
+  {
+   "name": "人孔の穴 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:361",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 597.6,
+   "tol": 0.05,
+   "zk_got": 597.5999999999999,
+   "want_expr": "597.60",
+   "id": "s10-0070"
+  },
+  {
+   "name": "空気弁の穴 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:362",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 106.41,
+   "tol": 0.05,
+   "zk_got": 106.40500312019253,
+   "want_expr": "106.41",
+   "id": "s10-0071"
+  },
+  {
+   "name": "空気弁の穴 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:362",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 105.3,
+   "tol": 0.05,
+   "zk_got": 105.30000000000018,
+   "want_expr": "105.30",
+   "id": "s10-0072"
+  },
+  {
+   "name": "人孔と空気弁 穴どうし",
+   "source": "design-demos/assets/kirizu/test_build.mjs:363",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 348.55,
+   "tol": 0.1,
+   "zk_got": 348.54999999999995,
+   "want_expr": "348.55",
+   "id": "s10-0073"
+  },
+  {
+   "name": "人孔と空気弁 本管の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:363",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例4・5 仕切弁副管A1・A2 1000×600×200、例6 人孔と空気弁（手で作った例）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 760.57,
+   "tol": 0.38028500000000004,
+   "zk_got": 760.5709750522904,
+   "want_expr": "760.57",
+   "id": "s10-0074"
+  },
+  {
+   "name": "排水T字管（読み取り）確認が要るものは0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:366",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_drain.json"
+   ],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s10-0075"
+  },
+  {
+   "name": "排水T字管 今の止め（枝の穴が本管に収まらない）で止めない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:366",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "!Dr.checks.some((c) => c.kind === \"tee_bad\")",
+   "id": "s10-0076"
+  },
+  {
+   "name": "排水T字管（読み取り）穴の周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:367",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 379.14,
+   "tol": 0.05,
+   "zk_got": 379.13684869491385,
+   "want_expr": "379.14",
+   "id": "s10-0077"
+  },
+  {
+   "name": "排水T字管（読み取り）穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:367",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1401.96,
+   "tol": 0.05,
+   "zk_got": 1401.9595432513138,
+   "want_expr": "1401.96",
+   "id": "s10-0078"
+  },
+  {
+   "name": "排水T字管（読み取り）本管の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:367",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 131.48,
+   "tol": 0.1,
+   "zk_got": 131.5,
+   "want_expr": "131.48",
+   "id": "s10-0079"
+  },
+  {
+   "name": "排水T字管（読み取り）枝 管底の側",
+   "source": "design-demos/assets/kirizu/test_build.mjs:368",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 440.82,
+   "tol": 0.01,
+   "zk_got": 440.82196353375684,
+   "want_expr": "440.82",
+   "id": "s10-0080"
+  },
+  {
+   "name": "排水T字管 穴の縁が管底の線に沿うと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:369",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "管底の線に 12.8mm 沿う"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"管底の線に 12.8mm 沿う\"",
+   "id": "s10-0081"
+  },
+  {
+   "name": "排水T字管 板厚の中で合わせた穴と、内面だけで合わせた穴の幅の差が出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:369",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "379.1 → 377.2 mm（本管の中心の側で、本管の外面が枝の内径の中に 2.0 mm 残る）"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"379.1 → 377.2 mm（本管の中心の側で、本管の外面が枝の内径の中に 2.0 mm 残る）\"",
+   "id": "s10-0082"
+  },
+  {
+   "name": "排水T字管 枝を左に出すと（枝1本）継ぎ目を回したと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:371",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_drain.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "回した"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"回した\"",
+   "id": "s10-0083"
+  },
+  {
+   "name": "排水T字管 枝を左 確認は0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:371",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s10-0084"
+  },
+  {
+   "name": "排水T字管 枝を左 穴の周方向は同じ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:371",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 379.14,
+   "tol": 0.05,
+   "zk_got": 379.13684869491385,
+   "want_expr": "379.14",
+   "id": "s10-0085"
+  },
+  {
+   "name": "片寄せの向きが無いと、方位が増える側に寄せたと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:372",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_drain.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "地の側に寄せた"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"地の側に寄せた\"",
+   "id": "s10-0086"
+  },
+  {
+   "name": "片寄せの向きが枝の向きに直角でないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:374",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_drain.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "直角でない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"直角でない\"",
+   "id": "s10-0087"
+  },
+  {
+   "name": "直角でないと本管を出さない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:374",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った読み取り: 排水T字管（H_branch_drain.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s10-0088"
+  },
+  {
+   "name": "仕切弁副管A1（読み取り）確認が要るものは板の大きさの1件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:377",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_valve.json"
+   ],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 1,
+   "level": null,
+   "zk_got": 1,
+   "want_expr": "1",
+   "id": "s10-0089"
+  },
+  {
+   "name": "仕切弁副管A1 本管は縦の継ぎ目2本で板に入ると出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:377",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "縦の継ぎ目を 2 本にすると入る"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"縦の継ぎ目を 2 本にすると入る\"",
+   "id": "s10-0090"
+  },
+  {
+   "name": "仕切弁副管A1 板の大きさを照らさなければ確認は0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:379",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_valve.json"
+   ],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s10-0091"
+  },
+  {
+   "name": "仕切弁副管A1（読み取り）弁口の穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:380",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1186.34,
+   "tol": 0.05,
+   "zk_got": 1186.3439258118456,
+   "want_expr": "1186.34",
+   "id": "s10-0092"
+  },
+  {
+   "name": "仕切弁副管A1（読み取り）排水の穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:380",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2445.23,
+   "tol": 0.05,
+   "zk_got": 2445.227709040443,
+   "want_expr": "2445.23",
+   "id": "s10-0093"
+  },
+  {
+   "name": "仕切弁副管A1（読み取り）本管の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:380",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 532.83,
+   "tol": 0.1,
+   "zk_got": 532.8,
+   "want_expr": "532.83",
+   "id": "s10-0094"
+  },
+  {
+   "name": "仕切弁副管A1 穴どうしの一番近い所が出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:381",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "穴の縁どうし 1229.4mm"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"穴の縁どうし 1229.4mm\"",
+   "id": "s10-0095"
+  },
+  {
+   "name": "仕切弁副管A1 排水の穴が管底の線に沿うと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:381",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "管底の線に 50.8mm 沿う"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"管底の線に 50.8mm 沿う\"",
+   "id": "s10-0096"
+  },
+  {
+   "name": "仕切弁副管A1（読み取り）弁口 わき",
+   "source": "design-demos/assets/kirizu/test_build.mjs:382",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 389.17,
+   "tol": 0.01,
+   "zk_got": 389.16845301267335,
+   "want_expr": "389.17",
+   "id": "s10-0097"
+  },
+  {
+   "name": "仕切弁副管A1（読み取り）排水の枝 管底の側",
+   "source": "design-demos/assets/kirizu/test_build.mjs:382",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 593.45,
+   "tol": 0.01,
+   "zk_got": 593.4548499250283,
+   "want_expr": "593.45",
+   "id": "s10-0098"
+  },
+  {
+   "name": "仕切弁副管A1 補強板は付く枝の片寄せで出す（弁口は 0・排水は 399.85）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:383",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "pc(V0, \"4\").geo.e === 0 && Math.abs(pc(V0, \"5\").geo.e - 399.85) < 1e-9",
+   "id": "s10-0099"
+  },
+  {
+   "name": "仕切弁副管A1 弁口の片寄せを排水の枝の値で埋めない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:384",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "V0.parts.find((p) => p.no === \"2\").params.e == null",
+   "id": "s10-0100"
+  },
+  {
+   "name": "仕切弁副管A1 継ぎ目2本 確認は0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:386",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_valve.json"
+   ],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s10-0101"
+  },
+  {
+   "name": "継ぎ目2本 排水の穴は2枚目の板",
+   "source": "design-demos/assets/kirizu/test_build.mjs:386",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1,
+   "tol": 0,
+   "zk_got": 1,
+   "want_expr": "1",
+   "id": "s10-0102"
+  },
+  {
+   "name": "継ぎ目2本 排水の穴の中心（2枚目の継ぎ目から）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:386",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 863.44,
+   "tol": 0.05,
+   "zk_got": 863.4358079579821,
+   "want_expr": "2445.23 - 3163.58 / 2",
+   "id": "s10-0103"
+  },
+  {
+   "name": "仕切弁副管A1 継ぎ目2本 弁口の穴は360点",
+   "source": "design-demos/assets/kirizu/test_build.mjs:388",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 360,
+   "tol": 0,
+   "zk_got": 360,
+   "want_expr": "360",
+   "id": "s10-0104"
+  },
+  {
+   "name": "DXF 仕切弁副管A1 継ぎ目2本の線（四角2つ＋穴の点の数）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:389",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 729,
+   "tol": 0,
+   "zk_got": 729,
+   "want_expr": "8 + hn",
+   "id": "s10-0105"
+  },
+  {
+   "name": "仕切弁副管A1 排水を左に出すと縦の継ぎ目にかかると出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:391",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_valve.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "回していない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"回していない\"",
+   "id": "s10-0106"
+  },
+  {
+   "name": "排水を左 右に置いたときの空きが出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:391",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "右に置くと、一番近い穴の縁まで 395.4mm 空く"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"右に置くと、一番近い穴の縁まで 395.4mm 空く\"",
+   "id": "s10-0107"
+  },
+  {
+   "name": "排水を左 右に置く手を出す",
+   "source": "design-demos/assets/kirizu/test_build.mjs:392",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "!!(c && c.data && c.data.mirror && c.data.mirror.to === true)",
+   "id": "s10-0108"
+  },
+  {
+   "name": "排水を左 継ぎ目を右に置くと確認は0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:394",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s10-0109"
+  },
+  {
+   "name": "継ぎ目を右に置いたと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:394",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "右に置いた"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"右に置いた\"",
+   "id": "s10-0110"
+  },
+  {
+   "name": "継ぎ目を右 排水の穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:394",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 718.36,
+   "tol": 0.05,
+   "zk_got": 718.3560931244787,
+   "want_expr": "718.36",
+   "id": "s10-0111"
+  },
+  {
+   "name": "本管の長さがフランジ面までなら確認に出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:395",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_valve.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "フランジ面までの寸法"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"フランジ面までの寸法\"",
+   "id": "s10-0112"
+  },
+  {
+   "name": "十字管（読み取り）確認が要るものは0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:398",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_cross.json"
+   ],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s10-0113"
+  },
+  {
+   "name": "十字管 数量2の行を2つの部材が指せば「数量を扱えない」は出ない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:398",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "!X.checks.some((c) => c.kind === \"tee_qty\")",
+   "id": "s10-0114"
+  },
+  {
+   "name": "十字管 枝2本の重さを足して材料表と照らす",
+   "source": "design-demos/assets/kirizu/test_build.mjs:399",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "ok",
+    "contains": "同じ行の 2 つを足して照らした"
+   },
+   "zk_got": true,
+   "want_expr": "\"ok\", \"同じ行の 2 つを足して照らした\"",
+   "id": "s10-0115"
+  },
+  {
+   "name": "十字管（読み取り）本管の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:399",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 390.48,
+   "tol": 0.1,
+   "zk_got": 390.5,
+   "want_expr": "390.48",
+   "id": "s10-0116"
+  },
+  {
+   "name": "十字管 縦の継ぎ目が地の補強板の下を通ると出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:400",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "補強板の下を通る"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"補強板の下を通る\"",
+   "id": "s10-0117"
+  },
+  {
+   "name": "十字管 補強板どうしの一番近い所が出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:400",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "外周の間 286mm"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"外周の間 286mm\"",
+   "id": "s10-0118"
+  },
+  {
+   "name": "十字管（読み取り）地の穴の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:401",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2759.89,
+   "tol": 0.05,
+   "zk_got": 2759.8891461786334,
+   "want_expr": "2759.89",
+   "id": "s10-0119"
+  },
+  {
+   "name": "天と右にすると補強板が重なると出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:403",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_cross.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "補強板が 3-1 と重なる"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"補強板が 3-1 と重なる\"",
+   "id": "s10-0120"
+  },
+  {
+   "name": "天と右 穴どうし（読み取り）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:403",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 146.51,
+   "tol": 0.1,
+   "zk_got": 146.5069377057639,
+   "want_expr": "146.51",
+   "id": "s10-0121"
+  },
+  {
+   "name": "穴どうしが重なると作れないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:405",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_cross.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "の穴が重なる"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"の穴が重なる\"",
+   "id": "s10-0122"
+  },
+  {
+   "name": "枝が2本で向きが読めていないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:407",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_cross.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "枝の向きが読めていない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"枝の向きが読めていない\"",
+   "id": "s10-0123"
+  },
+  {
+   "name": "本管の穴を出せないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:407",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "本管の穴を出せない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"本管の穴を出せない\"",
+   "id": "s10-0124"
+  },
+  {
+   "name": "向きが無いと本管を出さない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:407",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s10-0125"
+  },
+  {
+   "name": "補強板がどの枝のか決められないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:409",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_cross.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "どの枝の補強板か決められない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"どの枝の補強板か決められない\"",
+   "id": "s10-0126"
+  },
+  {
+   "name": "本管が2つで枝の付く本管が無いと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:411",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "十字管（H_branch_cross.json）: 枝と補強板は材料表の同じ行（数量2）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [
+    "H_branch_cross.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "どの本管の枝か決められない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"どの本管の枝か決められない\"",
+   "id": "s10-0127"
+  },
+  {
+   "name": "枝1本 E 本管の穴の中心は今と同じ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:413",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "枝1本の読み取りは今と同じ（E・G2 の本管の穴）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1182.81,
+   "tol": 0.05,
+   "zk_got": 1182.8096340765571,
+   "want_expr": "1182.81",
+   "id": "s10-0128"
+  },
+  {
+   "name": "枝1本 E 穴の一覧は1つ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:413",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "枝1本の読み取りは今と同じ（E・G2 の本管の穴）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1,
+   "tol": 0,
+   "zk_got": 1,
+   "want_expr": "1",
+   "id": "s10-0129"
+  }
+ ]
+}

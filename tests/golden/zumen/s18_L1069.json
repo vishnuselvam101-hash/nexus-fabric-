@@ -1,0 +1,1364 @@
+{
+ "zk_commit": "f718c34011458e187fb625ac85482fb2e77c0eed",
+ "section": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+ "section_source": "design-demos/assets/kirizu/test_build.mjs:1069",
+ "cases": [
+  {
+   "name": "曲管 D",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [
+    "K_std_bend.json"
+   ],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0001"
+  },
+  {
+   "name": "曲管 t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0002"
+  },
+  {
+   "name": "曲管 R",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0003"
+  },
+  {
+   "name": "曲管 joints",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0004"
+  },
+  {
+   "name": "曲管 start_straight",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0005"
+  },
+  {
+   "name": "曲管 end_straight",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0006"
+  },
+  {
+   "name": "曲管 start_center",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0007"
+  },
+  {
+   "name": "曲管 end_center",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0008"
+  },
+  {
+   "name": "曲管 mid_center",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0009"
+  },
+  {
+   "name": "曲管 角度は図面のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1077",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0010"
+  },
+  {
+   "name": "曲管 std_fill が出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1079",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "規格の表から埋めた"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"規格の表から埋めた\"",
+   "id": "s18-0011"
+  },
+  {
+   "name": "曲管 片に NaN 無し",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1078",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "r.pieces.every((p) => ![p.w, p.h, p.kg].some(Number.isNaN))",
+   "id": "s18-0012"
+  },
+  {
+   "name": "T字管 本管 D",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [
+    "K_std_tee.json"
+   ],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0013"
+  },
+  {
+   "name": "T字管 本管 t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0014"
+  },
+  {
+   "name": "T字管 本管 L（2H）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0015"
+  },
+  {
+   "name": "T字管 本管 branch_x（H）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0016"
+  },
+  {
+   "name": "T字管 本管 branch_D",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0017"
+  },
+  {
+   "name": "T字管 本管 branch_t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0018"
+  },
+  {
+   "name": "T字管 枝 D",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0019"
+  },
+  {
+   "name": "T字管 枝 t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0020"
+  },
+  {
+   "name": "T字管 枝 main_D",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0021"
+  },
+  {
+   "name": "T字管 枝 main_t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0022"
+  },
+  {
+   "name": "T字管 枝 H（I）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0023"
+  },
+  {
+   "name": "T字管 呼び径は図面のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1077",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0024"
+  },
+  {
+   "name": "T字管 std_fill が出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1079",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "規格の表から埋めた"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"規格の表から埋めた\"",
+   "id": "s18-0025"
+  },
+  {
+   "name": "T字管 片に NaN 無し",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1078",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "r.pieces.every((p) => ![p.w, p.h, p.kg].some(Number.isNaN))",
+   "id": "s18-0026"
+  },
+  {
+   "name": "片落管 大径側 t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [
+    "K_std_reducer.json"
+   ],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0027"
+  },
+  {
+   "name": "片落管 大径側 L（C）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0028"
+  },
+  {
+   "name": "片落管 円すい D1",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0029"
+  },
+  {
+   "name": "片落管 円すい D2",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0030"
+  },
+  {
+   "name": "片落管 円すい L（W）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0031"
+  },
+  {
+   "name": "片落管 円すい t（t2）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0032"
+  },
+  {
+   "name": "片落管 小径側 D",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0033"
+  },
+  {
+   "name": "片落管 小径側 t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0034"
+  },
+  {
+   "name": "片落管 小径側 L（E）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0035"
+  },
+  {
+   "name": "片落管 大径側の外径は図面のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1077",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0036"
+  },
+  {
+   "name": "片落管 std_fill が出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1079",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "規格の表から埋めた"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"規格の表から埋めた\"",
+   "id": "s18-0037"
+  },
+  {
+   "name": "片落管 片に NaN 無し",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1078",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "r.pieces.every((p) => ![p.w, p.h, p.kg].some(Number.isNaN))",
+   "id": "s18-0038"
+  },
+  {
+   "name": "らっぱ口 円すい D1",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [
+    "K_std_bellmouth.json"
+   ],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0039"
+  },
+  {
+   "name": "らっぱ口 円すい D2（D2'）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0040"
+  },
+  {
+   "name": "らっぱ口 円すい L（H）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0041"
+  },
+  {
+   "name": "らっぱ口 円すい t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0042"
+  },
+  {
+   "name": "らっぱ口 管 D",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0043"
+  },
+  {
+   "name": "らっぱ口 管 t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0044"
+  },
+  {
+   "name": "らっぱ口 管 L",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0045"
+  },
+  {
+   "name": "らっぱ口 呼び径は図面のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1077",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0046"
+  },
+  {
+   "name": "らっぱ口 std_fill が出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1079",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "規格の表から埋めた"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"規格の表から埋めた\"",
+   "id": "s18-0047"
+  },
+  {
+   "name": "らっぱ口 片に NaN 無し",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1078",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "r.pieces.every((p) => ![p.w, p.h, p.kg].some(Number.isNaN))",
+   "id": "s18-0048"
+  },
+  {
+   "name": "排水 本管 D",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [
+    "K_std_drain.json"
+   ],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0049"
+  },
+  {
+   "name": "排水 本管 t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0050"
+  },
+  {
+   "name": "排水 本管 L（2H）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0051"
+  },
+  {
+   "name": "排水 本管 branch_x（H）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0052"
+  },
+  {
+   "name": "排水 本管 branch_D",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0053"
+  },
+  {
+   "name": "排水 本管 branch_t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0054"
+  },
+  {
+   "name": "排水 本管 e",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0055"
+  },
+  {
+   "name": "排水 本管 e_side",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0056"
+  },
+  {
+   "name": "排水 枝 D",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0057"
+  },
+  {
+   "name": "排水 枝 t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0058"
+  },
+  {
+   "name": "排水 枝 main_D",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0059"
+  },
+  {
+   "name": "排水 枝 main_t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0060"
+  },
+  {
+   "name": "排水 枝 H（I）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0061"
+  },
+  {
+   "name": "排水 枝 e",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0062"
+  },
+  {
+   "name": "排水 枝 e_side",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0063"
+  },
+  {
+   "name": "排水 上リブ t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0064"
+  },
+  {
+   "name": "排水 上リブ rib_b",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0065"
+  },
+  {
+   "name": "排水 上リブ rib_h",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0066"
+  },
+  {
+   "name": "排水 横リブ t",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0067"
+  },
+  {
+   "name": "排水 横リブ rib_b",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0068"
+  },
+  {
+   "name": "排水 横リブ rib_h",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0069"
+  },
+  {
+   "name": "排水 枝の向きは図面のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1077",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0070"
+  },
+  {
+   "name": "排水 上リブの数は図面のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1077",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0071"
+  },
+  {
+   "name": "排水 横リブの数は図面のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1077",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0072"
+  },
+  {
+   "name": "排水 std_fill が出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1079",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "規格の表から埋めた"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"規格の表から埋めた\"",
+   "id": "s18-0073"
+  },
+  {
+   "name": "排水 片に NaN 無し",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1078",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "r.pieces.every((p) => ![p.w, p.h, p.kg].some(Number.isNaN))",
+   "id": "s18-0074"
+  },
+  {
+   "name": "直管 D",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1075",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "表から埋めた値: source \"standard\" で、別に出した期待値と合う"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [
+    "K_std_pipe.json"
+   ],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0075"
+  },
+  {
+   "name": "直管 長さは図面のまま",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1077",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": null,
+   "id": "s18-0076"
+  },
+  {
+   "name": "直管 STW400 の A種・B種を決める（std_grade）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1129",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "直管 1000A・STW400（A種・B種が書いていない）: 外径だけ表7から埋まり、板厚は std_grade で確認（spec 4-4）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "STW400"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"STW400\"",
+   "id": "s18-0077"
+  },
+  {
+   "name": "直管 板厚は埋めない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1130",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "直管 1000A・STW400（A種・B種が書いていない）: 外径だけ表7から埋まり、板厚は std_grade で確認（spec 4-4）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "par(P, \"1\", \"t\") == null || par(P, \"1\", \"t\").value == null",
+   "id": "s18-0078"
+  },
+  {
+   "name": "直管 std_fill が出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1079",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "規格の表から埋めた"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"規格の表から埋めた\"",
+   "id": "s18-0079"
+  },
+  {
+   "name": "直管 片に NaN 無し",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1078",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "図面から読んだ値は変わらない（source drawing/count）"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "r.pieces.every((p) => ![p.w, p.h, p.kg].some(Number.isNaN))",
+   "id": "s18-0080"
+  },
+  {
+   "name": "規格 呼び径 650A は表に無い（std_row）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1134",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "負例（K_std_bend のコピーをメモリ上で作る）: 呼び径が表に無い → std_row／曲管に F20（表に欄が無い）→ std_class_none。例外を投げず need が出る"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [
+    "K_std_bend.json"
+   ],
+   "zk_status": "OK",
+   "kind": "refusal_kind",
+   "want": {
+    "refusal_kind": "\"std_row\"",
+    "no_exception": true,
+    "no_nan": true
+   },
+   "zk_got": true,
+   "want_expr": "() => { const r = rd(\"K_std_bend.json\"); r.parts[0].params.nom.value = 650; return build(r); }, \"std_row\"",
+   "id": "s18-0081"
+  },
+  {
+   "name": "規格 曲管 F20 は表に欄が無い（std_class_none）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:1135",
+   "origin": {
+    "section_comment": "期待値は reader/research/verify_stdtable.py の例1〜5 と「K_std 読み取りに規格の表から埋まる値」のダンプで別に出した値（spec_stdtable.md 3章の対応）",
+    "nearest_comment": "負例（K_std_bend のコピーをメモリ上で作る）: 呼び径が表に無い → std_row／曲管に F20（表に欄が無い）→ std_class_none。例外を投げず need が出る"
+   },
+   "basis": "verify_stdtable.py (named in the test comment)",
+   "reading_hint": [
+    "K_std_bend.json"
+   ],
+   "zk_status": "OK",
+   "kind": "refusal_kind",
+   "want": {
+    "refusal_kind": "\"std_class_none\"",
+    "no_exception": true,
+    "no_nan": true
+   },
+   "zk_got": true,
+   "want_expr": "() => { const r = rd(\"K_std_bend.json\"); r.parts[0].params.pclass.value = 20; return build(r); }, \"std_class_none\"",
+   "id": "s18-0082"
+  }
+ ]
+}

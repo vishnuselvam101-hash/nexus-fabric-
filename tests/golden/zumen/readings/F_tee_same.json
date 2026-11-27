@@ -1,0 +1,12 @@
+{
+  "_note": "手で作った同径の T字管の読み取り（協力工場の図面ではない）。本管・枝とも 外径1016・板厚12",
+  "page": { "kind": "drawing", "title": "同径T字管（確かめ用の例）", "drawing_no": "F-TEE", "job_no": "", "scale": "", "company": "", "qty": 1, "unit_mass_kg": null },
+  "material_table": [],
+  "parts": [
+    { "no": "1", "name": "本管", "shape": "tee_main", "table_rows": [], "notes": [], "dims": [],
+      "params": { "D": { "value": 1016, "text": "φ1016", "bbox": null, "source": "drawing" }, "t": { "value": 12, "text": "12", "bbox": null, "source": "drawing" }, "L": { "value": 2000, "text": "2000", "bbox": null, "source": "drawing" }, "branch_x": { "value": 1000, "text": "1000", "bbox": null, "source": "drawing" } } },
+    { "no": "2", "name": "枝管", "shape": "tee_branch", "table_rows": [], "notes": [], "dims": [],
+      "params": { "D": { "value": 1016, "text": "φ1016", "bbox": null, "source": "drawing" }, "t": { "value": 12, "text": "12", "bbox": null, "source": "drawing" }, "H": { "value": 1000, "text": "1000", "bbox": null, "source": "drawing" } } }
+  ],
+  "seam": null, "notes": [], "unreadable": []
+}

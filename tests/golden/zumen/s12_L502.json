@@ -1,0 +1,3974 @@
+{
+ "zk_commit": "f718c34011458e187fb625ac85482fb2e77c0eed",
+ "section": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+ "section_source": "design-demos/assets/kirizu/test_build.mjs:502",
+ "cases": [
+  {
+   "name": "補強板 例1 外径1000 割る前の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:531",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 59.2414,
+   "tol": 0.0296207,
+   "zk_got": 59.24138522414249,
+   "want_expr": "kg0",
+   "id": "s12-0001"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に直角な線） 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:534",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1,
+   "tol": 0,
+   "zk_got": 1,
+   "want_expr": "want.length",
+   "id": "s12-0002"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に直角な線） 片1 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1328.74,
+   "tol": 0.1,
+   "zk_got": 1328.7408901737824,
+   "want_expr": "w",
+   "id": "s12-0003"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に直角な線） 片1 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 500,
+   "tol": 0.1,
+   "zk_got": 500.0000000000001,
+   "want_expr": "h",
+   "id": "s12-0004"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に直角な線） 片1 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 29.6207,
+   "tol": 0.01481035,
+   "zk_got": 29.620692612071196,
+   "want_expr": "k",
+   "id": "s12-0005"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に直角な線） 継ぎ目1 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 333.36,
+   "tol": 0.1,
+   "zk_got": 333.3578757020467,
+   "want_expr": "x",
+   "id": "s12-0006"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に直角な線） 継ぎ目2 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 333.36,
+   "tol": 0.1,
+   "zk_got": 333.3578757020467,
+   "want_expr": "x",
+   "id": "s12-0007"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に直角な線） 継ぎ目と本管の軸の角度",
+   "source": "design-demos/assets/kirizu/test_build.mjs:537",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 90,
+   "tol": 0.000001,
+   "zk_got": 90,
+   "want_expr": "ang",
+   "id": "s12-0008"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に直角な線） 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:538",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 59.2414,
+   "tol": 0.0296207,
+   "zk_got": 59.24138522414239,
+   "want_expr": "kg0",
+   "id": "s12-0009"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に直角な線） 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:539",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "n",
+   "id": "s12-0010"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に直角な線） 切る前の四角の合計",
+   "source": "design-demos/assets/kirizu/test_build.mjs:540",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 125.1674,
+   "tol": 0.0625837,
+   "zk_got": 125.16739185437034,
+   "want_expr": "gross",
+   "id": "s12-0011"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に直角な線） 片はどれも穴を持たない1つの閉じた形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:541",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "ps.every((q) => !q.hole && !q.holes && Math.hypot(q.pts[0][0] - q.pts[q.pts.length - 1][0], q.pts[0][1] - q.pts[q.pts.length - 1][1]) < 1e-9)",
+   "id": "s12-0012"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:534",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "want.length",
+   "id": "s12-0013"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 片1 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 664.37,
+   "tol": 0.1,
+   "zk_got": 664.3704450868913,
+   "want_expr": "w",
+   "id": "s12-0014"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 片1 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1000,
+   "tol": 0.1,
+   "zk_got": 1000,
+   "want_expr": "h",
+   "id": "s12-0015"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 片1 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 29.6207,
+   "tol": 0.01481035,
+   "zk_got": 29.620692612071224,
+   "want_expr": "k",
+   "id": "s12-0016"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 片2 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 664.37,
+   "tol": 0.1,
+   "zk_got": 664.3704450868913,
+   "want_expr": "w",
+   "id": "s12-0017"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 片2 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1000,
+   "tol": 0.1,
+   "zk_got": 1000,
+   "want_expr": "h",
+   "id": "s12-0018"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 片2 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 29.6207,
+   "tol": 0.01481035,
+   "zk_got": 29.620692612071256,
+   "want_expr": "k",
+   "id": "s12-0019"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 継ぎ目1 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 195,
+   "tol": 0.1,
+   "zk_got": 195,
+   "want_expr": "x",
+   "id": "s12-0020"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 継ぎ目2 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 195,
+   "tol": 0.1,
+   "zk_got": 195,
+   "want_expr": "x",
+   "id": "s12-0021"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 継ぎ目と本管の軸の角度",
+   "source": "design-demos/assets/kirizu/test_build.mjs:537",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0.000001,
+   "zk_got": 0,
+   "want_expr": "ang",
+   "id": "s12-0022"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:538",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 59.2414,
+   "tol": 0.0296207,
+   "zk_got": 59.241385224142476,
+   "want_expr": "kg0",
+   "id": "s12-0023"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:539",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "n",
+   "id": "s12-0024"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 切る前の四角の合計",
+   "source": "design-demos/assets/kirizu/test_build.mjs:540",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 125.1674,
+   "tol": 0.0625837,
+   "zk_got": 125.16739185437031,
+   "want_expr": "gross",
+   "id": "s12-0025"
+  },
+  {
+   "name": "補強板 例1 外径1000 二つ割（本管の軸に沿う線） 片はどれも穴を持たない1つの閉じた形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:541",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "ps.every((q) => !q.hole && !q.holes && Math.hypot(q.pts[0][0] - q.pts[q.pts.length - 1][0], q.pts[0][1] - q.pts[q.pts.length - 1][1]) < 1e-9)",
+   "id": "s12-0026"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:534",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 4,
+   "tol": 0,
+   "zk_got": 4,
+   "want_expr": "want.length",
+   "id": "s12-0027"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片1 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 732.95,
+   "tol": 0.1,
+   "zk_got": 732.9539757070415,
+   "want_expr": "w",
+   "id": "s12-0028"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片1 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 279.8,
+   "tol": 0.1,
+   "zk_got": 279.8029976788167,
+   "want_expr": "h",
+   "id": "s12-0029"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片1 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 11.8047,
+   "tol": 0.005902350000000001,
+   "zk_got": 11.804660967199638,
+   "want_expr": "k",
+   "id": "s12-0030"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片2 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 444.17,
+   "tol": 0.1,
+   "zk_got": 444.1734427657078,
+   "want_expr": "w",
+   "id": "s12-0031"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片2 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 732.95,
+   "tol": 0.1,
+   "zk_got": 732.9539757070415,
+   "want_expr": "h",
+   "id": "s12-0032"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片2 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 17.816,
+   "tol": 0.008908,
+   "zk_got": 17.8160316448716,
+   "want_expr": "k",
+   "id": "s12-0033"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片3 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 732.95,
+   "tol": 0.1,
+   "zk_got": 732.9539757070415,
+   "want_expr": "w",
+   "id": "s12-0034"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片3 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 279.8,
+   "tol": 0.1,
+   "zk_got": 279.8029976788167,
+   "want_expr": "h",
+   "id": "s12-0035"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片3 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 11.8047,
+   "tol": 0.005902350000000001,
+   "zk_got": 11.80466096719961,
+   "want_expr": "k",
+   "id": "s12-0036"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片4 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 444.17,
+   "tol": 0.1,
+   "zk_got": 444.17344276570793,
+   "want_expr": "w",
+   "id": "s12-0037"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片4 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 732.95,
+   "tol": 0.1,
+   "zk_got": 732.9539757070416,
+   "want_expr": "h",
+   "id": "s12-0038"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片4 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 17.816,
+   "tol": 0.008908,
+   "zk_got": 17.8160316448716,
+   "want_expr": "k",
+   "id": "s12-0039"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 継ぎ目1 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 206.87,
+   "tol": 0.1,
+   "zk_got": 206.8711394435718,
+   "want_expr": "x",
+   "id": "s12-0040"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 継ぎ目2 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 206.87,
+   "tol": 0.1,
+   "zk_got": 206.8711394435717,
+   "want_expr": "x",
+   "id": "s12-0041"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 継ぎ目3 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 206.87,
+   "tol": 0.1,
+   "zk_got": 206.87113944357176,
+   "want_expr": "x",
+   "id": "s12-0042"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 継ぎ目4 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 206.87,
+   "tol": 0.1,
+   "zk_got": 206.87113944357174,
+   "want_expr": "x",
+   "id": "s12-0043"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 継ぎ目と本管の軸の角度",
+   "source": "design-demos/assets/kirizu/test_build.mjs:537",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 45,
+   "tol": 0.000001,
+   "zk_got": 45,
+   "want_expr": "ang",
+   "id": "s12-0044"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:538",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 59.2414,
+   "tol": 0.0296207,
+   "zk_got": 59.24138522414245,
+   "want_expr": "kg0",
+   "id": "s12-0045"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:539",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 4,
+   "tol": 0,
+   "zk_got": 4,
+   "want_expr": "n",
+   "id": "s12-0046"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 切る前の四角の合計",
+   "source": "design-demos/assets/kirizu/test_build.mjs:540",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 99.9728,
+   "tol": 0.04998640000000001,
+   "zk_got": 99.97284170844156,
+   "want_expr": "gross",
+   "id": "s12-0047"
+  },
+  {
+   "name": "補強板 例1 外径1000 4枚割り 片はどれも穴を持たない1つの閉じた形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:541",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "ps.every((q) => !q.hole && !q.holes && Math.hypot(q.pts[0][0] - q.pts[q.pts.length - 1][0], q.pts[0][1] - q.pts[q.pts.length - 1][1]) < 1e-9)",
+   "id": "s12-0048"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 割る前の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:531",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 36.0461,
+   "tol": 0.018023050000000002,
+   "zk_got": 36.04613747633916,
+   "want_expr": "kg0",
+   "id": "s12-0049"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に直角な線） 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:534",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1,
+   "tol": 0,
+   "zk_got": 1,
+   "want_expr": "want.length",
+   "id": "s12-0050"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に直角な線） 片1 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1029.88,
+   "tol": 0.1,
+   "zk_got": 1029.878124225318,
+   "want_expr": "w",
+   "id": "s12-0051"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に直角な線） 片1 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 455,
+   "tol": 0.1,
+   "zk_got": 455.00000000000006,
+   "want_expr": "h",
+   "id": "s12-0052"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に直角な線） 片1 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 18.0231,
+   "tol": 0.00901155,
+   "zk_got": 18.023068738169602,
+   "want_expr": "k",
+   "id": "s12-0053"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に直角な線） 継ぎ目1 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 150,
+   "tol": 0.1,
+   "zk_got": 150,
+   "want_expr": "x",
+   "id": "s12-0054"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に直角な線） 継ぎ目2 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 150,
+   "tol": 0.1,
+   "zk_got": 150,
+   "want_expr": "x",
+   "id": "s12-0055"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に直角な線） 継ぎ目と本管の軸の角度",
+   "source": "design-demos/assets/kirizu/test_build.mjs:537",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 90,
+   "tol": 0.000001,
+   "zk_got": 90,
+   "want_expr": "ang",
+   "id": "s12-0056"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に直角な線） 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:538",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 36.0461,
+   "tol": 0.018023050000000002,
+   "zk_got": 36.046137476339204,
+   "want_expr": "kg0",
+   "id": "s12-0057"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に直角な線） 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:539",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "n",
+   "id": "s12-0058"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に直角な線） 切る前の四角の合計",
+   "source": "design-demos/assets/kirizu/test_build.mjs:540",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 88.2832,
+   "tol": 0.044141599999999996,
+   "zk_got": 88.28321256484271,
+   "want_expr": "gross",
+   "id": "s12-0059"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に直角な線） 片はどれも穴を持たない1つの閉じた形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:541",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "ps.every((q) => !q.hole && !q.holes && Math.hypot(q.pts[0][0] - q.pts[q.pts.length - 1][0], q.pts[0][1] - q.pts[q.pts.length - 1][1]) < 1e-9)",
+   "id": "s12-0060"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:534",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "want.length",
+   "id": "s12-0061"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 片1 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 463.44,
+   "tol": 0.1,
+   "zk_got": 463.4404942496129,
+   "want_expr": "w",
+   "id": "s12-0062"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 片1 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 910,
+   "tol": 0.1,
+   "zk_got": 910,
+   "want_expr": "h",
+   "id": "s12-0063"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 片1 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 17.0438,
+   "tol": 0.0085219,
+   "zk_got": 17.04379059010161,
+   "want_expr": "k",
+   "id": "s12-0064"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 片2 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 566.44,
+   "tol": 0.1,
+   "zk_got": 566.4376299757054,
+   "want_expr": "w",
+   "id": "s12-0065"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 片2 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 910,
+   "tol": 0.1,
+   "zk_got": 910,
+   "want_expr": "h",
+   "id": "s12-0066"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 片2 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 19.0023,
+   "tol": 0.009501150000000002,
+   "zk_got": 19.00234688623751,
+   "want_expr": "k",
+   "id": "s12-0067"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 継ぎ目1 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 150,
+   "tol": 0.1,
+   "zk_got": 150,
+   "want_expr": "x",
+   "id": "s12-0068"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 継ぎ目2 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 150,
+   "tol": 0.1,
+   "zk_got": 150,
+   "want_expr": "x",
+   "id": "s12-0069"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 継ぎ目と本管の軸の角度",
+   "source": "design-demos/assets/kirizu/test_build.mjs:537",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0.000001,
+   "zk_got": 0,
+   "want_expr": "ang",
+   "id": "s12-0070"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:538",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 36.0461,
+   "tol": 0.018023050000000002,
+   "zk_got": 36.04613747633912,
+   "want_expr": "kg0",
+   "id": "s12-0071"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:539",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "n",
+   "id": "s12-0072"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 切る前の四角の合計",
+   "source": "design-demos/assets/kirizu/test_build.mjs:540",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 88.2832,
+   "tol": 0.044141599999999996,
+   "zk_got": 88.28321256484271,
+   "want_expr": "gross",
+   "id": "s12-0073"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 二つ割（本管の軸に沿う線） 片はどれも穴を持たない1つの閉じた形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:541",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "ps.every((q) => !q.hole && !q.holes && Math.hypot(q.pts[0][0] - q.pts[q.pts.length - 1][0], q.pts[0][1] - q.pts[q.pts.length - 1][1]) < 1e-9)",
+   "id": "s12-0074"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:534",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 3,
+   "tol": 0,
+   "zk_got": 3,
+   "want_expr": "want.length",
+   "id": "s12-0075"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 片1 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 794.94,
+   "tol": 0.1,
+   "zk_got": 794.9419872247142,
+   "want_expr": "w",
+   "id": "s12-0076"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 片1 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 455,
+   "tol": 0.1,
+   "zk_got": 455,
+   "want_expr": "h",
+   "id": "s12-0077"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 片1 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 12.3187,
+   "tol": 0.00615935,
+   "zk_got": 12.31872659989816,
+   "want_expr": "k",
+   "id": "s12-0078"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 片2 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 309.94,
+   "tol": 0.1,
+   "zk_got": 309.9404030791229,
+   "want_expr": "w",
+   "id": "s12-0079"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 片2 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 791.56,
+   "tol": 0.1,
+   "zk_got": 791.5623130123065,
+   "want_expr": "h",
+   "id": "s12-0080"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 片2 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 11.4087,
+   "tol": 0.0057043499999999995,
+   "zk_got": 11.408684276542793,
+   "want_expr": "k",
+   "id": "s12-0081"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 片3 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 794.94,
+   "tol": 0.1,
+   "zk_got": 794.9419872247145,
+   "want_expr": "w",
+   "id": "s12-0082"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 片3 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 455,
+   "tol": 0.1,
+   "zk_got": 455,
+   "want_expr": "h",
+   "id": "s12-0083"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 片3 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 12.3187,
+   "tol": 0.00615935,
+   "zk_got": 12.318726599898167,
+   "want_expr": "k",
+   "id": "s12-0084"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 継ぎ目1 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 150,
+   "tol": 0.1,
+   "zk_got": 150,
+   "want_expr": "x",
+   "id": "s12-0085"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 継ぎ目2 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 150.01,
+   "tol": 0.1,
+   "zk_got": 150.00853215703802,
+   "want_expr": "x",
+   "id": "s12-0086"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 継ぎ目3 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 150.01,
+   "tol": 0.1,
+   "zk_got": 150.008532157038,
+   "want_expr": "x",
+   "id": "s12-0087"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 継ぎ目と本管の軸の角度",
+   "source": "design-demos/assets/kirizu/test_build.mjs:537",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 30,
+   "tol": 0.000001,
+   "zk_got": 29.999999999999986,
+   "want_expr": "ang",
+   "id": "s12-0088"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:538",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 36.0461,
+   "tol": 0.018023050000000002,
+   "zk_got": 36.04613747633912,
+   "want_expr": "kg0",
+   "id": "s12-0089"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:539",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 3,
+   "tol": 0,
+   "zk_got": 3,
+   "want_expr": "n",
+   "id": "s12-0090"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 切る前の四角の合計",
+   "source": "design-demos/assets/kirizu/test_build.mjs:540",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 91.2548,
+   "tol": 0.045627400000000005,
+   "zk_got": 91.25477583893247,
+   "want_expr": "gross",
+   "id": "s12-0091"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 3枚割り 片はどれも穴を持たない1つの閉じた形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:541",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "ps.every((q) => !q.hole && !q.holes && Math.hypot(q.pts[0][0] - q.pts[q.pts.length - 1][0], q.pts[0][1] - q.pts[q.pts.length - 1][1]) < 1e-9)",
+   "id": "s12-0092"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:534",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 4,
+   "tol": 0,
+   "zk_got": 4,
+   "want_expr": "want.length",
+   "id": "s12-0093"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片1 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 665.37,
+   "tol": 0.1,
+   "zk_got": 665.3724889515756,
+   "want_expr": "w",
+   "id": "s12-0094"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片1 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 236.86,
+   "tol": 0.1,
+   "zk_got": 236.86391199479394,
+   "want_expr": "h",
+   "id": "s12-0095"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片1 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 8.5556,
+   "tol": 0.0042778,
+   "zk_got": 8.555571368779935,
+   "want_expr": "k",
+   "id": "s12-0096"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片2 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 245.3,
+   "tol": 0.1,
+   "zk_got": 245.3044062444069,
+   "want_expr": "w",
+   "id": "s12-0097"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片2 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 648.43,
+   "tol": 0.1,
+   "zk_got": 648.4331411445457,
+   "want_expr": "h",
+   "id": "s12-0098"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片2 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 8.5769,
+   "tol": 0.00428845,
+   "zk_got": 8.576873312624754,
+   "want_expr": "k",
+   "id": "s12-0099"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片3 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 665.37,
+   "tol": 0.1,
+   "zk_got": 665.3724889515759,
+   "want_expr": "w",
+   "id": "s12-0100"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片3 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 236.86,
+   "tol": 0.1,
+   "zk_got": 236.86391199479397,
+   "want_expr": "h",
+   "id": "s12-0101"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片3 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 8.5556,
+   "tol": 0.0042778,
+   "zk_got": 8.555571368779924,
+   "want_expr": "k",
+   "id": "s12-0102"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片4 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 333.75,
+   "tol": 0.1,
+   "zk_got": 333.75322827435775,
+   "want_expr": "w",
+   "id": "s12-0103"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片4 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 682.31,
+   "tol": 0.1,
+   "zk_got": 682.3118367586055,
+   "want_expr": "h",
+   "id": "s12-0104"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片4 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 10.3581,
+   "tol": 0.00517905,
+   "zk_got": 10.35812142615452,
+   "want_expr": "k",
+   "id": "s12-0105"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 継ぎ目1 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 153.41,
+   "tol": 0.1,
+   "zk_got": 153.4018900171437,
+   "want_expr": "x",
+   "id": "s12-0106"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 継ぎ目2 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 150.02,
+   "tol": 0.1,
+   "zk_got": 150.02045714942864,
+   "want_expr": "x",
+   "id": "s12-0107"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 継ぎ目3 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 150.02,
+   "tol": 0.1,
+   "zk_got": 150.0204571494287,
+   "want_expr": "x",
+   "id": "s12-0108"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 継ぎ目4 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 153.41,
+   "tol": 0.1,
+   "zk_got": 153.40189001714373,
+   "want_expr": "x",
+   "id": "s12-0109"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 継ぎ目と本管の軸の角度",
+   "source": "design-demos/assets/kirizu/test_build.mjs:537",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 45,
+   "tol": 0.000001,
+   "zk_got": 45,
+   "want_expr": "ang",
+   "id": "s12-0110"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:538",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 36.0461,
+   "tol": 0.018023050000000002,
+   "zk_got": 36.046137476339126,
+   "want_expr": "kg0",
+   "id": "s12-0111"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:539",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 4,
+   "tol": 0,
+   "zk_got": 4,
+   "want_expr": "n",
+   "id": "s12-0112"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 切る前の四角の合計",
+   "source": "design-demos/assets/kirizu/test_build.mjs:540",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 66.1277,
+   "tol": 0.033063850000000006,
+   "zk_got": 66.1277166938501,
+   "want_expr": "gross",
+   "id": "s12-0113"
+  },
+  {
+   "name": "補強板 例2 幅150・片寄せ150 4枚割り 片はどれも穴を持たない1つの閉じた形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:541",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "ps.every((q) => !q.hole && !q.holes && Math.hypot(q.pts[0][0] - q.pts[q.pts.length - 1][0], q.pts[0][1] - q.pts[q.pts.length - 1][1]) < 1e-9)",
+   "id": "s12-0114"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 割る前の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:531",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 37.1304,
+   "tol": 0.0185652,
+   "zk_got": 37.13039836564327,
+   "want_expr": "kg0",
+   "id": "s12-0115"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に直角な線） 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:534",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1,
+   "tol": 0,
+   "zk_got": 1,
+   "want_expr": "want.length",
+   "id": "s12-0116"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に直角な線） 片1 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1852.32,
+   "tol": 0.1,
+   "zk_got": 1852.3169137100913,
+   "want_expr": "w",
+   "id": "s12-0117"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に直角な線） 片1 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 862,
+   "tol": 0.1,
+   "zk_got": 862.0000000000001,
+   "want_expr": "h",
+   "id": "s12-0118"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に直角な線） 片1 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 18.5652,
+   "tol": 0.0092826,
+   "zk_got": 18.565199182821697,
+   "want_expr": "k",
+   "id": "s12-0119"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に直角な線） 継ぎ目1 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 100,
+   "tol": 0.1,
+   "zk_got": 100,
+   "want_expr": "x",
+   "id": "s12-0120"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に直角な線） 継ぎ目2 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 100,
+   "tol": 0.1,
+   "zk_got": 100,
+   "want_expr": "x",
+   "id": "s12-0121"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に直角な線） 継ぎ目と本管の軸の角度",
+   "source": "design-demos/assets/kirizu/test_build.mjs:537",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 90,
+   "tol": 0.000001,
+   "zk_got": 90,
+   "want_expr": "ang",
+   "id": "s12-0122"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に直角な線） 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:538",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 37.1304,
+   "tol": 0.0185652,
+   "zk_got": 37.130398365643394,
+   "want_expr": "kg0",
+   "id": "s12-0123"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に直角な線） 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:539",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "n",
+   "id": "s12-0124"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に直角な線） 切る前の四角の合計",
+   "source": "design-demos/assets/kirizu/test_build.mjs:540",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 225.6133,
+   "tol": 0.11280665000000001,
+   "zk_got": 225.6133114800374,
+   "want_expr": "gross",
+   "id": "s12-0125"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に直角な線） 片はどれも穴を持たない1つの閉じた形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:541",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "ps.every((q) => !q.hole && !q.holes && Math.hypot(q.pts[0][0] - q.pts[q.pts.length - 1][0], q.pts[0][1] - q.pts[q.pts.length - 1][1]) < 1e-9)",
+   "id": "s12-0126"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:534",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "want.length",
+   "id": "s12-0127"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 片1 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 926.16,
+   "tol": 0.1,
+   "zk_got": 926.1584568550458,
+   "want_expr": "w",
+   "id": "s12-0128"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 片1 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1724,
+   "tol": 0.1,
+   "zk_got": 1724,
+   "want_expr": "h",
+   "id": "s12-0129"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 片1 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 18.5652,
+   "tol": 0.0092826,
+   "zk_got": 18.56519918282165,
+   "want_expr": "k",
+   "id": "s12-0130"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 片2 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 926.16,
+   "tol": 0.1,
+   "zk_got": 926.1584568550456,
+   "want_expr": "w",
+   "id": "s12-0131"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 片2 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1724,
+   "tol": 0.1,
+   "zk_got": 1724,
+   "want_expr": "h",
+   "id": "s12-0132"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 片2 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 18.5652,
+   "tol": 0.0092826,
+   "zk_got": 18.565199182821612,
+   "want_expr": "k",
+   "id": "s12-0133"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 継ぎ目1 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 100,
+   "tol": 0.1,
+   "zk_got": 100,
+   "want_expr": "x",
+   "id": "s12-0134"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 継ぎ目2 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 100,
+   "tol": 0.1,
+   "zk_got": 100,
+   "want_expr": "x",
+   "id": "s12-0135"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 継ぎ目と本管の軸の角度",
+   "source": "design-demos/assets/kirizu/test_build.mjs:537",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0.000001,
+   "zk_got": 0,
+   "want_expr": "ang",
+   "id": "s12-0136"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:538",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 37.1304,
+   "tol": 0.0185652,
+   "zk_got": 37.130398365643266,
+   "want_expr": "kg0",
+   "id": "s12-0137"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:539",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "n",
+   "id": "s12-0138"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 切る前の四角の合計",
+   "source": "design-demos/assets/kirizu/test_build.mjs:540",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 225.6133,
+   "tol": 0.11280665000000001,
+   "zk_got": 225.6133114800373,
+   "want_expr": "gross",
+   "id": "s12-0139"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 二つ割（本管の軸に沿う線） 片はどれも穴を持たない1つの閉じた形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:541",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "ps.every((q) => !q.hole && !q.holes && Math.hypot(q.pts[0][0] - q.pts[q.pts.length - 1][0], q.pts[0][1] - q.pts[q.pts.length - 1][1]) < 1e-9)",
+   "id": "s12-0140"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:534",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 4,
+   "tol": 0,
+   "zk_got": 4,
+   "want_expr": "want.length",
+   "id": "s12-0141"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片1 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1239.32,
+   "tol": 0.1,
+   "zk_got": 1239.3222714707472,
+   "want_expr": "w",
+   "id": "s12-0142"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片1 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 313.2,
+   "tol": 0.1,
+   "zk_got": 313.20200154033387,
+   "want_expr": "h",
+   "id": "s12-0143"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片1 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 9.0525,
+   "tol": 0.00452625,
+   "zk_got": 9.052464728882526,
+   "want_expr": "k",
+   "id": "s12-0144"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片2 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 377.36,
+   "tol": 0.1,
+   "zk_got": 377.3604583953793,
+   "want_expr": "w",
+   "id": "s12-0145"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片2 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1239.32,
+   "tol": 0.1,
+   "zk_got": 1239.3222714707472,
+   "want_expr": "h",
+   "id": "s12-0146"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片2 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 9.5127,
+   "tol": 0.00475635,
+   "zk_got": 9.512734453939073,
+   "want_expr": "k",
+   "id": "s12-0147"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片3 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1239.32,
+   "tol": 0.1,
+   "zk_got": 1239.3222714707472,
+   "want_expr": "w",
+   "id": "s12-0148"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片3 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 313.2,
+   "tol": 0.1,
+   "zk_got": 313.20200154033387,
+   "want_expr": "h",
+   "id": "s12-0149"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片3 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 9.0525,
+   "tol": 0.00452625,
+   "zk_got": 9.05246472888244,
+   "want_expr": "k",
+   "id": "s12-0150"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片4 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 377.36,
+   "tol": 0.1,
+   "zk_got": 377.36045839537974,
+   "want_expr": "w",
+   "id": "s12-0151"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片4 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1239.32,
+   "tol": 0.1,
+   "zk_got": 1239.3222714707472,
+   "want_expr": "h",
+   "id": "s12-0152"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片4 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 9.5127,
+   "tol": 0.00475635,
+   "zk_got": 9.512734453939125,
+   "want_expr": "k",
+   "id": "s12-0153"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 継ぎ目1 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 100.24,
+   "tol": 0.1,
+   "zk_got": 100.21560980761176,
+   "want_expr": "x",
+   "id": "s12-0154"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 継ぎ目2 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 100.24,
+   "tol": 0.1,
+   "zk_got": 100.21560980761184,
+   "want_expr": "x",
+   "id": "s12-0155"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 継ぎ目3 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 100.24,
+   "tol": 0.1,
+   "zk_got": 100.21560980761184,
+   "want_expr": "x",
+   "id": "s12-0156"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 継ぎ目4 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 100.24,
+   "tol": 0.1,
+   "zk_got": 100.21560980761176,
+   "want_expr": "x",
+   "id": "s12-0157"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 継ぎ目と本管の軸の角度",
+   "source": "design-demos/assets/kirizu/test_build.mjs:537",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 45,
+   "tol": 0.000001,
+   "zk_got": 45,
+   "want_expr": "ang",
+   "id": "s12-0158"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:538",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 37.1304,
+   "tol": 0.0185652,
+   "zk_got": 37.13039836564315,
+   "want_expr": "kg0",
+   "id": "s12-0159"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:539",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 4,
+   "tol": 0,
+   "zk_got": 4,
+   "want_expr": "n",
+   "id": "s12-0160"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 切る前の四角の合計",
+   "source": "design-demos/assets/kirizu/test_build.mjs:540",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 120.9287,
+   "tol": 0.06046435000000001,
+   "zk_got": 120.92869936896565,
+   "want_expr": "gross",
+   "id": "s12-0161"
+  },
+  {
+   "name": "補強板 例3 大径 幅100 4枚割り 片はどれも穴を持たない1つの閉じた形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:541",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "ps.every((q) => !q.hole && !q.holes && Math.hypot(q.pts[0][0] - q.pts[q.pts.length - 1][0], q.pts[0][1] - q.pts[q.pts.length - 1][1]) < 1e-9)",
+   "id": "s12-0162"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 割る前の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:531",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 28.8684,
+   "tol": 0.014434200000000001,
+   "zk_got": 28.868358011398445,
+   "want_expr": "kg0",
+   "id": "s12-0163"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に直角な線） 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:534",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1,
+   "tol": 0,
+   "zk_got": 1,
+   "want_expr": "want.length",
+   "id": "s12-0164"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に直角な線） 片1 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 867.29,
+   "tol": 0.1,
+   "zk_got": 867.2930806125687,
+   "want_expr": "w",
+   "id": "s12-0165"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に直角な線） 片1 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 350,
+   "tol": 0.1,
+   "zk_got": 350.00000000000006,
+   "want_expr": "h",
+   "id": "s12-0166"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に直角な線） 片1 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 14.4342,
+   "tol": 0.007217100000000001,
+   "zk_got": 14.434179005699233,
+   "want_expr": "k",
+   "id": "s12-0167"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に直角な線） 継ぎ目1 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 269.21,
+   "tol": 0.1,
+   "zk_got": 269.2055675652029,
+   "want_expr": "x",
+   "id": "s12-0168"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に直角な線） 継ぎ目2 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 149,
+   "tol": 0.1,
+   "zk_got": 148.9954092340629,
+   "want_expr": "x",
+   "id": "s12-0169"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に直角な線） 継ぎ目と本管の軸の角度",
+   "source": "design-demos/assets/kirizu/test_build.mjs:537",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 90,
+   "tol": 0.000001,
+   "zk_got": 90,
+   "want_expr": "ang",
+   "id": "s12-0170"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に直角な線） 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:538",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 28.8684,
+   "tol": 0.014434200000000001,
+   "zk_got": 28.868358011398467,
+   "want_expr": "kg0",
+   "id": "s12-0171"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に直角な線） 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:539",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "n",
+   "id": "s12-0172"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に直角な線） 切る前の四角の合計",
+   "source": "design-demos/assets/kirizu/test_build.mjs:540",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 57.1893,
+   "tol": 0.028594650000000003,
+   "zk_got": 57.18930573559279,
+   "want_expr": "gross",
+   "id": "s12-0173"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に直角な線） 片はどれも穴を持たない1つの閉じた形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:541",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "ps.every((q) => !q.hole && !q.holes && Math.hypot(q.pts[0][0] - q.pts[q.pts.length - 1][0], q.pts[0][1] - q.pts[q.pts.length - 1][1]) < 1e-9)",
+   "id": "s12-0174"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:534",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "want.length",
+   "id": "s12-0175"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 片1 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 356.99,
+   "tol": 0.1,
+   "zk_got": 356.9910298512236,
+   "want_expr": "w",
+   "id": "s12-0176"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 片1 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 700,
+   "tol": 0.1,
+   "zk_got": 700,
+   "want_expr": "h",
+   "id": "s12-0177"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 片1 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 12.1872,
+   "tol": 0.0060936,
+   "zk_got": 12.187186798723602,
+   "want_expr": "k",
+   "id": "s12-0178"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 片2 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 510.3,
+   "tol": 0.1,
+   "zk_got": 510.3020507613452,
+   "want_expr": "w",
+   "id": "s12-0179"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 片2 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 699.94,
+   "tol": 0.1,
+   "zk_got": 699.9382052769619,
+   "want_expr": "h",
+   "id": "s12-0180"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 片2 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:535",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 16.6812,
+   "tol": 0.0083406,
+   "zk_got": 16.68117121267491,
+   "want_expr": "k",
+   "id": "s12-0181"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 継ぎ目1 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 146.78,
+   "tol": 0.1,
+   "zk_got": 146.76910263848094,
+   "want_expr": "x",
+   "id": "s12-0182"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 継ぎ目2 の長さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:536",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 146.78,
+   "tol": 0.1,
+   "zk_got": 146.76910263848094,
+   "want_expr": "x",
+   "id": "s12-0183"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 継ぎ目と本管の軸の角度",
+   "source": "design-demos/assets/kirizu/test_build.mjs:537",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 0,
+   "tol": 0.000001,
+   "zk_got": 0,
+   "want_expr": "ang",
+   "id": "s12-0184"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:538",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 28.8684,
+   "tol": 0.014434200000000001,
+   "zk_got": 28.86835801139851,
+   "want_expr": "kg0",
+   "id": "s12-0185"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:539",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "n",
+   "id": "s12-0186"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 切る前の四角の合計",
+   "source": "design-demos/assets/kirizu/test_build.mjs:540",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 57.1863,
+   "tol": 0.02859315,
+   "zk_got": 57.1863352352521,
+   "want_expr": "gross",
+   "id": "s12-0187"
+  },
+  {
+   "name": "補強板 例4 外径700・片寄せ150 二つ割（本管の軸に沿う線） 片はどれも穴を持たない1つの閉じた形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:541",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "[名前, 補強板の寸法, 板厚, 割る前の重さ, 切る前の四角（割る前）, [[枚数, 割る線, 片ごとの [周方向, 軸方向, 重さ]（二つ割の直角は1枚・2枚取り）, 継ぎ目の長さ, 継ぎ目と本管の軸の角度, 切る前の四角の合計], ...]]"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "ps.every((q) => !q.hole && !q.holes && Math.hypot(q.pts[0][0] - q.pts[q.pts.length - 1][0], q.pts[0][1] - q.pts[q.pts.length - 1][1]) < 1e-9)",
+   "id": "s12-0188"
+  },
+  {
+   "name": "補強板 二つ割の継ぎ目の端は x＝0",
+   "source": "design-demos/assets/kirizu/test_build.mjs:545",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "二つ割（直角）の継ぎ目は x＝0 の線の上・DXF の線は外周の半分 180 本と穴の半分 180 本と継ぎ目 2 本"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "u.info.cuts.every(([h, o]) => Math.abs(h[1]) < 1e-9 && Math.abs(o[1]) < 1e-9)",
+   "id": "s12-0189"
+  },
+  {
+   "name": "補強板 二つ割 DXF の線",
+   "source": "design-demos/assets/kirizu/test_build.mjs:546",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "二つ割（直角）の継ぎ目は x＝0 の線の上・DXF の線は外周の半分 180 本と穴の半分 180 本と継ぎ目 2 本"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 362,
+   "tol": 0,
+   "zk_got": 362,
+   "want_expr": "362",
+   "id": "s12-0190"
+  },
+  {
+   "name": "補強板 斜めの枝 2枚 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:549",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "斜めの枝の補強板（ラテラル 例2）も割れる。2枚の形は違い、重さの合計は割る前と同じ"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "n",
+   "id": "s12-0191"
+  },
+  {
+   "name": "補強板 斜めの枝 2枚 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:549",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "斜めの枝の補強板（ラテラル 例2）も割れる。2枚の形は違い、重さの合計は割る前と同じ"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 40.852145265977846,
+   "tol": 0.020426072632988925,
+   "zk_got": 40.85214526597793,
+   "want_expr": "k0",
+   "id": "s12-0192"
+  },
+  {
+   "name": "補強板 斜めの枝 3枚 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:549",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "斜めの枝の補強板（ラテラル 例2）も割れる。2枚の形は違い、重さの合計は割る前と同じ"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 3,
+   "tol": 0,
+   "zk_got": 3,
+   "want_expr": "n",
+   "id": "s12-0193"
+  },
+  {
+   "name": "補強板 斜めの枝 3枚 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:549",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "斜めの枝の補強板（ラテラル 例2）も割れる。2枚の形は違い、重さの合計は割る前と同じ"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 40.852145265977846,
+   "tol": 0.020426072632988925,
+   "zk_got": 40.85214526597784,
+   "want_expr": "k0",
+   "id": "s12-0194"
+  },
+  {
+   "name": "補強板 斜めの枝 4枚 片の数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:549",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "斜めの枝の補強板（ラテラル 例2）も割れる。2枚の形は違い、重さの合計は割る前と同じ"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 4,
+   "tol": 0,
+   "zk_got": 4,
+   "want_expr": "n",
+   "id": "s12-0195"
+  },
+  {
+   "name": "補強板 斜めの枝 4枚 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:549",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "斜めの枝の補強板（ラテラル 例2）も割れる。2枚の形は違い、重さの合計は割る前と同じ"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 40.852145265977846,
+   "tol": 0.020426072632988925,
+   "zk_got": 40.852145265977896,
+   "want_expr": "k0",
+   "id": "s12-0196"
+  },
+  {
+   "name": "補強板 二つ割（読み取り）確認が要るものは0件",
+   "source": "design-demos/assets/kirizu/test_build.mjs:553",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [
+    "H_pad_split.json"
+   ],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s12-0197"
+  },
+  {
+   "name": "補強板 二つ割（読み取り）1枚の周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:554",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1328.7,
+   "tol": 0.1,
+   "zk_got": 1328.7,
+   "want_expr": "1328.7",
+   "id": "s12-0198"
+  },
+  {
+   "name": "補強板 二つ割（読み取り）1枚の軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:554",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 500,
+   "tol": 0.1,
+   "zk_got": 500,
+   "want_expr": "500.0",
+   "id": "s12-0199"
+  },
+  {
+   "name": "補強板 二つ割（読み取り）重さ（2枚）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:554",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 59.2,
+   "tol": 0.05,
+   "zk_got": 59.2,
+   "want_expr": "59.2",
+   "id": "s12-0200"
+  },
+  {
+   "name": "補強板 二つ割（読み取り）枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:554",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "2",
+   "id": "s12-0201"
+  },
+  {
+   "name": "補強板 二つ割（読み取り）切る前の四角（2枚）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:555",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 125.2,
+   "tol": 0.05,
+   "zk_got": 125.2,
+   "want_expr": "125.2",
+   "id": "s12-0202"
+  },
+  {
+   "name": "補強板 二つ割（読み取り）重さが材料表と合う",
+   "source": "design-demos/assets/kirizu/test_build.mjs:556",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "ok",
+    "contains": "材料表 59.2 kg"
+   },
+   "zk_got": true,
+   "want_expr": "\"ok\", \"材料表 59.2 kg\"",
+   "id": "s12-0203"
+  },
+  {
+   "name": "補強板 二つ割（読み取り）割り方と、軸に沿う線のときの外形が出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:556",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "1328.7×500 → 664.4×1000"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"1328.7×500 → 664.4×1000\"",
+   "id": "s12-0204"
+  },
+  {
+   "name": "補強板 二つ割（読み取り）2枚目は裏返しと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:557",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "2枚目は裏返して使う"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"2枚目は裏返して使う\"",
+   "id": "s12-0205"
+  },
+  {
+   "name": "補強板 二つ割（読み取り）試験孔を入れていないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:557",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "試験孔は切図に入れていない"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"試験孔は切図に入れていない\"",
+   "id": "s12-0206"
+  },
+  {
+   "name": "補強板 二つ割（読み取り）本管・枝管は今と同じ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:558",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "pc(Ps, \"1\").info.holeU === pc(E, \"1\").info.holeU && pc(Ps, \"2\").w === pc(E, \"2\").w",
+   "id": "s12-0207"
+  },
+  {
+   "name": "補強板 軸に沿う線（読み取り）周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:559",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [
+    "H_pad_split.json"
+   ],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 664.4,
+   "tol": 0.1,
+   "zk_got": 664.4,
+   "want_expr": "664.4",
+   "id": "s12-0208"
+  },
+  {
+   "name": "補強板 軸に沿う線（読み取り）軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:559",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1000,
+   "tol": 0.1,
+   "zk_got": 1000,
+   "want_expr": "1000.0",
+   "id": "s12-0209"
+  },
+  {
+   "name": "補強板 軸に沿う線（読み取り）枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:559",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "2",
+   "id": "s12-0210"
+  },
+  {
+   "name": "補強板 軸に沿う線（読み取り）割る線の向きが出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:560",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "本管の軸に沿う"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"本管の軸に沿う\"",
+   "id": "s12-0211"
+  },
+  {
+   "name": "補強板 四つ割（人が直した）枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:561",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [
+    "H_pad_split.json"
+   ],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 4,
+   "tol": 0,
+   "zk_got": 4,
+   "want_expr": "4",
+   "id": "s12-0212"
+  },
+  {
+   "name": "補強板 四つ割 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:561",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 59.2,
+   "tol": 0.05,
+   "zk_got": 59.2,
+   "want_expr": "59.2",
+   "id": "s12-0213"
+  },
+  {
+   "name": "補強板 四つ割 一番大きい片の幅",
+   "source": "design-demos/assets/kirizu/test_build.mjs:561",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 732.95,
+   "tol": 0.1,
+   "zk_got": 733,
+   "want_expr": "732.95",
+   "id": "s12-0214"
+  },
+  {
+   "name": "補強板 四つ割（人が直した）数量と違っても確認は出ない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:562",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s12-0215"
+  },
+  {
+   "name": "補強板 四つ割 継ぎ目と本管の軸 45°",
+   "source": "design-demos/assets/kirizu/test_build.mjs:562",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "一番小さい所で 45°"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"一番小さい所で 45°\"",
+   "id": "s12-0216"
+  },
+  {
+   "name": "補強板 三つ割は継ぎ目が本管の軸から 30° と出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:563",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [
+    "H_pad_split.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "info",
+    "contains": "一番小さい所で 30°（45° 以上にできるのは二つ割と四つ割だけ）"
+   },
+   "zk_got": true,
+   "want_expr": "\"info\", \"一番小さい所で 30°（45° 以上にできるのは二つ割と四つ割だけ）\"",
+   "id": "s12-0217"
+  },
+  {
+   "name": "補強板 割らない（人が直した）枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:564",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [
+    "H_pad_split.json"
+   ],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1,
+   "tol": 0,
+   "zk_got": 1,
+   "want_expr": "1",
+   "id": "s12-0218"
+  },
+  {
+   "name": "補強板 割らない 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:564",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1328.7,
+   "tol": 0.1,
+   "zk_got": 1328.7,
+   "want_expr": "1328.7",
+   "id": "s12-0219"
+  },
+  {
+   "name": "補強板 割らない（人が直した）確認は出ない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:564",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "count",
+   "want": 0,
+   "level": null,
+   "zk_got": 0,
+   "want_expr": "0",
+   "id": "s12-0220"
+  },
+  {
+   "name": "補強板 数量 2 で割り方が読めないと、割るかを決める確認が出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:566",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [
+    "H_pad_split.json"
+   ],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "!!c && c.title.includes(\"補強板を 2 枚に割るかを決める\") && c.data.splits.join() === \"1,2,4\"",
+   "id": "s12-0221"
+  },
+  {
+   "name": "補強板 数量だけでは割らない",
+   "source": "design-demos/assets/kirizu/test_build.mjs:566",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1,
+   "tol": 0,
+   "zk_got": 1,
+   "want_expr": "1",
+   "id": "s12-0222"
+  },
+  {
+   "name": "補強板 図面の割り方と数量が違うと確認が出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:567",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [
+    "H_pad_split.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "割り方と材料表の数量 2 が合わない"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"割り方と材料表の数量 2 が合わない\"",
+   "id": "s12-0223"
+  },
+  {
+   "name": "補強板 13 枚は出せないと出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:569",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [
+    "H_pad_split.json"
+   ],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "need",
+    "contains": "割り方は 2〜12 枚"
+   },
+   "zk_got": true,
+   "want_expr": "\"need\", \"割り方は 2〜12 枚\"",
+   "id": "s12-0224"
+  },
+  {
+   "name": "補強板 13 枚は割らずに出す",
+   "source": "design-demos/assets/kirizu/test_build.mjs:569",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1,
+   "tol": 0,
+   "zk_got": 1,
+   "want_expr": "1",
+   "id": "s12-0225"
+  },
+  {
+   "name": "補強板 G2 二つ割 周方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:571",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [
+    "G2_tee_claude.json"
+   ],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 1029.9,
+   "tol": 0.1,
+   "zk_got": 1029.9,
+   "want_expr": "1029.9",
+   "id": "s12-0226"
+  },
+  {
+   "name": "補強板 G2 二つ割 軸方向",
+   "source": "design-demos/assets/kirizu/test_build.mjs:571",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 455,
+   "tol": 0.1,
+   "zk_got": 455,
+   "want_expr": "455.0",
+   "id": "s12-0227"
+  },
+  {
+   "name": "補強板 斜めの枝（読み取り）二つ割 枚数",
+   "source": "design-demos/assets/kirizu/test_build.mjs:573",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [
+    "H_lateral.json"
+   ],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 2,
+   "tol": 0,
+   "zk_got": 2,
+   "want_expr": "2",
+   "id": "s12-0228"
+  },
+  {
+   "name": "補強板 斜めの枝（読み取り）二つ割 重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:573",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want": 40.9,
+   "tol": 0.05,
+   "zk_got": 40.9,
+   "want_expr": "40.9",
+   "id": "s12-0229"
+  },
+  {
+   "name": "補強板 斜めの枝（読み取り）二つ割 重さが材料表と合う",
+   "source": "design-demos/assets/kirizu/test_build.mjs:573",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "check_text",
+   "want": {
+    "level": "ok",
+    "contains": "材料表 40.9 kg"
+   },
+   "zk_got": true,
+   "want_expr": "\"ok\", \"材料表 40.9 kg\"",
+   "id": "s12-0230"
+  },
+  {
+   "name": "補強板 板に入らないと、二つ割にすると入ると出る",
+   "source": "design-demos/assets/kirizu/test_build.mjs:578",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "板に入らない補強板は、入る割り方を確認に出す（本管 3000・枝 2400・幅 400 は割る前 約 3600×3200）"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "!!c && c.text.includes(\"二つ割にすると入る\") && c.data.splits[0] === 2",
+   "id": "s12-0231"
+  },
+  {
+   "name": "補強板 二つ割にすると板の確認は消える",
+   "source": "design-demos/assets/kirizu/test_build.mjs:580",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "板に入らない補強板は、入る割り方を確認に出す（本管 3000・枝 2400・幅 400 は割る前 約 3600×3200）"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "bool",
+   "want": true,
+   "zk_got": true,
+   "want_expr": "!b2.checks.some((x) => x.kind === \"stock_fit\")",
+   "id": "s12-0232"
+  }
+ ]
+}
