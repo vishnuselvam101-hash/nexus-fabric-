@@ -209,6 +209,102 @@ fn agent_reason(u: &User, reason: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+/// The role and the active flag are read again inside a write's own transaction: a user deactivated or demoted
+/// while the request was being read (an upload can take a while) is refused there too.
+pub(crate) fn still_writer(db: &Connection, u: &User) -> Result<(), ApiError> {
+    let role: Option<String> = db
+        .query_row(
+            "SELECT role FROM users WHERE id = ? AND active = 1",
+            params![u.id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    match role.as_deref() {
+        None => Err(fail(StatusCode::UNAUTHORIZED, "not signed in")),
+        Some("admin" | "engineer") => Ok(()),
+        Some(_) => Err(fail(
+            StatusCode::FORBIDDEN,
+            "your role does not permit this action",
+        )),
+    }
+}
+
+/// A text field of a JSON request body, as far as it can be read, for the record of a refusal.
+fn body_text(raw: &[u8], key: &str) -> String {
+    serde_json::from_slice::<Value>(raw)
+        .ok()
+        .and_then(|v| {
+            v.get(key)
+                .and_then(Value::as_str)
+                .map(|s| clip(s, MAX_NOTE_CHARS))
+        })
+        .unwrap_or_default()
+}
+
+/// Writes one audit row in its own transaction. Used after a refused request has rolled back: the refusal is on
+/// record and nothing else of the request is.
+fn record_alone(app: &App, who: &str, action: &str, detail: &str) -> Result<(), ApiError> {
+    let mut db = app.db();
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    app.audit(&tx, who, action, &clip(detail, 700))?;
+    tx.commit()?;
+    Ok(())
+}
+
+/// Answers a write. A refusal that is evidence is written down in its own transaction, after the refused
+/// request's transaction has rolled back: a limit (parts_limit, values_limit), any conflict (409), and any
+/// refusal of the AI operator (403). An AI operator's refused parts edit keeps its reason row too.
+async fn settle(app: &App, u: &User, oid: i64, what: &str, note: String, res: Api) -> Api {
+    let resp = match res {
+        Ok(r) => return Ok(r),
+        Err(ApiError::Resp(resp)) => resp,
+        Err(other) => return Err(other),
+    };
+    let (parts, body) = resp.into_parts();
+    let bytes = axum::body::to_bytes(body, 64 * 1024)
+        .await
+        .unwrap_or_default();
+    let answer: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    let code = answer["code"].as_str().unwrap_or_default().to_string();
+    let msg = answer["error"].as_str().unwrap_or_default().to_string();
+    let agent = u.kind == "agent";
+    let limit = matches!(code.as_str(), "parts_limit" | "values_limit");
+    if limit
+        || parts.status == StatusCode::CONFLICT
+        || (agent && parts.status == StatusCode::FORBIDDEN)
+    {
+        let note_text = if note.trim().is_empty() {
+            String::new()
+        } else {
+            format!("; note: {}", clip(&note, 300))
+        };
+        record_alone(
+            app,
+            &u.username,
+            "order_refused",
+            &format!(
+                "order #{oid} {what} refused: {code} ({}) {msg}{note_text}",
+                parts.status.as_u16()
+            ),
+        )?;
+        if agent && what == "parts edit" {
+            record_alone(
+                app,
+                &u.username,
+                "order_parts_reason",
+                &format!(
+                    "order #{oid} parts edit refused ({code}): {}",
+                    clip(&note, 300)
+                ),
+            )?;
+        }
+    }
+    Err(ApiError::Resp(Box::new(axum::http::Response::from_parts(
+        parts,
+        axum::body::Body::from(bytes),
+    ))))
+}
+
 struct OrderHead {
     project: i64,
     name: String,
@@ -305,9 +401,38 @@ fn ascii_digits(text: &str) -> Vec<char> {
         .collect()
 }
 
+/// One number as written in a text: its value, and whether its reading is ambiguous.
+struct Reading {
+    value: f64,
+    ambiguous: bool,
+}
+
+/// The value of one written number token. A comma is a thousands separator only in groups of three digits
+/// ("1,500", "12,345.6"). Any other comma ("1,5", "1,50") gives one reading, flagged ambiguous: it is read as a
+/// decimal comma, and an ambiguous reading never counts as the number written on the page.
+fn reading(tok: &str) -> Option<(f64, bool)> {
+    if !tok.contains(',') {
+        return tok.parse::<f64>().ok().map(|f| (f, false));
+    }
+    let (int_part, frac) = match tok.split_once('.') {
+        Some((a, b)) => (a, Some(b)),
+        None => (tok, None),
+    };
+    let groups: Vec<&str> = int_part.split(',').collect();
+    let grouped = groups.len() > 1
+        && !groups[0].is_empty()
+        && groups[1..].iter().all(|g| g.len() == 3)
+        && !frac.is_some_and(|f| f.contains(','));
+    if grouped {
+        tok.replace(',', "").parse::<f64>().ok().map(|f| (f, false))
+    } else {
+        tok.replace(',', ".").parse::<f64>().ok().map(|f| (f, true))
+    }
+}
+
 /// The numbers written in `text`, with their sign. A '-' is a sign only when it stands right before the digits
 /// and not right after a letter or digit ("PL-9" and "100-200" hold the unsigned 9, 100 and 200).
-fn numbers_in(text: &str) -> Vec<f64> {
+fn numbers_in(text: &str) -> Vec<Reading> {
     let t = ascii_digits(text);
     let mut out = Vec::new();
     let mut i = 0;
@@ -326,19 +451,26 @@ fn numbers_in(text: &str) -> Vec<f64> {
         let tok = tok.trim_matches(|c| c == '.' || c == ',');
         let neg =
             start > 0 && t[start - 1] == '-' && (start < 2 || !t[start - 2].is_alphanumeric());
-        for s in [tok.replace(',', ""), tok.replace(',', ".")] {
-            if let Ok(f) = s.parse::<f64>() {
-                out.push(if neg { -f } else { f });
-            }
+        if let Some((f, ambiguous)) = reading(tok) {
+            out.push(Reading {
+                value: if neg { -f } else { f },
+                ambiguous,
+            });
         }
     }
     out
 }
 
+fn same_number(a: f64, value: f64) -> bool {
+    (a - value).abs() <= 1e-9 * value.abs().max(1.0)
+}
+
 /// True if some number written in `text` equals `value`, sign included (so a read value really is on the page).
+/// An ambiguous reading does not count.
 pub(crate) fn text_contains_number(text: &str, value: f64) -> bool {
-    let close = |a: f64| (a - value).abs() <= 1e-9 * value.abs().max(1.0);
-    numbers_in(text).into_iter().any(close)
+    numbers_in(text)
+        .into_iter()
+        .any(|r| !r.ambiguous && same_number(r.value, value))
 }
 
 fn parse_bbox(v: Option<&Value>) -> Result<Option<String>, ApiError> {
@@ -459,8 +591,22 @@ fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
         )?;
         all.push(json!([head, vals]));
     }
+    // an accepted flag, and its undo, change what a "checked" mark was made against
+    let accepts = q_all(
+        db,
+        "SELECT id, COALESCE(value_id, 0), COALESCE(flag, ''), undone_at IS NULL FROM order_decisions WHERE order_id = ? AND kind = 'accept_flag' ORDER BY id",
+        params![oid],
+        |r| {
+            Ok(json!([
+                r.get::<_, i64>(0)?,
+                r.get::<_, i64>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, bool>(3)?
+            ]))
+        },
+    )?;
     Ok(nf_core::sha256_hex(
-        json!([files, pages, all]).to_string().as_bytes(),
+        json!([files, pages, all, accepts]).to_string().as_bytes(),
     ))
 }
 
@@ -480,6 +626,8 @@ async fn create_order(
         u
     };
     let body = request_json(&headers, &raw)?;
+    let reason = text_field(&body, "reason", MAX_NOTE_CHARS)?.unwrap_or_default();
+    agent_reason(&u, &reason)?;
     let name = text_field(&body, "name", MAX_NAME_CHARS)?
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
@@ -502,17 +650,23 @@ async fn create_order(
     };
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    still_writer(&tx, &u)?;
     project_guard(&app, &tx, &u, project, "create order")?;
     tx.execute(
         "INSERT INTO orders(project_id, name, state, rules_json, created_by, created_at) VALUES (?,?,?,?,?,?)",
         params![project, name, "OPEN", rules, u.username, now() as i64],
     )?;
     let oid = tx.last_insert_rowid();
+    let reason_text = if reason.trim().is_empty() {
+        String::new()
+    } else {
+        format!(" reason: {}", clip(&reason, 300))
+    };
     app.audit(
         &tx,
         &u.username,
         "order_created",
-        &format!("project #{project} order #{oid} '{name}'"),
+        &format!("project #{project} order #{oid} '{name}'{reason_text}"),
     )?;
     tx.commit()?;
     ok(json!({ "id": oid, "project_id": project, "name": name, "state": "OPEN" }))
@@ -539,17 +693,29 @@ async fn list_orders(State(app): Ctx, headers: HeaderMap, Path(project): Path<i6
 
 // ---------------------------------------------------------------- files and pages
 
+/// The upload is the raw file body (with its name in `x-filename`). The reason of an AI operator's upload is the
+/// `reason` field of the request: a query parameter, since the body is the file itself.
 async fn upload_file(
     State(app): Ctx,
     headers: HeaderMap,
     Path(oid): Path<i64>,
+    axum::extract::Query(query): axum::extract::Query<BTreeMap<String, String>>,
     body: axum::body::Body,
 ) -> Api {
     let u = write_access(&app, &headers, oid, "order file")?;
+    let reason = query.get("reason").cloned().unwrap_or_default();
+    if reason.chars().count() > MAX_NOTE_CHARS {
+        return Err(unprocessable(
+            "field_too_long",
+            &format!("'reason' is longer than {MAX_NOTE_CHARS} characters"),
+        ));
+    }
+    agent_reason(&u, &reason)?;
     let (bytes, _slot) = read_upload_body(&app, &headers, body).await?;
     let filename = upload_filename(&headers);
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    still_writer(&tx, &u)?;
     let head = guard_order(&app, &tx, &u, oid, "order file")?;
     let detected = match membrane::admit(&bytes) {
         membrane::Admission::Accepted { detected_type } => detected_type,
@@ -624,12 +790,17 @@ async fn upload_file(
         )?;
         numbers.push(page_no);
     }
+    let reason_text = if reason.trim().is_empty() {
+        String::new()
+    } else {
+        format!(" reason: {}", clip(&reason, 300))
+    };
     app.audit(
         &tx,
         &u.username,
         "order_file_added",
         &format!(
-            "order #{oid} file #{file_id} '{filename}' {detected} {} pages {}-{}",
+            "order #{oid} file #{file_id} '{filename}' {detected} {} pages {}-{}{reason_text}",
             doc.sha,
             numbers.first().copied().unwrap_or(0),
             numbers.last().copied().unwrap_or(0)
@@ -688,7 +859,7 @@ async fn get_page_image(
 }
 
 async fn read_page(State(app): Ctx, headers: HeaderMap, Path((oid, n)): Path<(i64, i64)>) -> Api {
-    write_access(&app, &headers, oid, "read page")?;
+    let u = write_access(&app, &headers, oid, "read page")?;
     let exists = {
         let db = app.db();
         q_count(
@@ -700,6 +871,13 @@ async fn read_page(State(app): Ctx, headers: HeaderMap, Path((oid, n)): Path<(i6
     if !exists {
         return Err(not_found());
     }
+    // the refused read is on record: it is a request the build cannot serve
+    record_alone(
+        &app,
+        &u.username,
+        "order_page_read_refused",
+        &format!("order #{oid} page {n}: reader_not_installed"),
+    )?;
     Err(fail_json(
         StatusCode::NOT_IMPLEMENTED,
         json!({ "error": "the page reader is not installed in this build", "error_ja": "このビルドにはページ読み取り機能が入っていません", "code": "reader_not_installed" }),
@@ -713,10 +891,15 @@ async fn skip_page(
     raw: Bytes,
 ) -> Api {
     let u = write_access(&app, &headers, oid, "skip page")?;
+    let res = skip_do(&app, &headers, &u, oid, n, &raw);
+    settle(&app, &u, oid, "skip page", body_text(&raw, "note"), res).await
+}
+
+fn skip_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, n: i64, raw: &[u8]) -> Api {
     let body = if raw.is_empty() {
         json!({})
     } else {
-        request_json(&headers, &raw)?
+        request_json(headers, raw)?
     };
     let skip = match body.get("skipped") {
         None => true,
@@ -729,9 +912,11 @@ async fn skip_page(
         }
     };
     let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
+    agent_reason(u, &note)?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    guard_order(&app, &tx, &u, oid, "skip page")?;
+    still_writer(&tx, u)?;
+    guard_order(app, &tx, u, oid, "skip page")?;
     let (state, was): (String, bool) = tx
         .query_row(
             "SELECT read_state, skipped FROM order_pages WHERE order_id = ? AND page_no = ?",
@@ -764,6 +949,16 @@ async fn skip_page(
             },
             &format!(
                 "order #{oid} page {n} (read state {state}) {}",
+                clip(&note, 200)
+            ),
+        )?;
+    } else if !note.trim().is_empty() {
+        app.audit(
+            &tx,
+            &u.username,
+            "order_page_note",
+            &format!(
+                "order #{oid} page {n} (read state {state}) unchanged, note: {}",
                 clip(&note, 200)
             ),
         )?;
@@ -916,7 +1111,14 @@ fn check_attach(parts: &[PartIn]) -> Result<(), ApiError> {
 
 async fn put_parts(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw: Bytes) -> Api {
     let u = write_access(&app, &headers, oid, "edit parts")?;
-    let body = request_json(&headers, &raw)?;
+    let res = put_parts_do(&app, &headers, &u, oid, &raw);
+    settle(&app, &u, oid, "parts edit", body_text(&raw, "note"), res).await
+}
+
+fn put_parts_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
+    let body = request_json(headers, raw)?;
+    let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
+    agent_reason(u, &note)?;
     let list = body
         .get("parts")
         .and_then(Value::as_array)
@@ -948,7 +1150,17 @@ async fn put_parts(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, ra
     check_attach(&parts)?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    guard_order(&app, &tx, &u, oid, "edit parts")?;
+    still_writer(&tx, u)?;
+    guard_order(app, &tx, u, oid, "edit parts")?;
+    // the reason of an AI operator, and any note a person gives, are on record
+    if u.kind == "agent" || !note.trim().is_empty() {
+        app.audit(
+            &tx,
+            &u.username,
+            "order_parts_reason",
+            &format!("order #{oid} parts edit: {}", clip(&note, 300)),
+        )?;
+    }
     let existing: BTreeMap<i64, String> = q_all(
         &tx,
         "SELECT id, no FROM order_parts WHERE order_id = ?",
@@ -1188,13 +1400,26 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
             ));
         }
         if !text_contains_number(&text, f) {
-            return Err(unprocessable(
-                "value_text_mismatch",
-                &format!(
-                    "the text '{}' does not contain the number {f}",
-                    clip(&text, 60)
-                ),
-            ));
+            let ambiguous = numbers_in(&text)
+                .iter()
+                .any(|r| r.ambiguous && same_number(r.value, f));
+            return Err(if ambiguous {
+                unprocessable(
+                    "value_text_ambiguous",
+                    &format!(
+                        "the text '{}' reads {f} only as an ambiguous comma number; write the number as it is on the page, with a point or as a thousands group",
+                        clip(&text, 60)
+                    ),
+                )
+            } else {
+                unprocessable(
+                    "value_text_mismatch",
+                    &format!(
+                        "the text '{}' does not contain the number {f}",
+                        clip(&text, 60)
+                    ),
+                )
+            });
         }
     }
     let bbox = parse_bbox(v.get("bbox"))?;
@@ -1283,7 +1508,12 @@ type OldValue = (
 
 async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw: Bytes) -> Api {
     let u = write_access(&app, &headers, oid, "edit values")?;
-    let body = request_json(&headers, &raw)?;
+    let res = put_values_do(&app, &headers, &u, oid, &raw);
+    settle(&app, &u, oid, "value edit", String::new(), res).await
+}
+
+fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
+    let body = request_json(headers, raw)?;
     let list = body
         .get("values")
         .and_then(Value::as_array)
@@ -1295,12 +1525,13 @@ async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, r
         ));
     }
     let values: Vec<ValueIn> = list.iter().map(parse_value).collect::<Result<_, _>>()?;
-    for v in values.iter().filter(|v| v.confirm) {
-        agent_reason(&u, &v.note)?;
+    for v in &values {
+        agent_reason(u, &v.note)?;
     }
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    guard_order(&app, &tx, &u, oid, "edit values")?;
+    still_writer(&tx, u)?;
+    guard_order(app, &tx, u, oid, "edit values")?;
     let (mut changed, mut unchanged) = (0, 0);
     let mut touched = BTreeSet::new();
     for v in &values {
@@ -1403,7 +1634,7 @@ async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, r
                     value: Some(vid),
                     kind: "confirm",
                     flag: None,
-                    source: actor_source(&u),
+                    source: actor_source(u),
                     agent: (u.kind == "agent").then_some(u.username.as_str()),
                     reason: &v.note,
                     against: value_fp(&v.key, v.value, &v.text, v.bbox.as_deref(), &v.source),
@@ -1419,7 +1650,7 @@ async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, r
                     "order #{oid} decision #{did} confirm part '{pno}' {} = {} by {}",
                     v.key,
                     fmt_val(v.value),
-                    actor_source(&u)
+                    actor_source(u)
                 ),
             )?;
         }
@@ -1435,7 +1666,12 @@ async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, r
 
 async fn confirm(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw: Bytes) -> Api {
     let u = write_access(&app, &headers, oid, "confirm values")?;
-    let body = request_json(&headers, &raw)?;
+    let res = confirm_do(&app, &headers, &u, oid, &raw);
+    settle(&app, &u, oid, "confirm", body_text(&raw, "note"), res).await
+}
+
+fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
+    let body = request_json(headers, raw)?;
     let all = body.get("all").and_then(Value::as_bool).unwrap_or(false);
     let ids: Vec<i64> = match body.get("part_ids") {
         None | Some(Value::Null) => vec![],
@@ -1458,10 +1694,11 @@ async fn confirm(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw:
         ));
     }
     let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
-    agent_reason(&u, &note)?;
+    agent_reason(u, &note)?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    guard_order(&app, &tx, &u, oid, "confirm values")?;
+    still_writer(&tx, u)?;
+    guard_order(app, &tx, u, oid, "confirm values")?;
     let parts: Vec<(i64, String)> = if all {
         q_all(
             &tx,
@@ -1518,7 +1755,7 @@ async fn confirm(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw:
                     value: Some(vid),
                     kind: "confirm",
                     flag: None,
-                    source: actor_source(&u),
+                    source: actor_source(u),
                     agent: (u.kind == "agent").then_some(u.username.as_str()),
                     reason: &note,
                     against: value_fp(&key, val, &text, bbox.as_deref(), &src),
@@ -1533,7 +1770,7 @@ async fn confirm(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw:
                 &format!(
                     "order #{oid} decision #{did} confirm part '{pno}' {key} = {} (was {state}) by {}",
                     fmt_val(val),
-                    actor_source(&u)
+                    actor_source(u)
                 ),
             )?;
             decisions.push(did);
@@ -1552,7 +1789,12 @@ async fn post_decision(
     raw: Bytes,
 ) -> Api {
     let u = write_access(&app, &headers, oid, "record decision")?;
-    let body = request_json(&headers, &raw)?;
+    let res = post_decision_do(&app, &headers, &u, oid, &raw);
+    settle(&app, &u, oid, "decision", body_text(&raw, "reason"), res).await
+}
+
+fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
+    let body = request_json(headers, raw)?;
     let kind = text_field(&body, "kind", 16)?.unwrap_or_default();
     if !["confirm", "accept_flag", "mark_checked"].contains(&kind.as_str()) {
         return Err(unprocessable(
@@ -1561,7 +1803,7 @@ async fn post_decision(
         ));
     }
     // the source follows from who is signed in; a body that names a different one is refused
-    let source = actor_source(&u);
+    let source = actor_source(u);
     if let Some(claimed) = text_field(&body, "source", 8)?
         && claimed != source
     {
@@ -1580,12 +1822,13 @@ async fn post_decision(
             "only a person can mark an order as checked",
         ));
     }
-    agent_reason(&u, &reason)?;
+    agent_reason(u, &reason)?;
     let agent = (u.kind == "agent").then_some(u.username.clone());
     let flag = text_field(&body, "flag", 64)?.filter(|s| !s.is_empty());
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    guard_order(&app, &tx, &u, oid, "record decision")?;
+    still_writer(&tx, u)?;
+    guard_order(app, &tx, u, oid, "record decision")?;
     let mut d = NewDecision {
         order: oid,
         part: None,
@@ -1712,15 +1955,22 @@ async fn undo_decision(
     raw: Bytes,
 ) -> Api {
     let u = write_access(&app, &headers, oid, "undo decision")?;
+    let res = undo_do(&app, &headers, &u, oid, did, &raw);
+    settle(&app, &u, oid, "undo", body_text(&raw, "note"), res).await
+}
+
+fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[u8]) -> Api {
     let body = if raw.is_empty() {
         json!({})
     } else {
-        request_json(&headers, &raw)?
+        request_json(headers, raw)?
     };
     let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
+    agent_reason(u, &note)?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    guard_order(&app, &tx, &u, oid, "undo decision")?;
+    still_writer(&tx, u)?;
+    guard_order(app, &tx, u, oid, "undo decision")?;
     type Row = (
         String,
         Option<i64>,
@@ -1728,10 +1978,11 @@ async fn undo_decision(
         String,
         Option<String>,
         bool,
+        String,
     );
     let row: Option<Row> = tx
         .query_row(
-            "SELECT kind, part_id, value_id, against_hash, prev_state, undone_at IS NOT NULL FROM order_decisions WHERE id = ? AND order_id = ?",
+            "SELECT kind, part_id, value_id, against_hash, prev_state, undone_at IS NOT NULL, decided_by FROM order_decisions WHERE id = ? AND order_id = ?",
             params![did, oid],
             |r| {
                 Ok((
@@ -1741,13 +1992,22 @@ async fn undo_decision(
                     r.get(3)?,
                     r.get(4)?,
                     r.get(5)?,
+                    r.get(6)?,
                 ))
             },
         )
         .optional()?;
-    let Some((kind, part, value, against, prev, undone)) = row else {
+    let Some((kind, part, value, against, prev, undone, decided_by)) = row else {
         return Err(not_found());
     };
+    // an AI operator undoes only its own decisions; a person's decision and a checked mark are a person's to undo
+    if u.kind == "agent" && (kind == "mark_checked" || decided_by != u.username) {
+        return Err(refuse(
+            StatusCode::FORBIDDEN,
+            "agent_cannot_undo",
+            "an AI operator can undo only its own decisions; a person's decision or a checked mark is undone by a person",
+        ));
+    }
     if undone {
         return Err(refuse(
             StatusCode::CONFLICT,

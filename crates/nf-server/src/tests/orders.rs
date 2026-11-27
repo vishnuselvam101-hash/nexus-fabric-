@@ -997,6 +997,22 @@ async fn l1r1_a_confirmation_does_not_survive_a_changed_source_or_box() {
     let o = t.get(&format!("/api/orders/{oid}")).await;
     assert_eq!(o["parts"][0]["values"][0]["state"], "PROPOSED");
     assert_eq!(decision(&o, id)["effective"], false, "{o}");
+    // confirm again on the new box, then change only the source: that confirmation stops counting too
+    let (_, c2) = t
+        .call(
+            "POST",
+            &dec,
+            Some(json!({ "kind": "confirm", "part": "1", "key": "D" })),
+        )
+        .await;
+    let id2 = c2["id"].as_i64().unwrap();
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(decision(&o, id2)["effective"], true, "{o}");
+    let (st, _) = t.call("PUT", &format!("/api/orders/{oid}/values"), Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "drawing", "bbox": [5, 5, 50, 50] }] }))).await;
+    assert_eq!(st, StatusCode::OK);
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["parts"][0]["values"][0]["state"], "PROPOSED");
+    assert_eq!(decision(&o, id2)["effective"], false, "{o}");
 }
 
 #[tokio::test]
@@ -1165,4 +1181,481 @@ async fn l1r1_a_read_only_licence_blocks_every_order_write() {
         assert!(crate::licence::gated(&m, p), "{m} {p}");
     }
     assert!(!crate::licence::gated(&Method::GET, "/api/orders/1"));
+}
+
+#[tokio::test]
+async fn l1r1_the_ai_operator_gives_a_reason_for_every_order_write() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let agent = add_agent(&t, "operator-ai");
+    let ac = [("cookie", agent.as_str())];
+    let code = |b: &[u8]| serde_json::from_slice::<Value>(b).unwrap()["code"].clone();
+    // a value edit, a parts edit and a page skip without a reason are refused
+    let vals = format!("/api/orders/{oid}/values");
+    let (st, _, b) = t
+        .send("PUT", &vals, Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read" }] })), &ac)
+        .await;
+    assert_eq!(
+        (st, code(&b)),
+        (StatusCode::UNPROCESSABLE_ENTITY, json!("decision_reason"))
+    );
+    let parts = format!("/api/orders/{oid}/parts");
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &parts,
+            Some(json!({ "parts": [{ "no": "1", "shape": "cylinder" }] })),
+            &ac,
+        )
+        .await;
+    assert_eq!(
+        (st, code(&b)),
+        (StatusCode::UNPROCESSABLE_ENTITY, json!("decision_reason"))
+    );
+    let (st, _, b) = t
+        .send(
+            "POST",
+            &format!("/api/orders/{oid}/pages/1/skip"),
+            Some(json!({})),
+            &ac,
+        )
+        .await;
+    assert_eq!(
+        (st, code(&b)),
+        (StatusCode::UNPROCESSABLE_ENTITY, json!("decision_reason"))
+    );
+    read_val(&t, oid, "D", 216.3, "φ216.3").await;
+    // a decision that the operator later undoes (its own: it made this one)
+    let dec = format!("/api/orders/{oid}/decisions");
+    let (st, _, b) = t
+        .send("POST", &dec, Some(json!({ "kind": "accept_flag", "part": "1", "key": "D", "flag": "f", "reason": "r" })), &ac)
+        .await;
+    let d: Value = serde_json::from_slice(&b).unwrap();
+    assert_eq!(st, StatusCode::OK, "{d}");
+    let did = d["id"].as_i64().unwrap();
+    // with a reason they go through, and the parts reason is audited
+    let (st, _, b) = t
+        .send("PUT", &vals, Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read", "note": "box 3" }] })), &ac)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let (st, _, b) = t
+        .send("PUT", &parts, Some(json!({ "parts": [{ "no": "9", "shape": "cylinder", "qty": 2 }], "note": "qty per drawing" })), &ac)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    assert_eq!(audit_details(&t, "order_parts_reason").len(), 1);
+    let undo = format!("{dec}/{did}/undo");
+    // an undo by the operator needs a reason as well
+    let (st, _, b) = t.send("POST", &undo, Some(json!({})), &ac).await;
+    assert_eq!(
+        (st, code(&b)),
+        (StatusCode::UNPROCESSABLE_ENTITY, json!("decision_reason"))
+    );
+    let (st, _, b) = t
+        .send("POST", &undo, Some(json!({ "note": "wrong flag" })), &ac)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+}
+
+fn code_of(b: &[u8]) -> Value {
+    serde_json::from_slice::<Value>(b).unwrap()["code"].clone()
+}
+
+#[tokio::test]
+async fn l1r2_limit_refusals_are_audited_and_leave_no_partial_write() {
+    let t = boot();
+    let oid = new_order(&t).await;
+    let ac = add_agent(&t, "operator-ai");
+    let ac = [("cookie", ac.as_str())];
+    // a batch over the limit is refused before anything is read, and the refusal is on record
+    let parts_path = format!("/api/orders/{oid}/parts");
+    let big: Vec<Value> = (0..501)
+        .map(|i| json!({ "no": format!("p{i}"), "shape": "cylinder" }))
+        .collect();
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &parts_path,
+            Some(json!({ "parts": big, "note": "bulk" })),
+            &ac,
+        )
+        .await;
+    assert_eq!(
+        (st, code_of(&b)),
+        (StatusCode::UNPROCESSABLE_ENTITY, json!("parts_limit"))
+    );
+    let r = audit_details(&t, "order_refused");
+    assert!(
+        r.iter()
+            .any(|x| x.contains("parts_limit") && x.contains("bulk")),
+        "{r:?}"
+    );
+    // 500 parts by the operator, then one more: refused in the request's transaction, which rolls back and is audited
+    let parts500: Vec<Value> = (0..500)
+        .map(|i| json!({ "no": format!("p{i}"), "shape": "cylinder" }))
+        .collect();
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &parts_path,
+            Some(json!({ "parts": parts500, "note": "bulk load" })),
+            &ac,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &parts_path,
+            Some(json!({ "parts": [{ "no": "extra", "shape": "cylinder" }], "note": "one more" })),
+            &ac,
+        )
+        .await;
+    assert_eq!(
+        (st, code_of(&b)),
+        (StatusCode::CONFLICT, json!("parts_limit"))
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(
+        o["parts"].as_array().unwrap().len(),
+        500,
+        "the refused part was not written"
+    );
+    let refusals = audit_details(&t, "order_parts_reason");
+    assert!(
+        refusals
+            .iter()
+            .any(|x| x.contains("refused (parts_limit)") && x.contains("one more")),
+        "{refusals:?}"
+    );
+    assert!(
+        audit_details(&t, "order_refused")
+            .iter()
+            .any(|x| x.contains("parts_limit (409)"))
+    );
+    // values: 64 keys on one part, then a batch whose first edit is valid and whose second is one key too many
+    let vals = format!("/api/orders/{oid}/values");
+    let sixty4: Vec<Value> = (0..64).map(|i| json!({ "part": "p0", "key": format!("k{i:02}"), "value": 1.0, "source": "entered", "note": "fill" })).collect();
+    let (st, _, b) = t
+        .send("PUT", &vals, Some(json!({ "values": sixty4 })), &ac)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let (st, _, b) = t
+        .send("PUT", &vals, Some(json!({ "values": [
+            { "part": "p0", "key": "k00", "value": 2.0, "source": "entered", "note": "edit" },
+            { "part": "p0", "key": "extra", "value": 3.0, "source": "entered", "note": "edit" } ] })), &ac)
+        .await;
+    assert_eq!(
+        (st, code_of(&b)),
+        (StatusCode::CONFLICT, json!("values_limit"))
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    let k00 = o["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["no"] == "p0")
+        .unwrap()["values"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["key"] == "k00")
+        .unwrap()["value"]
+        .clone();
+    assert_eq!(
+        k00,
+        json!(1.0),
+        "the earlier edit of the refused batch was rolled back"
+    );
+    assert!(
+        audit_details(&t, "order_refused")
+            .iter()
+            .any(|x| x.contains("values_limit (409)"))
+    );
+    // a batch of values over the limit: refused before anything is read
+    let many: Vec<Value> = (0..501)
+        .map(|_| json!({ "part": "p0", "key": "k00", "value": 1.0, "source": "entered" }))
+        .collect();
+    let (st, _, b) = t
+        .send("PUT", &vals, Some(json!({ "values": many })), &ac)
+        .await;
+    assert_eq!(
+        (st, code_of(&b)),
+        (StatusCode::UNPROCESSABLE_ENTITY, json!("values_limit"))
+    );
+    assert!(
+        audit_details(&t, "order_refused")
+            .iter()
+            .any(|x| x.contains("values_limit (422)"))
+    );
+}
+
+#[tokio::test]
+async fn l1r2_the_ai_operator_gives_a_reason_on_create_and_upload() {
+    let t = boot();
+    let ac = add_agent(&t, "operator-ai");
+    let ac = [("cookie", ac.as_str())];
+    let path = "/api/projects/1/orders";
+    let (st, _, b) = t
+        .send("POST", path, Some(json!({ "name": "Job A" })), &ac)
+        .await;
+    assert_eq!(
+        (st, code_of(&b)),
+        (StatusCode::UNPROCESSABLE_ENTITY, json!("decision_reason"))
+    );
+    let (st, _, b) = t
+        .send(
+            "POST",
+            path,
+            Some(json!({ "name": "Job A", "reason": "from the customer PO" })),
+            &ac,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let oid = serde_json::from_slice::<Value>(&b).unwrap()["id"]
+        .as_i64()
+        .unwrap();
+    assert!(
+        audit_details(&t, "order_created")
+            .iter()
+            .any(|x| x.contains("reason: from the customer PO"))
+    );
+    // a person creates an order without a reason: persons stay optional
+    let (st, _) = t.call("POST", path, Some(json!({ "name": "Job B" }))).await;
+    assert_eq!(st, StatusCode::OK);
+    // the upload without a reason is refused; with ?reason= it goes through
+    let up = format!("/api/orders/{oid}/files");
+    let (st, body) = raw(
+        &t,
+        "POST",
+        &up,
+        PDF_2_PAGES.to_vec(),
+        ac[0].1,
+        Some("a.pdf"),
+    )
+    .await;
+    assert_eq!(
+        st,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{}",
+        String::from_utf8_lossy(&body)
+    );
+    assert_eq!(code_of(&body), json!("decision_reason"));
+    let (st, body) = raw(
+        &t,
+        "POST",
+        &format!("{up}?reason=new-scan"),
+        PDF_2_PAGES.to_vec(),
+        ac[0].1,
+        Some("a.pdf"),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&body));
+    assert!(
+        audit_details(&t, "order_file_added")
+            .iter()
+            .any(|x| x.contains("reason: new-scan"))
+    );
+    // a person uploads without one
+    let (st, _) = add_file(&t, oid, PDF_2_PAGES.to_vec(), "b.pdf").await;
+    assert_eq!(st, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn l1r2_the_write_checks_role_and_active_again_in_the_transaction() {
+    let t = boot();
+    let _ = add_session(&t.app, "eve", "engineer");
+    let uid: i64 = t
+        .app
+        .db()
+        .query_row("SELECT id FROM users WHERE username = 'eve'", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    let who = crate::User {
+        id: uid,
+        username: "eve".into(),
+        role: "engineer".into(),
+        kind: "person".into(),
+    };
+    let status = |r: Result<(), crate::ApiError>| match r {
+        Err(crate::ApiError::Resp(resp)) => Some(resp.status()),
+        _ => None,
+    };
+    let check = |t: &T| {
+        let db = t.app.db();
+        status(crate::orders::still_writer(&db, &who))
+    };
+    assert_eq!(check(&t), None);
+    t.sql("UPDATE users SET role = 'viewer' WHERE username = 'eve'");
+    assert_eq!(check(&t), Some(StatusCode::FORBIDDEN));
+    t.sql("UPDATE users SET role = 'engineer', active = 0 WHERE username = 'eve'");
+    assert_eq!(check(&t), Some(StatusCode::UNAUTHORIZED));
+}
+
+#[tokio::test]
+async fn l1r2_an_ai_operator_undoes_only_its_own_decisions() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let ac = add_agent(&t, "operator-ai");
+    let ac = [("cookie", ac.as_str())];
+    read_val(&t, oid, "D", 216.3, "φ216.3").await;
+    let dec = format!("/api/orders/{oid}/decisions");
+    let (st, c) = t
+        .call(
+            "POST",
+            &dec,
+            Some(json!({ "kind": "confirm", "part": "1", "key": "D" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{c}");
+    let person_confirm = c["id"].as_i64().unwrap();
+    let checked = mark(&t, oid).await;
+    let (st, _, b) = t
+        .send("POST", &dec, Some(json!({ "kind": "accept_flag", "part": "1", "key": "D", "flag": "f", "reason": "ok" })), &ac)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let own = serde_json::from_slice::<Value>(&b).unwrap()["id"]
+        .as_i64()
+        .unwrap();
+    for (id, what) in [
+        (person_confirm, "a person's confirmation"),
+        (checked, "a checked mark"),
+    ] {
+        let (st, _, b) = t
+            .send(
+                "POST",
+                &format!("{dec}/{id}/undo"),
+                Some(json!({ "note": "try" })),
+                &ac,
+            )
+            .await;
+        assert_eq!(
+            (st, code_of(&b)),
+            (StatusCode::FORBIDDEN, json!("agent_cannot_undo")),
+            "{what}"
+        );
+    }
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(decision(&o, person_confirm)["undone"], false);
+    assert_eq!(decision(&o, checked)["undone"], false);
+    let (st, _, b) = t
+        .send(
+            "POST",
+            &format!("{dec}/{own}/undo"),
+            Some(json!({ "note": "wrong flag" })),
+            &ac,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+}
+
+#[tokio::test]
+async fn l1r2_an_accepted_flag_takes_a_checked_mark_out_of_force() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    read_val(&t, oid, "D", 216.3, "φ216.3").await;
+    let m = mark(&t, oid).await;
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(decision(&o, m)["effective"], true, "{o}");
+    let (st, _) = t
+        .call("POST", &format!("/api/orders/{oid}/decisions"), Some(json!({ "kind": "accept_flag", "part": "1", "key": "D", "flag": "bom_mismatch", "reason": "agreed with the shop" })))
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(
+        decision(&o, m)["effective"],
+        false,
+        "the mark was made before the flag was accepted: {o}"
+    );
+    assert!(o["checked"].is_null(), "{o}");
+}
+
+#[tokio::test]
+async fn l1r2_a_comma_number_is_one_ambiguous_reading_not_two() {
+    use crate::orders::text_contains_number as has;
+    assert!(!has("1,5", 15.0), "not the grouped reading");
+    assert!(
+        !has("1,5", 1.5),
+        "an ambiguous reading does not count as on the page"
+    );
+    assert!(has("1,500", 1500.0));
+    assert!(has("12,345.6", 12345.6));
+    assert!(has("1.5", 1.5));
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let vals = format!("/api/orders/{oid}/values");
+    let put = |v: f64, text: &str| json!({ "values": [{ "part": "1", "key": "L", "value": v, "text": text, "source": "read" }] });
+    let (st, _, b) = t.send("PUT", &vals, Some(put(1.5, "1,5")), &[]).await;
+    assert_eq!(
+        (st, code_of(&b)),
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            json!("value_text_ambiguous")
+        ),
+        "{}",
+        String::from_utf8_lossy(&b)
+    );
+    let (st, _, b) = t.send("PUT", &vals, Some(put(15.0, "1,5")), &[]).await;
+    assert_eq!(
+        (st, code_of(&b)),
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            json!("value_text_mismatch")
+        )
+    );
+    let (st, _, b) = t.send("PUT", &vals, Some(put(1500.0, "1,500")), &[]).await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+}
+
+#[tokio::test]
+async fn l1r2_a_persons_note_and_the_refusals_are_audited() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    // a person's parts note is on record
+    let (st, _) = t
+        .call("PUT", &format!("/api/orders/{oid}/parts"), Some(json!({ "parts": [{ "id": 1, "no": "1", "shape": "cylinder", "qty": 3, "page": 1 }, { "id": 2, "no": "2", "shape": "tee_branch", "page": 1, "attach_part": "1" }], "note": "per drawing rev B" })))
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(audit_details(&t, "order_parts_reason").len(), 1);
+    assert!(audit_details(&t, "order_parts_reason")[0].contains("per drawing rev B"));
+    // a skip of a page that has not failed is refused (409); the refusal keeps the note
+    t.sql("UPDATE order_pages SET read_state = 'ok' WHERE order_id = 1 AND page_no = 1");
+    let (st, _) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/pages/1/skip"),
+            Some(json!({ "note": "skip reason" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::CONFLICT);
+    let r = audit_details(&t, "order_refused");
+    assert!(
+        r.iter()
+            .any(|x| x.contains("page_not_skippable") && x.contains("skip reason")),
+        "{r:?}"
+    );
+    // a skip that changes nothing still records the person's note
+    let (st, _) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/pages/2/skip"),
+            Some(json!({ "skipped": false, "note": "kept" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(
+        audit_details(&t, "order_page_note")
+            .iter()
+            .any(|x| x.contains("kept"))
+    );
+    // a read of a page is refused by this build and that refusal is on record
+    let (st, _) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/pages/1/read"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::NOT_IMPLEMENTED);
+    assert_eq!(audit_details(&t, "order_page_read_refused").len(), 1);
 }

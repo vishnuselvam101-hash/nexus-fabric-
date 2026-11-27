@@ -12,6 +12,8 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+/// 5: NFJ-1 order tables and users.kind. Rollback to an older build is a restore of the pre-update backup:
+/// an older program refuses a newer schema (see the check below) and does not undo the migration.
 pub const SCHEMA_VERSION: i64 = 5;
 
 const SCHEMA: &str = "
