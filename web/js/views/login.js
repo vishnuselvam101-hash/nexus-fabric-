@@ -88,9 +88,10 @@ export function mount(container) {
             leaveSetup();
             return;
           }
-          // the setup link's token was refused: forget it and ask for a token by hand, so the next try can succeed.
-          // A throttle (429) is transient: the link token is still valid, so it is kept and only the wait is shown.
-          if (err.status >= 400 && err.status < 500 && err.status !== 429) {
+          // only a refused token (403) is forgotten: the link token is asked for by hand on the next try.
+          // A weak password or user name (400), a conflict (409) and a throttle (429) keep the link token:
+          // desktop mode never shows the token again, so forgetting a valid one would lock the factory out.
+          if (err.status === 403) {
             setState({ setupToken: null });
             if (root && !root.querySelector('#login-token')) setupFields.push(...addTokenField(btn));
           }
@@ -140,11 +141,20 @@ function loginError(err) {
   return t('login.failed');
 }
 
-// setup: the server's own 4xx answer says what to fix (a bad setup token, a weak password, a wait after throttling).
-// It is shown as text and never includes the token, which the form does not echo back.
+// setup: each refusal the server gives is shown as a catalogue text in the user's language, never as the server's English.
+// The 400 texts are the server's password and user name rules (main.rs password_policy and valid_username).
+const SETUP_400 = {
+  'password must have at least 10 characters': 'login.pw.short',
+  'password is too long (at most 1024 bytes)': 'login.pw.long',
+  'password must not be the user name': 'login.pw.user',
+  'this password is on the list of commonly used passwords; choose another': 'login.pw.common',
+  'username must be 3-64 characters: letters, digits, . _ -': 'login.user.rule',
+};
 function setupError(err) {
-  const client = err.status >= 400 && err.status < 500 && err.status !== 401;
-  return client && err.message ? String(err.message) : loginError(err);
+  if (err.status === 429) return t('login.throttled');
+  if (err.status === 403) return t('login.tokenRefused');
+  if (err.status === 400 && SETUP_400[err.message]) return t(SETUP_400[err.message]);
+  return err.status ? t('login.setupFailed') : t('login.failed');
 }
 
 function showError(msg) {
