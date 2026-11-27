@@ -98,6 +98,50 @@ function rawGet(p, host) {
   const refusal = (await badPage.textContent('#login-form .alert').catch(() => '')) || '';
   check('a refused setup link: the server answer is shown', refusal.trim().length > 0, refusal.trim().slice(0, 100));
   await badCtx.close();
+  // The setup answers are intercepted (no server state changes): a throttle (429) keeps the link token and shows the wait;
+  // a refused token (400, 409) forgets the link token and shows the token field by hand.
+  const LINK_TOKEN = 'a'.repeat(64);
+  const MANUAL_TOKEN = 'b'.repeat(64);
+  const throttled = { status: 429, body: { error: 'too many failed sign-in attempts from this address; try again in 10 minutes' } };
+  const refusedCases = [{ status: 400, body: { error: 'setup token refused' } }, { status: 409, body: { error: 'setup conflict' } }];
+  const setupCase = async (answer) => {
+    const ctx2 = await browser.newContext({ viewport: { width: 1366, height: 768 } });
+    const p2 = await ctx2.newPage();
+    const bodies = [];
+    await p2.route('**/api/setup', (route) => {
+      bodies.push(route.request().postData() || '');
+      route.fulfill({ status: answer.status, contentType: 'application/json', body: JSON.stringify(answer.body) });
+    });
+    await p2.goto(`http://127.0.0.1:${PORT}/#setup=${LINK_TOKEN}`);
+    await p2.waitForSelector('#login-form', { timeout: 15000 });
+    await p2.fill('#login-user', 'admin');
+    await p2.fill('#login-pass', 'correct-horse-9');
+    await p2.click('#login-form button[type="submit"]');
+    for (let i = 0; i < 100 && bodies.length < 1; i++) await sleep(100);
+    await p2.waitForSelector('#login-form .alert', { timeout: 15000 }).catch(() => {});
+    const alert = ((await p2.textContent('#login-form .alert').catch(() => '')) || '').trim();
+    const tokenShown = await p2.isVisible('#login-token').catch(() => false);
+    if (answer.status === 429) {
+      await p2.click('#login-form button[type="submit"]');   // the link token is still held: the next try sends it
+    } else {
+      await p2.fill('#login-token', MANUAL_TOKEN);           // the link token is gone: the next try sends the typed token
+      await p2.click('#login-form button[type="submit"]');
+    }
+    for (let i = 0; i < 100 && bodies.length < 2; i++) await sleep(100);
+    await ctx2.close();
+    return { alert, tokenShown, second: bodies[1] || '' };
+  };
+  const wait = await setupCase(throttled);
+  check('a throttled setup (429) shows the server wait message', /try again in 10 minutes/.test(wait.alert), wait.alert.slice(0, 100));
+  check('a throttled setup (429) keeps the link token and does not ask for a token by hand',
+    !wait.tokenShown && wait.second.includes(`"setup_token":"${LINK_TOKEN}"`), `token field ${wait.tokenShown}`);
+  for (const answer of refusedCases) {
+    const r = await setupCase(answer);
+    check(`a refused setup (${answer.status}) shows the server answer and asks for a token by hand`,
+      r.tokenShown && r.alert === answer.body.error, `${r.alert.slice(0, 60)} / token field ${r.tokenShown}`);
+    check(`a refused setup (${answer.status}) forgets the link token`,
+      !r.second.includes(LINK_TOKEN) && r.second.includes(`"setup_token":"${MANUAL_TOKEN}"`), `second request ${r.second.length} bytes`);
+  }
   // An incomplete setup link: the fragment is taken out of the address bar and the sign-in page says the link is incomplete.
   const shortCtx = await browser.newContext({ viewport: { width: 1366, height: 768 } });
   const shortPage = await shortCtx.newPage();

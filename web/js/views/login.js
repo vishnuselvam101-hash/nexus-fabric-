@@ -88,8 +88,9 @@ export function mount(container) {
             leaveSetup();
             return;
           }
-          // the setup link's token was refused: forget it and ask for a token by hand, so the next try can succeed
-          if (err.status >= 400 && err.status < 500) {
+          // the setup link's token was refused: forget it and ask for a token by hand, so the next try can succeed.
+          // A throttle (429) is transient: the link token is still valid, so it is kept and only the wait is shown.
+          if (err.status >= 400 && err.status < 500 && err.status !== 429) {
             setState({ setupToken: null });
             if (root && !root.querySelector('#login-token')) setupFields.push(...addTokenField(btn));
           }
@@ -139,10 +140,10 @@ function loginError(err) {
   return t('login.failed');
 }
 
-// setup: the server's own 4xx answer says what to fix (a bad setup token, a weak password). It is shown as text and
-// never includes the token, which the form does not echo back.
+// setup: the server's own 4xx answer says what to fix (a bad setup token, a weak password, a wait after throttling).
+// It is shown as text and never includes the token, which the form does not echo back.
 function setupError(err) {
-  const client = err.status >= 400 && err.status < 500 && err.status !== 401 && err.status !== 429;
+  const client = err.status >= 400 && err.status < 500 && err.status !== 401;
   return client && err.message ? String(err.message) : loginError(err);
 }
 
