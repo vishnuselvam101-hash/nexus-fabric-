@@ -112,7 +112,7 @@ cleanup() {
   if [ -n "$TMP" ]; then rm -f "$TMP" "$TMP.log"; fi
 }
 trap cleanup EXIT
-trap 'exit 130' INT TERM
+trap 'echo "sign.sh: interrupted; the file being signed is left unchanged" >&2; exit 130' INT TERM
 
 for f in "$@"; do
   [ -f "$f" ] || { echo "sign.sh: file not found: $(basename "$f")" >&2; exit 1; }
@@ -129,7 +129,7 @@ for f in "$@"; do
     exit 1
   fi
   rm -f "$TMP.log"
-  mv -f "$TMP" "$f"
+  mv -f "$TMP" "$f" || { echo "sign.sh: cannot replace $(basename "$f") with its signed copy (file not writable?)" >&2; exit 1; }
   TMP=""
   echo "signed $(basename "$f") (SHA-256 digest; $TS_NOTE)"
 done

@@ -22,12 +22,13 @@ cleanup() {
 }
 trap cleanup EXIT
 CN="NEXUS FABRIC TEST CERTIFICATE (not for release)"
+die() { echo "make_test_cert.sh: $*" >&2; exit 1; }
 openssl req -x509 -newkey rsa:2048 -sha256 -days 2 -nodes \
   -keyout "$D/test-signing.key" -out "$D/test-signing.crt" -subj "/CN=$CN/O=VSNexus test" \
   -addext "keyUsage=critical,digitalSignature" -addext "extendedKeyUsage=critical,codeSigning" \
-  -addext "basicConstraints=critical,CA:FALSE" >/dev/null 2>&1
-openssl rand -hex 24 >"$D/test-signing.pass"
+  -addext "basicConstraints=critical,CA:FALSE" >/dev/null 2>&1 || die "openssl req failed; no test certificate was written"
+openssl rand -hex 24 >"$D/test-signing.pass" || die "could not create the test password file"
 openssl pkcs12 -export -inkey "$D/test-signing.key" -in "$D/test-signing.crt" -name "$CN" \
-  -out "$D/test-signing.pfx" -passout "file:$D/test-signing.pass" >/dev/null 2>&1
+  -out "$D/test-signing.pfx" -passout "file:$D/test-signing.pass" >/dev/null 2>&1 || die "openssl pkcs12 failed; no test certificate was written"
 chmod 600 "$D/test-signing.pass" "$D/test-signing.pfx"
 echo "test certificate written to the folder (self-signed, NOT a release certificate)"
