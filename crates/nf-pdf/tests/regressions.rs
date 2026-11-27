@@ -33,3 +33,14 @@ fn zero_length_dash_entries_do_not_loop_forever() {
     let c = convert(&bytes, &options(1.0)).expect("converts as a solid line");
     assert_eq!(polylines(&c.dxf, "PDF_STROKE").len(), 1);
 }
+
+#[test]
+fn malformed_inline_image_dictionary_does_not_fail_the_conversion() {
+    // The converter never reads inline image dictionaries; a stray `]` in one must not change
+    // the outcome (it converted before the page-image renderer existed).
+    let bytes = page_pdf(&PageSpec::new(
+        b"q 10 0 0 10 0 0 cm BI /W 1 /H 1 /D [0 1 ] ] /BPC 8 ID \x00 EI Q 0 0 m 50 0 l S",
+    ));
+    let c = convert(&bytes, &options(1.0)).expect("converts as before");
+    assert_eq!(polylines(&c.dxf, "PDF_STROKE").len(), 1);
+}

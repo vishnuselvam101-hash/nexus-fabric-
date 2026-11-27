@@ -619,7 +619,7 @@ impl<'a> Doc<'a> {
         Ok(rc)
     }
 
-    fn filter_stages(&mut self, dict: &Dict) -> Result<Vec<(Name, Dict)>, Fault> {
+    pub(crate) fn filter_stages(&mut self, dict: &Dict) -> Result<Vec<(Name, Dict)>, Fault> {
         let names: Vec<Name> = match self.dict_entry(dict, b"Filter")? {
             None => Vec::new(),
             Some(Obj::Name(n)) => vec![n],

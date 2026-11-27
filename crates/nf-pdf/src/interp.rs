@@ -14,6 +14,7 @@ use crate::font::Font;
 use crate::geom::{self, IDENTITY, M};
 use crate::lexer::{is_delim, is_ws, obj_from_tok, Budget, Dict, Lexer, Obj, Stream, Tok};
 use crate::limits::{limit, malformed, Fault};
+use crate::raster::{ImageSrc, Item};
 use crate::report::Stats;
 
 /// Options that change what is written.
@@ -23,6 +24,9 @@ pub struct RunOpts {
     pub tol_mm: f64,
     pub fill: bool,
     pub text: bool,
+    /// Collect lines and image placements in `Interp::items` instead of writing DXF geometry
+    /// (used by the page-image renderer; coordinates are then the caller's output pixels).
+    pub capture: bool,
 }
 
 #[derive(Clone)]
@@ -38,6 +42,12 @@ pub struct GState {
     pub tl: f64,
     pub rise: f64,
     pub mode: i64,
+    /// Line width, user-space units.
+    pub lw: f64,
+    /// Non-stroking and stroking colour as 0 (black) to 255 (white) gray; only the device
+    /// colour operators set them (page-image renderer).
+    pub fill_gray: u8,
+    pub stroke_gray: u8,
 }
 
 impl GState {
@@ -54,6 +64,9 @@ impl GState {
             tl: 0.0,
             rise: 0.0,
             mode: 0,
+            lw: 1.0,
+            fill_gray: 0,
+            stroke_gray: 0,
         }
     }
 }
@@ -91,6 +104,22 @@ pub fn nums<const N: usize>(args: &[Obj]) -> Option<[f64; N]> {
     Some(out)
 }
 
+/// Gray level 0..=255 of a device colour operator (`g rg k` and their stroking forms).
+fn device_gray(op: &[u8], args: &[Obj]) -> Option<u8> {
+    let level = |v: f64| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    match op {
+        b"g" | b"G" => nums::<1>(args).map(|[g]| level(g)),
+        b"rg" | b"RG" => nums::<3>(args).map(|[r, g, b]| level(0.299 * r + 0.587 * g + 0.114 * b)),
+        _ => nums::<4>(args).map(|[c, m, y, k]| {
+            level(
+                0.299 * (1.0 - c) * (1.0 - k)
+                    + 0.587 * (1.0 - m) * (1.0 - k)
+                    + 0.114 * (1.0 - y) * (1.0 - k),
+            )
+        }),
+    }
+}
+
 /// Removes consecutive points closer than a nanometre.
 fn dedupe(pts: &[(f64, f64)]) -> Vec<(f64, f64)> {
     let mut out: Vec<(f64, f64)> = Vec::with_capacity(pts.len());
@@ -102,6 +131,10 @@ fn dedupe(pts: &[(f64, f64)]) -> Vec<(f64, f64)> {
     }
     out
 }
+
+/// Implementation limit: image placements recorded for one page in capture mode.
+pub const MAX_IMAGES: u64 = 4096;
+pub const MAX_ITEMS: usize = 2_000_000;
 
 pub const W_MALFORMED: (&str, &str) = (
     "malformed_operator",
@@ -135,6 +168,10 @@ pub struct Interp<'d, 'a> {
     pub segments: u64,
     pub ops: u64,
     pub form_depth: usize,
+    /// Lines and images in paint order, when `opt.capture` is set.
+    pub items: Vec<Item>,
+    /// Image placements recorded in capture mode (bounded by `MAX_IMAGES`).
+    pub images_placed: u64,
 }
 
 impl<'d, 'a> Interp<'d, 'a> {
@@ -159,6 +196,8 @@ impl<'d, 'a> Interp<'d, 'a> {
             segments: 0,
             ops: 0,
             form_depth: 0,
+            items: Vec::new(),
+            images_placed: 0,
         }
     }
 
@@ -305,9 +344,24 @@ impl<'d, 'a> Interp<'d, 'a> {
                 }
                 Ok(())
             }
-            b"BMC" | b"EMC" | b"DP" | b"MP" | b"BX" | b"EX" | b"sc" | b"SC" | b"g" | b"G"
-            | b"rg" | b"RG" | b"k" | b"K" | b"cs" | b"CS" | b"w" | b"J" | b"j" | b"M" | b"i"
-            | b"ri" | b"d0" | b"d1" => Ok(()),
+            b"g" | b"rg" | b"k" => {
+                self.gs.fill_gray = device_gray(name, args).unwrap_or(self.gs.fill_gray);
+                Ok(())
+            }
+            b"G" | b"RG" | b"K" => {
+                self.gs.stroke_gray = device_gray(name, args).unwrap_or(self.gs.stroke_gray);
+                Ok(())
+            }
+            b"w" => {
+                if let Some([w]) = nums::<1>(args) {
+                    if w.is_finite() && w >= 0.0 {
+                        self.gs.lw = w;
+                    }
+                }
+                Ok(())
+            }
+            b"BMC" | b"EMC" | b"DP" | b"MP" | b"BX" | b"EX" | b"sc" | b"SC" | b"cs" | b"CS"
+            | b"J" | b"j" | b"M" | b"i" | b"ri" | b"d0" | b"d1" => Ok(()),
             _ => {
                 if self.text_op(name, args)? {
                     return Ok(());
@@ -530,6 +584,35 @@ impl<'d, 'a> Interp<'d, 'a> {
         self.add_segments(4)
     }
 
+    /// Writes a polyline to the DXF body, or (capture mode) records it as a line to draw.
+    fn emit_line(
+        &mut self,
+        layer: &'static str,
+        pts: &[(f64, f64)],
+        closed: bool,
+    ) -> Result<(), Fault> {
+        if !self.opt.capture {
+            return self.out.polyline(layer, pts, closed);
+        }
+        if self.items.len() >= MAX_ITEMS {
+            return limit("scene_items", "more lines and images than the limit allows");
+        }
+        let (width, gray) = if layer == dxf::LAYER_FILL {
+            (0.0, self.gs.fill_gray)
+        } else {
+            (self.gs.lw * self.gs.ctm.length_scale(), self.gs.stroke_gray)
+        };
+        if gray < 250 {
+            self.items.push(Item::Line {
+                pts: pts.to_vec(),
+                closed,
+                width,
+                gray,
+            });
+        }
+        Ok(())
+    }
+
     fn paint(&mut self, stroke: bool, fill: bool, close: bool) -> Result<(), Fault> {
         let mut subs = std::mem::take(&mut self.path.subs);
         self.path = Path::default();
@@ -557,7 +640,7 @@ impl<'d, 'a> Interp<'d, 'a> {
                 self.stats.count("fill_subpaths", 1);
                 if self.opt.fill {
                     let closed = pts.len() >= 3;
-                    self.out.polyline(dxf::LAYER_FILL, &pts, closed)?;
+                    self.emit_line(dxf::LAYER_FILL, &pts, closed)?;
                 }
             }
             if stroke {
@@ -570,7 +653,7 @@ impl<'d, 'a> Interp<'d, 'a> {
                 }
                 if dash_mm.is_empty() {
                     self.stats.count("stroke_subpaths", 1);
-                    self.out.polyline(dxf::LAYER_STROKE, &pts, closed)?;
+                    self.emit_line(dxf::LAYER_STROKE, &pts, closed)?;
                 } else {
                     self.stats.count("dashed_subpaths", 1);
                     let remaining = self.doc.lim.max_path_segments.saturating_sub(self.segments);
@@ -580,7 +663,7 @@ impl<'d, 'a> Interp<'d, 'a> {
                         let piece = dedupe(&piece);
                         if piece.len() >= 2 {
                             self.stats.count("dash_pieces", 1);
-                            self.out.polyline(dxf::LAYER_DASHED, &piece, false)?;
+                            self.emit_line(dxf::LAYER_DASHED, &piece, false)?;
                         }
                     }
                 }
@@ -622,8 +705,7 @@ impl<'d, 'a> Interp<'d, 'a> {
         match s.dict.get(b"Subtype").and_then(Obj::name) {
             Some(b"Image") => {
                 self.stats.count("images", 1);
-                self.record_image();
-                Ok(())
+                self.record_image(Some(ImageSrc::Xobject(s.clone(), num)))
             }
             Some(b"Form") => self.form(s, num),
             _ => {
@@ -636,7 +718,7 @@ impl<'d, 'a> Interp<'d, 'a> {
         }
     }
 
-    fn record_image(&mut self) {
+    fn record_image(&mut self, src: Option<ImageSrc>) -> Result<(), Fault> {
         let c = self.gs.ctm;
         let pts = [
             c.apply(0.0, 0.0),
@@ -650,7 +732,16 @@ impl<'d, 'a> Interp<'d, 'a> {
         let maxy = pts.iter().map(|p| p.1).fold(f64::MIN, f64::max);
         if [minx, miny, maxx, maxy].iter().all(|v| v.is_finite()) {
             self.images.push([minx, miny, maxx, maxy]);
+            if let (true, Some(src)) = (self.opt.capture, src) {
+                self.images_placed += 1;
+                if self.items.len() >= MAX_ITEMS || self.images_placed > MAX_IMAGES {
+                    return limit("scene_items", "more images than the limit allows");
+                }
+                let fill = self.gs.fill_gray;
+                self.items.push(Item::Image { ctm: c, src, fill });
+            }
         }
+        Ok(())
     }
 
     /// Form XObject: its matrix is applied, its resources replace the current ones, and
@@ -690,12 +781,29 @@ impl<'d, 'a> Interp<'d, 'a> {
 
     /// Inline image: the dictionary runs to ID; the data runs to a whitespace-delimited EI.
     fn inline_image(&mut self, lx: &mut Lexer) -> Result<(), Fault> {
+        let mut entries: Vec<(Vec<u8>, Obj)> = Vec::new();
+        let mut key: Option<Vec<u8>> = None;
         let mut seen = 0usize;
+        let mut budget = Budget::new(&self.doc.lim, self.doc.dl);
         loop {
-            match lx.next()? {
+            let t = lx.next()?;
+            match t {
                 Tok::Kw(b"ID") => break,
                 Tok::Eof => return malformed("inline image without ID"),
-                _ => {}
+                // Not capturing: skip tokens exactly as before, so a dictionary that was
+                // never read cannot fail the conversion.
+                _ if !self.opt.capture => {}
+                Tok::Kw(b"true") => self.inline_value(&mut key, &mut entries, Obj::Bool(true)),
+                Tok::Kw(b"false") => self.inline_value(&mut key, &mut entries, Obj::Bool(false)),
+                Tok::Kw(b"null") => self.inline_value(&mut key, &mut entries, Obj::Null),
+                Tok::Kw(_) => {}
+                other => {
+                    let o = obj_from_tok(lx, other, 0, &mut budget)?;
+                    match (&key, o) {
+                        (None, Obj::Name(n)) => key = Some(n),
+                        (_, o) => self.inline_value(&mut key, &mut entries, o),
+                    }
+                }
             }
             seen += 1;
             if seen > 4096 {
@@ -703,12 +811,12 @@ impl<'d, 'a> Interp<'d, 'a> {
             }
         }
         self.stats.count("images", 1);
-        self.record_image();
         let data = lx.d;
         let mut p = lx.pos;
         if data.get(p).is_some_and(|&c| is_ws(c)) {
             p += 1;
         }
+        let begin = p;
         loop {
             let Some(q) = find(data, p, b"EI") else {
                 return malformed("inline image without EI");
@@ -720,9 +828,68 @@ impl<'d, 'a> Interp<'d, 'a> {
             };
             if before_ok && after_ok {
                 lx.pos = q + 2;
-                return Ok(());
+                let src = if self.opt.capture {
+                    let end = q.saturating_sub(1).max(begin);
+                    let bytes = data.get(begin..end).unwrap_or(&[]).to_vec();
+                    Some(self.inline_source(entries, bytes)?)
+                } else {
+                    None
+                };
+                return self.record_image(src);
             }
             p = q + 1;
         }
+    }
+
+    fn inline_value(&mut self, key: &mut Option<Vec<u8>>, out: &mut Vec<(Vec<u8>, Obj)>, v: Obj) {
+        if let Some(k) = key.take() {
+            out.push((k, v));
+        }
+    }
+
+    /// The image dictionary of an inline image with its abbreviations expanded and a named
+    /// colour space replaced by the resource it names.
+    fn inline_source(
+        &mut self,
+        entries: Vec<(Vec<u8>, Obj)>,
+        data: Vec<u8>,
+    ) -> Result<ImageSrc, Fault> {
+        let mut out: Vec<(Vec<u8>, Obj)> = Vec::new();
+        for (k, v) in entries {
+            let full: &[u8] = match k.as_slice() {
+                b"BPC" => b"BitsPerComponent",
+                b"CS" => b"ColorSpace",
+                b"D" => b"Decode",
+                b"DP" => b"DecodeParms",
+                b"F" => b"Filter",
+                b"H" => b"Height",
+                b"IM" => b"ImageMask",
+                b"I" => b"Interpolate",
+                b"W" => b"Width",
+                other => other,
+            };
+            let v = if full == b"ColorSpace" {
+                match &v {
+                    Obj::Name(n)
+                        if !matches!(
+                            n.as_slice(),
+                            b"G" | b"RGB"
+                                | b"CMYK"
+                                | b"I"
+                                | b"DeviceGray"
+                                | b"DeviceRGB"
+                                | b"DeviceCMYK"
+                        ) =>
+                    {
+                        self.resource(b"ColorSpace", n)?.unwrap_or(v)
+                    }
+                    _ => v,
+                }
+            } else {
+                v
+            };
+            out.push((full.to_vec(), v));
+        }
+        Ok(ImageSrc::Inline(Rc::new(Dict(out)), Rc::new(data)))
     }
 }
