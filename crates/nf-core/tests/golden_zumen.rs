@@ -685,6 +685,7 @@ impl RealEngine for RustShapes {
             "s11" => eval_s11(n),
             "s12" => eval_s12(n),
             "s13" => eval_s13(n),
+            "s15" => eval_s15(n),
             _ => None,
         }
     }
@@ -2829,4 +2830,571 @@ fn real_engine_status_pads_and_review() {
         tot.ok, tot.ng, tot.pending, tot.derived_uncounted
     );
     assert_eq!(tot.ng, 0, "NG cases in the L7b sections");
+}
+
+// ======================================================================================================
+// Lane S1-L9a: section s15 (test_build.mjs:744-873, branch on a cone, concentric and eccentric). Every input value below
+// is written from the ZK test source / spec_conebranch.md (examples 1-4) or read from the K_cone_branch / K_ecc_branch
+// reading files; every answer is computed by `nf_core::conebranch`. Not ported (PENDING, stated): the DXF writer (0319), the
+// build() check list texts and counts that need the material table / part attachment (0329 0331 0354 0364-0367 0369
+// 0371), which belong to the order front half (wiring lane). The 17 derived cases are computed, never counted.
+// ======================================================================================================
+
+use nf_core::conebranch::{self, ConeBranchResult, ConeBranchSpec};
+
+#[allow(clippy::too_many_arguments)]
+fn cb(
+    ecc: bool,
+    da: f64,
+    db: f64,
+    l: f64,
+    flat: f64,
+    d: f64,
+    x: f64,
+    dir: f64,
+    e: f64,
+    h: f64,
+    n: u32,
+    mount: Mount,
+) -> ConeBranchSpec {
+    ConeBranchSpec {
+        da,
+        db,
+        l,
+        t: 12.0,
+        ecc,
+        flat_deg: Some(flat),
+        d,
+        tb: 9.0,
+        x: Some(x),
+        dir_deg: dir,
+        e,
+        h,
+        angle_deg: None,
+        mount,
+        split: Some(n),
+        seam_gap: None,
+    }
+}
+
+/// The four examples of spec_conebranch.md section 5 (test_build.mjs:775-791).
+fn cb_example(i: usize) -> ConeBranchSpec {
+    match i {
+        0 => cb(
+            false,
+            1016.0,
+            812.8,
+            812.8,
+            0.0,
+            406.4,
+            406.4,
+            0.0,
+            0.0,
+            800.0,
+            2,
+            Mount::SetOn,
+        ),
+        1 => cb(
+            false,
+            914.4,
+            1219.2,
+            600.0,
+            0.0,
+            508.0,
+            300.0,
+            90.0,
+            100.0,
+            900.0,
+            3,
+            Mount::SetIn,
+        ),
+        2 => cb(
+            true,
+            1219.2,
+            914.4,
+            1200.0,
+            0.0,
+            406.4,
+            600.0,
+            0.0,
+            0.0,
+            900.0,
+            2,
+            Mount::SetOn,
+        ),
+        _ => cb(
+            true,
+            1219.2,
+            914.4,
+            1200.0,
+            0.0,
+            406.4,
+            600.0,
+            90.0,
+            0.0,
+            900.0,
+            2,
+            Mount::SetOn,
+        ),
+    }
+}
+
+fn cb_run(s: &ConeBranchSpec) -> Option<ConeBranchResult> {
+    // every case recomputes the same few specs: remember the answers (the engine is pure, this changes no value)
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    static MEMO: OnceLock<Mutex<HashMap<String, Option<ConeBranchResult>>>> = OnceLock::new();
+    let memo = MEMO.get_or_init(|| Mutex::new(HashMap::new()));
+    let key = format!("{s:?}");
+    if let Some(v) = memo.lock().unwrap().get(&key) {
+        return v.clone();
+    }
+    let v = conebranch::cone_branch(s).ok();
+    memo.lock().unwrap().insert(key, v.clone());
+    v
+}
+
+fn cb_code(s: &ConeBranchSpec) -> Option<&'static str> {
+    conebranch::cone_branch(s).err().map(|e| e.code)
+}
+
+/// Reading of K_cone_branch / K_ecc_branch into a spec (cone part + branch part), the way ZK `build` takes the values.
+fn cb_read(file: &str, edit: impl Fn(&mut Value)) -> Option<ConeBranchSpec> {
+    let mut v: Value = serde_json::from_str(
+        &std::fs::read_to_string(golden_dir().join("readings").join(file)).ok()?,
+    )
+    .ok()?;
+    edit(&mut v);
+    let g = |p: &Value, k: &str| p["params"][k]["value"].as_f64();
+    let parts = v["parts"].as_array()?;
+    let c = parts.iter().find(|p| p["shape"] != "tee_branch")?;
+    let b = parts.iter().find(|p| p["shape"] == "tee_branch")?;
+    let ecc = c["shape"] == "eccentric_cone";
+    let dir = g(b, "dir").unwrap_or(0.0);
+    let e = tee::signed_offset(g(b, "e").unwrap_or(0.0), g(b, "e_side"), dir).ok()?;
+    Some(ConeBranchSpec {
+        da: g(c, "D1")?,
+        db: g(c, "D2")?,
+        l: g(c, "L")?,
+        t: g(c, "t")?,
+        ecc,
+        flat_deg: g(c, "flat_side"),
+        d: g(b, "D").or(g(c, "branch_D"))?,
+        tb: g(b, "t").or(g(c, "branch_t"))?,
+        x: g(b, "branch_x").or(g(c, "branch_x")),
+        dir_deg: dir,
+        e,
+        h: g(b, "H")?,
+        angle_deg: g(b, "branch_angle"),
+        mount: Mount::SetOn,
+        split: g(c, "split").map(|n| n as u32),
+        seam_gap: None,
+    })
+}
+
+fn cb_marks_equal(a: &ConeBranchSpec, b: &ConeBranchSpec) -> Option<Got> {
+    let (ra, rb) = (cb_run(a)?, cb_run(b)?);
+    flag(
+        ra.branch
+            .marks
+            .iter()
+            .zip(&rb.branch.marks)
+            .all(|(p, q)| (p.len - q.len).abs() < 1e-6),
+    )
+}
+
+fn eval_s15(n: usize) -> Option<Got> {
+    // 1-15: half angle -> 0 equals the tee (verify_tee.py example 1: 1016 x 12 main, 610 x 9 branch, H 900)
+    let dt = 1016.0 + 2.0 * 1500.0 * 1e-7;
+    let tb = |e: f64, m: Mount| {
+        cb(
+            false, 1016.0, dt, 1500.0, 0.0, 610.0, 750.0, 0.0, e, 900.0, 2, m,
+        )
+    };
+    let mut t_on = tb(0.0, Mount::SetOn);
+    t_on.tb = 9.0;
+    match n {
+        1 => return num(cb_run(&t_on)?.branch.circ),
+        2..=6 => return num(cb_run(&t_on)?.branch.marks[n - 2].len),
+        7 => return num(cb_run(&t_on)?.branch.mass_kg),
+        8 => return num(cb_run(&t_on)?.hole.box_w),
+        9 => return num(cb_run(&t_on)?.hole.box_h),
+        10..=12 => {
+            let k = [8usize, 12, 0][n - 10];
+            return num(900.0 - cb_run(&tb(150.0, Mount::SetOn))?.branch.marks[k].len);
+        }
+        13 => return num(cb_run(&tb(0.0, Mount::SetIn))?.branch.marks[0].len),
+        14 => return num(cb_run(&tb(0.0, Mount::SetIn))?.branch.marks[4].len),
+        15 => return num(cb_run(&tb(0.0, Mount::SetIn))?.hole.box_w),
+        _ => {}
+    }
+    // 16-298: the four examples; per-example block layout of test_build.mjs:792-806
+    // (marks 17, short, long, kg, hole box 4, area, x 2, seams n, moved, not-crossing, dh, dw, hole marks 32,
+    //  concentric: chord height copies / eccentric: 4 boxes, piece kg, cone kg)
+    const START: [usize; 4] = [16, 86, 157, 228];
+    const NSEAM: [usize; 4] = [2, 3, 2, 2];
+    if (16..=298).contains(&n) {
+        let i = (0..4).rev().find(|&i| n >= START[i])?;
+        let r = cb_run(&cb_example(i))?;
+        let ecc = i >= 2;
+        let o = n - START[i];
+        let ns = NSEAM[i];
+        let mut sd = r.seams.deg.clone();
+        sd.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let hm0 = 31 + ns; // first hole-mark offset: 20..23 box, 24 area, 25-26 x, seams, moved, flag, dh, dw
+        return match o {
+            0..=16 => num(r.branch.marks[o].len),
+            17 => num(r.branch.shortest),
+            18 => num(r.branch.longest),
+            19 => num(r.branch.mass_kg),
+            20 => num(r.hole.bbox[0]),
+            21 => num(r.hole.bbox[2]),
+            22 => num(r.hole.bbox[1]),
+            23 => num(r.hole.bbox[3]),
+            24 => num(r.hole.area_poly),
+            25 => num(r.hole.x_min),
+            26 => num(r.hole.x_max),
+            _ if o < 27 + ns => num(sd[o - 27]),
+            _ if o == 27 + ns => num(r.seams.moved_deg),
+            _ if o == 28 + ns => flag(!r.seams.cross),
+            _ if o == 29 + ns => num(r.seams.seam_hole),
+            _ if o == 30 + ns => num(r.seams.seam_weld),
+            _ if (hm0..hm0 + 32).contains(&o) => {
+                let m = &r.hole.marks[(o - hm0) / 2];
+                num(if (o - hm0).is_multiple_of(2) {
+                    m.x
+                } else {
+                    m.y
+                })
+            }
+            _ => {
+                let q = o - (hm0 + 32);
+                if !ecc {
+                    match q {
+                        0 => num(r.pieces[0].chord?),
+                        1 => num(r.pieces[0].height?),
+                        2 => num(f64::from(r.pieces[1].copies)),
+                        3 => num(r.pieces[0].mass_kg),
+                        4 => num(r.cone_mass_kg),
+                        _ => None,
+                    }
+                } else {
+                    match q {
+                        0 => num(r.pieces[0].w),
+                        1 => num(r.pieces[0].h),
+                        2 => num(r.pieces[1].w),
+                        3 => num(r.pieces[1].h),
+                        4 => num(r.pieces[0].mass_kg),
+                        5 => num(r.cone_mass_kg),
+                        _ => None,
+                    }
+                }
+            }
+        };
+    }
+    // 299-306 (derived, never counted): thickness 0, branch cut length / hole perimeter / 3D curve length coincide
+    if (299..=306).contains(&n) {
+        #[allow(clippy::type_complexity)]
+        let rows: [(bool, f64, f64, f64, f64, f64, f64, f64); 4] = [
+            (false, 2000.0, 1200.0, 1500.0, 300.0, 750.0, 0.0, 0.0),
+            (false, 2000.0, 1200.0, 1500.0, 300.0, 750.0, 45.0, 250.0),
+            (true, 1219.2, 914.4, 1200.0, 203.2, 600.0, 0.0, 0.0),
+            (true, 1219.2, 914.4, 1200.0, 203.2, 600.0, 90.0, 100.0),
+        ];
+        let (ecc, da, db, l, r, x0, dir, e) = rows[(n - 299) / 2];
+        let mut s = cb(
+            ecc,
+            da,
+            db,
+            l,
+            0.0,
+            2.0 * r + 0.001,
+            x0,
+            dir,
+            e,
+            3000.0,
+            2,
+            Mount::SetOn,
+        );
+        s.t = 0.001;
+        s.tb = 0.001;
+        let res = cb_run(&s)?;
+        return num(if (n - 299).is_multiple_of(2) {
+            res.branch.cut_length
+        } else {
+            res.hole.perimeter
+        });
+    }
+    match n {
+        307 => {
+            // small mouth written first (K_ecc reading of example 4): same marks as example 4
+            let small = cb(
+                true,
+                914.4,
+                1219.2,
+                1200.0,
+                0.0,
+                406.4,
+                600.0,
+                270.0,
+                -152.4,
+                900.0,
+                2,
+                Mount::SetOn,
+            );
+            cb_marks_equal(&small, &cb_example(3))
+        }
+        308 => {
+            let small = cb(
+                true,
+                914.4,
+                1219.2,
+                1200.0,
+                0.0,
+                406.4,
+                600.0,
+                270.0,
+                -152.4,
+                900.0,
+                2,
+                Mount::SetOn,
+            );
+            num(cb_run(&small)?.branch.d4)
+        }
+        309..=311 => {
+            let (f1, d1, f2, d2) = [
+                (180.0, 180.0, 0.0, 0.0),
+                (90.0, 180.0, 0.0, 90.0),
+                (270.0, 30.0, 0.0, 120.0),
+            ][n - 309];
+            let a = cb(
+                true,
+                1219.2,
+                914.4,
+                1200.0,
+                f1,
+                406.4,
+                600.0,
+                d1,
+                60.0,
+                900.0,
+                2,
+                Mount::SetOn,
+            );
+            let b = cb(
+                true,
+                1219.2,
+                914.4,
+                1200.0,
+                f2,
+                406.4,
+                600.0,
+                d2,
+                60.0,
+                900.0,
+                2,
+                Mount::SetOn,
+            );
+            cb_marks_equal(&a, &b)
+        }
+        312 => {
+            let mut s = cb_example(0);
+            s.d = 1000.0;
+            flag(cb_code(&s) == Some("conebranch_branch_not_within_cone"))
+        }
+        313 => {
+            let mut s = cb_example(0);
+            s.x = Some(100.0);
+            flag(cb_code(&s) == Some("conebranch_hole_beyond_mouth"))
+        }
+        314 => {
+            let mut s = cb_example(0);
+            s.db = s.da;
+            flag(cb_code(&s) == Some("conebranch_not_conical"))
+        }
+        315 => {
+            let mut s = cb_example(0);
+            s.split = Some(12);
+            flag(cb_run(&s)?.seams.cross)
+        }
+        316 => {
+            let mut s = cb_example(0);
+            s.split = Some(3);
+            flag(!cb_run(&s)?.seams.cross)
+        }
+        317 => {
+            let mut s = cb_example(2);
+            s.split = Some(3);
+            num(cb_run(&s)?.pieces.len() as f64)
+        }
+        318 => {
+            let mut s = cb_example(2);
+            s.split = Some(3);
+            num(cb_run(&s)?.cone_mass_kg)
+        }
+        // 319 DXF: no DXF writer in this lane
+        320..=326 | 333..=353 => {
+            let (file, i) = if n <= 326 {
+                ("K_cone_branch.json", 0)
+            } else {
+                ("K_ecc_branch.json", 3)
+            };
+            let s = cb_read(file, |_| {})?;
+            let r = cb_run(&s)?;
+            match n {
+                320 => num(r.pieces[0].w),
+                321 => num(r.pieces[0].h),
+                322 => num(r.cone_mass_kg),
+                323 => num(f64::from(r.n)),
+                324 => num(r.hole.box_w),
+                325 => num(r.branch.marks[0].len),
+                326 => num(r.branch.marks[4].len),
+                333 => num(r.pieces[0].w),
+                334 => num(r.pieces[0].h),
+                335 => num(r.cone_mass_kg),
+                336 => num(r.hole.area_poly),
+                337..=353 => {
+                    let _ = i;
+                    num(r.branch.marks[n - 337].len)
+                }
+                _ => None,
+            }
+        }
+        327 => flag(
+            cb_run(&cb_read("K_cone_branch.json", |_| {})?)?
+                .rules
+                .iter()
+                .any(|r| r.0 == "CONEBRANCH_HOLE_NORMAL_CUT"),
+        ),
+        328 => flag(
+            (cb_run(&cb_read("K_cone_branch.json", |_| {})?)?
+                .seams
+                .moved_deg
+                + 90.0)
+                .abs()
+                < 0.05,
+        ),
+        330 => {
+            flag((cb_run(&cb_read("K_cone_branch.json", |_| {})?)?.branch.d4 - 1016.0).abs() < 1e-9)
+        }
+        355 => {
+            flag((cb_run(&cb_read("K_ecc_branch.json", |_| {})?)?.branch.d4 - 1219.2).abs() < 1e-9)
+        }
+        356 => flag(
+            cb_run(&cb_read("K_ecc_branch.json", |v| {
+                v["parts"][0]["params"]["flat_side"] = Value::Null;
+            })?)?
+            .has_hold("conebranch_flat_side_unconfirmed"),
+        ),
+        357 => flag(
+            cb_run(&cb_read("K_ecc_branch.json", |v| {
+                v["parts"][0]["params"]["flat_side"] = Value::Null;
+            })?)
+            .is_some(),
+        ),
+        358 => flag(
+            cb_run(&cb_read("K_cone_branch.json", |v| {
+                v["parts"][0]["params"]["branch_x"] = Value::Null;
+            })?)?
+            .questions
+            .iter()
+            .any(|q| q.contains("half the length")),
+        ),
+        359 => num(cb_run(&cb_read("K_cone_branch.json", |v| {
+            v["parts"][0]["params"]["branch_x"] = Value::Null;
+        })?)?
+        .x_used),
+        360 | 361 => {
+            let s = cb_read("K_cone_branch.json", |v| {
+                v["parts"][0]["params"]["branch_x"] = serde_json::json!({"value": 100, "text": "100", "bbox": null, "source": "drawing"});
+            })?;
+            flag(cb_code(&s) == Some("conebranch_hole_beyond_mouth"))
+        }
+        362 => {
+            let s = cb_read("K_cone_branch.json", |v| {
+                v["parts"][1]["params"]["H"] = serde_json::json!({"value": 300, "text": "300", "bbox": null, "source": "drawing"});
+            })?;
+            flag(cb_code(&s) == Some("conebranch_branch_end_below_cut"))
+        }
+        363 => {
+            let s = cb_read("K_cone_branch.json", |v| {
+                v["parts"][1]["params"]["branch_angle"] = serde_json::json!({"value": 60, "text": "60", "bbox": null, "source": "drawing"});
+            })?;
+            flag(cb_code(&s) == Some("conebranch_branch_not_perpendicular"))
+        }
+        368 => {
+            let s = cb_read("K_cone_branch.json", |v| {
+                v["parts"][0]["params"]["split"] = serde_json::json!({"value": 12, "text": "12", "bbox": null, "source": "drawing"});
+            })?;
+            flag(cb_run(&s)?.has_hold("conebranch_seam_crosses_hole"))
+        }
+        370 => {
+            // an offset side that is not perpendicular to the branch direction: refused by tee::signed_offset
+            let r = tee::signed_offset(50.0, Some(0.0), 0.0);
+            flag(r.is_err_and(|e| e.code == "tee_offset_side_not_perpendicular"))
+        }
+        372 => {
+            let mut s = cb_read("K_cone_branch.json", |_| {})?;
+            s.mount = Mount::SetIn;
+            num(cb_run(&s)?.branch.marks[0].len)
+        }
+        373..=375 => {
+            let s = cb_read("K_cone_branch.json", |v| {
+                v["parts"][0]["params"]["branch_x"] = serde_json::json!({"value": -50, "text": "-50", "bbox": null, "source": "drawing"});
+            })?;
+            match n {
+                373 => flag(cb_run(&s).is_none() && cb_code(&s).is_some()),
+                374 => flag(cb_run(&s).is_none()),
+                _ => num(cb_run(&s).map_or(0, |r| r.pieces.len()) as f64),
+            }
+        }
+        376 | 377 => {
+            let mut s = cb_read("K_cone_branch.json", |_| {})?;
+            if n == 376 {
+                s.dir_deg = f64::NAN;
+            } else {
+                s.e = f64::NAN;
+            }
+            // ZK stops with the check kind tee_bad, no exception, no NaN; NF refuses with a coded error
+            flag(cb_code(&s) == Some("conebranch_value_not_finite"))
+        }
+        _ => None,
+    }
+}
+
+#[test]
+fn real_engine_status_conebranch() {
+    let (cases, _) = load_cases();
+    let part: Vec<Case> = cases
+        .iter()
+        .filter(|c| c.section == "s15")
+        .cloned()
+        .collect();
+    assert_eq!(part.len(), 377);
+    let r = run_real(&RustShapes, &part);
+    println!(
+        "s15: {} OK, {} NG, {} PENDING, {} derived (not counted) of {}",
+        r.ok,
+        r.ng,
+        r.pending,
+        r.derived_uncounted,
+        part.len()
+    );
+    for l in &r.ng_lines {
+        println!("{l}");
+    }
+    assert_eq!(r.ng, 0, "NG cases in s15");
+    assert_eq!(r.derived_uncounted, 17);
+    assert!(r.ok >= 330, "only {} s15 cases computed", r.ok);
+    // the derived ones are computed (answer present) even though never counted; none of them may disagree
+    let mut dok = 0;
+    for c in part.iter().filter(|c| !c.derived.is_empty()) {
+        match judge(c, RustShapes.eval(&key_of(c))) {
+            Verdict::Ok => dok += 1,
+            Verdict::Pending => println!("derived {} not computed (PENDING)", c.id),
+            Verdict::Ng => panic!("derived case {} disagrees with ZK's number", c.id),
+        }
+    }
+    println!("s15 derived: {dok} computed and within tolerance (not counted), 3 PENDING");
+    assert_eq!(dok, 14);
 }
