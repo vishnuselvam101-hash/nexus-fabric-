@@ -1060,7 +1060,8 @@ fn check_branch_fits(
             ),
         ));
     }
-    if ri + e.abs() > ro_main {
+    // same +1e-6 as validate_main and ZK build-core (a hole at the wall is on the main)
+    if ri + e.abs() > ro_main + 1e-6 {
         return Err(refusal(
             "tee_branch_bore_beyond_main",
             vec!["d", "t", "e", "main_d"],
@@ -1624,4 +1625,22 @@ pub fn rib_on_branch(angle_deg: Option<f64>) -> Result<(), ShapeRefusal> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod branch_fit_tests {
+    use super::*;
+
+    // 610 x 9 branch on a 1016 x 12 main: bore radius 296, main outer radius 508, so e = 212 puts the bore on the wall
+    #[test]
+    fn branch_bore_on_the_wall_is_accepted_within_1e_6_and_refused_beyond() {
+        let fit = |e: f64| check_branch_fits(610.0, 9.0, e, 1016.0, 12.0, None, Mount::SetOn, None);
+        assert!(
+            fit(212.0 + 0.5e-6).is_ok(),
+            "just inside the tolerance is accepted"
+        );
+        assert!(fit(212.0).is_ok());
+        let err = fit(212.0 + 2e-6).expect_err("just outside the tolerance is refused");
+        assert_eq!(err.code, "tee_branch_bore_beyond_main");
+    }
 }

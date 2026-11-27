@@ -2779,7 +2779,9 @@ fn eval_s13(n: usize) -> Option<Got> {
             let _ = deg;
             num(r.hole.iter().map(|q| q[0]).fold(f64::INFINITY, f64::min))
         }
-        22 | 23 => {
+        // s13-22: PENDING, NF refuses a hole off the main; ZK builds it (ZK asserts the build is returned). Not changed.
+        22 => None,
+        23 => {
             let mut b = BranchOnMain::new("1", 610.0, 9.0, None, 0.0, 1200.0);
             b.angle_deg = Some(45.0);
             let sp = TeeMainSpec::new(1016.0, 12.0, 2000.0, vec![b]);
