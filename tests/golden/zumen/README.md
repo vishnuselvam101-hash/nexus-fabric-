@@ -77,3 +77,11 @@ They are useful as invariants for the port, but are not golden values:
 
 Not covered at all (not asserts in `test_build.mjs`): the print-only verify scripts' own numbers beyond what `test_build.mjs` quotes
 (verify_conebranch, g, g2, lateral, plate, tee, unfold, cone_split), `review_code_fuzz.mjs` fuzz cases, and the DXF writer text.
+
+## Real-engine status (lane S1-L5b)
+
+`crates/nf-core/tests/golden_zumen.rs` now runs `nf_core::shapes` / `nf_core::order` (not reachable from `job::run` yet) against sections s06-s09.
+The real engine sees only a case key, never `want`, `zk_got` or `derived_from_engine_output`. Cases with derived inputs (191) are reported
+separately and never counted as OK, NG or PENDING; a section that contains one cannot be listed in `PORTED_SECTIONS`.
+`check_text` expectations are matched by a stable hold code (table in `eval_s08` / `eval_s09`), not by the Japanese text.
+Not covered: all s09 bend cases (46, lane L6b) and tee-main cases (95, lane L7a), s09 0070/0072/0073/0074-0076/0171, s08 0009 (ZK DXF line count) and 0049.
