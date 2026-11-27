@@ -115,7 +115,7 @@ pub(crate) fn int_value(pair: &Pair) -> Result<i64, CadError> {
     pair.value.trim().parse::<i64>().map_err(|_| invalid(pair))
 }
 
-fn real(pair: &Pair) -> Result<f64, CadError> {
+pub(crate) fn real(pair: &Pair) -> Result<f64, CadError> {
     match pair.value.trim().parse::<f64>() {
         Ok(v) if v.is_finite() => Ok(v),
         _ => Err(invalid(pair)),

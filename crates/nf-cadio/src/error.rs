@@ -53,6 +53,20 @@ pub enum Reason {
     TooManyEntities { limit: usize },
     /// A table declares more records than `Limits::max_entities`.
     DeclaredCountTooLarge { declared: i64, limit: usize },
+    /// A value before the first record (group 0) of a section, other than a 999 comment.
+    ExpectedRecord,
+    /// A record lacks a group code it needs, for example a LINE without its start point.
+    MissingField { entity: String, code: u16 },
+    /// A VERTEX or SEQEND record with no POLYLINE before it.
+    OrphanVertex,
+    /// A POLYLINE that is not followed by its VERTEX records and a SEQEND.
+    UnterminatedPolyline,
+    /// Non-ASCII text in a code page this reader does not decode.
+    UnknownEncoding { codepage: String },
+    /// Non-ASCII text, but the file names no code page and is not UTF-8 (AC1021 or later).
+    NoEncoding,
+    /// Text whose bytes are not valid in the file's encoding.
+    InvalidText,
 }
 
 /// A refusal: the reason and the 1-based line where it was found (0 when no line applies).
@@ -132,6 +146,25 @@ impl fmt::Display for Reason {
                     "table declares {declared} records, over the limit of {limit}"
                 )
             }
+            Reason::ExpectedRecord => {
+                write!(f, "value before the first record (group 0) of a section")
+            }
+            Reason::MissingField { entity, code } => {
+                write!(f, "{entity} record has no group {code}")
+            }
+            Reason::OrphanVertex => write!(f, "VERTEX or SEQEND without a POLYLINE before it"),
+            Reason::UnterminatedPolyline => {
+                write!(f, "POLYLINE not followed by VERTEX records and SEQEND")
+            }
+            Reason::UnknownEncoding { codepage } => write!(
+                f,
+                "non-ASCII text in code page {codepage}, which this reader does not decode"
+            ),
+            Reason::NoEncoding => write!(
+                f,
+                "non-ASCII text, but the file names no code page and is not UTF-8 (AC1021 or later)"
+            ),
+            Reason::InvalidText => write!(f, "text is not valid in the file's code page"),
         }
     }
 }

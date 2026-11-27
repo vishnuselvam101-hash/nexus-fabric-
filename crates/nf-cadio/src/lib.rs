@@ -10,15 +10,19 @@
 
 #![forbid(unsafe_code)]
 
+mod drawing;
 mod error;
 mod header;
 mod parse;
+mod tables;
+mod text;
 mod tokenizer;
 mod units;
 
 use std::collections::BTreeMap;
 use std::io::Read;
 
+pub use drawing::{Drawing, Entity, Layer, LineType, Point3, TextStyle, Vertex};
 pub use error::{CadError, Reason};
 pub use header::HeaderValue;
 pub use tokenizer::Pair;
@@ -115,6 +119,12 @@ impl Document {
     /// The first section with this name.
     pub fn section(&self, name: &str) -> Option<&Section> {
         self.sections.iter().find(|s| s.name == name)
+    }
+
+    /// Reads the TABLES and ENTITIES sections into a [`Drawing`]. A bad value, a missing required group,
+    /// or non-ASCII text the file's encoding cannot decode is a refusal.
+    pub fn drawing(&self) -> Result<Drawing, CadError> {
+        drawing::build(self)
     }
 
     /// Units from `$INSUNITS`. Missing, zero, non-integer or unrecognised values give `Units::Unknown`.

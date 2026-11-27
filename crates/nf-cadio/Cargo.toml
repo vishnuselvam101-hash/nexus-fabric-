@@ -10,6 +10,8 @@ description = "General ASCII DXF reader: tokenizer, sections, header variables, 
 path = "src/lib.rs"
 
 [dependencies]
+# Decodes $DWGCODEPAGE strings (ANSI_932, ANSI_1252). License: (Apache-2.0 OR MIT) AND BSD-3-Clause.
+encoding_rs = "0.8.44"
 
 [dev-dependencies]
 # Test-only: writes the R12 fixtures that the reader is checked against. Not a runtime dependency.
