@@ -1,0 +1,13 @@
+[package]
+name = "nf-jobout"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Proprietary"
+publish = false
+description = "Pure job output writers: stored ZIP, material list CSV/XLSX, issue list, record, inputs manifest"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+sha2 = "0.10"
