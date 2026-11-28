@@ -7,6 +7,7 @@ build = "build.rs"
 [dependencies]
 hex = "0.4.3"
 nf-dxf = { version = "0.1.0", path = "../nf-dxf" }
+nf-jobout = { version = "0.1.0", path = "../nf-jobout" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
 sha2 = "0.11.1"

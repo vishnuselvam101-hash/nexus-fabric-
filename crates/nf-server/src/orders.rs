@@ -85,6 +85,7 @@ pub(crate) fn routes() -> Router<Arc<App>> {
         .route("/api/orders/{oid}/parts", axum::routing::put(put_parts))
         .route("/api/orders/{oid}/values", axum::routing::put(put_values))
         .route("/api/orders/{oid}/confirm", post(confirm))
+        .route("/api/orders/{oid}/compute", post(compute).get(get_results))
         .route("/api/orders/{oid}/decisions", post(post_decision))
         .route(
             "/api/orders/{oid}/decisions/{did}/undo",
@@ -253,7 +254,7 @@ fn record_alone(app: &App, who: &str, action: &str, detail: &str) -> Result<(), 
 
 /// Answers a write. A refusal that is evidence is written down in its own transaction, after the refused
 /// request's transaction has rolled back: a limit (parts_limit, values_limit), any conflict (409), and any
-/// refusal of the AI operator (403) and a decision or upload the AI operator sent without a reason (422). An AI operator's refused parts edit keeps its reason row too.
+/// refusal of the AI operator (403), a decision or upload the AI operator sent without a reason (422), and corrupt stored rules (422). An AI operator's refused parts edit keeps its reason row too.
 async fn settle(app: &App, u: &User, oid: i64, what: &str, note: String, res: Api) -> Api {
     let resp = match res {
         Ok(r) => return Ok(r),
@@ -270,6 +271,7 @@ async fn settle(app: &App, u: &User, oid: i64, what: &str, note: String, res: Ap
     let agent = u.kind == "agent";
     let limit = matches!(code.as_str(), "parts_limit" | "values_limit");
     if limit
+        || code == "order_rules_corrupt"
         || parts.status == StatusCode::CONFLICT
         || (agent && parts.status == StatusCode::FORBIDDEN)
         || (agent && code == "decision_reason")
@@ -2214,6 +2216,266 @@ async fn get_order(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) ->
         "checked": checked,
         "limits": { "files": MAX_ORDER_FILES, "pages": MAX_ORDER_PAGES, "parts": MAX_ORDER_PARTS, "upload_mib": membrane::MAX_UPLOAD_BYTES / (1024 * 1024) },
     }))
+}
+
+// ---------------------------------------------------------------- compute (NFJ-1 L10)
+
+use nf_core::order_compute as oc;
+
+/// The confirmed state of the order as the compute reads it, and the hash that identifies it. Only CONFIRMED and
+/// CORRECTED values are computed (a PROPOSED value is held by the compute itself).
+fn load_compute_input(
+    db: &Connection,
+    oid: i64,
+) -> Result<(Vec<oc::PartIn>, oc::OrderRules, String), ApiError> {
+    let head = load_order(db, oid)?;
+    // stored rules that cannot be read are an error, never the default rules
+    let corrupt = || {
+        refuse(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "order_rules_corrupt",
+            "the order's stored rules are damaged and cannot be read; the compute is refused",
+        )
+    };
+    let rules_v: Value = serde_json::from_str(&head.rules).map_err(|_| corrupt())?;
+    // an object is required: null/arrays are not missing keys and must never fall back to provisional defaults
+    if !rules_v.is_object() {
+        return Err(corrupt());
+    }
+    let rules = oc::OrderRules::from_json(&rules_v).map_err(|m| {
+        unprocessable(
+            "order_rules",
+            &format!("the order's rules cannot be used: {m}"),
+        )
+    })?;
+    let rows = q_all(
+        db,
+        "SELECT id, no, name, shape, attach_part, qty, group_key FROM order_parts WHERE order_id = ? AND state <> 'EXCLUDED' ORDER BY no",
+        params![oid],
+        |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, Option<String>>(4)?,
+                r.get::<_, i64>(5)?,
+                r.get::<_, Option<String>>(6)?,
+            ))
+        },
+    )?;
+    let mut parts = Vec::new();
+    let mut fp = Vec::new();
+    for (id, no, name, shape, attach, qty, group) in rows {
+        let vals = q_all(
+            db,
+            "SELECT key, value, source, state FROM order_values WHERE part_id = ? ORDER BY key",
+            params![id],
+            |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<f64>>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, String>(3)?,
+                ))
+            },
+        )?;
+        let mut p = oc::PartIn::new(&no, &shape);
+        p.name = name.clone();
+        p.qty = qty.clamp(1, 9999) as u32;
+        p.attach = attach.clone().filter(|a| !a.is_empty());
+        p.group = group.clone().filter(|g| !g.is_empty());
+        for (key, value, source, state) in &vals {
+            let st = match state.as_str() {
+                "CONFIRMED" => oc::ValState::Confirmed,
+                "CORRECTED" => oc::ValState::Corrected,
+                "PROPOSED" => oc::ValState::Proposed,
+                _ => oc::ValState::Missing,
+            };
+            p.values.insert(
+                key.clone(),
+                oc::Val {
+                    value: *value,
+                    state: st,
+                    source: source.clone(),
+                },
+            );
+        }
+        fp.push(json!([
+            no,
+            name,
+            shape,
+            qty,
+            attach,
+            group,
+            vals.iter()
+                .map(|(k, v, s, st)| json!([k, v.map(f64::to_bits), s, st]))
+                .collect::<Vec<_>>()
+        ]));
+        parts.push(p);
+    }
+    let hash = nf_core::sha256_hex(
+        json!([nf_core::ENGINE_VERSION, rules_v, fp])
+            .to_string()
+            .as_bytes(),
+    );
+    Ok((parts, rules, hash))
+}
+
+fn counts_of(res: &oc::OrderResult) -> Value {
+    let n = |s: &str| res.parts.iter().filter(|p| p.state == s).count();
+    json!({ "parts": res.parts.len(), "computed": n("computed"), "held": n("held"), "held_missing": n("held_missing"),
+            "refused": n("refused"), "not_computed": n("not_computed"),
+            "dxf_files": res.parts.iter().filter(|p| p.dxf.is_some()).count() })
+}
+
+fn material_json(res: &oc::OrderResult) -> Vec<Value> {
+    oc::material_rows(res)
+        .into_iter()
+        .map(|m| {
+            json!({ "no": m.no, "name": m.name, "shape": m.shape,
+                    "kind": if matches!(m.shape.as_str(), "purchased" | "other") { "purchased" } else { "piece" },
+                    "thickness_mm": m.thickness_mm, "qty": m.qty, "width_mm": m.width_mm, "height_mm": m.height_mm,
+                    "length_mm": m.length_mm, "unit_mass_kg": m.unit_mass_kg, "mass_calc_kg": m.mass_calc_kg,
+                    "mass_bom_kg": m.mass_bom_kg, "note_en": m.note_en, "note_ja": m.note_ja })
+        })
+        .collect()
+}
+
+fn issues_json(res: &oc::OrderResult) -> Vec<Value> {
+    oc::issues(res)
+        .into_iter()
+        .map(|i| json!({ "no": i.no, "name": i.name, "code": i.code, "message_en": i.message_en, "message_ja": i.message_ja }))
+        .collect()
+}
+
+async fn compute(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw: Bytes) -> Api {
+    let u = write_access(&app, &headers, oid, "compute order")?;
+    let note = if raw.is_empty() {
+        String::new()
+    } else {
+        body_text(&raw, "note")
+    };
+    let res = compute_do(app.clone(), &u, oid, &note).await;
+    settle(&app, &u, oid, "compute", note, res).await
+}
+
+async fn compute_do(app: Arc<App>, u: &User, oid: i64, note: &str) -> Api {
+    agent_reason(u, note)?;
+    let (parts, rules, hash) = {
+        let db = app.db();
+        load_compute_input(&db, oid)?
+    };
+    if parts.is_empty() {
+        return Err(unprocessable(
+            "order_empty",
+            "the order has no parts to compute",
+        ));
+    }
+    // the maths runs outside the database lock
+    let result = tokio::task::spawn_blocking(move || oc::compute_order(&parts, &rules))
+        .await
+        .map_err(|_| {
+            fail(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "the compute stopped unexpectedly",
+            )
+        })?;
+    let counts = counts_of(&result);
+    let body = oc::to_json(&result);
+    let mut db = app.db();
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    still_writer(&tx, u)?;
+    guard_order(&app, &tx, u, oid, "compute order")?;
+    let (_, _, now_hash) = load_compute_input(&tx, oid)?;
+    if now_hash != hash {
+        return Err(refuse(
+            StatusCode::CONFLICT,
+            "order_changed",
+            "the order was edited while it was being computed; compute again",
+        ));
+    }
+    let last: Option<(i64, String, String)> = tx
+        .query_row(
+            "SELECT id, input_hash, engine FROM order_results WHERE order_id = ? ORDER BY id DESC LIMIT 1",
+            params![oid],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?;
+    if let Some((id, h, e)) = &last
+        && *h == hash
+        && e == nf_core::ENGINE_VERSION
+    {
+        let (stored, counts_s): (String, String) = tx.query_row(
+            "SELECT result_json, counts_json FROM order_results WHERE id = ?",
+            params![id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        let stored_v: Value = serde_json::from_str(&stored).unwrap_or(Value::Null);
+        let res_obj: oc::OrderResult = result;
+        return ok(
+            json!({ "id": id, "supersedes": Value::Null, "unchanged": true, "engine": nf_core::ENGINE_VERSION,
+                          "counts": serde_json::from_str::<Value>(&counts_s).unwrap_or(Value::Null),
+                          "result": stored_v, "material": material_json(&res_obj), "issues": issues_json(&res_obj) }),
+        );
+    }
+    let prev = last.map(|l| l.0);
+    tx.execute(
+        "INSERT INTO order_results(order_id, input_hash, engine, state, supersedes, result_json, counts_json, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        params![oid, hash, nf_core::ENGINE_VERSION, "CURRENT", prev, body.to_string(), counts.to_string(), u.username, now() as i64],
+    )?;
+    let id = tx.last_insert_rowid();
+    tx.execute(
+        "UPDATE order_results SET state = 'SUPERSEDED' WHERE order_id = ? AND id <> ? AND state <> 'SUPERSEDED'",
+        params![oid, id],
+    )?;
+    app.audit(
+        &tx,
+        &u.username,
+        "order_compute",
+        &format!(
+            "order #{oid} compute #{id} (supersedes {}) engine {}: {}",
+            prev.map_or("none".to_string(), |p| format!("#{p}")),
+            nf_core::ENGINE_VERSION,
+            counts
+        ),
+    )?;
+    tx.commit()?;
+    ok(
+        json!({ "id": id, "supersedes": prev, "unchanged": false, "engine": nf_core::ENGINE_VERSION, "counts": counts,
+               "result": body, "material": material_json(&result), "issues": issues_json(&result) }),
+    )
+}
+
+/// The current stored compute of an order and the chain of earlier ones. A stored result of another engine is
+/// marked `recompute_required` (G21): it is shown for the record but is not current.
+async fn get_results(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) -> Api {
+    let db = app.db();
+    let u = auth_db(&db, &app, &headers)?;
+    guard_order(&app, &db, &u, oid, "view order results")?;
+    let chain = q_all(
+        &db,
+        "SELECT id, state, supersedes, engine, counts_json, created_by, created_at FROM order_results WHERE order_id = ? ORDER BY id",
+        params![oid],
+        |r| {
+            let engine: String = r.get(3)?;
+            Ok(
+                json!({ "id": r.get::<_, i64>(0)?, "state": r.get::<_, String>(1)?, "supersedes": r.get::<_, Option<i64>>(2)?,
+                       "engine": engine, "recompute_required": !nf_core::engine_is_current(&engine),
+                       "counts": serde_json::from_str::<Value>(&r.get::<_, String>(4)?).unwrap_or(Value::Null),
+                       "created_by": r.get::<_, String>(5)?, "created_at": r.get::<_, i64>(6)? }),
+            )
+        },
+    )?;
+    let current = db
+        .query_row(
+            "SELECT id, result_json FROM order_results WHERE order_id = ? ORDER BY id DESC LIMIT 1",
+            params![oid],
+            |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)),
+        )
+        .optional()?
+        .map(|(id, j)| json!({ "id": id, "result": serde_json::from_str::<Value>(&j).unwrap_or(Value::Null) }));
+    ok(json!({ "current": current, "chain": chain }))
 }
 
 #[cfg(test)]

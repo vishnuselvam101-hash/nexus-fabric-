@@ -21,10 +21,14 @@
 //! engineer approval.
 
 pub mod bend;
+pub mod conebranch;
 pub mod deps;
 pub mod job;
 pub mod order;
+pub mod order_compute;
 pub mod shapes;
+pub mod tee;
+pub mod tee_pad;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -119,7 +123,14 @@ use std::collections::{BTreeMap, BTreeSet};
 /// 0.4.10 (23 Nov 2026): wording only. The G14 detail says "Algorithms are evidence level EV-1 (not independently
 /// reviewed) and not production-qualified." (the authorship wording was removed from every text of the product);
 /// geometry, checks and verdicts unchanged; record text changed, so results of 0.4.9 are REJECTED with G21 recompute.
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.4.12+src.", env!("NF_ENGINE_SRC_HASH"));
+/// 0.5.0 (28 Nov 2026): NFJ-1 wiring lane L10. The shape maths of the zumen-kirizu port (`shapes`, `bend`, `tee`,
+/// `tee_pad`, `conebranch`) is wired to orders by `order_compute`: every result carries `certified`, `method`, the
+/// named rules, holds, questions, `eps_rep` and the thickness convention; every hold blocks the cut file. The five
+/// families, their cut geometry, checks and verdicts are unchanged (compat corpus and verdict snapshot byte-identical);
+/// the engine identifier changes because the engine sources do, and the new refusal codes (`shape_*`, `bend_*`, `tee_*`,
+/// `pad_*`, `conebranch_*`, `ring_*`, `plate_*`, `rib_*`, `cone_*`, `ecc_*`) join docs/backend/REFUSAL_CODES.md.
+/// Results of 0.4.12 are REJECTED with G21 recompute.
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.5.0+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the
@@ -174,7 +185,91 @@ pub mod refusal {
     pub const NO_PATTERN_PRODUCED: &str = "no_pattern_produced";
 
     /// Every code of this build, in the order of the table in docs/backend/REFUSAL_CODES.md.
-    pub const ALL: [&str; 42] = [
+    /// The refusal codes of the zumen-kirizu shape modules (`shapes`, `bend`, `tee`, `tee_pad`, `conebranch`), wired in 0.5.0.
+    pub const SHAPE_CODES: [&str; 80] = [
+        "shape_value_not_finite",
+        "shape_value_not_positive",
+        "shape_value_too_large",
+        "ring_id_not_below_od",
+        "shape_split_out_of_range",
+        "cone_not_conical",
+        "shape_wall_too_thick",
+        "plate_taper_offset_missing",
+        "plate_chamfer_too_long",
+        "plate_chamfer_corner_invalid",
+        "plate_hole_invalid",
+        "rib_geometry_invalid",
+        "ecc_quadrature_not_converged",
+        "plate_hole_outside_outline",
+        "plate_hole_overlap",
+        "bend_value_not_finite",
+        "bend_value_not_positive",
+        "bend_value_too_large",
+        "bend_wall_too_thick",
+        "bend_angle_invalid",
+        "bend_joints_invalid",
+        "bend_joints_above_table",
+        "bend_split_out_of_range",
+        "bend_reducing_needs_two_joints",
+        "bend_cone_too_steep",
+        "bend_cut_degenerate",
+        "bend_cuts_cross_at_heel",
+        "bend_area_not_converged",
+        "bend_result_not_finite",
+        "bend_taper_piece_out_of_range",
+        "bend_taper_piece_not_reducing",
+        "tee_value_not_finite",
+        "tee_value_not_positive",
+        "tee_value_too_large",
+        "tee_wall_too_thick",
+        "tee_no_branch",
+        "tee_branches_above_limit",
+        "tee_seams_out_of_range",
+        "tee_seam_angle_invalid",
+        "tee_branch_angle_invalid",
+        "tee_branch_too_large_to_insert",
+        "tee_branch_bore_beyond_main",
+        "tee_branch_end_inside_main",
+        "tee_hole_off_pipe",
+        "tee_hole_beyond_pipe_end",
+        "tee_holes_overlap",
+        "tee_offset_side_not_perpendicular",
+        "tee_offset_negative_without_side",
+        "tee_rib_on_lateral_unsupported",
+        "tee_area_not_converged",
+        "tee_result_not_finite",
+        "pad_value_not_finite",
+        "pad_value_not_positive",
+        "pad_value_too_large",
+        "pad_branch_beyond_main",
+        "pad_hole_off_main",
+        "pad_outline_not_around_hole",
+        "pad_split_out_of_range",
+        "pad_split_not_possible",
+        "pad_result_not_finite",
+        "conebranch_value_not_finite",
+        "conebranch_value_not_positive",
+        "conebranch_value_too_large",
+        "conebranch_not_conical",
+        "conebranch_wall_too_thick",
+        "conebranch_branch_not_perpendicular",
+        "conebranch_split_out_of_range",
+        "conebranch_branch_not_within_cone",
+        "conebranch_hole_not_through_plate",
+        "conebranch_hole_beyond_mouth",
+        "conebranch_branch_end_below_cut",
+        "conebranch_cut_not_found",
+        "conebranch_fan_not_converged",
+        "conebranch_area_not_converged",
+        "conebranch_seam_not_placeable",
+        "conebranch_result_not_finite",
+        "conebranch_seam_gap_negative",
+        "conebranch_flat_not_applicable",
+        "conebranch_cut_out_of_range",
+        "conebranch_cut_not_continuous",
+    ];
+
+    pub const ALL: [&str; 122] = [
         REQUEST_NOT_OBJECT,
         FAMILY_UNKNOWN,
         FIELD_MISSING,
@@ -217,6 +312,86 @@ pub mod refusal {
         STORED_REQUEST_UNREADABLE,
         CORRECTED_RESULT_FAILED_VERIFICATION,
         NO_PATTERN_PRODUCED,
+        "shape_value_not_finite",
+        "shape_value_not_positive",
+        "shape_value_too_large",
+        "ring_id_not_below_od",
+        "shape_split_out_of_range",
+        "cone_not_conical",
+        "shape_wall_too_thick",
+        "plate_taper_offset_missing",
+        "plate_chamfer_too_long",
+        "plate_chamfer_corner_invalid",
+        "plate_hole_invalid",
+        "rib_geometry_invalid",
+        "ecc_quadrature_not_converged",
+        "plate_hole_outside_outline",
+        "plate_hole_overlap",
+        "bend_value_not_finite",
+        "bend_value_not_positive",
+        "bend_value_too_large",
+        "bend_wall_too_thick",
+        "bend_angle_invalid",
+        "bend_joints_invalid",
+        "bend_joints_above_table",
+        "bend_split_out_of_range",
+        "bend_reducing_needs_two_joints",
+        "bend_cone_too_steep",
+        "bend_cut_degenerate",
+        "bend_cuts_cross_at_heel",
+        "bend_area_not_converged",
+        "bend_result_not_finite",
+        "bend_taper_piece_out_of_range",
+        "bend_taper_piece_not_reducing",
+        "tee_value_not_finite",
+        "tee_value_not_positive",
+        "tee_value_too_large",
+        "tee_wall_too_thick",
+        "tee_no_branch",
+        "tee_branches_above_limit",
+        "tee_seams_out_of_range",
+        "tee_seam_angle_invalid",
+        "tee_branch_angle_invalid",
+        "tee_branch_too_large_to_insert",
+        "tee_branch_bore_beyond_main",
+        "tee_branch_end_inside_main",
+        "tee_hole_off_pipe",
+        "tee_hole_beyond_pipe_end",
+        "tee_holes_overlap",
+        "tee_offset_side_not_perpendicular",
+        "tee_offset_negative_without_side",
+        "tee_rib_on_lateral_unsupported",
+        "tee_area_not_converged",
+        "tee_result_not_finite",
+        "pad_value_not_finite",
+        "pad_value_not_positive",
+        "pad_value_too_large",
+        "pad_branch_beyond_main",
+        "pad_hole_off_main",
+        "pad_outline_not_around_hole",
+        "pad_split_out_of_range",
+        "pad_split_not_possible",
+        "pad_result_not_finite",
+        "conebranch_value_not_finite",
+        "conebranch_value_not_positive",
+        "conebranch_value_too_large",
+        "conebranch_not_conical",
+        "conebranch_wall_too_thick",
+        "conebranch_branch_not_perpendicular",
+        "conebranch_split_out_of_range",
+        "conebranch_branch_not_within_cone",
+        "conebranch_hole_not_through_plate",
+        "conebranch_hole_beyond_mouth",
+        "conebranch_branch_end_below_cut",
+        "conebranch_cut_not_found",
+        "conebranch_fan_not_converged",
+        "conebranch_area_not_converged",
+        "conebranch_seam_not_placeable",
+        "conebranch_result_not_finite",
+        "conebranch_seam_gap_negative",
+        "conebranch_flat_not_applicable",
+        "conebranch_cut_out_of_range",
+        "conebranch_cut_not_continuous",
     ];
 }
 
