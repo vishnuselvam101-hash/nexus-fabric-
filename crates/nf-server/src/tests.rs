@@ -6100,9 +6100,24 @@ async fn machine_export_agent_is_refused_and_a_person_writes_only_certified_part
     let out = temp_dir("machine-out");
     std::fs::create_dir_all(&out).unwrap();
     let mut t = boot_with_exports(vec![out.clone()]);
-    let (st, v) = t.call("POST", "/api/machine/profiles", Some(machine_profile_json())).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            "/api/machine/profiles",
+            Some(machine_profile_json()),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
-    assert_eq!(t.call("POST", "/api/machine/profiles", Some(json!({ "id": "BAD ID", "version": 1 }))).await.0, StatusCode::BAD_REQUEST);
+    assert_eq!(
+        t.call(
+            "POST",
+            "/api/machine/profiles",
+            Some(json!({ "id": "BAD ID", "version": 1 }))
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
+    );
     let id = t.job(good_assembly()).await;
     replay_matches(&mut t, id).await;
 
@@ -6111,20 +6126,29 @@ async fn machine_export_agent_is_refused_and_a_person_writes_only_certified_part
     // an agent identity may propose, never export
     let agent = add_session(&t.app, "amoeba", "engineer");
     t.sql("UPDATE users SET kind = 'agent' WHERE username = 'amoeba'");
-    let (st, _, _) = t.send("POST", &path, Some(body.clone()), &[("cookie", &agent)]).await;
+    let (st, _, _) = t
+        .send("POST", &path, Some(body.clone()), &[("cookie", &agent)])
+        .await;
     assert_eq!(st, StatusCode::FORBIDDEN);
     assert_eq!(files_in(&out), 0, "agent export must write nothing");
 
-    // a person exports the certified parts
+    // a person's export of the engine's DXF is refused: nf-dxf writes no $INSUNITS, and the profile
+    // requires it (review round 1). Nothing is written, and the refusal is audited.
     let (st, v) = t.call("POST", &path, Some(body.clone())).await;
-    assert_eq!(st, StatusCode::OK, "{v}");
-    assert_eq!(v["written"], json!(true));
-    assert!(files_in(&out) >= 2, "one DXF and one manifest expected: {v}");
-    assert!(out.join(format!("manifest-calc-{id}.json")).exists());
+    assert_eq!(st, StatusCode::CONFLICT, "{v}");
+    assert_eq!(v["code"], json!("missing_units"), "{v}");
+    assert_eq!(v["written"], json!(false));
+    assert_eq!(files_in(&out), 0);
     assert!(t.app.data_dir.join("machine-audit.jsonl").exists());
 
     // a folder that was not configured is refused
-    let (st, _) = t.call("POST", &path, Some(json!({ "profile": "PLASMA-A", "folder": 7 }))).await;
+    let (st, _) = t
+        .call(
+            "POST",
+            &path,
+            Some(json!({ "profile": "PLASMA-A", "folder": 7 })),
+        )
+        .await;
     assert_eq!(st, StatusCode::BAD_REQUEST);
 }
 
@@ -6133,10 +6157,21 @@ async fn machine_export_refuses_a_held_part_and_writes_nothing() {
     let out = temp_dir("machine-held");
     std::fs::create_dir_all(&out).unwrap();
     let t = boot_with_exports(vec![out.clone()]);
-    t.call("POST", "/api/machine/profiles", Some(machine_profile_json())).await;
+    t.call(
+        "POST",
+        "/api/machine/profiles",
+        Some(machine_profile_json()),
+    )
+    .await;
     // no replay: the export rule holds the file (G19 not run), so nothing is certified
     let id = t.job(good_assembly()).await;
-    let (st, v) = t.call("POST", &format!("/api/calculations/{id}/export"), Some(json!({ "profile": "PLASMA-A", "folder": 0 }))).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/calculations/{id}/export"),
+            Some(json!({ "profile": "PLASMA-A", "folder": 0 })),
+        )
+        .await;
     assert_eq!(st, StatusCode::CONFLICT, "{v}");
     assert_eq!(v["written"], json!(false));
     assert_eq!(files_in(&out), 0);
@@ -6147,17 +6182,64 @@ async fn machine_export_refuses_a_digest_that_does_not_match_the_file() {
     let out = temp_dir("machine-hash");
     std::fs::create_dir_all(&out).unwrap();
     let mut t = boot_with_exports(vec![out.clone()]);
-    t.call("POST", "/api/machine/profiles", Some(machine_profile_json())).await;
+    t.call(
+        "POST",
+        "/api/machine/profiles",
+        Some(machine_profile_json()),
+    )
+    .await;
     let id = t.job(good_assembly()).await;
     replay_matches(&mut t, id).await;
     // the stored digest of every part now names a different file (test-only: the append-only trigger is removed)
     t.sql("DROP TRIGGER amoeba_no_update");
     t.sql("UPDATE amoeba_digests SET dxf_sha256 = '0000000000000000000000000000000000000000000000000000000000000000'");
-    let (st, v) = t.call("POST", &format!("/api/calculations/{id}/export"), Some(json!({ "profile": "PLASMA-A", "folder": 0 }))).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/calculations/{id}/export"),
+            Some(json!({ "profile": "PLASMA-A", "folder": 0 })),
+        )
+        .await;
     assert_eq!(st, StatusCode::CONFLICT, "{v}");
     assert!(
         matches!(v["code"].as_str(), Some("held") | Some("hash_mismatch")),
         "a mismatched digest must be refused: {v}"
     );
     assert_eq!(files_in(&out), 0);
+}
+
+#[tokio::test]
+async fn machine_panel_has_no_inline_style_or_script() {
+    // the CSP is style-src 'self': the panel must load its CSS and JS from files, never inline
+    let t = boot_with_exports(vec![temp_dir("machine-ui")]);
+    let (st, _, bytes) = t.send("GET", "/machine", None, &[]).await;
+    assert_eq!(st, StatusCode::OK);
+    let html = String::from_utf8(bytes).unwrap();
+    assert!(
+        !html.contains("<style"),
+        "inline <style> block in the machine panel"
+    );
+    assert!(
+        !html.to_ascii_lowercase().contains(" style="),
+        "inline style attribute in the machine panel"
+    );
+    assert!(html.contains(r#"href="/machine/app.css""#));
+    for (i, _) in html.match_indices("<script") {
+        let end = html[i..].find('>').unwrap();
+        assert!(
+            html[i..i + end].contains(" src="),
+            "inline <script> in the machine panel"
+        );
+    }
+    let (st, h, css) = t.send("GET", "/machine/app.css", None, &[]).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(h["content-type"].to_str().unwrap().starts_with("text/css"));
+    assert!(!css.is_empty());
+    let (st, _, js) = t.send("GET", "/machine/app.mjs", None, &[]).await;
+    assert_eq!(st, StatusCode::OK);
+    let js = String::from_utf8(js).unwrap();
+    assert!(
+        !js.contains(".style") && !js.contains("cssText") && !js.contains("\"style\""),
+        "script writes inline styles"
+    );
 }

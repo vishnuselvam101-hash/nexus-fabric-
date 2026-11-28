@@ -57,6 +57,16 @@ pub struct MachineProfile {
     pub tested_by: Option<String>,
 }
 
+/// Longest output file name, in bytes.
+pub const MAX_FILE_NAME: usize = 120;
+
+/// True when the string has no control character (newlines included). Profile strings that are written
+/// into a DXF value line must pass: a newline would start a new group code / value pair.
+pub fn is_clean(s: &str) -> bool {
+    !s.chars()
+        .any(|c| c.is_control() || c == '\u{2028}' || c == '\u{2029}')
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum ProfileError {
     Parse(String),
@@ -64,6 +74,8 @@ pub enum ProfileError {
     BadVersion,
     NoLayers,
     EmptyLayer(String),
+    /// A layer name (key or machine value) holds a control character or line break.
+    ControlInLayer(String),
     BadFileName,
     BadUnits(String),
     NoSources,
@@ -79,9 +91,13 @@ impl std::fmt::Display for ProfileError {
             ProfileError::EmptyLayer(l) => {
                 write!(f, "layer map entry '{l}' has an empty machine name")
             }
-            ProfileError::BadFileName => {
-                write!(f, "file_name must contain {{part}} and no path separators")
+            ProfileError::ControlInLayer(l) => {
+                write!(f, "layer map entry '{l}' has a control character or line break")
             }
+            ProfileError::BadFileName => write!(
+                f,
+                "file_name must contain {{part}}, no path separators, ':' or '..', and be at most {MAX_FILE_NAME} bytes"
+            ),
             ProfileError::BadUnits(u) => write!(f, "unsupported units '{u}' (only mm)"),
             ProfileError::NoSources => write!(f, "a profile needs at least one source citation"),
         }
@@ -124,10 +140,15 @@ impl MachineProfile {
             if k.is_empty() || v.trim().is_empty() {
                 return Err(ProfileError::EmptyLayer(k.clone()));
             }
+            if !is_clean(k) || !is_clean(v) {
+                return Err(ProfileError::ControlInLayer(k.clone()));
+            }
         }
         if !self.file_name.contains("{part}")
-            || self.file_name.contains(['/', '\\'])
+            || self.file_name.contains(['/', '\\', ':'])
             || self.file_name.contains("..")
+            || self.file_name.len() > MAX_FILE_NAME
+            || !is_clean(&self.file_name)
         {
             return Err(ProfileError::BadFileName);
         }

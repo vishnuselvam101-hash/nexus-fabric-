@@ -27,6 +27,7 @@ fn mk_req<'a>(
         engine_id: ENGINE,
         parts,
         out_dir: out,
+        overwrite: false,
         ts: 1000,
     }
 }
@@ -131,6 +132,7 @@ fn export_refuses_held_and_untouched_on_any_failure() {
         engine_id: ENGINE,
         parts: &parts,
         out_dir: &out,
+        overwrite: false,
         ts: 5,
     };
     assert!(matches!(

@@ -6,10 +6,14 @@
 use crate::audit::{AuditError, AuditLog};
 use crate::dxf::{self, DxfError};
 use crate::gate::{self, Certificate, Refusal};
-use crate::profile::{MachineProfile, ProfileError};
+use crate::profile::{MachineProfile, ProfileError, MAX_FILE_NAME};
 use serde_json::json;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
+
+/// Manifests are never overwritten: a re-export gets the next version number.
+const MAX_MANIFEST_VERSIONS: u32 = 9999;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ActorKind {
@@ -51,6 +55,8 @@ pub struct ExportRequest<'a> {
     pub engine_id: &'a str,
     pub parts: &'a [PartSource],
     pub out_dir: &'a Path,
+    /// Replace existing regular files of the same names. Set only by a person's explicit choice.
+    pub overwrite: bool,
     pub ts: u64,
 }
 
@@ -75,10 +81,17 @@ pub enum ExportError {
     Profile(ProfileError),
     BadId(String),
     NotAFolder(String),
-    Refused { part: String, reason: Refusal },
-    Convert { part: String, error: DxfError },
+    Refused {
+        part: String,
+        reason: Refusal,
+    },
+    Convert {
+        part: String,
+        error: DxfError,
+    },
     Exists(String),
     Io(String),
+    /// The audit entry could not be written; the export is not kept.
     Audit(AuditError),
 }
 
@@ -110,6 +123,92 @@ pub struct Proposal {
     pub proposed_by: String,
 }
 
+fn safe_id(s: &str) -> bool {
+    !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+fn io(e: std::io::Error) -> ExportError {
+    ExportError::Io(e.to_string())
+}
+
+/// Whether anything (a file, a folder, a symlink, even a dangling one) sits at the path. Never follows links.
+fn occupied(p: &Path) -> bool {
+    fs::symlink_metadata(p).is_ok()
+}
+
+/// Writes one checked file. The temp file is created exclusively (never follows a planted link), read back,
+/// and then either hard-linked to the destination (fails if it exists: no replace) or, with `overwrite`,
+/// renamed over a regular file only.
+fn write_checked(
+    dir: &Path,
+    name: &str,
+    data: &[u8],
+    overwrite: bool,
+) -> Result<PathBuf, ExportError> {
+    let dest = dir.join(name);
+    let tmp = dir.join(format!(".{name}.tmp"));
+    let mut f = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&tmp)
+        .map_err(|e| match e.kind() {
+            ErrorKind::AlreadyExists => ExportError::Exists(tmp.display().to_string()),
+            _ => io(e),
+        })?;
+    let staged = (|| -> Result<(), ExportError> {
+        f.write_all(data).and_then(|_| f.sync_all()).map_err(io)?;
+        drop(f);
+        let back = fs::read(&tmp).map_err(io)?;
+        if crate::sha256_hex(&back) != crate::sha256_hex(data) {
+            return Err(ExportError::Io(format!(
+                "read-back hash differs for {name}"
+            )));
+        }
+        if overwrite {
+            match fs::symlink_metadata(&dest) {
+                Ok(m) if !m.is_file() => return Err(ExportError::Exists(name.into())),
+                _ => {}
+            }
+            fs::rename(&tmp, &dest).map_err(io)?;
+        } else {
+            fs::hard_link(&tmp, &dest).map_err(|e| match e.kind() {
+                ErrorKind::AlreadyExists => ExportError::Exists(name.into()),
+                _ => io(e),
+            })?;
+            if let Err(e) = fs::remove_file(&tmp) {
+                let _ = fs::remove_file(&dest);
+                return Err(io(e));
+            }
+        }
+        Ok(())
+    })();
+    if staged.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    staged.map(|_| dest)
+}
+
+/// Creates the next free manifest version for the job. Exclusive create: an existing manifest is never replaced.
+fn write_manifest(dir: &Path, job: &str, text: &[u8]) -> Result<PathBuf, ExportError> {
+    for v in 1..=MAX_MANIFEST_VERSIONS {
+        let path = dir.join(format!("manifest-{job}-v{v}.json"));
+        match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut f) => {
+                if let Err(e) = f.write_all(text).and_then(|_| f.sync_all()) {
+                    let _ = fs::remove_file(&path);
+                    return Err(io(e));
+                }
+                return Ok(path);
+            }
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(io(e)),
+        }
+    }
+    Err(ExportError::Exists(format!("manifest-{job}")))
+}
+
 pub fn propose(
     actor: &Actor,
     job_id: &str,
@@ -124,24 +223,21 @@ pub fn propose(
     }
 }
 
-fn safe_id(s: &str) -> bool {
-    !s.is_empty()
-        && s.chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-}
-
 pub fn export(req: &ExportRequest, audit: &mut AuditLog) -> Result<ExportReport, ExportError> {
     let who = req.actor.id.as_str();
+    // A refusal that cannot be audited is an error in its own right; it is never dropped silently.
     let refuse = |audit: &mut AuditLog, e: ExportError| -> ExportError {
-        let _ = audit.append(
+        match audit.append(
             req.ts,
             who,
             "export_refused",
             json!({
                 "job": req.job_id, "profile": req.profile.id, "reason": e.to_string(),
             }),
-        );
-        e
+        ) {
+            Ok(_) => e,
+            Err(a) => ExportError::Audit(a),
+        }
     };
 
     if req.actor.kind != ActorKind::Person {
@@ -156,7 +252,8 @@ pub fn export(req: &ExportRequest, audit: &mut AuditLog) -> Result<ExportReport,
     if !safe_id(req.job_id) {
         return Err(refuse(audit, ExportError::BadId(req.job_id.into())));
     }
-    if !req.out_dir.is_dir() {
+    let folder_ok = fs::symlink_metadata(req.out_dir).is_ok_and(|m| m.is_dir());
+    if !folder_ok {
         return Err(refuse(
             audit,
             ExportError::NotAFolder(req.out_dir.display().to_string()),
@@ -170,11 +267,21 @@ pub fn export(req: &ExportRequest, audit: &mut AuditLog) -> Result<ExportReport,
             return Err(refuse(audit, ExportError::BadId(p.part_id.clone())));
         }
         let name = req.profile.file_name_for(req.job_id, &p.part_id);
+        if name.len() > MAX_FILE_NAME {
+            return Err(refuse(
+                audit,
+                ExportError::Profile(ProfileError::BadFileName),
+            ));
+        }
         if names.contains(&name) {
             return Err(refuse(audit, ExportError::Exists(name)));
         }
-        if req.out_dir.join(&name).exists() {
-            return Err(refuse(audit, ExportError::Exists(name)));
+        let dest = req.out_dir.join(&name);
+        if occupied(&dest) {
+            let plain_file = fs::symlink_metadata(&dest).is_ok_and(|m| m.is_file());
+            if !(req.overwrite && plain_file) {
+                return Err(refuse(audit, ExportError::Exists(name)));
+            }
         }
         let bytes = (p.load)().map_err(|e| refuse(audit, ExportError::Io(e)))?;
         gate::check(p.cert.as_ref(), &p.part_id, req.engine_id, &bytes).map_err(|r| {
@@ -198,7 +305,7 @@ pub fn export(req: &ExportRequest, audit: &mut AuditLog) -> Result<ExportReport,
         names.push(name);
     }
 
-    // Pass 2: re-check each source right before its write, write via temp file, read back.
+    // Pass 2: re-check each source right before its write, write and read back, link into place.
     let mut written: Vec<PathBuf> = Vec::new();
     let mut records = Vec::new();
     let result = (|| -> Result<(), ExportError> {
@@ -215,17 +322,7 @@ pub fn export(req: &ExportRequest, audit: &mut AuditLog) -> Result<ExportReport,
                 error: e,
             })?;
             let out_sha = crate::sha256_hex(&out);
-            let dest = req.out_dir.join(name);
-            let tmp = req.out_dir.join(format!(".{name}.tmp"));
-            fs::write(&tmp, &out).map_err(|e| ExportError::Io(e.to_string()))?;
-            let back = fs::read(&tmp).map_err(|e| ExportError::Io(e.to_string()))?;
-            if crate::sha256_hex(&back) != out_sha {
-                let _ = fs::remove_file(&tmp);
-                return Err(ExportError::Io(format!(
-                    "read-back hash differs for {name}"
-                )));
-            }
-            fs::rename(&tmp, &dest).map_err(|e| ExportError::Io(e.to_string()))?;
+            let dest = write_checked(req.out_dir, name, &out, req.overwrite)?;
             written.push(dest);
             records.push(FileRecord {
                 part_id: p.part_id.clone(),
@@ -236,14 +333,16 @@ pub fn export(req: &ExportRequest, audit: &mut AuditLog) -> Result<ExportReport,
         }
         Ok(())
     })();
-    if let Err(e) = result {
-        for f in &written {
+    let rollback = |written: &[PathBuf]| {
+        for f in written {
             let _ = fs::remove_file(f);
         }
+    };
+    if let Err(e) = result {
+        rollback(&written);
         return Err(refuse(audit, e));
     }
 
-    let manifest_path = req.out_dir.join(format!("manifest-{}.json", req.job_id));
     let manifest = json!({
         "job": req.job_id,
         "profile": { "id": req.profile.id, "version": req.profile.version },
@@ -257,27 +356,32 @@ pub fn export(req: &ExportRequest, audit: &mut AuditLog) -> Result<ExportReport,
     });
     let text = serde_json::to_string_pretty(&manifest).expect("manifest serialises");
     let manifest_sha = crate::sha256_hex(text.as_bytes());
-    if let Err(e) = fs::write(&manifest_path, text) {
-        for f in &written {
-            let _ = fs::remove_file(f);
+    let manifest_path = match write_manifest(req.out_dir, req.job_id, text.as_bytes()) {
+        Ok(p) => p,
+        Err(e) => {
+            rollback(&written);
+            return Err(refuse(audit, e));
         }
-        let _ = fs::remove_file(&manifest_path);
-        return Err(refuse(audit, ExportError::Io(e.to_string())));
-    }
+    };
 
-    audit
-        .append(req.ts, who, "export", json!({
-            "job": req.job_id,
-            "profile": { "id": req.profile.id, "version": req.profile.version },
-            "engine_id": req.engine_id,
-            "files": records.iter().map(|r| json!({
-                "part": r.part_id, "file": r.file, "source_sha256": r.source_sha256, "sha256": r.out_sha256
-            })).collect::<Vec<_>>(),
-            "manifest": manifest_path.file_name().map(|n| n.to_string_lossy().into_owned()),
-            "manifest_sha256": manifest_sha,
-            "untested_profile": req.profile.tested_by.is_none(),
-        }))
-        .map_err(ExportError::Audit)?;
+    // The audit entry is the commit point: if it cannot be written, nothing of this export is kept.
+    let entry = audit.append(req.ts, who, "export", json!({
+        "job": req.job_id,
+        "profile": { "id": req.profile.id, "version": req.profile.version },
+        "engine_id": req.engine_id,
+        "files": records.iter().map(|r| json!({
+            "part": r.part_id, "file": r.file, "source_sha256": r.source_sha256, "sha256": r.out_sha256
+        })).collect::<Vec<_>>(),
+        "manifest": manifest_path.file_name().map(|n| n.to_string_lossy().into_owned()),
+        "manifest_sha256": manifest_sha,
+        "untested_profile": req.profile.tested_by.is_none(),
+        "overwrite": req.overwrite,
+    }));
+    if let Err(e) = entry {
+        rollback(&written);
+        let _ = fs::remove_file(&manifest_path);
+        return Err(ExportError::Audit(e));
+    }
 
     Ok(ExportReport {
         files: records,

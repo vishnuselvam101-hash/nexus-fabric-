@@ -28,6 +28,15 @@ pub(crate) fn routes() -> Router<Arc<App>> {
             }),
         )
         .route(
+            "/machine/app.css",
+            get(|| async {
+                asset(
+                    "text/css; charset=utf-8",
+                    include_str!("../../../web/machine/app.css"),
+                )
+            }),
+        )
+        .route(
             "/machine/app.mjs",
             get(|| async {
                 asset(
@@ -161,6 +170,7 @@ fn export_code(e: &ExportError) -> &'static str {
             nf_machine::dxf::DxfError::UnsupportedEntity(_) => "unsupported_entity",
             nf_machine::dxf::DxfError::UnitsMismatch(_) => "units_mismatch",
             nf_machine::dxf::DxfError::Unencodable(_) => "unencodable",
+            nf_machine::dxf::DxfError::MissingUnits => "missing_units",
         },
         ExportError::Exists(_) => "exists",
         ExportError::Io(_) | ExportError::Audit(_) => "io",
@@ -268,6 +278,8 @@ async fn export_calc(
         engine_id: nf_core::ENGINE_VERSION,
         parts: &parts,
         out_dir: &folder,
+        // only a person may replace files, and only by an explicit flag in the request
+        overwrite: body["overwrite"].as_bool() == Some(true),
         ts: now(),
     };
     match nf_machine::export::export(&req, &mut log) {

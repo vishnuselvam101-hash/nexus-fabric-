@@ -5,6 +5,10 @@ use std::path::Path;
 
 const FORBIDDEN: &[&str] = &[
     "std::net",
+    "std::os::unix::net",
+    "UnixStream",
+    "UnixListener",
+    "UnixDatagram",
     "TcpStream",
     "TcpListener",
     "UdpSocket",
@@ -69,20 +73,61 @@ fn crate_has_no_machine_control_or_network_code() {
         hits.join("\n")
     );
 
+    // Every dependency table counts: [dependencies], [dev-dependencies], [build-dependencies], target-specific
+    // tables and the table form [dependencies.NAME]. Each named dependency must be on the allowlist.
     let manifest = fs::read_to_string(root.join("Cargo.toml")).unwrap();
     let mut in_deps = false;
     for line in manifest.lines() {
         let l = line.trim();
-        if l.starts_with('[') {
-            in_deps = l == "[dependencies]";
+        if l.is_empty() || l.starts_with('#') {
             continue;
         }
-        if in_deps && !l.is_empty() {
-            let name = l.split(['=', ' ']).next().unwrap();
+        if let Some(header) = l.strip_prefix('[') {
+            let header = header.trim_end_matches(']').trim();
+            if let Some(name) = dep_table_name(header) {
+                assert!(
+                    ALLOWED_DEPS.contains(&name),
+                    "dependency not allowlisted: {name}"
+                );
+            }
+            in_deps = is_dep_section(header);
+            continue;
+        }
+        if in_deps {
+            let name = l.split(['=', ' ', '.']).next().unwrap().trim_matches('"');
             assert!(
                 ALLOWED_DEPS.contains(&name),
                 "dependency not allowlisted: {name}"
             );
         }
     }
+}
+
+fn is_dep_section(h: &str) -> bool {
+    ["dependencies", "dev-dependencies", "build-dependencies"].contains(&h)
+        || (h.starts_with("target.")
+            && ["dependencies", "dev-dependencies", "build-dependencies"]
+                .iter()
+                .any(|k| h.ends_with(&format!(".{k}"))))
+}
+
+/// NAME in [dependencies.NAME] or [target.CFG.dependencies.NAME] style headers.
+fn dep_table_name(h: &str) -> Option<&str> {
+    for k in ["dependencies.", "dev-dependencies.", "build-dependencies."] {
+        if let Some(n) = h.strip_prefix(k) {
+            return Some(n);
+        }
+    }
+    if h.starts_with("target.") {
+        for k in [
+            ".dependencies.",
+            ".dev-dependencies.",
+            ".build-dependencies.",
+        ] {
+            if let Some(i) = h.find(k) {
+                return Some(&h[i + k.len()..]);
+            }
+        }
+    }
+    None
 }
