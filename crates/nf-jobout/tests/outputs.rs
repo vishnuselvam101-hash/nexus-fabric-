@@ -400,6 +400,7 @@ fn full_width_formula_prefixes_guarded() {
 }
 
 #[test]
+#[cfg_attr(debug_assertions, ignore = "timing bound: release build only")]
 fn ten_thousand_same_name_pieces_are_fast() {
     let inp = JobInput {
         pieces: (0..10_000).map(|_| piece("G", "1", "same")).collect(),
