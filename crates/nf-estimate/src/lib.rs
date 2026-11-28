@@ -80,11 +80,11 @@ pub struct PartEst {
     pub shape: String,
     pub qty: u32,
     pub t_mm: f64,
-    pub pieces: u32,
+    pub pieces: u64,
     pub mass_kg: f64,
     pub cut_m: f64,
     pub weld_m: f64,
-    pub pierces: u32,
+    pub pierces: u64,
     /// None when a rate needed by this part is not set (see `reason`).
     pub costs: Option<Costs>,
     pub reason: Option<Reason>,
@@ -97,18 +97,26 @@ pub struct NotPriced {
     pub reason: Reason,
 }
 
+/// Sums over one group of parts. Counts are u64 and saturate; money stays zero in the unpriced group.
 #[derive(Serialize, Clone, Debug, Default)]
-pub struct Totals {
+pub struct Sums {
+    pub parts: u64,
     pub mass_kg: f64,
     pub cut_m: f64,
     pub weld_m: f64,
-    pub pierces: u32,
-    pub pieces: u32,
-    /// Sums over priced parts only.
-    pub priced_parts: u32,
+    pub pierces: u64,
+    pub pieces: u64,
     pub subtotal: f64,
     pub margin: f64,
     pub price: f64,
+}
+
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct Totals {
+    /// Computed parts with costs (every needed rate set, part not held).
+    pub priced: Sums,
+    /// Computed parts with geometry but no costs (a needed rate is unset). Geometry only; no money.
+    pub unpriced: Sums,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -122,6 +130,8 @@ pub struct Estimate {
     /// Rates the factory has not set yet (names as in `Rates`).
     pub rates_unset: Vec<&'static str>,
     pub totals: Totals,
+    /// What the weld length counts (cylinder seams only; a lower bound).
+    pub weld_basis: Reason,
     pub marking_en: String,
     pub marking_ja: String,
 }
@@ -243,26 +253,28 @@ pub fn unset_rates(r: &Rates) -> Vec<&'static str> {
 
 struct Geo {
     t: f64,
-    pieces: u32,
+    pieces: u64,
     mass_kg: f64,
     cut_mm: f64,
     weld_mm: f64,
-    pierces: u32,
+    pierces: u64,
 }
 
 fn geometry(p: &PartIn, r: &Rates) -> Geo {
     let t = p.t_mm.unwrap_or(0.0);
     let mut g = Geo { t, pieces: 0, mass_kg: 0.0, cut_mm: 0.0, weld_mm: 0.0, pierces: 0 };
     for pc in &p.pattern {
-        let c = pc.copies as f64;
+        let copies = pc.copies as u64;
+        let c = copies as f64;
         let area = pc.area_mm2.unwrap_or(0.0);
         // mm3 * (kg/m3) * 1e-9 = kg
         g.mass_kg += area * t * r.density_kg_m3 * 1e-9 * c;
         let circles: f64 = pc.circles.iter().map(|[_, _, rad]| 2.0 * PI * rad).sum();
         let holes: f64 = pc.holes.iter().map(|h| contour_mm(h)).sum();
         g.cut_mm += (contour_mm(&pc.outline) + holes + circles) * c;
-        g.pierces += (1 + pc.holes.len() + pc.circles.len()) as u32 * pc.copies;
-        g.pieces += pc.copies;
+        let outlets = 1 + pc.holes.len() as u64 + pc.circles.len() as u64;
+        g.pierces = g.pierces.saturating_add(outlets.saturating_mul(copies));
+        g.pieces = g.pieces.saturating_add(copies);
     }
     // One longitudinal seam per rolled cylinder shell (lower bound: split joints are not in the result).
     if p.shape == "cylinder" {
@@ -292,8 +304,39 @@ fn price(g: &Geo, r: &Rates, bands: &[CutBand]) -> Result<Costs, Reason> {
     Ok(Costs { material, cut, weld, labour, subtotal, margin, price: subtotal + margin })
 }
 
+/// Refuses negative or non-finite rates: a negative price is never a valid quote input.
+pub fn validate_rates(r: &Rates) -> Result<(), String> {
+    let mut vals: Vec<(&str, f64)> = vec![
+        ("density_kg_m3", r.density_kg_m3),
+        ("material_price_per_kg", r.material_price_per_kg),
+        ("weld_cost_per_m", r.weld_cost_per_m),
+        ("labour_rate_per_h", r.labour_rate_per_h),
+        ("labour_min_per_piece", r.labour_min_per_piece),
+        ("margin_pct", r.margin_pct),
+    ];
+    for b in &r.cut_cost_per_m {
+        vals.push(("cut_cost_per_m.max_t_mm", b.max_t_mm));
+        vals.push(("cut_cost_per_m.per_m", b.per_m));
+    }
+    for (name, v) in vals {
+        if !v.is_finite() || v < 0.0 {
+            return Err(format!("rate {name} must be a finite number >= 0"));
+        }
+    }
+    Ok(())
+}
+
+/// The weld length basis, stated on every output (EN, JA).
+pub fn weld_basis() -> Reason {
+    reason(
+        "Weld length counts cylinder longitudinal seams only (lower bound; other welds are not included).",
+        "溶接長は円筒部材の縦継ぎ目のみを数えます（下限値。その他の溶接は含みません）。",
+    )
+}
+
 /// Build the estimate from a stored engine result (JSON of `nf_core::order_compute::OrderResult`).
 pub fn estimate(order: &Value, rates: &Rates) -> Result<Estimate, String> {
+    validate_rates(rates)?;
     let o: OrderIn = serde_json::from_value(order.clone()).map_err(|e| format!("order result: {e}"))?;
     let unset = unset_rates(rates);
     let unset_names = unset.join(", ");
@@ -307,6 +350,7 @@ pub fn estimate(order: &Value, rates: &Rates) -> Result<Estimate, String> {
         not_priced: Vec::new(),
         rates_unset: unset.clone(),
         totals: Totals::default(),
+        weld_basis: weld_basis(),
         marking_en: marking(&None, false),
         marking_ja: marking(&None, true),
     };
@@ -328,17 +372,18 @@ pub fn estimate(order: &Value, rates: &Rates) -> Result<Estimate, String> {
             Ok(c) => (Some(c), None),
             Err(rs) => (None, Some(rs)),
         };
+        let sums = if costs.is_some() { &mut est.totals.priced } else { &mut est.totals.unpriced };
+        sums.parts += 1;
+        sums.mass_kg += g.mass_kg;
+        sums.cut_m += g.cut_mm / 1000.0;
+        sums.weld_m += g.weld_mm / 1000.0;
+        sums.pierces = sums.pierces.saturating_add(g.pierces);
+        sums.pieces = sums.pieces.saturating_add(g.pieces);
         if let Some(c) = &costs {
-            est.totals.subtotal += c.subtotal;
-            est.totals.margin += c.margin;
-            est.totals.price += c.price;
-            est.totals.priced_parts += 1;
+            sums.subtotal += c.subtotal;
+            sums.margin += c.margin;
+            sums.price += c.price;
         }
-        est.totals.mass_kg += g.mass_kg;
-        est.totals.cut_m += g.cut_mm / 1000.0;
-        est.totals.weld_m += g.weld_mm / 1000.0;
-        est.totals.pierces += g.pierces;
-        est.totals.pieces += g.pieces;
         est.parts.push(PartEst {
             no: p.no.clone(),
             name: p.name.clone(),
@@ -354,7 +399,7 @@ pub fn estimate(order: &Value, rates: &Rates) -> Result<Estimate, String> {
             reason: rs,
         });
     }
-    est.status = if est.not_priced.is_empty() && est.parts.iter().all(|p| p.costs.is_some()) && !est.parts.is_empty() {
+    est.status = if est.not_priced.is_empty() && est.totals.unpriced.parts == 0 && !est.parts.is_empty() {
         "draft"
     } else {
         "incomplete"
@@ -397,17 +442,29 @@ pub fn rows(e: &Estimate, ja: bool) -> Vec<Vec<Cell>> {
         out.push(row);
     }
     out.push(vec![]);
-    let tt = &e.totals;
-    let total_label = if ja { "合計（見積済み部材のみ）" } else { "Total (priced parts only)" };
-    let mut sum = vec![t(total_label), t(""), t(""), t(""), t(""), n(tt.pieces as f64, 0), n(tt.mass_kg, 3), n(tt.cut_m, 3), n(tt.weld_m, 3), n(tt.pierces as f64, 0)];
-    sum.extend([Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, n(tt.subtotal, 2), n(tt.margin, 2), n(tt.price, 2), t("")]);
-    out.push(sum);
+    let (pl, ul) = if ja {
+        ("合計（見積済み部材）", "計算済み・未見積（単価未設定）: 形状数値のみ、金額なし")
+    } else {
+        ("Total: priced parts", "Computed, not priced (rate unset): geometry only, no money")
+    };
+    let sum_row = |label: &str, s: &Sums, money: bool| {
+        let mut r = vec![t(label), t(""), t(""), t(""), t(""), n(s.pieces as f64, 0), n(s.mass_kg, 3), n(s.cut_m, 3), n(s.weld_m, 3), n(s.pierces as f64, 0)];
+        if money {
+            r.extend([Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, n(s.subtotal, 2), n(s.margin, 2), n(s.price, 2), t("")]);
+        } else {
+            r.extend(std::iter::repeat_n(Cell::Empty, 8));
+        }
+        r
+    };
+    out.push(sum_row(pl, &e.totals.priced, true));
+    out.push(sum_row(ul, &e.totals.unpriced, false));
     let status = match (ja, e.status) {
         (false, s) => format!("Status: {s}"),
         (true, "draft") => "状態: 下書き".to_string(),
         (true, _) => "状態: 不完全（未見積の部材または未設定の単価あり）".to_string(),
     };
     out.push(vec![t(&status)]);
+    out.push(vec![t(if ja { &e.weld_basis.ja } else { &e.weld_basis.en })]);
     out.push(vec![t(if ja { "通貨" } else { "Currency" }), t(if e.currency.is_empty() { "(not set)" } else { &e.currency })]);
     out.push(vec![t(if ja { &e.marking_ja } else { &e.marking_en })]);
     out
@@ -428,28 +485,41 @@ pub fn xlsx(e: &Estimate) -> Result<Vec<u8>, nf_jobout::ZipError> {
 pub fn summary_text(e: &Estimate) -> String {
     let price = |v: f64| if e.rates_unset.is_empty() { format!("{v:.2} {}", e.currency) } else { "-".into() };
     let set = e.rates_unset.join(", ");
+    let (p, u) = (&e.totals.priced, &e.totals.unpriced);
     format!(
-        "Quote draft: {} ({})\nPriced parts: {} of {} computed; not priced: {}\nMass {:.3} kg, cut {:.3} m, weld {:.3} m, pierces {}\nTotal price: {}{}\n\n見積下書き: {}\n見積済み部材: {} / 計算済み {}、見積対象外: {}\n質量 {:.3} kg、切断長 {:.3} m、溶接長 {:.3} m、穴明け {}\n見積額: {}{}\n",
+        "Quote draft: {} ({})\nComputed parts: {}; priced: {}; computed but not priced (rate unset): {}; held: {}\nPriced parts: mass {:.3} kg, cut {:.3} m, weld {:.3} m, pierces {}\nComputed, not priced: mass {:.3} kg, cut {:.3} m, weld {:.3} m, pierces {}\nTotal price (priced parts): {}{}\nWeld: {}\n\n見積下書き: {}\n計算済み部材: {}、見積済み: {}、計算済み・未見積（単価未設定）: {}、見積対象外（保留）: {}\n見積済み部材: 質量 {:.3} kg、切断長 {:.3} m、溶接長 {:.3} m、穴明け {}\n計算済み・未見積: 質量 {:.3} kg、切断長 {:.3} m、溶接長 {:.3} m、穴明け {}\n見積額（見積済み部材）: {}{}\n溶接長: {}\n",
         e.status,
         e.marking_en,
-        e.totals.priced_parts,
         e.parts.len(),
+        p.parts,
+        u.parts,
         e.not_priced.len(),
-        e.totals.mass_kg,
-        e.totals.cut_m,
-        e.totals.weld_m,
-        e.totals.pierces,
-        price(e.totals.price),
+        p.mass_kg,
+        p.cut_m,
+        p.weld_m,
+        p.pierces,
+        u.mass_kg,
+        u.cut_m,
+        u.weld_m,
+        u.pierces,
+        price(p.price),
         if set.is_empty() { String::new() } else { format!(" (rates not set: {set})") },
+        e.weld_basis.en,
         e.status,
-        e.totals.priced_parts,
         e.parts.len(),
+        p.parts,
+        u.parts,
         e.not_priced.len(),
-        e.totals.mass_kg,
-        e.totals.cut_m,
-        e.totals.weld_m,
-        e.totals.pierces,
-        price(e.totals.price),
+        p.mass_kg,
+        p.cut_m,
+        p.weld_m,
+        p.pierces,
+        u.mass_kg,
+        u.cut_m,
+        u.weld_m,
+        u.pierces,
+        price(p.price),
         if set.is_empty() { String::new() } else { format!("（未設定の単価: {set}）") },
+        e.weld_basis.ja,
     )
 }

@@ -4693,6 +4693,7 @@ async fn get_estimate(
                 .map_err(|_| unprocessable("estimate_rates", "the rates file is not valid"))?
         }
     };
+    nf_estimate::validate_rates(&rates).map_err(|e| unprocessable("estimate_rates", &e))?;
     let order: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
     let est = nf_estimate::estimate(&order, &rates).map_err(|e| unprocessable("estimate_result", &e))?;
     let ja = q.lang.as_deref() == Some("ja");
