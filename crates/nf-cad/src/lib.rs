@@ -5,6 +5,7 @@
 //! Independence: this crate is not a dependency of `nf-digest`, and it never edits `uem`, `nf-dxf` or
 //! `nf-core`. `nf-dxf` is used only to call its quality gate.
 
+pub mod edit;
 pub mod geom;
 pub mod read;
 pub mod tools;
