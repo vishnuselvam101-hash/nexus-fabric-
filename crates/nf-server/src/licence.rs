@@ -310,13 +310,20 @@ pub(crate) fn gated(method: &Method, path: &str) -> bool {
     let seg: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
     // every write to an order: parts and values are PUT, the rest POST
     if *method == Method::PUT {
-        return matches!(seg.as_slice(), ["api", "orders", id, "parts" | "values"] if id.parse::<i64>().is_ok());
+        return matches!(seg.as_slice(), ["api", "orders", id, "parts" | "values" | "rules"] if id.parse::<i64>().is_ok())
+            || matches!(seg.as_slice(), ["api", "projects", id, "rules"] if id.parse::<i64>().is_ok());
     }
     if *method != Method::POST {
         return false;
     }
     match seg.as_slice() {
-        ["api", "orders", id, "confirm" | "decisions" | "compute"] => id.parse::<i64>().is_ok(),
+        [
+            "api",
+            "orders",
+            id,
+            "confirm" | "decisions" | "compute" | "preview",
+        ] => id.parse::<i64>().is_ok(),
+        ["api", "orders", id, "rules", "impact"] => id.parse::<i64>().is_ok(),
         ["api", "orders", id, "decisions", did, "undo"] => {
             id.parse::<i64>().is_ok() && did.parse::<i64>().is_ok()
         }

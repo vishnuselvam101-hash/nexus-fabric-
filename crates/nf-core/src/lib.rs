@@ -26,6 +26,7 @@ pub mod deps;
 pub mod job;
 pub mod order;
 pub mod order_compute;
+pub mod preview;
 pub mod shapes;
 pub mod tee;
 pub mod tee_pad;

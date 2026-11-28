@@ -1170,8 +1170,12 @@ async fn l1r1_a_read_only_licence_blocks_every_order_write() {
     for (m, p) in [
         (Method::PUT, "/api/orders/1/parts"),
         (Method::PUT, "/api/orders/1/values"),
+        (Method::PUT, "/api/orders/1/rules"),
+        (Method::PUT, "/api/projects/1/rules"),
         (Method::POST, "/api/orders/1/confirm"),
         (Method::POST, "/api/orders/1/compute"),
+        (Method::POST, "/api/orders/1/preview"),
+        (Method::POST, "/api/orders/1/rules/impact"),
         (Method::POST, "/api/orders/1/decisions"),
         (Method::POST, "/api/orders/1/decisions/2/undo"),
         (Method::POST, "/api/orders/1/pages/3/skip"),
@@ -1947,4 +1951,410 @@ async fn l10_a_held_part_gets_no_dxf_and_the_rules_come_from_the_order() {
         .await;
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
     assert_eq!(v["code"], "order_rules");
+}
+
+// ---------------------------------------------------------------- PZ-3: read-only preview and rule impact
+
+fn result_fingerprint_json(v: &Value) -> String {
+    nf_core::sha256_hex(v.to_string().as_bytes())
+}
+
+fn confirmed_value(part: &str, key: &str, value: f64) -> Value {
+    json!({ "part": part, "key": key, "value": value, "text": format!("{value}"), "source": "entered", "confirm": true })
+}
+
+fn pz3_counts(t: &T, oid: i64) -> Vec<i64> {
+    let _ = oid;
+    vec![
+        t.count("SELECT COUNT(*) FROM order_parts"),
+        t.count("SELECT COUNT(*) FROM order_values"),
+        t.count("SELECT COUNT(*) FROM order_results"),
+        t.count("SELECT COUNT(*) FROM order_decisions"),
+        t.count("SELECT COUNT(*) FROM audit"),
+    ]
+}
+
+async fn order_rules(t: &T, oid: i64) -> Value {
+    t.get(&format!("/api/orders/{oid}/rules")).await
+}
+
+fn changed_parts_from_results(before: &Value, after: &Value) -> Vec<String> {
+    let b = before["result"]["parts"].as_array().unwrap();
+    let a = after["result"]["parts"].as_array().unwrap();
+    b.iter()
+        .zip(a)
+        .filter(|(x, y)| {
+            x["pattern"] != y["pattern"]
+                || json!([x["unit_mass_kg"], x["mass_kg"], x["gross_mass_kg"]])
+                    != json!([y["unit_mass_kg"], y["mass_kg"], y["gross_mass_kg"]])
+        })
+        .map(|(x, _)| x["no"].as_str().unwrap().to_string())
+        .collect()
+}
+
+#[tokio::test]
+async fn pz3_fifty_golden_previews_equal_the_persisted_results_and_write_nothing() {
+    let t = boot();
+    let oid = new_order(&t).await;
+    put_parts_values(
+        &t,
+        oid,
+        json!([
+            { "no": "C1", "name": "cylinder", "shape": "cylinder", "qty": 2 },
+            { "no": "P1", "name": "plate", "shape": "plate" }
+        ]),
+        json!([
+            val("C1", "D", 1016.0),
+            val("C1", "t", 12.0),
+            val("C1", "L", 2000.0),
+            val("P1", "t", 16.0),
+            val("P1", "plate_W", 400.0),
+            val("P1", "plate_H", 300.0)
+        ]),
+    )
+    .await;
+    t.call(
+        "POST",
+        &format!("/api/orders/{oid}/confirm"),
+        Some(json!({ "all": true })),
+    )
+    .await;
+    let (st, first) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{first}");
+    let mut previous = result_fingerprint_json(&first["result"]);
+
+    // A fixed golden set: fifty edits of confirmed values, each previewed, applied through the values API and
+    // persisted by compute. The same source, state and number are used on both sides.
+    for i in 0..50 {
+        let length = 900.0 + i as f64 * 23.0;
+        let edit = json!({ "kind": "value", "part": "C1", "key": "L", "value": length });
+        let rules = order_rules(&t, oid).await;
+        let hash = rules["parts_hash"].as_str().unwrap().to_string();
+        let before_counts = pz3_counts(&t, oid);
+        let (st, preview) = t
+            .call(
+                "POST",
+                &format!("/api/orders/{oid}/preview"),
+                Some(json!({ "parts_hash": hash, "edit": edit, "outlines": true })),
+            )
+            .await;
+        assert_eq!(st, StatusCode::OK, "{preview}");
+        assert_eq!(preview["parts_hash"], hash);
+        assert_eq!(preview["preview"]["before_fingerprint"], json!(previous));
+        assert_eq!(pz3_counts(&t, oid), before_counts, "preview wrote a row");
+        assert_eq!(order_rules(&t, oid).await, rules, "preview wrote rules");
+
+        let (st, applied) = t
+            .call(
+                "PUT",
+                &format!("/api/orders/{oid}/values"),
+                Some(json!({ "values": [confirmed_value("C1", "L", length)] })),
+            )
+            .await;
+        assert_eq!(st, StatusCode::OK, "{applied}");
+        let (st, computed) = t
+            .call(
+                "POST",
+                &format!("/api/orders/{oid}/compute"),
+                Some(json!({})),
+            )
+            .await;
+        assert_eq!(st, StatusCode::OK, "{computed}");
+        assert_eq!(computed["unchanged"], json!(false), "golden edit {i}");
+        let fingerprint = result_fingerprint_json(&computed["result"]);
+        assert_eq!(
+            preview["preview"]["after_fingerprint"],
+            json!(fingerprint),
+            "golden edit {i}: the preview did not show the persisted result"
+        );
+        previous = fingerprint;
+    }
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_results"), 51);
+}
+
+#[tokio::test]
+async fn pz3_project_defaults_are_copied_and_rule_impact_previews_before_writing() {
+    let t = boot();
+    let defaults = json!({"allow": 6.0, "seam_from": "bottom"});
+    let (st, set) = t
+        .call(
+            "PUT",
+            "/api/projects/1/rules",
+            Some(json!({"rules": defaults, "reason": "project default"})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{set}");
+    let project = t.get("/api/projects/1/rules").await;
+    assert_eq!(project["scope"], json!("project"));
+    let allow = project["effective"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["name"] == "order.allow_mm")
+        .unwrap();
+    assert_eq!(allow["status"], "UNVERIFIED");
+    assert!(
+        allow["source"]
+            .as_str()
+            .unwrap()
+            .contains("this order's rules")
+    );
+    assert_eq!(audit_details(&t, "project_rules_set").len(), 1);
+
+    let oid = new_order(&t).await;
+    let rules = order_rules(&t, oid).await;
+    assert_eq!(rules["scope"], json!("order"));
+    assert_eq!(rules["rules"], defaults, "new orders copy project rules");
+    assert_eq!(rules["fingerprint"], project["fingerprint"]);
+    put_parts_values(
+        &t,
+        oid,
+        json!([
+            { "no": "C1", "name": "cylinder", "shape": "cylinder", "qty": 2 },
+            { "no": "P1", "name": "plate", "shape": "plate" },
+            { "no": "R1", "name": "cone", "shape": "cone" }
+        ]),
+        json!([
+            val("C1", "D", 1016.0),
+            val("C1", "t", 12.0),
+            val("C1", "L", 2000.0),
+            val("P1", "t", 16.0),
+            val("P1", "plate_W", 400.0),
+            val("P1", "plate_H", 300.0),
+            val("R1", "D1", 1016.0),
+            val("R1", "D2", 762.0),
+            val("R1", "L", 600.0),
+            val("R1", "t", 12.0)
+        ]),
+    )
+    .await;
+    t.call(
+        "POST",
+        &format!("/api/orders/{oid}/confirm"),
+        Some(json!({ "all": true })),
+    )
+    .await;
+    let (st, before) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{before}");
+    let (st, decided) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions"),
+            Some(json!({ "kind": "mark_checked" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{decided}");
+    let did = decided["id"].as_i64().unwrap();
+    assert_eq!(
+        decision(&t.get(&format!("/api/orders/{oid}")).await, did)["stale"],
+        json!(false)
+    );
+
+    // The development basis is not decoration: the cone fan is cut on a different surface.
+    let new_rules = json!({"basis": "outer", "seam_from": "top", "mount": "set_in"});
+    let rules = order_rules(&t, oid).await;
+    let hash = rules["parts_hash"].as_str().unwrap().to_string();
+    let counts = pz3_counts(&t, oid);
+    let (st, impact) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/rules/impact"),
+            Some(json!({"rules": new_rules, "parts_hash": hash, "outlines": true})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{impact}");
+    assert_eq!(impact["parts_hash"], hash);
+    assert_eq!(impact["impact"]["scope"], "order");
+    assert_eq!(pz3_counts(&t, oid), counts, "rule impact wrote a row");
+    assert_eq!(order_rules(&t, oid).await, rules, "rule impact wrote rules");
+    let listed: Vec<String> = impact["impact"]["summary"]["changed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_str().unwrap().to_string())
+        .collect();
+    assert!(listed.contains(&"R1".to_string()), "{listed:?}");
+    assert!(
+        impact["impact"]["summary"]["text_en"]
+            .as_str()
+            .unwrap()
+            .starts_with("Whole order:")
+    );
+    assert!(
+        impact["impact"]["summary"]["text_ja"]
+            .as_str()
+            .unwrap()
+            .starts_with("工事の全部材：")
+    );
+    assert!(
+        impact["impact"]["rules_after"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|r| r["status"] == "UNVERIFIED")
+    );
+    let stale_ids = impact["impact"]["decisions_would_stale"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["id"].as_i64().unwrap())
+        .collect::<Vec<_>>();
+    assert!(
+        stale_ids.contains(&did),
+        "the impact must name decision {did}; it named {stale_ids:?}"
+    );
+    let n = stale_ids.len();
+    let suffix = if n == 1 { "" } else { "s" };
+    assert_eq!(
+        impact["impact"]["decisions_text_en"],
+        json!(format!("{n} decision{suffix} would go stale"))
+    );
+    assert_eq!(
+        impact["impact"]["decisions_text_ja"],
+        json!(format!("なくなる判定 {n} 件"))
+    );
+
+    let (st, written) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/rules"),
+            Some(json!({"rules": new_rules, "parts_hash": hash,
+                        "expected_rules_hash": rules["fingerprint"], "reason": "factory agreed"})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{written}");
+    assert_eq!(written["rules"], new_rules);
+    assert_ne!(written["fingerprint"], rules["fingerprint"]);
+    assert_ne!(
+        written["parts_hash"], hash,
+        "the parts hash covers the rules"
+    );
+    assert_eq!(audit_details(&t, "order_rules_set").len(), 1);
+
+    let (st, after) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{after}");
+    let expected = changed_parts_from_results(&before, &after);
+    assert_eq!(
+        listed, expected,
+        "impact must match two full computes exactly"
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(
+        decision(&o, did)["stale"],
+        json!(true),
+        "a rule change stales a decision"
+    );
+    assert_eq!(decision(&o, did)["effective"], json!(false));
+    assert_eq!(o["checked"], Value::Null);
+
+    // A stale hash is refused by all three preview/write paths, with the same conflict code as a stale value edit.
+    let stale = "0".repeat(64);
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/preview"),
+            Some(json!({"parts_hash": stale, "edit": {"kind": "seam_side", "seam_from": "top"}})),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::CONFLICT, Some("order_changed"))
+    );
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/rules/impact"),
+            Some(json!({"rules": new_rules, "parts_hash": stale})),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::CONFLICT, Some("order_changed"))
+    );
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/rules"),
+            Some(json!({"rules": new_rules, "parts_hash": stale,
+                        "expected_rules_hash": written["fingerprint"]})),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::CONFLICT, Some("order_changed"))
+    );
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_results"), 2);
+}
+
+#[tokio::test]
+async fn pz3_a_viewer_reads_rules_but_cannot_preview_or_set_them() {
+    let t = boot();
+    let oid = new_order(&t).await;
+    let viewer = add_session(&t.app, "vic", "viewer");
+    t.sql("INSERT INTO project_members(project_id, user_id) SELECT 1, id FROM users WHERE username = 'vic'");
+    let send = |method: &'static str, path: String, body: Option<Value>| {
+        let t = &t;
+        let cookie = viewer.clone();
+        async move {
+            t.send(method, &path, body, &[("cookie", cookie.as_str())])
+                .await
+                .0
+        }
+    };
+    assert_eq!(
+        send("GET", format!("/api/orders/{oid}/rules"), None).await,
+        StatusCode::OK
+    );
+    assert_eq!(
+        send("GET", "/api/projects/1/rules".into(), None).await,
+        StatusCode::OK
+    );
+    for (m, p, b) in [
+        (
+            "POST",
+            format!("/api/orders/{oid}/preview"),
+            Some(
+                json!({"parts_hash": "0".repeat(64), "edit": {"kind": "split", "part": "1", "split": 2}}),
+            ),
+        ),
+        (
+            "POST",
+            format!("/api/orders/{oid}/rules/impact"),
+            Some(json!({"rules": {}, "parts_hash": "0".repeat(64)})),
+        ),
+        (
+            "PUT",
+            format!("/api/orders/{oid}/rules"),
+            Some(json!({"rules": {}})),
+        ),
+        (
+            "PUT",
+            "/api/projects/1/rules".into(),
+            Some(json!({"rules": {}})),
+        ),
+    ] {
+        assert_eq!(
+            send(m, p.clone(), b).await,
+            StatusCode::FORBIDDEN,
+            "{m} {p}"
+        );
+    }
 }

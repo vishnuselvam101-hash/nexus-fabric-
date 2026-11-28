@@ -683,3 +683,82 @@ async fn licence_off_seat_limit_is_logged_not_enforced() {
         t.count("SELECT COUNT(*) FROM audit WHERE action = 'licence_seat_limit_not_enforced'") >= 2
     );
 }
+
+#[tokio::test]
+async fn licence_pz3_preview_and_rules_are_gated_like_other_writes() {
+    let t0 = now();
+    let valid = payload(2, t0 - DAY, t0 + 30 * DAY);
+    let t = boot_lic(true, Some(&signed(&valid)));
+    let (st, order) = t
+        .call(
+            "POST",
+            "/api/projects/1/orders",
+            Some(json!({ "name": "Preview job" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{order}");
+    let oid = order["id"].as_i64().unwrap();
+
+    let expired = payload(2, t0 - 60 * DAY, t0 - 20 * DAY);
+    std::fs::write(t.dir.join("licence.nflic"), signed(&expired)).unwrap();
+    crate::licence::recheck(&t.app);
+    assert_eq!(t.get("/api/health").await["licence"]["state"], "read_only");
+    let before = pz3_counts_for_licence(&t);
+
+    for (m, p, b) in [
+        (
+            "POST",
+            format!("/api/orders/{oid}/preview"),
+            Some(
+                json!({"parts_hash": "0".repeat(64), "edit": {"kind": "seam_side", "seam_from": "top"}}),
+            ),
+        ),
+        (
+            "POST",
+            format!("/api/orders/{oid}/rules/impact"),
+            Some(json!({"rules": {}, "parts_hash": "0".repeat(64)})),
+        ),
+        (
+            "PUT",
+            format!("/api/orders/{oid}/rules"),
+            Some(json!({"rules": {}})),
+        ),
+        (
+            "PUT",
+            "/api/projects/1/rules".into(),
+            Some(json!({"rules": {}})),
+        ),
+    ] {
+        let (st, _, v) = t.send(m, &p, b, &[]).await;
+        assert_eq!(st, StatusCode::FORBIDDEN, "{p}: {v:?}");
+        let v: Value = serde_json::from_slice(&v).unwrap_or(Value::Null);
+        assert_eq!(v["licence"], "read_only", "{p}: {v}");
+        assert!(v["error"].as_str().is_some_and(|e| !e.is_empty()));
+        assert!(v["error_ja"].as_str().is_some_and(|e| !e.is_empty()));
+    }
+    assert_eq!(
+        pz3_counts_for_licence(&t),
+        before,
+        "a refused request wrote a row"
+    );
+    assert_eq!(
+        t.call("GET", &format!("/api/orders/{oid}/rules"), None)
+            .await
+            .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        t.call("GET", "/api/projects/1/rules", None).await.0,
+        StatusCode::OK
+    );
+}
+
+fn pz3_counts_for_licence(t: &T) -> Vec<i64> {
+    vec![
+        t.count("SELECT COUNT(*) FROM orders"),
+        t.count("SELECT COUNT(*) FROM projects WHERE default_rules_json <> '{}'"),
+        t.count("SELECT COUNT(*) FROM order_results"),
+        t.count("SELECT COUNT(*) FROM order_decisions"),
+        t.count("SELECT COUNT(*) FROM audit WHERE action NOT LIKE 'licence%'"),
+    ]
+}
