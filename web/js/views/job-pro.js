@@ -210,7 +210,7 @@ async function cad(v) {
   try { const r = await fetch('/cad', { method: 'HEAD', credentials: 'same-origin', headers: { 'X-NF-Request': '1' } }); installed = r.ok && !/text\/html/i.test(r.headers.get('content-type') || ''); } catch { installed = false; }
   if (!v.isConnected) return;
   v.innerHTML = installed && first
-    ? `<p>${esc(t('jf2.pro.cad.text'))}</p><a class="jf1-btn jf1-primary jf1-link" target="_blank" rel="noopener" href="/cad?doc=${encodeURIComponent(first.document_id)}">${esc(t('jf2.pro.cad.open'))}</a>`
+    ? `<p>${esc(t('jf2.pro.cad.text'))}</p><a class="jf1-btn jf1-primary jf1-link" target="_blank" rel="noopener" href="/cad?src=doc:${encodeURIComponent(first.document_id)}">${esc(t('jf2.pro.cad.open'))}</a>`
     : `<p class="jf1-note" role="status">${esc(t('jf2.pro.cad.note'))}</p>`;
 }
 

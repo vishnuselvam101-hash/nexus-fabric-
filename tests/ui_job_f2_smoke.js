@@ -178,7 +178,7 @@ async function main() {
     await p.click('[data-tab="cad"]');
     await p.waitForSelector('.jp-view p, .jp-view a');
     const cadNote = await p.locator('.jp-view').textContent();
-    check('NF CAD tab says it is not installed on a 404', /not installed/i.test(cadNote) || (await p.locator('.jp-view a[href^="/cad?doc="]').count()) === 1, cadNote);
+    check('NF CAD tab says it is not installed on a 404', /not installed/i.test(cadNote) || (await p.locator('.jp-view a[href^="/cad?src=doc:"]').count()) === 1, cadNote);
     await p.click('[data-tab="drawing"]');
     await p.waitForSelector('.jp-rows');
     // override: refused for the agent, refused for a short reason, refused outside the allow-list, accepted for a person
