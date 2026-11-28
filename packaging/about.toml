@@ -13,6 +13,8 @@ accepted = [
     "Unicode-3.0",
     "Unlicense",
     "BSL-1.0",
+    # jagua-rs (nf-nest placement engine): weak, file-level copyleft; used unmodified, see crates/nf-nest/NOTICES
+    "MPL-2.0",
 ]
 
 # The two targets the packages are built for (packaging/linux and packaging/windows).

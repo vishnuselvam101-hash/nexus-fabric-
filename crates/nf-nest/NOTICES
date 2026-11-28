@@ -1,0 +1,13 @@
+nf-nest third-party notices
+
+jagua-rs 2.0.0 (crates.io), licence MPL-2.0 (https://www.mozilla.org/MPL/2.0/), source https://github.com/JeroenGar/jagua-rs.
+  Used unmodified as the placement engine. Pinned with "=2.0.0". MPL-2.0 file-level obligations apply to any
+  modification of its files; none are made. Its rust-version is 1.90 (toolchain used: 1.95).
+  Full MPL-2.0 licence text: crates/nf-nest/LICENSE-MPL-2.0.txt (copied from the crate's LICENSE file).
+  Source of the exact version used: https://crates.io/crates/jagua-rs/2.0.0 and https://github.com/JeroenGar/jagua-rs
+  (the release bundle carries this file and the licence text beside the binary's notices).
+
+encoding_rs 0.8.35 (crates.io), licence (MIT OR Apache-2.0) AND BSD-3-Clause (https://github.com/hsivonen/encoding_rs).
+  Shift_JIS encoding for the R12 sheet DXF.
+
+nf-dxf (workspace), read-only use for part outlines.

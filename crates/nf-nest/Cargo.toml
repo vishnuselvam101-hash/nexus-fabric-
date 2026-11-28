@@ -1,0 +1,9 @@
+[package]
+name = "nf-nest"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nf-dxf = { path = "../nf-dxf" }
+jagua-rs = "=2.0.0"
+encoding_rs = "=0.8.35"

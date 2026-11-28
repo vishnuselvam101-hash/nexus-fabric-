@@ -18,6 +18,7 @@ nf-estimate = { version = "0.1.0", path = "../nf-estimate" }
 nf-digest = { version = "0.1.0", path = "../nf-digest" }
 nf-licence = { version = "0.1.0", path = "../nf-licence" }
 nf-machine = { version = "0.1.0", path = "../nf-machine" }
+nf-nest = { version = "0.1.0", path = "../nf-nest" }
 nf-numread = { version = "0.1.0", path = "../nf-numread" }
 rand = "0.10.4"
 rusqlite = { version = "0.43.0", features = ["bundled"] }
