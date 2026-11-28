@@ -21,9 +21,21 @@ pub fn derive(name: &str, i: &Inputs) -> Option<f64> {
         // 2:1 ellipsoidal head: height = D / (2 * ratio) with ratio 2
         "head_height" => g("od")? / (2.0 * g("ratio")?),
         // depth of a spherical-cap head of crown radius rc_ratio*od (torispherical head approximated as a cap, knuckle omitted)
+        // torispherical (crown rc*od, knuckle rk*od tangent to the shell); rk = 0 gives the spherical cap
         "head_depth" => {
-            let rc = g("rc_ratio")? * g("od")?;
-            rc - (rc * rc - (g("od")? / 2.0).powi(2)).sqrt()
+            let (rc, rk) = (g("rc_ratio")? * g("od")?, g("rk_ratio")? * g("od")?);
+            rc - ((rc - rk).powi(2) - (g("od")? / 2.0 - rk).powi(2)).sqrt()
+        }
+        // developed sector of a concentric cone cut into n pieces (closed form of nf-core cone_split)
+        "sector_outer" | "sector_inner" | "sector_angle_deg" => {
+            let (r1, r2, h, n) = (g("r1")?, g("r2")?, g("h")?, g("n")?);
+            let (rl, rs) = (r1.max(r2), r1.min(r2));
+            let sin_a = (rl - rs) / (h * h + (rl - rs) * (rl - rs)).sqrt();
+            match name {
+                "sector_outer" => rl / sin_a,
+                "sector_inner" => rs / sin_a,
+                _ => 360.0 * sin_a / n,
+            }
         }
         "tank_length" => g("l")? + 2.0 * g("od")? / (2.0 * g("ratio")?),
         // centreline length of a bend of centreline radius r over theta degrees

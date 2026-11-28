@@ -156,6 +156,10 @@ pub struct Ctx {
     pub fs: f64,
     pub w: f64,
     pub h: f64,
+    /// Flat views that the engine refused (no view drawn).
+    pub refused: usize,
+    /// Linear dimensions whose drawn extent disagrees with the label (beyond one pixel).
+    pub geom_fail: usize,
 }
 
 impl Ctx {
@@ -274,6 +278,13 @@ impl Ctx {
         self.shapes.push(sh);
         Some(b)
     }
+    /// Drawn extent (mm, from the drawn endpoints) against the printed value: one pixel plus 0.5 %.
+    fn check_extent(&mut self, drawn_mm: f64, v: f64) {
+        let tol = 1.0 / self.sc + 0.005 * v.abs();
+        if (drawn_mm - v).abs() > tol {
+            self.geom_fail += 1;
+        }
+    }
     fn tol(&mut self, v: f64) -> Option<f64> {
         if self.r.chance(0.2) {
             linear_tolerance(&self.gtol.to_string(), v)
@@ -356,6 +367,7 @@ impl Ctx {
         {
             return false;
         }
+        self.check_extent((xb - xa).abs() / self.sc, v);
         let sw = 1.0 * u;
         self.p.dline(xa, y + s * 4.0 * u, xa, yd + s * 3.0 * u, sw);
         self.p.dline(xb, y + s * 4.0 * u, xb, yd + s * 3.0 * u, sw);
@@ -403,6 +415,7 @@ impl Ctx {
         {
             return false;
         }
+        self.check_extent((yb - ya).abs() / self.sc, v);
         let sw = 1.0 * u;
         let d = if yb > ya { 1.0 } else { -1.0 };
         self.p.dline(xf + s * 4.0 * u, ya, xd + s * 3.0 * u, ya, sw);
@@ -485,6 +498,198 @@ impl Ctx {
                 1.2 * u,
                 "none",
             );
+        }
+    }
+}
+
+// ---------------------------------------------------------------- engine-backed flat patterns
+
+/// Draw polygons given in mm (developed coordinates) into a view cell; `shape` names the element.
+fn dev_view(c: &mut Ctx, cell: [f64; 4], polys: &[Vec<[f64; 2]>], shape: &str) -> bool {
+    if polys.is_empty() {
+        c.refused += 1;
+        return false;
+    }
+    let all: Vec<(f64, f64)> = polys.iter().flatten().map(|p| (p[0], p[1])).collect();
+    c.shape = shape.into();
+    c.fit(cell, bbox(&all));
+    for p in polys {
+        let q: Vec<(f64, f64)> = p.iter().map(|q| (q[0], q[1])).collect();
+        c.outline(&q, "none");
+    }
+    true
+}
+
+/// Triangulated development of the lateral surface of a rectangle-to-round transition.
+/// Base vertices P_i (rectangle perimeter, n points) and top vertices Q_j (circle, n points) form a zigzag strip of
+/// triangles; each triangle is placed in the plane from its three 3-D edge lengths, next to the previous one.
+fn triangulated_development(a: f64, b: f64, dd: f64, h: f64, n: usize) -> Vec<Vec<[f64; 2]>> {
+    let per = 2.0 * (a + b);
+    let mut p3: Vec<[f64; 3]> = vec![];
+    for i in 0..n {
+        let s = per * i as f64 / n as f64;
+        // walk the rectangle perimeter from the middle of the first side
+        let s = (s + a / 2.0).rem_euclid(per);
+        let (x, y) = if s < a {
+            (-a / 2.0 + s, -b / 2.0)
+        } else if s < a + b {
+            (a / 2.0, -b / 2.0 + (s - a))
+        } else if s < 2.0 * a + b {
+            (a / 2.0 - (s - a - b), b / 2.0)
+        } else {
+            (-a / 2.0, b / 2.0 - (s - 2.0 * a - b))
+        };
+        p3.push([x, y, 0.0]);
+    }
+    let mut q3: Vec<[f64; 3]> = vec![];
+    for j in 0..n {
+        let t = std::f64::consts::TAU * j as f64 / n as f64;
+        q3.push([dd / 2.0 * t.cos(), dd / 2.0 * t.sin(), h]);
+    }
+    // zigzag: P0 Q0 P1 Q1 ... closed back to P0
+    let mut v: Vec<[f64; 3]> = vec![];
+    for i in 0..n {
+        v.push(p3[i]);
+        v.push(q3[i]);
+    }
+    let dist = |p: [f64; 3], q: [f64; 3]| {
+        ((p[0] - q[0]).powi(2) + (p[1] - q[1]).powi(2) + (p[2] - q[2]).powi(2)).sqrt()
+    };
+    let m = v.len();
+    let mut d2: Vec<[f64; 2]> = vec![[0.0, 0.0]; m];
+    d2[1] = [dist(v[0], v[1]), 0.0];
+    let mut tris: Vec<Vec<[f64; 2]>> = vec![];
+    // place vertex k from k-2 and k-1 (triangle k-2, k-1, k), on the side away from the previous apex
+    for k in 2..m {
+        let (a_, b_) = (k - 2, k - 1);
+        let (la, lb, lc) = (dist(v[a_], v[k]), dist(v[b_], v[k]), dist(v[a_], v[b_]));
+        let (pa, pb) = (d2[a_], d2[b_]);
+        let ex = [pb[0] - pa[0], pb[1] - pa[1]];
+        let len = (ex[0] * ex[0] + ex[1] * ex[1]).sqrt().max(1e-12);
+        let x = (la * la - lb * lb + lc * lc) / (2.0 * lc);
+        let y = (la * la - x * x).max(0.0).sqrt();
+        let ux = [ex[0] / len, ex[1] / len];
+        let perp = [-ux[1], ux[0]];
+        // the previous strip lies on the side of vertex k-3 (if any); the new apex goes to the other side
+        let side = if k >= 3 {
+            let prev = d2[k - 3];
+            let s_prev = (prev[0] - pa[0]) * perp[0] + (prev[1] - pa[1]) * perp[1];
+            if s_prev > 0.0 { -1.0 } else { 1.0 }
+        } else {
+            1.0
+        };
+        d2[k] = [
+            pa[0] + ux[0] * x + side * perp[0] * y,
+            pa[1] + ux[1] * x + side * perp[1] * y,
+        ];
+        tris.push(vec![d2[k - 2], d2[k - 1], d2[k]]);
+    }
+    tris
+}
+
+#[allow(clippy::too_many_arguments)]
+fn wye_flat(
+    c: &mut Ctx,
+    cell: [f64; 4],
+    d: f64,
+    a1: f64,
+    a2: f64,
+    l1: f64,
+    l2: f64,
+    lm: f64,
+) -> bool {
+    let spec = nf_core::wye::WyeSpec {
+        d,
+        t: 3.0,
+        beta1_deg: a1,
+        beta2_deg: a2,
+        l: lm,
+        h1: l1,
+        h2: l2,
+        branch_d: None,
+        branch_t: None,
+        cone_s: None,
+        split: Some(1),
+        basis: nf_core::shapes::Basis::Outer,
+        amp: nf_core::shapes::Basis::Outer,
+    };
+    match nf_core::wye::wye(&spec) {
+        Ok(r) => {
+            let polys: Vec<Vec<[f64; 2]>> = r
+                .pieces
+                .first()
+                .map(|p| p.plates.clone())
+                .unwrap_or_default();
+            dev_view(c, cell, &polys, "wye_flat")
+        }
+        Err(_) => {
+            c.refused += 1;
+            false
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn branch_on_cone_flat(
+    c: &mut Ctx,
+    cell: [f64; 4],
+    d1: f64,
+    d2: f64,
+    h: f64,
+    rb: f64,
+    zt: f64,
+    lb: f64,
+) -> bool {
+    let spec = nf_core::conebranch::ConeBranchSpec {
+        da: d2,
+        db: d1,
+        l: h,
+        t: 2.0,
+        ecc: false,
+        flat_deg: None,
+        d: 2.0 * rb,
+        tb: 2.0,
+        x: Some(zt),
+        dir_deg: 0.0,
+        e: 0.0,
+        h: lb,
+        angle_deg: Some(90.0),
+        mount: nf_core::tee::Mount::SetOn,
+        split: Some(2),
+        seam_gap: None,
+    };
+    match nf_core::conebranch::cone_branch(&spec) {
+        Ok(r) => {
+            let polys: Vec<Vec<[f64; 2]>> = r
+                .pieces
+                .first()
+                .map(|p| vec![p.outline.clone()])
+                .unwrap_or_default();
+            dev_view(c, cell, &polys, "cone_flat")
+        }
+        Err(_) => {
+            c.refused += 1;
+            false
+        }
+    }
+}
+
+fn tee_branch_flat(c: &mut Ctx, cell: [f64; 4], dm: f64, db: f64, hb: f64, alpha: f64) -> bool {
+    let spec = nf_core::tee::BranchPieceSpec {
+        d: db,
+        t: 2.0,
+        main_d: dm,
+        main_t: 2.0,
+        h: hb,
+        e: 0.0,
+        mount: nf_core::tee::Mount::SetOn,
+        angle_deg: Some(alpha),
+    };
+    match nf_core::tee::branch_piece(&spec) {
+        Ok(r) => dev_view(c, cell, std::slice::from_ref(&r.outline), "branch_flat"),
+        Err(_) => {
+            c.refused += 1;
+            false
         }
     }
 }
@@ -862,8 +1067,13 @@ fn duct_transition(c: &mut Ctx) {
     }
     let u = c.u;
     // view 0: plan (rectangle A x B with the round end D)
+    let left = c.cell(0);
+    let lmid = (left[1] + left[3]) / 2.0;
     c.shape = "plan".into();
-    c.fit(c.cell(0), [-a / 2.0, -b / 2.0, a / 2.0, b / 2.0]);
+    c.fit(
+        [left[0], left[1], left[2], lmid],
+        [-a / 2.0, -b / 2.0, a / 2.0, b / 2.0],
+    );
     c.outline(
         &[
             (-a / 2.0, -b / 2.0),
@@ -894,6 +1104,9 @@ fn duct_transition(c: &mut Ctx) {
         der("rect_perimeter", &[("a", a), ("b", b)]),
         "dimension",
     );
+    // developed pattern of the lateral surface, triangulated (bottom half of the left cell)
+    let tris = triangulated_development(a, b, dd, h, 8);
+    dev_view(c, [left[0], lmid, left[2], left[3]], &tris, "development");
     // view 1 (top half of the right cell): front elevation, width A at the rectangular end
     let big = a.max(dd);
     let right = c.cell(1);
@@ -962,18 +1175,31 @@ fn tank_shell(c: &mut Ctx) {
             der("head_height", &[("od", d), ("ratio", 2.0)]),
         ),
         1 => (
-            dv("head_depth", &[("od", d), ("rc_ratio", 1.0)]),
-            der("head_depth", &[("od", d), ("rc_ratio", 1.0)]),
+            dv(
+                "head_depth",
+                &[("od", d), ("rc_ratio", 1.0), ("rk_ratio", 0.06)],
+            ),
+            der(
+                "head_depth",
+                &[("od", d), ("rc_ratio", 1.0), ("rk_ratio", 0.06)],
+            ),
         ),
         _ => (
-            dv("head_depth", &[("od", d), ("rc_ratio", 0.5)]),
-            der("head_depth", &[("od", d), ("rc_ratio", 0.5)]),
+            dv(
+                "head_depth",
+                &[("od", d), ("rc_ratio", 0.5), ("rk_ratio", 0.0)],
+            ),
+            der(
+                "head_depth",
+                &[("od", d), ("rc_ratio", 0.5), ("rk_ratio", 0.0)],
+            ),
         ),
     };
     let rc = match head {
         1 => d,
         _ => d / 2.0,
     };
+    let _ = rc;
     for (k, v) in [
         ("D", d),
         ("L", l),
@@ -998,13 +1224,36 @@ fn tank_shell(c: &mut Ctx) {
                 v.push(if left { (x, y) } else { (l - x, y) });
             }
         } else {
-            let th = (rr / rc).asin();
-            for k in 0..=16 {
-                let f = -th + 2.0 * th * k as f64 / 16.0;
-                let x = -h + rc - rc * f.cos();
-                let y = rc * f.sin();
-                v.push(if left { (x, y) } else { (l - x, y) });
+            // crown radius rc, knuckle radius rk tangent to the shell at (0, +-D/2); upper half then mirrored
+            let rk = if head == 1 { 0.06 * d } else { 0.0 };
+            let kx = 0.0;
+            let ky = rr - rk;
+            let xc = ((rc - rk).powi(2) - (rr - rk).powi(2)).sqrt();
+            let (ccx, ccy) = (xc, 0.0);
+            let (tx, ty) = (
+                ccx + (kx - ccx) * rc / (rc - rk),
+                ccy + (ky - ccy) * rc / (rc - rk),
+            );
+            let phi_t = (ty - ky).atan2(tx - kx);
+            let psi_t = (ty - ccy).atan2(tx - ccx);
+            let mut up: Vec<(f64, f64)> = vec![];
+            for k in 0..=8 {
+                let f = std::f64::consts::FRAC_PI_2
+                    + (phi_t - std::f64::consts::FRAC_PI_2) * k as f64 / 8.0;
+                up.push((kx + rk * f.cos(), ky + rk * f.sin()));
             }
+            for k in 1..=12 {
+                let f = psi_t + (std::f64::consts::PI - psi_t) * k as f64 / 12.0;
+                up.push((ccx + rc * f.cos(), ccy + rc * f.sin()));
+            }
+            // full left head: lower half (mirror of upper, from the flange) to the apex, then upper back to the flange
+            let mut v: Vec<(f64, f64)> = up.iter().map(|&(x, y)| (x, -y)).collect();
+            v.extend(up.iter().rev().skip(1).copied());
+            return if left {
+                v
+            } else {
+                v.into_iter().map(|(x, y)| (l - x, y)).collect()
+            };
         }
         v
     };
@@ -1059,8 +1308,7 @@ fn tank_shell(c: &mut Ctx) {
         "dimension",
     );
     let (hx, hy) = c.px(l + h * 0.5, -rr * 0.5);
-    let hname = if head == 0 { "h=" } else { "h=" };
-    c.leader(hx, hy, hname, h, "mm", hsrc, "dimension");
+    c.leader(hx, hy, "h=", h, "mm", hsrc, "dimension");
     // end view: outer circle, nozzle and pad circles at the top of the shell
     c.shape = "end".into();
     c.fit(c.cell(1), [-rr, -rr, rr, rr + pad_od / 2.0 + 2.0 * pad_t]);
@@ -1163,7 +1411,7 @@ fn tee_lateral(c: &mut Ctx) {
     let e = (dir.0 * s_end, dir.1 * s_end);
     let top = (hb + db / 2.0).max(dm / 2.0);
     c.shape = "run".into();
-    c.fit(c.cell(2), [-l / 2.0, -dm / 2.0, l / 2.0, top + pad * 0.3]);
+    c.fit(c.cell(0), [-l / 2.0, -dm / 2.0, l / 2.0, top + pad * 0.3]);
     c.outline(
         &[
             (-l / 2.0, -dm / 2.0),
@@ -1230,6 +1478,7 @@ fn tee_lateral(c: &mut Ctx) {
         der("tee_outlet", &[("hb", hb), ("od", dm)]),
         "dimension",
     );
+    tee_branch_flat(c, c.cell(1), dm, db, hb, alpha);
 }
 
 fn wye(c: &mut Ctx) {
@@ -1258,7 +1507,7 @@ fn wye(c: &mut Ctx) {
         (e1.1 + d / 2.0).max(d / 2.0),
     ];
     c.shape = "main".into();
-    c.fit(c.cell(2), bb);
+    c.fit(c.cell(0), bb);
     c.outline(
         &[
             (-lm, -d / 2.0),
@@ -1310,6 +1559,7 @@ fn wye(c: &mut Ctx) {
         ),
         "dimension",
     );
+    wye_flat(c, c.cell(1), d, a1, a2, l1, l2, lm);
 }
 
 fn branch_on_cone(c: &mut Ctx) {
@@ -1323,7 +1573,7 @@ fn branch_on_cone(c: &mut Ctx) {
         ((h * 0.6) / 5.0).floor() * 5.0,
         5.0,
     );
-    let lb = 80.0;
+    let lb = r1 + 120.0;
     let yb = h - zt;
     let wall = r1 - (r1 - r2) * yb / h;
     for (k, v) in [
@@ -1337,7 +1587,7 @@ fn branch_on_cone(c: &mut Ctx) {
         c.set(k, v);
     }
     c.shape = "cone".into();
-    c.fit(c.cell(2), [-r1, 0.0, r1 + lb, h]);
+    c.fit(c.cell(0), [-r1, 0.0, r1 + lb, h]);
     c.outline(&[(-r1, 0.0), (-r2, h), (r2, h), (r1, 0.0)], "none");
     c.shape = "branch".into();
     c.outline(
@@ -1382,6 +1632,7 @@ fn branch_on_cone(c: &mut Ctx) {
     c.leader(dbx, dby, "\u{00D8}", 2.0 * rb, "mm", sp("db"), "dimension");
     let (zx, zy) = c.px(-r1 * 0.4, yb);
     c.leader(zx, zy, "z=", zt, "mm", sp("z_top"), "dimension");
+    branch_on_cone_flat(c, c.cell(1), 2.0 * r1, 2.0 * r2, h, rb, zt, lb);
 }
 
 fn reducer_concentric(c: &mut Ctx) {
@@ -1394,7 +1645,7 @@ fn reducer_concentric(c: &mut Ctx) {
     }
     c.shape = "body".into();
     c.fit(
-        c.cell(2),
+        c.cell(0),
         [-l / 2.0 - stub, -d1 / 2.0, l / 2.0 + stub, d1 / 2.0],
     );
     c.outline(
@@ -1434,7 +1685,55 @@ fn reducer_concentric(c: &mut Ctx) {
             &[("r1", d1 / 2.0), ("r2", d2 / 2.0), ("h", l)],
         ),
         "dimension",
+    ); // developed sector of the cone (closed form, checked against nf-core cone_split)
+    let (r1, r2) = (d1 / 2.0, d2 / 2.0);
+    let rl = r1.max(r2);
+    let rs = r1.min(r2);
+    let sin_a = (rl - rs) / (l * l + (rl - rs) * (rl - rs)).sqrt();
+    let n = 2.0;
+    let big = dv(
+        "sector_outer",
+        &[("r1", r1), ("r2", r2), ("h", l), ("n", n)],
     );
+    let small = dv(
+        "sector_inner",
+        &[("r1", r1), ("r2", r2), ("h", l), ("n", n)],
+    );
+    let ang = dv(
+        "sector_angle_deg",
+        &[("r1", r1), ("r2", r2), ("h", l), ("n", n)],
+    );
+    let engine_ok = match nf_core::shapes::cone_split(nf_core::shapes::ConeSpec {
+        d1,
+        d2,
+        l,
+        t: 2.0,
+        basis: nf_core::shapes::Basis::Outer,
+        split: 2,
+    }) {
+        Ok(e) => {
+            (e.piece_angle - std::f64::consts::PI * sin_a).abs() < 1e-6
+                || (e.piece_angle - 180.0 * sin_a).abs() < 1e-6
+        }
+        Err(_) => false,
+    };
+    if !engine_ok {
+        c.geom_fail += 1;
+    }
+    let th = ang.to_radians();
+    let mut poly: Vec<[f64; 2]> = vec![];
+    for k in 0..=24 {
+        let t = th * k as f64 / 24.0;
+        poly.push([big * t.cos(), big * t.sin()]);
+    }
+    for k in (0..=24).rev() {
+        let t = th * k as f64 / 24.0;
+        poly.push([small * t.cos(), small * t.sin()]);
+    }
+    dev_view(c, c.cell(1), &[poly], "sector");
+    c.shape = "dims".into();
+    let (mx, my) = c.px(big * (th / 2.0).cos(), big * (th / 2.0).sin());
+    let _ = (mx, my);
 }
 
 // ---------------------------------------------------------------- title, BOM, notes, symbols
@@ -1715,6 +2014,8 @@ fn hand_note(c: &mut Ctx) {
 // ---------------------------------------------------------------- page
 
 pub struct Page2 {
+    pub refused: usize,
+    pub geom_fail: usize,
     pub page: Page,
     pub shapes: Vec<String>,
     pub params: BTreeMap<String, f64>,
@@ -1757,6 +2058,8 @@ pub fn build_new(
         fs: 22.0 * u,
         w,
         h,
+        refused: 0,
+        geom_fail: 0,
     };
     c.p.rect([20.0 * u, 20.0 * u, w - 20.0 * u, h - 20.0 * u], 2.2 * u);
     match fam {
@@ -1840,6 +2143,8 @@ pub fn build_new(
     let part_id = format!("{}-{}", fam_code(fam), drawing_no);
     let _ = k;
     Page2 {
+        refused: c.refused,
+        geom_fail: c.geom_fail,
         page: c.p,
         shapes: c.shapes,
         params: c.par,
@@ -1917,6 +2222,8 @@ pub fn page_truth(p: &P2Meta, items: Vec<Value>) -> Value {
         "engine": p.engine,
         "request": p.request,
         "spec": {"family": p.fam, "params": p.spec_params},
+        "refused": p.refused,
+        "geom_fail": p.geom_fail,
         "items": items,
     })
 }
@@ -1938,6 +2245,8 @@ pub struct P2Meta {
     pub engine: String,
     pub request: Value,
     pub spec_params: Value,
+    pub refused: usize,
+    pub geom_fail: usize,
 }
 
 /// Write PNG and PDF for a page. Faint pages get lighter lines; fax pages are 1-bit (see render.rs).
@@ -2056,6 +2365,8 @@ fn build_one(
             engine: b.out.engine.clone(),
             request: serde_json::to_value(&b.out.request).unwrap_or(Value::Null),
             spec_params: serde_json::to_value(&b.out.request).unwrap_or(Value::Null),
+            refused: 0,
+            geom_fail: 0,
         };
         let _ = items;
         let page = b.page;
@@ -2079,6 +2390,8 @@ fn build_one(
             engine: "none (generator-owned geometry)".into(),
             request: json!({}),
             spec_params: serde_json::to_value(&p2.params).unwrap_or(Value::Null),
+            refused: p2.refused,
+            geom_fail: p2.geom_fail,
         };
         Ok((pid, meta, p2.page, p2.shapes, skew))
     }
