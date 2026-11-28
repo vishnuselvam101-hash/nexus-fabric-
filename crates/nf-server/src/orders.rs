@@ -35,6 +35,9 @@ const MAX_VALUES_PER_PART: i64 = 64;
 const MAX_RULES_BYTES: usize = 8 * 1024;
 /// A reading below this confidence cannot be confirmed; it mirrors nf-numread's LOW_CONFIDENCE_BELOW.
 const CONFIRM_MIN_CONFIDENCE: f64 = 0.85;
+/// The AI operator may set CONFIRMED only for a value read from the page (a READ source) with no reader flags and at
+/// least this confidence. Everything else is proposed and a person decides. (AIOP-1, REVIEW-1 HIGH-1)
+const AGENT_CONFIRM_MIN_CONFIDENCE: f64 = 0.85;
 
 const FILE_TYPES: [&str; 4] = ["pdf", "png", "jpeg", "tiff"];
 const VALUE_SOURCES: [&str; 11] = [
@@ -259,7 +262,7 @@ fn record_alone(app: &App, who: &str, action: &str, detail: &str) -> Result<(), 
 
 /// Answers a write. A refusal that is evidence is written down in its own transaction, after the refused
 /// request's transaction has rolled back: a limit (parts_limit, values_limit), any conflict (409), and any
-/// refusal of the AI operator (403) and a decision or upload the AI operator sent without a reason (422). An AI operator's refused parts edit keeps its reason row too.
+/// refusal of the AI operator (403), a decision or upload the AI operator sent without a reason (422), and corrupt stored rules (422). An AI operator's refused parts edit keeps its reason row too.
 async fn settle(app: &App, u: &User, oid: i64, what: &str, note: String, res: Api) -> Api {
     let resp = match res {
         Ok(r) => return Ok(r),
@@ -276,6 +279,7 @@ async fn settle(app: &App, u: &User, oid: i64, what: &str, note: String, res: Ap
     let agent = u.kind == "agent";
     let limit = matches!(code.as_str(), "parts_limit" | "values_limit");
     if limit
+        || code == "order_rules_corrupt"
         || parts.status == StatusCode::CONFLICT
         || (agent && parts.status == StatusCode::FORBIDDEN)
         || (agent && code == "decision_reason")
@@ -350,6 +354,29 @@ fn guard_order(
 ) -> Result<OrderHead, ApiError> {
     let head = load_order(db, oid)?;
     project_guard(app, db, u, head.project, what)?;
+    Ok(head)
+}
+
+/// `guard_order` for a write inside its transaction. A pause is rechecked here, in the transaction that writes, for
+/// every write of the AI operator: a pause a person set after the request passed `write_access` (or while it was
+/// queued behind the write lock) is still seen, and the whole write is rolled back. A request that was already
+/// committed before the pause landed is complete (its values and its events commit together); the pause
+/// stops the next write.
+fn guard_order_tx(
+    app: &App,
+    tx: &Connection,
+    u: &User,
+    oid: i64,
+    what: &str,
+) -> Result<OrderHead, ApiError> {
+    let head = guard_order(app, tx, u, oid, what)?;
+    if u.kind == "agent" && operator::is_paused(tx, oid)? {
+        return Err(refuse(
+            StatusCode::CONFLICT,
+            "operator_paused",
+            "a person paused the operator on this order",
+        ));
+    }
     Ok(head)
 }
 
@@ -753,7 +780,7 @@ async fn upload_file_do(
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
-    let head = guard_order(app, &tx, u, oid, "order file")?;
+    let head = guard_order_tx(app, &tx, u, oid, "order file")?;
     let detected = match membrane::admit(&bytes) {
         membrane::Admission::Accepted { detected_type } => detected_type,
         membrane::Admission::Rejected { reason } => {
@@ -953,7 +980,7 @@ fn skip_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, n: i64, raw: &[u8
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
-    guard_order(app, &tx, u, oid, "skip page")?;
+    guard_order_tx(app, &tx, u, oid, "skip page")?;
     let (state, was): (String, bool) = tx
         .query_row(
             "SELECT read_state, skipped FROM order_pages WHERE order_id = ? AND page_no = ?",
@@ -1188,7 +1215,7 @@ fn put_parts_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) 
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
-    guard_order(app, &tx, u, oid, "edit parts")?;
+    guard_order_tx(app, &tx, u, oid, "edit parts")?;
     // the reason of an AI operator, and any note a person gives, are on record
     if u.kind == "agent" || !note.trim().is_empty() {
         app.audit(
@@ -1373,6 +1400,8 @@ struct ValueIn {
     text: String,
     bbox: Option<String>,
     source: String,
+    flags: Vec<String>,
+    confidence: Option<f64>,
     confirm: bool,
     note: String,
 }
@@ -1545,6 +1574,8 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
         text,
         bbox,
         source,
+        flags,
+        confidence,
         confirm,
         note,
     })
@@ -1602,6 +1633,9 @@ type OldValue = (
     String,
     String,
     Option<f64>,
+    String,
+    String,
+    Option<f64>,
 );
 
 async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw: Bytes) -> Api {
@@ -1610,7 +1644,7 @@ async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, r
     settle(&app, &u, oid, "value edit", String::new(), res).await
 }
 
-fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
+pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
     let body = request_json(headers, raw)?;
     let list = body
         .get("values")
@@ -1638,6 +1672,32 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
             ));
         }
     };
+    if u.kind == "agent" && events.is_none() {
+        return Err(unprocessable(
+            "operator_event_required",
+            "every write of the AI operator carries at least one operator event, so a person can see and replay it",
+        ));
+    }
+    // The AI operator confirms only what the server can see is a clean reading: from the page, no flags, and
+    // a confidence at or above the threshold. Its word that a value is confirmed is not enough.
+    if u.kind == "agent" {
+        for v in values.iter().filter(|v| v.confirm) {
+            let clean = READ_SOURCES.contains(&v.source.as_str())
+                && v.flags.is_empty()
+                && v.confidence
+                    .is_some_and(|c| c >= AGENT_CONFIRM_MIN_CONFIDENCE);
+            if !clean {
+                return Err(refuse(
+                    StatusCode::FORBIDDEN,
+                    "agent_cannot_confirm",
+                    &format!(
+                        "the AI operator confirms only a value read from the page, with no flags and confidence of at least {AGENT_CONFIRM_MIN_CONFIDENCE}; '{}' is only proposed, a person decides",
+                        v.key
+                    ),
+                ));
+            }
+        }
+    }
     if events.is_some() && u.kind != "agent" {
         return Err(refuse(
             StatusCode::FORBIDDEN,
@@ -1648,13 +1708,14 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
-    guard_order(app, &tx, u, oid, "edit values")?;
+    guard_order_tx(app, &tx, u, oid, "edit values")?;
     if let Some(es) = &events {
         operator::store_events(app, &tx, u, oid, es)?;
     }
     let (mut changed, mut unchanged) = (0, 0);
     let mut touched = BTreeSet::new();
     for v in &values {
+        let flags_json = json!(v.flags).to_string();
         let (pid, pno, pstate) = find_part(&tx, oid, &v.part)?;
         if pstate == "EXCLUDED" {
             return Err(refuse(
@@ -1665,7 +1726,7 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
         }
         let old: Option<OldValue> = tx
             .query_row(
-                "SELECT id, value, text, bbox_json, source, state, proposed_value FROM order_values WHERE part_id = ? AND key = ?",
+                "SELECT id, value, text, bbox_json, source, state, proposed_value, edited_kind, flags_json, confidence FROM order_values WHERE part_id = ? AND key = ?",
                 params![pid, v.key],
                 |r| {
                     Ok((
@@ -1676,6 +1737,9 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
                         r.get(4)?,
                         r.get(5)?,
                         r.get(6)?,
+                        r.get(7)?,
+                        r.get(8)?,
+                        r.get(9)?,
                     ))
                 },
             )
@@ -1694,17 +1758,34 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
             "PROPOSED"
         };
         let (vid, old_desc) = match &old {
-            Some((id, val, text, bbox, src, state, _)) => {
+            Some((id, val, text, bbox, src, state, _, kind, fl, conf)) => {
                 let same =
                     *val == v.value && *text == v.text && *bbox == v.bbox && *src == v.source;
+                let meta_same = *fl == flags_json && *conf == v.confidence;
                 // identical content: nothing to write (and a resend never drops an earlier confirmation)
-                if same && (state == new_state || (!v.confirm && state == "CONFIRMED")) {
+                if same
+                    && (state == new_state || (!v.confirm && state == "CONFIRMED"))
+                    && (meta_same || state == "CONFIRMED")
+                {
                     unchanged += 1;
                     continue;
                 }
+                // a person's value, a confirmed value and a corrected value are not the AI operator's to change
+                if u.kind == "agent"
+                    && (kind == "person" || state == "CONFIRMED" || state == "CORRECTED")
+                {
+                    return Err(refuse(
+                        StatusCode::CONFLICT,
+                        "person_value_protected",
+                        &format!(
+                            "'{}' of part '{pno}' was set or checked by a person (or is {state}); the AI operator does not overwrite it",
+                            v.key
+                        ),
+                    ));
+                }
                 tx.execute(
-                    "UPDATE order_values SET value = ?, text = ?, bbox_json = ?, source = ?, state = ?, was = ?, edited_by = ?, edited_at = ? WHERE id = ?",
-                    params![v.value, v.text, v.bbox, v.source, new_state, val, u.username, now() as i64, id],
+                    "UPDATE order_values SET value = ?, text = ?, bbox_json = ?, source = ?, state = ?, was = ?, edited_by = ?, edited_at = ?, flags_json = ?, confidence = ?, edited_kind = ? WHERE id = ?",
+                    params![v.value, v.text, v.bbox, v.source, new_state, val, u.username, now() as i64, flags_json, v.confidence, u.kind, id],
                 )?;
                 (*id, format!("{} [{src} {state}]", fmt_val(*val)))
             }
@@ -1725,8 +1806,8 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
                     ));
                 }
                 tx.execute(
-                    "INSERT INTO order_values(part_id, key, value, text, bbox_json, source, state, was, proposed_value, proposed_by, edited_by, edited_at) VALUES (?,?,?,?,?,?,?,NULL,?,?,?,?)",
-                    params![pid, v.key, v.value, v.text, v.bbox, v.source, new_state, v.value, u.username, u.username, now() as i64],
+                    "INSERT INTO order_values(part_id, key, value, text, bbox_json, source, state, was, proposed_value, proposed_by, edited_by, edited_at, flags_json, confidence, edited_kind) VALUES (?,?,?,?,?,?,?,NULL,?,?,?,?,?,?,?)",
+                    params![pid, v.key, v.value, v.text, v.bbox, v.source, new_state, v.value, u.username, u.username, now() as i64, flags_json, v.confidence, u.kind],
                 )?;
                 (tx.last_insert_rowid(), "none".to_string())
             }
@@ -1790,7 +1871,21 @@ async fn confirm(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw:
     settle(&app, &u, oid, "confirm", body_text(&raw, "note"), res).await
 }
 
+/// Confirming a value, with or without flags, is a person's decision; the AI operator confirms only through its
+/// own clean-reading rule in `put_values_do`.
+fn agent_cannot_confirm(u: &User, what: &str) -> Result<(), ApiError> {
+    if u.kind == "agent" {
+        return Err(refuse(
+            StatusCode::FORBIDDEN,
+            "agent_cannot_confirm",
+            &format!("the AI operator cannot {what}; a person decides"),
+        ));
+    }
+    Ok(())
+}
+
 fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
+    agent_cannot_confirm(u, "confirm values for a part or for the order")?;
     let body = request_json(headers, raw)?;
     let all = body.get("all").and_then(Value::as_bool).unwrap_or(false);
     let ids: Vec<i64> = match body.get("part_ids") {
@@ -1818,7 +1913,7 @@ fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) ->
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
-    guard_order(app, &tx, u, oid, "confirm values")?;
+    guard_order_tx(app, &tx, u, oid, "confirm values")?;
     let parts: Vec<(i64, String)> = if all {
         q_all(
             &tx,
@@ -1864,8 +1959,8 @@ fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) ->
                 continue;
             }
             tx.execute(
-                "UPDATE order_values SET state = 'CONFIRMED', edited_by = ?, edited_at = ? WHERE id = ?",
-                params![u.username, now() as i64, vid],
+                "UPDATE order_values SET state = 'CONFIRMED', edited_by = ?, edited_at = ?, edited_kind = ? WHERE id = ?",
+                params![u.username, now() as i64, u.kind, vid],
             )?;
             let did = insert_decision(
                 &tx,
@@ -1942,13 +2037,16 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
             "only a person can mark an order as checked",
         ));
     }
+    if kind == "confirm" || kind == "accept_flag" {
+        agent_cannot_confirm(u, "confirm a value or accept a flag")?;
+    }
     agent_reason(u, &reason)?;
     let agent = (u.kind == "agent").then_some(u.username.clone());
     let flag = text_field(&body, "flag", 64)?.filter(|s| !s.is_empty());
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
-    guard_order(app, &tx, u, oid, "record decision")?;
+    guard_order_tx(app, &tx, u, oid, "record decision")?;
     let mut d = NewDecision {
         order: oid,
         part: None,
@@ -2039,8 +2137,8 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
             d.flag = flag.as_deref();
         } else {
             tx.execute(
-                "UPDATE order_values SET state = 'CONFIRMED', edited_by = ?, edited_at = ? WHERE id = ?",
-                params![u.username, now() as i64, vid],
+                "UPDATE order_values SET state = 'CONFIRMED', edited_by = ?, edited_at = ?, edited_kind = ? WHERE id = ?",
+                params![u.username, now() as i64, u.kind, vid],
             )?;
             prev_state = state;
             d.prev_state = Some(&prev_state);
@@ -2090,7 +2188,7 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
-    guard_order(app, &tx, u, oid, "undo decision")?;
+    guard_order_tx(app, &tx, u, oid, "undo decision")?;
     type Row = (
         String,
         Option<i64>,
@@ -2173,8 +2271,8 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
             && value_fp(&key, val, &text, bbox.as_deref(), &src) == against
         {
             tx.execute(
-                "UPDATE order_values SET state = ?, edited_by = ?, edited_at = ? WHERE id = ?",
-                params![prev, u.username, now() as i64, vid],
+                "UPDATE order_values SET state = ?, edited_by = ?, edited_at = ?, edited_kind = ? WHERE id = ?",
+                params![prev, u.username, now() as i64, u.kind, vid],
             )?;
             recompute_part_state(&tx, pid)?;
             reverted = true;
@@ -2331,7 +2429,19 @@ fn load_compute_input(
     oid: i64,
 ) -> Result<(Vec<oc::PartIn>, oc::OrderRules, String), ApiError> {
     let head = load_order(db, oid)?;
-    let rules_v: Value = serde_json::from_str(&head.rules).unwrap_or(json!({}));
+    // stored rules that cannot be read are an error, never the default rules
+    let corrupt = || {
+        refuse(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "order_rules_corrupt",
+            "the order's stored rules are damaged and cannot be read; the compute is refused",
+        )
+    };
+    let rules_v: Value = serde_json::from_str(&head.rules).map_err(|_| corrupt())?;
+    // an object is required: null/arrays are not missing keys and must never fall back to provisional defaults
+    if !rules_v.is_object() {
+        return Err(corrupt());
+    }
     let rules = oc::OrderRules::from_json(&rules_v).map_err(|m| {
         unprocessable(
             "order_rules",
@@ -2476,7 +2586,7 @@ async fn compute_do(app: Arc<App>, u: &User, oid: i64, note: &str) -> Api {
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
-    guard_order(&app, &tx, u, oid, "compute order")?;
+    guard_order_tx(&app, &tx, u, oid, "compute order")?;
     let (_, _, now_hash) = load_compute_input(&tx, oid)?;
     if now_hash != hash {
         return Err(refuse(
@@ -2516,7 +2626,7 @@ async fn compute_do(app: Arc<App>, u: &User, oid: i64, note: &str) -> Api {
     )?;
     let id = tx.last_insert_rowid();
     tx.execute(
-        "UPDATE order_results SET state = 'SUPERSEDED' WHERE order_id = ? AND id <> ?",
+        "UPDATE order_results SET state = 'SUPERSEDED' WHERE order_id = ? AND id <> ? AND state <> 'SUPERSEDED'",
         params![oid, id],
     )?;
     app.audit(

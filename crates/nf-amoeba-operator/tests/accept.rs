@@ -28,14 +28,27 @@ static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 const ADMIN_PASS: &str = "aiop1-admin-pass-2026";
 const AGENT_PASS: &str = "aiop1-agent-pass-2026";
 
+/// The debug server this checkout builds. Unless NF_SERVER_BIN names one, the test runs `cargo build -p nf-server`
+/// itself (once; a no-op when current), so it never runs against a missing or stale server.
 fn server_bin() -> PathBuf {
     if let Some(p) = std::env::var_os("NF_SERVER_BIN") {
         return PathBuf::from(p);
     }
-    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/debug/nf-server");
+    static BUILT: std::sync::Once = std::sync::Once::new();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    BUILT.call_once(|| {
+        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+        let st = Command::new(cargo)
+            .args(["build", "--locked", "-j", "4", "-p", "nf-server"])
+            .current_dir(&root)
+            .status()
+            .expect("run cargo to build the server");
+        assert!(st.success(), "cargo build -p nf-server failed: {st}");
+    });
+    let p = root.join("target/debug/nf-server");
     assert!(
         p.is_file(),
-        "server missing at {}: cargo build -p nf-server",
+        "server missing at {} after the build",
         p.display()
     );
     p

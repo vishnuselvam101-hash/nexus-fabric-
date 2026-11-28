@@ -101,6 +101,27 @@ pub(super) fn add_agent(t: &T, name: &str) -> String {
     c
 }
 
+/// The operator events every write of the AI operator carries (one is enough for the server).
+pub(super) fn with_ev(mut body: Value) -> Value {
+    body["events"] = json!([{ "step": "type-1", "action": "type", "target": { "ui": "part-1-D" },
+        "value": null, "reason": "typed from the page", "confidence": 0.97, "flags": [] }]);
+    body
+}
+
+/// An order value the AI operator wrote and confirmed as a clean page reading (creates its own decision).
+pub(super) async fn agent_clean_read(t: &T, ac: &str, oid: i64, key: &str, v: f64, text: &str) {
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(with_ev(json!({ "values": [{ "part": "1", "key": key, "value": v, "text": text, "source": "read",
+                "flags": [], "confidence": 0.97, "confirm": true, "note": "read from the page" }] }))),
+            &[("cookie", ac)],
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+}
+
 pub(super) fn audit_details(t: &T, action: &str) -> Vec<String> {
     let db = t.app.db();
     let mut st = db
@@ -602,10 +623,16 @@ async fn l1_a_decision_is_tied_to_its_value_and_can_be_undone() {
     let v: Value = serde_json::from_slice(&v).unwrap();
     assert_eq!(
         (st, v["code"].as_str()),
-        (StatusCode::UNPROCESSABLE_ENTITY, Some("decision_reason"))
+        (StatusCode::FORBIDDEN, Some("agent_cannot_confirm"))
     );
     let (st, _, d) = t.send("POST", &dec, Some(json!({ "kind": "confirm", "part": "1", "key": "D", "reason": "in range of the standard table" })), &ac).await;
     let d: Value = serde_json::from_slice(&d).unwrap();
+    assert_eq!(
+        (st, d["code"].as_str()),
+        (StatusCode::FORBIDDEN, Some("agent_cannot_confirm"))
+    );
+    // a person confirms, under the person's identity
+    let (st, d) = t.call("POST", &dec, Some(json!({ "kind": "confirm", "part": "1", "key": "D", "reason": "in range of the standard table" }))).await;
     assert_eq!(st, StatusCode::OK, "{d}");
     let did = d["id"].as_i64().unwrap();
     assert_eq!(
@@ -615,12 +642,7 @@ async fn l1_a_decision_is_tied_to_its_value_and_can_be_undone() {
             d["source"].clone(),
             d["decided_by"].clone()
         ),
-        (
-            json!(true),
-            json!(false),
-            json!("auto"),
-            json!("operator-ai")
-        )
+        (json!(true), json!(false), json!("person"), json!("admin"))
     );
     assert!(d["decided_at"].as_i64().unwrap() > 0);
     let o = t.get(&format!("/api/orders/{oid}")).await;
@@ -734,8 +756,7 @@ async fn l1_a_decision_is_tied_to_its_value_and_can_be_undone() {
     );
     let a = audit_details(&t, "order_decision");
     assert!(
-        a.iter().any(|x| x.contains("by auto (operator-ai)"))
-            && a.iter().any(|x| x.contains("by person")),
+        a.iter().all(|x| !x.contains("by auto")) && a.iter().any(|x| x.contains("by person")),
         "{a:?}"
     );
     assert_eq!(audit_details(&t, "order_decision_undone").len(), 2);
@@ -897,26 +918,20 @@ async fn l1r1_the_source_of_a_decision_comes_from_the_identity() {
     // bulk confirm and the confirm flag of a value edit follow the identity too, and the agent must give a reason
     read_val(&t, oid, "t", 6.0, "t6").await;
     let confirm = format!("/api/orders/{oid}/confirm");
-    let (st, _, b) = t
-        .send("POST", &confirm, Some(json!({ "all": true })), &ac)
-        .await;
-    let b: Value = serde_json::from_slice(&b).unwrap();
-    assert_eq!(
-        (st, b["code"].as_str()),
-        (StatusCode::UNPROCESSABLE_ENTITY, Some("decision_reason")),
-        "{b}"
-    );
-    let (st, _, b) = t
-        .send(
-            "POST",
-            &confirm,
-            Some(json!({ "all": true, "note": "in range" })),
-            &ac,
-        )
-        .await;
-    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
-    let n = t.count("SELECT COUNT(*) FROM order_decisions WHERE source = 'auto' AND agent = 'operator-ai' AND decided_by = 'operator-ai'");
-    assert_eq!(n, 1);
+    for body in [
+        json!({ "all": true }),
+        json!({ "all": true, "note": "in range" }),
+    ] {
+        let (st, _, b) = t.send("POST", &confirm, Some(body), &ac).await;
+        let b: Value = serde_json::from_slice(&b).unwrap();
+        assert_eq!(
+            (st, b["code"].as_str()),
+            (StatusCode::FORBIDDEN, Some("agent_cannot_confirm")),
+            "{b}"
+        );
+    }
+    let n = t.count("SELECT COUNT(*) FROM order_decisions WHERE source = 'auto'");
+    assert_eq!(n, 0, "the operator made no confirmation");
     assert_eq!(
         t.count(
             "SELECT COUNT(*) FROM order_decisions WHERE source = 'person' AND decided_by = 'admin'"
@@ -1225,18 +1240,20 @@ async fn l1r1_the_ai_operator_gives_a_reason_for_every_order_write() {
         (st, code(&b)),
         (StatusCode::UNPROCESSABLE_ENTITY, json!("decision_reason"))
     );
-    read_val(&t, oid, "D", 216.3, "φ216.3").await;
-    // a decision that the operator later undoes (its own: it made this one)
+    // a decision that the operator later undoes (its own: it made this one by a clean confirmed reading)
     let dec = format!("/api/orders/{oid}/decisions");
     let (st, _, b) = t
         .send("POST", &dec, Some(json!({ "kind": "accept_flag", "part": "1", "key": "D", "flag": "f", "reason": "r" })), &ac)
         .await;
-    let d: Value = serde_json::from_slice(&b).unwrap();
-    assert_eq!(st, StatusCode::OK, "{d}");
-    let did = d["id"].as_i64().unwrap();
+    assert_eq!(
+        (st, code(&b)),
+        (StatusCode::FORBIDDEN, json!("agent_cannot_confirm"))
+    );
+    agent_clean_read(&t, &agent, oid, "D", 216.3, "φ216.3").await;
+    let did = t.count("SELECT id FROM order_decisions WHERE agent = 'operator-ai'");
     // with a reason they go through, and the parts reason is audited
     let (st, _, b) = t
-        .send("PUT", &vals, Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read", "note": "box 3" }] })), &ac)
+        .send("PUT", &vals, Some(with_ev(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read", "note": "box 3" }] }))), &ac)
         .await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
     let (st, _, b) = t
@@ -1273,7 +1290,7 @@ async fn aiop_a_confirmed_page_reading_must_be_clean_and_confident() {
         if let Some(c) = confidence {
             v["confidence"] = c;
         }
-        json!({ "values": [v] })
+        with_ev(json!({ "values": [v] }))
     };
     for (want, body) in [
         ("confirm_needs_reading_state", value(None, None)),
@@ -1323,11 +1340,19 @@ async fn aiop_a_confirmed_page_reading_must_be_clean_and_confident() {
         .find(|x| x["key"] == "D")
         .unwrap();
     assert_eq!(got["state"], json!("CONFIRMED"));
-    // a derived number is not a reading: it needs no reader state to be confirmed
+    // a derived number is not a reading: it needs no reader state to be confirmed by a person, and the AI operator
+    // may not confirm it at all (it is proposed; a person decides)
     let (st, _, b) = t
-        .send("PUT", &vals, Some(json!({ "values": [{ "part": "1", "key": "t", "value": 8.0, "text": "8", "source": "derived", "confirm": true, "note": "from the rule" }] })), &ac)
+        .send("PUT", &vals, Some(with_ev(json!({ "values": [{ "part": "1", "key": "t", "value": 8.0, "text": "8", "source": "derived", "confirm": true, "note": "from the rule" }] }))), &ac)
         .await;
-    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    assert_eq!(
+        (st, code_of(&b)),
+        (StatusCode::FORBIDDEN, json!("agent_cannot_confirm")),
+        "{}",
+        String::from_utf8_lossy(&b)
+    );
+    let (st, r) = t.call("PUT", &vals, Some(json!({ "values": [{ "part": "1", "key": "t", "value": 8.0, "text": "8", "source": "derived", "confirm": true, "note": "from the rule" }] }))).await;
+    assert_eq!(st, StatusCode::OK, "{r}");
     // flags and low confidence forbid confirmation whatever the source is called: an agent must
     // not be able to relabel a flagged reading `derived` and slip it through the boundary
     for source in ["derived", "inferred", "fixed", "auto", "entered"] {
@@ -1335,7 +1360,9 @@ async fn aiop_a_confirmed_page_reading_must_be_clean_and_confident() {
             ("value_flagged", json!(["ambiguous"]), 0.97),
             ("value_low_confidence", json!([]), 0.60),
         ] {
-            let body = json!({ "values": [{ "part": "1", "key": "t", "value": 8.0, "text": "8", "source": source, "confirm": true, "flags": flags, "confidence": confidence, "note": "relabelled" }] });
+            let body = with_ev(
+                json!({ "values": [{ "part": "1", "key": "t", "value": 8.0, "text": "8", "source": source, "confirm": true, "flags": flags, "confidence": confidence, "note": "relabelled" }] }),
+            );
             let (st, _, b) = t.send("PUT", &vals, Some(body), &ac).await;
             assert_eq!(
                 (st, code_of(&b)),
@@ -1427,13 +1454,18 @@ async fn l1r2_limit_refusals_are_audited_and_leave_no_partial_write() {
     let vals = format!("/api/orders/{oid}/values");
     let sixty4: Vec<Value> = (0..64).map(|i| json!({ "part": "p0", "key": format!("k{i:02}"), "value": 1.0, "source": "entered", "note": "fill" })).collect();
     let (st, _, b) = t
-        .send("PUT", &vals, Some(json!({ "values": sixty4 })), &ac)
+        .send(
+            "PUT",
+            &vals,
+            Some(with_ev(json!({ "values": sixty4 }))),
+            &ac,
+        )
         .await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
     let (st, _, b) = t
-        .send("PUT", &vals, Some(json!({ "values": [
+        .send("PUT", &vals, Some(with_ev(json!({ "values": [
             { "part": "p0", "key": "k00", "value": 2.0, "source": "entered", "note": "edit" },
-            { "part": "p0", "key": "extra", "value": 3.0, "source": "entered", "note": "edit" } ] })), &ac)
+            { "part": "p0", "key": "extra", "value": 3.0, "source": "entered", "note": "edit" } ] }))), &ac)
         .await;
     assert_eq!(
         (st, code_of(&b)),
@@ -1595,8 +1627,8 @@ async fn l1r2_the_write_checks_role_and_active_again_in_the_transaction() {
 async fn l1r2_an_ai_operator_undoes_only_its_own_decisions() {
     let t = boot();
     let oid = order_with_parts(&t).await;
-    let ac = add_agent(&t, "operator-ai");
-    let ac = [("cookie", ac.as_str())];
+    let agent = add_agent(&t, "operator-ai");
+    let ac = [("cookie", agent.as_str())];
     read_val(&t, oid, "D", 216.3, "φ216.3").await;
     let dec = format!("/api/orders/{oid}/decisions");
     let (st, c) = t
@@ -1609,13 +1641,9 @@ async fn l1r2_an_ai_operator_undoes_only_its_own_decisions() {
     assert_eq!(st, StatusCode::OK, "{c}");
     let person_confirm = c["id"].as_i64().unwrap();
     let checked = mark(&t, oid).await;
-    let (st, _, b) = t
-        .send("POST", &dec, Some(json!({ "kind": "accept_flag", "part": "1", "key": "D", "flag": "f", "reason": "ok" })), &ac)
-        .await;
-    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
-    let own = serde_json::from_slice::<Value>(&b).unwrap()["id"]
-        .as_i64()
-        .unwrap();
+    // the operator's own decision: a clean confirmed reading of another value
+    agent_clean_read(&t, &agent, oid, "t", 6.0, "t6").await;
+    let own = t.count("SELECT id FROM order_decisions WHERE agent = 'operator-ai'");
     for (id, what) in [
         (person_confirm, "a person's confirmation"),
         (checked, "a checked mark"),
@@ -1964,7 +1992,33 @@ async fn l10_compute_holds_missing_values_and_edits_supersede() {
             .iter()
             .all(|c| c["recompute_required"] == false)
     );
-    // a result stored by another engine is shown but marked for recompute (G21)
+    // computed results are immutable: only state -> SUPERSEDED may change
+    {
+        let db = t.app.db();
+        for sql in [
+            "UPDATE order_results SET result_json = '{}' WHERE id = 1",
+            "UPDATE order_results SET input_hash = 'x' WHERE id = 1",
+            "UPDATE order_results SET supersedes = 99 WHERE id = 2",
+            "UPDATE order_results SET state = 'CURRENT' WHERE id = 1",
+            "UPDATE order_results SET state = 'SUPERSEDED', result_json = '{}' WHERE id = 4",
+        ] {
+            assert!(db.execute(sql, []).is_err(), "{sql}");
+        }
+        assert!(
+            db.execute(
+                "UPDATE order_results SET state = 'SUPERSEDED' WHERE id = 4",
+                []
+            )
+            .is_ok()
+        );
+        db.execute(
+            "UPDATE order_results SET state = 'CURRENT' WHERE id = 4",
+            [],
+        )
+        .expect_err("a superseded result cannot be revived");
+    }
+    // a result stored by another engine is shown but marked for recompute (G21); the test simulates the old build
+    t.sql("DROP TRIGGER order_results_immutable");
     t.sql("UPDATE order_results SET engine = 'nf-engine 0.4.12+src.0000000000000000' WHERE id = 1");
     let chain = t.get(&format!("/api/orders/{oid}/compute")).await;
     assert_eq!(chain["chain"][0]["recompute_required"], true);
@@ -2036,4 +2090,49 @@ async fn l10_a_held_part_gets_no_dxf_and_the_rules_come_from_the_order() {
         .await;
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
     assert_eq!(v["code"], "order_rules");
+    // stored rules that are not even JSON are refused, never replaced by the defaults; the refusal is audited
+    let refusals_before = audit_details(&t, "order_refused").len();
+    t.sql(&format!(
+        "UPDATE orders SET rules_json = 'not json {{' WHERE id = {oid}"
+    ));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
+    assert_eq!(v["code"], "order_rules_corrupt");
+    let refusals = audit_details(&t, "order_refused");
+    assert_eq!(refusals.len(), refusals_before + 1, "{refusals:?}");
+    assert!(
+        refusals.last().unwrap().contains("order_rules_corrupt"),
+        "{refusals:?}"
+    );
+    // null/array rules are not an empty object: silently taking the defaults is refused and audited too
+    for corrupt in ["null", "[]"] {
+        t.sql(&format!(
+            "UPDATE orders SET rules_json = '{corrupt}' WHERE id = {oid}"
+        ));
+        let (st, v) = t
+            .call(
+                "POST",
+                &format!("/api/orders/{oid}/compute"),
+                Some(json!({})),
+            )
+            .await;
+        assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
+        assert_eq!(v["code"], "order_rules_corrupt", "{v}");
+        let refusals = audit_details(&t, "order_refused");
+        assert_eq!(
+            refusals.len(),
+            refusals_before + 2 + (corrupt == "[]") as usize,
+            "{refusals:?}"
+        );
+        assert!(
+            refusals.last().unwrap().contains("order_rules_corrupt"),
+            "{refusals:?}"
+        );
+    }
 }

@@ -143,13 +143,46 @@ pub struct UnitState {
     pub written: bool,
 }
 
+/// Mirrors the server's AGENT_CONFIRM_MIN_CONFIDENCE: below it a reading is only proposed.
+const AGENT_CONFIRM_MIN_CONFIDENCE: f64 = 0.85;
+
 pub struct Ctx<'a> {
     pub hands: &'a mut dyn Hands,
     pub eyes: &'a mut dyn Eyes,
     pub manifest: &'a Manifest,
     pub pages: BTreeMap<i64, PageRead>,
     pub units: BTreeMap<String, UnitState>,
+    /// Extension slot: a tool that needs state of its own (a CAD tool's canvas, entity table or view) keeps it here,
+    /// keyed by its type, so a new tool family plugs in without any change to the loop or to `Ctx`.
+    pub ext: Extensions,
     counter: u64,
+}
+
+/// Typed per-run state for tools that are not part of the drawing-reading core. One value per type.
+#[derive(Default)]
+pub struct Extensions(BTreeMap<std::any::TypeId, Box<dyn std::any::Any>>);
+
+impl Extensions {
+    /// Store `v`, replacing and returning an earlier value of the same type.
+    pub fn insert<T: 'static>(&mut self, v: T) -> Option<T> {
+        self.0
+            .insert(std::any::TypeId::of::<T>(), Box::new(v))
+            .and_then(|b| b.downcast().ok().map(|b| *b))
+    }
+    pub fn get<T: 'static>(&self) -> Option<&T> {
+        self.0.get(&std::any::TypeId::of::<T>())?.downcast_ref()
+    }
+    pub fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.0.get_mut(&std::any::TypeId::of::<T>())?.downcast_mut()
+    }
+    /// The value of type `T`, created with `make` the first time a tool asks for it.
+    pub fn get_or_insert_with<T: 'static>(&mut self, make: impl FnOnce() -> T) -> &mut T {
+        self.0
+            .entry(std::any::TypeId::of::<T>())
+            .or_insert_with(|| Box::new(make()))
+            .downcast_mut()
+            .expect("extension slot holds its own type")
+    }
 }
 
 impl Ctx<'_> {
@@ -391,9 +424,13 @@ fn tool_write(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
     let mut values = Vec::new();
     let mut shown = Vec::new();
     for f in &asg.fills {
-        // a flagged reading is never confirmed, whatever its status says
-        let confirm = f.status == Status::Confirmed && f.flags.is_empty();
+        // The server lets the operator confirm only a clean reading of the page: a plain number (source "read"),
+        // no flags, confidence at or above the server's threshold. Anything else is proposed for a person.
         let plain = assign::mark_of(&f.text) == assign::Mark::Plain;
+        let confirm = f.status == Status::Confirmed
+            && f.flags.is_empty()
+            && plain
+            && f64::from(f.confidence) >= AGENT_CONFIRM_MIN_CONFIDENCE;
         let source = if plain { "read" } else { "derived" };
         let (note, reason_key, reason_args) = if confirm {
             (
@@ -407,10 +444,14 @@ fn tool_write(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
         } else {
             (
                 format!(
-                    "proposed from '{}' on page {}: flagged ({}), a person must check it",
+                    "proposed from '{}' on page {}: {}, a person must check it",
                     f.text,
                     f.page,
-                    f.flags.join(", ")
+                    if f.flags.is_empty() {
+                        "not a clean page reading".to_string()
+                    } else {
+                        format!("flagged ({})", f.flags.join(", "))
+                    }
                 ),
                 "op.reason.proposed",
                 json!({ "text": f.text, "page": f.page, "flags": f.flags.join(", ") }),
@@ -729,6 +770,7 @@ pub fn run(
         manifest,
         pages: BTreeMap::new(),
         units,
+        ext: Extensions::default(),
         counter: 0,
     };
     let (mut actions, mut sent, mut errors) = (0usize, 0usize, Vec::new());
@@ -786,4 +828,33 @@ pub fn run(
         errors,
         units: ctx.units.into_values().collect(),
     })
+}
+
+#[cfg(test)]
+mod ext_tests {
+    use super::Extensions;
+
+    #[derive(Default, Debug, PartialEq)]
+    struct CadCanvas {
+        entities: Vec<String>,
+    }
+
+    #[test]
+    fn a_tool_keeps_its_own_state_without_touching_the_loop() {
+        let mut ext = Extensions::default();
+        assert!(ext.get::<CadCanvas>().is_none());
+        ext.get_or_insert_with(CadCanvas::default)
+            .entities
+            .push("line-1".into());
+        ext.get_or_insert_with(CadCanvas::default)
+            .entities
+            .push("line-2".into());
+        assert_eq!(ext.get::<CadCanvas>().unwrap().entities.len(), 2);
+        // another type is a separate slot
+        assert_eq!(ext.insert(7u32), None);
+        assert_eq!(ext.insert(8u32), Some(7));
+        assert_eq!(ext.get::<u32>(), Some(&8));
+        ext.get_mut::<CadCanvas>().unwrap().entities.clear();
+        assert!(ext.get::<CadCanvas>().unwrap().entities.is_empty());
+    }
 }

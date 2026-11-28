@@ -6,6 +6,17 @@
 //! A person can pause and resume the operator and undo what it typed, last first. The operator cannot resume
 //! itself and cannot undo. Nothing here approves or releases anything.
 //!
+//! What the operator may decide (server side, not on its word): it may set CONFIRMED only for a value read from
+//! the page (a READ source) with no flags and confidence >= AGENT_CONFIRM_MIN_CONFIDENCE; /confirm, a decision
+//! `confirm` and `accept_flag` are a person's (403 agent_cannot_confirm); it does not overwrite a value last
+//! edited by a person or in state CONFIRMED/CORRECTED (409 person_value_protected); every value write carries
+//! at least one event (422 operator_event_required). Flags, confidence and who edited last are stored per value.
+//!
+//! Pause in flight: every write of the operator re-reads the pause inside the transaction that writes. A write
+//! that committed before the pause landed is complete (values and events commit together, so it is replayable and
+//! undoable); a write that starts after it is refused (409 operator_paused) and rolled back whole. A pause never
+//! interrupts a transaction half way.
+//!
 //! The schema is open for new kinds of work: `action` is any lower-case word, `target` names exactly one of a
 //! drawing page box, a UI element or a CAD canvas point/entity, and `tool` names the registry entry that made
 //! the call. A later CAD tool adds a tool name and `cad` targets; the server, the audit and the cursor do not change.
@@ -289,7 +300,7 @@ fn post_events_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
-    guard_order(app, &tx, u, oid, "operator events")?;
+    guard_order_tx(app, &tx, u, oid, "operator events")?;
     let (first_seq, last_seq) = store_events(app, &tx, u, oid, &events)?;
     tx.commit()?;
     ok(json!({ "stored": events.len(), "first_seq": first_seq, "last_seq": last_seq }))
@@ -351,7 +362,7 @@ async fn set_paused(app: Arc<App>, headers: HeaderMap, oid: i64, raw: Bytes, pau
         let mut db = app.db();
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         still_writer(&tx, &u)?;
-        guard_order(&app, &tx, &u, oid, "pause operator")?;
+        guard_order_tx(&app, &tx, &u, oid, "pause operator")?;
         tx.execute(
             "INSERT INTO operator_state(order_id, paused, by_user, at) VALUES (?,?,?,?) ON CONFLICT(order_id) DO UPDATE SET paused = excluded.paused, by_user = excluded.by_user, at = excluded.at",
             params![oid, paused as i64, u.username, now() as i64],
@@ -393,7 +404,7 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
-    guard_order(app, &tx, u, oid, "undo operator")?;
+    guard_order_tx(app, &tx, u, oid, "undo operator")?;
     let writes = q_all(
         &tx,
         "SELECT seq, event_json, created_by FROM operator_events WHERE order_id = ? AND undone_at IS NULL AND json_extract(event_json, '$.write_ref') IS NOT NULL AND seq >= ? ORDER BY seq DESC",
@@ -458,8 +469,8 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
         }
         let state = if was.is_some() { "PROPOSED" } else { "MISSING" };
         tx.execute(
-            "UPDATE order_values SET value = ?, state = ?, was = NULL, edited_by = ?, edited_at = ? WHERE id = ?",
-            params![was, state, u.username, now() as i64, vid],
+            "UPDATE order_values SET value = ?, state = ?, was = NULL, edited_by = ?, edited_at = ?, edited_kind = ? WHERE id = ?",
+            params![was, state, u.username, now() as i64, u.kind, vid],
         )?;
         tx.execute(
             "UPDATE order_decisions SET undone_by = ?, undone_at = ?, undo_note = ? WHERE value_id = ? AND undone_at IS NULL AND kind = 'confirm'",

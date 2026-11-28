@@ -12,12 +12,14 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// 8: `operator_events` and `operator_state` (the AI operator's event stream, pause; AIOP-1), on top of 7.
+/// 9: `operator_events`, `operator_state` and the `order_values` source/flags/confidence/edited-by columns (the AI
+/// operator; AIOP-1), on top of 8.
+/// 8: `order_results_immutable` trigger (only state -> SUPERSEDED may change), on top of 7.
 /// 7: `order_results` (the supersede chain of order computes, NFJ-1 L10), on top of 6.
 /// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns). Rollback to an older build
 /// is a restore of the pre-update backup: an older program refuses a newer schema (see the check below) and does not
 /// undo the migration.
-pub const SCHEMA_VERSION: i64 = 8;
+pub const SCHEMA_VERSION: i64 = 9;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
@@ -49,7 +51,7 @@ CREATE TABLE IF NOT EXISTS order_decisions(id INTEGER PRIMARY KEY, order_id INTE
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 15] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 18] = [
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
@@ -75,6 +77,15 @@ const ADDED_COLUMNS: [(&str, &str, &str); 15] = [
     ("users", "must_change", "INTEGER NOT NULL DEFAULT 0"),
     // NFJ-1: "person" or "agent" (the AI operator's service identity); decides the source of an order decision.
     ("users", "kind", "TEXT NOT NULL DEFAULT 'person'"),
+    // AIOP-1 (schema 9): what the writer said about a reading (reader flags, confidence) and whether the last
+    // edit was a person's ("person") or the AI operator's ("agent"). The server decides on these, not on a caller.
+    ("order_values", "flags_json", "TEXT NOT NULL DEFAULT '[]'"),
+    ("order_values", "confidence", "REAL"),
+    (
+        "order_values",
+        "edited_kind",
+        "TEXT NOT NULL DEFAULT 'person'",
+    ),
 ];
 
 /// Append-only at the database level (RC-20). Created at every start, so an older database gets them too.
@@ -88,6 +99,7 @@ CREATE TRIGGER IF NOT EXISTS amoeba_no_delete BEFORE DELETE ON amoeba_digests BE
 CREATE TRIGGER IF NOT EXISTS order_results_no_delete BEFORE DELETE ON order_results BEGIN SELECT RAISE(ABORT, 'computed results are kept; a new compute supersedes them'); END;
 CREATE TRIGGER IF NOT EXISTS operator_events_no_delete BEFORE DELETE ON operator_events BEGIN SELECT RAISE(ABORT, 'operator events are kept; undo marks them undone'); END;
 CREATE TRIGGER IF NOT EXISTS operator_events_no_edit BEFORE UPDATE OF order_id, seq, event_json, created_by, created_at ON operator_events BEGIN SELECT RAISE(ABORT, 'operator events are kept as written'); END;
+CREATE TRIGGER IF NOT EXISTS order_results_immutable BEFORE UPDATE ON order_results WHEN NOT (NEW.state = 'SUPERSEDED' AND NEW.id IS OLD.id AND NEW.order_id IS OLD.order_id AND NEW.input_hash IS OLD.input_hash AND NEW.engine IS OLD.engine AND NEW.supersedes IS OLD.supersedes AND NEW.result_json IS OLD.result_json AND NEW.counts_json IS OLD.counts_json AND NEW.created_by IS OLD.created_by AND NEW.created_at IS OLD.created_at) BEGIN SELECT RAISE(ABORT, 'computed results are immutable; only SUPERSEDED may be set'); END;
 CREATE TRIGGER IF NOT EXISTS order_decisions_no_delete BEFORE DELETE ON order_decisions BEGIN SELECT RAISE(ABORT, 'decisions are kept; undo marks them undone'); END;
 ";
 

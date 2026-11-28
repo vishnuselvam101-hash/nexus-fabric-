@@ -1,6 +1,6 @@
 //! End-to-end: starts the real `nf-server` in desktop mode on a loopback port of 8825-8829, creates the first
 //! administrator and a project through the API, then drives the bridge binary over stdin and stdout.
-//! Needs the release server: `cargo build --release -p nf-server -p nf-pdf` (or set NF_SERVER_BIN).
+//! Builds the release server itself on first use (or set NF_SERVER_BIN to use a given one).
 //! Run with: `timeout 900 nf-sandbox cargo test -p nf-amoeba-agent --locked --test session`.
 
 use nf_amoeba_agent::http::{Reply, Request, Tcp, Transport};
@@ -16,14 +16,41 @@ static SESSION_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 const ADMIN_PASS: &str = "amb5t-admin-pass-2026";
 const AGENT_PASS: &str = "amb5t-agent-pass-2026";
 
+/// The release server this checkout builds. Unless NF_SERVER_BIN names one, the test runs
+/// `cargo build --release -p nf-server -p nf-pdf` itself (once; a no-op when the binary is current), so the test
+/// never runs against a missing or stale server.
 fn server_bin() -> PathBuf {
     if let Some(p) = std::env::var_os("NF_SERVER_BIN") {
         return PathBuf::from(p);
     }
-    let p = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/release/nf-server");
+    static BUILT: std::sync::Once = std::sync::Once::new();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    BUILT.call_once(|| {
+        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+        let st = Command::new(cargo)
+            .args([
+                "build",
+                "--release",
+                "--locked",
+                "-j",
+                "4",
+                "-p",
+                "nf-server",
+                "-p",
+                "nf-pdf",
+            ])
+            .current_dir(&root)
+            .status()
+            .expect("run cargo to build the release server");
+        assert!(
+            st.success(),
+            "cargo build --release -p nf-server -p nf-pdf failed: {st}"
+        );
+    });
+    let p = root.join("target/release/nf-server");
     assert!(
         p.is_file(),
-        "release server missing at {}: build it with cargo build --release -p nf-server -p nf-pdf",
+        "release server missing at {} after the build",
         p.display()
     );
     p
