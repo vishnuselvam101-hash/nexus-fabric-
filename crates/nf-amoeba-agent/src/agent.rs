@@ -218,16 +218,27 @@ impl<T: Transport> Agent<T> {
             }
             "order_put_values" => {
                 let o = int(a, "order")?;
-                let body = json!({ "values": a["values"] });
+                let mut body = json!({ "values": a["values"] });
+                if let Some(events) = a.get("events") {
+                    body["events"] = (*events).clone();
+                }
                 self.send_json("PUT", &format!("/api/orders/{o}/values"), body)
             }
             "order_compute" => {
                 let o = int(a, "order")?;
-                self.send_json("POST", &format!("/api/orders/{o}/compute"), json!({ "note": a["reason"] }))
+                self.send_json(
+                    "POST",
+                    &format!("/api/orders/{o}/compute"),
+                    json!({ "note": a["reason"] }),
+                )
             }
             "order_post_events" => {
                 let o = int(a, "order")?;
-                self.send_json("POST", &format!("/api/orders/{o}/operator/events"), json!({ "events": a["events"] }))
+                self.send_json(
+                    "POST",
+                    &format!("/api/orders/{o}/operator/events"),
+                    json!({ "events": a["events"] }),
+                )
             }
             "order_poll_events" => {
                 let o = int(a, "order")?;
@@ -386,7 +397,12 @@ impl<T: Transport> Agent<T> {
         self.engine = v["engine"].as_str().map(str::to_string);
     }
 
-    fn send_json(&mut self, method: &'static str, path: &str, body: Value) -> Result<Value, String> {
+    fn send_json(
+        &mut self,
+        method: &'static str,
+        path: &str,
+        body: Value,
+    ) -> Result<Value, String> {
         let r = self.raw(method, path, json_headers(), body.to_string().into_bytes())?;
         answer(&r)
     }

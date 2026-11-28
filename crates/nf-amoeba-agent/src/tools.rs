@@ -209,9 +209,10 @@ pub fn definitions() -> Vec<Value> {
         ),
         def(
             "order_put_values",
-            "Set values of parts. Each value has part, key, value, text, bbox, source and a note (the reason). A value that carries a reader flag must not be sent with confirm true.",
+            "Set values of parts. Each value has part, key, value, text, bbox, source, flags, confidence and a note (the reason). A flagged or low-confidence reading is never confirmed. An agent may send its type events here so values and events commit together.",
             obj(
-                json!({ "order": id("Order id."), "values": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Values: part, key, value, text, bbox, source, confirm, note." } }),
+                json!({ "order": id("Order id."), "values": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Values: part, key, value, text, bbox, source, flags, confidence, confirm, note." },
+                        "events": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Optional operator type events, stored in the same transaction as the values." } }),
                 &["order", "values"],
             ),
         ),

@@ -11,7 +11,7 @@
 //   { cad: { canvas?, entity? } }  a CAD canvas point and/or an entity id (resolved by the host: options.cad)
 // An action word this file does not know is shown as a plain pointing step, so new tool kinds need no change here.
 
-import { t } from './i18n.js';
+import { lang, t } from './i18n.js';
 
 const KNOWN = ['look', 'point', 'click', 'type', 'compute', 'ask'];
 const prefersReduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -92,7 +92,17 @@ export function createCursor(options = {}) {
     layer.classList.toggle('op-flagged', Array.isArray(ev.flags) && ev.flags.length > 0);
     layer.classList.toggle('op-ask', action === 'ask');
     act.textContent = t(`op.action.${action}`);
-    why.textContent = String(ev.reason || '');
+    let reason = String(ev.reason || '');
+    if (typeof ev.reason_key === 'string' && ev.reason_key) {
+      const args = ev.reason_args && typeof ev.reason_args === 'object' ? ev.reason_args : {};
+      // A question carries its own Japanese wording in the event; the other reasons use the catalogue.
+      if (ev.reason_key === 'op.reason.question' && lang() === 'ja' && typeof args.ja === 'string' && args.ja) {
+        reason = args.ja;
+      } else {
+        reason = t(ev.reason_key, args);
+      }
+    }
+    why.textContent = reason;
     const bits = [];
     if (typeof ev.confidence === 'number') bits.push(`${t('op.confidence')} ${Math.round(ev.confidence * 100)}%`);
     if (ev.flags && ev.flags.length) bits.push(`${t('op.flagged')}: ${ev.flags.join(', ')}`);

@@ -7,22 +7,40 @@ use nf_core::assign::{BomRow, Reading};
 
 /// Row of the list: reading indices (left to right) of its numbers.
 pub fn table_rows(readings: &[Reading], width: f32, height: f32) -> Vec<Vec<usize>> {
-    let mut cand: Vec<usize> = (0..readings.len())
+    let cand: Vec<usize> = (0..readings.len())
         .filter(|&i| readings[i].bbox[0] >= 0.4 * width && readings[i].bbox[1] >= 0.4 * height)
         .collect();
-    cand.sort_by(|&a, &b| readings[a].bbox[1].total_cmp(&readings[b].bbox[1]));
+    // The reader's boxes are taller on large sheets, and the baseline of a cell can sit a few pixels above
+    // its neighbour. A row is therefore a run of readings whose vertical centres are closer together than
+    // a scale derived from the boxes on this page. A fixed per-reading tolerance splits one row into two
+    // on A3 sheets; an unbounded tolerance merges two list rows into one.
+    if cand.is_empty() {
+        return Vec::new();
+    }
+    let mut centres: Vec<(f64, usize)> = cand
+        .iter()
+        .map(|&i| {
+            let r = &readings[i];
+            (((r.bbox[1] + r.bbox[3]) / 2.0) as f64, i)
+        })
+        .collect();
+    centres.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let mut heights: Vec<f64> = cand
+        .iter()
+        .map(|&i| (readings[i].bbox[3] - readings[i].bbox[1]) as f64)
+        .collect();
+    heights.sort_by(|a, b| a.total_cmp(b));
+    let scale = heights[heights.len() / 2].max(16.0);
+    let gap_limit = 1.2 * scale;
     let mut rows: Vec<Vec<usize>> = Vec::new();
-    for i in cand {
-        let r = &readings[i];
-        let cy = (r.bbox[1] + r.bbox[3]) / 2.0;
-        let tol = (r.bbox[3] - r.bbox[1]).max(4.0) * 0.6;
-        match rows.last_mut() {
-            Some(row) if {
-                let f = &readings[row[0]];
-                ((f.bbox[1] + f.bbox[3]) / 2.0 - cy).abs() <= tol
-            } => row.push(i),
-            _ => rows.push(vec![i]),
+    let mut last = f64::NAN;
+    for (cy, i) in centres {
+        if rows.is_empty() || cy - last > gap_limit {
+            rows.push(vec![i]);
+        } else {
+            rows.last_mut().unwrap().push(i);
         }
+        last = cy;
     }
     let mut rows: Vec<Vec<usize>> = rows.into_iter().filter(|r| r.len() >= 4).collect();
     for r in &mut rows {
@@ -43,14 +61,14 @@ fn decimals(text: &str) -> u32 {
 pub fn bom_rows(readings: &[Reading], rows: &[Vec<usize>], parts: &[String]) -> Vec<BomRow> {
     rows.iter()
         .zip(parts)
-        .filter_map(|(row, part)| {
+        .map(|(row, part)| {
             let (w, h) = (&readings[row[row.len() - 2]], &readings[row[row.len() - 1]]);
-            Some(BomRow {
+            BomRow {
                 part: part.clone(),
                 width: w.value,
                 height: h.value,
                 decimals: decimals(&w.text).max(decimals(&h.text)),
-            })
+            }
         })
         .collect()
 }
@@ -63,7 +81,10 @@ mod tests {
         Reading {
             id,
             text: text.into(),
-            value: text.trim_start_matches(|c: char| !c.is_ascii_digit()).parse().unwrap_or(0.0),
+            value: text
+                .trim_start_matches(|c: char| !c.is_ascii_digit())
+                .parse()
+                .unwrap_or(0.0),
             page: 1,
             bbox: [x, y, x + 50.0, y + 14.0],
             confidence: 0.99,
@@ -86,6 +107,9 @@ mod tests {
         let rows = table_rows(&rs, 1766.0, 1249.0);
         assert_eq!(rows, vec![vec![2, 3, 4, 5]]);
         let bom = bom_rows(&rs, &rows, &["shell".to_string()]);
-        assert_eq!((bom[0].width, bom[0].height, bom[0].decimals), (945.6, 2372.5, 1));
+        assert_eq!(
+            (bom[0].width, bom[0].height, bom[0].decimals),
+            (945.6, 2372.5, 1)
+        );
     }
 }

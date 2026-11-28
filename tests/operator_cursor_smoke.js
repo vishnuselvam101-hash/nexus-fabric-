@@ -22,11 +22,11 @@ const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>
 <div data-op-cad id="cad"></div><script type="module" src="/demo.js"></script></body></html>`;
 const DEMO_CSS = '#pg{position:absolute;left:100px;top:80px;width:500px;height:350px;border:1px solid #888}#compute-btn{position:absolute;left:700px;top:500px}#part-1-r_dev{position:absolute;left:700px;top:100px}#cad{position:absolute;left:100px;top:480px;width:300px;height:150px}';
 const DEMO_JS = `import { createCursor } from '/js/operator-cursor.js';
-import { setLang } from '/js/i18n.js';
+import { setLang, t } from '/js/i18n.js';
 const q = new URLSearchParams(location.search);
 setLang(q.get('lang') || 'en');
 const c = createCursor({ reduced: q.get('reduced') === '1', cad: (t) => { const r = document.getElementById('cad').getBoundingClientRect(); const [x, y] = t.canvas || [0, 0]; return new DOMRect(r.left + x, r.top + y, 1, 1); } });
-window.cursor = c; window.shown = [];
+window.cursor = c; window.shown = []; window.t = t;
 window.run = async (events) => { c.opts = events; await c.play(events); window.done = true; };
 document.addEventListener('opshow', (e) => window.shown.push(e.detail));
 `;
@@ -83,7 +83,15 @@ async function once(browser, port, lang, reduced) {
   const typed = s.find((x) => x.action === 'type');
   const typedEv = STREAM.find((e) => e.action === 'type');
   check(`${tag}: the typed value shows in the chip`, typed && typed.chip === String(typedEv.value), typed && typed.chip);
-  check(`${tag}: the reason is shown`, s.every((x, i) => x.why === STREAM[i].reason));
+  const expectedWhy = await page.evaluate((events) => events.map((e) => (
+    e.reason_key && e.reason_args && window.t ? window.t(e.reason_key, e.reason_args) : String(e.reason || '')
+  )), STREAM);
+  if (lang === 'ja') {
+    STREAM.forEach((e, i) => {
+      if (e.reason_key === 'op.reason.question' && e.reason_args && e.reason_args.ja) expectedWhy[i] = e.reason_args.ja;
+    });
+  }
+  check(`${tag}: the reason follows the language`, s.every((x, i) => x.why === expectedWhy[i]), s.map((x, i) => x.why === expectedWhy[i] ? '' : `${i}:${x.why}`).filter(Boolean).join(' | '));
   const flaggedIdx = STREAM.findIndex((e) => e.flags && e.flags.length);
   check(`${tag}: a flagged step is marked`, flaggedIdx < 0 || s[flaggedIdx].cls.includes('op-flagged'));
   const askIdx = STREAM.findIndex((e) => e.action === 'ask');

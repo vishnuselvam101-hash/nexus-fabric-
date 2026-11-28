@@ -53,6 +53,8 @@ pub struct Parsed {
 #[derive(Clone, Debug)]
 pub struct Tok {
     pub chars: Vec<Ch>,
+    /// True when this token came from splitting glued callouts: both halves are only proposed.
+    pub split_callout: bool,
 }
 
 impl Tok {
@@ -73,25 +75,44 @@ impl Tok {
 pub fn tokens(chars: &[Ch]) -> Vec<Tok> {
     let mut out: Vec<Tok> = Vec::new();
     let mut cur: Vec<Ch> = Vec::new();
-    for c in chars {
+    let mut cur_split = false;
+    for (i, c) in chars.iter().enumerate() {
         let g = c.glyph.as_str();
         if g == " " {
             if !cur.is_empty() {
                 out.push(Tok {
                     chars: std::mem::take(&mut cur),
+                    split_callout: cur_split,
                 });
+                cur_split = false;
             }
             continue;
         }
-        if g == "±" && !cur.is_empty() {
+        // Two callouts can come back in one box ("±0.5e25.0"). Only the eccentricity prefix and
+        // the tolerance sign are safe to split on: `x` would turn a sheet note "100x50x5" into an
+        // invented unflagged dimension 100. Both halves of a split stay flagged as proposed.
+        let new_prefix = g == "e"
+            && !cur.is_empty()
+            && cur
+                .last()
+                .is_some_and(|p| p.glyph.chars().next().is_some_and(|c| c.is_ascii_digit()))
+            && chars
+                .get(i + 1)
+                .is_some_and(|n| n.glyph.chars().next().is_some_and(|c| c.is_ascii_digit()));
+        if (g == "±" && !cur.is_empty()) || new_prefix {
             out.push(Tok {
                 chars: std::mem::take(&mut cur),
+                split_callout: true,
             });
+            cur_split = true;
         }
         cur.push(c.clone());
     }
     if !cur.is_empty() {
-        out.push(Tok { chars: cur });
+        out.push(Tok {
+            chars: cur,
+            split_callout: cur_split,
+        });
     }
     let mut glued: Vec<Tok> = Vec::new();
     for t in out {
@@ -103,6 +124,7 @@ pub fn tokens(chars: &[Ch]) -> Vec<Tok> {
             let b_digits = tt.chars().take(3).all(|c| c.is_ascii_digit()) && tt.len() <= 3;
             if a_open && b_digits {
                 prev.chars.extend(t.chars);
+                prev.split_callout |= t.split_callout;
                 continue;
             }
         }
@@ -170,6 +192,17 @@ pub fn parse(raw: &str) -> Option<Parsed> {
         .collect();
     // A stripped or added leading dot or sign is not known to be right: the item is flagged ambiguous.
     let mut lead_repair = false;
+    // `e18.00` is read `Ie18.00` when the small prefix is split into two strokes.
+    if s.len() > 2 && matches!(s[0], 'I' | 'l' | '1') && is_prefix(s[1]) && s[2].is_ascii_digit() {
+        s.remove(0);
+        lead_repair = true;
+    }
+    // `φ430.00` is read `0430.00` when the diameter sign is lost; a leading zero in front of
+    // at least two more digits is not a drawing dimension, so treat it as the missing sign.
+    if s.len() > 3 && s[0] == '0' && s[1].is_ascii_digit() && s[2].is_ascii_digit() {
+        s[0] = 'φ';
+        lead_repair = true;
+    }
     // ".5", "-.5", "+.5": the missing zero is put back, so the value is 0.5 and not 5
     let at = usize::from(matches!(s.first(), Some('+' | '-')));
     if s.get(at) == Some(&'.') && s.get(at + 1).is_some_and(char::is_ascii_digit) {
@@ -241,6 +274,29 @@ pub fn parse(raw: &str) -> Option<Parsed> {
     let mut ambiguous = stroke_sign || lead_repair;
     let mut forced: Option<Option<f64>> = None;
     let mut core: Vec<char> = span.clone();
+    if core.iter().filter(|c| **c == '.').count() == 2 {
+        // A tolerance sign the recogniser missed glues the tolerance to the number ("207.00" and
+        // "1.2" become "207.001.2"). Keep the leading two decimals, the dimension on the drawing.
+        // A dotted date has a four-digit year and is left alone.
+        if let Some(first) = core.iter().position(|c| *c == '.') {
+            if first <= 3 {
+                let tail: Vec<char> = core[first + 1..]
+                    .iter()
+                    .copied()
+                    .filter(|c| c.is_ascii_digit())
+                    .collect();
+                if tail.len() >= 3 && tail.iter().all(char::is_ascii_digit) {
+                    let mut kept: Vec<char> = core[..=first].to_vec();
+                    kept.extend_from_slice(&tail[..2]);
+                    let kept_s: String = kept.iter().collect();
+                    if kept_s.parse::<f64>().is_ok() {
+                        core = kept;
+                        ambiguous = true;
+                    }
+                }
+            }
+        }
+    }
     if ends_ok && span.iter().any(|c| matches!(c, ':' | ';')) {
         // ':' / ';' becomes a decimal point only when it clearly is one: the only separator, 3 or
         // more digits before it (so not a scale 1:2 or a time 12:30), 1-2 digits after it.
@@ -367,8 +423,46 @@ mod tests {
         assert_eq!(p("405,00").unwrap().0, "405.00");
         assert_eq!(p("1467:12").unwrap().0, "1467.12");
         assert_eq!(p("p285.0").unwrap().0, "φ285.0");
+        assert_eq!(p("Ie18.00").unwrap().0, "e18.00");
+        assert_eq!(p("0430.00").unwrap().0, "φ430.00");
+        assert_eq!(p("207.001.2").unwrap().0, "207.00");
+        assert!(parse("Ie18.00").unwrap().ambiguous);
+        assert!(parse("0430.00").unwrap().ambiguous);
         assert!(parse("p285.0").unwrap().repaired);
         assert!(!parse("285.0").unwrap().repaired);
+    }
+
+    #[test]
+    fn callouts_glued_after_a_tolerance_are_split() {
+        let ch = |g: &str| Ch {
+            glyph: g.into(),
+            step: g.len(),
+            prob: 0.99,
+        };
+        let line: Vec<Ch> = "p175.0 ±0.5e25.0"
+            .split(' ')
+            .flat_map(|part| part.chars().map(|c| ch(&c.to_string())))
+            .collect();
+        let parsed = tokens(&line);
+        let t: Vec<String> = parsed.iter().map(|t| t.text()).collect();
+        assert_eq!(t, ["p175.0", "±0.5", "e25.0"]);
+        assert!(parsed.iter().all(|t| t.split_callout));
+    }
+
+    #[test]
+    fn multiplication_note_is_not_split_into_an_unflagged_dimension() {
+        let ch = |g: &str| Ch {
+            glyph: g.into(),
+            step: g.len(),
+            prob: 0.99,
+        };
+        let line: Vec<Ch> = "100x50x5".chars().map(|c| ch(&c.to_string())).collect();
+        let parsed = tokens(&line);
+        assert_eq!(
+            parsed.iter().map(|t| t.text()).collect::<Vec<_>>(),
+            ["100x50x5"]
+        );
+        assert!(!parsed[0].split_callout);
     }
 
     #[test]

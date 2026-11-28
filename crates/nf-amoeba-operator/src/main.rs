@@ -30,20 +30,43 @@ fn main() -> ExitCode {
         eprintln!("{USAGE}");
         return ExitCode::from(2);
     };
-    let (Ok(user), Ok(pass)) = (std::env::var("NF_AGENT_USER"), std::env::var("NF_AGENT_PASS")) else {
+    let (Ok(user), Ok(pass)) = (
+        std::env::var("NF_AGENT_USER"),
+        std::env::var("NF_AGENT_PASS"),
+    ) else {
         eprintln!("nf-operator: set NF_AGENT_USER and NF_AGENT_PASS");
         return ExitCode::from(2);
     };
     let result = (|| -> Result<String, String> {
-        let m: serde_json::Value = serde_json::from_slice(&std::fs::read(&manifest).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        let m: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&manifest).map_err(|e| e.to_string())?)
+                .map_err(|e| e.to_string())?;
         let m = Manifest::from_json(&m)?;
         let log = StepLog::open(&steps).map_err(|e| e.to_string())?;
-        let mut agent = Agent::new(Tcp { host: "127.0.0.1".into(), port }, log);
+        let mut agent = Agent::new(
+            Tcp {
+                host: "127.0.0.1".into(),
+                port,
+            },
+            log,
+        );
         agent.login(&user, &pass)?;
         let mut eyes = NumreadEyes::from_dir(&nf_numread::default_model_dir())?;
         let mut brain = RulePlanner::new(&m);
-        let rep = run(&mut agent, &mut eyes, &mut brain, &Registry::order_tools(), &m)?;
-        Ok(format!("{:?}: {} actions, {} events, {} errors", rep.status, rep.actions, rep.events, rep.errors.len()))
+        let rep = run(
+            &mut agent,
+            &mut eyes,
+            &mut brain,
+            &Registry::order_tools(),
+            &m,
+        )?;
+        Ok(format!(
+            "{:?}: {} actions, {} events, {} errors",
+            rep.status,
+            rep.actions,
+            rep.events,
+            rep.errors.len()
+        ))
     })();
     match result {
         Ok(s) => {

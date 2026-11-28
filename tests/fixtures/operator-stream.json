@@ -64,6 +64,8 @@
   },
   "value": 150.5,
   "reason": "read 'φ301.0' on page 1; the only assignment that matches the material list",
+   "reason_key": "op.reason.read",
+   "reason_args": { "text": "φ301.0", "page": 1 },
   "confidence": 0.97,
   "flags": [],
   "tool": "write",
@@ -140,6 +142,8 @@
    "part": "shell"
   },
   "reason": "part shell is held by the AMOEBA gate and gets no DXF",
+   "reason_key": "op.reason.question",
+   "reason_args": { "text": "part shell is held by the AMOEBA gate and gets no DXF", "ja": "シェルは AMOEBA の保持対象で、DXF は発行されません" },
   "confidence": null,
   "flags": [],
   "tool": "compute"

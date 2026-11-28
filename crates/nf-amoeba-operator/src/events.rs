@@ -10,19 +10,30 @@ pub enum Target {
     /// An element of the interface, by id.
     Ui(String),
     /// A point of a CAD canvas and/or an entity id (for the CAD tools that come later).
-    Cad { canvas: Option<[f64; 2]>, entity: Option<String> },
+    Cad {
+        canvas: Option<[f64; 2]>,
+        entity: Option<String>,
+    },
 }
 
 impl Target {
     pub fn page_box(page: i64, b: [f32; 4]) -> Target {
-        Target::Page { page, bbox: Some(b.map(f64::from)) }
+        Target::Page {
+            page,
+            bbox: Some(b.map(f64::from)),
+        }
     }
     pub fn to_json(&self) -> Value {
         match self {
-            Target::Page { page, bbox: Some(b) } => json!({ "page": page, "bbox": b }),
+            Target::Page {
+                page,
+                bbox: Some(b),
+            } => json!({ "page": page, "bbox": b }),
             Target::Page { page, bbox: None } => json!({ "page": page }),
             Target::Ui(id) => json!({ "ui": id }),
-            Target::Cad { canvas, entity } => json!({ "cad": { "canvas": canvas, "entity": entity } }),
+            Target::Cad { canvas, entity } => {
+                json!({ "cad": { "canvas": canvas, "entity": entity } })
+            }
         }
     }
 }
@@ -35,6 +46,9 @@ pub struct Event {
     pub target: Target,
     pub value: Value,
     pub reason: String,
+    /// Translation key and arguments for the cursor; the English `reason` stays for the audit.
+    pub reason_key: Option<String>,
+    pub reason_args: Value,
     pub confidence: Option<f64>,
     pub flags: Vec<String>,
     /// registry name of the tool that made the call
@@ -51,6 +65,8 @@ impl Event {
             target,
             value: Value::Null,
             reason: reason.into(),
+            reason_key: None,
+            reason_args: json!({}),
             confidence: None,
             flags: vec![],
             tool: String::new(),
@@ -59,6 +75,11 @@ impl Event {
     }
     pub fn value(mut self, v: Value) -> Event {
         self.value = v;
+        self
+    }
+    pub fn reason_key(mut self, key: &str, args: Value) -> Event {
+        self.reason_key = Some(key.into());
+        self.reason_args = args;
         self
     }
     pub fn confidence(mut self, c: f32) -> Event {
@@ -76,8 +97,9 @@ impl Event {
     pub fn to_json(&self) -> Value {
         json!({
             "step": self.step, "action": self.action, "target": self.target.to_json(),
-            "value": self.value, "reason": self.reason, "confidence": self.confidence,
-            "flags": self.flags,
+            "value": self.value, "reason": self.reason,
+            "reason_key": self.reason_key, "reason_args": self.reason_args,
+            "confidence": self.confidence, "flags": self.flags,
             "tool": if self.tool.is_empty() { Value::Null } else { json!(self.tool) },
             "write_ref": self.write_ref.as_ref().map(|(p, k)| json!({ "part": p, "key": k })),
         })

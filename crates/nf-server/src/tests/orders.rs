@@ -1258,6 +1258,95 @@ async fn l1r1_the_ai_operator_gives_a_reason_for_every_order_write() {
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
 }
 
+#[tokio::test]
+async fn aiop_a_confirmed_page_reading_must_be_clean_and_confident() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let agent = add_agent(&t, "operator-ai");
+    let ac = [("cookie", agent.as_str())];
+    let vals = format!("/api/orders/{oid}/values");
+    let value = |flags: Option<Value>, confidence: Option<Value>| {
+        let mut v = json!({ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read", "confirm": true, "note": "matches the list" });
+        if let Some(f) = flags {
+            v["flags"] = f;
+        }
+        if let Some(c) = confidence {
+            v["confidence"] = c;
+        }
+        json!({ "values": [v] })
+    };
+    for (want, body) in [
+        ("confirm_needs_reading_state", value(None, None)),
+        (
+            "confirm_needs_reading_state",
+            value(Some(Value::Null), Some(json!(0.97))),
+        ),
+        (
+            "confirm_needs_reading_state",
+            value(Some(json!([])), Some(Value::Null)),
+        ),
+        (
+            "confirm_needs_reading_state",
+            value(Some(Value::Null), Some(Value::Null)),
+        ),
+        (
+            "value_flagged",
+            value(Some(json!(["repaired"])), Some(json!(0.97))),
+        ),
+        (
+            "value_low_confidence",
+            value(Some(json!([])), Some(json!(0.60))),
+        ),
+    ] {
+        let (st, _, b) = t.send("PUT", &vals, Some(body), &ac).await;
+        assert_eq!(
+            (st, code_of(&b)),
+            (StatusCode::UNPROCESSABLE_ENTITY, json!(want)),
+            "{}",
+            String::from_utf8_lossy(&b)
+        );
+    }
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &vals,
+            Some(value(Some(json!([])), Some(json!(0.97)))),
+            &ac,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    let got = o["parts"][0]["values"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["key"] == "D")
+        .unwrap();
+    assert_eq!(got["state"], json!("CONFIRMED"));
+    // a derived number is not a reading: it needs no reader state to be confirmed
+    let (st, _, b) = t
+        .send("PUT", &vals, Some(json!({ "values": [{ "part": "1", "key": "t", "value": 8.0, "text": "8", "source": "derived", "confirm": true, "note": "from the rule" }] })), &ac)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    // flags and low confidence forbid confirmation whatever the source is called: an agent must
+    // not be able to relabel a flagged reading `derived` and slip it through the boundary
+    for source in ["derived", "inferred", "fixed", "auto", "entered"] {
+        for (want, flags, confidence) in [
+            ("value_flagged", json!(["ambiguous"]), 0.97),
+            ("value_low_confidence", json!([]), 0.60),
+        ] {
+            let body = json!({ "values": [{ "part": "1", "key": "t", "value": 8.0, "text": "8", "source": source, "confirm": true, "flags": flags, "confidence": confidence, "note": "relabelled" }] });
+            let (st, _, b) = t.send("PUT", &vals, Some(body), &ac).await;
+            assert_eq!(
+                (st, code_of(&b)),
+                (StatusCode::UNPROCESSABLE_ENTITY, json!(want)),
+                "{}",
+                String::from_utf8_lossy(&b)
+            );
+        }
+    }
+}
+
 fn code_of(b: &[u8]) -> Value {
     serde_json::from_slice::<Value>(b).unwrap()["code"].clone()
 }

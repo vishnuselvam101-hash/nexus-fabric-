@@ -16,6 +16,9 @@ const MAX_EVENTS_PER_BATCH: usize = 100;
 const MAX_EVENT_BYTES: usize = 4096;
 const MAX_EVENTS_PER_ORDER: i64 = 20000;
 
+/// (value id, current value, value before the write, who last edited it)
+type ValueRow = (i64, Option<f64>, Option<f64>, Option<String>);
+
 pub(super) fn routes() -> Router<Arc<App>> {
     Router::new()
         .route(
@@ -51,11 +54,15 @@ fn parse_event(v: &Value) -> Result<Value, ApiError> {
     let o = v.as_object().ok_or_else(|| bad("an event is an object"))?;
     let step = o.get("step").and_then(Value::as_str).unwrap_or_default();
     if !short_word(step, 40, "_.-") {
-        return Err(bad("'step' must be 1 to 40 lower-case letters, digits, '_', '.' or '-'"));
+        return Err(bad(
+            "'step' must be 1 to 40 lower-case letters, digits, '_', '.' or '-'",
+        ));
     }
     let action = o.get("action").and_then(Value::as_str).unwrap_or_default();
     if !short_word(action, 32, "_") || !action.starts_with(|c: char| c.is_ascii_lowercase()) {
-        return Err(bad("'action' must be a lower-case word such as look, point, click, type, compute or ask"));
+        return Err(bad(
+            "'action' must be a lower-case word such as look, point, click, type, compute or ask",
+        ));
     }
     let target = o
         .get("target")
@@ -67,7 +74,9 @@ fn parse_event(v: &Value) -> Result<Value, ApiError> {
         ["bbox", "page"] => {
             let p = target["page"].as_i64().filter(|p| *p >= 1);
             if p.is_none() || !num_array(&target["bbox"], 4) {
-                return Err(bad("a page target needs a page number and a box of four numbers"));
+                return Err(bad(
+                    "a page target needs a page number and a box of four numbers",
+                ));
             }
             json!({ "page": p, "bbox": target["bbox"] })
         }
@@ -80,28 +89,35 @@ fn parse_event(v: &Value) -> Result<Value, ApiError> {
             _ => return Err(bad("'ui' must be an element id")),
         },
         ["cad"] => {
-            let c = target["cad"].as_object().ok_or_else(|| bad("'cad' must be an object"))?;
+            let c = target["cad"]
+                .as_object()
+                .ok_or_else(|| bad("'cad' must be an object"))?;
             let canvas = c.get("canvas");
             let entity = c.get("entity").and_then(Value::as_str);
             if canvas.is_none() && entity.is_none()
                 || canvas.is_some_and(|x| !num_array(x, 2))
                 || entity.is_some_and(|e| e.is_empty() || e.len() > 64)
             {
-                return Err(bad("a cad target needs a canvas point [x, y] and/or an entity id"));
+                return Err(bad(
+                    "a cad target needs a canvas point [x, y] and/or an entity id",
+                ));
             }
             json!({ "cad": { "canvas": canvas, "entity": entity } })
         }
         _ => {
-            return Err(bad(
-                "'target' names exactly one of: page (+ bbox), ui, cad",
-            ));
+            return Err(bad("'target' names exactly one of: page (+ bbox), ui, cad"));
         }
     };
     let value = o.get("value").cloned().unwrap_or(Value::Null);
     if value.to_string().len() > 512 {
         return Err(bad("'value' is too long"));
     }
-    let reason = o.get("reason").and_then(Value::as_str).unwrap_or_default().trim().to_string();
+    let reason = o
+        .get("reason")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     if reason.is_empty() || reason.chars().count() > 300 {
         return Err(unprocessable(
             "decision_reason",
@@ -118,7 +134,9 @@ fn parse_event(v: &Value) -> Result<Value, ApiError> {
     let flags = match o.get("flags") {
         None | Some(Value::Null) => json!([]),
         Some(Value::Array(a))
-            if a.len() <= 8 && a.iter().all(|x| x.as_str().is_some_and(|s| short_word(s, 32, "_"))) =>
+            if a.len() <= 8
+                && a.iter()
+                    .all(|x| x.as_str().is_some_and(|s| short_word(s, 32, "_"))) =>
         {
             Value::Array(a.clone())
         }
@@ -128,6 +146,20 @@ fn parse_event(v: &Value) -> Result<Value, ApiError> {
         None | Some(Value::Null) => Value::Null,
         Some(Value::String(s)) if short_word(s, 48, "_.") => json!(s),
         Some(_) => return Err(bad("'tool' is a registry name")),
+    };
+    let reason_key = match o.get("reason_key") {
+        None | Some(Value::Null) => Value::Null,
+        Some(Value::String(s)) if short_word(s, 64, "_.") => json!(s),
+        Some(_) => return Err(bad("'reason_key' is a translation key")),
+    };
+    let reason_args = match o.get("reason_args") {
+        None | Some(Value::Null) => json!({}),
+        Some(Value::Object(a))
+            if a.len() <= 8 && a.values().all(|v| v.as_str().is_some() || v.is_number()) =>
+        {
+            Value::Object(a.clone())
+        }
+        Some(_) => return Err(bad("'reason_args' is a small object of words and numbers")),
     };
     let write_ref = match o.get("write_ref") {
         None | Some(Value::Null) => Value::Null,
@@ -141,6 +173,7 @@ fn parse_event(v: &Value) -> Result<Value, ApiError> {
         }
     };
     let ev = json!({ "step": step, "action": action, "target": t, "value": value, "reason": reason,
+                     "reason_key": reason_key, "reason_args": reason_args,
                      "confidence": confidence, "flags": flags, "tool": tool, "write_ref": write_ref });
     if ev.to_string().len() > MAX_EVENT_BYTES {
         return Err(bad("the event is too large"));
@@ -177,31 +210,26 @@ async fn post_events(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, 
     settle(&app, &u, oid, "operator events", String::new(), res).await
 }
 
-fn post_events_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
-    if u.kind != "agent" {
-        return Err(refuse(
-            StatusCode::FORBIDDEN,
-            "operator_agent_only",
-            "operator events are written by the AI operator's own account",
-        ));
-    }
-    let body = request_json(headers, raw)?;
-    let list = body
-        .get("events")
-        .and_then(Value::as_array)
-        .ok_or_else(|| unprocessable("operator_event", "the body needs an 'events' list"))?;
+/// Parse an event list shared by the event route and the atomic value write.
+pub(super) fn parse_event_list(list: &[Value]) -> Result<Vec<Value>, ApiError> {
     if list.is_empty() || list.len() > MAX_EVENTS_PER_BATCH {
         return Err(unprocessable(
             "operator_event",
             &format!("send 1 to {MAX_EVENTS_PER_BATCH} events per request"),
         ));
     }
-    let events: Vec<Value> = list.iter().map(parse_event).collect::<Result<_, _>>()?;
-    let mut db = app.db();
-    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    still_writer(&tx, u)?;
-    guard_order(app, &tx, u, oid, "operator events")?;
-    if is_paused(&tx, oid)? {
+    list.iter().map(parse_event).collect()
+}
+
+/// Store a checked event batch inside the caller's transaction: values and their events commit together.
+pub(super) fn store_events(
+    app: &App,
+    tx: &Connection,
+    u: &User,
+    oid: i64,
+    events: &[Value],
+) -> Result<(i64, i64), ApiError> {
+    if is_paused(tx, oid)? {
         return Err(refuse(
             StatusCode::CONFLICT,
             "operator_paused",
@@ -221,7 +249,7 @@ fn post_events_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]
         ));
     }
     let mut seq = last;
-    for e in &events {
+    for e in events {
         seq += 1;
         tx.execute(
             "INSERT INTO operator_events(order_id, seq, event_json, created_by, created_at) VALUES (?,?,?,?,?)",
@@ -229,7 +257,7 @@ fn post_events_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]
         )?;
     }
     app.audit(
-        &tx,
+        tx,
         &u.username,
         "operator_events",
         &format!(
@@ -241,8 +269,30 @@ fn post_events_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]
             clip(events[0]["reason"].as_str().unwrap_or_default(), 160)
         ),
     )?;
+    Ok((last + 1, seq))
+}
+
+fn post_events_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
+    if u.kind != "agent" {
+        return Err(refuse(
+            StatusCode::FORBIDDEN,
+            "operator_agent_only",
+            "operator events are written by the AI operator's own account",
+        ));
+    }
+    let body = request_json(headers, raw)?;
+    let list = body
+        .get("events")
+        .and_then(Value::as_array)
+        .ok_or_else(|| unprocessable("operator_event", "the body needs an 'events' list"))?;
+    let events = parse_event_list(list)?;
+    let mut db = app.db();
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    still_writer(&tx, u)?;
+    guard_order(app, &tx, u, oid, "operator events")?;
+    let (first_seq, last_seq) = store_events(app, &tx, u, oid, &events)?;
     tx.commit()?;
-    ok(json!({ "stored": events.len(), "first_seq": last + 1, "last_seq": seq }))
+    ok(json!({ "stored": events.len(), "first_seq": first_seq, "last_seq": last_seq }))
 }
 
 async fn list_events(
@@ -254,8 +304,16 @@ async fn list_events(
     let db = app.db();
     let u = auth_db(&db, &app, &headers)?;
     guard_order(&app, &db, &u, oid, "view operator events")?;
-    let after: i64 = q.get("after").and_then(|s| s.parse().ok()).unwrap_or(0).max(0);
-    let limit: i64 = q.get("limit").and_then(|s| s.parse().ok()).unwrap_or(200).clamp(1, 500);
+    let after: i64 = q
+        .get("after")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0)
+        .max(0);
+    let limit: i64 = q
+        .get("limit")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(200)
+        .clamp(1, 500);
     let rows = q_all(
         &db,
         "SELECT seq, event_json, created_by, created_at, undone_at IS NOT NULL FROM operator_events WHERE order_id = ? AND seq > ? ORDER BY seq LIMIT ?",
@@ -302,7 +360,11 @@ async fn set_paused(app: Arc<App>, headers: HeaderMap, oid: i64, raw: Bytes, pau
         app.audit(
             &tx,
             &u.username,
-            if paused { "operator_pause" } else { "operator_resume" },
+            if paused {
+                "operator_pause"
+            } else {
+                "operator_resume"
+            },
             &format!("order #{oid} operator {what}d"),
         )?;
         tx.commit()?;
@@ -321,7 +383,11 @@ async fn undo(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw: By
 /// made for it is marked undone, and the event is marked undone. Without `to_seq` one write is undone.
 fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
     person_only(u, "undo its own work")?;
-    let body = if raw.is_empty() { json!({}) } else { request_json(headers, raw)? };
+    let body = if raw.is_empty() {
+        json!({})
+    } else {
+        request_json(headers, raw)?
+    };
     let to_seq = body.get("to_seq").and_then(Value::as_i64);
     let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
     let mut db = app.db();
@@ -332,9 +398,19 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
         &tx,
         "SELECT seq, event_json, created_by FROM operator_events WHERE order_id = ? AND undone_at IS NULL AND json_extract(event_json, '$.write_ref') IS NOT NULL AND seq >= ? ORDER BY seq DESC",
         params![oid, to_seq.unwrap_or(0)],
-        |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)),
+        |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        },
     )?;
-    let take = if to_seq.is_some() { writes.len() } else { writes.len().min(1) };
+    let take = if to_seq.is_some() {
+        writes.len()
+    } else {
+        writes.len().min(1)
+    };
     if take == 0 {
         return Err(refuse(
             StatusCode::CONFLICT,
@@ -346,11 +422,17 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
     for (seq, ev, by) in writes.into_iter().take(take) {
         let e: Value = serde_json::from_str(&ev).unwrap_or(Value::Null);
         let (part, key) = (
-            e["write_ref"]["part"].as_str().unwrap_or_default().to_string(),
-            e["write_ref"]["key"].as_str().unwrap_or_default().to_string(),
+            e["write_ref"]["part"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
+            e["write_ref"]["key"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
         );
         let (pid, _, _) = find_part(&tx, oid, &json!(part))?;
-        let row: Option<(i64, Option<f64>, Option<f64>, Option<String>)> = tx
+        let row: Option<ValueRow> = tx
             .query_row(
                 "SELECT id, value, was, edited_by FROM order_values WHERE part_id = ? AND key = ?",
                 params![pid, key],
@@ -358,14 +440,20 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
             )
             .optional()?;
         let Some((vid, val, was, edited_by)) = row else {
-            return Err(refuse(StatusCode::CONFLICT, "value_changed_since", "the value is gone"));
+            return Err(refuse(
+                StatusCode::CONFLICT,
+                "value_changed_since",
+                "the value is gone",
+            ));
         };
         let wrote = e["value"].as_f64();
         if edited_by.as_deref() != Some(by.as_str()) || wrote.is_none() || val != wrote {
             return Err(refuse(
                 StatusCode::CONFLICT,
                 "value_changed_since",
-                &format!("'{key}' of part '{part}' was changed after the operator typed it; undo is not applied"),
+                &format!(
+                    "'{key}' of part '{part}' was changed after the operator typed it; undo is not applied"
+                ),
             ));
         }
         let state = if was.is_some() { "PROPOSED" } else { "MISSING" };

@@ -76,7 +76,10 @@ impl Manifest {
                     id: u["id"].as_str().ok_or("manifest: unit 'id'")?.to_string(),
                     no: u["no"].as_str().ok_or("manifest: unit 'no'")?.to_string(),
                     name: u["name"].as_str().unwrap_or_default().to_string(),
-                    family: u["family"].as_str().ok_or("manifest: unit 'family'")?.to_string(),
+                    family: u["family"]
+                        .as_str()
+                        .ok_or("manifest: unit 'family'")?
+                        .to_string(),
                     page: int(u, "page")?,
                     parts: u["parts"]
                         .as_array()
@@ -106,7 +109,10 @@ pub struct Action {
 
 impl Action {
     pub fn new(tool: &str, args: Value) -> Action {
-        Action { tool: tool.into(), args }
+        Action {
+            tool: tool.into(),
+            args,
+        }
     }
 }
 
@@ -187,7 +193,9 @@ impl Registry {
 
 fn unit_of<'a>(ctx: &'a mut Ctx<'_>, args: &Value) -> Result<&'a mut UnitState, String> {
     let id = args["unit"].as_str().ok_or("'unit' is missing")?;
-    ctx.units.get_mut(id).ok_or_else(|| format!("no unit '{id}'"))
+    ctx.units
+        .get_mut(id)
+        .ok_or_else(|| format!("no unit '{id}'"))
 }
 
 fn ui(id: &str) -> Target {
@@ -212,19 +220,38 @@ fn tool_put_parts(ctx: &mut Ctx<'_>, _a: &Value) -> Result<ToolOut, String> {
     for u in &ctx.manifest.units {
         let s = ctx.step("part");
         events.push(
-            Event::new(&s, "type", ui(&format!("part-{}-name", u.no)), &format!("add part {} ({}) from page {}", u.no, u.family, u.page))
-                .value(json!(u.family)),
+            Event::new(
+                &s,
+                "type",
+                ui(&format!("part-{}-name", u.no)),
+                &format!("add part {} ({}) from page {}", u.no, u.family, u.page),
+            )
+            .value(json!(u.family))
+            .reason_key(
+                "op.reason.add_part",
+                json!({ "part": u.no, "family": u.family, "page": u.page }),
+            ),
         );
     }
-    Ok(ToolOut { events, result: json!({ "parts": n }) })
+    Ok(ToolOut {
+        events,
+        result: json!({ "parts": n }),
+    })
 }
 
 fn tool_look(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
     let page = a["page"].as_i64().ok_or("'page' is missing")?;
     let order = ctx.manifest.order;
     if !ctx.pages.contains_key(&page) {
-        call_ok(ctx.hands, "order_page_image", json!({ "order": order, "page": page }))?;
-        let png = ctx.hands.take_binary().ok_or("the page picture did not arrive")?;
+        call_ok(
+            ctx.hands,
+            "order_page_image",
+            json!({ "order": order, "page": page }),
+        )?;
+        let png = ctx
+            .hands
+            .take_binary()
+            .ok_or("the page picture did not arrive")?;
         let read = ctx.eyes.read(page, &png)?;
         ctx.pages.insert(page, read);
     }
@@ -232,7 +259,16 @@ fn tool_look(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
     let name = ctx.eyes.name();
     let s = ctx.step("look");
     Ok(ToolOut {
-        events: vec![Event::new(&s, "look", Target::Page { page, bbox: None }, &format!("reading page {page} with {name}")).value(json!({ "numbers": n }))],
+        events: vec![
+            Event::new(
+                &s,
+                "look",
+                Target::Page { page, bbox: None },
+                &format!("reading page {page} with {name}"),
+            )
+            .value(json!({ "numbers": n }))
+            .reason_key("op.reason.look", json!({ "page": page, "name": name })),
+        ],
         result: json!({ "page": page, "numbers": n }),
     })
 }
@@ -261,34 +297,78 @@ fn tool_assign(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
         let cell = &readings[row[row.len() - 2]];
         let s = ctx.step("list");
         events.push(
-            Event::new(&s, "point", Target::page_box(spec.page, cell.bbox), &format!("the material list gives blank {} x {} for {}", fmt(b.width), fmt(b.height), b.part))
-                .value(json!([b.width, b.height]))
-                .confidence(cell.confidence),
+            Event::new(
+                &s,
+                "point",
+                Target::page_box(spec.page, cell.bbox),
+                &format!(
+                    "the material list gives blank {} x {} for {}",
+                    fmt(b.width),
+                    fmt(b.height),
+                    b.part
+                ),
+            )
+            .value(json!([b.width, b.height]))
+            .reason_key(
+                "op.reason.material_list",
+                json!({ "width": fmt(b.width), "height": fmt(b.height), "part": b.part }),
+            )
+            .confidence(cell.confidence),
         );
     }
     for f in &asg.fills {
         let s = ctx.step("slot");
-        let how = match f.status {
-            Status::Confirmed => "the only assignment that reproduces the material list".to_string(),
-            Status::Proposed => format!("the only assignment that reproduces the list, but the reading is flagged ({}): a person must check it", f.flags.join(", ")),
+        let (how, reason_key, reason_args) = match f.status {
+            Status::Confirmed => (
+                "the only assignment that reproduces the material list".to_string(),
+                "op.reason.slot_confirmed",
+                json!({ "text": f.text, "value": fmt(f.value), "key": f.key }),
+            ),
+            Status::Proposed => (
+                format!(
+                    "the only assignment that reproduces the list, but the reading is flagged ({}): a person must check it",
+                    f.flags.join(", ")
+                ),
+                "op.reason.slot_proposed",
+                json!({ "text": f.text, "value": fmt(f.value), "key": f.key, "flags": f.flags.join(", ") }),
+            ),
         };
         let reason = format!("'{}' is {} for {}: {how}", f.text, fmt(f.value), f.key);
         events.push(
-            Event::new(&format!("{s}p"), "point", Target::page_box(f.page, f.bbox), &reason)
-                .value(json!(f.text))
-                .confidence(f.confidence)
-                .flags(&f.flags),
+            Event::new(
+                &format!("{s}p"),
+                "point",
+                Target::page_box(f.page, f.bbox),
+                &reason,
+            )
+            .value(json!(f.text))
+            .reason_key(reason_key, reason_args.clone())
+            .confidence(f.confidence)
+            .flags(&f.flags),
         );
         events.push(
-            Event::new(&format!("{s}c"), "click", Target::page_box(f.page, f.bbox), &reason)
-                .value(json!(f.key))
-                .confidence(f.confidence)
-                .flags(&f.flags),
+            Event::new(
+                &format!("{s}c"),
+                "click",
+                Target::page_box(f.page, f.bbox),
+                &reason,
+            )
+            .value(json!(f.key))
+            .reason_key(reason_key, reason_args)
+            .confidence(f.confidence)
+            .flags(&f.flags),
         );
     }
     if let Some(q) = &asg.question {
         let s = ctx.step("ask");
-        events.push(Event::new(&s, "ask", ui(&format!("question-{}", spec.no)), &q.en).value(json!({ "code": q.code, "ja": q.ja })));
+        events.push(
+            Event::new(&s, "ask", ui(&format!("question-{}", spec.no)), &q.en)
+                .value(json!({ "code": q.code, "ja": q.ja }))
+                .reason_key(
+                    "op.reason.question",
+                    json!({ "text": q.en, "code": q.code, "ja": q.ja }),
+                ),
+        );
     }
     let result = json!({
         "unit": spec.id, "fills": asg.fills.len(), "tried": asg.tried,
@@ -303,7 +383,10 @@ fn tool_write(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
     let order = ctx.manifest.order;
     let (spec, asg) = {
         let u = unit_of(ctx, a)?;
-        (u.spec.clone(), u.assignment.clone().ok_or("assign the unit first")?)
+        (
+            u.spec.clone(),
+            u.assignment.clone().ok_or("assign the unit first")?,
+        )
     };
     let mut values = Vec::new();
     let mut shown = Vec::new();
@@ -312,60 +395,125 @@ fn tool_write(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
         let confirm = f.status == Status::Confirmed && f.flags.is_empty();
         let plain = assign::mark_of(&f.text) == assign::Mark::Plain;
         let source = if plain { "read" } else { "derived" };
-        let note = if confirm {
-            format!("read '{}' on page {}; the only assignment that matches the material list", f.text, f.page)
+        let (note, reason_key, reason_args) = if confirm {
+            (
+                format!(
+                    "read '{}' on page {}; the only assignment that matches the material list",
+                    f.text, f.page
+                ),
+                "op.reason.read",
+                json!({ "text": f.text, "page": f.page }),
+            )
         } else {
-            format!("proposed from '{}' on page {}: flagged ({}), a person must check it", f.text, f.page, f.flags.join(", "))
+            (
+                format!(
+                    "proposed from '{}' on page {}: flagged ({}), a person must check it",
+                    f.text,
+                    f.page,
+                    f.flags.join(", ")
+                ),
+                "op.reason.proposed",
+                json!({ "text": f.text, "page": f.page, "flags": f.flags.join(", ") }),
+            )
         };
-        values.push(json!({ "part": spec.no, "key": f.key, "value": f.value, "text": f.text,
-            "bbox": f.bbox.map(f64::from), "source": source, "confirm": confirm, "note": note }));
-        shown.push((f.key.clone(), f.value, f.page, f.bbox, f.confidence, f.flags.clone(), confirm, note));
+        values.push(
+            json!({ "part": spec.no, "key": f.key, "value": f.value, "text": f.text,
+            "bbox": f.bbox.map(f64::from), "source": source, "flags": f.flags,
+            "confidence": f.confidence, "confirm": confirm, "note": note }),
+        );
+        shown.push((
+            f.key.clone(),
+            f.value,
+            f.confidence,
+            f.flags.clone(),
+            note,
+            reason_key,
+            reason_args,
+        ));
     }
     for (k, v) in &asg.fixed {
-        values.push(json!({ "part": spec.no, "key": k, "value": v, "text": "", "source": "fixed", "confirm": false,
+        values.push(json!({ "part": spec.no, "key": k, "value": v, "text": "", "source": "fixed", "flags": [], "confidence": 1.0, "confirm": false,
             "note": format!("set by rule, not on the drawing: {k} = {}", fmt(*v)) }));
     }
     if values.is_empty() {
-        return Ok(ToolOut { events: vec![], result: json!({ "written": 0 }) });
+        return Ok(ToolOut {
+            events: vec![],
+            result: json!({ "written": 0 }),
+        });
     }
     let n = values.len();
-    call_ok(ctx.hands, "order_put_values", json!({ "order": order, "values": values }))?;
     let mut events = Vec::new();
-    for (key, value, page, bbox, conf, flags, confirm, note) in shown {
+    for (key, value, conf, flags, note, reason_key, reason_args) in shown {
         let s = ctx.step("type");
         events.push(
             Event::new(&s, "type", ui(&format!("part-{}-{}", spec.no, key)), &note)
                 .value(json!(value))
+                .reason_key(reason_key, reason_args)
                 .confidence(conf)
                 .flags(&flags)
                 .written(&spec.no, &key),
         );
-        let _ = (page, bbox, confirm);
     }
     for (k, v) in &asg.fixed {
         let s = ctx.step("type");
+        let note = format!("set by rule, not on the drawing: {k} = {}", fmt(*v));
         events.push(
-            Event::new(&s, "type", ui(&format!("part-{}-{}", spec.no, k)), &format!("set by rule, not on the drawing: {k} = {}", fmt(*v)))
+            Event::new(&s, "type", ui(&format!("part-{}-{}", spec.no, k)), &note)
                 .value(json!(v))
+                .reason_key("op.reason.fixed", json!({ "key": k, "value": fmt(*v) }))
                 .written(&spec.no, k),
         );
     }
+    // The server writes values and these events in one transaction; returning no events avoids a second post.
+    let event_json: Vec<Value> = events.iter().map(|e| e.to_json()).collect();
+    call_ok(
+        ctx.hands,
+        "order_put_values",
+        json!({ "order": order, "values": values, "events": event_json }),
+    )?;
     unit_of(ctx, a)?.written = true;
-    Ok(ToolOut { events, result: json!({ "written": n }) })
+    Ok(ToolOut {
+        events: vec![],
+        result: json!({ "written": n }),
+    })
 }
 
 fn tool_compute(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
-    let (project, order, order_compute) = (ctx.manifest.project, ctx.manifest.order, ctx.manifest.order_compute);
+    let (project, order, order_compute) = (
+        ctx.manifest.project,
+        ctx.manifest.order,
+        ctx.manifest.order_compute,
+    );
     let (spec, asg) = {
         let u = unit_of(ctx, a)?;
-        (u.spec.clone(), u.assignment.clone().ok_or("assign the unit first")?)
+        (
+            u.spec.clone(),
+            u.assignment.clone().ok_or("assign the unit first")?,
+        )
     };
-    let all_confirmed = !asg.fills.is_empty() && asg.fills.iter().all(|f| f.status == Status::Confirmed && f.flags.is_empty()) && asg.question.is_none();
+    let all_confirmed = !asg.fills.is_empty()
+        && asg
+            .fills
+            .iter()
+            .all(|f| f.status == Status::Confirmed && f.flags.is_empty())
+        && asg.question.is_none();
     let mut events = Vec::new();
     if !all_confirmed {
         let s = ctx.step("ask");
-        events.push(Event::new(&s, "ask", ui(&format!("question-{}", spec.no)), "not computed: every number must be confirmed first").value(json!({ "code": "not_confirmed" })));
-        return Ok(ToolOut { events, result: json!({ "computed": false }) });
+        events.push(
+            Event::new(
+                &s,
+                "ask",
+                ui(&format!("question-{}", spec.no)),
+                "not computed: every number must be confirmed first",
+            )
+            .value(json!({ "code": "not_confirmed" }))
+            .reason_key("op.reason.not_computed", json!({})),
+        );
+        return Ok(ToolOut {
+            events,
+            result: json!({ "computed": false }),
+        });
     }
     let mut params = serde_json::Map::new();
     for f in &asg.fills {
@@ -385,36 +533,74 @@ fn tool_compute(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
         params.insert("surface_reference".into(), json!("unknown"));
     }
     let s = ctx.step("compute");
-    events.push(Event::new(&format!("{s}c"), "click", ui("compute-btn"), &format!("calculate {} with the confirmed numbers", spec.family)));
-    let r = call_ok(ctx.hands, "calculate", json!({ "project": project, "family": spec.family, "params": Value::Object(params) }))?;
+    events.push(
+        Event::new(
+            &format!("{s}c"),
+            "click",
+            ui("compute-btn"),
+            &format!("calculate {} with the confirmed numbers", spec.family),
+        )
+        .reason_key("op.reason.calculate", json!({ "family": spec.family })),
+    );
+    let r = call_ok(
+        ctx.hands,
+        "calculate",
+        json!({ "project": project, "family": spec.family, "params": Value::Object(params) }),
+    )?;
     let job = r["id"].as_i64().ok_or("the calculation gave no job id")?;
     let state = r["state"].as_str().unwrap_or("").to_string();
     let amoeba = call_ok(ctx.hands, "get_amoeba", json!({ "job": job }))?;
     let (mut held, mut served) = (Vec::new(), Vec::new());
     for p in &spec.parts {
-        let d = call_ok(ctx.hands, "get_dxf_digest", json!({ "job": job, "part": p }))?;
+        let d = call_ok(
+            ctx.hands,
+            "get_dxf_digest",
+            json!({ "job": job, "part": p }),
+        )?;
         if d["held"].as_bool().unwrap_or(false) {
             let why: String = d["hold"].to_string().chars().take(200).collect();
             let s2 = ctx.step("ask");
-            events.push(Event::new(&s2, "ask", ui(&format!("hold-{}-{}", spec.no, p)), &format!("part {p} is held by the AMOEBA gate and gets no DXF: {why}")).value(json!({ "code": "held", "part": p })));
+            events.push(
+                Event::new(
+                    &s2,
+                    "ask",
+                    ui(&format!("hold-{}-{}", spec.no, p)),
+                    &format!("part {p} is held by the AMOEBA gate and gets no DXF: {why}"),
+                )
+                .value(json!({ "code": "held", "part": p }))
+                .reason_key("op.reason.held", json!({ "part": p, "text": why })),
+            );
             held.push(p.clone());
         } else {
             served.push(p.clone());
         }
     }
     events.push(
-        Event::new(&format!("{s}r"), "compute", ui("compute-btn"), &format!("job {job} is {state}; the operator does not approve or release"))
-            .value(json!({ "job": job, "state": state, "held": held, "gate": amoeba["gate"] })),
+        Event::new(
+            &format!("{s}r"),
+            "compute",
+            ui("compute-btn"),
+            &format!("job {job} is {state}; the operator does not approve or release"),
+        )
+        .value(json!({ "job": job, "state": state, "held": held, "gate": amoeba["gate"] }))
+        .reason_key("op.reason.job_state", json!({ "job": job, "state": state })),
     );
     if order_compute {
-        call_ok(ctx.hands, "order_compute", json!({ "order": order, "reason": "compute the order with the confirmed values" }))?;
+        call_ok(
+            ctx.hands,
+            "order_compute",
+            json!({ "order": order, "reason": "compute the order with the confirmed values" }),
+        )?;
     }
     let u = unit_of(ctx, a)?;
     u.job = Some(job);
     u.job_state = Some(state.clone());
     u.held = held.clone();
     u.dxf_served = served;
-    Ok(ToolOut { events, result: json!({ "computed": true, "job": job, "state": state, "held": held }) })
+    Ok(ToolOut {
+        events,
+        result: json!({ "computed": true, "job": job, "state": state, "held": held }),
+    })
 }
 
 // ---------------------------------------------------------------- the deterministic planner
@@ -504,34 +690,71 @@ pub struct RunReport {
 }
 
 fn paused(hands: &mut dyn Hands, order: i64, after: i64) -> Result<bool, String> {
-    let r = call_ok(hands, "order_poll_events", json!({ "order": order, "after": after }))?;
+    let r = call_ok(
+        hands,
+        "order_poll_events",
+        json!({ "order": order, "after": after }),
+    )?;
     Ok(r["paused"].as_bool().unwrap_or(false))
 }
 
-pub fn run(hands: &mut dyn Hands, eyes: &mut dyn Eyes, brain: &mut dyn Brain, registry: &Registry, manifest: &Manifest) -> Result<RunReport, String> {
+pub fn run(
+    hands: &mut dyn Hands,
+    eyes: &mut dyn Eyes,
+    brain: &mut dyn Brain,
+    registry: &Registry,
+    manifest: &Manifest,
+) -> Result<RunReport, String> {
     let units = manifest
         .units
         .iter()
         .map(|u| {
-            (u.id.clone(), UnitState { spec: u.clone(), assignment: None, job: None, job_state: None, held: vec![], dxf_served: vec![], written: false })
+            (
+                u.id.clone(),
+                UnitState {
+                    spec: u.clone(),
+                    assignment: None,
+                    job: None,
+                    job_state: None,
+                    held: vec![],
+                    dxf_served: vec![],
+                    written: false,
+                },
+            )
         })
         .collect();
-    let mut ctx = Ctx { hands, eyes, manifest, pages: BTreeMap::new(), units, counter: 0 };
+    let mut ctx = Ctx {
+        hands,
+        eyes,
+        manifest,
+        pages: BTreeMap::new(),
+        units,
+        counter: 0,
+    };
     let (mut actions, mut sent, mut errors) = (0usize, 0usize, Vec::new());
     let mut last: Option<(String, Value, bool)> = None;
     let status = loop {
         if paused(ctx.hands, manifest.order, 0)? {
             break Status2::Paused;
         }
-        let seen = last.as_ref().map(|(t, r, f)| Seen { tool: t, result: r, failed: *f });
-        let Some(action) = brain.next(seen) else { break Status2::Done };
+        let seen = last.as_ref().map(|(t, r, f)| Seen {
+            tool: t,
+            result: r,
+            failed: *f,
+        });
+        let Some(action) = brain.next(seen) else {
+            break Status2::Done;
+        };
         actions += 1;
         let (events, result, failed) = match registry.run(&mut ctx, &action) {
             Ok(o) => (o.events, o.result, false),
             Err(e) => {
                 let s = ctx.step("error");
                 errors.push(format!("{}: {e}", action.tool));
-                let ev = Event::new(&s, "ask", ui("operator-error"), &e.chars().take(280).collect::<String>()).value(json!({ "code": "tool_error", "tool": action.tool }));
+                let msg: String = e.chars().take(280).collect();
+                let ev = Event::new(&s, "ask", ui("operator-error"), &msg)
+                    .value(json!({ "code": "tool_error", "tool": action.tool }))
+                    .reason_key("op.reason.tool_error", json!({ "text": msg }));
                 (vec![ev], json!({ "error": e }), true)
             }
         };
@@ -544,7 +767,11 @@ pub fn run(hands: &mut dyn Hands, eyes: &mut dyn Eyes, brain: &mut dyn Brain, re
                 })
                 .collect();
             let n = batch.len();
-            match call_ok(ctx.hands, "order_post_events", json!({ "order": manifest.order, "events": batch })) {
+            match call_ok(
+                ctx.hands,
+                "order_post_events",
+                json!({ "order": manifest.order, "events": batch }),
+            ) {
                 Ok(_) => sent += n,
                 Err(e) if e.contains("operator_paused") => break Status2::Paused,
                 Err(e) => return Err(e),
@@ -552,5 +779,11 @@ pub fn run(hands: &mut dyn Hands, eyes: &mut dyn Eyes, brain: &mut dyn Brain, re
         }
         last = Some((action.tool.clone(), result, failed));
     };
-    Ok(RunReport { status, actions, events: sent, errors, units: ctx.units.into_values().collect() })
+    Ok(RunReport {
+        status,
+        actions,
+        events: sent,
+        errors,
+        units: ctx.units.into_values().collect(),
+    })
 }

@@ -33,6 +33,8 @@ const MAX_NOTE_CHARS: usize = 500;
 /// Distinct value keys one part may hold (the shapes use far fewer).
 const MAX_VALUES_PER_PART: i64 = 64;
 const MAX_RULES_BYTES: usize = 8 * 1024;
+/// A reading below this confidence cannot be confirmed; it mirrors nf-numread's LOW_CONFIDENCE_BELOW.
+const CONFIRM_MIN_CONFIDENCE: f64 = 0.85;
 
 const FILE_TYPES: [&str; 4] = ["pdf", "png", "jpeg", "tiff"];
 const VALUE_SOURCES: [&str; 11] = [
@@ -1458,6 +1460,41 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
         }
     }
     let bbox = parse_bbox(v.get("bbox"))?;
+    let flags = match v.get("flags") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(a))
+            if a.len() <= 8
+                && a.iter().all(|x| {
+                    x.as_str().is_some_and(|s| {
+                        !s.is_empty()
+                            && s.len() <= 32
+                            && s.chars().all(|c| c.is_ascii_lowercase() || c == '_')
+                    })
+                }) =>
+        {
+            a.iter()
+                .filter_map(|x| x.as_str().map(str::to_string))
+                .collect()
+        }
+        Some(_) => {
+            return Err(unprocessable(
+                "value_flags",
+                "'flags' is a short list of reader flag names",
+            ));
+        }
+    };
+    let confidence = match v.get("confidence") {
+        None | Some(Value::Null) => None,
+        Some(x) => match x.as_f64().filter(|f| (0.0..=1.0).contains(f)) {
+            Some(f) => Some(f),
+            None => {
+                return Err(unprocessable(
+                    "value_confidence",
+                    "'confidence' is a number from 0 to 1",
+                ));
+            }
+        },
+    };
     let confirm = match v.get("confirm") {
         None => false,
         Some(Value::Bool(b)) => *b,
@@ -1472,6 +1509,32 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
         return Err(unprocessable(
             "confirm_missing",
             "a missing value cannot be confirmed",
+        ));
+    }
+    if confirm && READ_SOURCES.contains(&source.as_str()) {
+        // A confirming caller must state typed reading state. `null` is normalised to "no flags"
+        // and "no confidence" below, so it must not count as an explicit answer here.
+        if !matches!(v.get("flags"), Some(Value::Array(_)))
+            || v.get("confidence").and_then(Value::as_f64).is_none()
+        {
+            return Err(unprocessable(
+                "confirm_needs_reading_state",
+                "a value read from the page needs its flags and confidence before it can be confirmed",
+            ));
+        }
+    }
+    // A flag or a low confidence forbids confirmation whatever the caller calls the source;
+    // otherwise a flagged reading could be relabelled `derived` and slip through the boundary.
+    if confirm && !flags.is_empty() {
+        return Err(unprocessable(
+            "value_flagged",
+            "a flagged reading is only proposed; a person must check it",
+        ));
+    }
+    if confirm && confidence.is_some_and(|c| c < CONFIRM_MIN_CONFIDENCE) {
+        return Err(unprocessable(
+            "value_low_confidence",
+            "a low-confidence reading is only proposed; a person must check it",
         ));
     }
     let note = text_field(v, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
@@ -1563,10 +1626,32 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
     for v in &values {
         agent_reason(u, &v.note)?;
     }
+    // An agent may send its type events with the values so both commit in one transaction: no pause can
+    // land between a written value and its replayable event.
+    let events = match body.get("events") {
+        None => None,
+        Some(Value::Array(a)) => Some(operator::parse_event_list(a)?),
+        Some(_) => {
+            return Err(unprocessable(
+                "operator_event",
+                "operator events must be a list",
+            ));
+        }
+    };
+    if events.is_some() && u.kind != "agent" {
+        return Err(refuse(
+            StatusCode::FORBIDDEN,
+            "operator_agent_only",
+            "operator events are written by the AI operator's own account",
+        ));
+    }
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
     guard_order(app, &tx, u, oid, "edit values")?;
+    if let Some(es) = &events {
+        operator::store_events(app, &tx, u, oid, es)?;
+    }
     let (mut changed, mut unchanged) = (0, 0);
     let mut touched = BTreeSet::new();
     for v in &values {

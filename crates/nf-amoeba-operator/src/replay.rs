@@ -19,7 +19,8 @@ pub fn replay(events: &[Value]) -> Replayed {
             continue;
         }
         if e["action"] == "ask" {
-            out.asked.push(e["step"].as_str().unwrap_or_default().to_string());
+            out.asked
+                .push(e["step"].as_str().unwrap_or_default().to_string());
         }
         if let (Some(p), Some(k), Some(v)) = (
             e["write_ref"]["part"].as_str(),

@@ -58,7 +58,9 @@ pub enum Mark {
 pub fn mark_of(text: &str) -> Mark {
     let t = text.trim();
     let mut it = t.chars();
-    let Some(c) = it.next() else { return Mark::Other };
+    let Some(c) = it.next() else {
+        return Mark::Other;
+    };
     if "φΦØø∅⌀".contains(c) {
         return Mark::Phi;
     }
@@ -330,17 +332,37 @@ fn enumerate(
 /// Narrow the candidates of some slots with a smaller engine request that depends on them alone (a header's blank
 /// is that of a cylinder shell of the same radius and length). Only candidates are removed here: the answer is
 /// still verified by the full request, so a wrong pre-check can cost an answer but never produce a wrong one.
-fn narrow(unit: &Unit, cands: &mut [Vec<(f64, Reading)>], verifier: &dyn Verifier, tried: &mut usize) {
+fn narrow(
+    unit: &Unit,
+    cands: &mut [Vec<(f64, Reading)>],
+    verifier: &dyn Verifier,
+    tried: &mut usize,
+) {
     for pre in &unit.pre {
-        let Some(mut sub) = family_unit(&unit.id, &pre.family, vec![]) else { continue };
-        let Some(row) = unit.bom.iter().find(|b| b.part == pre.row.0) else { continue };
-        let (width, height) = if pre.swap { (row.height, row.width) } else { (row.width, row.height) };
-        sub.bom = vec![BomRow { part: pre.row.1.clone(), width, height, decimals: row.decimals }];
+        let Some(mut sub) = family_unit(&unit.id, &pre.family, vec![]) else {
+            continue;
+        };
+        let Some(row) = unit.bom.iter().find(|b| b.part == pre.row.0) else {
+            continue;
+        };
+        let (width, height) = if pre.swap {
+            (row.height, row.width)
+        } else {
+            (row.width, row.height)
+        };
+        sub.bom = vec![BomRow {
+            part: pre.row.1.clone(),
+            width,
+            height,
+            decimals: row.decimals,
+        }];
         sub.slots.clear();
         let mut sub_cands = Vec::new();
         let mut positions = Vec::new();
         for (mk, sk) in &pre.map {
-            let Some(pos) = unit.slots.iter().position(|s| &s.key == mk) else { continue };
+            let Some(pos) = unit.slots.iter().position(|s| &s.key == mk) else {
+                continue;
+            };
             let mut slot = unit.slots[pos].clone();
             slot.key = sk.clone();
             sub.slots.push(slot);
@@ -349,7 +371,10 @@ fn narrow(unit: &Unit, cands: &mut [Vec<(f64, Reading)>], verifier: &dyn Verifie
         }
         if sub.slots.len() != pre.map.len()
             || sub_cands.iter().any(Vec::is_empty)
-            || sub_cands.iter().fold(1usize, |a, c| a.saturating_mul(c.len())) > MAX_COMBINATIONS
+            || sub_cands
+                .iter()
+                .fold(1usize, |a, c| a.saturating_mul(c.len()))
+                > MAX_COMBINATIONS
         {
             continue;
         }
@@ -383,18 +408,31 @@ pub fn assign(unit: &Unit, readings: &[Reading], verifier: &dyn Verifier) -> Ass
     if unit.bom.is_empty() {
         out.question = Some(q(
             "no_bom",
-            format!("Unit {}: the material list gives nothing to check the numbers against.", unit.id),
-            format!("ユニット {}: 数値を照合できる部品表の記載がありません。", unit.id),
+            format!(
+                "Unit {}: the material list gives nothing to check the numbers against.",
+                unit.id
+            ),
+            format!(
+                "ユニット {}: 数値を照合できる部品表の記載がありません。",
+                unit.id
+            ),
         ));
         return out;
     }
-    let mut cands: Vec<Vec<(f64, Reading)>> = unit.slots.iter().map(|s| candidates(s, readings)).collect();
+    let mut cands: Vec<Vec<(f64, Reading)>> =
+        unit.slots.iter().map(|s| candidates(s, readings)).collect();
     if let Some(i) = cands.iter().position(Vec::is_empty) {
         let k = &unit.slots[i].key;
         out.question = Some(q(
             "slot_without_candidate",
-            format!("Unit {}: no number on the page can be '{k}'; please enter it.", unit.id),
-            format!("ユニット {}: ページに '{k}' となり得る数値がありません。入力してください。", unit.id),
+            format!(
+                "Unit {}: no number on the page can be '{k}'; please enter it.",
+                unit.id
+            ),
+            format!(
+                "ユニット {}: ページに '{k}' となり得る数値がありません。入力してください。",
+                unit.id
+            ),
         ));
         return out;
     }
@@ -406,9 +444,17 @@ pub fn assign(unit: &Unit, readings: &[Reading], verifier: &dyn Verifier) -> Ass
             format!(
                 "Unit {}: {total} possible assignments ({}); too many to check.",
                 unit.id,
-                unit.slots.iter().zip(&cands).map(|(s, c)| format!("{} {}", s.key, c.len())).collect::<Vec<_>>().join(", ")
+                unit.slots
+                    .iter()
+                    .zip(&cands)
+                    .map(|(s, c)| format!("{} {}", s.key, c.len()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ),
-            format!("ユニット {}: 組み合わせが {total} 通りあり、確認できません。", unit.id),
+            format!(
+                "ユニット {}: 組み合わせが {total} 通りあり、確認できません。",
+                unit.id
+            ),
         ));
         return out;
     }
@@ -444,7 +490,11 @@ pub fn assign(unit: &Unit, readings: &[Reading], verifier: &dyn Verifier) -> Ass
                         bbox: r.bbox,
                         confidence: r.confidence,
                         flags: r.flags.clone(),
-                        status: if r.flagged() { Status::Proposed } else { Status::Confirmed },
+                        status: if r.flagged() {
+                            Status::Proposed
+                        } else {
+                            Status::Confirmed
+                        },
                     });
                 } else {
                     open.push(s.key.clone());
@@ -535,10 +585,20 @@ pub fn family_unit(id: &str, family: &str, bom: Vec<BomRow>) -> Option<Unit> {
             u.fixed.insert("delta".into(), 0.0);
             let m = |a: &str, b: &str| (a.to_string(), b.to_string());
             u.pre = vec![
-                Pre { family: "cylinder_shell".into(), map: vec![m("header_radius", "r_dev"), m("header_length", "length")], row: m("header", "shell"), swap: true },
+                Pre {
+                    family: "cylinder_shell".into(),
+                    map: vec![m("header_radius", "r_dev"), m("header_length", "length")],
+                    row: m("header", "shell"),
+                    swap: true,
+                },
                 Pre {
                     family: "branch_stub".into(),
-                    map: vec![m("header_radius", "header_radius"), m("branch_radius", "branch_radius"), m("beta_deg", "beta_deg"), m("s_end", "s_end")],
+                    map: vec![
+                        m("header_radius", "header_radius"),
+                        m("branch_radius", "branch_radius"),
+                        m("beta_deg", "beta_deg"),
+                        m("s_end", "s_end"),
+                    ],
                     row: m("branch", "branch"),
                     swap: false,
                 },
@@ -570,7 +630,10 @@ mod tests {
     struct Lcg(u64);
     impl Lcg {
         fn next(&mut self) -> u64 {
-            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             self.0 >> 33
         }
         fn range(&mut self, lo: f64, hi: f64) -> f64 {
@@ -646,9 +709,19 @@ mod tests {
     fn distractor_numbers_do_not_change_the_answer() {
         let (u, mut rs) = cyl(150.5, 2372.5);
         // distractors in the same written form as the true numbers
-        for (i, t) in ["φ410.0", "φ88.0", "515.22", "172.37", "269.84", "R40.00", "Smax 227.09", "L515.22", "2372.4"]
-            .iter()
-            .enumerate()
+        for (i, t) in [
+            "φ410.0",
+            "φ88.0",
+            "515.22",
+            "172.37",
+            "269.84",
+            "R40.00",
+            "Smax 227.09",
+            "L515.22",
+            "2372.4",
+        ]
+        .iter()
+        .enumerate()
         {
             rs.push(rd(100 + i, t));
         }
@@ -675,7 +748,10 @@ mod tests {
         assert!(a.question.is_none());
         let f = a.fills.iter().find(|f| f.key == "r_dev").unwrap();
         assert_eq!(f.status, Status::Proposed);
-        assert_eq!(a.fills.iter().find(|f| f.key == "length").unwrap().status, Status::Confirmed);
+        assert_eq!(
+            a.fills.iter().find(|f| f.key == "length").unwrap().status,
+            Status::Confirmed
+        );
     }
 
     #[test]
@@ -703,7 +779,11 @@ mod tests {
         struct Prod;
         impl Verifier for Prod {
             fn check(&self, _u: &Unit, v: &BTreeMap<String, f64>) -> Verdict {
-                if (v["a"] * v["b"] - 6.0).abs() < 1e-9 { Verdict::Match } else { Verdict::Mismatch }
+                if (v["a"] * v["b"] - 6.0).abs() < 1e-9 {
+                    Verdict::Match
+                } else {
+                    Verdict::Mismatch
+                }
             }
         }
         let u = Unit {
@@ -712,15 +792,28 @@ mod tests {
             slots: vec![plain("a", (1.0, 10.0)), plain("b", (1.0, 10.0))],
             fixed: BTreeMap::new(),
             derived: vec![],
-            bom: vec![BomRow { part: "p".into(), width: 1.0, height: 1.0, decimals: 0 }],
+            bom: vec![BomRow {
+                part: "p".into(),
+                width: 1.0,
+                height: 1.0,
+                decimals: 0,
+            }],
             pre: vec![],
         };
-        let rs: Vec<Reading> = ["2", "3", "7"].iter().enumerate().map(|(i, t)| rd(i, t)).collect();
+        let rs: Vec<Reading> = ["2", "3", "7"]
+            .iter()
+            .enumerate()
+            .map(|(i, t)| rd(i, t))
+            .collect();
         let a = assign(&u, &rs, &Prod);
         assert!(a.fills.is_empty());
         assert_eq!(a.question.unwrap().code, "ambiguous_assignment");
         // the same unit with a symmetric duplicate removed is unique: 2 x 3 only if b is restricted
-        let rs2: Vec<Reading> = ["6", "1", "7"].iter().enumerate().map(|(i, t)| rd(i, t)).collect();
+        let rs2: Vec<Reading> = ["6", "1", "7"]
+            .iter()
+            .enumerate()
+            .map(|(i, t)| rd(i, t))
+            .collect();
         let a2 = assign(&u, &rs2, &Prod);
         assert_eq!(a2.question.unwrap().code, "ambiguous_assignment"); // 6x1 and 1x6
     }
@@ -728,7 +821,11 @@ mod tests {
     #[test]
     fn too_many_candidates_is_a_question() {
         let (mut u, _) = cyl(150.5, 2372.5);
-        u.slots = vec![plain("a", (0.0, 1e9)), plain("b", (0.0, 1e9)), plain("c", (0.0, 1e9))];
+        u.slots = vec![
+            plain("a", (0.0, 1e9)),
+            plain("b", (0.0, 1e9)),
+            plain("c", (0.0, 1e9)),
+        ];
         let rs: Vec<Reading> = (0..40).map(|i| rd(i, &format!("{}", 10 + i))).collect();
         let a = assign(&u, &rs, &FamilyVerifier);
         assert_eq!(a.question.unwrap().code, "too_many_candidates");
@@ -763,13 +860,30 @@ mod tests {
             let rs: Vec<Reading> = texts.iter().enumerate().map(|(i, t)| rd(i, t)).collect();
             let a = assign(&u, &rs, &FamilyVerifier);
             // the blank of a header with branch does not depend on where the branch stands: that number is asked
-            let asked = if fam == "header_with_branch" { vec!["branch_station"] } else { vec![] };
-            assert_eq!(a.question.as_ref().map(|q| q.code), asked.first().map(|_| "ambiguous_assignment"), "{fam}: {:?}", a.question);
+            let asked = if fam == "header_with_branch" {
+                vec!["branch_station"]
+            } else {
+                vec![]
+            };
+            assert_eq!(
+                a.question.as_ref().map(|q| q.code),
+                asked.first().map(|_| "ambiguous_assignment"),
+                "{fam}: {:?}",
+                a.question
+            );
             for s in &u.slots {
                 if asked.contains(&s.key.as_str()) {
-                    assert!(a.fills.iter().all(|f| f.key != s.key), "{fam} {} must not be filled", s.key);
+                    assert!(
+                        a.fills.iter().all(|f| f.key != s.key),
+                        "{fam} {} must not be filled",
+                        s.key
+                    );
                 } else {
-                    assert!((val(&a, &s.key) - req[s.key.as_str()].as_f64().unwrap()).abs() < 1e-9, "{fam} {}", s.key);
+                    assert!(
+                        (val(&a, &s.key) - req[s.key.as_str()].as_f64().unwrap()).abs() < 1e-9,
+                        "{fam} {}",
+                        s.key
+                    );
                 }
             }
         }
@@ -793,7 +907,7 @@ mod tests {
                     _ => format!("R{d:.1}"),
                 };
                 let mut x = rd(100 + i, &t);
-                if g.next() % 4 == 0 {
+                if g.next().is_multiple_of(4) {
                     x.flags.push("ambiguous".into());
                 }
                 rs.push(x);
@@ -802,7 +916,12 @@ mod tests {
             for f in &a.fills {
                 let want = if f.key == "r_dev" { r } else { l };
                 if f.status == Status::Confirmed {
-                    assert!((f.value - want).abs() < 1e-9, "case {n}: wrong confirmed {} {}", f.key, f.value);
+                    assert!(
+                        (f.value - want).abs() < 1e-9,
+                        "case {n}: wrong confirmed {} {}",
+                        f.key,
+                        f.value
+                    );
                     confirmed += 1;
                 }
             }
@@ -813,12 +932,21 @@ mod tests {
             rev.reverse();
             let b = assign(&u, &rev, &FamilyVerifier);
             assert_eq!(
-                a.fills.iter().map(|f| (f.key.clone(), f.value.to_bits(), f.reading, f.status)).collect::<Vec<_>>(),
-                b.fills.iter().map(|f| (f.key.clone(), f.value.to_bits(), f.reading, f.status)).collect::<Vec<_>>(),
+                a.fills
+                    .iter()
+                    .map(|f| (f.key.clone(), f.value.to_bits(), f.reading, f.status))
+                    .collect::<Vec<_>>(),
+                b.fills
+                    .iter()
+                    .map(|f| (f.key.clone(), f.value.to_bits(), f.reading, f.status))
+                    .collect::<Vec<_>>(),
                 "case {n}: order changed the answer"
             );
             assert_eq!(a.question.map(|q| q.code), b.question.map(|q| q.code));
         }
-        assert!(confirmed > 40, "confirmed {confirmed}, questions {questions}");
+        assert!(
+            confirmed > 40,
+            "confirmed {confirmed}, questions {questions}"
+        );
     }
 }

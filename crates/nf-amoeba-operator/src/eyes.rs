@@ -43,7 +43,10 @@ impl Eyes for NumreadEyes {
     }
     fn read(&mut self, page: i64, png: &[u8]) -> Result<PageRead, String> {
         let (width, height) = png_size(png).ok_or("the page picture is not a PNG")?;
-        let items = self.reader.read_png(png).map_err(|e| format!("reading page {page}: {e:?}"))?;
+        let items = self
+            .reader
+            .read_png(png)
+            .map_err(|e| format!("reading page {page}: {e:?}"))?;
         let mut readings = Vec::new();
         for it in items {
             let Some(value) = it.value else { continue };
@@ -69,7 +72,11 @@ impl Eyes for NumreadEyes {
                 in_table: false,
             });
         }
-        Ok(PageRead { readings, width, height })
+        Ok(PageRead {
+            readings,
+            width,
+            height,
+        })
     }
 }
 
@@ -85,6 +92,10 @@ impl Eyes for FixedEyes {
     }
     fn read(&mut self, page: i64, _png: &[u8]) -> Result<PageRead, String> {
         let (r, w, h) = self.pages.get(&page).ok_or("no readings for this page")?;
-        Ok(PageRead { readings: r.clone(), width: *w, height: *h })
+        Ok(PageRead {
+            readings: r.clone(),
+            width: *w,
+            height: *h,
+        })
     }
 }
