@@ -4,7 +4,7 @@ import { getState, setState } from './store.js';
 import { initialLang, setLang, applyPage, lang, t } from './i18n.js';
 import { initFx, enterMotion } from './lib/motion.js';
 
-const TITLES = { convert: 'Convert', login: 'Sign in', result: 'Result', workspace: 'Workspace', job: 'Job', math: 'New calculation', project: 'Project', account: 'Account', admin: 'Administration', manufacturing: 'Manufacturing', help: 'Help', verification: 'Verification', amoeba: 'AMOEBA', 'job-start': 'Start' };
+const TITLES = { convert: 'Convert', login: 'Sign in', result: 'Result', workspace: 'Workspace', job: 'Job', math: 'New calculation', project: 'Project', account: 'Account', admin: 'Administration', manufacturing: 'Manufacturing', help: 'Help', verification: 'Verification', amoeba: 'AMOEBA', 'job-start': 'Start', 'job-pro': 'Check' };
 const THEMES = ['dark', 'light', ''];
 const LANGS = ['en', 'ja'];
 const QUICK_PROJECT = 'Quick conversions';
@@ -69,6 +69,8 @@ function resolveRoute(hash) {
   if (m) return { view: 'amoeba', mod: './views/amoeba.js', params: { tab: m[1], id: m[2] } };
   m = path.match(/^\/start(?:\/(\d+))?\/?$/);   // the simple job view (F1): #/start or #/start/<order id>
   if (m) return { view: 'job-start', mod: './views/job-start.js', params: { oid: m[1] } };
+  m = path.match(/^\/pro\/(\d+)\/?$/);   // the pro (check-only) job view: #/pro/<order id>
+  if (m) return { view: 'job-pro', mod: './views/job-pro.js', params: { oid: m[1] } };
   m = path.match(/^\/admin(?:\/([a-z]+))?\/?$/);
   if (m) return { view: 'admin', mod: './views/admin.js', params: { tab: m[1] } };
   return { view: 'convert', mod: './views/convert.js', params: {} };

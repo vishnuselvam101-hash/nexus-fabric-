@@ -4,14 +4,16 @@
 import { api, uploadFile, esc, ApiError } from '../api.js';
 import { t } from '../i18n.js';
 import { createCursor } from '../operator-cursor.js';
+import { mountLiveControls } from '../lib/live-controls.js';
+import { questionsOf, renderQuestions } from '../lib/question-cards.js';
 
 const PROJECT = 'Quick conversions';
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.tif,.tiff';
-const READY = ['computed'];
-const HELD = ['held'];
+// Ready = computed AND certified with a DXF allowed and no block (the ZIP's DXF rule); a computed but blocked part is not ready
+const isReady = (p) => p.state === 'computed' && p.dxf_allowed === true && Array.isArray(p.dxf_blocked_by) && p.dxf_blocked_by.length === 0;
 const NEED = ['held_missing', 'refused', 'not_computed'];
 
-let host = null, root = null, cursor = null, stopFollow = null, busy = false, oid = null, files = [];
+let host = null, root = null, cursor = null, stopFollow = null, controls = null, busy = false, oid = null, files = [], lastSeq = -1;
 
 const $ = (sel) => root.querySelector(sel);
 const msgOf = (e) => (e instanceof ApiError ? e.message : (e?.message || 'Unexpected error'));
@@ -28,11 +30,16 @@ export async function mount(viewEl, params = {}) {
 }
 
 export function unmount() {
-  if (stopFollow) stopFollow();
-  if (cursor) cursor.destroy();
-  stopFollow = null; cursor = null;
+  stopLive();
   root?.remove();
   root = null; host = null;
+}
+
+function stopLive() {
+  if (stopFollow) stopFollow();
+  if (cursor) cursor.destroy();
+  if (controls) controls.destroy();
+  stopFollow = null; cursor = null; controls = null; lastSeq = -1;
 }
 
 const steps = (cur) => [1, 2, 3].map((n) => {
@@ -43,6 +50,7 @@ const steps = (cur) => [1, 2, 3].map((n) => {
 
 async function render() {
   if (!root) return;
+  stopLive();
   if (!oid) return renderIntake();
   let order;
   try { order = await api(`/api/orders/${oid}`); } catch (e) { return renderError(e); }
@@ -65,21 +73,29 @@ async function render() {
       <div class="jf1-actions">
         <button type="button" class="jf1-btn jf1-primary" data-act="calc" ${busy || !parts.length ? 'disabled' : ''}>${esc(busy ? t('jf1.calcing') : t('jf1.calc'))}</button>
         <button type="button" class="jf1-btn" data-act="new">${esc(t('jf1.restart'))}</button>
+        <a class="jf1-btn jf1-link" href="#/pro/${oid}">${esc(t('jf2.live.pro'))}</a>
       </div>
       ${parts.length ? '' : `<p class="jf1-note">${esc(t('jf1.noParts'))}</p>`}
+      <section class="jf1-questions" aria-labelledby="jf1-q-h">
+        <h2 id="jf1-q-h">${esc(t('jf2.q.title'))}</h2>
+        <div data-questions></div>
+      </section>
       <section class="jf1-feed" aria-labelledby="jf1-feed-h">
         <h2 id="jf1-feed-h">${esc(t('jf1.feed'))}</h2>
+        <div data-controls></div>
         <div class="jf1-stage" data-stage><p class="jf1-note" data-none>${esc(t('jf1.feed.none'))}</p></div>
         <ol class="jf1-log" data-log aria-live="polite"></ol>
       </section>
       <div class="jf1-download">
         ${resParts.length ? `<a class="jf1-btn jf1-primary" id="jf1-outputs" href="/api/orders/${oid}/outputs.zip" download>${esc(t('jf1.download'))}</a>` : `<button type="button" class="jf1-btn" disabled>${esc(t('jf1.download'))}</button>`}
+        <p class="jf1-err" data-dl-err role="alert" hidden></p>
         <p class="jf1-note">${esc(t('jf1.download.note'))}</p>
       </div>
     </div>`;
   root.querySelector('[data-act="calc"]')?.addEventListener('click', compute);
   root.querySelector('[data-act="new"]')?.addEventListener('click', () => { location.hash = '#/start'; });
-  follow();
+  root.querySelector('#jf1-outputs')?.addEventListener('click', download);
+  follow(order);
 }
 
 function renderIntake() {
@@ -154,7 +170,8 @@ function pagesHtml(pages) {
 
 function resultHtml(parts) {
   const count = (list) => parts.filter((p) => list.includes(p.state)).length;
-  const ready = count(READY), held = count(HELD), need = count(NEED);
+  // held = every computed part that is not ready (blocked, no DXF); need = open questions. The three add up to the parts.
+  const ready = parts.filter(isReady).length, need = count(NEED), held = parts.length - ready - need;
   return `<section class="jf1-result" aria-labelledby="jf1-res-h">
     <h2 id="jf1-res-h">${esc(t('jf1.res.summary', { ready, held, need }))}</h2>
     <dl class="jf1-counts">
@@ -163,6 +180,31 @@ function resultHtml(parts) {
       <div><dt>${esc(t('jf1.res.need'))}</dt><dd class="mono">${need}</dd></div>
     </dl>
   </section>`;
+}
+
+// Fetch the ZIP first: a refusal (409 stale result, 413 too large, licence) shows the server's message instead of saving a JSON file
+async function download(ev) {
+  ev.preventDefault();
+  const a = ev.currentTarget, err = $('[data-dl-err]');
+  err.hidden = true; err.textContent = '';
+  try {
+    const res = await fetch(a.getAttribute('href'), { headers: { 'X-NF-Request': '1' }, credentials: 'same-origin' });
+    if (!res.ok) {
+      let detail = {};
+      try { detail = await res.json(); } catch { /* not JSON */ }
+      throw new ApiError(detail.error || detail.message || res.statusText, { status: res.status, ...detail });
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const cd = res.headers.get('content-disposition') || '';
+    const name = (cd.match(/filename="([^"]+)"/) || [])[1] || 'job-package.zip';
+    link.href = url; link.download = name;
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {
+    err.hidden = false; err.textContent = msgOf(e);
+  }
 }
 
 async function compute() {
@@ -187,20 +229,40 @@ function setCalc(on) {
   if (b) { b.disabled = on; b.textContent = on ? t('jf1.calcing') : t('jf1.calc'); }
 }
 
-// AMOEBA's events: the cursor shows them on the page; the log lists the same reasons in words.
-function follow() {
+// AMOEBA's events: the blob cursor shows them on the page; the log lists the same reasons in words. The controls pause,
+// undo or take over (a person's); the question cards show what AMOEBA needs answered.
+async function showQuestions(order) {
+  const box = root?.querySelector('[data-questions]');
+  if (!box) return;
+  renderQuestions(box, oid, questionsOf(order), { onAnswered: async () => { await refreshQuestions(); } });
+}
+
+async function refreshQuestions() {
+  if (!root) return;
+  try { await showQuestions(await api(`/api/orders/${oid}`)); } catch { /* the next change tries again */ }
+}
+
+function follow(order) {
   if (!root) return;
   const stage = root.querySelector('[data-stage]');
   const log = root.querySelector('[data-log]');
+  showQuestions(order);
   cursor = createCursor({
     root: stage,
+    look: 'blob',
     onEvent(ev) {
       root?.querySelector('[data-none]')?.remove();
       const li = document.createElement('li');
       li.textContent = `${ev.action || ''} ${ev.reason || ''}`.trim();
       log?.append(li);
     },
+    onPoll(d) {
+      controls?.update(d);
+      if (lastSeq >= 0 && d.last_seq !== lastSeq) refreshQuestions();
+      lastSeq = d.last_seq;
+    },
   });
+  controls = mountLiveControls(root.querySelector('[data-controls]'), { oid, cursor, onChange: (act) => { if (act === 'undo') refreshQuestions(); } });
   stopFollow = cursor.follow(oid);
 }
 

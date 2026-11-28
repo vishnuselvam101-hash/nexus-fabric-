@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS order_page_notes(id INTEGER PRIMARY KEY, order_id INT
 CREATE TABLE IF NOT EXISTS rule_packs(id INTEGER PRIMARY KEY, name TEXT NOT NULL, version TEXT NOT NULL, pack_json TEXT NOT NULL, sha256 TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS rule_pack_assignments(scope TEXT NOT NULL, target_id INTEGER NOT NULL, pack_id INTEGER NOT NULL REFERENCES rule_packs(id), assigned_by TEXT NOT NULL, assigned_at INTEGER NOT NULL, PRIMARY KEY(scope, target_id));
 CREATE TABLE IF NOT EXISTS rule_confirmations(id INTEGER PRIMARY KEY, pack_id INTEGER NOT NULL REFERENCES rule_packs(id), rule_key TEXT NOT NULL, prev_json TEXT NOT NULL, new_json TEXT NOT NULL, confirmed_by TEXT NOT NULL, confirmed_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER);
+CREATE TABLE IF NOT EXISTS order_hold_overrides(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), part_no TEXT NOT NULL, code TEXT NOT NULL, reason TEXT NOT NULL, against_hash TEXT NOT NULL, by_user TEXT NOT NULL, at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, undo_note TEXT);
 ";
 
 /// Columns added after the first schema. Each is added only if absent, and a
@@ -142,6 +143,7 @@ CREATE TRIGGER IF NOT EXISTS order_results_immutable BEFORE UPDATE ON order_resu
 CREATE TRIGGER IF NOT EXISTS order_readings_no_delete BEFORE DELETE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are kept as the reader produced them'); END;
 CREATE TRIGGER IF NOT EXISTS order_readings_no_edit BEFORE UPDATE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS order_decisions_no_delete BEFORE DELETE ON order_decisions BEGIN SELECT RAISE(ABORT, 'decisions are kept; undo marks them undone'); END;
+CREATE TRIGGER IF NOT EXISTS order_hold_overrides_no_delete BEFORE DELETE ON order_hold_overrides BEGIN SELECT RAISE(ABORT, 'overrides are kept; undo marks them undone'); END;
 ";
 
 const INDEXES: &str = "

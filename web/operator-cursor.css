@@ -22,3 +22,34 @@
   .op-cursor { transition: none; }
   .op-ripple.op-go { animation: none; opacity: .9; }
 }
+
+/* pick 1C: the living blob. The shape morphs by animating the corner radii; the core breathes. Nothing here needs WebGL. */
+.op-blob { width: 26px; height: 26px; margin: -13px 0 0 -13px; filter: none; }
+.op-blob-body { position: absolute; inset: 0; background: color-mix(in srgb, var(--op-color, var(--accent, #0a6cff)) 55%, transparent); border: 2px solid var(--op-color, var(--accent, #0a6cff)); border-radius: 58% 42% 46% 54% / 52% 58% 42% 48%; animation: op-morph 4.2s ease-in-out infinite; }
+.op-blob-core { position: absolute; left: 9px; top: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--op-color, var(--accent, #0a6cff)); animation: op-breathe 2.6s ease-in-out infinite; }
+.op-layer[data-action="click"] .op-blob-body, .op-layer[data-action="compute"] .op-blob-body { animation-duration: 1.2s; }
+@keyframes op-morph {
+  0%, 100% { border-radius: 58% 42% 46% 54% / 52% 58% 42% 48%; transform: rotate(0deg); }
+  33% { border-radius: 44% 56% 58% 42% / 60% 44% 56% 40%; transform: rotate(40deg); }
+  66% { border-radius: 52% 48% 40% 60% / 42% 56% 44% 58%; transform: rotate(-30deg); }
+}
+@keyframes op-breathe { 0%, 100% { transform: scale(.8); } 50% { transform: scale(1.25); } }
+.op-layer[data-reduced="1"] .op-blob-body, .op-layer[data-reduced="1"] .op-blob-core { animation: none; border-radius: 50%; }
+@media (prefers-reduced-motion: reduce) { .op-blob-body, .op-blob-core { animation: none; border-radius: 50%; } }
+
+/* live controls: pause, undo, take over, speed (shared by the simple and the pro view) */
+.lv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lv-status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--jf1-t2, var(--fg, #444)); }
+.lv-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--jf1-t3, #888); }
+.lv-bar[data-state="work"] .lv-dot { background: var(--jf1-ok, #3fb950); }
+.lv-bar[data-state="paused"] .lv-dot, .lv-bar[data-state="taken"] .lv-dot { background: var(--jf1-warn, #e3b341); }
+.lv-btn, .lv-seg button { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 12px; min-height: 36px; border-radius: 8px; border: 1px solid var(--jf1-border-2, #888); background: var(--jf1-raised, #fff); color: var(--jf1-t1, #111); cursor: pointer; }
+.lv-btn:disabled { opacity: .45; cursor: not-allowed; }
+.lv-seg { display: inline-flex; gap: 0; }
+.lv-seg button { border-radius: 0; margin-left: -1px; }
+.lv-seg button:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
+.lv-seg button:last-child { border-radius: 0 8px 8px 0; }
+.lv-seg button[aria-pressed="true"] { background: var(--jf1-accent, #0a6cff); border-color: var(--jf1-accent, #0a6cff); color: var(--jf1-accent-ink, #fff); }
+.lv-btn:focus-visible, .lv-seg button:focus-visible { outline: 3px solid var(--jf1-accent, #0a6cff); outline-offset: 2px; }
+.lv-err { color: var(--jf1-bad, #f85149); font-size: 13px; margin: 6px 0 0; }
+.lv-note { color: var(--jf1-t2, var(--fg, #444)); font-size: 13px; margin: 6px 0 0; min-height: 1em; }

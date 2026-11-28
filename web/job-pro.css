@@ -1,0 +1,41 @@
+/* NEXUS FABRIC job, pro view (F2/F3). Uses the F1 tokens (.jf1). Check only. */
+.jpro { max-width: 1480px; }
+.jp-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
+.jp-tool { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 8px 0 14px; }
+.jp-controls { flex: 1 1 420px; }
+.jp-grid { display: grid; grid-template-columns: 240px minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+.jp-side, .jp-main, .jp-insp { background: var(--jf1-card); border: 1px solid var(--jf1-border); border-radius: var(--jf1-radius); padding: 12px; min-width: 0; }
+.jp-side h2, .jp-insp h2, .jp-main h2 { font-size: 15px; margin: 0 0 8px; }
+.jp-insp h3, .jp-main h3 { font-size: 13px; margin: 14px 0 6px; color: var(--jf1-t2); text-transform: uppercase; letter-spacing: .05em; }
+.jp-pgh { margin: 8px 0 4px; color: var(--jf1-t3); font-size: 12px; }
+.jp-part { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; font: inherit; font-size: 14px; padding: 8px 10px; min-height: 40px; margin-bottom: 4px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--jf1-t1); cursor: pointer; }
+.jp-part[aria-pressed="true"] { background: var(--jf1-inset); border-color: var(--jf1-accent); }
+.jp-part:focus-visible, .jp-chip:focus-visible, .jp-ta:focus-visible, .jp-in:focus-visible, .jp-sel:focus-visible { outline: 3px solid var(--jf1-accent); outline-offset: 2px; }
+.jp-st { margin-left: auto; font-size: 12px; color: var(--jf1-t3); }
+.jp-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--jf1-t3); flex: none; }
+.jp-dot.is-ready { background: var(--jf1-ok); } .jp-dot.is-held { background: var(--jf1-warn); } .jp-dot.is-need { background: var(--jf1-bad); }
+.jp-tabs { margin-bottom: 10px; }
+.jp-view { min-height: 240px; }
+.jp-draw { position: relative; line-height: 0; }
+.jp-img { width: 100%; height: auto; background: #fff; border-radius: 6px; display: block; }
+.jp-box { position: absolute; border: 1px dashed var(--jf1-t3); border-radius: 3px; pointer-events: none; }
+.jp-box.is-lit { border: 3px solid var(--jf1-accent); background: color-mix(in srgb, var(--jf1-accent) 22%, transparent); }
+.jp-svg { width: 100%; max-height: 520px; background: var(--jf1-inset); border-radius: 8px; }
+.jp-out { fill: color-mix(in srgb, var(--jf1-accent) 10%, transparent); stroke: var(--jf1-t1); stroke-width: 1.5; }
+.jp-hole { fill: var(--jf1-inset); stroke: var(--jf1-t2); stroke-width: 1.2; }
+.jp-3d { background: var(--jf1-inset); border-radius: 8px; overflow: hidden; }
+.jp-3d canvas { display: block; width: 100%; }
+.jp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.jp-chip { font: inherit; font-size: 13px; padding: 6px 10px; min-height: 36px; border-radius: 999px; border: 1px solid var(--jf1-border-2); background: var(--jf1-raised); color: var(--jf1-t1); cursor: pointer; }
+.jp-chip[aria-pressed="true"] { border-color: var(--jf1-accent); background: color-mix(in srgb, var(--jf1-accent) 18%, var(--jf1-raised)); }
+.jp-chip.is-proposed, .jp-chip.is-missing { border-style: dashed; }
+.jp-chip small { color: var(--jf1-t3); }
+.jp-rows, .jp-ovl { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 13px; }
+.jp-row { background: var(--jf1-inset); border-radius: 8px; padding: 10px; } .jp-row p { margin: 0 0 6px; overflow-wrap: anywhere; }
+.jp-ov { display: grid; gap: 8px; margin-top: 8px; } .jp-ov label { display: grid; gap: 4px; font-size: 13px; color: var(--jf1-t2); }
+.jp-ta, .jp-in, .jp-sel { font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--jf1-border-2); background: var(--jf1-raised); color: var(--jf1-t1); width: 100%; }
+.jp-tbl { width: 100%; border-collapse: collapse; font-size: 13px; } .jp-tbl th, .jp-tbl td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--jf1-border); vertical-align: top; }
+.jp-rform { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; } .jp-rform label { display: grid; gap: 4px; font-size: 13px; color: var(--jf1-t2); }
+.jp-qs .qc { grid-template-columns: 1fr; }
+@media (max-width: 1100px) { .jp-grid { grid-template-columns: 200px minmax(0, 1fr); } .jp-insp { grid-column: 1 / -1; } }
+@media (max-width: 700px) { .jp-grid { grid-template-columns: 1fr; } }
