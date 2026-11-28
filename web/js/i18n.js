@@ -808,6 +808,8 @@ const EN = {
   "refusal.no_pattern_produced": "The request produced no pattern and stated no rule.",
   "refusal.review_never_wave": "`{fields}` is a review stop, not an answer. Enter the value or take the hand-drawn exit; no reason or identity can wave it through.",
   "refusal.context_undo_out_of_order": "Undo the latest material or note decision first; an older page-input decision cannot be skipped.",
+  "refusal.context_restore_not_undoable": "An automatic context restore is an audit record and cannot be undone; replaying it would clear a hold while its original page-input decision stayed undone.",
+  "refusal.undo_note": "Undoing a page-input decision needs a non-empty note.",
   // keys the ported screens build at run time
   "math.result.1": "A flat pattern per part with its curves, lengths and estimated numerical error.",
   "math.result.2": "Independent verification checks with primary and reference values.",
@@ -1624,6 +1626,8 @@ const JA = {
   "refusal.no_pattern_produced": "この依頼は展開図を生成せず、規則も示されませんでした。",
   "refusal.review_never_wave": "`{fields}` はレビューの停止項目です。受理できません。値を入力するか手描きの出口を使ってください。理由や権限では見過ごせません。",
   "refusal.context_undo_out_of_order": "先に最後の材料表または注記の決定を取り消してください。古いページ入力の決定は飛ばせません。",
+  "refusal.context_restore_not_undoable": "自動的なコンテキストの復元は監査記録なので取り消せません。取り消すと、元のページ入力の決定が取り消されたまま保持が解除されます。",
+  "refusal.undo_note": "ページ入力の決定を取り消すには、空でない理由が必要です。",
   // keys the ported screens build at run time
   "math.result.1": "部材ごとの展開図（曲線、長さ、数値誤差の推定値）。",
   "math.result.2": "独立した検算による検証項目（計算値と参照値）。",

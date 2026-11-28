@@ -2370,6 +2370,21 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
             "this decision was undone already",
         ));
     }
+    // A restore is the audit record of an undo, not another page-input edit. Letting it be undone would replay
+    // the cleared snapshot and put a never-wave hold back out of force with its original PUT still undone.
+    if kind == "review_context" && is_context_restore_flag(flag.as_deref()) {
+        return Err(refuse(
+            StatusCode::CONFLICT,
+            "context_restore_not_undoable",
+            "an automatic context restore is an audit record and cannot be undone",
+        ));
+    }
+    if kind == "review_context" && note.trim().is_empty() {
+        return Err(unprocessable(
+            "undo_note",
+            "undoing a page-input decision needs a note",
+        ));
+    }
     if kind == "review_context" {
         let later = q_all(
             &tx,
@@ -2440,9 +2455,11 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
         let saved: Value = serde_json::from_str(&snap).unwrap_or(Value::Null);
         let (current_ctx, current_fp) = review_context_state(&tx, oid)?;
         // Restore only a snapshot that matches the inputs this decision was made against. The out-of-order
-        // check above keeps a later active page-input decision from being skipped over. A restore writes its
-        // own audited context decision so the restored inputs still have an effective reason for being set.
+        // check above keeps a later active page-input decision from being skipped over, and a restore row is
+        // never a source of another restore. A restore writes its own audited context decision so the restored
+        // inputs still have an effective reason for being set.
         if current_fp == against
+            && !is_context_restore_flag(flag.as_deref())
             && saved["before"][0].is_array()
             && saved["before"][1].is_array()
             && saved["after"][0].is_array()

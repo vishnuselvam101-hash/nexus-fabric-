@@ -2679,6 +2679,295 @@ async fn pz1_review_context_undo_is_reverse_order_and_audits_restored_values() {
 }
 
 #[tokio::test]
+async fn pz1_a_context_restore_cannot_be_undone_to_reclear_a_hold() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let notes = format!("/api/orders/{oid}/notes");
+    let latest = |flag: &str| -> i64 {
+        t.app
+            .db()
+            .query_row(
+                "SELECT MAX(id) FROM order_decisions WHERE kind = 'review_context' AND flag = ?1",
+                params![flag],
+                |r| r.get(0),
+            )
+            .unwrap()
+    };
+    let seam_is_unknown = |v: &Value| {
+        v["review"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["code"] == "seam_from_unknown")
+    };
+    // An unreadable seam side opens the never-wave hold.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &notes,
+            Some(json!({ "reason": "not readable", "notes": [
+        { "page": 1, "kind": "seam_from", "text": "unknown" }
+    ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    read_val(&t, oid, "D", 216.3, "φ216.3").await;
+    let (st, comp) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{comp}");
+    assert!(seam_is_unknown(&comp), "{comp}");
+
+    // A is the one page-input PUT that clears the hold.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &notes,
+            Some(json!({ "reason": "A: bottom", "notes": [
+        { "page": 1, "kind": "seam_from", "text": "bottom" }
+    ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let aid = latest("notes");
+    let (st, comp) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{comp}");
+    assert!(!seam_is_unknown(&comp), "{comp}");
+
+    // Undoing A restores the unknown reading and writes R_A.
+    let (st, u) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions/{aid}/undo"),
+            Some(json!({ "note": "A was misread" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{u}");
+    let rid = latest("notes_restore");
+    let (st, comp) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{comp}");
+    assert!(seam_is_unknown(&comp), "{comp}");
+
+    // R_A is an audit record: undoing it must not replay A's cleared snapshot.
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions/{rid}/undo"),
+            Some(json!({ "note": "replay the cleared reading" })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::CONFLICT, Some("context_restore_not_undoable")),
+        "{v}"
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["notes"][0]["text"], "unknown", "{o}");
+    assert_eq!(decision(&o, rid)["undone"], false, "{o}");
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_decisions"), 3);
+    let (st, comp) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{comp}");
+    assert!(seam_is_unknown(&comp), "{comp}");
+}
+
+#[tokio::test]
+async fn pz1_longer_restore_sequence_cannot_skip_an_active_put() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let notes = format!("/api/orders/{oid}/notes");
+    let latest = |flag: &str| -> i64 {
+        t.app
+            .db()
+            .query_row(
+                "SELECT MAX(id) FROM order_decisions WHERE kind = 'review_context' AND flag = ?1",
+                params![flag],
+                |r| r.get(0),
+            )
+            .unwrap()
+    };
+    let seam_is_unknown = |v: &Value| {
+        v["review"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["code"] == "seam_from_unknown")
+    };
+    let (st, v) = t
+        .call(
+            "PUT",
+            &notes,
+            Some(json!({ "reason": "not readable", "notes": [
+        { "page": 1, "kind": "seam_from", "text": "unknown" }
+    ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    read_val(&t, oid, "D", 216.3, "φ216.3").await;
+
+    // A clears the hold; B is a later, still-active page-input edit.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &notes,
+            Some(json!({ "reason": "A: bottom", "notes": [
+        { "page": 1, "kind": "seam_from", "text": "bottom" }
+    ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let aid = latest("notes");
+    let (st, v) = t
+        .call(
+            "PUT",
+            &notes,
+            Some(json!({ "reason": "B: second reading", "notes": [
+        { "page": 1, "kind": "seam_from", "text": "bottom" },
+        { "page": 1, "kind": "note", "text": "second reading" }
+    ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let bid = latest("notes");
+    assert!(bid > aid);
+
+    // Undo B normally; its restore row must not be undoable.
+    let (st, u) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions/{bid}/undo"),
+            Some(json!({ "note": "B was misread" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{u}");
+    let rid = latest("notes_restore");
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions/{rid}/undo"),
+            Some(json!({ "note": "replay B's cleared state" })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::CONFLICT, Some("context_restore_not_undoable")),
+        "{v}"
+    );
+
+    // A can now be undone in order. The earlier hold comes back and no second restore was written.
+    let (st, u) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions/{aid}/undo"),
+            Some(json!({ "note": "A was misread too" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{u}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["notes"].as_array().unwrap().len(), 1, "{o}");
+    assert_eq!(o["notes"][0]["text"], "unknown", "{o}");
+    assert_eq!(decision(&o, aid)["undone"], true, "{o}");
+    assert_eq!(decision(&o, bid)["undone"], true, "{o}");
+    assert_eq!(decision(&o, rid)["undone"], false, "{o}");
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_decisions"), 5);
+    let (st, comp) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{comp}");
+    assert!(seam_is_unknown(&comp), "{comp}");
+}
+
+#[tokio::test]
+async fn pz1_context_undo_needs_a_note_for_a_person() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let notes = format!("/api/orders/{oid}/notes");
+    let (st, v) = t
+        .call(
+            "PUT",
+            &notes,
+            Some(json!({ "reason": "not readable", "notes": [
+        { "page": 1, "kind": "seam_from", "text": "unknown" }
+    ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "PUT",
+            &notes,
+            Some(json!({ "reason": "bottom", "notes": [
+        { "page": 1, "kind": "seam_from", "text": "bottom" }
+    ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let aid = t
+        .app
+        .db()
+        .query_row(
+            "SELECT MAX(id) FROM order_decisions WHERE kind = 'review_context' AND flag = 'notes'",
+            [],
+            |r| r.get::<_, i64>(0),
+        )
+        .unwrap();
+
+    for body in [json!({}), json!({ "note": "   " })] {
+        let (st, v) = t
+            .call(
+                "POST",
+                &format!("/api/orders/{oid}/decisions/{aid}/undo"),
+                Some(body),
+            )
+            .await;
+        assert_eq!(
+            (st, v["code"].as_str()),
+            (StatusCode::UNPROCESSABLE_ENTITY, Some("undo_note")),
+            "{v}"
+        );
+        let o = t.get(&format!("/api/orders/{oid}")).await;
+        assert_eq!(decision(&o, aid)["undone"], false, "{o}");
+        assert_eq!(o["notes"][0]["text"], "bottom", "{o}");
+    }
+
+    let (st, u) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions/{aid}/undo"),
+            Some(json!({ "note": "misread" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{u}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["notes"][0]["text"], "unknown", "{o}");
+}
+
+#[tokio::test]
 async fn pz1_named_review_codes_are_validated_for_person_and_agent() {
     let t = boot();
     let oid = order_with_parts(&t).await;
