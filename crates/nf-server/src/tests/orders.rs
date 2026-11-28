@@ -1973,7 +1973,8 @@ async fn l10_a_held_part_gets_no_dxf_and_the_rules_come_from_the_order() {
         .await;
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
     assert_eq!(v["code"], "order_rules");
-    // stored rules that are not even JSON are refused, never replaced by the defaults
+    // stored rules that are not even JSON are refused, never replaced by the defaults; the refusal is audited
+    let refusals_before = audit_details(&t, "order_refused").len();
     t.sql(&format!(
         "UPDATE orders SET rules_json = 'not json {{' WHERE id = {oid}"
     ));
@@ -1986,4 +1987,35 @@ async fn l10_a_held_part_gets_no_dxf_and_the_rules_come_from_the_order() {
         .await;
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
     assert_eq!(v["code"], "order_rules_corrupt");
+    let refusals = audit_details(&t, "order_refused");
+    assert_eq!(refusals.len(), refusals_before + 1, "{refusals:?}");
+    assert!(
+        refusals.last().unwrap().contains("order_rules_corrupt"),
+        "{refusals:?}"
+    );
+    // null/array rules are not an empty object: silently taking the defaults is refused and audited too
+    for corrupt in ["null", "[]"] {
+        t.sql(&format!(
+            "UPDATE orders SET rules_json = '{corrupt}' WHERE id = {oid}"
+        ));
+        let (st, v) = t
+            .call(
+                "POST",
+                &format!("/api/orders/{oid}/compute"),
+                Some(json!({})),
+            )
+            .await;
+        assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
+        assert_eq!(v["code"], "order_rules_corrupt", "{v}");
+        let refusals = audit_details(&t, "order_refused");
+        assert_eq!(
+            refusals.len(),
+            refusals_before + 2 + (corrupt == "[]") as usize,
+            "{refusals:?}"
+        );
+        assert!(
+            refusals.last().unwrap().contains("order_rules_corrupt"),
+            "{refusals:?}"
+        );
+    }
 }

@@ -254,7 +254,7 @@ fn record_alone(app: &App, who: &str, action: &str, detail: &str) -> Result<(), 
 
 /// Answers a write. A refusal that is evidence is written down in its own transaction, after the refused
 /// request's transaction has rolled back: a limit (parts_limit, values_limit), any conflict (409), and any
-/// refusal of the AI operator (403) and a decision or upload the AI operator sent without a reason (422). An AI operator's refused parts edit keeps its reason row too.
+/// refusal of the AI operator (403), a decision or upload the AI operator sent without a reason (422), and corrupt stored rules (422). An AI operator's refused parts edit keeps its reason row too.
 async fn settle(app: &App, u: &User, oid: i64, what: &str, note: String, res: Api) -> Api {
     let resp = match res {
         Ok(r) => return Ok(r),
@@ -271,6 +271,7 @@ async fn settle(app: &App, u: &User, oid: i64, what: &str, note: String, res: Ap
     let agent = u.kind == "agent";
     let limit = matches!(code.as_str(), "parts_limit" | "values_limit");
     if limit
+        || code == "order_rules_corrupt"
         || parts.status == StatusCode::CONFLICT
         || (agent && parts.status == StatusCode::FORBIDDEN)
         || (agent && code == "decision_reason")
@@ -2229,13 +2230,18 @@ fn load_compute_input(
 ) -> Result<(Vec<oc::PartIn>, oc::OrderRules, String), ApiError> {
     let head = load_order(db, oid)?;
     // stored rules that cannot be read are an error, never the default rules
-    let rules_v: Value = serde_json::from_str(&head.rules).map_err(|_| {
+    let corrupt = || {
         refuse(
             StatusCode::UNPROCESSABLE_ENTITY,
             "order_rules_corrupt",
             "the order's stored rules are damaged and cannot be read; the compute is refused",
         )
-    })?;
+    };
+    let rules_v: Value = serde_json::from_str(&head.rules).map_err(|_| corrupt())?;
+    // an object is required: null/arrays are not missing keys and must never fall back to provisional defaults
+    if !rules_v.is_object() {
+        return Err(corrupt());
+    }
     let rules = oc::OrderRules::from_json(&rules_v).map_err(|m| {
         unprocessable(
             "order_rules",
