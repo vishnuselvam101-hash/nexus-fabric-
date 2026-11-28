@@ -1,5 +1,6 @@
 import { esc } from './api.js';
 import { icon } from './icons.js';
+import { t } from './i18n.js';
 
 const isNode = (v) => v instanceof Node;
 
@@ -65,14 +66,14 @@ export function toast(message, type = 'ok') {
 }
 
 const BADGES = {
-  REVIEW_REQUIRED: { icon: 'alert', label: 'Review required' },
-  REFUSED: { icon: 'cross', label: 'Refused' },
-  SUPERSEDED: { icon: 'clock', label: 'Superseded' },
+  REVIEW_REQUIRED: { icon: 'alert', label: () => t('badge.state.review') },
+  REFUSED: { icon: 'cross', label: () => t('badge.state.refused') },
+  SUPERSEDED: { icon: 'clock', label: () => t('badge.state.superseded') },
 };
 
 export function badge(state) {
   const key = String(state || '').toUpperCase();
-  const cfg = BADGES[key] || { icon: null, label: key || 'Unknown' };
+  const cfg = BADGES[key] || { icon: null, label: () => key || t('badge.state.unknown') };
   const node = el('span', { class: `badge badge-${key.toLowerCase()}` });
   if (cfg.icon) {
     const mark = icon(cfg.icon);
@@ -84,7 +85,7 @@ export function badge(state) {
       node.append(mark);
     }
   }
-  node.append(el('span', { class: 'badge-label' }, cfg.label));
+  node.append(el('span', { class: 'badge-label' }, cfg.label()));
   return node;
 }
 

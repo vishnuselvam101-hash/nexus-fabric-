@@ -9,6 +9,8 @@
 # programs are built without build-folder paths or link times, so two builds of one commit give the same
 # SHA-256 values, whatever folder they are built in (packaging/reproducible.sh says what is fixed and how).
 # Cargo uses Cargo.lock as committed (--locked).
+# Signing (Windows programs and installer): only when the signing environment is set (packaging/windows/sign.sh
+# lists it). Without it the output is unsigned and the build says so ("unsigned build").
 # Development build. Not validated. Outputs must not be used for manufacturing.
 set -euo pipefail
 
@@ -28,6 +30,12 @@ mkdir -p "$DIST"
 . "$ROOT/packaging/reproducible.sh"
 nf_source_date_epoch "$ROOT"
 echo "NEXUS FABRIC $VERSION packages -> $DIST (SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH)"
+"$ROOT/packaging/windows/sign.sh" --preflight || { echo "build stopped: signing setup incomplete (packaging/windows/sign.sh)" >&2; exit 1; }
+if "$ROOT/packaging/windows/sign.sh" --requested; then
+  echo "signing enabled: Windows programs and installer are signed (packaging/windows/sign.sh)"
+else
+  echo "unsigned build"
+fi
 HOST_TRIPLE=$(rustc -vV | sed -n 's/^host: //p')
 
 # Runs one build step and prints "STEP <name> exit=<status>" (read by packaging/verify_release.sh), then stops on failure.
@@ -42,6 +50,23 @@ step() {
   if [ "$rc" -ne 0 ]; then
     echo "build step $name failed (exit $rc)" >&2
     exit "$rc"
+  fi
+}
+
+# sign_windows <nf-server.exe> <nf-pdf2dxf.exe>: sets WIN_EXE and WIN_CONV, the programs to package. When signing is
+# requested, signed COPIES are made in dist/signing (the files in target/ are never changed, so a later unsigned build
+# does not pick up a signed program), and the installer and the portable zip carry those copies.
+sign_windows() {
+  WIN_EXE=$1
+  WIN_CONV=$2
+  if "$ROOT/packaging/windows/sign.sh" --requested; then
+    rm -rf "$DIST/signing"
+    mkdir -p "$DIST/signing"
+    cp "$1" "$DIST/signing/nf-server.exe"
+    cp "$2" "$DIST/signing/nf-pdf2dxf.exe"
+    step sign-windows packaging/windows/sign.sh "$DIST/signing/nf-server.exe" "$DIST/signing/nf-pdf2dxf.exe"
+    WIN_EXE=$DIST/signing/nf-server.exe
+    WIN_CONV=$DIST/signing/nf-pdf2dxf.exe
   fi
 }
 
@@ -66,11 +91,17 @@ case "$(uname -s)" in
         NF_REAL_LINKER=x86_64-w64-mingw32-gcc NF_LINK_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}" \
         RUSTFLAGS="$(nf_rustflags "$ROOT" x86_64-pc-windows-gnu)" CFLAGS="$(nf_cflags "$ROOT")" \
         cargo build --release --locked -p nf-server -p nf-pdf --bin nf-server --bin nf-pdf2dxf --target x86_64-pc-windows-gnu
-      step package-windows packaging/windows/build.sh target/x86_64-pc-windows-gnu/release/nf-server.exe "$VERSION" "$DIST" \
-        target/x86_64-pc-windows-gnu/release/nf-pdf2dxf.exe
+      sign_windows target/x86_64-pc-windows-gnu/release/nf-server.exe target/x86_64-pc-windows-gnu/release/nf-pdf2dxf.exe
+      step package-windows packaging/windows/build.sh "$WIN_EXE" "$VERSION" "$DIST" "$WIN_CONV"
     fi
     ;;
   MINGW*|MSYS*|CYGWIN*)
+    # Signed releases are built on Linux only (the cross-build with mingw-w64): signing is not supported in this
+    # native branch, so a signing environment here is an error rather than a silently unsigned or half-signed build.
+    if "$ROOT/packaging/windows/sign.sh" --requested; then
+      echo "signing is not supported on a native Windows host: build the signed release on Linux (cross-build)" >&2
+      exit 1
+    fi
     # Native Windows build (normally x86_64-pc-windows-msvc). The C compiler there may be cl.exe, which does not
     # take GCC's -ffile-prefix-map, so CFLAGS is only set for a GNU host toolchain.
     case "$HOST_TRIPLE" in
@@ -79,7 +110,8 @@ case "$(uname -s)" in
     esac
     step cargo-windows-host env RUSTFLAGS="$(nf_rustflags "$ROOT" "$HOST_TRIPLE")" CFLAGS="$WIN_CFLAGS" \
       cargo build --release --locked -p nf-server -p nf-pdf --bin nf-server --bin nf-pdf2dxf
-    step package-windows-host packaging/windows/build.sh target/release/nf-server.exe "$VERSION" "$DIST" target/release/nf-pdf2dxf.exe
+    sign_windows target/release/nf-server.exe target/release/nf-pdf2dxf.exe
+    step package-windows-host packaging/windows/build.sh "$WIN_EXE" "$VERSION" "$DIST" "$WIN_CONV"
     ;;
   *)
     echo "unsupported host: $(uname -s)" >&2
@@ -87,6 +119,7 @@ case "$(uname -s)" in
     ;;
 esac
 
+rm -rf "$DIST/signing"
 # Checksums of every package in dist/ (the file itself excluded).
 (
   cd "$DIST"

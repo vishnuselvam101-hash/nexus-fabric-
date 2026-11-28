@@ -1,6 +1,7 @@
 const esc = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
 
 let onAuthLost = null;
+let onMustChange = null;
 
 async function api(path, opts = {}) {
   const { json, method, body, headers: extra } = opts;
@@ -11,13 +12,16 @@ async function api(path, opts = {}) {
     reqBody = JSON.stringify(json);
   }
   const res = await fetch(path, { method: method || (json ? 'POST' : 'GET'), headers: h, body: reqBody, credentials: 'same-origin' });
-  if (res.status === 401 && path !== '/api/login') {
+  // sign-in, recovery and launch answer 401 for their own reasons: that is not an ended session
+  if (res.status === 401 && !['/api/login', '/api/recover', '/api/launch'].includes(path)) {
     if (onAuthLost) onAuthLost();
     throw new ApiError('Session expired', { status: 401 });
   }
   if (!res.ok) {
     let detail;
     try { detail = await res.json(); } catch { detail = {}; }
+    // an administrator reset this password: every call but the password change is refused until it is changed
+    if (res.status === 403 && detail.must_change_password && onMustChange) onMustChange();
     throw new ApiError(detail.error || detail.message || res.statusText, { status: res.status, ...detail });
   }
   if (res.status === 204) return null;
@@ -56,4 +60,4 @@ function uploadFile(url, file, onProgress) {
 }
 
 export { api, ApiError, uploadFile, esc, onAuthLost };
-export function setAuthHandler(fn) { onAuthLost = fn; }
+export function setAuthHandler(fn, mustChange) { onAuthLost = fn; onMustChange = mustChange || null; }

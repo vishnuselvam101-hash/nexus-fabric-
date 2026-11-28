@@ -1,0 +1,18 @@
+{
+  "_note": "手で作った円すいに立つ枝の読み取り（協力工場の図面ではない）。寸法は reader/research/spec_conebranch.md の例1（同心の片落管 1016→812.8・長さ812.8・板厚12・二つ割、枝 外径406.4・板厚9・天・D1 の口から406.4・円すいの中心から枝の管端まで800）。材料表の重さは verify_conebranch.py の値（円すいは穴を抜いた後）",
+  "page": { "kind": "drawing", "title": "片落管に立つ枝（確かめ用の例）", "drawing_no": "K-CB1", "job_no": "", "scale": "", "company": "", "qty": 1, "unit_mass_kg": null },
+  "material_table": [
+    { "no": "1", "name": "片落管", "material": "SS400", "size": "PL-12", "length": "", "qty": "2", "unit_mass": "", "mass": "207.0", "note": "二つ割", "bbox": null },
+    { "no": "2", "name": "枝管", "material": "STW400", "size": "φ406.4×9", "length": "", "qty": "1", "unit_mass": "", "mass": "32.1", "note": "", "bbox": null }
+  ],
+  "parts": [
+    { "no": "1", "name": "片落管", "shape": "cone", "attach": "", "table_rows": ["1"], "notes": [], "dims": [],
+      "params": { "D1": { "value": 1016, "text": "φ1016", "bbox": null, "source": "drawing" }, "D2": { "value": 812.8, "text": "φ812.8", "bbox": null, "source": "drawing" },
+        "L": { "value": 812.8, "text": "812.8", "bbox": null, "source": "drawing" }, "t": { "value": 12, "text": "12", "bbox": null, "source": "drawing" },
+        "split": { "value": 2, "text": "二つ割", "bbox": null, "source": "note" }, "branch_x": { "value": 406.4, "text": "406.4", "bbox": null, "source": "drawing" } } },
+    { "no": "2", "name": "枝管", "shape": "tee_branch", "attach": "1", "table_rows": ["2"], "notes": [], "dims": [],
+      "params": { "D": { "value": 406.4, "text": "φ406.4", "bbox": null, "source": "drawing" }, "t": { "value": 9, "text": "9", "bbox": null, "source": "drawing" },
+        "H": { "value": 800, "text": "800", "bbox": null, "source": "drawing" } } }
+  ],
+  "seam": null, "notes": [], "unreadable": []
+}

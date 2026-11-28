@@ -1,0 +1,24 @@
+/* The AI operator's cursor overlay. Neutral: every colour and size is a variable with a fallback to the page theme. */
+.op-layer { position: fixed; inset: 0; pointer-events: none; z-index: 9000; opacity: 0; transition: opacity .2s; }
+.op-layer.op-on { opacity: 1; }
+.op-cursor, .op-ripple, .op-chip, .op-tip { position: fixed; left: 0; top: 0; }
+.op-cursor { color: var(--op-color, var(--accent, #0a6cff)); transition: transform var(--op-move, 420ms) cubic-bezier(.2, .7, .2, 1); margin: -2px 0 0 -2px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .45)); }
+.op-ripple { width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; border: 2px solid var(--op-color, var(--accent, #0a6cff)); opacity: 0; }
+.op-ripple.op-go { animation: op-ripple 520ms ease-out; }
+@keyframes op-ripple { from { opacity: .9; transform: scale(.4); } to { opacity: 0; transform: scale(1.6); } }
+.op-chip { padding: 2px 8px; border-radius: 6px; font: 600 13px/1.4 ui-monospace, monospace; background: var(--op-chip-bg, var(--bg-raised, #fff)); color: var(--op-chip-fg, var(--fg, #111)); border: 1px solid var(--op-color, var(--accent, #0a6cff)); }
+.op-tip { max-width: 320px; padding: 8px 10px; border-radius: 8px; font: 13px/1.4 system-ui, sans-serif; background: var(--op-tip-bg, var(--bg-raised, #fff)); color: var(--op-tip-fg, var(--fg, #111)); border: 1px solid var(--op-tip-border, var(--border, #bbb)); box-shadow: 0 4px 16px rgba(0, 0, 0, .25); }
+.op-who { display: block; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; opacity: .7; }
+.op-act { font-weight: 700; margin-right: 6px; }
+.op-meta { display: block; font-size: 12px; opacity: .75; }
+.op-meta:empty { display: none; }
+.op-flagged .op-tip { border-color: var(--op-warn, #c77700); }
+.op-ask .op-tip { border-color: var(--op-ask, #b3261e); }
+.op-badge { position: fixed; right: 12px; bottom: 12px; padding: 4px 10px; border-radius: 999px; font: 600 12px system-ui, sans-serif; background: var(--op-warn, #c77700); color: #fff; }
+.op-badge[hidden], .op-chip[hidden] { display: none; }
+.op-layer[data-reduced="1"] .op-cursor, .op-layer[data-reduced="1"] .op-ripple { transition: none; animation: none; }
+.op-layer[data-reduced="1"] .op-ripple.op-go { opacity: .9; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .op-cursor { transition: none; }
+  .op-ripple.op-go { animation: none; opacity: .9; }
+}

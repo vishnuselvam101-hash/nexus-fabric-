@@ -306,13 +306,38 @@ fn refresh(app: &App, mode: Mode<'_>) {
 /// The POST endpoints that start new work. Every GET, the review workflow
 /// (obligations, advisories), project creation, the audit endpoints and
 /// /api/licence itself are exempt.
-fn gated(method: &Method, path: &str) -> bool {
+pub(crate) fn gated(method: &Method, path: &str) -> bool {
+    let seg: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+    // every write to an order: parts and values are PUT, the rest POST
+    if *method == Method::PUT {
+        return matches!(seg.as_slice(), ["api", "orders", id, "parts" | "values" | "rules"] if id.parse::<i64>().is_ok())
+            || matches!(seg.as_slice(), ["api", "projects", id, "rules"] if id.parse::<i64>().is_ok());
+    }
     if *method != Method::POST {
         return false;
     }
-    let seg: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
     match seg.as_slice() {
-        ["api", "projects", id, "calculations" | "documents"]
+        [
+            "api",
+            "orders",
+            id,
+            "confirm" | "decisions" | "compute" | "preview",
+        ] => id.parse::<i64>().is_ok(),
+        ["api", "orders", id, "operator", "events" | "undo"] => id.parse::<i64>().is_ok(),
+        ["api", "orders", id, "rules", "impact"] => id.parse::<i64>().is_ok(),
+        ["api", "orders", id, "decisions", did, "undo"] => {
+            id.parse::<i64>().is_ok() && did.parse::<i64>().is_ok()
+        }
+        ["api", "orders", id, "pages", n, "skip" | "read"] => {
+            id.parse::<i64>().is_ok() && n.parse::<i64>().is_ok()
+        }
+        [
+            "api",
+            "projects",
+            id,
+            "calculations" | "documents" | "orders",
+        ]
+        | ["api", "orders", id, "files"]
         | ["api", "documents", id, "pdf-to-dxf"]
         | [
             "api",

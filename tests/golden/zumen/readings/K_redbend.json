@@ -1,0 +1,22 @@
+{
+  "_note": "11/22 径違いのえび曲げの確かめ用に手で作った読み取り（実在の図面ではない）。寸法は reader/research/spec_redbend.md の例1。材料表の重さ・長さは verify_redbend.py の正味の合計 4764.654 kg・軸の長さの合計 4780.007 を丸めた値",
+  "page": {"kind": "drawing", "title": "2600A×16.0×2400A×(300+300) 90° 曲管", "drawing_no": "K-RB1", "job_no": "", "scale": "1/50", "company": "", "qty": 1, "unit_mass_kg": 4765},
+  "material_table": [
+    {"no": "1", "name": "曲管", "material": "SS400", "size": "φ2641.6→φ2438.4×16.0t", "length": "4780", "qty": "1", "unit_mass": "", "mass": "4765", "note": "", "bbox": null}
+  ],
+  "parts": [
+    {"no": "1", "name": "曲管", "shape": "miter_bend", "table_rows": ["1"], "params": {
+      "D": {"value": 2641.6, "text": "φ2641.6", "bbox": null, "source": "drawing"},
+      "D_end": {"value": 2438.4, "text": "φ2438.4", "bbox": null, "source": "drawing"},
+      "t": {"value": 16, "text": "16.0", "bbox": null, "source": "drawing"},
+      "R": {"value": 2600, "text": "R2600", "bbox": null, "source": "drawing"},
+      "angle": {"value": 90, "text": "90°", "bbox": null, "source": "drawing"},
+      "joints": {"value": 3, "text": "切り口 3", "bbox": null, "source": "count"},
+      "start_straight": {"value": 300, "text": "300", "bbox": null, "source": "drawing"},
+      "end_straight": {"value": 300, "text": "300", "bbox": null, "source": "drawing"},
+      "split": {"value": 3, "text": "縦継手3か所", "bbox": null, "source": "note"}}, "notes": [], "dims": []}
+  ],
+  "seam": null,
+  "notes": [],
+  "unreadable": []
+}

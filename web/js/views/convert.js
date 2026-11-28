@@ -2,8 +2,6 @@ import { api, uploadFile } from '../api.js';
 import { getState, setState, patchConvert } from '../store.js';
 import { pollConversion } from '../lib/poll.js';
 import { t } from '../i18n.js';
-import { createSteelStage, FLAT } from '../lib/steel.js';
-import { mountAmoebas, unmountAmoebas } from '../lib/amoeba-mount.js';
 
 // the converter's upload refusals, shown as text instead of the internal wording
 const MEMBRANE = {
@@ -14,7 +12,7 @@ const MEMBRANE = {
 
 const RECENT_KEY = 'nf_recent', MAX_RECENT = 5, SCALE_KEY = 'nf.scale';
 const STAGES = ['cv2.stage.upload', 'cv2.stage.read', 'cv2.stage.write'];
-let root, runId = 0, stopPoll, timerH, timerT0, dragN = 0;
+let root, starting = false, runId = 0, stopPoll, timerH, timerT0, dragN = 0;
 
 function el(tag, cls, txt) {
   const e = document.createElement(tag); if (cls) e.className = cls;
@@ -177,6 +175,14 @@ async function handleFile(file) {
   const scale = readScale(), scaleValue = scaleNumber(scale);
   if (scaleValue == null) { showScaleError(); return; }
   saveScale({ kind: scale.kind, value: scale.value });
+  if (starting) return;
+  const fxMs = getState().convert.phase === 'idle' ? splitFx() : 0;
+  if (fxMs) {
+    const seen = runId; starting = true;
+    await wait(fxMs); starting = false;
+    // the screen was left, a run started meanwhile, or the phase moved on: this drop is void
+    if (seen !== runId || !root || getState().convert.phase !== 'idle') return;
+  }
   const run = ++runId; teardown();
   const pgEl = root && root.querySelector('#conv-page');
   const page = pgEl ? parseInt(pgEl.value, 10) || 1 : 1;
@@ -275,70 +281,148 @@ function render() {
   else renderFail();
 }
 
-let steel = null, homeScroll = null, amoebas = [], mountSeq = 0;
+let scene = null, sceneSeq = 0, cardSeq = 0;
 
 function dropSteel() {
-  if (steel) { steel.dispose(); steel = null; }
-  if (homeScroll) { window.removeEventListener('scroll', homeScroll); window.removeEventListener('resize', homeScroll); homeScroll = null; }
-  unmountAmoebas(amoebas); amoebas = [];
+  sceneSeq++; cardSeq++;
+  if (scene) { scene.dispose(); scene = null; }
 }
 
-// scroll progress of the home story: 0 at the top of the story, 1 at its bottom
-function storyProgress(story) {
-  const r = story.getBoundingClientRect();
-  return clamp01(-r.top / Math.max(1, r.height - window.innerHeight));
-}
-const clamp01 = (x) => Math.min(1, Math.max(0, x));
-const SVGNS = 'http://www.w3.org/2000/svg';
-function svgEl(tag, attrs, txt) {
-  const e = document.createElementNS(SVGNS, tag);
-  for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, String(v));
-  if (txt !== undefined) e.textContent = txt;
-  return e;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+/* the short RGB-split on the headline (static tier and reduced-motion users get none) */
+function splitFx() {
+  const home = root && root.querySelector('.home');
+  if (!home || (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)) return 0;
+  if (scene) { scene.pulse(); return 330; }
+  home.classList.remove('split'); void home.offsetWidth; home.classList.add('split');
+  return 330;
 }
 
-// dimension lines around the flat blank; drawn from the same scale as the 3D stage, no numbers invented
-function drawDims(svg, w, h, k, scaleFlat) {
-  const cx = w / 2, cy = h / 2;
-  const fw = (FLAT.w * scaleFlat) / k, fh = (FLAT.h * scaleFlat) / k;
-  const x1 = cx - fw / 2, x2 = cx + fw / 2, y1 = cy - fh / 2, y2 = cy + fh / 2;
-  const yb = y2 + 26, xl = x1 - 26;
-  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-  svg.textContent = '';
-  svg.append(
-    svgEl('line', { x1, y1: yb, x2, y2: yb }), svgEl('line', { x1, y1: yb - 6, x2: x1, y2: yb + 6 }), svgEl('line', { x1: x2, y1: yb - 6, x2, y2: yb + 6 }),
-    svgEl('text', { x: cx, y: yb + 20, 'text-anchor': 'middle' }, t('st.dim.w')),
-    svgEl('line', { x1: xl, y1, x2: xl, y2 }), svgEl('line', { x1: xl - 6, y1, x2: xl + 6, y2: y1 }), svgEl('line', { x1: xl - 6, y1: y2, x2: xl + 6, y2 }),
-    svgEl('text', { x: xl - 8, y: cy, 'text-anchor': 'end', transform: `rotate(-90 ${xl - 8} ${cy})` }, t('st.dim.h')),
-  );
+function fmtDate(sec) {
+  try { return new Date(sec * 1000).toLocaleDateString(document.documentElement.lang === 'ja' ? 'ja-JP' : 'en-GB', { day: 'numeric', month: 'short' }); }
+  catch { return ''; }
+}
+function stateKey(s, sup) {
+  if (sup) return 'badge.state.superseded';
+  return { REVIEW_REQUIRED: 'badge.state.review', REFUSED: 'badge.state.refused', SUPERSEDED: 'badge.state.superseded' }[s] || 'badge.state.unknown';
 }
 
-function chapter(n, key, extra) {
-  const sec = el('section', 'story-ch');
-  sec.appendChild(el('p', 'eyebrow', `${n} / 3`));
-  sec.appendChild(el('h2', 'story-h', t(`${key}.t`)));
-  sec.appendChild(el('p', 'lede', t(`${key}.p`)));
-  if (extra) sec.appendChild(extra);
-  return sec;
+function panel(cls, titleKey, n) {
+  const p = el('section', 'fpanel ' + cls);
+  p.style.setProperty('--d', String(n));
+  const h = el('header', 'fp-h');
+  h.appendChild(el('h2', null, t(titleKey)));
+  p.appendChild(h);
+  return p;
+}
+
+/* Recent jobs, AMOEBA status and quick links: the same API the other screens use. Nothing is invented: a failed
+   request shows "not available", an empty list shows "none yet". */
+function buildPanels() {
+  const wrap = el('div', 'home-panels');
+  const rp = panel('fp-recent', 'home.recent', 1);
+  const rl = el('ul', 'fp-list'); rl.appendChild(el('li', 'fp-muted', t('home.loading'))); rp.appendChild(rl);
+  const ap = panel('fp-amoeba', 'home.amoeba', 2);
+  const ad = el('dl', 'fp-stats'); ap.appendChild(ad);
+  const qp = panel('fp-quick', 'home.quick', 3);
+  const ql = el('ul', 'fp-links');
+  const link = (href, key, onClick) => {
+    const li = document.createElement('li'); const a = el('a', null, t(key)); a.href = href;
+    if (onClick) a.addEventListener('click', (e) => { e.preventDefault(); onClick(); });
+    li.appendChild(a); li.appendChild(el('span', 'fp-arrow', '→')); ql.appendChild(li);
+  };
+  link('#/math', 'home.q.calc');
+  link('#/help', 'home.q.help');
+  link('#', 'home.q.lang', () => { const b = document.getElementById('btn-lang'); if (b) b.click(); });
+  qp.appendChild(ql);
+  wrap.append(rp, ap, qp);
+
+  const seq = ++cardSeq;
+  const stat = (k, v, warn) => {
+    const d = document.createElement('div'); d.className = warn ? 'warn' : '';
+    d.appendChild(el('dt', null, t(k))); d.appendChild(el('dd', null, String(v))); ad.appendChild(d);
+  };
+  const recent = getRecent();
+  (async () => {
+    let jobs = null, am = null;
+    try { jobs = await api('/api/calculations?limit=40'); } catch { /* shown as not available */ }
+    try { am = await api('/api/amoeba/summary'); } catch { /* idem */ }
+    if (seq !== cardSeq || !root) return;
+    rl.textContent = '';
+    const rows = [];
+    // conversions made in this browser first (at most two), then the newest jobs, three rows in all
+    for (const r of recent.slice(0, 2)) rows.push({ href: '#/r/' + r.id, a: t('cv2.conv', { id: r.id }), b: t('home.conv'), c: r.ts ? fmtDate(r.ts / 1000) : '' });
+    for (const c of (jobs || []).slice(0, 3 - rows.length)) rows.push({ href: '#/job/' + c.id, a: t('home.job', { id: c.id }), b: t(stateKey(c.state, c.superseded)), c: fmtDate(c.created_at) });
+    if (!rows.length) rl.appendChild(el('li', 'fp-muted', jobs ? t('home.none') : t('home.na')));
+    for (const r of rows) {
+      const li = document.createElement('li'); const a = el('a', null, r.a); a.href = r.href;
+      li.appendChild(a); li.appendChild(el('span', 'fp-meta', r.b + (r.c ? ' · ' + r.c : ''))); rl.appendChild(li);
+    }
+    ad.textContent = '';
+    if (am) {
+      const records = am.records_by_kind.reduce((n, r) => n + r.count, 0);
+      // each (job, part) once, superseded jobs left out (their files are withheld as a whole)
+      const heldSet = new Set();
+      for (const c of (jobs || [])) {
+        if (c.superseded || c.state === 'superseded' || !c.export) continue;
+        for (const w of [...(c.export.amoeba_holds || []), ...(c.export.withheld || [])]) heldSet.add(c.id + '|' + w.part);
+      }
+      const held = heldSet.size;
+      stat('home.a.records', records); stat('home.a.open', am.obligations.open, am.obligations.open > 0); stat('home.a.held', held, held > 0);
+    } else ad.appendChild(el('div', 'fp-muted', t('home.na')));
+    // the engine id comes from the newest job (the health answer carries none)
+    const eng = root.querySelector('[data-engine]');
+    if (eng && jobs && jobs[0]) {
+      try { const d = await api('/api/calculations/' + jobs[0].id); if (seq === cardSeq && root && d.engine) eng.textContent = d.engine; } catch { /* stays a dash */ }
+    }
+  })();
+  return wrap;
+}
+
+function statusStrip() {
+  const s = el('div', 'home-strip');
+  const h = getState().health, mode = h && h.mode === 'desktop' ? t('home.mode.desktop') : t('home.mode.server');
+  const item = (k, v, attrs) => { const i = el('span', 'hs-i'); i.appendChild(el('b', null, k)); const vv = el('span', null, v); if (attrs) Object.assign(vv.dataset, attrs); i.appendChild(vv); return i; };
+  s.appendChild(item(t('home.s.mode'), mode));
+  s.appendChild(item(t('home.s.engine'), '—', { engine: '' }));
+  const pil = el('span', 'hs-pilot', t('home.pilot')); s.appendChild(pil);
+  return s;
+}
+
+/* Japanese subline: the status words stay whole (nowrap) and lines may break after 。 and ・ only */
+function heroSub(text) {
+  const p = el('p', 'hero-sub');
+  if (document.documentElement.lang !== 'ja') { p.textContent = text; return p; }
+  for (const part of text.split(/(未検証|未リリース|板展開ではありません。|[。・])/)) {
+    if (!part) continue;
+    if (part === '。' || part === '・') { p.appendChild(document.createTextNode(part)); p.appendChild(document.createElement('wbr')); continue; }
+    if (part === '未検証' || part === '未リリース' || part === '板展開ではありません。') {
+      p.appendChild(el('span', 'nb', part));
+      if (part.endsWith('。')) p.appendChild(document.createElement('wbr'));
+    } else p.appendChild(document.createTextNode(part));
+  }
+  return p;
 }
 
 function renderIdle() {
   dropSteel();
-  const seq = ++mountSeq;
+  const seq = ++sceneSeq;
   const notice = getState().convert.notice;
-  const story = el('div', 'home-hero');
-
-  // top: the headline and the real intake (drop surface, scale, options)
+  const home = el('div', 'home');
+  const hero = el('section', 'home-hero');
   const top = el('div', 'hero-top');
   top.appendChild(el('p', 'eyebrow', t('cv2.title')));
-  top.appendChild(el('h1', 'hero-title grad', t('cv2.hero')));
-  top.appendChild(el('p', 'hero-sub', t('cv2.sub')));
+  const h1 = el('h1', 'hero-title');
+  h1.appendChild(el('span', 'ht-a', t('home.h1a'))); h1.appendChild(el('span', 'ht-b', t('home.h1b')));
+  top.appendChild(h1);
+  top.appendChild(heroSub(t('cv2.sub')));
   if (notice) { const noticeEl = el('div', 'alert warn'); noticeEl.appendChild(el('p', null, notice)); top.appendChild(noticeEl); }
   const zone = el('div', 'dropzone');
+  const main = el('div', 'dz-main');
   const ic = el('span', 'dz-icon'); ic.setAttribute('aria-hidden', 'true');
   ic.innerHTML = '<svg class="icon"><use href="#i-upload"/></svg>';
-  zone.appendChild(ic);
-  zone.appendChild(el('p', 'dz-hint', t('cv2.drop')));
+  main.appendChild(ic);
+  main.appendChild(el('p', 'dz-hint', t('cv2.drop')));
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = '.pdf,application/pdf'; inp.className = 'vh'; inp.id = 'conv-file';
   inp.addEventListener('change', () => {
@@ -346,10 +430,11 @@ function renderIdle() {
     if (!isPdf(f)) { patchConvert({ phase: 'error', error: t('cv2.pdfonly') }); render(); return; }
     handleFile(f);
   });
-  zone.appendChild(inp);
+  main.appendChild(inp);
   const btn = el('button', 'btn pri btn-lg', t('cv2.choose'));
   btn.type = 'button'; btn.addEventListener('click', () => inp.click());
-  zone.appendChild(btn);
+  main.appendChild(btn);
+  zone.appendChild(main);
   // the required scale and the options sit inside the surface, as one row
   const row = el('div', 'dz-row');
   row.appendChild(scaleField());
@@ -362,74 +447,39 @@ function renderIdle() {
   fld.appendChild(pg); det.appendChild(fld); row.appendChild(det);
   zone.appendChild(row);
   zone.addEventListener('click', (e) => {
-    const e2 = e.target.closest('.dz-icon, .dz-hint') || e.target;
-    if (e2 === zone || e2.classList.contains('dz-icon') || e2.classList.contains('dz-hint')) inp.click();
+    if (e.target.closest('button, input, select, summary, a, label')) return;
+    const e2 = e.target.closest('.dz-icon, .dz-hint, .dz-main') || e.target;
+    if (e2 === zone || e2.classList.contains('dz-icon') || e2.classList.contains('dz-hint') || e2.classList.contains('dz-main')) inp.click();
   });
   top.appendChild(zone);
 
-  // stage: its own canvas inside this column; it never reaches the text column
-  const stageEl = el('div', 'steel-stage');
-  stageEl.setAttribute('aria-hidden', 'true');
-  stageEl.appendChild(el('div', 'steel-fallback', t('st.fallback')));
-  const dims = svgEl('svg', { class: 'steel-dims', 'aria-hidden': 'true' });
-  stageEl.appendChild(dims);
-  stageEl.appendChild(el('p', 'steel-caption', t('st.caption')));
-
-  // scroll story (left column): three chapters; the third hosts the AMOEBA mount
-  const chapters = el('div', 'hero-story');
-  chapters.appendChild(chapter(1, 'st.c1'));
-  chapters.appendChild(chapter(2, 'st.c2'));
-  const mount = el('div', 'amoeba-mount');
-  mount.dataset.amoeba = '';
-  mount.dataset.stage = 'idle';
-  mount.setAttribute('role', 'img');
-  mount.setAttribute('aria-label', t('st.amoeba.label'));
-  chapters.appendChild(chapter(3, 'st.c3', mount));
-
-  story.append(top, stageEl, chapters);
-  root.appendChild(story);
-
-  // the steel part: scroll drives the pose; without WebGL the fallback text stays
-  steel = createSteelStage(stageEl);
-  if (steel) {
-    steel.onresize = ({ w, h, k, scaleFlat }) => drawDims(dims, w, h, k, scaleFlat);
-    if (steel.layout) drawDims(dims, steel.layout.w, steel.layout.h, steel.layout.k, steel.layout.scaleFlat);
-    homeScroll = () => {
-      const p = storyProgress(story);
-      steel.set(p);
-      dims.style.opacity = String(clamp01((p - 0.6) / 0.25));
+  // the picture: the mark sits in this box. Static art first (shown at once, and kept on weak machines)
+  const anchor = el('div', 'mark-anchor'); anchor.setAttribute('aria-hidden', 'true');
+  anchor.appendChild(el('p', 'mark-cap', t('st.caption')));
+  const art = el('div', 'home-art-wrap'); art.setAttribute('aria-hidden', 'true');
+  hero.dataset.tier = 'static';
+  hero.append(art, top, anchor, buildPanels());
+  home.append(hero, statusStrip());
+  root.appendChild(home);
+  import('../lib/steel.js').then((m) => {
+    if (seq !== sceneSeq || !root) return;
+    art.appendChild(m.staticArt());
+    // the 3D room starts after the first paint, so the drop zone is usable at once
+    const start = () => {
+      if (seq !== sceneSeq || !root) return;
+      const sc = m.createHomeScene(hero, anchor);
+      if (!sc) return;
+      scene = sc;
+      sc.onTier = (tr) => { if (tr === 'static' && scene === sc) { sc.dispose(); scene = null; hero.dataset.tier = 'static'; } };
     };
-    window.addEventListener('scroll', homeScroll, { passive: true });
-    window.addEventListener('resize', homeScroll, { passive: true });
-    homeScroll();
-  } else {
-    stageEl.classList.add('is-fallback');
-  }
-  mountAmoebas(root).then((h) => { if (seq === mountSeq) amoebas = h; else unmountAmoebas(h); });
+    requestAnimationFrame(() => setTimeout(start, 0));
+  }).catch(() => { /* the picture is optional */ });
+  splitFx();
 
   // Overlay
   const ov = el('div', 'drop-overlay'); ov.hidden = true;
   ov.appendChild(el('p', null, t('cv2.release')));
   root.appendChild(ov);
-  // Recent
-  const recent = getRecent(); if (!recent.length) return;
-  const pan = el('div', 'panel');
-  const hd = el('div', 'panel-h');
-  hd.appendChild(el('h2', null, t('cv2.recent'))); hd.appendChild(el('span', 'cnt', String(recent.length)));
-  pan.appendChild(hd);
-  const bd = el('div', 'panel-b'); const ul = el('ul', 'il');
-  for (const r of recent) {
-    const li = document.createElement('li'); const row = el('div', 'l1');
-    const a = el('a', null, t('cv2.conv', { id: r.id })); a.href = '#/r/' + r.id;
-    row.appendChild(a); row.appendChild(el('span', 'id', '#' + r.id));
-    li.appendChild(row);
-    const bits = [], sc = scaleText(r.scale);
-    if (sc) bits.push(sc);
-    if (r.status) bits.push(String(r.status).toUpperCase().replace(/_/g, ' '));
-    if (bits.length) li.appendChild(el('div', 'sub', bits.join(' · ')));
-    ul.appendChild(li);
-  }
-  bd.appendChild(ul); pan.appendChild(bd); root.appendChild(pan);
 }
 
 function renderProgress() {

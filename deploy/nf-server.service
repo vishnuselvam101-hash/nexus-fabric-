@@ -8,6 +8,8 @@ User=nexusfabric
 Group=nexusfabric
 Environment=NF_LISTEN=127.0.0.1:8787
 Environment=NF_DATA_DIR=/var/lib/nexus-fabric
+# Crop counts live in the service-writable data tree so nf-raster can create its trusted, private ledger.
+Environment=NF_CROP_LEDGER_ROOT=/var/lib/nexus-fabric/crop-ledger
 Environment=NF_KEY_FILE=/etc/nexus-fabric/master.key
 Environment=NF_COOKIE_SECURE=1
 # The public host name(s) the proxy forwards (install.sh fills this in). Other Host values are refused (DNS rebinding).

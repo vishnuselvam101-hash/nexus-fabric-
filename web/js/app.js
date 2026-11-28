@@ -73,7 +73,9 @@ function resolveRoute(hash) {
 }
 
 async function renderRoute() {
-  const route = resolveRoute(location.hash);
+  let route = resolveRoute(location.hash);
+  // an administrator reset this password: nothing but the password change is open until it is done
+  if (getState().user?.must_change_password && route.view !== 'login') route = { view: 'login', mod: './views/login.js', params: {} };
   if (route.redirect) { navigate(route.redirect); return; }
   const token = ++renderToken;
   const viewEl = byId('view');
@@ -113,11 +115,34 @@ async function renderRoute() {
     if (location.hash === href || location.hash.startsWith(href + '/')) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   }
   updateUserButton();
+  updateRecoveryNotice(route);
   closeMenus();
   viewEl.focus({ preventScroll: true });
 }
 
 const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+
+// an administrator whose account has no recovery code yet (an installation made before recovery codes) is asked to create one
+function updateRecoveryNotice(route) {
+  const user = getState().user;
+  const want = user?.role === 'admin' && user.has_recovery_code === false && route?.view !== 'login'
+    && !(route?.view === 'admin' && route.params?.tab === 'security');
+  let note = byId('rc-notice');
+  if (!want) { note?.remove(); return; }
+  if (!note) {
+    note = document.createElement('div');
+    note.id = 'rc-notice';
+    note.className = 'alert warn rc-notice';
+    note.setAttribute('role', 'status');
+    const text = document.createElement('span');
+    const link = document.createElement('a');
+    link.href = '#/admin/security';
+    note.append(text, ' ', link);
+    byId('view').before(note);
+  }
+  note.firstChild.textContent = t('rc.notice');
+  note.querySelector('a').textContent = t('rc.notice.go');
+}
 
 function startRouter() {
   initFx();
@@ -291,10 +316,19 @@ async function boot() {
     history.replaceState(null, '', location.pathname + location.search);
   }
 
+  /* desktop mode with automatic sign-in: the server opens the browser with a single-use launch token in the fragment.
+     It is taken out of the address bar at once and exchanged for a session; if that fails the normal sign-in page shows. */
+  const launchLink = /^#launch=([A-Za-z0-9_-]{16,256})$/.exec(location.hash);
+  const launchToken = launchLink ? launchLink[1] : null;
+  if (location.hash.startsWith('#launch=')) history.replaceState(null, '', location.pathname + location.search);
+
   setAuthHandler(() => {
     // only a session that was signed in has ended; a first visit that is not signed in gets no message
     if (getState().user) setState({ user: null, sessionEnded: true });
     if (!getState().setupToken) navigate('#/login');   // the setup link keeps the bare address (see resolveRoute)
+  }, () => {
+    const user = getState().user;
+    if (user && !user.must_change_password) { setState({ user: { ...user, must_change_password: true } }); navigate('#/login'); }
   });
 
   /* restore saved preferences */
@@ -304,6 +338,10 @@ async function boot() {
 
   /* health check (non-blocking) */
   try { const health = await api('/api/health'); setState({ health, setupRequired: !!health?.setup_required }); } catch { /* offline ok */ }
+
+  if (launchToken && !getState().setupRequired) {
+    try { await api('/api/launch', { json: { token: launchToken } }); } catch { /* single-use, expired or refused: sign in by hand */ }
+  }
 
   /* authenticate */
   let authed = false;
@@ -317,7 +355,8 @@ async function boot() {
   }
 
   /* project */
-  if (authed) await ensureProject();
+  if (authed && !getState().user?.must_change_password) await ensureProject();
+  else if (authed) navigate('#/login');
 
   /* show app */
   byId('view')?.querySelector('.loading')?.remove();

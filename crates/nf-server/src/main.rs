@@ -24,10 +24,12 @@ macro_rules! elog {
 }
 
 mod amoeba;
+mod auth;
 mod crypto;
 mod desktop;
 mod licence;
 mod membrane;
+mod orders;
 mod pdfconv;
 mod storage;
 #[cfg(test)]
@@ -77,6 +79,8 @@ pub(crate) struct App {
     per_client_in_flight: usize,
     in_flight: Mutex<std::collections::HashMap<String, usize>>,
     hash_slots: Semaphore,
+    /// Launch tokens and the operating-system user (automatic sign-in, auth.rs).
+    auth: Mutex<auth::AuthState>,
     upload_slots: Semaphore,
     replay_slots: Semaphore,
     /// The PDF to DXF converter program (task 3.1); `None`: conversions are unavailable.
@@ -111,6 +115,8 @@ struct User {
     id: i64,
     username: String,
     role: String,
+    /// "person" or "agent" (the AI operator's own service identity). Set by an administrator, never by a request body.
+    kind: String,
 }
 
 /// Address of the client as far as it can be known (V-33).
@@ -607,17 +613,31 @@ fn session_token(app: &App, headers: &HeaderMap) -> Option<String> {
         .map(String::from)
 }
 
-fn auth_db(db: &Connection, app: &App, headers: &HeaderMap) -> Result<User, ApiError> {
+/// The signed-in user and whether they must change their password first (administrator reset, AUTH-1).
+fn auth_db_any(db: &Connection, app: &App, headers: &HeaderMap) -> Result<(User, bool), ApiError> {
     let deny = || fail(StatusCode::UNAUTHORIZED, "not signed in");
     let token = session_token(app, headers).ok_or_else(deny)?;
     let th = nf_core::sha256_hex(token.as_bytes());
     db.query_row(
-        "SELECT u.id, u.username, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.active = 1",
+        "SELECT u.id, u.username, u.role, u.must_change, u.kind FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.active = 1",
         params![th, now() as i64],
-        |r| Ok(User { id: r.get(0)?, username: r.get(1)?, role: r.get(2)? }),
+        |r| Ok((User { id: r.get(0)?, username: r.get(1)?, role: r.get(2)?, kind: r.get(4)? }, r.get::<_, bool>(3)?)),
     )
     .optional()?
     .ok_or_else(deny)
+}
+
+/// Every endpoint except `/api/me`, `/api/session`, `/api/password` and `/api/logout` refuses a user whose password
+/// was reset by an administrator until they have chosen a new one.
+fn auth_db(db: &Connection, app: &App, headers: &HeaderMap) -> Result<User, ApiError> {
+    let (u, must_change) = auth_db_any(db, app, headers)?;
+    if must_change {
+        return Err(fail_json(
+            StatusCode::FORBIDDEN,
+            json!({ "error": "you must choose a new password before you continue", "must_change_password": true }),
+        ));
+    }
+    Ok(u)
 }
 
 fn auth(app: &App, headers: &HeaderMap) -> Result<User, ApiError> {
@@ -915,6 +935,10 @@ async fn setup(
     Json(body): Json<Value>,
 ) -> Api {
     let t = now() as i64;
+    let auto_signin = body
+        .get("auto_signin")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     // RA-009: failed setup tokens are counted per address, so one client cannot block the installer
     let key = format!("setup:{client}");
     let (username, password) = (
@@ -968,16 +992,30 @@ async fn setup(
             ));
         }
         check_new_user(&username, &password, "admin")?;
+        if auto_signin && !app.desktop {
+            return Err(fail(
+                StatusCode::BAD_REQUEST,
+                "automatic sign-in is only available in desktop mode",
+            ));
+        }
     }
     let salt = hex::encode(crypto::random_bytes::<16>());
     let hash = hash_blocking(&app, password, salt.clone()).await?;
+    let (rcode, rsalt, rhash) = auth::make_recovery(&app).await?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     // decided again inside the transaction that creates the account: exactly one caller can win
     if q_count(&tx, "SELECT COUNT(*) FROM users", [])? != 0 {
         return Err(fail(StatusCode::CONFLICT, "setup already completed"));
     }
-    insert_user(&tx, &username, "admin", &salt, &hash)?;
+    let admin_id = insert_user(&tx, &username, "admin", &salt, &hash)?;
+    tx.execute(
+        "UPDATE users SET recovery_salt = ?, recovery_hash = ? WHERE id = ?",
+        params![rsalt, rhash, admin_id],
+    )?;
+    if auto_signin {
+        storage::meta_set(&tx, "auto_signin", "1")?;
+    }
     tx.execute(
         "DELETE FROM login_failures WHERE username LIKE 'setup:%'",
         [],
@@ -986,12 +1024,15 @@ async fn setup(
         &tx,
         &username,
         "setup",
-        &format!("first administrator created with the setup token, from {client}"),
+        &format!(
+            "first administrator created with the setup token, from {client}; recovery code issued{}",
+            if auto_signin { "; automatic sign-in on" } else { "" }
+        ),
     )?;
     tx.commit()?;
     *app.setup_token.lock().unwrap_or_else(|e| e.into_inner()) = None;
     let _ = std::fs::remove_file(app.data_dir.join("setup-token"));
-    ok(json!({ "created": true }))
+    ok(json!({ "created": true, "recovery_code": rcode }))
 }
 
 /// Argon2 off the async workers and outside the database lock, a few at a time (V-37).
@@ -1119,7 +1160,7 @@ async fn login(
 async fn logout(State(app): Ctx, headers: HeaderMap) -> Api {
     if let Some(t) = session_token(&app, &headers) {
         let mut db = app.db();
-        let who = auth_db(&db, &app, &headers).ok();
+        let who = auth_db_any(&db, &app, &headers).ok().map(|(u, _)| u);
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
         tx.execute(
             "DELETE FROM sessions WHERE token_hash = ?",
@@ -1140,21 +1181,42 @@ async fn logout(State(app): Ctx, headers: HeaderMap) -> Api {
 
 // ---------------------------------------------------------------- accounts
 
+/// Account facts the client needs after sign-in: the forced password change and whether a recovery code exists.
+fn account_flags(db: &Connection, u: &User, must_change: bool) -> Value {
+    let has_code = q_count(
+        db,
+        "SELECT COUNT(*) FROM users WHERE id = ? AND recovery_hash IS NOT NULL",
+        params![u.id],
+    )
+    .unwrap_or(0)
+        > 0;
+    json!({ "id": u.id, "username": u.username, "role": u.role, "must_change_password": must_change, "has_recovery_code": has_code })
+}
+
 async fn me(State(app): Ctx, headers: HeaderMap) -> Api {
-    let u = auth(&app, &headers)?;
-    ok(json!({ "id": u.id, "username": u.username, "role": u.role }))
+    let db = app.db();
+    let (u, must_change) = auth_db_any(&db, &app, &headers)?;
+    ok(account_flags(&db, &u, must_change))
 }
 
 /// `GET /api/session`: the client's start-up probe (BH-008). It answers 200 for a visitor who is not signed in
 /// too, with `signed_in: false`, so the sign-in screen makes no failed request and the browser logs no error.
 /// Any other failure is passed on. `/api/me` keeps its 401 for a visitor who is not signed in.
+/// `mode` and `auto_signin` are told to everybody, so that the screens can explain automatic sign-in.
 async fn session(State(app): Ctx, headers: HeaderMap) -> Api {
-    match auth(&app, &headers) {
-        Ok(u) => {
-            ok(json!({ "signed_in": true, "id": u.id, "username": u.username, "role": u.role }))
+    let db = app.db();
+    let mode = if app.desktop { "desktop" } else { "server" };
+    let auto = app.desktop && auth::auto_signin_on(&db);
+    match auth_db_any(&db, &app, &headers) {
+        Ok((u, must_change)) => {
+            let mut v = account_flags(&db, &u, must_change);
+            v["signed_in"] = json!(true);
+            v["mode"] = json!(mode);
+            v["auto_signin"] = json!(auto);
+            ok(v)
         }
         Err(ApiError::Resp(r)) if r.status() == StatusCode::UNAUTHORIZED => {
-            ok(json!({ "signed_in": false }))
+            ok(json!({ "signed_in": false, "mode": mode, "auto_signin": auto }))
         }
         Err(e) => Err(e),
     }
@@ -1166,11 +1228,11 @@ async fn list_users(State(app): Ctx, headers: HeaderMap) -> Api {
     require(&u, &["admin"])?;
     let rows = q_all(
         &db,
-        "SELECT id, username, role, created_at, active FROM users ORDER BY id",
+        "SELECT id, username, role, created_at, active, kind FROM users ORDER BY id",
         [],
         |r| {
             Ok(
-                json!({ "id": r.get::<_, i64>(0)?, "username": r.get::<_, String>(1)?, "role": r.get::<_, String>(2)?, "created_at": r.get::<_, i64>(3)?, "active": r.get::<_, bool>(4)? }),
+                json!({ "id": r.get::<_, i64>(0)?, "username": r.get::<_, String>(1)?, "role": r.get::<_, String>(2)?, "created_at": r.get::<_, i64>(3)?, "active": r.get::<_, bool>(4)?, "kind": r.get::<_, String>(5)? }),
             )
         },
     )?;
@@ -1186,6 +1248,22 @@ async fn add_user(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value>) 
     let u = auth(&app, &headers)?;
     require(&u, &["admin"])?;
     check_new_user(&username, &password, &role)?;
+    let kind = match body.get("kind").and_then(Value::as_str) {
+        None | Some("person") => "person",
+        Some("agent") if role == "engineer" => "agent",
+        Some("agent") => {
+            return Err(fail(
+                StatusCode::BAD_REQUEST,
+                "an agent account has the engineer role",
+            ));
+        }
+        Some(_) => {
+            return Err(fail(
+                StatusCode::BAD_REQUEST,
+                "kind must be person or agent",
+            ));
+        }
+    };
     let salt = hex::encode(crypto::random_bytes::<16>());
     let hash = hash_blocking(&app, password, salt.clone()).await?;
     // seat allowance before the database lock (lock order, licence.rs)
@@ -1201,11 +1279,14 @@ async fn add_user(State(app): Ctx, headers: HeaderMap, Json(body): Json<Value>) 
         return Err(e);
     }
     let id = insert_user(&tx, &username, &role, &salt, &hash)?;
+    if kind == "agent" {
+        tx.execute("UPDATE users SET kind = 'agent' WHERE id = ?", params![id])?;
+    }
     app.audit(
         &tx,
         &u.username,
         "user_created",
-        &format!("{username} ({role})"),
+        &format!("{username} ({role}, {kind})"),
     )?;
     tx.commit()?;
     ok(json!({ "id": id }))
@@ -1224,7 +1305,7 @@ async fn change_password(
     let (u, salt, hash, key) = {
         let mut db = app.db();
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        let u = auth_db(&tx, &app, &headers)?;
+        let (u, _) = auth_db_any(&tx, &app, &headers)?;
         password_policy(&u.username, &new)
             .map_err(|m| fail(StatusCode::BAD_REQUEST, &format!("new {m}")))?;
         let key = format!("pwchange:{}", u.id);
@@ -1266,7 +1347,7 @@ async fn change_password(
         return Err(fail(StatusCode::FORBIDDEN, "current password is incorrect"));
     };
     tx.execute(
-        "UPDATE users SET salt = ?, hash = ? WHERE id = ?",
+        "UPDATE users SET salt = ?, hash = ?, must_change = 0 WHERE id = ?",
         params![hex::encode(nsalt), nhash, u.id],
     )?;
     tx.execute("DELETE FROM sessions WHERE user_id = ?", params![u.id])?;
@@ -1658,7 +1739,6 @@ async fn upload(
     Path(id): Path<i64>,
     body: axum::body::Body,
 ) -> Api {
-    use http_body_util::BodyExt;
     let u = {
         let db = app.db();
         let u = auth_db(&db, &app, &headers)?;
@@ -1666,51 +1746,8 @@ async fn upload(
         project_guard(&app, &db, &u, id, "upload")?;
         u
     };
-    let too_large = || {
-        fail(
-            StatusCode::PAYLOAD_TOO_LARGE,
-            &format!(
-                "file exceeds the upload limit of {} MiB",
-                membrane::MAX_UPLOAD_BYTES / (1024 * 1024)
-            ),
-        )
-    };
-    if headers
-        .get(header::CONTENT_LENGTH)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<u64>().ok())
-        .is_some_and(|n| n > membrane::MAX_UPLOAD_BYTES as u64)
-    {
-        return Err(too_large());
-    }
-    let Ok(_slot) = app.upload_slots.try_acquire() else {
-        return Err(fail(
-            StatusCode::SERVICE_UNAVAILABLE,
-            "too many uploads are in progress; retry shortly",
-        ));
-    };
-    let mut bytes: Vec<u8> = Vec::new();
-    let mut body = body;
-    while let Some(frame) = body.frame().await {
-        let frame =
-            frame.map_err(|_| fail(StatusCode::BAD_REQUEST, "the upload was interrupted"))?;
-        if let Some(chunk) = frame.data_ref() {
-            if bytes.len() + chunk.len() > membrane::MAX_UPLOAD_BYTES {
-                return Err(too_large());
-            }
-            bytes.extend_from_slice(chunk);
-        }
-    }
-    let filename: String = clip(
-        &headers
-            .get("x-filename")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("unnamed")
-            .chars()
-            .filter(|c| !c.is_control() && *c != '/' && *c != '\\')
-            .collect::<String>(),
-        200,
-    );
+    let (bytes, _slot) = read_upload_body(&app, &headers, body).await?;
+    let filename = upload_filename(&headers);
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     project_guard(&app, &tx, &u, id, "upload")?;
@@ -1730,8 +1767,101 @@ async fn upload(
             ));
         }
     };
-    let sha = app.store_blob(&bytes)?;
-    let mismatch = membrane::extension_mismatch(&filename, detected);
+    let doc = register_document(&app, &tx, &u, id, &filename, &bytes, detected)?;
+    app.audit(
+        &tx,
+        &u.username,
+        "upload_accepted",
+        &format!("project #{id} '{filename}' {detected} {}", doc.sha),
+    )?;
+    tx.commit()?;
+    ok(
+        json!({ "sha256": doc.sha, "detected_type": detected, "extension_mismatch": doc.mismatch, "snapshot": doc.snapshot,
+               "interpretation": "not implemented: the file is stored encrypted and hashed; no drawing content is read" }),
+    )
+}
+
+fn too_large_upload() -> ApiError {
+    fail(
+        StatusCode::PAYLOAD_TOO_LARGE,
+        &format!(
+            "file exceeds the upload limit of {} MiB",
+            membrane::MAX_UPLOAD_BYTES / (1024 * 1024)
+        ),
+    )
+}
+
+/// The raw body of an upload, read after the caller was authorised: the declared length and the streamed
+/// length are both held to the limit, and only a few uploads run at a time (V-35).
+async fn read_upload_body<'a>(
+    app: &'a App,
+    headers: &HeaderMap,
+    body: axum::body::Body,
+) -> Result<(Vec<u8>, tokio::sync::SemaphorePermit<'a>), ApiError> {
+    use http_body_util::BodyExt;
+    if headers
+        .get(header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<u64>().ok())
+        .is_some_and(|n| n > membrane::MAX_UPLOAD_BYTES as u64)
+    {
+        return Err(too_large_upload());
+    }
+    let Ok(slot) = app.upload_slots.try_acquire() else {
+        return Err(fail(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "too many uploads are in progress; retry shortly",
+        ));
+    };
+    let mut bytes: Vec<u8> = Vec::new();
+    let mut body = body;
+    while let Some(frame) = body.frame().await {
+        let frame =
+            frame.map_err(|_| fail(StatusCode::BAD_REQUEST, "the upload was interrupted"))?;
+        if let Some(chunk) = frame.data_ref() {
+            if bytes.len() + chunk.len() > membrane::MAX_UPLOAD_BYTES {
+                return Err(too_large_upload());
+            }
+            bytes.extend_from_slice(chunk);
+        }
+    }
+    // the slot stays with the caller until its work on the bytes is done
+    Ok((bytes, slot))
+}
+
+fn upload_filename(headers: &HeaderMap) -> String {
+    clip(
+        &headers
+            .get("x-filename")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("unnamed")
+            .chars()
+            .filter(|c| !c.is_control() && *c != '/' && *c != '\\')
+            .collect::<String>(),
+        200,
+    )
+}
+
+struct StoredDocument {
+    id: i64,
+    sha: String,
+    mismatch: bool,
+    snapshot: String,
+}
+
+/// Store an admitted file (encrypted blob), its source record, its `documents` row and the new project
+/// snapshot, inside the caller's transaction. Shared by the document upload and the order upload.
+fn register_document(
+    app: &App,
+    tx: &Connection,
+    u: &User,
+    project: i64,
+    filename: &str,
+    bytes: &[u8],
+    detected: &str,
+) -> Result<StoredDocument, ApiError> {
+    let sha = app.store_blob(bytes)?;
+    let mismatch = membrane::extension_mismatch(filename, detected);
     let artifact = Record::new(
         Family::Source,
         "source_artifact",
@@ -1739,20 +1869,21 @@ async fn upload(
         vec![],
         None,
     );
-    app.put_record(&tx, id, &artifact)?;
+    app.put_record(tx, project, &artifact)?;
     tx.execute(
         "INSERT INTO documents(project_id, filename, detected_type, size, sha256, extension_mismatch, record_id, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
-        params![id, filename, detected, bytes.len() as i64, sha, mismatch, artifact.id, u.username, now() as i64],
+        params![project, filename, detected, bytes.len() as i64, sha, mismatch, artifact.id, u.username, now() as i64],
     )?;
+    let doc_id = tx.last_insert_rowid();
     app.fault("upload.after_document")?;
     // New immutable snapshot of the whole project (engulfment), linked to its predecessor.
     let members: Vec<String> = q_all(
-        &tx,
+        tx,
         "SELECT record_id FROM documents WHERE project_id = ? ORDER BY record_id",
-        params![id],
+        params![project],
         |r| r.get(0),
     )?;
-    let prev: Option<String> = tx.query_row("SELECT id FROM records WHERE project_id = ? AND kind = 'snapshot' ORDER BY rowid DESC LIMIT 1", params![id], |r| r.get(0)).optional()?;
+    let prev: Option<String> = tx.query_row("SELECT id FROM records WHERE project_id = ? AND kind = 'snapshot' ORDER BY rowid DESC LIMIT 1", params![project], |r| r.get(0)).optional()?;
     let mut rels: Vec<nf_core::Rel> = members.iter().map(|m| rel("contains", m)).collect();
     if let Some(p) = &prev {
         rels.push(rel("predecessor", p));
@@ -1760,22 +1891,17 @@ async fn upload(
     let snap = Record::new(
         Family::Source,
         "snapshot",
-        json!({ "project": id, "artifact_count": members.len() }),
+        json!({ "project": project, "artifact_count": members.len() }),
         rels,
         None,
     );
-    app.put_record(&tx, id, &snap)?;
-    app.audit(
-        &tx,
-        &u.username,
-        "upload_accepted",
-        &format!("project #{id} '{filename}' {detected} {sha}"),
-    )?;
-    tx.commit()?;
-    ok(
-        json!({ "sha256": sha, "detected_type": detected, "extension_mismatch": mismatch, "snapshot": snap.id,
-               "interpretation": "not implemented: the file is stored encrypted and hashed; no drawing content is read" }),
-    )
+    app.put_record(tx, project, &snap)?;
+    Ok(StoredDocument {
+        id: doc_id,
+        sha,
+        mismatch,
+        snapshot: snap.id,
+    })
 }
 
 // ---------------------------------------------------------------- effective state of a job (ONE function)
@@ -5013,6 +5139,24 @@ pub(crate) fn router(app: Arc<App>) -> Router {
             }),
         )
         .route(
+            "/operator-cursor.css",
+            get(|| async {
+                asset(
+                    "text/css; charset=utf-8",
+                    include_str!("../../../web/operator-cursor.css"),
+                )
+            }),
+        )
+        .route(
+            "/js/operator-cursor.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/operator-cursor.js"),
+                )
+            }),
+        )
+        .route(
             "/js/lib/poll.js",
             get(|| async {
                 asset(
@@ -5165,6 +5309,11 @@ pub(crate) fn router(app: Arc<App>) -> Router {
         .route("/api/users", get(list_users).post(add_user))
         .route("/api/users/{id}/active", post(set_user_active))
         .route("/api/password", post(change_password))
+        .route("/api/recover", post(auth::recover))
+        .route("/api/launch", post(auth::launch))
+        .route("/api/me/recovery-code", post(auth::new_my_recovery_code))
+        .route("/api/users/{id}/reset-password", post(auth::reset_password))
+        .route("/api/settings/auto-signin", post(auth::set_auto_signin))
         .route("/api/projects/{id}/members", post(add_member))
         .route("/api/audit/verify", get(audit_verify))
         .route("/api/security/status", get(security_status))
@@ -5173,6 +5322,7 @@ pub(crate) fn router(app: Arc<App>) -> Router {
         // the upload handler reads its body itself, after authentication, with its own limit (V-35)
         .route("/api/projects/{id}/documents", post(upload))
         .route("/api/projects/{id}/calculations", post(calculate))
+        .merge(orders::routes())
         .route("/api/documents/{id}/pdf-to-dxf", post(pdfconv::convert))
         .route("/api/pdf-conversions/{id}", get(pdfconv::get_conversion))
         .route("/api/pdf-conversions/{id}/{file}", get(pdfconv::get_file))
@@ -5422,6 +5572,14 @@ pub(crate) fn build_app_with(cfg: Config, accept_unanchored: bool) -> Result<Arc
         per_client_in_flight: 32,
         in_flight: Mutex::new(std::collections::HashMap::new()),
         hash_slots: Semaphore::new(2),
+        auth: Mutex::new(auth::AuthState {
+            launch: Vec::new(),
+            os_user: if cfg.desktop {
+                auth::os_user_name()
+            } else {
+                None
+            },
+        }),
         upload_slots: Semaphore::new(4),
         replay_slots: Semaphore::new(2),
         pdf2dxf_exe: pdfconv::default_converter(),

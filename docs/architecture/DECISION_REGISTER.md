@@ -1,6 +1,6 @@
 # Decision Register
 
-Version 1.5 · 18 November 2026 · The single place where the status of every architectural decision, proposal and open question is kept visible. Specifications 01–03 are **not** edited to reflect these decisions until amendments are formally applied as new versions with change logs.
+Version 1.6 · 28 November 2026 · The single place where the status of every architectural decision, proposal and open question is kept visible. Specifications 01–03 are **not** edited to reflect these decisions until amendments are formally applied as new versions with change logs.
 
 Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, detailed design under review) · **Accepted with conditions** · **Provisional** (awaiting evidence) · **Deferred** · **Proposed** (no decision yet) · **Withdrawn/Merged**.
 
@@ -95,6 +95,19 @@ Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, 
 | D-55 | The engine is exercised with hard and extreme cases; target is zero defects on tested cases, stated as a target and never as a guarantee | Accepted | [Stress Testing and Learning](../LEARNING_AND_STRESS_TESTING.md) |
 | D-56 | Learning from mistakes is implemented as recorded lessons and a regression corpus: lessons raise advisories for an engineer, never change values, never self-modify algorithms, and stay within one project | Accepted; consistent with ADR-016 interim rule (propose-only, scoped) | same |
 | D-57 | Third-party skills (cook, unlazy, motion-graphics set, frontend-design) and Agent Reach are used as working tools; skills are vetted before installation | Accepted | `.agent/skills/` |
+
+### Eighth round (28 November 2026) — PZ-1 review inputs
+
+| ID | Subject | Status | Record |
+|---|---|---|---|
+| D-58 | Every hold of an order compute has one catalogue row with EN and JA titles and answers; the row states the allowed answers and never approves or releases a cut file | Accepted for this development build | [Review catalogue](../backend/REVIEW_CATALOGUE.md) |
+| D-59 | The listed ZK review kinds that cannot be waved (`FLAT_STOP`, missing/unreadable/empty/unsupported reading, split, bad tee/plate/bend/wye, branch count) refuse `accept` and `accept_flag` for a person and for the AI operator with coded 422 `review_never_wave` | Accepted for this development build | same; [refusal codes](../backend/REFUSAL_CODES.md) |
+| D-60 | `hand_drawn` and designer `claim` are hash-tied, reasoned, undoable records that do not release a DXF; they are carried into the job ZIP's `designer.txt` | Accepted for this development build | [Review catalogue](../backend/REVIEW_CATALOGUE.md) |
+| D-61 | Schema 8 adds `order_material_rows`, `order_page_notes`, `review_code` and `claim_text` additively on top of schema 7; material rows and page notes join the compute fingerprint | Accepted for this development build | `crates/nf-server/src/storage.rs`; [Review catalogue](../backend/REVIEW_CATALOGUE.md) |
+| D-62 | After REVIEW-1/SECURITY-1: a page `need` is carried by the first part and blocks its DXF; review codes are case/alias folded; an `accept` is bound to value, code and page context and joins the order fingerprint; a material/note PUT needs a reason, records a `review_context` decision with a before/after snapshot and is restoreable on undo only while still current | Accepted for this development build | [Review catalogue](../backend/REVIEW_CATALOGUE.md) |
+| D-63 | After SECURITY-2: every decision naming a catalogue review code is refused if it is a never-wave code and must point to a hold open on its part; page-input undo is reverse-order, writes its own audited `_restore` context decision and logs the restored old→new values | Accepted for this development build | same; [refusal codes](../backend/REFUSAL_CODES.md) |
+| D-64 | After SECURITY-3: an automatic `_restore` context decision is an audit record and cannot be undone, so a cleared hold cannot be replayed; undoing a page input requires a non-empty note that becomes the restore decision's reason | Accepted for this development build | [Review catalogue](../backend/REVIEW_CATALOGUE.md) |
+| D-65 | After SECURITY-4: a page-input undo is bound only to material rows and notes, so a page skip between PUT and undo does not defeat the restore; an undo whose bound inputs no longer match is refused with `context_undo_stale` instead of marking the decision undone | Accepted for this development build | [Review catalogue](../backend/REVIEW_CATALOGUE.md); [refusal codes](../backend/REFUSAL_CODES.md) |
 
 Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded on them.
 

@@ -1,0 +1,31 @@
+{
+  "_note": "手で作った仕切弁副管A1号の読み取り（協力工場の図面ではない）。寸法は JIS G 3443-2 表14・大阪広域水道企業団 標準図 6-116〜6-117 の 1000×600×200 を借りた（本管 1016×9・e 2500、弁口 609.6×6.0・e1 1000・H2 800、排水の枝 216.3×5.8・e3 400・l 670）。フランジの長さは引いていない。補強板の板厚と幅は図の値ではなく手で置いた値。期待値は reader/research/verify_branches.py の例4",
+  "page": { "kind": "drawing", "title": "仕切弁副管A1号 1000×600×200（確かめ用の例）", "drawing_no": "H-VALVE", "job_no": "", "scale": "", "company": "", "qty": 1, "unit_mass_kg": null },
+  "material_table": [
+    { "no": "1", "name": "本管", "material": "STW400", "size": "φ1016×9", "length": "2500", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null },
+    { "no": "2", "name": "弁口", "material": "STW400", "size": "φ609.6×6.0", "length": "", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null },
+    { "no": "3", "name": "排水の枝", "material": "STW400", "size": "φ216.3×5.8", "length": "", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null },
+    { "no": "4", "name": "補強板（弁口）", "material": "SS400", "size": "PL-9", "length": "", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null },
+    { "no": "5", "name": "補強板（排水）", "material": "SS400", "size": "PL-6", "length": "", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null }
+  ],
+  "parts": [
+    { "no": "1", "name": "本管", "shape": "tee_main", "attach": "", "table_rows": ["1"], "notes": [], "dims": [],
+      "params": { "D": { "value": 1016, "text": "φ1016", "bbox": null, "source": "drawing" }, "t": { "value": 9, "text": "9", "bbox": null, "source": "drawing" },
+        "L": { "value": 2500, "text": "e 2500", "bbox": null, "source": "drawing" } } },
+    { "no": "2", "name": "弁口", "shape": "tee_branch", "attach": "1", "table_rows": ["2"], "notes": [], "dims": [],
+      "params": { "D": { "value": 609.6, "text": "d2 φ609.6", "bbox": null, "source": "drawing" }, "t": { "value": 6.0, "text": "6.0", "bbox": null, "source": "drawing" },
+        "H": { "value": 800, "text": "H2 800", "bbox": null, "source": "drawing" }, "branch_x": { "value": 1000, "text": "e1 1000", "bbox": null, "source": "drawing" },
+        "dir": { "value": 0, "text": "天", "bbox": null, "source": "drawing" } } },
+    { "no": "3", "name": "排水の枝", "shape": "tee_branch", "attach": "1", "table_rows": ["3"], "notes": [], "dims": [],
+      "params": { "D": { "value": 216.3, "text": "d1 φ216.3", "bbox": null, "source": "drawing" }, "t": { "value": 5.8, "text": "5.8", "bbox": null, "source": "drawing" },
+        "H": { "value": 670, "text": "l 670", "bbox": null, "source": "drawing" }, "branch_x": { "value": 2100, "text": "e − e3 = 2500 − 400", "bbox": null, "source": "inferred" },
+        "dir": { "value": 90, "text": "側面図で右に出る（弁口から 90±2°）", "bbox": null, "source": "drawing" },
+        "e": { "value": 399.85, "text": "(1016−216.3)/2（枝の下の外面が本管の管底にそろう）", "bbox": null, "source": "inferred" },
+        "e_side": { "value": 180, "text": "地（管底にそろう）", "bbox": null, "source": "inferred" } } },
+    { "no": "4", "name": "補強板（弁口）", "shape": "tee_pad", "attach": "2", "table_rows": ["4"], "notes": [], "dims": [],
+      "params": { "t": { "value": 9, "text": "t3 9", "bbox": null, "source": "drawing" }, "pad_B": { "value": 150, "text": "B 150", "bbox": null, "source": "drawing" } } },
+    { "no": "5", "name": "補強板（排水）", "shape": "tee_pad", "attach": "3", "table_rows": ["5"], "notes": [], "dims": [],
+      "params": { "t": { "value": 6, "text": "t4 6", "bbox": null, "source": "drawing" }, "pad_B": { "value": 60, "text": "B2 60", "bbox": null, "source": "drawing" } } }
+  ],
+  "seam": null, "notes": [], "unreadable": []
+}

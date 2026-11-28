@@ -1,0 +1,21 @@
+{
+  "_note": "手で作った斜めの枝（ラテラル 45°）の読み取り（協力工場の図面ではない）。寸法は reader/research/spec_lateral.md の例2（本管 外径1016・板厚12・長さ2000、枝 外径610・板厚9、交点から枝の管端まで 1200、本管の始点側の管端から交点まで 700、補強板 板厚12・幅150）。材料表の重さは verify_lateral.py の切った後の値（穴は板厚の中のどこでも当たらない形）",
+  "page": { "kind": "drawing", "title": "45° ラテラル（確かめ用の例）", "drawing_no": "H-LAT", "job_no": "", "scale": "", "company": "", "qty": 1, "unit_mass_kg": null },
+  "material_table": [
+    { "no": "1", "name": "本管", "material": "STW400", "size": "φ1016×12", "length": "2000", "qty": "1", "unit_mass": "", "mass": "554.8", "note": "", "bbox": null },
+    { "no": "2", "name": "枝管", "material": "STW400", "size": "φ610×9", "length": "", "qty": "1", "unit_mass": "", "mass": "72.8", "note": "", "bbox": null },
+    { "no": "3", "name": "補強板", "material": "SS400", "size": "PL-12", "length": "", "qty": "1", "unit_mass": "", "mass": "40.9", "note": "", "bbox": null }
+  ],
+  "parts": [
+    { "no": "1", "name": "本管", "shape": "tee_main", "attach": "", "table_rows": ["1"], "notes": [], "dims": [],
+      "params": { "D": { "value": 1016, "text": "φ1016", "bbox": null, "source": "drawing" }, "t": { "value": 12, "text": "12", "bbox": null, "source": "drawing" },
+        "L": { "value": 2000, "text": "2000", "bbox": null, "source": "drawing" }, "branch_x": { "value": 700, "text": "700", "bbox": null, "source": "drawing" },
+        "branch_angle": { "value": 45, "text": "45°", "bbox": null, "source": "drawing" } } },
+    { "no": "2", "name": "枝管", "shape": "tee_branch", "attach": "1", "table_rows": ["2"], "notes": [], "dims": [],
+      "params": { "D": { "value": 610, "text": "φ610", "bbox": null, "source": "drawing" }, "t": { "value": 9, "text": "9", "bbox": null, "source": "drawing" },
+        "H": { "value": 1200, "text": "1200", "bbox": null, "source": "drawing" } } },
+    { "no": "3", "name": "補強板", "shape": "tee_pad", "attach": "2", "table_rows": ["3"], "notes": [], "dims": [],
+      "params": { "t": { "value": 12, "text": "12", "bbox": null, "source": "table" }, "pad_B": { "value": 150, "text": "150", "bbox": null, "source": "drawing" } } }
+  ],
+  "seam": null, "notes": [], "unreadable": []
+}

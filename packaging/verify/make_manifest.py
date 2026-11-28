@@ -36,9 +36,9 @@ def tsv(path, cols):
 
 NOT_SHOWN = [
     "The Windows checks ran under wine 9.x, an emulator on Linux. They were NOT run on Windows. No result here is a Windows result.",
-    "The packages and the programme are NOT code-signed. Windows will warn about unknown publishers and SmartScreen will apply.",
+    "__UNSIGNED_1__",
     "No macOS package exists. macOS was not built, installed or run.",
-    "There is no code-signing, no notarisation and no publisher identity in any artefact.",
+    "__UNSIGNED_2__",
     "The upgrade path was exercised only if an earlier installer was given with --previous; otherwise it is recorded as not run.",
     "The GitHub release workflow (.github/workflows/release.yml) was not run or exercised; this verification is local only.",
     "No release was created, tagged, published or uploaded. Nothing was pushed.",
@@ -95,12 +95,29 @@ def main():
                               "same": bool(r["this_run"]) and r["this_run"] == r["second_build"]})
     if repro["rows"]:
         repro["bit_reproducible"] = len(repro["rows"]) == 3 and all(x["same"] for x in repro["rows"])
+    if (facts.get("signing") or "").startswith("signed"):
+        repro["signed_build_note"] = ("Signed build: each Authenticode signature carries its own signing time, so two signed builds "
+                                      "differ by design. Bit-for-bit reproducibility is judged on the unsigned build.")
 
     versions_ok = all(v["agrees"] == "yes" for v in versions) and bool(versions)
     failed = [r for r in results if r["status"] == "failed"]
     not_run = [r for r in results if r["status"] == "not run"]
     build_ok = all(r["status"] == "passed" for r in build_steps) and bool(build_steps)
 
+    signed = (facts.get("signing") or "").startswith("signed")
+    test_cert = "test certificate" in (facts.get("signing_key") or "")
+    not_shown = [x for x in NOT_SHOWN if not (signed and x == "__UNSIGNED_1__")]
+    if signed:
+        not_shown[not_shown.index("__UNSIGNED_2__")] = (
+            "The signatures show that the signing key signed these exact bytes. They do not show that the publisher is trusted "
+            "by Windows: SmartScreen reputation is separate, and the signer name is only what the certificate states.")
+        if test_cert:
+            not_shown.insert(0, "The signing certificate is a self-signed TEST certificate (not a release certificate). Windows does not trust it. "
+                                "Nothing signed with it may be shipped.")
+    else:
+        not_shown[not_shown.index("__UNSIGNED_1__")] = ("The packages and the programme are NOT code-signed. Windows will warn about unknown "
+                                                       "publishers and SmartScreen will apply.")
+        not_shown[not_shown.index("__UNSIGNED_2__")] = "There is no code-signing, no notarisation and no publisher identity in any artefact."
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     manifest = {
         "title": "NEXUS FABRIC release verification manifest",
@@ -141,10 +158,12 @@ def main():
         "summary": {"build_ok": build_ok, "checks_passed": sum(1 for r in results if r["status"] == "passed"),
                     "checks_failed": len(failed), "checks_not_run": len(not_run)},
         "reproducibility": repro,
-        "not_shown": NOT_SHOWN,
+        "signing": {"status": facts.get("signing"), "key": facts.get("signing_key"),
+                    "timestamp": facts.get("signing_timestamp"), "signer_subject": facts.get("signer_subject")},
+        "not_shown": not_shown,
     }
-    if repro["bit_reproducible"] is False:
-        manifest["not_shown"] = NOT_SHOWN + [
+    if repro["bit_reproducible"] is False and not repro.get("signed_build_note"):
+        manifest["not_shown"] = not_shown + [
             "The build is NOT bit-reproducible: the two builds of the same commit produced different SHA-256 values. Both sets are recorded in the reproducibility section."
         ]
 
@@ -188,6 +207,14 @@ def markdown(m):
     other = m["tree_state"]["other_changes_at_run_time"]
     o.append("- Other changes outside those paths (reported, not fatal): " + ("; ".join(other) if other else "none"))
     o.append("- The build used a `git archive` of the commit, not the working tree.")
+    o.append("")
+    sg = m["signing"]
+    o.append("## Signing")
+    o.append("")
+    o.append(f"- Status: {sg['status'] or 'not recorded'}")
+    o.append(f"- Key: {sg['key'] or 'none'}")
+    o.append(f"- Timestamp: {sg['timestamp'] or 'not recorded'}")
+    o.append(f"- Signer (from osslsigncode verify): {sg['signer_subject'] or 'not read'}")
     o.append("")
     o.append("## Summary by platform")
     o.append("")
@@ -257,12 +284,16 @@ def markdown(m):
     if r["rows"]:
         o.append("")
         o.append(f"Bit-for-bit identical in the two builds: **{'yes' if r['bit_reproducible'] else 'NO'}**")
+    if r["rows"]:
         o.append("")
         o.append("| File | SHA-256, build 1 (artefacts in this folder) | SHA-256, build 2 | Same |")
         o.append("|---|---|---|---|")
         for d in r["rows"]:
             o.append(f"| {d['file']} | `{d['this_run']}` | `{d['second_build']}` | {'yes' if d['same'] else 'no'} |")
-        if not r["bit_reproducible"]:
+        if r.get("signed_build_note"):
+            o.append("")
+            o.append(r["signed_build_note"])
+        elif not r["bit_reproducible"]:
             o.append("")
             o.append("The builds are NOT bit-identical. Both sets of SHA-256 values are shown above.")
     o.append("")

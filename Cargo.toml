@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/uem", "crates/nf-dxf", "crates/nf-digest", "crates/nf-core", "crates/nf-server", "crates/nf-pdf", "crates/nf-licence", "crates/nf-form3d", "crates/nf-cadio", "crates/nf-reader-data"]
+members = ["crates/nf-jobout", "crates/uem", "crates/nf-dxf", "crates/nf-digest", "crates/nf-core", "crates/nf-server", "crates/nf-pdf", "crates/nf-raster", "crates/nf-licence", "crates/nf-form3d", "crates/nf-cadio", "crates/nf-numread", "crates/nf-amoeba-agent", "crates/nf-amoeba-operator", "crates/nf-reader-data"]
 
 [workspace.package]
 version = "0.1.0"
@@ -17,4 +17,23 @@ opt-level = 2
 opt-level = 2
 
 [profile.dev.package.nf-core]
+opt-level = 2
+
+[profile.dev.package.nf-pdf]
+opt-level = 2
+
+[profile.dev.package.nf-raster]
+opt-level = 2
+
+# Image decoders and deflate: slow in an unoptimised build, which makes the tests of nf-raster crawl.
+[profile.dev.package.hayro-ccitt]
+opt-level = 2
+
+[profile.dev.package.hayro-jbig2]
+opt-level = 2
+
+[profile.dev.package.zune-jpeg]
+opt-level = 2
+
+[profile.dev.package.miniz_oxide]
 opt-level = 2

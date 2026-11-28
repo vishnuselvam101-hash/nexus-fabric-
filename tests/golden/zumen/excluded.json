@@ -1,0 +1,756 @@
+{
+ "zk_commit": "f718c34011458e187fb625ac85482fb2e77c0eed",
+ "note": "asserts whose expected value is computed by ZK's own engine, or not parseable; not golden",
+ "excluded": [
+  {
+   "name": "片寄せは向きを持たない（-100 と 100 で穴の中心が同じ）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:85",
+   "origin": {
+    "section_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない",
+    "nearest_comment": "見直しで見つかった所（11/21）: 作れない形は確認に出して展開しない・輪の DXF に長さ0の線を出さない"
+   },
+   "basis": "literal in test_build.mjs; origin not named in the comment",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "pc(build(mk([{ no: \"1\", name: \"本管\", shape: \"tee_main\", table_rows: [], params: P({ D: 1016, t: 12, L: 1500, branch_D: 610, branch_t: 9, e: 100 }) }])), \"1\").info.holeU",
+   "zk_want": 1284.7178231288237,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "偏心円すい 三つ割の重さ ＝ 二つ割の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:111",
+   "origin": {
+    "section_comment": "円すいの n 枚割り（板厚ほぼ0）。期待値は reader/research/verify_cone_split.py で別に出した値",
+    "nearest_comment": "三つ割の重さは、二つ割の重さと同じ（同じ円すいの面積）"
+   },
+   "basis": "verify_cone_split.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "m2",
+   "zk_want": 379.06556217004226,
+   "reason": "self-referential: m2 derived from the engine (Zs.summary({ shape: \"ecc\", t: 12, n: 2, geo: { D1: 1219.2, D)"
+  },
+  {
+   "name": "リブ 角 A の位置は今の T字管の式と同じ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:174",
+   "origin": {
+    "section_comment": "平板・T字管のリブ。期待値は reader/research/verify_plate.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "T字管のリブ（排水T字管 F12・大阪 6-92 の表の値）"
+   },
+   "basis": "verify_plate.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "Zs.teeY(159.25, 44.55 - 4.2, 44.55, 159.25 - 44.55, -Math.PI / 2)",
+   "zk_want": 142.96691925057348,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "えび曲げ 中間 継ぎ目2本 帯1 の右の縁 ＝ 隣の帯の左の縁",
+   "source": "design-demos/assets/kirizu/test_build.mjs:238",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 えび曲げ 2600A（R2600・90°・切り口 3）の片を周方向の帯に割る"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "leftEdge(bs[(j + 1) % n].pts)",
+   "zk_want": 1897.836294738584,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "えび曲げ 中間 継ぎ目2本 帯2 の右の縁 ＝ 隣の帯の左の縁",
+   "source": "design-demos/assets/kirizu/test_build.mjs:238",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 えび曲げ 2600A（R2600・90°・切り口 3）の片を周方向の帯に割る"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "leftEdge(bs[(j + 1) % n].pts)",
+   "zk_want": 896.835306545092,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "えび曲げ 中間 継ぎ目3本 帯1 の右の縁 ＝ 隣の帯の左の縁",
+   "source": "design-demos/assets/kirizu/test_build.mjs:238",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 えび曲げ 2600A（R2600・90°・切り口 3）の片を周方向の帯に割る"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "leftEdge(bs[(j + 1) % n].pts)",
+   "zk_want": 1214.1399051957656,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "えび曲げ 中間 継ぎ目3本 帯2 の右の縁 ＝ 隣の帯の左の縁",
+   "source": "design-demos/assets/kirizu/test_build.mjs:238",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 えび曲げ 2600A（R2600・90°・切り口 3）の片を周方向の帯に割る"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "leftEdge(bs[(j + 1) % n].pts)",
+   "zk_want": 2081.032190184657,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "えび曲げ 中間 継ぎ目3本 帯3 の右の縁 ＝ 隣の帯の左の縁",
+   "source": "design-demos/assets/kirizu/test_build.mjs:238",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 えび曲げ 2600A（R2600・90°・切り口 3）の片を周方向の帯に割る"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "leftEdge(bs[(j + 1) % n].pts)",
+   "zk_want": 896.835306545092,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "えび曲げ 始点側 継ぎ目2本 帯1 の右の縁 ＝ 隣の帯の左の縁",
+   "source": "design-demos/assets/kirizu/test_build.mjs:238",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 えび曲げ 2600A（R2600・90°・切り口 3）の片を周方向の帯に割る"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "leftEdge(bs[(j + 1) % n].pts)",
+   "zk_want": 1250.918147369292,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "えび曲げ 始点側 継ぎ目2本 帯2 の右の縁 ＝ 隣の帯の左の縁",
+   "source": "design-demos/assets/kirizu/test_build.mjs:238",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 えび曲げ 2600A（R2600・90°・切り口 3）の片を周方向の帯に割る"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "leftEdge(bs[(j + 1) % n].pts)",
+   "zk_want": 750.417653272546,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "えび曲げ 始点側 継ぎ目3本 帯1 の右の縁 ＝ 隣の帯の左の縁",
+   "source": "design-demos/assets/kirizu/test_build.mjs:238",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 えび曲げ 2600A（R2600・90°・切り口 3）の片を周方向の帯に割る"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "leftEdge(bs[(j + 1) % n].pts)",
+   "zk_want": 909.0699525978828,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "えび曲げ 始点側 継ぎ目3本 帯2 の右の縁 ＝ 隣の帯の左の縁",
+   "source": "design-demos/assets/kirizu/test_build.mjs:238",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 えび曲げ 2600A（R2600・90°・切り口 3）の片を周方向の帯に割る"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "leftEdge(bs[(j + 1) % n].pts)",
+   "zk_want": 1342.5160950923282,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "えび曲げ 始点側 継ぎ目3本 帯3 の右の縁 ＝ 隣の帯の左の縁",
+   "source": "design-demos/assets/kirizu/test_build.mjs:238",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例2 えび曲げ 2600A（R2600・90°・切り口 3）の片を周方向の帯に割る"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "leftEdge(bs[(j + 1) % n].pts)",
+   "zk_want": 750.417653272546,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "大きい管 曲管 始点側 帯の重さの合計 ＝ 割らない片の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:252",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った大きい管の読み取り（H_stock.json）: 管 2枚巻き・曲管 縦継手3か所・継ぎ目の書いていない管 2500"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "pc(S1, \"2\", lb).kg",
+   "zk_want": 1036.7,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "大きい管 曲管 中間 帯の重さの合計 ＝ 割らない片の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:252",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った大きい管の読み取り（H_stock.json）: 管 2枚巻き・曲管 縦継手3か所・継ぎ目の書いていない管 2500"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "pc(S1, \"2\", lb).kg",
+   "zk_want": 2895.3,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "大きい管 曲管 終点側 帯の重さの合計 ＝ 割らない片の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:252",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "手で作った大きい管の読み取り（H_stock.json）: 管 2枚巻き・曲管 縦継手3か所・継ぎ目の書いていない管 2500"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "pc(S1, \"2\", lb).kg",
+   "zk_want": 1036.7,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "本管 E 継ぎ目3本 重さ ＝ 割らない本管",
+   "source": "design-demos/assets/kirizu/test_build.mjs:286",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "読んだ結果に継ぎ目の数を足して通す（E・G2）"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "emn.kg",
+   "zk_want": 418.1,
+   "reason": "self-referential: emn derived from the engine (pc(E, \"1\"))"
+  },
+  {
+   "name": "本管 E 継ぎ目3本 切る前の四角の重さ ＝ 割らない本管",
+   "source": "design-demos/assets/kirizu/test_build.mjs:286",
+   "origin": {
+    "section_comment": "板の大きさと縦の継ぎ目の分割。期待値は reader/research/verify_stock.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "読んだ結果に継ぎ目の数を足して通す（E・G2）"
+   },
+   "basis": "verify_stock.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "emn.grossKg",
+   "zk_want": 445.7,
+   "reason": "self-referential: emn derived from the engine (pc(E, \"1\"))"
+  },
+  {
+   "name": "DXF 仕切弁副管A1 継ぎ目2本の線（四角2つ＋穴の点の数）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:389",
+   "origin": {
+    "section_comment": "複数の枝と枝の向き（十字管・仕切弁副管・排水T字管・人孔と空気弁）。期待値は reader/research/verify_branches.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "仕切弁副管A1（H_branch_valve.json）"
+   },
+   "basis": "verify_branches.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "8 + hn",
+   "zk_want": 729,
+   "reason": "self-referential: hn derived from the engine (pu.reduce((a, q) => a + Zs.holesOf(q).reduce((b, h) => b + h)"
+  },
+  {
+   "name": "ラテラル 例3 穴の割り出し0 の周の位置 ＝ 枝の中心",
+   "source": "design-demos/assets/kirizu/test_build.mjs:445",
+   "origin": {
+    "section_comment": "斜めの枝（ラテラル）。期待値は reader/research/verify_lateral.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "例3 の穴の縁（枝の中心の周の位置で）: 割り出し 0（鋭角の側）と 8（鈍角の側）"
+   },
+   "basis": "verify_lateral.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "h.holeU",
+   "zk_want": 1337.039014736056,
+   "reason": "self-referential: h derived from the engine (mnI(1016, 12, 406.4, 9, 1600, 600, 150, 60, \"in\").holes[0]; )"
+  },
+  {
+   "name": "ラテラル DXF 本管の線（四角4＋穴の線）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:470",
+   "origin": {
+    "section_comment": "斜めの枝（ラテラル）。期待値は reader/research/verify_lateral.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "枝が2本以上の本管の呼び方でも、斜めの枝1本なら同じ穴"
+   },
+   "basis": "verify_lateral.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "4 + m.hole.length",
+   "zk_want": 364,
+   "reason": "self-referential: m derived from the engine (Zs.unfold({ shape: \"tee_main\", t: 12, geo: { D: 1016, L: 200)"
+  },
+  {
+   "name": "補強板 斜めの枝 2枚 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:549",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "斜めの枝の補強板（ラテラル 例2）も割れる。2枚の形は違い、重さの合計は割る前と同じ"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "k0",
+   "zk_want": 40.852145265977846,
+   "reason": "self-referential: k0 derived from the engine (sum(lg, 12, 1).kg)"
+  },
+  {
+   "name": "補強板 斜めの枝 3枚 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:549",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "斜めの枝の補強板（ラテラル 例2）も割れる。2枚の形は違い、重さの合計は割る前と同じ"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "k0",
+   "zk_want": 40.852145265977846,
+   "reason": "self-referential: k0 derived from the engine (sum(lg, 12, 1).kg)"
+  },
+  {
+   "name": "補強板 斜めの枝 4枚 片の重さの合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:549",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "斜めの枝の補強板（ラテラル 例2）も割れる。2枚の形は違い、重さの合計は割る前と同じ"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "k0",
+   "zk_want": 40.852145265977846,
+   "reason": "self-referential: k0 derived from the engine (sum(lg, 12, 1).kg)"
+  },
+  {
+   "name": "補強板 G2 二つ割 重さ（2枚）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:571",
+   "origin": {
+    "section_comment": "補強板の分割。期待値は reader/research/verify_padsplit.py で別に出した値（画面と同じ 360 点で切った片。許す差は長さ 0.1mm、重さ 0.05%）",
+    "nearest_comment": "読み取り（H_pad_split.json）: 材料表の数量 2・二つ割"
+   },
+   "basis": "verify_padsplit.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "pc(r, \"3\").kg",
+   "zk_want": 36,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "径違い 例1 片2 継ぎ目2本 帯の面積の合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:682",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "縦の継ぎ目で割った円すいの片（扇の帯）: 帯ごとの外形・面積・継ぎ目の縁、帯の面積の合計 ＝ 割る前"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "whole",
+   "zk_want": 11500303.236470215,
+   "reason": "self-referential: whole derived from the engine (sh(unf(c, m)[0].pts))"
+  },
+  {
+   "name": "径違い 例1 片3 継ぎ目3本 帯の面積の合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:682",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "縦の継ぎ目で割った円すいの片（扇の帯）: 帯ごとの外形・面積・継ぎ目の縁、帯の面積の合計 ＝ 割る前"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "whole",
+   "zk_want": 10660746.905147215,
+   "reason": "self-referential: whole derived from the engine (sh(unf(c, m)[0].pts))"
+  },
+  {
+   "name": "径違い 例3 片2 継ぎ目2本 帯の面積の合計 ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:682",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "縦の継ぎ目で割った円すいの片（扇の帯）: 帯ごとの外形・面積・継ぎ目の縁、帯の面積の合計 ＝ 割る前"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "whole",
+   "zk_want": 2949851.2228482775,
+   "reason": "self-referential: whole derived from the engine (sh(unf(c, m)[0].pts))"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 始点側 継ぎ目1本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 始点側 継ぎ目2本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 始点側 継ぎ目3本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 中間 継ぎ目1本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 中間 継ぎ目2本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 中間 継ぎ目3本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 終点側 継ぎ目1本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 終点側 継ぎ目2本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "径違い 径が同じ 2600A 終点側 継ぎ目3本 振れ幅 ＝ 今の形",
+   "source": "design-demos/assets/kirizu/test_build.mjs:693",
+   "origin": {
+    "section_comment": "径違いのえび曲げ（始点側と終点側で口の径が違う）。期待値は reader/research/verify_redbend.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "径が同じなら今のえび曲げとまったく同じ（2600A の帯）"
+   },
+   "basis": "verify_redbend.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "a[0].k",
+   "zk_want": 353.90729336302684,
+   "reason": "self-referential: a derived from the engine (Zs.unfold({ shape: \"bend\", t: 16, geo: { D: 2641.6, t: 16, R)"
+  },
+  {
+   "name": "反対の口から書いた偏心 穴の面積",
+   "source": "design-demos/assets/kirizu/test_build.mjs:814",
+   "origin": {
+    "section_comment": "円すいに立つ枝（同心・偏心）。期待値は reader/research/verify_conebranch.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "偏心を小さい口から見て書いても同じ物（例4: D1＝914.4、枝は左・片寄せ 152.4 が地の側・小さい口から 600）。片寄せは基準の線の移り（152.4）を足して直す"
+   },
+   "basis": "verify_conebranch.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "f4.holeArea",
+   "zk_want": 125293.3418567171,
+   "reason": "self-referential: f4 derived from the engine (coneU(true, 1219.2, 914.4, 1200, 12, 0, e4.b, 2, \"on\")[0].in)"
+  },
+  {
+   "name": "反対の口から書いた偏心 穴 X 始め",
+   "source": "design-demos/assets/kirizu/test_build.mjs:814",
+   "origin": {
+    "section_comment": "円すいに立つ枝（同心・偏心）。期待値は reader/research/verify_conebranch.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "偏心を小さい口から見て書いても同じ物（例4: D1＝914.4、枝は左・片寄せ 152.4 が地の側・小さい口から 600）。片寄せは基準の線の移り（152.4）を足して直す"
+   },
+   "basis": "verify_conebranch.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "f4.holeBox.x0",
+   "zk_want": 424.6843081031894,
+   "reason": "self-referential: f4 derived from the engine (coneU(true, 1219.2, 914.4, 1200, 12, 0, e4.b, 2, \"on\")[0].in)"
+  },
+  {
+   "name": "反対の口から書いた偏心 穴 Y 始め",
+   "source": "design-demos/assets/kirizu/test_build.mjs:814",
+   "origin": {
+    "section_comment": "円すいに立つ枝（同心・偏心）。期待値は reader/research/verify_conebranch.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "偏心を小さい口から見て書いても同じ物（例4: D1＝914.4、枝は左・片寄せ 152.4 が地の側・小さい口から 600）。片寄せは基準の線の移り（152.4）を足して直す"
+   },
+   "basis": "verify_conebranch.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "f4.holeBox.y0",
+   "zk_want": -1113.7887390994551,
+   "reason": "self-referential: f4 derived from the engine (coneU(true, 1219.2, 914.4, 1200, 12, 0, e4.b, 2, \"on\")[0].in)"
+  },
+  {
+   "name": "反対の口から書いた偏心 穴の x（D1 の口から）は長さから引いた値",
+   "source": "design-demos/assets/kirizu/test_build.mjs:815",
+   "origin": {
+    "section_comment": "円すいに立つ枝（同心・偏心）。期待値は reader/research/verify_conebranch.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "偏心を小さい口から見て書いても同じ物（例4: D1＝914.4、枝は左・片寄せ 152.4 が地の側・小さい口から 600）。片寄せは基準の線の移り（152.4）を足して直す"
+   },
+   "basis": "verify_conebranch.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "1200 - f4.xmax",
+   "zk_want": 404.893789067189,
+   "reason": "self-referential: f4 derived from the engine (coneU(true, 1219.2, 914.4, 1200, 12, 0, e4.b, 2, \"on\")[0].in)"
+  },
+  {
+   "name": "偏心 平らな側 180°・枝 180° ＝ 平らな側 0°・枝 0°（穴の面積）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:823",
+   "origin": {
+    "section_comment": "円すいに立つ枝（同心・偏心）。期待値は reader/research/verify_conebranch.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "偏心の向きを回しても同じ（平らな側と枝を一緒に回す）"
+   },
+   "basis": "verify_conebranch.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "coneU(true, 1219.2, 914.4, 1200, 12, f2, b2, 2, \"on\")[0].info.holeArea",
+   "zk_want": 123006.50064978091,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "偏心 平らな側 90°・枝 180° ＝ 平らな側 0°・枝 90°（穴の面積）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:823",
+   "origin": {
+    "section_comment": "円すいに立つ枝（同心・偏心）。期待値は reader/research/verify_conebranch.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "偏心の向きを回しても同じ（平らな側と枝を一緒に回す）"
+   },
+   "basis": "verify_conebranch.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "coneU(true, 1219.2, 914.4, 1200, 12, f2, b2, 2, \"on\")[0].info.holeArea",
+   "zk_want": 129439.75673494072,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "偏心 平らな側 270°・枝 30° ＝ 平らな側 0°・枝 120°（穴の面積）",
+   "source": "design-demos/assets/kirizu/test_build.mjs:823",
+   "origin": {
+    "section_comment": "円すいに立つ枝（同心・偏心）。期待値は reader/research/verify_conebranch.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "偏心の向きを回しても同じ（平らな側と枝を一緒に回す）"
+   },
+   "basis": "verify_conebranch.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "coneU(true, 1219.2, 914.4, 1200, 12, f2, b2, 2, \"on\")[0].info.holeArea",
+   "zk_want": 129974.33095809474,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "二股 例3 片0 板2枚の重さ ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:911",
+   "origin": {
+    "section_comment": "二股（Y字管）。期待値は reader/research/verify_yfork.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "縦の継ぎ目 2 本: 片ごとに板 2 枚（幅 944.05）、2 枚の重さの合計 ＝ 割る前"
+   },
+   "basis": "verify_yfork.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "kgOf(Object.assign({}, g, { split: 1 }), 9)",
+   "zk_want": 44.52333494492626,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "二股 例3 片1 板2枚の重さ ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:911",
+   "origin": {
+    "section_comment": "二股（Y字管）。期待値は reader/research/verify_yfork.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "縦の継ぎ目 2 本: 片ごとに板 2 枚（幅 944.05）、2 枚の重さの合計 ＝ 割る前"
+   },
+   "basis": "verify_yfork.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "kgOf(Object.assign({}, g, { split: 1 }), 9)",
+   "zk_want": 113.04670177799429,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "二股 例3 片2 板2枚の重さ ＝ 割る前",
+   "source": "design-demos/assets/kirizu/test_build.mjs:911",
+   "origin": {
+    "section_comment": "二股（Y字管）。期待値は reader/research/verify_yfork.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "縦の継ぎ目 2 本: 片ごとに板 2 枚（幅 944.05）、2 枚の重さの合計 ＝ 割る前"
+   },
+   "basis": "verify_yfork.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "kgOf(Object.assign({}, g, { split: 1 }), 9)",
+   "zk_want": 97.81311072131625,
+   "reason": "self-referential: engine call in expression"
+  },
+  {
+   "name": "二股 例1 本管の振れ幅 ＝ えび曲げの片（45°）の振れ幅",
+   "source": "design-demos/assets/kirizu/test_build.mjs:934",
+   "origin": {
+    "section_comment": "二股（Y字管）。期待値は reader/research/verify_yfork.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "今の形との照らし: 半周の振れ幅はえび曲げの片の振れ幅 k（角 2γ・切り口1つ）と同じ。片方の枝がまっすぐなら、枝1 の切り口は同じ径・板厚0 のラテラル 45° の枝と同じ"
+   },
+   "basis": "verify_yfork.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "k1",
+   "zk_want": 210.4204896855323,
+   "reason": "self-referential: k1 derived from the engine (Zs.unfold({ shape: \"bend\", t: 12, geo: { D: 1016, ang: 45, j)"
+  },
+  {
+   "name": "二股 例1 枝の股の側の振れ幅 ＝ えび曲げの片（90°）の振れ幅",
+   "source": "design-demos/assets/kirizu/test_build.mjs:936",
+   "origin": {
+    "section_comment": "二股（Y字管）。期待値は reader/research/verify_yfork.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "今の形との照らし: 半周の振れ幅はえび曲げの片の振れ幅 k（角 2γ・切り口1つ）と同じ。片方の枝がまっすぐなら、枝1 の切り口は同じ径・板厚0 のラテラル 45° の枝と同じ"
+   },
+   "basis": "verify_yfork.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "k2",
+   "zk_want": 507.99999999999994,
+   "reason": "self-referential: k2 derived from the engine (Zs.unfold({ shape: \"bend\", t: 12, geo: { D: 1016, ang: 90, j)"
+  },
+  {
+   "name": "二股 枝の板厚 9 の枝1 の重さ",
+   "source": "design-demos/assets/kirizu/test_build.mjs:975",
+   "origin": {
+    "section_comment": "二股（Y字管）。期待値は reader/research/verify_yfork.py で別に出した値（許す差は長さ 0.1mm、面積・重さ 0.05%）",
+    "nearest_comment": "読んだ結果から（手で作った K_yfork.json＝例1・K_yfork_cone.json＝例4）"
+   },
+   "basis": "verify_yfork.py (named in the test comment)",
+   "reading_hint": [],
+   "zk_status": "OK",
+   "kind": "num",
+   "want_expr": "Zs.summary({ shape: \"wye\", t: 9, n: 1, geo: Object.assign({ m: 1, kind: \"pipe\" }, G1), table: {} }, opt).kg",
+   "zk_want": 150.04509797650556,
+   "reason": "self-referential: engine call in expression"
+  }
+ ]
+}

@@ -23,6 +23,12 @@
 
 - Linux: `sha256sum -c SHA256SUMS`
 - Windows (PowerShell): `Get-FileHash <file> -Algorithm SHA256` and compare with `SHA256SUMS`.
+- Signature of `SHA256SUMS` (needs OpenSSL 1.1.1 or later, on Linux or Windows): get `SHA256SUMS.sig` and the public key `nf-release-public.pem` (an Ed25519 public key in PEM format, beginning `-----BEGIN PUBLIC KEY-----`) from the same page as the download. Then run:
+  `openssl pkeyutl -verify -pubin -inkey nf-release-public.pem -rawin -in SHA256SUMS -sigfile SHA256SUMS.sig`
+  It prints `Signature Verified Successfully` only if `SHA256SUMS` was made by NEXUS FABRIC's release key. Any other answer: do not use the files. Then run the SHA-256 check above on the packages.
+  (`packaging/verify_sums.sh <folder> nf-release-public.pem` runs the same check from the source tree.)
+  `packaging/verify_sums.sh` first checks the key: it must be an Ed25519 public key (not the placeholder, not a private key) and it prints the key's SHA-256 fingerprint. By hand: `openssl pkey -pubin -in nf-release-public.pem -noout -text | head -1` must print `ED25519 Public-Key:`, and `grep -c 'PRIVATE KEY' nf-release-public.pem` must print `0`.
+  Key fingerprint (SHA-256 of the public key in DER form; compare your copy of the key with it before you trust the signature): `openssl pkey -pubin -in nf-release-public.pem -outform DER | sha256sum`. The fingerprint of the release key is printed by `packaging/sign_sums.sh` when a release is signed and is published with the release. The same key is kept in the source repository at `packaging/nf-release-public.pem`. **Not yet issued:** the repository file is a placeholder until the founder generates the real key; until then the check above fails, and that is the correct result.
 
 ### Windows: install
 
@@ -95,6 +101,12 @@ The first-run screen in the browser shows the same information.
 
 - Linux: `sha256sum -c SHA256SUMS`
 - Windows（PowerShell）: `Get-FileHash <ファイル> -Algorithm SHA256` を実行し、`SHA256SUMS` と比べます。
+- `SHA256SUMS` の署名確認（OpenSSL 1.1.1 以降が必要。Linux でも Windows でも可）: `SHA256SUMS.sig` と公開鍵 `nf-release-public.pem`（PEM 形式の Ed25519 公開鍵。先頭は `-----BEGIN PUBLIC KEY-----`）を、ダウンロードしたページと同じ場所から取得し、次を実行します。
+  `openssl pkeyutl -verify -pubin -inkey nf-release-public.pem -rawin -in SHA256SUMS -sigfile SHA256SUMS.sig`
+  `Signature Verified Successfully` と表示された場合だけ、NEXUS FABRIC のリリース鍵で作られた `SHA256SUMS` です。それ以外の結果ならファイルを使わないでください。そのうえで上の SHA-256 確認をパッケージごとに行います。
+  （ソースツリーからは `packaging/verify_sums.sh <フォルダ> nf-release-public.pem` で同じ確認ができます。）
+  `packaging/verify_sums.sh` は先に鍵を確認します。Ed25519 の公開鍵であること（プレースホルダーや秘密鍵ではないこと）を確かめ、鍵の SHA-256 フィンガープリントを表示します。手動では、`openssl pkey -pubin -in nf-release-public.pem -noout -text | head -1` が `ED25519 Public-Key:` を表示し、`grep -c 'PRIVATE KEY' nf-release-public.pem` が `0` を表示することを確認してください。
+  鍵のフィンガープリント（公開鍵の DER 形式の SHA-256。信頼する前に、取得した鍵をこれと照合してください）: `openssl pkey -pubin -in nf-release-public.pem -outform DER | sha256sum`。リリース鍵のフィンガープリントは、リリース時に `packaging/sign_sums.sh` が表示し、リリースと一緒に公開されます。同じ鍵はソースリポジトリの `packaging/nf-release-public.pem` にもあります。**未発行:** リポジトリのファイルは、創業者が本番の鍵を生成するまでプレースホルダーです。それまでは上の確認は失敗します。これは正しい結果です。
 
 ### Windows: インストール
 

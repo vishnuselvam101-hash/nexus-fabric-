@@ -1,0 +1,38 @@
+[package]
+name = "nf-raster"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Proprietary"
+publish = false
+description = "Offline page images (PNG) from scanned and vector PDF pages (library and nf-raster child process)"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "nf-raster"
+path = "src/bin/nf-raster/main.rs"
+
+[dependencies]
+nf-pdf = { path = "../nf-pdf" }
+# Pure Rust deflate (miniz_oxide backend) for the PNG writer; no C code is built.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+crc32fast = "1"
+sha2 = "0.10"
+# Image decoders; all pure Rust, all #![forbid(unsafe_code)] or checked below (see docs/backend/RASTER.md).
+# Without the x86/neon features this crate is #![forbid(unsafe_code)] and single-threaded.
+zune-jpeg = { version = "0.5", default-features = false, features = ["std"] }
+zune-core = { version = "0.5", default-features = false, features = ["std"] }
+hayro-ccitt = "0.5"
+hayro-jbig2 = { version = "0.4", default-features = false, features = ["std"] }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "process"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4"
+seccompiler = { version = "0.5", default-features = false }
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+nf-pdf-winjob = { path = "../nf-pdf/winjob" }

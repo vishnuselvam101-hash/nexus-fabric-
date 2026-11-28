@@ -4,7 +4,7 @@
 //  - the fragment is removed from the address bar, and the setup link is dead after setup;
 //  - a second copy on the same data folder is refused;
 //  - Ctrl+C (SIGINT) stops the program cleanly, with the database checkpointed.
-// Usage: node tests/desktop_smoke.js <path to nf-server binary> [port 8860-8869]
+// Usage: node tests/desktop_smoke.js <path to nf-server binary> [port 8845-8869]
 // Only 127.0.0.1 is used. Exits 0 only if every check passes; prints each check and the pass/fail counts.
 const { spawn } = require('child_process');
 const { chromium } = require('playwright');
@@ -15,8 +15,8 @@ const http = require('http');
 
 const BIN = process.argv[2];
 const PORT = Number(process.argv[3] || 8860);
-if (!BIN || !(PORT >= 8860 && PORT <= 8869)) {
-  console.error('usage: node tests/desktop_smoke.js <nf-server binary> [port 8860-8869]');
+if (!BIN || !(PORT >= 8845 && PORT <= 8869)) {
+  console.error('usage: node tests/desktop_smoke.js <nf-server binary> [port 8845-8869]');
   process.exit(2);
 }
 const WIN = process.platform === 'win32';
@@ -196,8 +196,14 @@ function rawGet(p, host) {
   await page.waitForFunction(() => /Desktop mode/.test((document.querySelector('#desktop-notice') || {}).textContent || ''), null, { timeout: 5000 }).catch(() => {});
   await page.fill('#login-user', 'admin');
   await page.fill('#login-pass', 'correct-horse-9');
+  check('first-run screen offers the optional automatic sign-in, off by default', (await page.isVisible('#login-auto').catch(() => false)) && !(await page.isChecked('#login-auto').catch(() => true)));
   await page.click('#login-form button[type="submit"]');
-  await page.waitForFunction(() => !document.querySelector('#login-form'), null, { timeout: 20000 }).catch(() => {});
+  // AUTH-1: the recovery code is shown once; the program opens after it is confirmed
+  await page.waitForSelector('#rc-screen', { state: 'visible', timeout: 20000 }).catch(() => {});
+  check('the recovery code is shown after setup', await page.isVisible('#rc-code').catch(() => false));
+  await page.check('#rc-saved').catch(() => {});
+  await page.click('#rc-continue').catch(() => {});
+  await page.waitForFunction(() => !document.querySelector('#login-form') || document.querySelector('#login-form').closest('[hidden]'), null, { timeout: 20000 }).catch(() => {});
   const me = await page.evaluate(async () => (await fetch('/api/me', { headers: { 'X-NF-Request': '1' } })).json().catch(() => null));
   check('first administrator is created from the link', !!(me && (me.user || me.username || me.name || JSON.stringify(me).includes('admin'))), JSON.stringify(me).slice(0, 120));
   // the token travels only in the setup request body (as in server mode), never in a URL or the query string

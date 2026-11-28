@@ -1,0 +1,277 @@
+{
+ "_note": "11/22 規格の寸法表の確かめ用に手で作った読み取り（実在の図面ではない）。readtest/J_drain.json（排水T字管 600×200）と同じ図で、寸法を読まずに規格の名前・呼び径・種類・枝の向き・リブの数だけを読んだ形。切図は J_drain_expected.md と同じになるはず",
+ "page": {
+  "kind": "drawing",
+  "title": "排水T字管 600A×200A（確かめ用の例 J）",
+  "drawing_no": "J-DRAIN",
+  "job_no": "",
+  "scale": "NONE",
+  "company": "株式会社 例",
+  "qty": 1,
+  "unit_mass_kg": 140.6
+ },
+ "material_table": [
+  {
+   "no": "1",
+   "name": "本管",
+   "material": "STW400",
+   "size": "φ609.6×6.0",
+   "length": "1500",
+   "qty": "1",
+   "unit_mass": "",
+   "mass": "131.5",
+   "note": "",
+   "bbox": [
+    1090,
+    90,
+    1750,
+    130
+   ]
+  },
+  {
+   "no": "2",
+   "name": "枝管",
+   "material": "STW400",
+   "size": "φ216.3×5.8",
+   "length": "",
+   "qty": "1",
+   "unit_mass": "",
+   "mass": "8.8",
+   "note": "",
+   "bbox": [
+    1090,
+    130,
+    1750,
+    170
+   ]
+  },
+  {
+   "no": "3",
+   "name": "上リブ",
+   "material": "SS400",
+   "size": "PL-6",
+   "length": "",
+   "qty": "1",
+   "unit_mass": "",
+   "mass": "0.11",
+   "note": "",
+   "bbox": [
+    1090,
+    170,
+    1750,
+    210
+   ]
+  },
+  {
+   "no": "4",
+   "name": "横リブ",
+   "material": "SS400",
+   "size": "PL-6",
+   "length": "",
+   "qty": "2",
+   "unit_mass": "",
+   "mass": "0.23",
+   "note": "",
+   "bbox": [
+    1090,
+    210,
+    1750,
+    250
+   ]
+  }
+ ],
+ "parts": [
+  {
+   "no": "1",
+   "name": "本管",
+   "shape": "tee_main",
+   "attach": "",
+   "table_rows": [
+    "1"
+   ],
+   "params": {
+    "nom": {
+     "value": 600,
+     "text": "600A×200A",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "nom2": {
+     "value": 200,
+     "text": "600A×200A",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "pclass": {
+     "value": 12,
+     "text": "F12",
+     "bbox": null,
+     "source": "drawing"
+    }
+   },
+   "notes": [],
+   "dims": [],
+   "std": {
+    "item": "drain_tee",
+    "text": "JWWA G 118",
+    "bbox": [
+     120,
+     80,
+     420,
+     110
+    ]
+   }
+  },
+  {
+   "no": "2",
+   "name": "枝管",
+   "shape": "tee_branch",
+   "attach": "1",
+   "table_rows": [
+    "2"
+   ],
+   "params": {
+    "nom": {
+     "value": 600,
+     "text": "600A×200A",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "nom2": {
+     "value": 200,
+     "text": "600A×200A",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "pclass": {
+     "value": 12,
+     "text": "F12",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "dir": {
+     "value": 90,
+     "text": "側面図で右へ出る",
+     "bbox": null,
+     "source": "drawing"
+    }
+   },
+   "notes": [],
+   "dims": [],
+   "std": {
+    "item": "drain_tee",
+    "text": "JWWA G 118",
+    "bbox": [
+     120,
+     80,
+     420,
+     110
+    ]
+   }
+  },
+  {
+   "no": "3",
+   "name": "上リブ",
+   "shape": "tee_rib",
+   "attach": "",
+   "table_rows": [
+    "3"
+   ],
+   "params": {
+    "nom": {
+     "value": 600,
+     "text": "600A×200A",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "nom2": {
+     "value": 200,
+     "text": "600A×200A",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "pclass": {
+     "value": 12,
+     "text": "F12",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "rib_n1": {
+     "value": 1,
+     "text": "1",
+     "bbox": null,
+     "source": "count"
+    }
+   },
+   "notes": [],
+   "dims": [],
+   "std": {
+    "item": "drain_tee",
+    "text": "JWWA G 118",
+    "bbox": [
+     120,
+     80,
+     420,
+     110
+    ]
+   }
+  },
+  {
+   "no": "4",
+   "name": "横リブ",
+   "shape": "tee_rib",
+   "attach": "",
+   "table_rows": [
+    "4"
+   ],
+   "params": {
+    "nom": {
+     "value": 600,
+     "text": "600A×200A",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "nom2": {
+     "value": 200,
+     "text": "600A×200A",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "pclass": {
+     "value": 12,
+     "text": "F12",
+     "bbox": null,
+     "source": "drawing"
+    },
+    "rib_n2": {
+     "value": 2,
+     "text": "2",
+     "bbox": null,
+     "source": "count"
+    }
+   },
+   "notes": [],
+   "dims": [],
+   "std": {
+    "item": "drain_tee",
+    "text": "JWWA G 118",
+    "bbox": [
+     120,
+     80,
+     420,
+     110
+    ]
+   }
+  }
+ ],
+ "seam": null,
+ "notes": [
+  "1. 枝管は本管に載せて溶接する。",
+  "2. 枝管の下面は本管の管底にそろえる。",
+  "3. リブは両側すみ肉溶接とする。",
+  "4. 寸法の単位は mm。",
+  "上リブ（本管の外面に沿わせる）",
+  "横リブ（2枚）"
+ ],
+ "unreadable": []
+}

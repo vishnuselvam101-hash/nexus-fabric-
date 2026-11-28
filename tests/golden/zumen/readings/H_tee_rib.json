@@ -1,0 +1,19 @@
+{
+  "_note": "手で作った排水T字管のリブの読み取り（協力工場の図面ではない）。寸法は JIS G 3443-2 表13・大阪広域水道企業団 標準図 6-92 の 300×80（本管 D2 318.5・T 6.9、枝 d2 89.1・t 4.2、I 300、リブ t'1 6・b 60・h 50）。枝は本管の底に接するので、片寄せは (318.5−89.1)/2。本管は今の決まりでは作れない形になるので、この例には入れていない",
+  "page": { "kind": "drawing", "title": "排水T字管 300×80（確かめ用の例）", "drawing_no": "H-RIB", "job_no": "", "scale": "", "company": "", "qty": 1, "unit_mass_kg": null },
+  "material_table": [
+    { "no": "2", "name": "枝管", "material": "STW400", "size": "φ89.1×4.2", "length": "", "qty": "1", "unit_mass": "", "mass": "", "note": "", "bbox": null },
+    { "no": "3", "name": "リブ", "material": "SS400", "size": "PL-6", "length": "", "qty": "3", "unit_mass": "", "mass": "0.21", "note": "", "bbox": null }
+  ],
+  "parts": [
+    { "no": "2", "name": "枝管", "shape": "tee_branch", "table_rows": ["2"], "notes": [], "dims": [],
+      "params": { "D": { "value": 89.1, "text": "φ89.1", "bbox": null, "source": "drawing" }, "t": { "value": 4.2, "text": "4.2", "bbox": null, "source": "drawing" },
+        "main_D": { "value": 318.5, "text": "φ318.5", "bbox": null, "source": "drawing" }, "main_t": { "value": 6.9, "text": "6.9", "bbox": null, "source": "drawing" },
+        "H": { "value": 300, "text": "I 300", "bbox": null, "source": "drawing" }, "e": { "value": 114.7, "text": "(318.5−89.1)/2（枝が本管の底に接する）", "bbox": null, "source": "inferred" } } },
+    { "no": "3", "name": "リブ", "shape": "tee_rib", "table_rows": ["3"], "notes": [], "dims": [],
+      "params": { "t": { "value": 6, "text": "t'1 6", "bbox": null, "source": "drawing" }, "main_D": { "value": 318.5, "text": "φ318.5", "bbox": null, "source": "drawing" },
+        "rib_b": { "value": 60, "text": "b 60", "bbox": null, "source": "drawing" }, "rib_h": { "value": 50, "text": "h 50", "bbox": null, "source": "drawing" },
+        "rib_n1": { "value": 1, "text": "1", "bbox": null, "source": "count" }, "rib_n2": { "value": 2, "text": "2", "bbox": null, "source": "count" } } }
+  ],
+  "seam": null, "notes": [], "unreadable": []
+}

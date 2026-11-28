@@ -8,3 +8,6 @@ __pycache__/
 # Packaging outputs: never commit binaries
 dist/
 *.exe
+
+# offline OCR models are fetched, never committed
+*.onnx

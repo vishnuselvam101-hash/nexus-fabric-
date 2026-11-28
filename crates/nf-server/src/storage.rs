@@ -12,12 +12,25 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-pub const SCHEMA_VERSION: i64 = 4;
+/// 10: the INT-5 union of the reviewed wave-1 work, all additive, on top of 8: AIOP-1 `operator_events`,
+/// `operator_state`, `order_readings`, `order_values` flags/confidence/edited_kind and the sticky
+/// `attached_reading_id`; PZ-1 `order_material_rows`, `order_page_notes` and the decision review columns;
+/// PZ-2 `order_values.flag`/`read_source`; PZ-3 `projects.default_rules_json` copied into new orders.
+/// PZ-2's one-time SECURITY-3 revalidation is keyed by a marker in `meta`, not by another schema number.
+/// 8: `order_results_immutable` trigger (only state -> SUPERSEDED may change), on top of 7.
+/// 7: `order_results` (the supersede chain of order computes, NFJ-1 L10), on top of 6.
+/// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns). Rollback to an older build
+/// is a restore of the pre-update backup: an older program refuses a newer schema (see the check below) and does not
+/// undo the migration.
+pub const SCHEMA_VERSION: i64 = 10;
+
+/// One-time SECURITY-3 migration marker. Do not reuse this key for another migration.
+const PZ2_READ_REVALIDATED: &str = "pz2_read_confirmation_revalidated";
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS projects(id INTEGER PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS projects(id INTEGER PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL, default_rules_json TEXT NOT NULL DEFAULT '{}');
 CREATE TABLE IF NOT EXISTS documents(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, filename TEXT NOT NULL, detected_type TEXT NOT NULL, size INTEGER NOT NULL, sha256 TEXT NOT NULL, extension_mismatch INTEGER NOT NULL, record_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, project_id INTEGER NOT NULL, family TEXT NOT NULL, kind TEXT NOT NULL, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS calculations(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, family TEXT NOT NULL, state TEXT NOT NULL, closure_hash TEXT NOT NULL, result_json TEXT NOT NULL, replay_json TEXT, dxf_sha256 TEXT, supersedes INTEGER, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
@@ -31,11 +44,23 @@ CREATE TABLE IF NOT EXISTS login_clients(username TEXT NOT NULL, client TEXT NOT
 CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS pdf_conversions(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, source_document INTEGER NOT NULL, page INTEGER NOT NULL, scale_kind TEXT NOT NULL, scale_value REAL NOT NULL, tolerance_mm REAL, include_fill INTEGER NOT NULL, include_text INTEGER NOT NULL, status TEXT NOT NULL, code TEXT, limit_name TEXT, message TEXT, converter_version TEXT, source_sha256 TEXT NOT NULL, dxf_sha256 TEXT, report_sha256 TEXT, record_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS amoeba_digests(id INTEGER PRIMARY KEY, calc_id INTEGER NOT NULL, part TEXT NOT NULL, dxf_sha256 TEXT NOT NULL, inputs_sha256 TEXT NOT NULL, engine TEXT NOT NULL, verdict TEXT NOT NULL, checks_json TEXT NOT NULL, created_at INTEGER NOT NULL, UNIQUE(calc_id, part));
+CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, name TEXT NOT NULL, state TEXT NOT NULL, rules_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS order_files(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), document_id INTEGER NOT NULL REFERENCES documents(id), ord INTEGER NOT NULL, UNIQUE(order_id, ord));
+CREATE TABLE IF NOT EXISTS order_pages(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), file_id INTEGER NOT NULL REFERENCES order_files(id), page_no INTEGER NOT NULL, file_page INTEGER NOT NULL, png_sha256 TEXT, width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0, kind TEXT NOT NULL, read_state TEXT NOT NULL, skipped INTEGER NOT NULL DEFAULT 0, skipped_by TEXT, skipped_at INTEGER, UNIQUE(order_id, page_no));
+CREATE TABLE IF NOT EXISTS order_parts(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_id INTEGER REFERENCES order_pages(id), no TEXT NOT NULL, name TEXT NOT NULL, shape TEXT NOT NULL, attach_part TEXT, qty INTEGER NOT NULL, table_rows_json TEXT NOT NULL, group_key TEXT, state TEXT NOT NULL, UNIQUE(order_id, no));
+CREATE TABLE IF NOT EXISTS order_values(id INTEGER PRIMARY KEY, part_id INTEGER NOT NULL REFERENCES order_parts(id), key TEXT NOT NULL, value REAL, text TEXT NOT NULL, bbox_json TEXT, source TEXT NOT NULL, state TEXT NOT NULL, was REAL, proposed_value REAL, proposed_by TEXT NOT NULL, edited_by TEXT, edited_at INTEGER, flag TEXT, read_source TEXT, UNIQUE(part_id, key));
+CREATE TABLE IF NOT EXISTS order_readings(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, bbox_json TEXT NOT NULL, text TEXT NOT NULL, value REAL, kind TEXT NOT NULL, flags_json TEXT NOT NULL, confidence REAL NOT NULL, reader_id TEXT NOT NULL, model_sha256 TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS order_results(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), input_hash TEXT NOT NULL, engine TEXT NOT NULL, state TEXT NOT NULL, supersedes INTEGER, result_json TEXT NOT NULL, counts_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS operator_events(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), seq INTEGER NOT NULL, event_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, UNIQUE(order_id, seq));
+CREATE TABLE IF NOT EXISTS operator_state(order_id INTEGER PRIMARY KEY REFERENCES orders(id), paused INTEGER NOT NULL, by_user TEXT NOT NULL, at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS order_decisions(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), part_id INTEGER, value_id INTEGER, kind TEXT NOT NULL, flag TEXT, source TEXT NOT NULL, agent TEXT, reason TEXT NOT NULL, against_hash TEXT NOT NULL, prev_state TEXT, decided_by TEXT NOT NULL, decided_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, undo_note TEXT);
+CREATE TABLE IF NOT EXISTS order_material_rows(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, no TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL, length TEXT NOT NULL, qty REAL, mass REAL, UNIQUE(order_id, page_no, no));
+CREATE TABLE IF NOT EXISTS order_page_notes(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'note', text TEXT NOT NULL);
 ";
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 11] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 25] = [
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
@@ -54,6 +79,46 @@ const ADDED_COLUMNS: [(&str, &str, &str); 11] = [
     ("calculations", "result_bytes", "INTEGER"),
     // Task 3.1: the PDF conversion a document was produced by (NULL for an upload).
     ("documents", "conversion_id", "INTEGER"),
+    // AUTH-1: the recovery code, only as a salted Argon2 hash (NULL: none yet); and the forced password change
+    // after an administrator reset.
+    ("users", "recovery_salt", "TEXT"),
+    ("users", "recovery_hash", "TEXT"),
+    ("users", "must_change", "INTEGER NOT NULL DEFAULT 0"),
+    // NFJ-1: "person" or "agent" (the AI operator's service identity); decides the source of an order decision.
+    ("users", "kind", "TEXT NOT NULL DEFAULT 'person'"),
+    // AIOP-1: what the writer said about a reading (reader flags, confidence) and whether the last edit was a
+    // person's ("person") or the AI operator's ("agent"). The server decides on these, not on a caller.
+    ("order_values", "flags_json", "TEXT NOT NULL DEFAULT '[]'"),
+    ("order_values", "confidence", "REAL"),
+    (
+        "order_values",
+        "edited_kind",
+        "TEXT NOT NULL DEFAULT 'person'",
+    ),
+    // SECURITY-7: the server-owned, sticky reading this value was first proposed from. Nullable: a value with no
+    // unambiguous attachment cannot be confirmed by the AI operator.
+    ("order_values", "attached_reading_id", "INTEGER"),
+    // PZ-1: a designer claim names the review code it answers and carries the text the designer gave.
+    ("order_decisions", "review_code", "TEXT"),
+    ("order_decisions", "claim_text", "TEXT"),
+    // PZ-2: the reading verdict, its reason codes and the model/input hashes, stored with the proposal.
+    ("order_values", "flag", "TEXT"),
+    // PZ-2: immutable, server-derived read origin. The caller's `source` is only a description;
+    // this records whether the value was actually read by the server, read on paper, or entered.
+    ("order_values", "read_source", "TEXT"),
+    // INT-5: who last edited the part itself ("person" or "agent"); a person-edited part is protected from the AI
+    // operator. Parts that predate the column count as a person's.
+    (
+        "order_parts",
+        "edited_kind",
+        "TEXT NOT NULL DEFAULT 'person'",
+    ),
+    // PZ-3: factory rules copied from a project into orders created afterwards.
+    (
+        "projects",
+        "default_rules_json",
+        "TEXT NOT NULL DEFAULT '{}'",
+    ),
 ];
 
 /// Append-only at the database level (RC-20). Created at every start, so an older database gets them too.
@@ -64,6 +129,13 @@ CREATE TRIGGER IF NOT EXISTS records_no_update BEFORE UPDATE ON records BEGIN SE
 CREATE TRIGGER IF NOT EXISTS records_no_delete BEFORE DELETE ON records BEGIN SELECT RAISE(ABORT, 'records are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS amoeba_no_update BEFORE UPDATE ON amoeba_digests BEGIN SELECT RAISE(ABORT, 'AMOEBA snapshots are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS amoeba_no_delete BEFORE DELETE ON amoeba_digests BEGIN SELECT RAISE(ABORT, 'AMOEBA snapshots are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS order_results_no_delete BEFORE DELETE ON order_results BEGIN SELECT RAISE(ABORT, 'computed results are kept; a new compute supersedes them'); END;
+CREATE TRIGGER IF NOT EXISTS operator_events_no_delete BEFORE DELETE ON operator_events BEGIN SELECT RAISE(ABORT, 'operator events are kept; undo marks them undone'); END;
+CREATE TRIGGER IF NOT EXISTS operator_events_no_edit BEFORE UPDATE OF order_id, seq, event_json, created_by, created_at ON operator_events BEGIN SELECT RAISE(ABORT, 'operator events are kept as written'); END;
+CREATE TRIGGER IF NOT EXISTS order_results_immutable BEFORE UPDATE ON order_results WHEN NOT (NEW.state = 'SUPERSEDED' AND NEW.id IS OLD.id AND NEW.order_id IS OLD.order_id AND NEW.input_hash IS OLD.input_hash AND NEW.engine IS OLD.engine AND NEW.supersedes IS OLD.supersedes AND NEW.result_json IS OLD.result_json AND NEW.counts_json IS OLD.counts_json AND NEW.created_by IS OLD.created_by AND NEW.created_at IS OLD.created_at) BEGIN SELECT RAISE(ABORT, 'computed results are immutable; only SUPERSEDED may be set'); END;
+CREATE TRIGGER IF NOT EXISTS order_readings_no_delete BEFORE DELETE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are kept as the reader produced them'); END;
+CREATE TRIGGER IF NOT EXISTS order_readings_no_edit BEFORE UPDATE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS order_decisions_no_delete BEFORE DELETE ON order_decisions BEGIN SELECT RAISE(ABORT, 'decisions are kept; undo marks them undone'); END;
 ";
 
 const INDEXES: &str = "
@@ -76,6 +148,12 @@ CREATE INDEX IF NOT EXISTS ix_records_project ON records(project_id, family, kin
 CREATE INDEX IF NOT EXISTS ix_docs_project ON documents(project_id);
 CREATE INDEX IF NOT EXISTS ix_docs_conversion ON documents(conversion_id);
 CREATE INDEX IF NOT EXISTS ix_conv_project ON pdf_conversions(project_id);
+CREATE INDEX IF NOT EXISTS ix_orders_project ON orders(project_id);
+CREATE INDEX IF NOT EXISTS ix_order_pages_order ON order_pages(order_id, page_no);
+CREATE INDEX IF NOT EXISTS ix_order_parts_order ON order_parts(order_id);
+CREATE INDEX IF NOT EXISTS ix_order_readings_page ON order_readings(order_id, page_no, id);
+CREATE INDEX IF NOT EXISTS ix_order_results_order ON order_results(order_id, id);
+CREATE INDEX IF NOT EXISTS ix_order_decisions_order ON order_decisions(order_id, value_id);
 CREATE INDEX IF NOT EXISTS ix_fail_user ON login_failures(username, at);
 CREATE INDEX IF NOT EXISTS ix_fail_client ON login_failures(client, at);
 ";
@@ -361,6 +439,49 @@ pub fn open_storage(data_dir: &Path, key_path: &Path) -> Result<(Connection, [u8
     }
     db.execute_batch(INDEXES)
         .map_err(|e| format!("cannot create indexes: {e}"))?;
+    // SECURITY-7: attach an existing value to the one stored reading that unambiguously is that value on the
+    // value's own page. Several matches (or none) leave it NULL: a person, not the operator, decides then. An
+    // attachment made by a write is never overwritten by this backfill.
+    db.execute(
+        "WITH candidates AS (
+            SELECT v.id AS vid, MIN(r.id) AS rid
+            FROM order_values v
+            JOIN order_parts pt ON pt.id = v.part_id
+            JOIN order_pages pg ON pg.id = pt.page_id AND pg.order_id = pt.order_id
+            JOIN order_readings r ON r.order_id = pt.order_id AND r.page_no = pg.page_no
+             AND r.value IS NOT NULL AND r.value IS v.value
+             AND r.text = v.text AND r.bbox_json IS v.bbox_json
+             AND r.flags_json IS v.flags_json AND r.confidence IS v.confidence
+            WHERE v.attached_reading_id IS NULL
+            GROUP BY v.id
+            HAVING COUNT(*) = 1
+        )
+        UPDATE order_values SET attached_reading_id = (SELECT rid FROM candidates WHERE candidates.vid = order_values.id)
+        WHERE id IN (SELECT vid FROM candidates)",
+        [],
+    )
+    .map_err(|e| format!("migration failed (backfill attached readings): {e}"))?;
+    // PZ-2: a value that was first stored as a page reading keeps that origin even if a later edit
+    // relabels it. Backfill rows written before the column existed, so they cannot escape the gate.
+    db.execute("UPDATE order_values SET read_source = source WHERE read_source IS NULL AND source IN ('read', 'drawing', 'table', 'note', 'count')", []).map_err(|e| format!("migration failed (read origin): {e}"))?;
+    // SECURITY-3 / REVIEW-4: a confirmation or correction written before the strict reading gate
+    // may have no second read. Reproducing `StoredCheck`'s strict parse and the page/box checks in
+    // SQL would duplicate the gate and drift from it, so downgrade every read-origin CONFIRMED or
+    // CORRECTED value conservatively on the first open after this build. The value stays with its
+    // evidence; a person confirms or corrects it again through the gated route. The marker makes
+    // this one-time, so later valid checks keep their state. Accepted residual: a pre-v9 row that
+    // was already relabeled to a non-read source (for example `source='entered'` and no
+    // `read_source`) is indistinguishable from a legitimate entered value and is out of scope;
+    // widening this to all numeric values would hold legitimate person-entered data.
+    let revalidated = meta_get(&db, PZ2_READ_REVALIDATED)
+        .map_err(|e| format!("migration failed (read confirmation marker): {e}"))?
+        .is_some();
+    if !revalidated {
+        db.execute("UPDATE order_values SET state = 'PROPOSED' WHERE state IN ('CONFIRMED', 'CORRECTED') AND COALESCE(read_source, source) IN ('read', 'drawing', 'table', 'note', 'count')", [])
+            .map_err(|e| format!("migration failed (read confirmation revalidation): {e}"))?;
+        meta_set(&db, PZ2_READ_REVALIDATED, "1")
+            .map_err(|e| format!("migration failed (read confirmation marker): {e}"))?;
+    }
     // BE-011: record the engine per result. The stored engineering result itself is not rewritten.
     db.execute("UPDATE calculations SET engine = json_extract(result_json, '$.engine') WHERE engine IS NULL AND json_valid(result_json)", []).map_err(|e| format!("migration failed (engine per result): {e}"))?;
     // S-2: the database and the data directory must belong together. At first initialisation a random
