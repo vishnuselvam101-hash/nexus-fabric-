@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/nf-jobout", "crates/uem", "crates/nf-dxf", "crates/nf-digest", "crates/nf-core", "crates/nf-server", "crates/nf-pdf", "crates/nf-raster", "crates/nf-licence", "crates/nf-form3d", "crates/nf-cadio", "crates/nf-numread", "crates/nf-amoeba-agent", "crates/nf-amoeba-operator"]
+members = ["crates/nf-jobout", "crates/uem", "crates/nf-dxf", "crates/nf-digest", "crates/nf-core", "crates/nf-server", "crates/nf-pdf", "crates/nf-raster", "crates/nf-licence", "crates/nf-form3d", "crates/nf-cadio", "crates/nf-numread", "crates/nf-amoeba-agent", "crates/nf-amoeba-operator", "crates/nf-estimate"]
 
 [workspace.package]
 version = "0.1.0"

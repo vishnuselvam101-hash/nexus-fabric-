@@ -119,6 +119,7 @@ pub(crate) fn routes() -> Router<Arc<App>> {
             get(get_materials).put(put_materials),
         )
         .route("/api/orders/{oid}/notes", get(get_notes).put(put_notes))
+        .route("/api/orders/{oid}/estimate", get(get_estimate))
         .route("/api/review/catalogue", get(review_catalogue))
         .route("/api/review/shapes", get(review_shapes))
 }
@@ -4649,6 +4650,77 @@ fn notes_json(db: &Connection, oid: i64) -> Result<Value, ApiError> {
         },
     )?;
     Ok(json!(notes))
+}
+
+#[derive(serde::Deserialize)]
+struct EstimateQuery {
+    format: Option<String>,
+    lang: Option<String>,
+}
+
+/// GET /api/orders/{oid}/estimate[?format=json|csv|xlsx|txt&lang=ja]: a quote draft from the current
+/// computed result. Rates come from the file named by NF_ESTIMATE_RATES; unset rates hold the parts.
+/// Read-only: nothing is stored or approved.
+async fn get_estimate(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path(oid): Path<i64>,
+    Query(q): Query<EstimateQuery>,
+) -> Api {
+    let db = app.db();
+    let u = auth_db(&db, &app, &headers)?;
+    guard_order(&app, &db, &u, oid, "view the estimate")?;
+    let format = q.format.clone().unwrap_or_else(|| "json".into());
+    if !matches!(format.as_str(), "json" | "csv" | "xlsx" | "txt") {
+        return Err(unprocessable("estimate_format", "format must be json, csv, xlsx or txt"));
+    }
+    let stored: Option<String> = db
+        .query_row(
+            "SELECT result_json FROM order_results WHERE order_id = ? AND state = 'CURRENT' ORDER BY id DESC LIMIT 1",
+            params![oid],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let Some(text) = stored else {
+        return Err(fail_code(StatusCode::CONFLICT, "estimate_no_result", &[], "compute the order first"));
+    };
+    let rates = match std::env::var("NF_ESTIMATE_RATES") {
+        Err(_) => nf_estimate::Rates::default(),
+        Ok(path) => {
+            let body = std::fs::read_to_string(&path)
+                .map_err(|_| unprocessable("estimate_rates", "the rates file cannot be read"))?;
+            serde_json::from_str::<nf_estimate::Rates>(&body)
+                .map_err(|_| unprocessable("estimate_rates", "the rates file is not valid"))?
+        }
+    };
+    let order: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+    let est = nf_estimate::estimate(&order, &rates).map_err(|e| unprocessable("estimate_result", &e))?;
+    let ja = q.lang.as_deref() == Some("ja");
+    let suffix = if ja { "-ja" } else { "" };
+    let (ctype, name, body): (&str, String, Vec<u8>) = match format.as_str() {
+        "csv" => ("text/csv; charset=utf-8", format!("estimate-{oid}{suffix}.csv"), nf_estimate::csv(&est, ja)),
+        "xlsx" => (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            format!("estimate-{oid}.xlsx"),
+            nf_estimate::xlsx(&est).map_err(|e| unprocessable("estimate_xlsx", &e.to_string()))?,
+        ),
+        "txt" => ("text/plain; charset=utf-8", format!("estimate-{oid}.txt"), nf_estimate::summary_text(&est).into_bytes()),
+        _ => {
+            return ok(serde_json::to_value(&est).unwrap_or(Value::Null));
+        }
+    };
+    Ok((
+        [
+            (header::CONTENT_TYPE, HeaderValue::from_static(ctype)),
+            (
+                header::CONTENT_DISPOSITION,
+                HeaderValue::from_str(&format!("attachment; filename=\"{name}\""))
+                    .unwrap_or_else(|_| HeaderValue::from_static("attachment")),
+            ),
+        ],
+        body,
+    )
+        .into_response())
 }
 
 async fn get_materials(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) -> Api {
