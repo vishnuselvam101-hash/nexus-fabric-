@@ -92,6 +92,18 @@ pub struct Issue {
 }
 
 /// One line of the change record.
+/// One question for the designer (a review code and the two-language text of the question and any claim).
+#[derive(Clone, Debug, Default)]
+pub struct DesignerNote {
+    pub drawing: String,
+    pub no: String,
+    pub code: String,
+    pub question_en: String,
+    pub question_ja: String,
+    pub answer_en: String,
+    pub answer_ja: String,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct RecordEntry {
     pub date: String,
@@ -131,6 +143,8 @@ pub struct JobInput {
     pub pieces: Vec<Piece>,
     pub material: Vec<MaterialRow>,
     pub issues: Vec<Issue>,
+    /// Review questions, designer claims and hand-drawn exits that go to the designer, not to the cutter.
+    pub designer: Vec<DesignerNote>,
     pub record: Vec<RecordEntry>,
     pub provenance: Provenance,
 }
@@ -385,6 +399,38 @@ pub fn issues_txt(inp: &JobInput) -> Vec<u8> {
     s.into_bytes()
 }
 
+/// Designer section: the review questions, claims and hand-drawn exits. It is a question list, never an approval;
+/// the NOT RELEASED marking of the header applies to it too.
+pub fn designer_txt(inp: &JobInput) -> Vec<u8> {
+    let mut s = String::new();
+    s.push_str(&head(inp, false));
+    s.push_str("\n== Questions for the designer ==\n");
+    s.push_str("These entries ask for a decision; none of them releases a cut file.\n");
+    if inp.designer.is_empty() {
+        s.push_str("No questions.\n");
+    }
+    for n in &inp.designer {
+        s.push_str(&format!(
+            "\n{} {} [{}] {}\nAnswer: {}\n",
+            n.drawing, n.no, n.code, n.question_en, n.answer_en
+        ));
+    }
+    s.push_str("\n\n");
+    s.push_str(&head(inp, true));
+    s.push_str("\n== 設計者への確認事項 ==\n");
+    s.push_str("以下は判断を求めるものです。切断ファイルを許可するものではありません。\n");
+    if inp.designer.is_empty() {
+        s.push_str("確認事項なし。\n");
+    }
+    for n in &inp.designer {
+        s.push_str(&format!(
+            "\n{} {} [{}] {}\n回答：{}\n",
+            n.drawing, n.no, n.code, n.question_ja, n.answer_ja
+        ));
+    }
+    s.into_bytes()
+}
+
 /// Change record: date and user as separate columns, before/after separate.
 pub fn record_csv(inp: &JobInput) -> Vec<u8> {
     let t = |s: &str| Cell::Text(s.to_string());
@@ -542,6 +588,25 @@ pub fn inputs_json(inp: &JobInput, files: &[(String, Vec<u8>)]) -> Vec<u8> {
             ),
         ),
         (
+            "designer".into(),
+            J::Arr(
+                inp.designer
+                    .iter()
+                    .map(|n| {
+                        J::Obj(vec![
+                            ("drawing".into(), J::Str(n.drawing.clone())),
+                            ("no".into(), J::Str(n.no.clone())),
+                            ("code".into(), J::Str(n.code.clone())),
+                            ("question_en".into(), J::Str(n.question_en.clone())),
+                            ("question_ja".into(), J::Str(n.question_ja.clone())),
+                            ("answer_en".into(), J::Str(n.answer_en.clone())),
+                            ("answer_ja".into(), J::Str(n.answer_ja.clone())),
+                        ])
+                    })
+                    .collect(),
+            ),
+        ),
+        (
             "values".into(),
             J::Arr(
                 inp.provenance
@@ -587,7 +652,7 @@ pub fn inputs_json(inp: &JobInput, files: &[(String, Vec<u8>)]) -> Vec<u8> {
 }
 
 /// Build the export zip. Order: dxf/*, materials_en.csv, materials_ja.csv, materials.xlsx,
-/// issues.txt, record.csv, inputs.json. Never panics on an empty job.
+/// issues.txt, designer.txt, record.csv, inputs.json. Never panics on an empty job.
 pub fn build_job_zip(inp: &JobInput) -> Result<Vec<u8>, JoboutError> {
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
     // Names compare case-insensitively (Windows and macOS file systems). `next` remembers the next
@@ -616,6 +681,7 @@ pub fn build_job_zip(inp: &JobInput) -> Result<Vec<u8>, JoboutError> {
     files.push(("materials_ja.csv".into(), material_csv(inp, true)));
     files.push(("materials.xlsx".into(), material_xlsx(inp)?));
     files.push(("issues.txt".into(), issues_txt(inp)));
+    files.push(("designer.txt".into(), designer_txt(inp)));
     files.push(("record.csv".into(), record_csv(inp)));
     let manifest = inputs_json(inp, &files);
     files.push(("inputs.json".into(), manifest));

@@ -70,7 +70,7 @@ impl Val {
             source: "drawing".into(),
         }
     }
-    fn usable(&self) -> Option<f64> {
+    pub(crate) fn usable(&self) -> Option<f64> {
         match self.state {
             ValState::Confirmed | ValState::Corrected => self.value,
             _ => None,
@@ -255,7 +255,7 @@ impl OrderRules {
     }
 
     pub fn rules_out(&self) -> Vec<Value> {
-        let r = |n: &str, v: String| json!({"name": n, "value": v, "kind": "rule", "status": "UNVERIFIED"});
+        let r = |n: &str, v: String| json!({"name": n, "value": v, "kind": "rule", "status": "UNVERIFIED", "source": "ZK provisional default (not factory confirmed)"});
         vec![
             r("order.basis", format!("{:?}", self.basis).to_lowercase()),
             r("order.allow_mm", self.allow.to_string()),
@@ -399,6 +399,9 @@ pub struct PartResult {
     pub pattern: Vec<PatternPiece>,
     pub t_mm: Option<f64>,
     pub length_mm: Option<f64>,
+    /// Sum of the bend piece centre lengths; internal to the review comparison, not a stored result.
+    #[serde(skip)]
+    pub review_length_mm: Option<f64>,
     pub unit_mass_kg: Option<f64>,
     pub mass_kg: Option<f64>,
     pub gross_mass_kg: Option<f64>,
@@ -418,6 +421,9 @@ pub struct OrderResult {
     pub compute: &'static str,
     pub rules: Vec<Value>,
     pub parts: Vec<PartResult>,
+    /// Review issues from page data. A page-level `need` also names the first part and is added to that part's
+    /// holds so it takes part in the DXF gate; informational rows stay here only.
+    pub review_issues: Vec<crate::review::ReviewIssue>,
 }
 
 impl PartResult {
@@ -435,12 +441,15 @@ impl OrderResult {
     pub fn part(&self, no: &str) -> Option<&PartResult> {
         self.parts.iter().find(|p| p.no == no)
     }
+    pub fn part_mut(&mut self, no: &str) -> Option<&mut PartResult> {
+        self.parts.iter_mut().find(|p| p.no == no)
+    }
 }
 
 // ---------------------------------------------------------------- text
 
 /// Parameter labels (ZK PARAM_LABEL, shortened): (key, English, Japanese).
-pub const LABELS: [(&str, &str, &str); 53] = [
+pub const LABELS: [(&str, &str, &str); 57] = [
     ("D", "outer diameter", "外径"),
     (
         "D1",
@@ -519,6 +528,10 @@ pub const LABELS: [(&str, &str, &str); 53] = [
     ("rib_top", "rib flat top width", "リブの先の幅"),
     ("rib_n1", "ribs round the main", "本管の円に沿うリブの数"),
     ("rib_n2", "triangular ribs", "三角のリブの数"),
+    ("H2", "second branch end length", "もう片方の枝の管端まで"),
+    ("leg_angle", "wye leg angle", "Y字管の脚の角度"),
+    ("cone_s", "cone branch cut length", "円すいに付く枝の長さ"),
+    ("wye_angle", "wye body angle", "Y字管の角度"),
     ("nom", "nominal size", "呼び径"),
     ("nom2", "second nominal size", "もう片方の呼び径"),
     ("pclass", "class", "種類"),
@@ -790,6 +803,132 @@ pub const HOLD_TEXT: &[(&str, &str, &str)] = &[
         "The plate size differs from the material table by more than 1 mm.",
         "板の大きさが材料表と1 mm を超えて違います。",
     ),
+    // PZ-1 review catalogue: ZK review kinds that the Rust order compute did not raise yet.
+    (
+        "mass_total",
+        "The sum of the material-table masses differs from the page unit mass (max of 1 kg and 0.2 %).",
+        "材料表の質量の合計が表題の単体質量と違います（1 kg と0.2% の大きい方）。",
+    ),
+    (
+        "row_unmatched",
+        "A material-table row does not belong to any part on the page.",
+        "材料表の行がページのどの部材にも結び付きません。",
+    ),
+    (
+        "row",
+        "A material-table row needs a decision; it is not used as a fabrication value.",
+        "材料表の行には判断が必要です。製作値としては使いません。",
+    ),
+    (
+        "page_empty",
+        "A page has no parts or no material table; nothing can be reviewed on it.",
+        "ページに部材か材料表がなく、レビューできません。",
+    ),
+    (
+        "empty",
+        "The page is empty; no fabrication value was taken from it.",
+        "ページが空です。製作値は取得していません。",
+    ),
+    (
+        "shape_unsupported",
+        "This shape is not supported by the review; it stays a pattern view, not a DXF.",
+        "この形はレビューに対応していません。展開図の表示のみで、DXFは出しません。",
+    ),
+    (
+        "unsupported",
+        "The shape or value is unsupported; no fabrication value was inferred from it.",
+        "形または値に対応していません。製作値は推定していません。",
+    ),
+    (
+        "seam_from_unknown",
+        "The seam reference is not stated; the provisional rule from the bottom is used.",
+        "縦継ぎ目の基準が不明です。仮の決まり（管底から）を使っています。",
+    ),
+    (
+        "seam_from",
+        "Choose the reference (bottom or top) from which the longitudinal seam is measured.",
+        "縦継ぎ目をどこから測るか（管底か天か）を選んでください。",
+    ),
+    (
+        "tee_angle_obtuse",
+        "A branch angle was read on the obtuse side; the acute angle is used until a person confirms it.",
+        "枝の角度を鈍角側で読んでいます。確認まで鋭角を使っています。",
+    ),
+    (
+        "tee_branches",
+        "The tee main has branches whose dimensions or positions are incomplete.",
+        "本管に寸法・位置が足りない枝があります。",
+    ),
+    (
+        "tee_flange_face",
+        "A tee length is measured to the flange face; the flange length has not been deducted.",
+        "T字管の長さがフランジ面基準です。フランジの長さは引いていません。",
+    ),
+    (
+        "tee_mount_note",
+        "The branch mounting note disagrees with the provisional factory rule.",
+        "枝の付け方の注記が仮の工場の決まりと違います。",
+    ),
+    (
+        "pad_qty",
+        "The pad split count and the material-table quantity disagree; choose the split.",
+        "補強板の割り方と材料表の数量が合いません。割り方を選んでください。",
+    ),
+    (
+        "tee_qty",
+        "A tee row has a quantity greater than one; confirm the number of branches.",
+        "T字管の行の数量が1より大きいです。枝の数を確認してください。",
+    ),
+    (
+        "split_cone",
+        "The cone split count is unset or outside 2 to 12; a two-piece split is used provisionally.",
+        "円すいの割り枚数が未指定か2〜12の範囲外です。仮に二つ割としています。",
+    ),
+    (
+        "split_ring",
+        "The ring split count is not decided; decide it before unfolding.",
+        "輪の割り枚数が決まっていません。展開前に決めてください。",
+    ),
+    (
+        "pad_split",
+        "The pad split count is not one of the supported values; no split is applied.",
+        "補強板の割り枚数が対応範囲外です。割っていません。",
+    ),
+    (
+        "cyl_len",
+        "The cylinder length differs from the material-table length by more than 1 mm.",
+        "管の長さが材料表と1 mm を超えて違います。",
+    ),
+    (
+        "bend_len",
+        "The bend piece centre lengths differ from the material-table length by more than 1 mm.",
+        "曲管の片の中心の長さの合計が材料表と1 mm を超えて違います。",
+    ),
+    (
+        "mass",
+        "A computed mass differs from the material-table mass by more than 0.5 %.",
+        "計算した質量が材料表と0.5% を超えて違います。",
+    ),
+    (
+        "tee_owner",
+        "The tee group has no identified owner part for a shared value.",
+        "T字管の組で共有する値の持ち主が分かりません。",
+    ),
+    (
+        "cone_owner",
+        "The cone branch group has no identified owner part for a shared value.",
+        "円すいと枝の組で共有する値の持ち主が分かりません。",
+    ),
+    (
+        "stock_rule",
+        "A plate size was checked against the provisional stock sizes; no factory rule is confirmed.",
+        "板の大きさを仮の定尺で照らしました。工場の決まりは未確認です。",
+    ),
+    (
+        "unreadable",
+        "A drawing note could not be read; no value was taken from it.",
+        "図面の注記を読めませんでした。そこから値は取っていません。",
+    ),
     (
         "not_certified",
         "The shape is not certified: a pattern view and an issue entry are given, no DXF.",
@@ -909,6 +1048,44 @@ pub fn shape_params(shape: &str) -> Option<(&'static [&'static str], &'static [&
     })
 }
 
+/// The shape keys the order compute knows, in catalogue order.
+pub const SHAPES: &[&str] = &[
+    "cylinder",
+    "cone",
+    "eccentric_cone",
+    "miter_bend",
+    "ring",
+    "tee_main",
+    "tee_branch",
+    "tee_pad",
+    "tee_rib",
+    "plate",
+    "wye",
+    "purchased",
+    "other",
+];
+
+/// `/api/shapes`: one row per shape with its need/check keys and English/Japanese labels. Every key has a label in
+/// both languages; an unlabelled key is a test failure, not an English-only field on the screen.
+pub fn shape_catalogue_json() -> Vec<Value> {
+    SHAPES
+        .iter()
+        .map(|shape| {
+            let (need, check) = shape_params(shape).unwrap_or((&[], &[]));
+            let labelled = |keys: &[&str]| -> Vec<Value> {
+                keys.iter()
+                    .map(|k| json!({ "key": k, "label_en": label_en(k), "label_ja": label_ja(k) }))
+                    .collect()
+            };
+            json!({
+                "shape": shape,
+                "need": labelled(need),
+                "check": labelled(check),
+            })
+        })
+        .collect()
+}
+
 const STD_KEYS: [&str; 3] = ["nom", "nom2", "pclass"];
 
 // ---------------------------------------------------------------- the working copy of one part
@@ -954,6 +1131,15 @@ fn hold_out(level: Level, code: &str, keys: &[String], scope: &'static str) -> H
         scope,
         message_en: format!("{en}{ke}"),
         message_ja: format!("{ja}{kj}"),
+    }
+}
+
+/// Append a review hold to one part and refresh that part's state and DXF gate.
+pub(crate) fn add_review_hold(res: &mut OrderResult, part_no: &str, code: &str, keys: &[&str]) {
+    if let Some(p) = res.part_mut(part_no) {
+        let owned: Vec<String> = keys.iter().map(|k| k.to_string()).collect();
+        p.holds.push(hold_out(Level::Need, code, &owned, "part"));
+        finish(p);
     }
 }
 
@@ -1064,6 +1250,7 @@ fn blank(inp: &PartIn, group: &str) -> PartResult {
         pattern: Vec::new(),
         t_mm: None,
         length_mm: None,
+        review_length_mm: None,
         unit_mass_kg: None,
         mass_kg: None,
         gross_mass_kg: None,
@@ -1118,7 +1305,8 @@ fn seal(mut r: PartResult, w: Work<'_>, refusal: Option<RefusalOut>) -> PartResu
 }
 
 /// Recompute state and the DXF gate from the holds, questions and refusal.
-fn finish(r: &mut PartResult) {
+/// Recompute the state and DXF gate after a review hold is appended.
+pub(crate) fn finish(r: &mut PartResult) {
     let need: Vec<String> = r
         .holds
         .iter()
@@ -1598,6 +1786,7 @@ fn compute_bend(w: &mut Work<'_>, r: &mut PartResult, rules: &OrderRules) {
         Ok(res) => {
             r.method = Some(res.method.to_string());
             r.certified = res.certified;
+            r.review_length_mm = Some(res.pieces.iter().map(|p| p.center).sum());
             r.rules = res
                 .rules
                 .iter()
@@ -2519,6 +2708,7 @@ fn fill_cb_common(r: &mut PartResult, c: &conebranch::ConeBranchResult) {
         "value": format!("{} mm", conebranch::CB_MID_SURFACE_TOL),
         "kind": "implementation tolerance: a cone whose neutral surface departs more than this from the developed cone is held",
         "status": "UNVERIFIED",
+        "source": "implementation constant (not factory confirmed)",
     }));
     r.method = Some(c.method.to_string());
     r.certified = c.certified;
@@ -2608,6 +2798,7 @@ pub fn compute_order(parts: &[PartIn], rules: &OrderRules) -> OrderResult {
             .into_iter()
             .map(|r| r.expect("every part has a result"))
             .collect(),
+        review_issues: Vec::new(),
     }
 }
 

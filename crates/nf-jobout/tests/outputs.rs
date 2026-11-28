@@ -91,6 +91,15 @@ fn sample() -> JobInput {
             message_en: "Blank 3163.6 x 2500, plate 2438 x 6096.".into(),
             message_ja: "1枚の外形 3163.6×2500、板 2438×6096。".into(),
         }],
+        designer: vec![DesignerNote {
+            drawing: "G-TEE".into(),
+            no: "1".into(),
+            code: "split_ring".into(),
+            question_en: "Choose the number of pieces before unfolding.".into(),
+            question_ja: "展開前に割り枚数を選んでください。".into(),
+            answer_en: "Recorded as a hand-drawn exit; no cut file.".into(),
+            answer_ja: "手描きの出口として記録。切断ファイルなし。".into(),
+        }],
         record: vec![RecordEntry {
             date: "2026-11-27 10:29".into(),
             user: "関".into(),
@@ -162,6 +171,21 @@ fn empty_job_does_not_panic() {
 }
 
 #[test]
+fn zip_has_a_designer_section_in_both_languages() {
+    let path = tmp("designer.zip");
+    std::fs::write(&path, build_job_zip(&sample()).unwrap()).unwrap();
+    let out = python(
+        "import sys,zipfile,json\nz=zipfile.ZipFile(sys.argv[1])\nt=z.read('designer.txt').decode('utf-8')\nm=json.loads(z.read('inputs.json'))\nassert 'Questions for the designer' in t and '設計者への確認事項' in t,t\nassert 'split_ring' in t and '手描きの出口' in t,t\nassert 'NOT RELEASED' in t and '未リリース' in t,t\nassert m['designer'][0]['code']=='split_ring',m['designer']\nprint('DESIGNER_OK')\n",
+        &[&path],
+    );
+    if let Some(out) = out {
+        assert!(out.contains("DESIGNER_OK"), "{out}");
+    }
+    let empty = String::from_utf8(designer_txt(&JobInput::default())).unwrap();
+    assert!(empty.contains("No questions.") && empty.contains("確認事項なし"));
+}
+
+#[test]
 fn zip_read_by_python_and_unzip() {
     let path = tmp("job.zip");
     std::fs::write(&path, build_job_zip(&sample()).unwrap()).unwrap();
@@ -176,7 +200,7 @@ fn zip_read_by_python_and_unzip() {
             out.contains("dxf/a_b-3_x_y.dxf") && out.contains("dxf/a_b-3_x_y_2.dxf"),
             "{out}"
         );
-        assert!(out.contains("MANIFEST_OK 9"), "{out}");
+        assert!(out.contains("MANIFEST_OK 10"), "{out}");
     }
     if let Ok(o) = Command::new("unzip").arg("-t").arg(&path).output() {
         let s = String::from_utf8_lossy(&o.stdout).to_string();

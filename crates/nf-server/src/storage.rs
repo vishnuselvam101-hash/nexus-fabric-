@@ -12,16 +12,16 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// 9: `operator_events`, `operator_state`, `order_readings` (the server's own record of every number the reader
-/// found on an order page), the `order_values` source/flags/confidence/edited-by columns (the AI operator;
-/// AIOP-1) and `order_values.attached_reading_id` (SECURITY-7), on top of 8. The attachment stays in schema 9;
-/// INT-5 will bump to 10 with the PZ-2 union.
+/// 10: the INT-5 union of the reviewed wave-1 work, all additive, on top of 8: AIOP-1 `operator_events`,
+/// `operator_state`, `order_readings`, `order_values` flags/confidence/edited_kind and the sticky
+/// `attached_reading_id`; PZ-1 `order_material_rows`, `order_page_notes` and the decision review columns;
+/// PZ-2 `order_values.flag`/`read_source`; PZ-3 `projects.default_rules_json`.
 /// 8: `order_results_immutable` trigger (only state -> SUPERSEDED may change), on top of 7.
 /// 7: `order_results` (the supersede chain of order computes, NFJ-1 L10), on top of 6.
 /// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns). Rollback to an older build
 /// is a restore of the pre-update backup: an older program refuses a newer schema (see the check below) and does not
 /// undo the migration.
-pub const SCHEMA_VERSION: i64 = 9;
+pub const SCHEMA_VERSION: i64 = 10;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
@@ -50,11 +50,13 @@ CREATE TABLE IF NOT EXISTS order_results(id INTEGER PRIMARY KEY, order_id INTEGE
 CREATE TABLE IF NOT EXISTS operator_events(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), seq INTEGER NOT NULL, event_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, UNIQUE(order_id, seq));
 CREATE TABLE IF NOT EXISTS operator_state(order_id INTEGER PRIMARY KEY REFERENCES orders(id), paused INTEGER NOT NULL, by_user TEXT NOT NULL, at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS order_decisions(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), part_id INTEGER, value_id INTEGER, kind TEXT NOT NULL, flag TEXT, source TEXT NOT NULL, agent TEXT, reason TEXT NOT NULL, against_hash TEXT NOT NULL, prev_state TEXT, decided_by TEXT NOT NULL, decided_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, undo_note TEXT);
+CREATE TABLE IF NOT EXISTS order_material_rows(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, no TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL, length TEXT NOT NULL, qty REAL, mass REAL, UNIQUE(order_id, page_no, no));
+CREATE TABLE IF NOT EXISTS order_page_notes(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'note', text TEXT NOT NULL);
 ";
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 19] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 21] = [
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
@@ -80,8 +82,8 @@ const ADDED_COLUMNS: [(&str, &str, &str); 19] = [
     ("users", "must_change", "INTEGER NOT NULL DEFAULT 0"),
     // NFJ-1: "person" or "agent" (the AI operator's service identity); decides the source of an order decision.
     ("users", "kind", "TEXT NOT NULL DEFAULT 'person'"),
-    // AIOP-1 (schema 9): what the writer said about a reading (reader flags, confidence) and whether the last
-    // edit was a person's ("person") or the AI operator's ("agent"). The server decides on these, not on a caller.
+    // AIOP-1: what the writer said about a reading (reader flags, confidence) and whether the last edit was a
+    // person's ("person") or the AI operator's ("agent"). The server decides on these, not on a caller.
     ("order_values", "flags_json", "TEXT NOT NULL DEFAULT '[]'"),
     ("order_values", "confidence", "REAL"),
     (
@@ -92,6 +94,9 @@ const ADDED_COLUMNS: [(&str, &str, &str); 19] = [
     // SECURITY-7: the server-owned, sticky reading this value was first proposed from. Nullable: a value with no
     // unambiguous attachment cannot be confirmed by the AI operator.
     ("order_values", "attached_reading_id", "INTEGER"),
+    // PZ-1: a designer claim names the review code it answers and carries the text the designer gave.
+    ("order_decisions", "review_code", "TEXT"),
+    ("order_decisions", "claim_text", "TEXT"),
 ];
 
 /// Append-only at the database level (RC-20). Created at every start, so an older database gets them too.

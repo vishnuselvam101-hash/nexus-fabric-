@@ -1133,11 +1133,11 @@ async fn aiop_a_pause_is_rechecked_inside_the_transaction_of_every_agent_write()
 }
 
 #[tokio::test]
-async fn aiop_schema_9_is_additive_over_a_schema_8_database() {
+async fn aiop_columns_are_additive_over_a_schema_8_database() {
     let t = boot();
     let oid = order_with_parts(&t).await;
     person(&t, "PUT", &format!("/api/orders/{oid}/values"), json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "216.3", "source": "read" }] })).await;
-    assert_eq!(storage::SCHEMA_VERSION, 9);
+    assert_eq!(storage::SCHEMA_VERSION, 10);
     // what a schema 8 build (order-compute, no AI operator) left behind: no operator columns, version 8
     t.app.db().execute_batch("ALTER TABLE order_values DROP COLUMN flags_json; ALTER TABLE order_values DROP COLUMN confidence; ALTER TABLE order_values DROP COLUMN edited_kind; ALTER TABLE order_values DROP COLUMN attached_reading_id; PRAGMA user_version = 8;").unwrap();
     drop(t.app.db());
@@ -1146,7 +1146,7 @@ async fn aiop_schema_9_is_additive_over_a_schema_8_database() {
     assert_eq!(
         db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
             .unwrap(),
-        9
+        10
     );
     let (f, c, k, a): (String, Option<f64>, String, Option<i64>) = db
         .query_row(

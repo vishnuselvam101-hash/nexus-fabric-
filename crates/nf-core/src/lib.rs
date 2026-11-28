@@ -27,6 +27,7 @@ pub mod deps;
 pub mod job;
 pub mod order;
 pub mod order_compute;
+pub mod review;
 pub mod shapes;
 pub mod tee;
 pub mod tee_pad;
@@ -186,6 +187,21 @@ pub mod refusal {
     // a request that produced no pattern and no stated rule (defensive; not reached by the engine)
     pub const NO_PATTERN_PRODUCED: &str = "no_pattern_produced";
 
+    // the order API: a never-wave review kind cannot be accepted by a person or by the AI operator
+    pub const REVIEW_NEVER_WAVE: &str = "review_never_wave";
+
+    // the order API: an older page-input decision cannot be undone while a later one is still active
+    pub const CONTEXT_UNDO_OUT_OF_ORDER: &str = "context_undo_out_of_order";
+
+    // the order API: an automatic context restore is an audit record, not another page-input edit
+    pub const CONTEXT_RESTORE_NOT_UNDOABLE: &str = "context_restore_not_undoable";
+
+    // the order API: undoing a page-input decision needs a non-empty note for its restore reason
+    pub const UNDO_NOTE: &str = "undo_note";
+
+    // the order API: a page-input decision cannot be undone after its materials/notes changed
+    pub const CONTEXT_UNDO_STALE: &str = "context_undo_stale";
+
     /// Every code of this build, in the order of the table in docs/backend/REFUSAL_CODES.md.
     /// The refusal codes of the zumen-kirizu shape modules (`shapes`, `bend`, `tee`, `tee_pad`, `conebranch`), wired in 0.5.0.
     pub const SHAPE_CODES: [&str; 80] = [
@@ -271,7 +287,7 @@ pub mod refusal {
         "conebranch_cut_not_continuous",
     ];
 
-    pub const ALL: [&str; 122] = [
+    pub const ALL: [&str; 127] = [
         REQUEST_NOT_OBJECT,
         FAMILY_UNKNOWN,
         FIELD_MISSING,
@@ -314,6 +330,11 @@ pub mod refusal {
         STORED_REQUEST_UNREADABLE,
         CORRECTED_RESULT_FAILED_VERIFICATION,
         NO_PATTERN_PRODUCED,
+        REVIEW_NEVER_WAVE,
+        CONTEXT_UNDO_OUT_OF_ORDER,
+        CONTEXT_RESTORE_NOT_UNDOABLE,
+        UNDO_NOTE,
+        CONTEXT_UNDO_STALE,
         "shape_value_not_finite",
         "shape_value_not_positive",
         "shape_value_too_large",

@@ -229,7 +229,7 @@ fn max_mark_err(s: &ConeBranchSpec, conv: ThicknessConvention) -> Result<f64, St
     let g = Geo::new(s, conv);
     let mut worst = 0.0f64;
     assert_eq!(r.branch.marks.len(), CB_MARKS + 1);
-    for (k, mark) in r.branch.marks.iter().enumerate() {
+    for (k, mark) in r.branch.marks.iter().enumerate().take(CB_MARKS + 1) {
         let want = g
             .mark_len(s.h, k)
             .unwrap_or_else(|| panic!("reference finds no contact at mark {k}: {s:?} {conv:?}"));
