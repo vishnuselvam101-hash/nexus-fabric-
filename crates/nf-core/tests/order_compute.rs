@@ -180,7 +180,8 @@ fn twelve_part_order_every_part_has_pattern_mass_and_bom_delta() {
         assert!(b.within_tolerance && b.delta_rel < 1e-3, "{}: {b:?}", r.no);
         // L11: only a certified part with no hold gets a DXF. Families whose representation is not
         // yet certified (cone branch, wye) stay withheld with a plain reason.
-        assert!(r.dxf.is_none(), "{}", r.no);
+        assert_eq!(r.dxf.is_some(), r.dxf_allowed, "{}", r.no);
+        assert!(!r.area_certified && !r.extents_certified, "{}", r.no);
         assert_eq!(
             r.dxf_allowed,
             r.certified && r.dxf_blocked_by.is_empty(),
@@ -799,9 +800,9 @@ fn any_need_hold_question_or_refusal_means_no_dxf_and_no_final_mass() {
             let blocking = r.holds.iter().any(|h| h.level == "need")
                 || !r.questions.is_empty()
                 || r.refusal.is_some();
-            assert!(r.dxf.is_none(), "{}", r.no);
+            assert_eq!(r.dxf.is_some(), r.dxf_allowed, "{}", r.no);
             if blocking || !r.certified {
-                assert!(!r.dxf_allowed, "{}", r.no);
+                assert!(!r.dxf_allowed && r.dxf.is_none(), "{}", r.no);
             }
             if blocking {
                 n_hold += 1;
@@ -907,4 +908,36 @@ fn a_main_with_its_own_branch_keys_and_no_branch_part_gets_a_hole() {
         "the branch hole is on the plate"
     );
     assert!(m.unit_mass_kg.is_some_and(|k| k > 0.0));
+}
+
+#[test]
+fn certified_unheld_tee_gets_a_dxf_and_a_held_or_uncertified_part_does_not() {
+    let t = one(tee_main("T1"));
+    assert!(t.certified && t.dxf_allowed, "{:?}", t.dxf_blocked_by);
+    let text = t.dxf.as_deref().expect("certified unheld tee has a DXF");
+    assert!(text.contains("CUT_OUTER") && text.contains("NF_NOT_RELEASED"));
+    assert!(nf_dxf::read(text).is_ok());
+    assert!(!t.area_certified && !t.extents_certified);
+
+    // a tee with a missing input is held: no DXF
+    let held = one(PartIn::new("T2", "tee_main")
+        .v("D", 1016.0)
+        .v("t", 12.0)
+        .v("branch_D", 508.0)
+        .v("branch_t", 9.0)
+        .v("branch_x", 1000.0)
+        .v("dir", 0.0));
+    assert!(held.dxf.is_none() && !held.dxf_allowed, "{:?}", held.state);
+
+    // a reducing bend is not certified: no DXF
+    let bend = one(PartIn::new("B1", "miter_bend")
+        .v("D", 1016.0)
+        .v("t", 12.0)
+        .v("R", 1500.0)
+        .v("angle", 90.0)
+        .v("joints", 2.0)
+        .v("start_straight", 300.0)
+        .v("end_straight", 300.0));
+    assert!(!bend.certified && bend.dxf.is_none() && !bend.dxf_allowed);
+    assert!(bend.dxf_blocked_by.contains(&"not_certified".to_string()));
 }

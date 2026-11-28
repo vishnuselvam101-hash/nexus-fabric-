@@ -539,11 +539,16 @@ pub struct PartResult {
     /// True while a Need hold, a question or a refusal stands: the number is a view, not a result.
     pub mass_provisional: bool,
     pub bom: Option<BomDelta>,
-    /// Always null in this lane: the gate is decided here, the file is written by a later lane.
+    /// The cut file of the single pattern piece. Written only when `dxf_allowed`; null otherwise. The server
+    /// digests it against the pattern before it is served (amoeba::gate_order_dxf).
     pub dxf: Option<String>,
     pub dxf_allowed: bool,
     pub dxf_blocked_by: Vec<String>,
     pub pattern_view_only: bool,
+    /// `certified` (above) certifies the cut outline only. The enclosed area and the extents are estimates in every
+    /// family at this engine version, so both flags are false.
+    pub area_certified: bool,
+    pub extents_certified: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1396,6 +1401,8 @@ fn blank(inp: &PartIn, group: &str) -> PartResult {
         dxf: None,
         dxf_allowed: false,
         dxf_blocked_by: Vec::new(),
+        area_certified: false,
+        extents_certified: false,
         pattern_view_only: false,
     }
 }
@@ -1441,6 +1448,31 @@ fn seal(mut r: PartResult, w: Work<'_>, refusal: Option<RefusalOut>) -> PartResu
     r
 }
 
+/// The cut file of one pattern piece: the outline as a closed polyline on CUT_OUTER, every opening as a closed
+/// polyline or a full circle on CUT_INNER, then the release marking (not released) written by nf-dxf.
+fn piece_dxf(pc: &PatternPiece) -> String {
+    use nf_dxf::Entity;
+    let closed = |pts: &[[f64; 2]], layer: &str| Entity::Polyline {
+        layer: layer.into(),
+        pts: pts.iter().map(|p| (p[0], p[1])).collect(),
+        closed: true,
+    };
+    let mut ents = vec![closed(&pc.outline, "CUT_OUTER")];
+    for h in pc.holes.iter().filter(|h| h.len() >= 3) {
+        ents.push(closed(h, "CUT_INNER"));
+    }
+    for [cx, cy, r] in &pc.circles {
+        ents.push(Entity::Arc {
+            layer: "CUT_INNER".into(),
+            c: (*cx, *cy),
+            r: *r,
+            start_deg: 0.0,
+            end_deg: 360.0,
+        });
+    }
+    nf_dxf::write_stated(&ents, &[], &[], &[])
+}
+
 /// Recompute state and the DXF gate from the holds, questions and refusal.
 /// Recompute the state and DXF gate after a review hold is appended.
 pub(crate) fn finish(r: &mut PartResult) {
@@ -1473,9 +1505,21 @@ pub(crate) fn finish(r: &mut PartResult) {
         "computed"
     };
     r.mass_provisional = !(need.is_empty() && r.questions.is_empty() && r.refusal.is_none());
-    r.dxf = None;
+    if r.pattern.len() > 1 {
+        // one cut file per part: a part with several pattern pieces is a pattern view until a lane writes one file
+        // per piece
+        blocked.push("several_pieces".into());
+        blocked.sort();
+    }
     r.dxf_allowed = blocked.is_empty() && r.certified;
+    r.dxf = if r.dxf_allowed {
+        r.pattern.first().map(piece_dxf)
+    } else {
+        None
+    };
     r.dxf_blocked_by = blocked;
+    r.area_certified = false;
+    r.extents_certified = false;
     r.pattern_view_only = !r.pattern.is_empty();
     if r.state == "held_missing" || r.state == "refused" || r.state == "not_computed" {
         r.unit_mass_kg = None;

@@ -75,18 +75,22 @@ pub fn reference(part: &str, pattern: Option<&PatternView>) -> Reference {
 
 /// Reference of one cut piece of an `order_compute` result. The NFJ-1 shapes do not go through `job::run`; their
 /// digest still has to use the engine's own certification statement, not a value copied from the file.
-/// L11 does not write these DXFs yet; the bridge is kept ready for the DXF-writing lane.
-#[allow(dead_code)]
 pub fn reference_for_piece(part: &PartResult, piece: &PatternPiece) -> Reference {
     let bound = part.eps_rep.filter(|v| v.is_finite() && *v > 0.0);
     let certified = part.certified && part.eps_rep_certified == Some(true);
+    // every outline and opening is a closed profile in the DXF: the closing segment back to the first vertex is part
+    // of the reference, as it is of the drawn polyline
     let polyline = |points: &[[f64; 2]]| {
+        let mut points = points.to_vec();
+        if points.len() >= 2 && points.first() != points.last() {
+            points.push(points[0]);
+        }
         let length = points
             .windows(2)
             .map(|w| ((w[0][0] - w[1][0]).powi(2) + (w[0][1] - w[1][1]).powi(2)).sqrt())
             .sum();
         RefCurve {
-            points: points.to_vec(),
+            points,
             length,
             max_dev: bound.unwrap_or(0.0),
             is_arc: false,
@@ -133,6 +137,25 @@ pub fn reference_for_piece(part: &PartResult, piece: &PatternPiece) -> Reference
         eps_rep: bound,
         // the engine statement is carried even without a drawn-polyline bound: a withheld shape holds its DXF
         eps_rep_certified: Some(certified),
+    }
+}
+
+/// Digest every order DXF against its own pattern piece before it is served. A part whose file is not a PASS
+/// loses the file: `dxf` is cleared and the part is blocked with `digest_failed`.
+pub fn gate_order_dxf(res: &mut nf_core::order_compute::OrderResult) {
+    for p in res.parts.iter_mut() {
+        let Some(text) = p.dxf.clone() else { continue };
+        let passed = p.pattern.first().is_some_and(|pc| {
+            let reference = reference_for_piece(p, pc);
+            nf_digest::check_text(&text, &reference).verdict() == nf_digest::Verdict::Pass
+        });
+        if !passed {
+            p.dxf = None;
+            p.dxf_allowed = false;
+            p.dxf_blocked_by.push("digest_failed".into());
+            p.dxf_blocked_by.sort();
+            p.dxf_blocked_by.dedup();
+        }
     }
 }
 
@@ -479,6 +502,59 @@ mod tests {
         let r = reference("P1", Some(&p));
         assert_eq!(r.eps_rep_certified, Some(false));
         assert_eq!(r.outer[0].eps_rep_certified, Some(false));
+    }
+
+    #[test]
+    fn a_certified_tee_dxf_digests_pass_and_a_tampered_vertex_is_not_served() {
+        let tee = || {
+            PartIn::new("T1", "tee_main")
+                .v("D", 1016.0)
+                .v("t", 12.0)
+                .v("L", 2000.0)
+                .v("branch_D", 508.0)
+                .v("branch_t", 9.0)
+                .v("branch_x", 1000.0)
+                .v("dir", 0.0)
+        };
+        let mut res = compute_order(&[tee()], &OrderRules::default());
+        let text = res.parts[0]
+            .dxf
+            .clone()
+            .expect("certified unheld tee has a DXF");
+        let pc = res.parts[0].pattern.first().expect("pattern").clone();
+        let report = nf_digest::check_text(&text, &reference_for_piece(&res.parts[0], &pc));
+        assert_eq!(
+            report.verdict(),
+            nf_digest::Verdict::Pass,
+            "{:?}",
+            report.checks
+        );
+
+        // one outline vertex moved by 0.1 mm: the digest must fail and the file must not be served
+        let (mut ents, _) = nf_dxf::read(&text).expect("read back");
+        let mut moved = false;
+        for e in ents.iter_mut() {
+            if let nf_dxf::Entity::Polyline { layer, pts, .. } = e
+                && layer == "CUT_OUTER"
+                && !moved
+            {
+                pts[1].0 += 0.1;
+                moved = true;
+            }
+        }
+        assert!(moved);
+        let tampered = nf_dxf::write_stated(&ents, &[], &[], &[]);
+        let bad = nf_digest::check_text(&tampered, &reference_for_piece(&res.parts[0], &pc));
+        assert_eq!(bad.verdict(), nf_digest::Verdict::Fail, "{:?}", bad.checks);
+        res.parts[0].dxf = Some(tampered);
+        gate_order_dxf(&mut res);
+        assert!(res.parts[0].dxf.is_none() && !res.parts[0].dxf_allowed);
+        assert!(
+            res.parts[0]
+                .dxf_blocked_by
+                .iter()
+                .any(|c| c == "digest_failed")
+        );
     }
 
     #[test]

@@ -415,9 +415,12 @@ interval arithmetic (`uem::interval`). The maximum distance from the four corner
 drawn segment bounds the whole cell, because the distance to a segment is convex. Every written vertex is enclosed at
 its parameter to cover vertex displacement. Cells are subdivided until each is within `tol + margin`; the reported
 value is the largest cell/vertex distance plus a binary64 rounding margin, capped at `tol`. If any cell, vertex, quotient
-or square root cannot be enclosed, or the bound exceeds the cap, the shape is not certified. Certification requires the
-**whole** pattern: area, extents and auxiliary maps stay estimates in this lane, so only the families whose exact
-map is closed-form and whose drawn edges are all covered are certified.
+or square root cannot be enclosed, or the bound exceeds the cap, the shape is not certified.
+
+**What `certified` means.** `certified: true` certifies the cut **outline** only: every drawn edge of the outline and of
+each opening lies within the 0.05 mm bound of the exact curve. It does not certify the enclosed area or the extents.
+Both are estimates in every family at this engine version and are reported with `area_certified: false` and
+`extents_certified: false`.
 
 **Scope.** The 0.05 mm cap is decision D1's implementation limit for these new shapes, not an engineering tolerance;
 the 0.01 mm cap of `develop.rs` and 8.1 remains unchanged for the five old families.
@@ -430,10 +433,20 @@ the 0.01 mm cap of `develop.rs` and 8.1 remains unchanged for the five old famil
 | Bend, eccentric cone, cone branch, wye, lateral tee cut, every quadrature-dependent extent or area | withheld (`certified: false`) | no rigorous bound of the exact map and of every drawn edge is available in this lane |
 
 A withheld shape still serializes `eps_rep` as an estimate, `eps_rep_certified: false`, its method, named rules, holds,
-questions and taper flags. It does not get a DXF: `finish()` sets `dxf_allowed` only for a certified result with no
-hold, question or refusal. `nf-digest` re-checks the representation statement of every shape independently, holds a
-file whose bound is absent, uncertified or coarser than its own 0.05 mm cap, and never turns a measured FAIL into a
-PASS. The engine id is `nf-engine 0.6.0+src.<fingerprint>`; results made by older engines are recomputed.
+questions and taper flags.
+
+**DXF.** `order_compute` writes a cut file only when `dxf_allowed` holds: a certified outline, no hold, question or
+refusal, and a single pattern piece (`several_pieces` otherwise). The file has the outline as a closed polyline on
+`CUT_OUTER`, each opening as a closed polyline or full circle on `CUT_INNER`, and the not-released marking. The server
+digests every such file against its own pattern piece before it is served (`amoeba::gate_order_dxf`); a file that is
+not a PASS is withheld and its part gets `digest_failed`. A measured defect is a FAIL, never an INCONCLUSIVE.
+
+**Digest limits.** The digest compares the drawn file with the reference built from the engine's own pattern output.
+That is a consistency check, not an independent recomputation from the drawing parameters: a re-derivation of the
+exact curves in `nf-digest` is not implemented in this lane. The digest also holds a file whose declared bound is
+absent, uncertified or coarser than the 0.05 mm cap.
+
+The engine id is `nf-engine 0.6.0+src.<fingerprint>`; results made by older engines are recomputed.
 
 ## 9. Surface declaration of the entered radius (work plan task 1.4, engine 0.4.6)
 
