@@ -214,6 +214,7 @@ pub(crate) async fn run(args: &[String]) -> Result<(), String> {
         licence_path: data_dir.join("licence.nflic"),
         // desktop mode keeps the owner's default: the state is shown, nothing is gated
         licence_enforce: false,
+        export_dirs: vec![],
     };
     // The same limits as server mode, without reading the NF_* server settings.
     let limits = crate::Limits {

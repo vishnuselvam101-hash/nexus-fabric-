@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Machine export</title>
+<link rel="stylesheet" href="/machine/app.css">
+</head>
+<body>
+<main>
+<header><h1 id="title">Machine export</h1><button id="lang" type="button">日本語</button></header>
+<p><small id="note"></small></p>
+<section>
+  <label for="calc" id="l-calc">Job</label>
+  <select id="calc"></select>
+  <label for="prof" id="l-prof">Machine profile</label>
+  <select id="prof"></select>
+  <label for="folder" id="l-folder">Folder</label>
+  <select id="folder"></select>
+  <button id="go" type="button" disabled></button>
+  <div id="result" class="msg" role="status" aria-live="polite"></div>
+</section>
+</main>
+<script type="module" src="/machine/app.mjs"></script>
+</body>
+</html>

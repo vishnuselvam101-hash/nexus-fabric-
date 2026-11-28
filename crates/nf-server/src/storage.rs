@@ -129,6 +129,9 @@ CREATE TRIGGER IF NOT EXISTS records_no_update BEFORE UPDATE ON records BEGIN SE
 CREATE TRIGGER IF NOT EXISTS records_no_delete BEFORE DELETE ON records BEGIN SELECT RAISE(ABORT, 'records are append-only'); END;
 CREATE TRIGGER IF NOT EXISTS amoeba_no_update BEFORE UPDATE ON amoeba_digests BEGIN SELECT RAISE(ABORT, 'AMOEBA snapshots are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS amoeba_no_delete BEFORE DELETE ON amoeba_digests BEGIN SELECT RAISE(ABORT, 'AMOEBA snapshots are immutable'); END;
+CREATE TABLE IF NOT EXISTS machine_profiles(id TEXT NOT NULL, version INTEGER NOT NULL, json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(id, version));
+CREATE TRIGGER IF NOT EXISTS machine_profiles_no_update BEFORE UPDATE ON machine_profiles BEGIN SELECT RAISE(ABORT, 'machine profiles are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS machine_profiles_no_delete BEFORE DELETE ON machine_profiles BEGIN SELECT RAISE(ABORT, 'machine profiles are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS order_results_no_delete BEFORE DELETE ON order_results BEGIN SELECT RAISE(ABORT, 'computed results are kept; a new compute supersedes them'); END;
 CREATE TRIGGER IF NOT EXISTS operator_events_no_delete BEFORE DELETE ON operator_events BEGIN SELECT RAISE(ABORT, 'operator events are kept; undo marks them undone'); END;
 CREATE TRIGGER IF NOT EXISTS operator_events_no_edit BEFORE UPDATE OF order_id, seq, event_json, created_by, created_at ON operator_events BEGIN SELECT RAISE(ABORT, 'operator events are kept as written'); END;

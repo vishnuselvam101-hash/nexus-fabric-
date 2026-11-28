@@ -347,8 +347,9 @@ pub(crate) fn gated(method: &Method, path: &str) -> bool {
             "api",
             "calculations",
             id,
-            "replay" | "recompute" | "corrections",
+            "replay" | "recompute" | "corrections" | "export",
         ] => id.parse::<i64>().is_ok(),
+        ["api", "machine", "profiles"] => true,
         _ => false,
     }
 }

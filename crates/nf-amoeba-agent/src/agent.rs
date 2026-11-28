@@ -197,6 +197,7 @@ impl<T: Transport> Agent<T> {
             "amoeba_summary" => self.get_answer("/api/amoeba/summary"),
             "get_dxf_digest" => self.dxf_digest(a),
             "propose_read" => propose_read(a),
+            "propose_export" => Ok(propose_export(a)),
             "order_get" => {
                 let o = int(a, "order")?;
                 self.get_answer(&format!("/api/orders/{o}"))
@@ -527,6 +528,20 @@ fn upload_path(docs: &Path, given: &str) -> Result<PathBuf, String> {
         return Err(REFUSED_DOCUMENT.into());
     }
     Ok(real)
+}
+
+/// Writes nothing and calls no server: the proposal is a question with its own event, for a person to answer.
+fn propose_export(a: &Value) -> Value {
+    json!({
+        "status": "PROPOSED",
+        "writes": false,
+        "event": "export_proposed",
+        "question": format!(
+            "Export job {} to machine profile {} in folder #{}? A person confirms this in the Machine panel; nothing is written until then.",
+            a["job"], a["profile"].as_str().unwrap_or(""), a["folder"]
+        ),
+        "reason": a["reason"],
+    })
 }
 
 fn propose_read(a: &Value) -> Result<Value, String> {
