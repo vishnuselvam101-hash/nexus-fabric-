@@ -14,5 +14,6 @@ nf-cadio = { path = "../nf-cadio" }
 # quality re-check only (nf_dxf::quality::quality_gate); this crate never edits nf-dxf
 nf-dxf = { path = "../nf-dxf" }
 nf-amoeba-operator = { path = "../nf-amoeba-operator" }
+nf-amoeba-agent = { path = "../nf-amoeba-agent" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

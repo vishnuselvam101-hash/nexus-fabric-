@@ -182,3 +182,74 @@ fn quality_gate_runs_all_fourteen_rules_and_fails_a_non_nf_file() {
     assert!(!readable.pass, "a non-NF file must not pass readable");
     assert!(!readable.findings.is_empty());
 }
+
+// ---------------------------------------------------------------- AMOEBA tool kinds
+
+struct NoHands;
+impl nf_amoeba_operator::operator::Hands for NoHands {
+    fn call(&mut self, _tool: &str, _args: &serde_json::Value) -> Result<nf_amoeba_agent::agent::Answer, String> {
+        Err("CAD tools never call the server".into())
+    }
+    fn take_binary(&mut self) -> Option<Vec<u8>> {
+        None
+    }
+}
+
+fn run_tool(
+    reg: &nf_amoeba_operator::operator::Registry,
+    st: &mut nf_cad::tools::CadState,
+    tool: &str,
+    args: serde_json::Value,
+) -> Result<nf_amoeba_operator::operator::ToolOut, String> {
+    let manifest = nf_amoeba_operator::operator::Manifest::from_json(&serde_json::json!({
+        "order": 1, "project": 1, "units": [], "order_compute": false
+    }))
+    .unwrap();
+    let mut hands = NoHands;
+    let mut ctx = nf_amoeba_operator::operator::Ctx::new(&mut hands, &manifest);
+    ctx.ext.insert(std::mem::take(st));
+    let out = reg.run(&mut ctx, &nf_amoeba_operator::operator::Action::new(tool, args));
+    *st = ctx.ext.get_mut::<nf_cad::tools::CadState>().map(std::mem::take).unwrap_or_default();
+    out
+}
+
+#[test]
+fn cad_tools_are_registered_typed_and_targeted() {
+    use nf_amoeba_operator::events::Target;
+    let mut reg = nf_amoeba_operator::operator::Registry::default();
+    nf_cad::tools::register(&mut reg);
+    for n in ["cad_open", "cad_layers", "cad_select", "cad_pick", "cad_measure", "cad_check"] {
+        assert!(reg.names().contains(&n), "{n} is registered");
+    }
+    let mut st = nf_cad::tools::CadState::load(BASIC).unwrap();
+
+    let out = run_tool(&reg, &mut st, "cad_measure", serde_json::json!({"kind": "length", "entity": "E0"})).unwrap();
+    assert!((out.result[0]["value"].as_f64().unwrap() - 5.0).abs() < TOL);
+    assert!(matches!(&out.events[0].target, Target::Cad { entity: Some(e), .. } if e == "E0"));
+
+    let out = run_tool(&reg, &mut st, "cad_pick", serde_json::json!({"at": [1.5, 2.0], "tol": 0.01})).unwrap();
+    assert_eq!(out.result["entity"], "E0");
+    assert!(matches!(&out.events[0].target, Target::Cad { canvas: Some(_), .. }));
+
+    let out = run_tool(&reg, &mut st, "cad_select", serde_json::json!({"layer": "CUT"})).unwrap();
+    assert_eq!(out.result["count"], 5);
+    assert_eq!(st.selection.len(), 5);
+
+    let out = run_tool(&reg, &mut st, "cad_check", serde_json::json!({})).unwrap();
+    assert_eq!(out.result.as_array().unwrap().len(), 14);
+}
+
+#[test]
+fn cad_tool_arguments_are_refused_when_malformed() {
+    let mut reg = nf_amoeba_operator::operator::Registry::default();
+    nf_cad::tools::register(&mut reg);
+    let mut st = nf_cad::tools::CadState::load(BASIC).unwrap();
+    assert!(run_tool(&reg, &mut st, "cad_measure", serde_json::json!({"kind": "teleport"})).is_err());
+    assert!(run_tool(&reg, &mut st, "cad_measure", serde_json::json!({"kind": "length", "entity": "E0", "extra": 1})).is_err());
+    assert!(run_tool(&reg, &mut st, "cad_pick", serde_json::json!({"at": [0, 0], "tol": -1})).is_err());
+    assert!(run_tool(&reg, &mut st, "cad_measure", serde_json::json!({"kind": "area", "entity": "E0"})).is_err());
+    assert!(run_tool(&reg, &mut st, "cad_nope", serde_json::json!({})).is_err());
+    // with no drawing open every tool refuses
+    let mut empty = nf_cad::tools::CadState::default();
+    assert!(run_tool(&reg, &mut empty, "cad_layers", serde_json::json!({})).is_err());
+}
