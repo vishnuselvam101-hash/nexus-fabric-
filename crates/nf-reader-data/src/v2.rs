@@ -961,7 +961,7 @@ fn plate(c: &mut Ctx) {
         "dimension",
     );
     let (tx, ty) = c.px(l, w);
-    c.leader(tx, ty, "t=", t, "mm", sp("t"), "note");
+    c.leader(tx, ty, "t=", t, "mm", sp("t"), "dimension");
     if ch > 0.0 {
         let (cx_, cy_) = c.px(l - ch / 2.0, w - ch / 2.0);
         c.leader(cx_, cy_, "C", ch, "mm", sp("chamfer"), "dimension");
@@ -1121,7 +1121,7 @@ fn bracket_gusset(c: &mut Ctx) {
     let (hx, hy) = c.px(la - 20.0 + 0.7 * d / 2.0, t / 2.0 + 0.7 * d / 2.0);
     c.leader(hx, hy, "2-\u{00D8}", d, "mm", sp("hole_d"), "dimension");
     let (tx, ty) = c.px(la, t);
-    c.leader(tx, ty, "t=", t, "mm", sp("t"), "note");
+    c.leader(tx, ty, "t=", t, "mm", sp("t"), "dimension");
 }
 
 fn flat_sheet(c: &mut Ctx) {
@@ -1190,7 +1190,7 @@ fn flat_sheet(c: &mut Ctx) {
     c.leader(ax, ay, "", theta, "deg", sp("theta"), "dimension");
     c.skip_chk = false;
     let (tx, ty) = c.px(0.0, blank);
-    c.leader(tx, ty, "t=", t, "mm", sp("t"), "note");
+    c.leader(tx, ty, "t=", t, "mm", sp("t"), "dimension");
 }
 
 fn duct_transition(c: &mut Ctx) {
@@ -2056,9 +2056,6 @@ fn title_block(c: &mut Ctx, drawing_no: &str, material: &str, date: &str, scale:
                 let _ = b;
                 c.shapes.push("title".into());
             }
-        } else if c.weak {
-            let fs = if i == 0 { f * 1.3 } else { f };
-            c.p.clutter_text(s, tx, y, Anchor::Start, fs, i == 0);
         } else {
             c.put_word(
                 "title",
@@ -2326,11 +2323,7 @@ fn notes(c: &mut Ctx) {
     ];
     let lines = if lang == Lang::En { lines_en } else { lines_ja };
     for s in lines {
-        if c.weak {
-            c.p.clutter_text(s, x, y + f, Anchor::Start, f, false);
-        } else {
-            c.put_word("note", s, "note", x, y + f, Anchor::Start, false, f);
-        }
+        c.put_word("note", s, "note", x, y + f, Anchor::Start, false, f);
         y += 1.9 * f;
     }
     let ra = *c.r.pick(&[0.8, 1.6, 3.2, 6.3, 12.5]);
@@ -2573,6 +2566,46 @@ pub fn build_new(
         h: h as u32,
         part_id,
     }
+}
+
+// ANSWER-KEY POLICY (one rule for every page, every family, every mix: default and weak1; train, val and test).
+//   READINGS, in the key: dimensions (linear, diameter, radius, angle, thickness callouts), BOM table cells (header,
+//   part, quantity, material), tolerance notes (general tolerance class), surface finish, weld symbols.
+//   CLUTTER, never in the key but printed: title-block fields (name, drawing no., material, scale, date), notes text
+//   (general notes, hand notes), revision table, grid letters and numbers, part and drawing numbers, numbered notes.
+// Items of kind `title` and `note` are demoted to clutter here, so engine-backed and generator-owned pages agree.
+// The truth file lists clutter as objects with id and box so tests can compare by element, never by text.
+const CLUTTER_KINDS: [&str; 2] = ["title", "note"];
+
+/// Key items with their shape labels, and clutter as (text, box).
+type KeySplit<'a> = (Vec<(&'a Item, String)>, Vec<(String, B)>);
+
+/// Split a page into key items and clutter.
+fn key_split<'a>(page: &'a Page, shapes: &'a [String]) -> KeySplit<'a> {
+    let mut keep = vec![];
+    let mut clutter: Vec<(String, B)> = page
+        .clutter
+        .iter()
+        .cloned()
+        .zip(page.cboxes.iter().copied())
+        .collect();
+    for (i, it) in page.items.iter().enumerate() {
+        if CLUTTER_KINDS.contains(&it.kind) {
+            clutter.push((it.text.clone(), it.b));
+        } else {
+            keep.push((it, shapes.get(i).cloned().unwrap_or_default()));
+        }
+    }
+    (keep, clutter)
+}
+
+fn clutter_json(pid: &str, i: usize, text: &str, b: B, skew: f64, w: f64, h: f64) -> Value {
+    json!({
+        "id": format!("{pid}-c{i:03}"),
+        "text": text,
+        "box": r1(rot_box(b, skew, w / 2.0, h / 2.0)),
+        "box_page": r1(b),
+    })
 }
 
 /// One truth item as a JSON object (schema v2).
@@ -2874,15 +2907,14 @@ pub fn generate_smoke_mix(
                                     meta.deg,
                                     meta.fx.as_ref(),
                                 )?;
-                                let items: Vec<Value> = page
-                                    .items
+                                let (kept, clut) = key_split(&page, &shapes);
+                                let items: Vec<Value> = kept
                                     .iter()
                                     .enumerate()
-                                    .map(|(i, it)| {
-                                        let shape = shapes.get(i).cloned().unwrap_or_default();
+                                    .map(|(i, (it, shape))| {
                                         item_json(
                                             it,
-                                            &shape,
+                                            shape,
                                             &pid,
                                             i,
                                             meta.lang,
@@ -2897,11 +2929,22 @@ pub fn generate_smoke_mix(
                                     })
                                     .collect();
                                 let mut tv = page_truth(&meta, items);
-                                if mix_ != Mix::Default {
-                                    tv["mix"] = json!(mix_.name());
-                                    // printed but not in the answer key: negative examples
-                                    tv["clutter"] = json!(page.clutter);
-                                }
+                                tv["mix"] = json!(mix_.name());
+                                // printed but not in the answer key: negative examples
+                                tv["clutter"] = json!(
+                                    clut.iter()
+                                        .enumerate()
+                                        .map(|(i, (t, b))| clutter_json(
+                                            &pid,
+                                            i,
+                                            t,
+                                            *b,
+                                            skew,
+                                            meta.w as f64,
+                                            meta.h as f64
+                                        ))
+                                        .collect::<Vec<_>>()
+                                );
                                 Ok(tv.to_string())
                             },
                         );

@@ -63,48 +63,64 @@ fn derived_formula_matches_truth_inputs() {
     assert_eq!(round_to(v, 1), 70.7);
 }
 
-#[test]
-fn weak1_clutter_is_printed_but_never_in_the_answer_key() {
-    let d = tmp("weak1");
-    assert_eq!(generate_smoke_mix(&d, 48, 5, 4, Mix::Weak1).unwrap(), 48);
+fn overlaps(a: &[serde_json::Value], b: &[serde_json::Value]) -> bool {
+    let f =
+        |v: &[serde_json::Value]| -> Vec<f64> { v.iter().map(|x| x.as_f64().unwrap()).collect() };
+    let (a, b) = (f(a), f(b));
+    a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]
+}
+
+/// One key policy for every page and mix: title/notes text is clutter, never an item; compare by id and box.
+fn check_policy(mix: Mix, n: u64, seed: u64) -> (usize, usize, usize) {
+    let d = tmp(&format!("policy-{}", mix.name()));
+    assert_eq!(generate_smoke_mix(&d, n, seed, 4, mix).unwrap(), n as usize);
     let text = std::fs::read_to_string(d.join("smoke/truth.jsonl")).unwrap();
     let (mut clutter, mut items, mut max_bom) = (0, 0, 0);
     for line in text.lines() {
         let t: serde_json::Value = serde_json::from_str(line).unwrap();
-        assert_eq!(t["mix"], "weak1");
-        let cl: Vec<&str> = t["clutter"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|c| c.as_str().unwrap())
-            .collect();
-        assert!(!cl.is_empty(), "{}", t["page_id"]);
+        assert_eq!(t["mix"], mix.name());
+        let cl = t["clutter"].as_array().unwrap();
         let its = t["items"].as_array().unwrap();
+        assert!(!cl.is_empty(), "{}", t["page_id"]);
         max_bom = max_bom.max(its.iter().filter(|i| i["type"] == "bom").count());
         for it in its {
-            let txt = it["text"].as_str().unwrap();
-            // the title block, notes, grid references, revision table, part and drawing numbers are not labelled
-            // (single grid letters and digits can coincide with a BOM number by text; compare longer strings)
             assert!(
-                !cl.iter().any(|c| c.chars().count() > 2 && *c == txt),
-                "{} {txt}",
-                t["page_id"]
+                it["type"] != "title" && it["type"] != "note",
+                "{}",
+                it["text"]
             );
-            assert!(
-                !txt.starts_with("DWG NO") && !txt.starts_with("P/N"),
-                "{txt}"
-            );
+            for c in cl {
+                assert_ne!(it["id"], c["id"]);
+                assert!(
+                    !overlaps(
+                        it["box_page"].as_array().unwrap(),
+                        c["box_page"].as_array().unwrap()
+                    ),
+                    "{} item {} overlaps clutter {}",
+                    t["page_id"],
+                    it["text"],
+                    c["text"]
+                );
+            }
         }
         clutter += cl.len();
         items += its.len();
     }
-    assert!(clutter > items / 4, "clutter {clutter} items {items}");
-    assert!(max_bom > 8, "long BOM tables: {max_bom}");
     let _ = std::fs::remove_dir_all(d);
+    (items, clutter, max_bom)
 }
 
 #[test]
-fn default_mix_has_no_clutter_and_is_unchanged_by_the_mix_argument() {
+fn clutter_is_printed_but_never_in_the_answer_key_in_every_mix() {
+    let (wi, wc, wb) = check_policy(Mix::Weak1, 48, 5);
+    assert!(wc > wi / 4, "clutter {wc} items {wi}");
+    assert!(wb > 8, "long BOM tables: {wb}");
+    let (di, dc, _) = check_policy(Mix::Default, 48, 5);
+    assert!(dc > 0 && di > 0);
+}
+
+#[test]
+fn default_mix_is_unchanged_by_the_mix_argument() {
     let (a, b) = (tmp("m1"), tmp("m2"));
     generate_smoke(&a, 24, 9, 3).unwrap();
     generate_smoke_mix(&b, 24, 9, 2, Mix::Default).unwrap();
@@ -113,7 +129,6 @@ fn default_mix_has_no_clutter_and_is_unchanged_by_the_mix_argument() {
         ta,
         std::fs::read_to_string(b.join("smoke/truth.jsonl")).unwrap()
     );
-    assert!(!ta.contains("\"clutter\""));
     let _ = std::fs::remove_dir_all(a);
     let _ = std::fs::remove_dir_all(b);
 }
