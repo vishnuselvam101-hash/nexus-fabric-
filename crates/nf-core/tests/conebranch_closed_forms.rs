@@ -1656,9 +1656,9 @@ fn thickness_delta_states_the_change_between_the_two_rules() {
         }
         // concentric: the neutral surface is exact, eccentric: stated deviation (below 1 percent of T)
         if s.ecc {
-            assert!(dn.mid_surface_dev > 0.0 && dn.mid_surface_dev < 0.01 * s.t);
+            assert!(n.mid_surface_dev > 0.0 && n.mid_surface_dev < 0.01 * s.t);
         } else {
-            assert!(dn.mid_surface_dev < 1e-12);
+            assert!(n.mid_surface_dev < 1e-12);
         }
         println!(
             "{} {:?}: half angle {:.2} deg: set-in cut shift max {:.4} mm (mark 4: {:.4}), hole length {:.4} (radial) -> {:.4} (normal) ({:+.4}), hole centre shift {:+.4}, neutral surface deviation {:.5}",
@@ -1671,7 +1671,7 @@ fn thickness_delta_states_the_change_between_the_two_rules() {
             dn.hole_len_this,
             dn.hole_len_delta.unwrap(),
             dn.hole_mid_shift.unwrap(),
-            dn.mid_surface_dev
+            n.mid_surface_dev
         );
     }
     assert!(
