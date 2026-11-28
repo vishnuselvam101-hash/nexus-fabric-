@@ -25,6 +25,7 @@ macro_rules! elog {
 
 mod amoeba;
 mod auth;
+mod cad;
 mod crypto;
 mod desktop;
 mod licence;
@@ -5349,6 +5350,7 @@ pub(crate) fn router(app: Arc<App>) -> Router {
             "/api/licence",
             get(licence::licence_status).post(licence::licence_upload),
         )
+        .merge(cad::routes())
         .merge(test_routes())
         .layer(axum::extract::DefaultBodyLimit::max(256 * 1024))
         // the licence gate runs inside the security layer (host/CSRF/rate limits first)

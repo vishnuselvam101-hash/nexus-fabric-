@@ -221,3 +221,56 @@ pub fn quality_checks(bytes: &[u8]) -> Vec<RuleCheck> {
         })
         .collect()
 }
+
+/// JSON for one entity: its id, type, layer, handle, geometry and warnings. Units are the drawing's.
+pub fn entity_json(e: &Entity) -> serde_json::Value {
+    use serde_json::json;
+    let geom = match &e.geom {
+        Geom::Point { at } => json!({ "type": "point", "at": at }),
+        Geom::Line { a, b } => json!({ "type": "line", "a": a, "b": b }),
+        Geom::Circle { c, r } => json!({ "type": "circle", "c": c, "r": r }),
+        Geom::Arc { c, r, start, end } => json!({ "type": "arc", "c": c, "r": r, "start": start, "end": end }),
+        Geom::Poly { v, closed } => json!({
+            "type": "poly",
+            "closed": closed,
+            "v": v.iter().map(|x| json!([x.p[0], x.p[1], x.bulge])).collect::<Vec<_>>(),
+        }),
+        Geom::Text { at, height, text } => json!({ "type": "text", "at": at, "height": height, "text": text }),
+        Geom::Unsupported => json!({ "type": "unsupported" }),
+    };
+    json!({
+        "id": e.id,
+        "kind": e.kind,
+        "handle": e.handle,
+        "layer": e.layer,
+        "geom": geom,
+        "extents": geom::extents(&e.geom),
+        "warnings": e.warnings,
+    })
+}
+
+/// Parses "x,y" into a point; None when malformed or not finite.
+pub fn parse_point(s: &str) -> Option<P> {
+    let (x, y) = s.split_once(',')?;
+    let (x, y) = (read::num(x)?, read::num(y)?);
+    Some([x, y])
+}
+
+/// Builds a measurement from named query arguments: `kind` plus its points and entity ids.
+pub fn measure_from_query(q: &dyn Fn(&str) -> Option<String>) -> Result<Measure, String> {
+    let pt = |k: &str| -> Result<P, String> {
+        q(k).as_deref().and_then(parse_point).ok_or_else(|| format!("'{k}' must be x,y"))
+    };
+    let ent = || q("entity").ok_or_else(|| "'entity' is missing".to_string());
+    let kind = q("kind").ok_or("'kind' is missing")?;
+    Ok(match kind.as_str() {
+        "distance" => Measure::Distance { from: pt("from")?, to: pt("to")? },
+        "vector" => Measure::Vector { from: pt("from")?, to: pt("to")? },
+        "line_angle" => Measure::LineAngle { a: [pt("a1")?, pt("a2")?], b: [pt("b1")?, pt("b2")?] },
+        "vertex_angle" => Measure::VertexAngle { at: pt("at")?, a: pt("a")?, b: pt("b")? },
+        "arc_radius" => Measure::ArcRadius { entity: ent()? },
+        "length" => Measure::Length { entity: ent()? },
+        "area" => Measure::Area { entity: ent()? },
+        other => return Err(format!("unknown measurement '{other}'")),
+    })
+}

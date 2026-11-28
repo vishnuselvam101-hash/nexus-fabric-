@@ -961,6 +961,7 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
+ "nf-cad",
  "nf-core",
  "nf-digest",
  "nf-licence",

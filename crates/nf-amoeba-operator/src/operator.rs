@@ -212,7 +212,7 @@ impl Registry {
         r.register("compute", Box::new(tool_compute));
         r
     }
-    fn run(&self, ctx: &mut Ctx<'_>, a: &Action) -> Result<ToolOut, String> {
+    pub fn run(&self, ctx: &mut Ctx<'_>, a: &Action) -> Result<ToolOut, String> {
         match self.tools.get(&a.tool) {
             Some(f) => f(ctx, &a.args),
             None => Err(format!("no tool named '{}'", a.tool)),
