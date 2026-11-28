@@ -1,0 +1,61 @@
+/* NEXUS FABRIC job, simple view (F1). Look = mockup v7 defaults (dark, orange accent, IBM Plex). Colours live in the tokens. */
+.jf1 {
+  --jf1-bg: #0E1013; --jf1-raised: #15181C; --jf1-card: #1A1E23; --jf1-inset: #0A0C0F;
+  --jf1-t1: #E8ECEF; --jf1-t2: #B3BCC5; --jf1-t3: #8E99A4;
+  --jf1-border: #2A3038; --jf1-border-2: #3B434D;
+  --jf1-accent: #FF6A1A; --jf1-accent-ink: #0E1013;
+  --jf1-ok: #3FB950; --jf1-warn: #E3B341; --jf1-bad: #F85149;
+  --jf1-radius: 10px; --jf1-gap: 16px;
+  --jf1-sans: "IBM Plex Sans", system-ui, sans-serif; --jf1-mono: "IBM Plex Mono", ui-monospace, monospace;
+  position: relative; color: var(--jf1-t1); font-family: var(--jf1-sans);
+  max-width: 880px; margin: 0 auto; padding: 24px 16px 48px; box-sizing: border-box;
+}
+:root[data-theme="light"] .jf1, .jf1[data-theme="light"] {
+  --jf1-bg: #F6F7F9; --jf1-raised: #FFFFFF; --jf1-card: #FFFFFF; --jf1-inset: #EEF1F4;
+  --jf1-t1: #14171A; --jf1-t2: #3D4650; --jf1-t3: #5C6670; --jf1-border: #D5DBE1; --jf1-border-2: #B7C0C9;
+  --jf1-accent: #C2410C; --jf1-accent-ink: #FFFFFF;
+}
+.jf1 *, .jf1 *::before, .jf1 *::after { box-sizing: border-box; }
+.jf1 h1 { font-size: 26px; line-height: 1.25; margin: 6px 0 10px; font-weight: 600; text-wrap: balance; }
+.jf1 h2 { font-size: 17px; margin: 0 0 10px; font-weight: 600; }
+.jf1 .mono { font-family: var(--jf1-mono); font-size: 13px; }
+.jf1-kicker { color: var(--jf1-t3); margin: 0; font-size: 12px; letter-spacing: .08em; }
+.jf1-lead, .jf1-note { color: var(--jf1-t2); margin: 0 0 12px; font-size: 14px; line-height: 1.6; }
+.jf1-note { color: var(--jf1-t3); }
+.jf1-steps { list-style: none; display: flex; gap: 8px; padding: 0; margin: 16px 0 20px; flex-wrap: wrap; }
+.jf1-step { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border: 1px solid var(--jf1-border); border-radius: 999px; color: var(--jf1-t3); font-size: 14px; }
+.jf1-num { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-family: var(--jf1-mono); font-size: 12px; background: var(--jf1-inset); }
+.jf1-step.is-done { color: var(--jf1-t2); }
+.jf1-step.is-done .jf1-num { background: var(--jf1-ok); color: #0E1013; }
+.jf1-step.is-current { color: var(--jf1-t1); border-color: var(--jf1-accent); }
+.jf1-step.is-current .jf1-num { background: var(--jf1-accent); color: var(--jf1-accent-ink); }
+.jf1-panel { background: var(--jf1-card); border: 1px solid var(--jf1-border); border-radius: var(--jf1-radius); padding: 20px; display: grid; gap: var(--jf1-gap); }
+.jf1-dz { display: grid; gap: 6px; place-items: center; text-align: center; min-height: 160px; padding: 24px; border: 2px dashed var(--jf1-border-2); border-radius: var(--jf1-radius); background: var(--jf1-inset); cursor: pointer; }
+.jf1-dz:focus-visible, .jf1-btn:focus-visible { outline: 3px solid var(--jf1-accent); outline-offset: 2px; }
+.jf1-dz-main { font-size: 18px; font-weight: 600; }
+.jf1-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.jf1-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.jf1-list li { padding: 8px 10px; background: var(--jf1-inset); border-radius: 6px; overflow-wrap: anywhere; }
+.jf1-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.jf1-btn { font: inherit; font-size: 15px; font-weight: 600; padding: 11px 18px; border-radius: 8px; border: 1px solid var(--jf1-border-2); background: var(--jf1-raised); color: var(--jf1-t1); cursor: pointer; min-height: 44px; }
+.jf1-btn:disabled { opacity: .45; cursor: not-allowed; }
+.jf1-primary { background: var(--jf1-accent); border-color: var(--jf1-accent); color: var(--jf1-accent-ink); }
+.jf1-err { color: var(--jf1-bad); margin: 0; font-size: 14px; }
+.jf1-result h2, .jf1-pages h2, .jf1-feed h2 { margin-bottom: 8px; }
+.jf1-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.jf1-counts div { background: var(--jf1-inset); border-radius: 8px; padding: 12px; }
+.jf1-counts dt { color: var(--jf1-t3); font-size: 13px; }
+.jf1-counts dd { margin: 4px 0 0; font-size: 22px; font-weight: 600; }
+.jf1-stage { position: relative; min-height: 120px; background: var(--jf1-inset); border-radius: var(--jf1-radius); padding: 12px; overflow: hidden; }
+.jf1-log { margin: 10px 0 0; padding-left: 20px; font-size: 14px; color: var(--jf1-t2); }
+.jf1-download { display: grid; gap: 6px; border-top: 1px solid var(--jf1-border); padding-top: var(--jf1-gap); }
+.error-box { padding: 20px; color: var(--jf1-bad); }
+@media (max-width: 480px) {
+  .jf1 { padding: 16px 16px 40px; }
+  .jf1 h1 { font-size: 22px; }
+  .jf1-counts { grid-template-columns: 1fr; }
+  .jf1-btn { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jf1 *, .jf1 *::before, .jf1 *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}

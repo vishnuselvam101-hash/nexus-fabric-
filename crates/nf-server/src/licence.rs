@@ -314,8 +314,9 @@ pub(crate) fn gated(method: &Method, path: &str) -> bool {
             || matches!(seg.as_slice(), ["api", "projects", id, "rules"] if id.parse::<i64>().is_ok());
     }
     // the quote estimate is paid-tier output: gated like new work, read or not
+    // the job package is a new DXF export: read-only stops it (docs/business/PRICING_AND_PAYMENT.md)
     if *method == Method::GET {
-        return matches!(seg.as_slice(), ["api", "orders", id, "estimate"] if id.parse::<i64>().is_ok());
+        return matches!(seg.as_slice(), ["api", "orders", id, "estimate" | "outputs.zip"] if id.parse::<i64>().is_ok());
     }
     if *method != Method::POST {
         return false;

@@ -51,6 +51,34 @@ export function applyPage(root = document) {
 
 // ================================================================ English
 const EN = {
+  // F1 job view
+  'jf1.title': 'Drop the drawings. AMOEBA does the rest.',
+  'jf1.lead': 'Drop the PDF drawings of one job. AMOEBA reads the pages and works out the parts. When it is done you can download the cut patterns.',
+  'jf1.progress': 'Progress',
+  'jf1.step1': 'Drop PDFs',
+  'jf1.step2': 'AMOEBA works',
+  'jf1.step3': 'Download',
+  'jf1.drop': 'Drop PDF files here, or choose files',
+  'jf1.drop.hint': 'PDF, PNG, JPEG or TIFF. Files go only to this NEXUS FABRIC server.',
+  'jf1.start': 'Start job',
+  'jf1.starting': 'Uploading…',
+  'jf1.err.upload': 'Upload did not finish: {msg}',
+  'jf1.err.load': 'This job could not be opened',
+  'jf1.pages': '{n} pages',
+  'jf1.noPages': 'No pages yet.',
+  'jf1.calc': 'Calculate parts',
+  'jf1.calcing': 'Calculating…',
+  'jf1.restart': 'New job',
+  'jf1.noParts': 'AMOEBA has not found any parts on these pages yet, so there is nothing to calculate.',
+  'jf1.feed': 'AMOEBA log',
+  'jf1.feed.none': 'AMOEBA has not acted yet.',
+  'jf1.res.summary': '{ready} ready, {held} held, {need} need your answer.',
+  'jf1.res.ready': 'Ready',
+  'jf1.res.held': 'Held, no DXF',
+  'jf1.res.need': 'Needs an answer',
+  'jf1.download': 'Download the job package (ZIP)',
+  'jf1.download.note': 'The ZIP has the material list (CSV and Excel), the issue list, the change record and the DXF files of parts that are certified and not held. A held part has no DXF and is listed in the issue list with its reasons. Everything is marked NOT RELEASED. This page approves and releases nothing.',
+
   // build status
   'build.short': 'Development build — not validated',
   'build.full': 'Development build — not validated — outputs must not be used for manufacturing',
@@ -889,6 +917,34 @@ const EN = {
 
 // ================================================================ 日本語
 const JA = {
+  // F1 job view
+  'jf1.title': '図面を入れてください。残りはAMOEBAが行います。',
+  'jf1.lead': 'ひとつの案件のPDF図面を入れてください。AMOEBAがページを読み、部品を割り出します。終わったら展開図をダウンロードできます。',
+  'jf1.progress': '進み具合',
+  'jf1.step1': '図面を入れる',
+  'jf1.step2': 'AMOEBAが作業',
+  'jf1.step3': 'ダウンロード',
+  'jf1.drop': 'ここにPDFをドロップ、またはファイルを選択',
+  'jf1.drop.hint': 'PDF・PNG・JPEG・TIFF。ファイルはこのNEXUS FABRICサーバーにだけ送られます。',
+  'jf1.start': '案件を開始',
+  'jf1.starting': 'アップロード中…',
+  'jf1.err.upload': 'アップロードが完了しませんでした: {msg}',
+  'jf1.err.load': 'この案件を開けませんでした',
+  'jf1.pages': '{n}ページ',
+  'jf1.noPages': 'ページはまだありません。',
+  'jf1.calc': '部品を計算',
+  'jf1.calcing': '計算中…',
+  'jf1.restart': '新しい案件',
+  'jf1.noParts': 'AMOEBAはまだこのページから部品を見つけていないため、計算するものがありません。',
+  'jf1.feed': 'AMOEBAのログ',
+  'jf1.feed.none': 'AMOEBAはまだ操作していません。',
+  'jf1.res.summary': '完了 {ready}、保留 {held}、確認待ち {need}。',
+  'jf1.res.ready': '完了',
+  'jf1.res.held': '保留（DXFなし）',
+  'jf1.res.need': '確認待ち',
+  'jf1.download': 'ジョブの出力をダウンロード（ZIP）',
+  'jf1.download.note': 'ZIPには、材料表（CSVとExcel）、課題一覧、変更記録、認証済みで保留されていない部材のDXFが入ります。保留の部材にはDXFがなく、理由とともに課題一覧に載ります。すべて「未リリース」と表示されます。このページでは何も承認・リリースしません。',
+
   'build.short': '開発版・未検証',
   'build.full': '開発版・未検証 — 出力を製造に使用してはなりません',
   'build.status': '開発版 · 未検証 · 製造使用禁止',
@@ -2235,6 +2291,19 @@ const SENT = [
   ["{w} = {n} is at most half the outside contact radius {w} = {n}: the reference surface r_dev = r_i + k*t, 0 < k <= 0.5 (Spec 02 §6.1) then needs an inner radius below {n} and a wall thicker than {n} - {n}, and a neutral surface at mid-thickness (k = 0.5) is impossible; the radii are consistent only for k <= 0.25.", "`{1}` = {2} は、外面の取合い半径 `{3}` = {4} の半分以下です。基準面 `r_dev = r_i + k*t`（0 < k <= 0.5、仕様書02 §6.1）では、内半径が {5} 未満、板厚が {6} - {7} より厚い必要があり、板厚中央の中立面（k = 0.5）は成り立ちません。半径が整合するのは k <= 0.25 の場合だけです。"],
   // engine 0.4.9: the surface-unknown reason arrives in English only
   ["surface unknown: cannot tell which surface the radius is on, so the radius check cannot be confirmed.", "基準面が不明です: 半径がどの面を指すか判別できないため、半径に関する検査は確定できません。"],
+  // engine text of the AMOEBA holds and the replay audit fixes (found by tests/i18n_engine_coverage.js)
+  ["Fix: run the replay audit for this job.", "修正：このジョブの再実行監査を実行してください。"],
+  ["run the replay audit for this job", "このジョブの再実行監査を実行してください"],
+  ["an engineer must resolve this check; a check that cannot be proved is not released", "技術者がこのチェックを解決する必要があります。証明できないチェックはリリースされません"],
+  ["held by AMOEBA: gate {w} ({w}) is NOT_RUN: No replay audit has been run for this result.", "AMOEBAにより保留：ゲート`{1}`（{2}）は未実行です：この結果に対する再実行監査は、まだ実行されていません。"],
+  ["The AMOEBA digest passes every check of all {n} DXF file(s) (engine {t}).", "AMOEBAのダイジェストは、DXFファイル{1}件のすべてのチェックに合格しています（エンジン {2}）。"],
+  ["A branch whose outside surface is the contact would have its opening cut at the outside diameter, so it would pass through the hole; this build has no wall thickness from which the bore could be derived Fix: an engineer must resolve this check; a check that cannot be proved is not released.", "外面を取合いとする枝管では、開口が外径で切断されるため、枝管が穴を通過してしまいます。このビルドには板厚がなく、内径を導くことができません。修正：技術者がこのチェックを解決する必要があります。証明できないチェックはリリースされません。"],
+  ["held by AMOEBA: gate {w} ({w}) is INCONCLUSIVE: No pattern produced: out of range (joint): a set-on joint (Spec 02 section 4.4) needs the branch INSIDE surface on the header OUTSIDE surface: branch_surface_reference \"inside\" and header_surface_reference \"outside\".", "AMOEBAにより保留：ゲート`{1}`（{2}）は判定不能です。展開図は生成されませんでした：範囲外（取合い）：セットオンの取合い（仕様書02 4.4節）には、母管の外面に枝管の内面が必要です。`branch_surface_reference` は`inside`、`header_surface_reference` は`outside`としてください。"],
+  ["held by AMOEBA: gate {w} ({w}) is INCONCLUSIVE: No pattern produced: out of range (s_end): square end must lie beyond the saddle: s_end > {n} Fix: an engineer must resolve this check; a check that cannot be proved is not released.", "AMOEBAにより保留：ゲート`{1}`（{2}）は判定不能です。展開図は生成されませんでした：範囲外（`s_end`）：直切り端は、相貫切断線より先にある必要があります：`s_end` > {3}。修正：技術者がこのチェックを解決する必要があります。証明できないチェックはリリースされません。"],
+  ["held by AMOEBA: gate {w} ({w}) is INCONCLUSIVE: No pattern produced: out of range (delta+r): requires |delta| + r < R: tangent and partial intersections (including the equal-diameter tee) are not implemented in this build Fix: an engineer must resolve this check; a check that cannot be proved is not released.", "AMOEBAにより保留：ゲート`{1}`（{2}）は判定不能です。展開図は生成されませんでした：範囲外（`delta+r`）：`|delta| + r` < `R` が必要です。接する場合と部分的な相貫（同径のT継手を含む）は、このビルドでは未実装です。修正：技術者がこのチェックを解決する必要があります。証明できないチェックはリリースされません。"],
+  ["held by AMOEBA: gate {w} ({w}) is INCONCLUSIVE: No pattern produced: out of range (header_radius): must be finite and > 0, got {n} Fix: an engineer must resolve this check; a check that cannot be proved is not released.", "AMOEBAにより保留：ゲート`{1}`（{2}）は判定不能です。展開図は生成されませんでした：範囲外（`header_radius`）：有限で0より大きい値が必要です（入力値 {3}）。修正：技術者がこのチェックを解決する必要があります。証明できないチェックはリリースされません。"],
+  ["held by AMOEBA: gate {w} ({w}) is INCONCLUSIVE: No pattern produced: out of range (length): magnitude {n} mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule) Fix: an engineer must resolve this check; a check that cannot be proved is not released.", "AMOEBAにより保留：ゲート`{1}`（{2}）は判定不能です。展開図は生成されませんでした：範囲外（`length`）：{3} mm は、このビルドで検証された最大の寸法である 1e8 mm を超えています（実装上の上限で、工学上の規則ではありません）。修正：技術者がこのチェックを解決する必要があります。証明できないチェックはリリースされません。"],
+  ["held by AMOEBA: gate {w} ({w}) is INCONCLUSIVE: No pattern produced: out of range (r_dev): magnitude {n} mm exceeds 1e8 mm, the largest size this build has been exercised with (implementation limit, not an engineering rule) Fix: an engineer must resolve this check; a check that cannot be proved is not released.", "AMOEBAにより保留：ゲート`{1}`（{2}）は判定不能です。展開図は生成されませんでした：範囲外（`r_dev`）：{3} mm は、このビルドで検証された最大の寸法である 1e8 mm を超えています（実装上の上限で、工学上の規則ではありません）。修正：技術者がこのチェックを解決する必要があります。証明できないチェックはリリースされません。"],
 ];
 
 const WHOLE = [

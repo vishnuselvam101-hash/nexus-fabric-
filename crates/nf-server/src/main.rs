@@ -5171,6 +5171,24 @@ pub(crate) fn router(app: Arc<App>) -> Router {
             }),
         )
         .route(
+            "/job-start.css",
+            get(|| async {
+                asset(
+                    "text/css; charset=utf-8",
+                    include_str!("../../../web/job-start.css"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/job-start.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/job-start.js"),
+                )
+            }),
+        )
+        .route(
             "/js/views/convert.js",
             get(|| async {
                 asset(
