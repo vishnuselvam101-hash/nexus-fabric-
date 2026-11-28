@@ -4,7 +4,7 @@
 
 use crate::*;
 use axum::extract::{Path, Query, State};
-use axum::response::IntoResponse;
+use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
 use std::collections::HashMap;
 
@@ -149,9 +149,37 @@ async fn calc_pick(State(app): Ctx, headers: HeaderMap, Path((id, part)): Path<(
     pick(&open_drawing(&b)?, &q)
 }
 
+/// The viewer's files: the page and its modules, embedded at build time (no build step, no CDN).
+const STATIC: &[(&str, &str, &str)] = &[
+    ("style.css", "text/css; charset=utf-8", include_str!("../../../web/cad/style.css")),
+    ("main.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/cad/main.js")),
+    ("view.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/cad/view.js")),
+    ("measure.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/cad/measure.js")),
+    ("i18n.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/i18n/cad.js")),
+];
+
+async fn page() -> Response {
+    let mut r = Html(include_str!("../../../web/cad/index.html")).into_response();
+    r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
+    r
+}
+
+async fn static_file(Path(name): Path<String>) -> Response {
+    match STATIC.iter().find(|(n, _, _)| *n == name) {
+        Some((_, ct, body)) => {
+            let mut r = (*body).into_response();
+            r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static(ct));
+            r
+        }
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 /// The NF CAD routes, merged into the router (so the security and licence layers cover them).
 pub(crate) fn routes() -> Router<Arc<App>> {
     Router::new()
+        .route("/cad", get(page))
+        .route("/cad/static/{name}", get(static_file))
         .route("/api/cad/documents/{id}", get(doc_model))
         .route("/api/cad/documents/{id}/checks", get(doc_checks))
         .route("/api/cad/documents/{id}/measure", get(doc_measure))

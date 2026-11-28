@@ -53,7 +53,7 @@ fn records(pairs: &[Pair]) -> Vec<Rec<'_>> {
     out
 }
 
-fn get<'a>(body: &'a [Pair], code: u16) -> Option<&'a str> {
+fn get(body: &[Pair], code: u16) -> Option<&str> {
     body.iter().find(|p| p.code == code).map(|p| p.value.as_str())
 }
 
@@ -118,10 +118,11 @@ fn geometry(kind: &str, body: &[Pair], warn: &mut Vec<String>) -> Geom {
                         Some(last) => last.p[1] = num(&p.value).unwrap_or(f64::NAN),
                         None => warn.push("vertex Y before X".into()),
                     },
-                    42 => match v.last_mut() {
-                        Some(last) => last.bulge = num(&p.value).unwrap_or(0.0),
-                        None => {}
-                    },
+                    42 => {
+                        if let Some(last) = v.last_mut() {
+                            last.bulge = num(&p.value).unwrap_or(0.0);
+                        }
+                    }
                     _ => {}
                 }
             }

@@ -146,8 +146,8 @@ pub fn extents(g: &Geom) -> Option<[f64; 4]> {
         Geom::Poly { v, closed } => {
             let n = v.len();
             let segs = if *closed { n } else { n.saturating_sub(1) };
-            for i in 0..n {
-                add(v[i].p);
+            for x in v.iter() {
+                add(x.p);
             }
             for i in 0..segs {
                 if v[i].bulge.abs() >= 1e-12 {

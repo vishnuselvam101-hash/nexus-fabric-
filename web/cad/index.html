@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NF CAD</title>
+<link rel="stylesheet" href="/cad/static/style.css">
+</head>
+<body>
+<header class="bar">
+  <strong id="title">NF CAD</strong>
+  <span id="status" role="status" aria-live="polite"></span>
+  <button id="lang" type="button">日本語</button>
+</header>
+<main class="wrap">
+  <aside class="panel" aria-label="tools">
+    <div class="tools" role="toolbar">
+      <button type="button" data-tool="pan" id="t-pan" aria-pressed="true"></button>
+      <button type="button" data-tool="pick" id="t-pick" aria-pressed="false"></button>
+      <button type="button" data-tool="measure" id="t-measure" aria-pressed="false"></button>
+      <button type="button" id="fit"></button>
+      <button type="button" id="checks"></button>
+    </div>
+    <h2 id="layers-h"></h2>
+    <ul id="layers" class="layers"></ul>
+    <section id="info" class="info" aria-live="polite"></section>
+    <section id="checks-out" class="checks" hidden></section>
+  </aside>
+  <div class="stage">
+    <canvas id="view" tabindex="0" aria-label="drawing"></canvas>
+    <p id="note" class="note"></p>
+  </div>
+</main>
+<script type="module" src="/cad/static/main.js"></script>
+</body>
+</html>
