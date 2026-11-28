@@ -11,7 +11,7 @@ fn arg(a: &[String], k: &str) -> Option<String> {
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();
     let cmd = a.first().map(String::as_str).unwrap_or("");
-    if cmd != "generate" && cmd != "sample" && cmd != "smoke" {
+    if cmd != "generate" && cmd != "sample" && cmd != "smoke" && cmd != "dataset" {
         eprintln!(
             "usage: nf-reader-data generate --out DIR [--seed N] [--train N] [--val N] [--test N] [--threads N] [--batch N]\n       nf-reader-data sample --out DIR [--seed N]   (20 pages)\n       nf-reader-data smoke --out DIR [--n N] [--seed N] [--threads N] [--mix default|weak1]   (v2 families, split smoke)"
         );
@@ -38,6 +38,38 @@ fn main() {
             Err(e) => {
                 eprintln!("error: {e}");
                 std::process::exit(1);
+            }
+        }
+        return;
+    }
+    if cmd == "dataset" {
+        // round-2 dataset: train 50/50 default+weak1, val default, test default and test weak1, parameter-disjoint
+        let th = num("--threads", 3) as usize;
+        let base = num("--seed", 20261128);
+        let mut held = std::collections::HashSet::new();
+        for (split, n, seed_off, weak) in [
+            ("train", num("--train", 4000), 1u64, 2u64),
+            ("val", num("--val", 300), 2, 0),
+            ("test", num("--test", 300), 3, 0),
+            ("test_weak1", num("--test", 300), 4, 1),
+        ] {
+            match nf_reader_data::v2::generate_split(
+                &out,
+                split,
+                n,
+                base + seed_off,
+                th,
+                weak,
+                &held,
+            ) {
+                Ok(keys) => {
+                    println!("{split}: {} pages", n);
+                    held.extend(keys);
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    std::process::exit(1);
+                }
             }
         }
         return;

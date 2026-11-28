@@ -2683,7 +2683,7 @@ pub fn page_truth(p: &P2Meta, items: Vec<Value>) -> Value {
     json!({
         "schema": SCHEMA,
         "page_id": p.pid,
-        "split": "smoke",
+        "split": p.split,
         "family": p.fam,
         "part_id": p.part_id,
         "seed": p.seed,
@@ -2697,8 +2697,8 @@ pub fn page_truth(p: &P2Meta, items: Vec<Value>) -> Value {
         "height": p.h,
         "decimals": p.dec,
         "general_tolerance": p.gtol.to_string(),
-        "png": format!("smoke/png/{}.png", p.pid),
-        "pdf": format!("smoke/pdf/{}.pdf", p.pid),
+        "png": format!("{}/png/{}.png", p.split, p.pid),
+        "pdf": format!("{}/pdf/{}.pdf", p.split, p.pid),
         "engine": p.engine,
         "request": p.request,
         "spec": {"family": p.fam, "params": p.spec_params},
@@ -2710,6 +2710,7 @@ pub fn page_truth(p: &P2Meta, items: Vec<Value>) -> Value {
 
 /// Page metadata needed to write a truth line.
 pub struct P2Meta {
+    pub split: String,
     pub pid: String,
     pub fam: &'static str,
     pub part_id: String,
@@ -2762,6 +2763,7 @@ pub fn write_images(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn build_one(
     seed: u64,
     k: u64,
@@ -2770,15 +2772,15 @@ fn build_one(
     style: Style,
     deg: &'static str,
     mix_: Mix,
+    split: &str,
 ) -> Result<(String, P2Meta, Page, Vec<String>, f64), String> {
-    let _ = k;
-    let pid = format!("smoke-{k:05}");
+    let pid = format!("{split}-{k:05}");
     if ENGINE_FAMILIES.contains(&fam) {
         let mut rp = Rng::new(mix(&[seed, 1]));
         let (req, out) = sample(fam, &mut rp);
         let scan = deg == "scan";
         let sp_ = Spec {
-            split: "smoke".into(),
+            split: split.into(),
             k,
             fam,
             lang,
@@ -2831,6 +2833,7 @@ fn build_one(
             .collect();
         let deg_eff: &'static str = if deg == "hand" { "clean" } else { deg };
         let meta = P2Meta {
+            split: split.into(),
             pid: pid.clone(),
             fam,
             part_id: format!("{}-{}", fam_code(fam), seed),
@@ -2861,6 +2864,7 @@ fn build_one(
         let p2 = build_new(seed, k, fam, lang, style, deg, mix_);
         let skew = p2.fx.as_ref().map(|f| f.skew).unwrap_or(0.0);
         let meta = P2Meta {
+            split: split.into(),
             pid: pid.clone(),
             fam,
             part_id: p2.part_id.clone(),
@@ -2886,6 +2890,145 @@ fn build_one(
 /// Generate `n` smoke pages into `out/smoke/{png,pdf}` and `out/smoke/truth.jsonl`. Deterministic by `seed`.
 pub fn generate_smoke(out: &Path, n: u64, seed: u64, threads: usize) -> Result<usize, String> {
     generate_smoke_mix(out, n, seed, threads, Mix::Default)
+}
+
+/// Write the images of a built page and return its truth line (JSON).
+fn finish_page(
+    out: &Path,
+    mix_: Mix,
+    built: (String, P2Meta, Page, Vec<String>, f64),
+) -> Result<String, String> {
+    let (pid, meta, page, shapes, skew) = built;
+    write_images(
+        out,
+        &meta.split,
+        &pid,
+        &page,
+        meta.w,
+        meta.h,
+        meta.deg,
+        meta.fx.as_ref(),
+    )?;
+    let (kept, clut) = key_split(&page, &shapes);
+    let items: Vec<Value> = kept
+        .iter()
+        .enumerate()
+        .map(|(i, (it, shape))| {
+            item_json(
+                it,
+                shape,
+                &pid,
+                i,
+                meta.lang,
+                meta.style,
+                meta.fam,
+                &meta.part_id,
+                meta.seed,
+                skew,
+                meta.w as f64,
+                meta.h as f64,
+            )
+        })
+        .collect();
+    let mut tv = page_truth(&meta, items);
+    tv["mix"] = json!(mix_.name());
+    // printed but not in the answer key: negative examples
+    tv["clutter"] = json!(
+        clut.iter()
+            .enumerate()
+            .map(|(i, (t, b))| clutter_json(&pid, i, t, *b, skew, meta.w as f64, meta.h as f64))
+            .collect::<Vec<_>>()
+    );
+    Ok(tv.to_string())
+}
+
+/// One dataset split: `n` pages from `seed`, clean and scan only, the mix of page k chosen by `weak_every`
+/// (`0`: all default, `1`: all weak1, `2`: alternating default / weak1). Pages whose family and parameters occur in
+/// `held` are redrawn (attempt counter in the seed), so splits stay parameter-disjoint. Returns the parameter keys.
+pub fn generate_split(
+    out: &Path,
+    split: &str,
+    n: u64,
+    seed: u64,
+    threads: usize,
+    weak_every: u64,
+    held: &std::collections::HashSet<String>,
+) -> Result<std::collections::HashSet<String>, String> {
+    let dir = out.join(split);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let fams = all_families();
+    let ks: Vec<u64> = (0..n).collect();
+    type PageRes = (u64, Result<(String, String), String>);
+    let mut res: Vec<PageRes> = std::thread::scope(|sc| {
+        let hs: Vec<_> = (0..threads.max(1))
+            .map(|t| {
+                let (ks, fams) = (&ks, &fams);
+                sc.spawn(move || {
+                    let mut v = vec![];
+                    for &k in ks.iter().skip(t).step_by(threads.max(1)) {
+                        let fam = fams[(k % fams.len() as u64) as usize];
+                        let mix_ = match weak_every {
+                            0 => Mix::Default,
+                            1 => Mix::Weak1,
+                            _ => {
+                                if k % 2 == 0 {
+                                    Mix::Default
+                                } else {
+                                    Mix::Weak1
+                                }
+                            }
+                        };
+                        let mut r = Err("no free parameter set".to_string());
+                        for attempt in 0..40u64 {
+                            let sd = mix(&[seed, 0x5B, k, attempt]);
+                            let lang = if (sd >> 1) & 1 == 0 {
+                                Lang::En
+                            } else {
+                                Lang::Ja
+                            };
+                            let style = if (sd >> 2) & 1 == 0 {
+                                Style::Iso
+                            } else {
+                                Style::Jis
+                            };
+                            let deg = if (sd >> 3) & 1 == 0 { "clean" } else { "scan" };
+                            let b = match build_one(sd, k, fam, lang, style, deg, mix_, split) {
+                                Ok(b) => b,
+                                Err(e) => {
+                                    r = Err(e);
+                                    break;
+                                }
+                            };
+                            let key = format!("{}|{}", b.1.fam, b.1.spec_params);
+                            if held.contains(&key) {
+                                continue;
+                            }
+                            r = finish_page(out, mix_, b).map(|l| (l, key));
+                            break;
+                        }
+                        v.push((k, r));
+                    }
+                    v
+                })
+            })
+            .collect();
+        hs.into_iter()
+            .flat_map(|h| h.join().unwrap_or_default())
+            .collect()
+    });
+    res.sort_by_key(|x| x.0);
+    use std::io::Write;
+    let mut f = std::io::BufWriter::new(
+        std::fs::File::create(dir.join("truth.jsonl")).map_err(|e| e.to_string())?,
+    );
+    let mut keys = std::collections::HashSet::new();
+    for (k, l) in res {
+        let (line, key) = l.map_err(|e| format!("{split} page {k}: {e}"))?;
+        writeln!(f, "{line}").map_err(|e| e.to_string())?;
+        keys.insert(key);
+    }
+    f.flush().map_err(|e| e.to_string())?;
+    Ok(keys)
 }
 
 /// As `generate_smoke`, with a named generator mix (`Mix::Weak1`: see [`Mix`]).
@@ -2921,59 +3064,8 @@ pub fn generate_smoke_mix(
                         };
                         let deg = DEGS[(k % 5) as usize];
                         let sd = mix(&[seed, 0x5A, k]);
-                        let r = build_one(sd, k, fam, lang, style, deg, mix_).and_then(
-                            |(pid, meta, page, shapes, skew)| {
-                                write_images(
-                                    out,
-                                    "smoke",
-                                    &pid,
-                                    &page,
-                                    meta.w,
-                                    meta.h,
-                                    meta.deg,
-                                    meta.fx.as_ref(),
-                                )?;
-                                let (kept, clut) = key_split(&page, &shapes);
-                                let items: Vec<Value> = kept
-                                    .iter()
-                                    .enumerate()
-                                    .map(|(i, (it, shape))| {
-                                        item_json(
-                                            it,
-                                            shape,
-                                            &pid,
-                                            i,
-                                            meta.lang,
-                                            meta.style,
-                                            meta.fam,
-                                            &meta.part_id,
-                                            meta.seed,
-                                            skew,
-                                            meta.w as f64,
-                                            meta.h as f64,
-                                        )
-                                    })
-                                    .collect();
-                                let mut tv = page_truth(&meta, items);
-                                tv["mix"] = json!(mix_.name());
-                                // printed but not in the answer key: negative examples
-                                tv["clutter"] = json!(
-                                    clut.iter()
-                                        .enumerate()
-                                        .map(|(i, (t, b))| clutter_json(
-                                            &pid,
-                                            i,
-                                            t,
-                                            *b,
-                                            skew,
-                                            meta.w as f64,
-                                            meta.h as f64
-                                        ))
-                                        .collect::<Vec<_>>()
-                                );
-                                Ok(tv.to_string())
-                            },
-                        );
+                        let r = build_one(sd, k, fam, lang, style, deg, mix_, "smoke")
+                            .and_then(|b| finish_page(out, mix_, b));
                         v.push((k, r));
                     }
                     v
