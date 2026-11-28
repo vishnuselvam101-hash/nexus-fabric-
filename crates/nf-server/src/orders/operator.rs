@@ -6,11 +6,15 @@
 //! A person can pause and resume the operator and undo what it typed, last first. The operator cannot resume
 //! itself and cannot undo. Nothing here approves or releases anything.
 //!
-//! What the operator may decide (server side, not on its word): it may set CONFIRMED only for a value read from
-//! the page (a READ source) with no flags and confidence >= AGENT_CONFIRM_MIN_CONFIDENCE; /confirm, a decision
-//! `confirm` and `accept_flag` are a person's (403 agent_cannot_confirm); it does not overwrite a value last
-//! edited by a person or in state CONFIRMED/CORRECTED (409 person_value_protected); every value write carries
-//! at least one event (422 operator_event_required). Flags, confidence and who edited last are stored per value.
+//! What the operator may decide (server side, not on its word): it may set CONFIRMED only by naming a `reading_id`
+//! of a reading this server stored (`order_readings`, written when the server's reader read the page) whose stored
+//! value is the value, whose stored flags are empty and whose stored confidence is >= AGENT_CONFIRM_MIN_CONFIDENCE;
+//! flags, confidence and source the caller claims never grant anything (403 agent_cannot_confirm). /confirm, a
+//! decision `confirm` and `accept_flag` are a person's. It does not overwrite a value last edited by a person or in
+//! state CONFIRMED/CORRECTED, and does not change, exclude, drop or skip a part or page that holds one
+//! (409 person_value_protected). Every write (parts, skip, upload, decision, compute, values) carries at least one
+//! event (422 operator_event_required), stored in the same transaction. Flags, confidence and who edited last are
+//! stored per value.
 //!
 //! Pause in flight: every write of the operator re-reads the pause inside the transaction that writes. A write
 //! that committed before the pause landed is complete (values and events commit together, so it is replayable and
