@@ -226,16 +226,16 @@ async fn aiop_a_confirmation_cannot_use_a_reading_of_another_part() {
     propose["values"][0]["reading_id"] = json!(part_1_flagged);
     let (st, _, body) = t.send("PUT", &vals, Some(propose), &ac).await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&body));
-    let db = t.app.db();
-    let attached: Option<i64> = db
-        .query_row(
+    let attached: Option<i64> = {
+        let db = t.app.db();
+        db.query_row(
             "SELECT attached_reading_id FROM order_values WHERE key = 'D'",
             [],
             |r| r.get(0),
         )
-        .unwrap();
+        .unwrap()
+    };
     assert_eq!(attached, Some(part_1_flagged));
-    drop(db);
     for (name, rid) in [
         ("another part's clean reading", part_2_clean),
         ("the flagged reading it is attached to", part_1_flagged),

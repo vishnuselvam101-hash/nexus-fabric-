@@ -2037,8 +2037,8 @@ fn validate_value_write_events(
             .get("key")
             .and_then(Value::as_str)
             .map(str::to_string)
-            .ok_or_else(|| bad_ref())?;
-        let named_part = w.get("part").cloned().ok_or_else(|| bad_ref())?;
+            .ok_or_else(bad_ref)?;
+        let named_part = w.get("part").cloned().ok_or_else(bad_ref)?;
         let mut written = None;
         for v in values {
             let (pid, pno, _) = find_part(tx, oid, &v.part).map_err(|_| bad_ref())?;
@@ -2052,7 +2052,7 @@ fn validate_value_write_events(
                 break;
             }
         }
-        let (v, _pid) = written.ok_or_else(|| bad_ref())?;
+        let (v, _pid) = written.ok_or_else(bad_ref)?;
         let number = v.value.ok_or_else(|| {
             unprocessable("operator_event", "a write_ref cannot name a missing value")
         })?;
@@ -2327,7 +2327,7 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
                 let meta_same = *fl == flags_json
                     && *conf == v.confidence
                     && v.attached_reading_id
-                        .map_or(true, |rid| *attached == Some(rid));
+                        .is_none_or(|rid| *attached == Some(rid));
                 // identical content: nothing to write (and a resend never drops an earlier confirmation)
                 if same
                     && (state == new_state || (!v.confirm && state == "CONFIRMED"))
