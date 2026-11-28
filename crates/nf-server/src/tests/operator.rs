@@ -999,7 +999,8 @@ async fn aiop_a_value_a_person_set_or_checked_is_not_overwritten_by_the_operator
             "{key}"
         );
     }
-    // a CORRECTED value (a person changed what was proposed) stays the person's too
+    // a person's change to an unverified reading stays proposed (PZ-2 keeps the read origin) and stays the
+    // person's: the agent cannot take it back even though it is not CONFIRMED/CORRECTED.
     let (st, _, _) = t
         .send(
             "PUT",
@@ -1012,7 +1013,7 @@ async fn aiop_a_value_a_person_set_or_checked_is_not_overwritten_by_the_operator
     let (st, _) = person(&t, "PUT", &vals, json!({ "values": [{ "part": "1", "key": "L", "value": 510.0, "text": "510", "source": "entered" }] })).await;
     assert_eq!(st, StatusCode::OK);
     assert_eq!(
-        t.count("SELECT COUNT(*) FROM order_values WHERE key = 'L' AND state = 'CORRECTED'"),
+        t.count("SELECT COUNT(*) FROM order_values WHERE key = 'L' AND state = 'PROPOSED' AND edited_kind = 'person' AND value = 510.0"),
         1
     );
     let (st, _, b) = t

@@ -2403,7 +2403,7 @@ async fn pz1_never_wave_kinds_refuse_accept_for_a_person_and_an_agent() {
         } else {
             json!({ "kind": kind, "part": "1", "code": code, "reason": "trying to clear the stop" })
         };
-        let (st, v) = t.call("POST", &dec, Some(body)).await;
+        let (st, v) = t.call("POST", &dec, Some(with_ev(body))).await;
         assert_eq!(
             (st, v["code"].as_str()),
             (
@@ -3538,7 +3538,7 @@ async fn pz1_named_review_codes_are_validated_for_person_and_agent() {
         for (k, value) in extra.as_object().unwrap() {
             body[k] = value.clone();
         }
-        let (st, _, b) = t.send("POST", &dec, Some(body), &ac).await;
+        let (st, _, b) = t.send("POST", &dec, Some(with_ev(body)), &ac).await;
         let v: Value = serde_json::from_slice(&b).unwrap();
         assert_eq!(
             (st, v["code"].as_str()),

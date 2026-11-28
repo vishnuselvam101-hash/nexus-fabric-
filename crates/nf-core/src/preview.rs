@@ -23,6 +23,7 @@ use serde_json::{Map, Value, json};
 use crate::order_compute::{
     self as oc, HoldOut, OrderResult, OrderRules, PartIn, PartResult, PatternPiece, Val, ValState,
 };
+use crate::review::{self as rv, ReviewContext};
 use crate::tee::Mount;
 
 pub const PREVIEW_VERSION: &str = "order-preview 1 (PZ-3)";
@@ -894,6 +895,28 @@ pub fn preview(
     edit: &Edit,
     outlines: bool,
 ) -> Result<Preview, PreviewError> {
+    preview_inner(parts, rules, edit, outlines, None)
+}
+
+/// The same preview, computed with the order's page review inputs. The server uses this so the
+/// before/after fingerprints match the results its compute endpoint persists (PZ-1 review holds).
+pub fn preview_with_context(
+    parts: &[PartIn],
+    rules: &Value,
+    edit: &Edit,
+    ctx: &ReviewContext,
+    outlines: bool,
+) -> Result<Preview, PreviewError> {
+    preview_inner(parts, rules, edit, outlines, Some(ctx))
+}
+
+fn preview_inner(
+    parts: &[PartIn],
+    rules: &Value,
+    edit: &Edit,
+    outlines: bool,
+    ctx: Option<&ReviewContext>,
+) -> Result<Preview, PreviewError> {
     let rules_a = OrderRules::from_json(rules).map_err(|m| {
         err(
             "rules_invalid",
@@ -905,8 +928,16 @@ pub fn preview(
     let rules_b =
         OrderRules::from_json(&rules_json_b).map_err(|m| err("edit_rules", "rules", m))?;
     let label = edit_labels(parts, &rules_a, edit);
-    let before = oc::compute_order(parts, &rules_a);
-    let after = oc::compute_order(&parts_b, &rules_b);
+    let (before, after) = match ctx {
+        Some(ctx) => (
+            rv::compute_order_with_context(parts, &rules_a, ctx),
+            rv::compute_order_with_context(&parts_b, &rules_b, ctx),
+        ),
+        None => (
+            oc::compute_order(parts, &rules_a),
+            oc::compute_order(&parts_b, &rules_b),
+        ),
+    };
     Ok(build(
         edit.to_json(),
         edit.scope(),
@@ -928,6 +959,27 @@ pub fn rule_impact(
     rules_a: &Value,
     rules_b: &Value,
     outlines: bool,
+) -> Result<Preview, PreviewError> {
+    rule_impact_inner(parts, rules_a, rules_b, outlines, None)
+}
+
+/// Rule impact with the same page review inputs the compute endpoint applies.
+pub fn rule_impact_with_context(
+    parts: &[PartIn],
+    rules_a: &Value,
+    rules_b: &Value,
+    ctx: &ReviewContext,
+    outlines: bool,
+) -> Result<Preview, PreviewError> {
+    rule_impact_inner(parts, rules_a, rules_b, outlines, Some(ctx))
+}
+
+fn rule_impact_inner(
+    parts: &[PartIn],
+    rules_a: &Value,
+    rules_b: &Value,
+    outlines: bool,
+    ctx: Option<&ReviewContext>,
 ) -> Result<Preview, PreviewError> {
     let ra = OrderRules::from_json(rules_a).map_err(|m| {
         err(
@@ -959,8 +1011,13 @@ pub fn rule_impact(
             }
         ),
     };
-    let before = oc::compute_order(parts, &ra);
-    let after = oc::compute_order(parts, &rb);
+    let (before, after) = match ctx {
+        Some(ctx) => (
+            rv::compute_order_with_context(parts, &ra, ctx),
+            rv::compute_order_with_context(parts, &rb, ctx),
+        ),
+        None => (oc::compute_order(parts, &ra), oc::compute_order(parts, &rb)),
+    };
     Ok(build(
         json!({"kind": "rule", "rules": rules_b}),
         "order",

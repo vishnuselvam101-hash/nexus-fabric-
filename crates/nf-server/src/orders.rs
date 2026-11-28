@@ -1787,8 +1787,14 @@ async fn preview_order(
         )?;
         serde_json::from_str(&raw).unwrap_or(Value::Null)
     };
+    // The same review inputs the compute endpoint uses: a preview of an unchanged order must show the
+    // exact result that is already persisted, including PZ-1's page and material-table holds.
+    let ctx = {
+        let db = app.db();
+        load_review_context(&db, oid)?
+    };
     let preview = tokio::task::spawn_blocking(move || {
-        nf_core::preview::preview(&parts, &rules, &edit, outlines)
+        nf_core::preview::preview_with_context(&parts, &rules, &edit, &ctx, outlines)
     })
     .await
     .map_err(|_| {
@@ -1843,8 +1849,12 @@ async fn rule_impact_order(
         )?;
         serde_json::from_str(&raw).unwrap_or(Value::Null)
     };
+    let ctx = {
+        let db = app.db();
+        load_review_context(&db, oid)?
+    };
     let impact = tokio::task::spawn_blocking(move || {
-        nf_core::preview::rule_impact(&parts, &rules_a, &rules_b, outlines)
+        nf_core::preview::rule_impact_with_context(&parts, &rules_a, &rules_b, &ctx, outlines)
     })
     .await
     .map_err(|_| {
