@@ -1203,6 +1203,93 @@ async fn aiop_columns_are_additive_over_a_schema_8_database() {
     );
 }
 
+#[tokio::test]
+async fn schema_8_develop_database_migrates_to_10_additively() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    person(&t, "PUT", &format!("/api/orders/{oid}/values"), json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "216.3", "source": "read" }] })).await;
+    let values_before = t.count("SELECT COUNT(*) FROM order_values");
+    let orders_before = t.count("SELECT COUNT(*) FROM orders");
+    let projects_before = t.count("SELECT COUNT(*) FROM projects");
+    // what the develop build (schema 8, order results and the immutable trigger, no AIOP and no PZ) left behind
+    t.app.db().execute_batch(
+        "DROP TRIGGER IF EXISTS operator_events_no_delete; DROP TRIGGER IF EXISTS operator_events_no_edit;
+         DROP TRIGGER IF EXISTS order_readings_no_delete; DROP TRIGGER IF EXISTS order_readings_no_edit;
+         DROP TABLE operator_events; DROP TABLE operator_state; DROP TABLE order_readings;
+         DROP TABLE order_material_rows; DROP TABLE order_page_notes;
+         ALTER TABLE order_values DROP COLUMN flags_json; ALTER TABLE order_values DROP COLUMN confidence;
+         ALTER TABLE order_values DROP COLUMN edited_kind; ALTER TABLE order_values DROP COLUMN attached_reading_id;
+         ALTER TABLE order_values DROP COLUMN flag; ALTER TABLE order_values DROP COLUMN read_source;
+         ALTER TABLE order_decisions DROP COLUMN review_code; ALTER TABLE order_decisions DROP COLUMN claim_text;
+         ALTER TABLE projects DROP COLUMN default_rules_json;
+         PRAGMA user_version = 8;",
+    ).unwrap();
+    drop(t.app.db());
+    let app = build_app_with(config(&t.dir), true).unwrap();
+    let db = app.db();
+    let n = |sql: &str| db.query_row(sql, [], |r| r.get::<_, i64>(0)).unwrap();
+    assert_eq!(n("PRAGMA user_version"), 10);
+    // nothing was lost
+    assert_eq!(n("SELECT COUNT(*) FROM order_values"), values_before);
+    assert_eq!(n("SELECT COUNT(*) FROM orders"), orders_before);
+    assert_eq!(n("SELECT COUNT(*) FROM projects"), projects_before);
+    // every table, column and trigger of 9 and 10 is back
+    for table in [
+        "operator_events",
+        "operator_state",
+        "order_readings",
+        "order_material_rows",
+        "order_page_notes",
+    ] {
+        assert_eq!(
+            n(&format!(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = '{table}'"
+            )),
+            1,
+            "{table}"
+        );
+    }
+    for (table, col) in [
+        ("order_values", "flags_json"),
+        ("order_values", "confidence"),
+        ("order_values", "edited_kind"),
+        ("order_values", "attached_reading_id"),
+        ("order_values", "flag"),
+        ("order_values", "read_source"),
+        ("order_decisions", "review_code"),
+        ("order_decisions", "claim_text"),
+        ("projects", "default_rules_json"),
+    ] {
+        assert_eq!(
+            n(&format!(
+                "SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = '{col}'"
+            )),
+            1,
+            "{table}.{col}"
+        );
+    }
+    assert_eq!(
+        n(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name IN ('order_results_immutable', 'operator_events_no_delete', 'operator_events_no_edit', 'order_readings_no_delete', 'order_readings_no_edit')"
+        ),
+        5
+    );
+    // old rows get the documented defaults
+    let (rules, kind): (String, String) = (
+        db.query_row("SELECT default_rules_json FROM projects LIMIT 1", [], |r| {
+            r.get(0)
+        })
+        .unwrap(),
+        db.query_row(
+            "SELECT edited_kind FROM order_values WHERE key = 'D'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap(),
+    );
+    assert_eq!((rules.as_str(), kind.as_str()), ("{}", "person"));
+}
+
 // ---------------------------------------------------------------- round 2: person parts, events on every write
 
 fn parts_body(parts: Value) -> Value {
