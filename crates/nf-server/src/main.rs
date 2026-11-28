@@ -28,6 +28,7 @@ mod auth;
 mod crypto;
 mod desktop;
 mod licence;
+mod machine;
 mod membrane;
 mod orders;
 mod pdfconv;
@@ -67,6 +68,8 @@ pub(crate) struct App {
     setup_token: Mutex<Option<String>>,
     /// Executable used for the replay child; `None` = this executable.
     replay_exe: Option<PathBuf>,
+    /// Export folders (see Config::export_dirs).
+    export_dirs: Vec<PathBuf>,
     replay_timeout: Duration,
     /// Longest a request may take from its first header byte to its answer (S-3).
     request_timeout: Duration,
@@ -5323,6 +5326,7 @@ pub(crate) fn router(app: Arc<App>) -> Router {
         .route("/api/projects/{id}/documents", post(upload))
         .route("/api/projects/{id}/calculations", post(calculate))
         .merge(orders::routes())
+        .merge(machine::routes())
         .route("/api/documents/{id}/pdf-to-dxf", post(pdfconv::convert))
         .route("/api/pdf-conversions/{id}", get(pdfconv::get_conversion))
         .route("/api/pdf-conversions/{id}/{file}", get(pdfconv::get_file))
@@ -5381,6 +5385,8 @@ pub(crate) struct Config {
     /// Refuse new work when the licence is read-only (NF_LICENCE_ENFORCE; default off:
     /// the state is shown and audited but nothing is gated).
     pub licence_enforce: bool,
+    /// Folders the hand-off export may write into (NF_MACHINE_EXPORT_DIRS, ':'-separated). Empty: no export.
+    pub export_dirs: Vec<PathBuf>,
 }
 
 /// Connection limits (S-3) and shutdown behaviour (S-8). All configurable.
@@ -5482,6 +5488,7 @@ impl Config {
             desktop: false,
             licence_path,
             licence_enforce,
+            export_dirs: std::env::var("NF_MACHINE_EXPORT_DIRS").map(|v| v.split(':').filter(|x| !x.is_empty()).map(PathBuf::from).collect()).unwrap_or_default(),
         })
     }
 }
@@ -5565,6 +5572,7 @@ pub(crate) fn build_app_with(cfg: Config, accept_unanchored: bool) -> Result<Arc
         trusted_proxies: cfg.trusted_proxies,
         setup_token: Mutex::new(setup_token),
         replay_exe: None,
+        export_dirs: cfg.export_dirs.clone(),
         replay_timeout: Duration::from_secs(60),
         request_timeout: cfg.request_timeout,
         desktop: cfg.desktop,

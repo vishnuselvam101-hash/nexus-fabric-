@@ -4,7 +4,7 @@
 use serde_json::{Value, json};
 
 /// Allowed tools, in schema order. Nothing that writes a decision, a correction, an account, or the audit log is here.
-pub const TOOLS: [&str; 25] = [
+pub const TOOLS: [&str; 26] = [
     "list_projects",
     "get_project",
     "upload_document",
@@ -21,6 +21,8 @@ pub const TOOLS: [&str; 25] = [
     "amoeba_summary",
     "get_dxf_digest",
     "propose_read",
+    // Machine export: a proposal only; a person confirms it in the Machine panel. Nothing is written.
+    "propose_export",
     // AIOP-1: the order API and the operator's event stream. Writes are reasoned and made under the agent account;
     // none of them confirms a person's check, approves or releases.
     "order_get",
@@ -182,6 +184,14 @@ pub fn definitions() -> Vec<Value> {
                     "kind": { "type": "string", "maxLength": 32, "description": "What the value is, e.g. header_radius." }
                 }),
                 &["document", "page", "box", "value", "unit", "kind"],
+            ),
+        ),
+        def(
+            "propose_export",
+            "Propose exporting a job to a machine profile and folder. Writes nothing: returns a question for a person to answer in the Machine panel.",
+            obj(
+                json!({ "job": id("Calculation id."), "profile": { "type": "string", "minLength": 1, "maxLength": 40, "description": "Machine profile id." }, "folder": { "type": "integer", "minimum": 0, "description": "Index in the server's export folder list." }, "reason": { "type": "string", "minLength": 1, "maxLength": 500, "description": "Why this export is proposed." } }),
+                &["job", "profile", "folder", "reason"],
             ),
         ),
         def(

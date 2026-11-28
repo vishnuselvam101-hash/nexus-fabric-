@@ -983,6 +983,7 @@ dependencies = [
  "nf-core",
  "nf-digest",
  "nf-licence",
+ "nf-machine",
  "nf-numread",
  "rand",
  "rusqlite",

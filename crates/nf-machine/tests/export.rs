@@ -44,11 +44,7 @@ fn export_writes_verified_files_and_audits_refusals() {
     let body = dxf("ABC", "CUT_OUTER").into_bytes();
     let f = src.join("P1.dxf");
     fs::write(&f, &body).unwrap();
-    let parts = vec![PartSource {
-        part_id: "P1".into(),
-        source: f.clone(),
-        cert: Some(cert("P1", &body)),
-    }];
+    let parts = vec![PartSource::file("P1", f.clone(), Some(cert("P1", &body)))];
     let p = profile(TextEncoding::ShiftJis, DxfVersion::R12);
 
     // agent may not export; licence required
@@ -122,16 +118,8 @@ fn export_refuses_held_and_untouched_on_any_failure() {
     let mut held = cert("P2", &body);
     held.held = true;
     let parts = vec![
-        PartSource {
-            part_id: "P1".into(),
-            source: f,
-            cert: Some(cert("P1", &body)),
-        },
-        PartSource {
-            part_id: "P2".into(),
-            source: f2,
-            cert: Some(held),
-        },
+        PartSource::file("P1", f, Some(cert("P1", &body))),
+        PartSource::file("P2", f2, Some(held)),
     ];
     let p = profile(TextEncoding::Utf8, DxfVersion::R2000);
     let a = person();

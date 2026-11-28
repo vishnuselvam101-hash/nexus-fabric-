@@ -26,9 +26,20 @@ pub struct Actor {
 
 pub struct PartSource {
     pub part_id: String,
-    /// The checked DXF as stored by the digest.
-    pub source: PathBuf,
+    /// Loads the checked DXF as stored by the digest. Called twice: once to gate, once right before the write.
+    pub load: Box<dyn Fn() -> Result<Vec<u8>, String>>,
     pub cert: Option<Certificate>,
+}
+
+impl PartSource {
+    /// A part read from a file on disk.
+    pub fn file(part_id: &str, path: PathBuf, cert: Option<Certificate>) -> Self {
+        PartSource {
+            part_id: part_id.into(),
+            load: Box::new(move || std::fs::read(&path).map_err(|e| e.to_string())),
+            cert,
+        }
+    }
 }
 
 pub struct ExportRequest<'a> {
@@ -165,8 +176,7 @@ pub fn export(req: &ExportRequest, audit: &mut AuditLog) -> Result<ExportReport,
         if req.out_dir.join(&name).exists() {
             return Err(refuse(audit, ExportError::Exists(name)));
         }
-        let bytes =
-            fs::read(&p.source).map_err(|e| refuse(audit, ExportError::Io(e.to_string())))?;
+        let bytes = (p.load)().map_err(|e| refuse(audit, ExportError::Io(e)))?;
         gate::check(p.cert.as_ref(), &p.part_id, req.engine_id, &bytes).map_err(|r| {
             refuse(
                 audit,
@@ -193,7 +203,7 @@ pub fn export(req: &ExportRequest, audit: &mut AuditLog) -> Result<ExportReport,
     let mut records = Vec::new();
     let result = (|| -> Result<(), ExportError> {
         for (p, name) in req.parts.iter().zip(&names) {
-            let bytes = fs::read(&p.source).map_err(|e| ExportError::Io(e.to_string()))?;
+            let bytes = (p.load)().map_err(ExportError::Io)?;
             gate::check(p.cert.as_ref(), &p.part_id, req.engine_id, &bytes).map_err(|r| {
                 ExportError::Refused {
                     part: p.part_id.clone(),
