@@ -1519,7 +1519,8 @@ async fn aiop_create_read_and_undo_writes_carry_events_too() {
         )
         .await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
-    let new_oid = b["id"].as_i64().unwrap();
+    let new_order: Value = serde_json::from_slice(&b).unwrap_or(Value::Null);
+    let new_oid = new_order["id"].as_i64().unwrap();
     assert_eq!(
         t.count(&format!(
             "SELECT COUNT(*) FROM operator_events WHERE order_id = {new_oid}"

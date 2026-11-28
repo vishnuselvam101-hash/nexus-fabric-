@@ -2263,7 +2263,7 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
     // An agent sends its type events with the values so both commit in one transaction: no pause can land
     // between a written value and its replayable event. Only here may an event carry a `write_ref`; it is checked
     // against the values actually written before the batch is stored.
-    let events = write_events(u, body.get("events"), true)?;
+    let mut events = write_events(u, body.get("events"), true)?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
