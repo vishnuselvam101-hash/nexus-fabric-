@@ -922,6 +922,7 @@ const REFUSAL_EN = {
   'refusal.conebranch_flat_not_applicable': '`flat_side` is given for a concentric cone, which has no flat side.',
   'refusal.conebranch_cut_out_of_range': 'The cut of the branch on the cone is outside the size this build handles.',
   'refusal.conebranch_cut_not_continuous': 'The cut of the branch on the cone is not continuous: the branch touches the cone wall in a way that is not built.',
+  'refusal.review_never_wave': '`{fields}` is a review stop, not an answer. Enter the value or take the hand-drawn exit; no reason or identity can wave it through.',
 };
 const REFUSAL_JA = {
   'refusal.request_not_object': 'リクエストは`JSON`のオブジェクトでなければなりません。',
@@ -1046,6 +1047,7 @@ const REFUSAL_JA = {
   'refusal.conebranch_flat_not_applicable': '同心の円すいには平らな側がないのに `flat_side` が入力されています。',
   'refusal.conebranch_cut_out_of_range': '円すい上の枝の切り口がこの版の扱える大きさを超えています。',
   'refusal.conebranch_cut_not_continuous': '円すい上の枝の切り口が連続していません。枝が円すいの壁に当たる形が未対応です。',
+  'refusal.review_never_wave': '`{fields}` はレビューの停止項目です。受理できません。値を入力するか手描きの出口を使ってください。理由や権限では見過ごせません。',
 };
 Object.assign(EN, REFUSAL_EN);
 Object.assign(JA, REFUSAL_JA);

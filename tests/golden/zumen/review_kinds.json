@@ -1,0 +1,380 @@
+[
+  {
+    "file": "E_tee_public.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "E_tee_public.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "F_tee_same.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "G2_tee_claude.json",
+    "kind": "tee_mount_note",
+    "part": "2",
+    "code": "tee_mount_note"
+  },
+  {
+    "file": "G2_tee_claude.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "G2_tee_claude.json",
+    "kind": "unreadable:0",
+    "part": null,
+    "code": "unreadable"
+  },
+  {
+    "file": "G2_tee_claude.json",
+    "kind": "unreadable:1",
+    "part": null,
+    "code": "unreadable"
+  },
+  {
+    "file": "G2_tee_claude.json",
+    "kind": "unreadable:2",
+    "part": null,
+    "code": "unreadable"
+  },
+  {
+    "file": "G_tee_claude.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "G_tee_claude.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "H_branch_cross.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "H_branch_cross.json",
+    "kind": "mass",
+    "part": "2-1",
+    "code": "mass"
+  },
+  {
+    "file": "H_branch_cross.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "H_branch_drain.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "H_branch_valve.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "H_lateral.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "H_lateral.json",
+    "kind": "mass",
+    "part": "2",
+    "code": "mass"
+  },
+  {
+    "file": "H_lateral.json",
+    "kind": "mass",
+    "part": "3",
+    "code": "mass"
+  },
+  {
+    "file": "H_lateral.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "H_pad_split.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "H_pad_split.json",
+    "kind": "mass",
+    "part": "3",
+    "code": "mass"
+  },
+  {
+    "file": "H_pad_split.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "H_plate.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "H_plate.json",
+    "kind": "mass",
+    "part": "2",
+    "code": "mass"
+  },
+  {
+    "file": "H_plate.json",
+    "kind": "size",
+    "part": "2",
+    "code": "size_vs_table"
+  },
+  {
+    "file": "H_plate.json",
+    "kind": "mass",
+    "part": "3",
+    "code": "mass"
+  },
+  {
+    "file": "H_plate.json",
+    "kind": "size",
+    "part": "3",
+    "code": "size_vs_table"
+  },
+  {
+    "file": "H_plate.json",
+    "kind": "mass",
+    "part": "4",
+    "code": "mass"
+  },
+  {
+    "file": "H_plate.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "H_stock.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "H_stock.json",
+    "kind": "cyl_len",
+    "part": "1",
+    "code": "cyl_len"
+  },
+  {
+    "file": "H_stock.json",
+    "kind": "cyl_len",
+    "part": "3",
+    "code": "cyl_len"
+  },
+  {
+    "file": "H_stock.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "H_tee_rib.json",
+    "kind": "mass",
+    "part": "3",
+    "code": "mass"
+  },
+  {
+    "file": "H_tee_rib.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "K_cone_branch.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "K_cone_branch.json",
+    "kind": "mass",
+    "part": "2",
+    "code": "mass"
+  },
+  {
+    "file": "K_cone_branch.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "K_ecc_branch.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "K_ecc_branch.json",
+    "kind": "mass",
+    "part": "2",
+    "code": "mass"
+  },
+  {
+    "file": "K_ecc_branch.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "K_redbend.json",
+    "kind": "mass_total",
+    "part": null,
+    "code": "mass_total"
+  },
+  {
+    "file": "K_redbend.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "K_redbend.json",
+    "kind": "bend_len",
+    "part": "1",
+    "code": "bend_len"
+  },
+  {
+    "file": "K_redbend.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "K_std_bellmouth.json",
+    "kind": "split_cone",
+    "part": "1",
+    "code": "split_cone"
+  },
+  {
+    "file": "K_std_bellmouth.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "K_std_bend.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "K_std_drain.json",
+    "kind": "mass_total",
+    "part": null,
+    "code": "mass_total"
+  },
+  {
+    "file": "K_std_drain.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "K_std_drain.json",
+    "kind": "mass",
+    "part": "2",
+    "code": "mass"
+  },
+  {
+    "file": "K_std_drain.json",
+    "kind": "mass",
+    "part": "3",
+    "code": "mass"
+  },
+  {
+    "file": "K_std_drain.json",
+    "kind": "mass",
+    "part": "4",
+    "code": "mass"
+  },
+  {
+    "file": "K_std_drain.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "K_std_reducer.json",
+    "kind": "split_cone",
+    "part": "2",
+    "code": "split_cone"
+  },
+  {
+    "file": "K_std_reducer.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "K_std_tee.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "K_yfork.json",
+    "kind": "mass_total",
+    "part": null,
+    "code": "mass_total"
+  },
+  {
+    "file": "K_yfork.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "K_yfork.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  },
+  {
+    "file": "K_yfork_cone.json",
+    "kind": "mass_total",
+    "part": null,
+    "code": "mass_total"
+  },
+  {
+    "file": "K_yfork_cone.json",
+    "kind": "mass",
+    "part": "1",
+    "code": "mass"
+  },
+  {
+    "file": "K_yfork_cone.json",
+    "kind": "stock_rule",
+    "part": null,
+    "code": "stock_rule"
+  }
+]

@@ -12,11 +12,12 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+/// 8: `order_material_rows` and `order_page_notes` (PZ-1 review inputs), on top of 7. Both are additive: no existing
+/// table or column is changed. Rollback to an older build is a restore of the pre-update backup: an older program
+/// refuses a newer schema (see the check below) and does not undo the migration.
 /// 7: `order_results` (the supersede chain of order computes, NFJ-1 L10), on top of 6.
-/// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns). Rollback to an older build
-/// is a restore of the pre-update backup: an older program refuses a newer schema (see the check below) and does not
-/// undo the migration.
-pub const SCHEMA_VERSION: i64 = 7;
+/// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns).
+pub const SCHEMA_VERSION: i64 = 8;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
@@ -42,11 +43,13 @@ CREATE TABLE IF NOT EXISTS order_parts(id INTEGER PRIMARY KEY, order_id INTEGER 
 CREATE TABLE IF NOT EXISTS order_values(id INTEGER PRIMARY KEY, part_id INTEGER NOT NULL REFERENCES order_parts(id), key TEXT NOT NULL, value REAL, text TEXT NOT NULL, bbox_json TEXT, source TEXT NOT NULL, state TEXT NOT NULL, was REAL, proposed_value REAL, proposed_by TEXT NOT NULL, edited_by TEXT, edited_at INTEGER, UNIQUE(part_id, key));
 CREATE TABLE IF NOT EXISTS order_results(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), input_hash TEXT NOT NULL, engine TEXT NOT NULL, state TEXT NOT NULL, supersedes INTEGER, result_json TEXT NOT NULL, counts_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS order_decisions(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), part_id INTEGER, value_id INTEGER, kind TEXT NOT NULL, flag TEXT, source TEXT NOT NULL, agent TEXT, reason TEXT NOT NULL, against_hash TEXT NOT NULL, prev_state TEXT, decided_by TEXT NOT NULL, decided_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, undo_note TEXT);
+CREATE TABLE IF NOT EXISTS order_material_rows(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, no TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL, length TEXT NOT NULL, qty REAL, mass REAL, UNIQUE(order_id, page_no, no));
+CREATE TABLE IF NOT EXISTS order_page_notes(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'note', text TEXT NOT NULL);
 ";
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 15] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 17] = [
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
@@ -72,6 +75,9 @@ const ADDED_COLUMNS: [(&str, &str, &str); 15] = [
     ("users", "must_change", "INTEGER NOT NULL DEFAULT 0"),
     // NFJ-1: "person" or "agent" (the AI operator's service identity); decides the source of an order decision.
     ("users", "kind", "TEXT NOT NULL DEFAULT 'person'"),
+    // PZ-1: a designer claim names the review code it answers and carries the text the designer gave.
+    ("order_decisions", "review_code", "TEXT"),
+    ("order_decisions", "claim_text", "TEXT"),
 ];
 
 /// Append-only at the database level (RC-20). Created at every start, so an older database gets them too.

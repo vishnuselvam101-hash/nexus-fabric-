@@ -1262,6 +1262,11 @@ fn code_of(b: &[u8]) -> Value {
     serde_json::from_slice::<Value>(b).unwrap()["code"].clone()
 }
 
+fn has_ja(text: &str) -> bool {
+    text.chars()
+        .any(|c| ('\u{3040}'..='\u{30ff}').contains(&c) || ('\u{4e00}'..='\u{9fff}').contains(&c))
+}
+
 #[tokio::test]
 async fn l1r2_limit_refusals_are_audited_and_leave_no_partial_write() {
     let t = boot();
@@ -1947,4 +1952,265 @@ async fn l10_a_held_part_gets_no_dxf_and_the_rules_come_from_the_order() {
         .await;
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
     assert_eq!(v["code"], "order_rules");
+}
+
+// ---------------------------------------------------------------- PZ-1: review catalogue and page inputs
+
+#[tokio::test]
+async fn pz1_catalogue_has_both_languages_and_the_never_wave_list() {
+    let t = boot();
+    let c = t.get("/api/review/catalogue").await;
+    let rows = c["catalogue"].as_array().unwrap();
+    assert!(rows.len() >= nf_core::review::codes().len(), "{c}");
+    for r in rows {
+        assert!(!r["code"].as_str().unwrap_or_default().is_empty(), "{r}");
+        assert!(has_ja(r["title_ja"].as_str().unwrap_or_default()), "{r}");
+        assert!(has_ja(r["answers_ja"].as_str().unwrap_or_default()), "{r}");
+    }
+    let never = c["never_wave"].as_array().unwrap();
+    assert_eq!(never.len(), nf_core::review::NEVER_WAVE.len(), "{c}");
+    for code in nf_core::review::NEVER_WAVE {
+        assert!(
+            never.iter().any(|x| x.as_str() == Some(*code)),
+            "{code} missing from the never-wave list: {c}"
+        );
+        let row = rows
+            .iter()
+            .find(|r| r["code"].as_str() == Some(*code))
+            .unwrap_or_else(|| panic!("no catalogue row for {code}"));
+        assert_eq!(row["may_accept"], false, "{row}");
+        assert_eq!(row["never_wave"], true, "{row}");
+    }
+    let shapes = t.get("/api/review/shapes").await;
+    assert!(!shapes["shapes"].as_array().unwrap().is_empty(), "{shapes}");
+}
+
+#[tokio::test]
+async fn pz1_material_rows_and_notes_are_persisted_and_join_the_compute_identity() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let existing = t.get(&format!("/api/orders/{oid}")).await;
+    let part = |no: &str| {
+        existing["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["no"] == no)
+            .unwrap()
+            .clone()
+    };
+    let (p1, p2) = (part("1"), part("2"));
+    let (st, v) = t.call(
+        "PUT",
+        &format!("/api/orders/{oid}/parts"),
+        Some(json!({ "parts": [
+            { "id": p1["id"], "no": "1", "name": "main", "shape": "cylinder", "qty": 2, "page": 1, "table_rows": ["1"] },
+            { "id": p2["id"], "no": "2", "name": "branch", "shape": "tee_branch", "page": 1, "attach_part": "1" }
+        ] })),
+    ).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t.call(
+        "PUT",
+        &format!("/api/orders/{oid}/materials"),
+        Some(json!({ "rows": [
+            { "page": 1, "no": "1", "name": "main", "size": "φ216.3×12", "length": "2000", "qty": 2, "mass": 2.0 },
+            { "page": 1, "no": "9", "name": "loose", "size": "—", "length": "—", "qty": 1, "mass": 0.0 }
+        ] })),
+    ).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(v["rows"], 2);
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/notes"),
+            Some(json!({ "notes": [
+            { "page": 1, "kind": "unit_mass_kg", "text": "5.0" },
+            { "page": 1, "kind": "note", "text": "unreadable: 溶接記号" }
+        ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(v["notes"], 2);
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["material"].as_array().unwrap().len(), 2, "{o}");
+    assert_eq!(o["notes"].as_array().unwrap().len(), 2, "{o}");
+    let (st, first) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{first}");
+    let review = first["review"].as_array().unwrap();
+    let codes: Vec<&str> = review.iter().filter_map(|r| r["code"].as_str()).collect();
+    for code in ["mass_total", "row_unmatched", "unreadable"] {
+        assert!(
+            codes.contains(&code),
+            "{code} missing from review: {review:?}"
+        );
+    }
+    let mass = review.iter().find(|r| r["code"] == "mass_total").unwrap();
+    assert_eq!(mass["level"], "need", "{mass}");
+    let (_, again) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(again["unchanged"], true, "{again}");
+    // a page note is an input just like a value: changing it makes the next compute a new row
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/notes"),
+            Some(json!({ "notes": [
+            { "page": 1, "kind": "unit_mass_kg", "text": "5.0" },
+            { "page": 1, "kind": "note", "text": "unreadable: 別の記号" }
+        ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (_, third) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(third["unchanged"], false, "{third}");
+    assert_ne!(third["id"], first["id"]);
+}
+
+#[tokio::test]
+async fn pz1_never_wave_kinds_refuse_accept_for_a_person_and_an_agent() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let dec = format!("/api/orders/{oid}/decisions");
+    for (kind, code, field) in [
+        ("accept_flag", "FLAT_STOP", "flag"),
+        ("accept", "split_ring", "code"),
+    ] {
+        let body = if field == "flag" {
+            json!({ "kind": kind, "part": "1", "key": "D", "flag": code, "reason": "trying to clear the stop" })
+        } else {
+            json!({ "kind": kind, "part": "1", "code": code, "reason": "trying to clear the stop" })
+        };
+        let (st, v) = t.call("POST", &dec, Some(body)).await;
+        assert_eq!(
+            (st, v["code"].as_str()),
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Some(nf_core::refusal::REVIEW_NEVER_WAVE)
+            ),
+            "{v}"
+        );
+    }
+    let agent = add_agent(&t, "operator-ai");
+    let ac = [("cookie", agent.as_str())];
+    let (st, _, b) = t.send(
+        "POST",
+        &dec,
+        Some(json!({ "kind": "accept", "part": "1", "code": "missing", "reason": "the AI says it is fine" })),
+        &ac,
+    ).await;
+    assert_eq!(
+        (st, code_of(&b)),
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            json!(nf_core::refusal::REVIEW_NEVER_WAVE)
+        ),
+        "{}",
+        String::from_utf8_lossy(&b)
+    );
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_decisions"), 0);
+    let refused = audit_details(&t, "order_refused");
+    assert_eq!(
+        refused
+            .iter()
+            .filter(|x| x.contains(nf_core::refusal::REVIEW_NEVER_WAVE))
+            .count(),
+        3,
+        "{refused:?}"
+    );
+}
+
+#[tokio::test]
+async fn pz1_hand_drawn_exit_and_designer_claim_are_undoable_and_go_stale() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let dec = format!("/api/orders/{oid}/decisions");
+    let (st, v) = t.call(
+        "POST",
+        &dec,
+        Some(json!({ "kind": "claim", "part": "1", "code": "mass_total", "claim": "合計は仮の値" })),
+    ).await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("decision_reason")),
+        "{v}"
+    );
+    let (st, h) = t.call(
+        "POST",
+        &dec,
+        Some(json!({ "kind": "hand_drawn", "part": "1", "reason": "the drawing was issued by hand" })),
+    ).await;
+    assert_eq!(st, StatusCode::OK, "{h}");
+    let hid = h["id"].as_i64().unwrap();
+    assert_eq!(
+        (
+            h["kind"].clone(),
+            h["source"].clone(),
+            h["effective"].clone()
+        ),
+        (json!("hand_drawn"), json!("person"), json!(true))
+    );
+    let (st, c) = t.call(
+        "POST",
+        &dec,
+        Some(json!({ "kind": "claim", "part": "1", "code": "mass_total", "claim": "合計は仮の値", "reason": "the designer wrote this on the sheet" })),
+    ).await;
+    assert_eq!(st, StatusCode::OK, "{c}");
+    let cid = c["id"].as_i64().unwrap();
+    assert_eq!(c["code"], json!("mass_total"), "{c}");
+    assert_eq!(c["claim"], json!("合計は仮の値"), "{c}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(decision(&o, hid)["effective"], true, "{o}");
+    assert_eq!(decision(&o, cid)["effective"], true, "{o}");
+    let (st, u) = t
+        .call(
+            "POST",
+            &format!("{dec}/{cid}/undo"),
+            Some(json!({ "note": "the claim text was wrong" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{u}");
+    assert_eq!(
+        (u["undone"].clone(), u["effective"].clone()),
+        (json!(true), json!(false))
+    );
+    // neither exit changes a value or releases a cut file; an edit to the material table makes it stale
+    let (st, v) = t.call(
+        "PUT",
+        &format!("/api/orders/{oid}/materials"),
+        Some(json!({ "rows": [
+            { "page": 1, "no": "1", "name": "main", "size": "φ216.3×12", "length": "2000", "qty": 2, "mass": 2.0 }
+        ] })),
+    ).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(decision(&o, hid)["stale"], true, "{o}");
+    assert_eq!(decision(&o, hid)["effective"], false, "{o}");
+    assert_eq!(decision(&o, cid)["undone"], true, "{o}");
+    let (st, u) = t
+        .call(
+            "POST",
+            &format!("{dec}/{hid}/undo"),
+            Some(json!({ "note": "superseded by the material table" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{u}");
+    assert_eq!(u["undone"], true);
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_decisions"), 2);
 }

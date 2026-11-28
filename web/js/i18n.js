@@ -806,6 +806,7 @@ const EN = {
   "refusal.stored_request_unreadable": "The stored request cannot be read.",
   "refusal.corrected_result_failed_verification": "The corrected request produced a pattern that failed its own verification.",
   "refusal.no_pattern_produced": "The request produced no pattern and stated no rule.",
+  "refusal.review_never_wave": "`{fields}` is a review stop, not an answer. Enter the value or take the hand-drawn exit; no reason or identity can wave it through.",
   // keys the ported screens build at run time
   "math.result.1": "A flat pattern per part with its curves, lengths and estimated numerical error.",
   "math.result.2": "Independent verification checks with primary and reference values.",
@@ -1620,6 +1621,7 @@ const JA = {
   "refusal.stored_request_unreadable": "保存された依頼を読めません。",
   "refusal.corrected_result_failed_verification": "訂正後の依頼から得た展開図が、自身の検証に失敗しました。",
   "refusal.no_pattern_produced": "この依頼は展開図を生成せず、規則も示されませんでした。",
+  "refusal.review_never_wave": "`{fields}` はレビューの停止項目です。受理できません。値を入力するか手描きの出口を使ってください。理由や権限では見過ごせません。",
   // keys the ported screens build at run time
   "math.result.1": "部材ごとの展開図（曲線、長さ、数値誤差の推定値）。",
   "math.result.2": "独立した検算による検証項目（計算値と参照値）。",

@@ -91,6 +91,13 @@ pub(crate) fn routes() -> Router<Arc<App>> {
             "/api/orders/{oid}/decisions/{did}/undo",
             post(undo_decision),
         )
+        .route(
+            "/api/orders/{oid}/materials",
+            get(get_materials).put(put_materials),
+        )
+        .route("/api/orders/{oid}/notes", get(get_notes).put(put_notes))
+        .route("/api/review/catalogue", get(review_catalogue))
+        .route("/api/review/shapes", get(review_shapes))
 }
 
 // ---------------------------------------------------------------- the nf-raster seam
@@ -253,8 +260,9 @@ fn record_alone(app: &App, who: &str, action: &str, detail: &str) -> Result<(), 
 }
 
 /// Answers a write. A refusal that is evidence is written down in its own transaction, after the refused
-/// request's transaction has rolled back: a limit (parts_limit, values_limit), any conflict (409), and any
-/// refusal of the AI operator (403) and a decision or upload the AI operator sent without a reason (422). An AI operator's refused parts edit keeps its reason row too.
+/// request's transaction has rolled back: a limit (parts_limit, values_limit), any conflict (409), an attempt
+/// to wave a never-wave review kind (422), and any refusal of the AI operator (403) and a decision or upload
+/// the AI operator sent without a reason (422). An AI operator's refused parts edit keeps its reason row too.
 async fn settle(app: &App, u: &User, oid: i64, what: &str, note: String, res: Api) -> Api {
     let resp = match res {
         Ok(r) => return Ok(r),
@@ -272,6 +280,7 @@ async fn settle(app: &App, u: &User, oid: i64, what: &str, note: String, res: Ap
     let limit = matches!(code.as_str(), "parts_limit" | "values_limit");
     if limit
         || parts.status == StatusCode::CONFLICT
+        || code == nf_core::refusal::REVIEW_NEVER_WAVE
         || (agent && parts.status == StatusCode::FORBIDDEN)
         || (agent && code == "decision_reason")
     {
@@ -596,6 +605,36 @@ fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
         )?;
         all.push(json!([head, vals]));
     }
+    // PZ-1: the material table and the page notes are inputs to the review; changing either makes an earlier
+    // decision (or "checked" mark) stale rather than silently applying to different page data.
+    let materials = q_all(
+        db,
+        "SELECT page_no, no, name, size, length, qty, mass FROM order_material_rows WHERE order_id = ? ORDER BY page_no, no, id",
+        params![oid],
+        |r| {
+            Ok(json!([
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, String>(4)?,
+                r.get::<_, Option<f64>>(5)?.map(f64::to_bits),
+                r.get::<_, Option<f64>>(6)?.map(f64::to_bits),
+            ]))
+        },
+    )?;
+    let notes = q_all(
+        db,
+        "SELECT page_no, kind, text FROM order_page_notes WHERE order_id = ? ORDER BY id",
+        params![oid],
+        |r| {
+            Ok(json!([
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ]))
+        },
+    )?;
     // an accepted flag, and its undo, change what a "checked" mark was made against
     let accepts = q_all(
         db,
@@ -611,7 +650,9 @@ fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
         },
     )?;
     Ok(nf_core::sha256_hex(
-        json!([files, pages, all, accepts]).to_string().as_bytes(),
+        json!([files, pages, all, accepts, materials, notes])
+            .to_string()
+            .as_bytes(),
     ))
 }
 
@@ -1813,10 +1854,19 @@ async fn post_decision(
 fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
     let body = request_json(headers, raw)?;
     let kind = text_field(&body, "kind", 16)?.unwrap_or_default();
-    if !["confirm", "accept_flag", "mark_checked"].contains(&kind.as_str()) {
+    if ![
+        "confirm",
+        "accept_flag",
+        "accept",
+        "mark_checked",
+        "hand_drawn",
+        "claim",
+    ]
+    .contains(&kind.as_str())
+    {
         return Err(unprocessable(
             "decision_kind",
-            "'kind' must be confirm, accept_flag or mark_checked",
+            "'kind' must be confirm, accept_flag, accept, mark_checked, hand_drawn or claim",
         ));
     }
     // the source follows from who is signed in; a body that names a different one is refused
@@ -1841,7 +1891,56 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
     }
     agent_reason(u, &reason)?;
     let agent = (u.kind == "agent").then_some(u.username.clone());
-    let flag = text_field(&body, "flag", 64)?.filter(|s| !s.is_empty());
+    let flag_kind = matches!(kind.as_str(), "accept_flag" | "accept");
+    // `accept` names the review code directly; `accept_flag` keeps the older field name.
+    let flag = if kind == "accept" || kind == "claim" {
+        text_field(&body, "code", 64)?.filter(|s| !s.is_empty())
+    } else {
+        text_field(&body, "flag", 64)?.filter(|s| !s.is_empty())
+    };
+    if flag_kind
+        && flag
+            .as_deref()
+            .and_then(rv::row)
+            .is_some_and(|r| !r.may_accept)
+    {
+        // A never-wave kind is a stop, not an answer. No reason and no identity can turn it into one: the
+        // same refusal covers a person and the AI operator, and `settle` puts it on the audit log.
+        return Err(refuse(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            nf_core::refusal::REVIEW_NEVER_WAVE,
+            &format!(
+                "{} is a review stop that cannot be accepted; enter the value or take the hand-drawn exit instead",
+                flag.as_deref().unwrap_or_default()
+            ),
+        ));
+    }
+    if matches!(kind.as_str(), "hand_drawn" | "claim") && reason.trim().is_empty() {
+        return Err(unprocessable(
+            "decision_reason",
+            "a hand-drawn exit or a designer claim needs a reason",
+        ));
+    }
+    let claim_code = if kind == "claim" { flag.clone() } else { None };
+    let claim_text = if kind == "claim" {
+        text_field(&body, "claim", MAX_NOTE_CHARS)?.filter(|s| !s.is_empty())
+    } else {
+        None
+    };
+    if kind == "claim" {
+        if claim_text.is_none() {
+            return Err(unprocessable(
+                "claim_text",
+                "a designer claim needs the text it claims",
+            ));
+        }
+        if claim_code.as_deref().and_then(rv::row).is_none() {
+            return Err(unprocessable(
+                "claim_code",
+                "'code' must name a review catalogue code",
+            ));
+        }
+    }
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
@@ -1861,6 +1960,22 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
     };
     let prev_state: String;
     if kind == "mark_checked" {
+        d.against = order_fingerprint(&tx, oid)?;
+    } else if matches!(kind.as_str(), "hand_drawn" | "claim") {
+        // Neither exit changes a value or releases a file. It is tied to the whole order so an edit makes it stale.
+        let part = body
+            .get("part")
+            .ok_or_else(|| unprocessable("value_part", "'part' is required"))?;
+        let (pid, pno, pstate) = find_part(&tx, oid, part)?;
+        if pstate == "EXCLUDED" {
+            return Err(refuse(
+                StatusCode::CONFLICT,
+                "part_excluded",
+                &format!("part '{pno}' is excluded"),
+            ));
+        }
+        d.part = Some(pid);
+        d.flag = claim_code.as_deref();
         d.against = order_fingerprint(&tx, oid)?;
     } else {
         let part = body
@@ -1920,7 +2035,7 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
                 &format!("part '{pno}' {key} is confirmed already; undo that decision first"),
             ));
         }
-        if kind == "accept_flag" {
+        if flag_kind {
             if !flag.as_deref().is_some_and(valid_key) {
                 return Err(unprocessable(
                     "decision_flag",
@@ -1944,6 +2059,12 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
         }
     }
     let did = insert_decision(&tx, &d)?;
+    if kind == "claim" || kind == "hand_drawn" {
+        tx.execute(
+            "UPDATE order_decisions SET review_code = ?, claim_text = ? WHERE id = ?",
+            params![claim_code.as_deref(), claim_text.as_deref(), did],
+        )?;
+    }
     if let Some(pid) = d.part {
         recompute_part_state(&tx, pid)?;
     }
@@ -2097,7 +2218,7 @@ fn decision_view(db: &Connection, oid: i64, only: Option<i64>) -> Result<Vec<Val
     let order_fp = order_fingerprint(db, oid)?;
     let rows = q_all(
         db,
-        "SELECT d.id, d.part_id, p.no, d.value_id, v.key, v.value, v.text, d.kind, d.flag, d.source, d.agent, d.reason, d.against_hash, d.decided_by, d.decided_at, d.undone_by, d.undone_at, d.undo_note, v.bbox_json, v.source
+        "SELECT d.id, d.part_id, p.no, d.value_id, v.key, v.value, v.text, d.kind, d.flag, d.source, d.agent, d.reason, d.against_hash, d.decided_by, d.decided_at, d.undone_by, d.undone_at, d.undo_note, v.bbox_json, v.source, d.review_code, d.claim_text
          FROM order_decisions d LEFT JOIN order_parts p ON p.id = d.part_id LEFT JOIN order_values v ON v.id = d.value_id
          WHERE d.order_id = ?1 AND (?2 IS NULL OR d.id = ?2) ORDER BY d.id",
         params![oid, only],
@@ -2116,7 +2237,8 @@ fn decision_view(db: &Connection, oid: i64, only: Option<i64>) -> Result<Vec<Val
             Ok(json!({
                 "id": r.get::<_, i64>(0)?, "part_id": r.get::<_, Option<i64>>(1)?, "part": r.get::<_, Option<String>>(2)?,
                 "value_id": r.get::<_, Option<i64>>(3)?, "key": key, "current_value": value, "kind": r.get::<_, String>(7)?,
-                "flag": r.get::<_, Option<String>>(8)?, "source": r.get::<_, String>(9)?, "agent": r.get::<_, Option<String>>(10)?,
+                "flag": r.get::<_, Option<String>>(8)?, "code": r.get::<_, Option<String>>(20)?,
+                "claim": r.get::<_, Option<String>>(21)?, "source": r.get::<_, String>(9)?, "agent": r.get::<_, Option<String>>(10)?,
                 "reason": r.get::<_, String>(11)?, "decided_by": r.get::<_, String>(13)?, "decided_at": r.get::<_, i64>(14)?,
                 "undone": undone, "undone_by": r.get::<_, Option<String>>(15)?, "undone_at": r.get::<_, Option<i64>>(16)?,
                 "undo_note": r.get::<_, Option<String>>(17)?,
@@ -2212,14 +2334,394 @@ async fn get_order(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) ->
                    "rules": serde_json::from_str::<Value>(&head.rules).unwrap_or(json!({})),
                    "created_by": head.created_by, "created_at": head.created_at },
         "files": files, "pages": pages, "parts": parts, "decisions": decisions, "issues": issues,
+        "material": material_table_json(&db, oid)?, "notes": notes_json(&db, oid)?,
         "checked": checked,
         "limits": { "files": MAX_ORDER_FILES, "pages": MAX_ORDER_PAGES, "parts": MAX_ORDER_PARTS, "upload_mib": membrane::MAX_UPLOAD_BYTES / (1024 * 1024) },
     }))
 }
 
-// ---------------------------------------------------------------- compute (NFJ-1 L10)
+// ---------------------------------------------------------------- review inputs (PZ-1)
 
 use nf_core::order_compute as oc;
+use nf_core::review as rv;
+
+const MAX_MATERIAL_ROWS: usize = 200;
+const MAX_MATERIAL_CELL: usize = 80;
+const MAX_PAGE_NOTES: usize = 200;
+
+/// One stored material-table row, as read from a page. Text cells keep the reading; numbers are parsed once here
+/// so the API and the review compute cannot disagree about what the row says.
+#[derive(Debug, Clone)]
+struct MaterialInput {
+    page: i64,
+    no: String,
+    name: String,
+    size: String,
+    length: String,
+    qty: Option<f64>,
+    mass: Option<f64>,
+}
+
+fn optional_number(v: Option<&Value>, key: &str) -> Result<Option<f64>, ApiError> {
+    match v {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Number(n)) => n
+            .as_f64()
+            .filter(|f| f.is_finite())
+            .map(Some)
+            .ok_or_else(|| {
+                unprocessable("field_type", &format!("'{key}' must be a finite number"))
+            }),
+        Some(Value::String(s)) => Ok(rv::number(s)),
+        Some(_) => Err(unprocessable(
+            "field_type",
+            &format!("'{key}' must be a number or a text reading of one"),
+        )),
+    }
+}
+
+fn page_of(db: &Connection, oid: i64, page: i64) -> Result<(), ApiError> {
+    let found = q_count(
+        db,
+        "SELECT COUNT(*) FROM order_pages WHERE order_id = ? AND page_no = ?",
+        params![oid, page],
+    )?;
+    if found != 1 {
+        return Err(unprocessable(
+            "material_page",
+            &format!("page {page} is not part of this order"),
+        ));
+    }
+    Ok(())
+}
+
+fn material_table_json(db: &Connection, oid: i64) -> Result<Value, ApiError> {
+    let rows = q_all(
+        db,
+        "SELECT id, page_no, no, name, size, length, qty, mass FROM order_material_rows WHERE order_id = ? ORDER BY page_no, no",
+        params![oid],
+        |r| {
+            Ok(
+                json!({ "id": r.get::<_, i64>(0)?, "page": r.get::<_, i64>(1)?, "no": r.get::<_, String>(2)?,
+                       "name": r.get::<_, String>(3)?, "size": r.get::<_, String>(4)?, "length": r.get::<_, String>(5)?,
+                       "qty": r.get::<_, Option<f64>>(6)?, "mass": r.get::<_, Option<f64>>(7)? }),
+            )
+        },
+    )?;
+    Ok(json!(rows))
+}
+
+fn notes_json(db: &Connection, oid: i64) -> Result<Value, ApiError> {
+    let notes = q_all(
+        db,
+        "SELECT id, page_no, kind, text FROM order_page_notes WHERE order_id = ? ORDER BY id",
+        params![oid],
+        |r| {
+            Ok(
+                json!({ "id": r.get::<_, i64>(0)?, "page": r.get::<_, i64>(1)?,
+                       "kind": r.get::<_, String>(2)?, "text": r.get::<_, String>(3)? }),
+            )
+        },
+    )?;
+    Ok(json!(notes))
+}
+
+async fn get_materials(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) -> Api {
+    let db = app.db();
+    let u = auth_db(&db, &app, &headers)?;
+    guard_order(&app, &db, &u, oid, "view material table")?;
+    ok(json!({ "rows": material_table_json(&db, oid)? }))
+}
+
+async fn put_materials(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path(oid): Path<i64>,
+    raw: Bytes,
+) -> Api {
+    let u = write_access(&app, &headers, oid, "edit material table")?;
+    let res = put_materials_do(&app, &headers, &u, oid, &raw);
+    settle(
+        &app,
+        &u,
+        oid,
+        "material table",
+        body_text(&raw, "note"),
+        res,
+    )
+    .await
+}
+
+fn put_materials_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
+    let body = request_json(headers, raw)?;
+    let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
+    agent_reason(u, &note)?;
+    let rows = body
+        .get("rows")
+        .and_then(Value::as_array)
+        .ok_or_else(|| unprocessable("material_rows", "'rows' must be a list"))?;
+    if rows.len() > MAX_MATERIAL_ROWS {
+        return Err(unprocessable(
+            "material_rows",
+            &format!("at most {MAX_MATERIAL_ROWS} material rows are allowed"),
+        ));
+    }
+    let mut parsed = Vec::new();
+    for r in rows {
+        let page = r.get("page").and_then(Value::as_i64).unwrap_or(1);
+        if page < 1 {
+            return Err(unprocessable("material_page", "'page' must be at least 1"));
+        }
+        let cell = |k: &str| -> Result<String, ApiError> {
+            Ok(text_field(r, k, MAX_MATERIAL_CELL)?.unwrap_or_default())
+        };
+        parsed.push(MaterialInput {
+            page,
+            no: cell("no")?,
+            name: cell("name")?,
+            size: cell("size")?,
+            length: cell("length")?,
+            qty: optional_number(r.get("qty"), "qty")?,
+            mass: optional_number(r.get("mass"), "mass")?,
+        });
+    }
+    let mut db = app.db();
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    still_writer(&tx, u)?;
+    guard_order(app, &tx, u, oid, "edit material table")?;
+    for r in &parsed {
+        page_of(&tx, oid, r.page)?;
+    }
+    tx.execute(
+        "DELETE FROM order_material_rows WHERE order_id = ?",
+        params![oid],
+    )?;
+    for r in &parsed {
+        tx.execute(
+            "INSERT INTO order_material_rows(order_id, page_no, no, name, size, length, qty, mass) VALUES (?,?,?,?,?,?,?,?)",
+            params![oid, r.page, r.no, r.name, r.size, r.length, r.qty, r.mass],
+        )?;
+    }
+    app.audit(
+        &tx,
+        &u.username,
+        "order_material_rows",
+        &format!(
+            "order #{oid} material table replaced with {} rows",
+            parsed.len()
+        ),
+    )?;
+    tx.commit()?;
+    ok(json!({ "rows": parsed.len(), "material": material_table_json(&db, oid)? }))
+}
+
+async fn get_notes(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) -> Api {
+    let db = app.db();
+    let u = auth_db(&db, &app, &headers)?;
+    guard_order(&app, &db, &u, oid, "view page notes")?;
+    ok(json!({ "notes": notes_json(&db, oid)? }))
+}
+
+async fn put_notes(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw: Bytes) -> Api {
+    let u = write_access(&app, &headers, oid, "edit page notes")?;
+    let res = put_notes_do(&app, &headers, &u, oid, &raw);
+    settle(&app, &u, oid, "page notes", body_text(&raw, "note"), res).await
+}
+
+fn put_notes_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
+    let body = request_json(headers, raw)?;
+    let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
+    agent_reason(u, &note)?;
+    let list = body
+        .get("notes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| unprocessable("page_notes", "'notes' must be a list"))?;
+    if list.len() > MAX_PAGE_NOTES {
+        return Err(unprocessable(
+            "page_notes",
+            &format!("at most {MAX_PAGE_NOTES} page notes are allowed"),
+        ));
+    }
+    let mut parsed: Vec<(i64, &'static str, String)> = Vec::new();
+    for n in list {
+        let page = n.get("page").and_then(Value::as_i64).unwrap_or(1);
+        if page < 1 {
+            return Err(unprocessable("page_notes", "'page' must be at least 1"));
+        }
+        let kind = text_field(n, "kind", 16)?.unwrap_or_else(|| "note".to_string());
+        if !["note", "seam_from", "unit_mass_kg"].contains(&kind.as_str()) {
+            return Err(unprocessable(
+                "page_note_kind",
+                "'kind' must be note, seam_from or unit_mass_kg",
+            ));
+        }
+        let text = text_field(n, "text", MAX_NOTE_CHARS)?.unwrap_or_default();
+        parsed.push((
+            page,
+            match kind.as_str() {
+                "seam_from" => "seam_from",
+                "unit_mass_kg" => "unit_mass_kg",
+                _ => "note",
+            },
+            text,
+        ));
+    }
+    let mut db = app.db();
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    still_writer(&tx, u)?;
+    guard_order(app, &tx, u, oid, "edit page notes")?;
+    for (page, _, _) in &parsed {
+        page_of(&tx, oid, *page)?;
+    }
+    tx.execute(
+        "DELETE FROM order_page_notes WHERE order_id = ?",
+        params![oid],
+    )?;
+    for (page, kind, text) in &parsed {
+        tx.execute(
+            "INSERT INTO order_page_notes(order_id, page_no, kind, text) VALUES (?,?,?,?)",
+            params![oid, page, kind, text],
+        )?;
+    }
+    app.audit(
+        &tx,
+        &u.username,
+        "order_page_notes",
+        &format!(
+            "order #{oid} page notes replaced with {} rows",
+            parsed.len()
+        ),
+    )?;
+    tx.commit()?;
+    ok(json!({ "notes": parsed.len(), "page_notes": notes_json(&db, oid)? }))
+}
+
+async fn review_catalogue(State(app): Ctx, headers: HeaderMap) -> Api {
+    let db = app.db();
+    auth_db(&db, &app, &headers)?;
+    ok(json!({ "catalogue": rv::catalogue_json(), "never_wave": rv::NEVER_WAVE }))
+}
+
+async fn review_shapes(State(app): Ctx, headers: HeaderMap) -> Api {
+    let db = app.db();
+    auth_db(&db, &app, &headers)?;
+    ok(json!({ "shapes": oc::shape_catalogue_json() }))
+}
+
+/// The page-level inputs of a compute: material rows, page notes and the page count. A row is owned by the first
+/// part whose `table_rows` names it; the rest of the parts stay in `parts` so a shared row is reported once.
+fn load_review_context(db: &Connection, oid: i64) -> Result<rv::ReviewContext, ApiError> {
+    let pages = q_count(
+        db,
+        "SELECT COUNT(*) FROM order_pages WHERE order_id = ? AND skipped = 0",
+        params![oid],
+    )? as usize;
+    let mut ctx = rv::ReviewContext {
+        pages,
+        strict_quantity: true,
+        ..Default::default()
+    };
+    let notes = q_all(
+        db,
+        "SELECT kind, text FROM order_page_notes WHERE order_id = ? AND kind <> 'unit_mass_kg' ORDER BY id",
+        params![oid],
+        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+    )?;
+    for (kind, text) in notes {
+        if kind == "seam_from" {
+            ctx.seam_from = Some(text);
+        } else {
+            ctx.page_notes.push(text);
+        }
+    }
+    ctx.unit_mass_kg = db
+        .query_row(
+            "SELECT text FROM order_page_notes WHERE order_id = ? AND kind = 'unit_mass_kg' ORDER BY id LIMIT 1",
+            params![oid],
+            |r| r.get::<_, String>(0),
+        )
+        .optional()?
+        .and_then(|t| rv::number(&t));
+    let owners = q_all(
+        db,
+        "SELECT no, table_rows_json FROM order_parts WHERE order_id = ? AND state <> 'EXCLUDED' ORDER BY no",
+        params![oid],
+        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+    )?;
+    let rows = q_all(
+        db,
+        "SELECT no, name, size, length, qty, mass FROM order_material_rows WHERE order_id = ? ORDER BY page_no, no",
+        params![oid],
+        |r| {
+            Ok(rv::MaterialRow {
+                no: r.get::<_, String>(0)?,
+                name: r.get::<_, String>(1)?,
+                size: r.get::<_, String>(2)?,
+                length: r.get::<_, String>(3)?,
+                qty: r.get::<_, Option<f64>>(4)?,
+                mass: r.get::<_, Option<f64>>(5)?,
+                part: None,
+                parts: Vec::new(),
+            })
+        },
+    )?;
+    for mut row in rows {
+        for (no, json) in &owners {
+            let names: Vec<String> = serde_json::from_str(json).unwrap_or_default();
+            if names
+                .iter()
+                .any(|n| n == &row.no || n == &row.name || n == &format!("row {}", row.no))
+            {
+                if row.part.is_none() {
+                    row.part = Some(no.clone());
+                }
+                row.parts.push(no.clone());
+            }
+        }
+        // A row with no owner stays in the context: the review reports it as `row_unmatched`.
+        ctx.material_rows.push(row);
+    }
+    ctx.ring_split_note = ctx
+        .page_notes
+        .iter()
+        .any(|n| n.contains("輪") && n.contains("割"));
+    ctx.pad_split_note = ctx
+        .page_notes
+        .iter()
+        .any(|n| n.contains("補強板") && n.contains("割"));
+    Ok(ctx)
+}
+
+/// The part of a compute's identity that comes from the page material table and notes.
+fn review_input_fp(db: &Connection, oid: i64) -> Result<Value, ApiError> {
+    let c = load_review_context(db, oid)?;
+    Ok(json!([
+        c.pages,
+        c.strict_quantity,
+        c.seam_from,
+        c.unit_mass_kg,
+        c.page_notes,
+        c.ring_split_note,
+        c.pad_split_note,
+        c.material_rows
+            .iter()
+            .map(|r| {
+                json!([
+                    r.no,
+                    r.name,
+                    r.size,
+                    r.length,
+                    r.qty.map(f64::to_bits),
+                    r.mass.map(f64::to_bits),
+                    r.part,
+                    r.parts
+                ])
+            })
+            .collect::<Vec<_>>()
+    ]))
+}
+
+// ---------------------------------------------------------------- compute (NFJ-1 L10)
 
 /// The confirmed state of the order as the compute reads it, and the hash that identifies it. Only CONFIRMED and
 /// CORRECTED values are computed (a PROPOSED value is held by the compute itself).
@@ -2301,8 +2803,9 @@ fn load_compute_input(
         ]));
         parts.push(p);
     }
+    let review = review_input_fp(db, oid)?;
     let hash = nf_core::sha256_hex(
-        json!([nf_core::ENGINE_VERSION, rules_v, fp])
+        json!([nf_core::ENGINE_VERSION, rules_v, fp, review])
             .to_string()
             .as_bytes(),
     );
@@ -2336,6 +2839,11 @@ fn issues_json(res: &oc::OrderResult) -> Vec<Value> {
         .collect()
 }
 
+/// Page-level review issues of a compute: the ZK kinds the part-level hold list does not carry.
+fn review_json(res: &oc::OrderResult) -> Value {
+    serde_json::to_value(&res.review_issues).unwrap_or(json!([]))
+}
+
 async fn compute(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw: Bytes) -> Api {
     let u = write_access(&app, &headers, oid, "compute order")?;
     let note = if raw.is_empty() {
@@ -2359,15 +2867,20 @@ async fn compute_do(app: Arc<App>, u: &User, oid: i64, note: &str) -> Api {
             "the order has no parts to compute",
         ));
     }
-    // the maths runs outside the database lock
-    let result = tokio::task::spawn_blocking(move || oc::compute_order(&parts, &rules))
-        .await
-        .map_err(|_| {
-            fail(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "the compute stopped unexpectedly",
-            )
-        })?;
+    // the maths runs outside the database lock, with the page review inputs read under the same hash as the parts
+    let ctx = {
+        let db = app.db();
+        load_review_context(&db, oid)?
+    };
+    let result =
+        tokio::task::spawn_blocking(move || rv::compute_order_with_context(&parts, &rules, &ctx))
+            .await
+            .map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "the compute stopped unexpectedly",
+                )
+            })?;
     let counts = counts_of(&result);
     let body = oc::to_json(&result);
     let mut db = app.db();
@@ -2403,7 +2916,8 @@ async fn compute_do(app: Arc<App>, u: &User, oid: i64, note: &str) -> Api {
         return ok(
             json!({ "id": id, "supersedes": Value::Null, "unchanged": true, "engine": nf_core::ENGINE_VERSION,
                           "counts": serde_json::from_str::<Value>(&counts_s).unwrap_or(Value::Null),
-                          "result": stored_v, "material": material_json(&res_obj), "issues": issues_json(&res_obj) }),
+                          "result": stored_v, "material": material_json(&res_obj), "issues": issues_json(&res_obj),
+                          "review": review_json(&res_obj) }),
         );
     }
     let prev = last.map(|l| l.0);
@@ -2430,7 +2944,8 @@ async fn compute_do(app: Arc<App>, u: &User, oid: i64, note: &str) -> Api {
     tx.commit()?;
     ok(
         json!({ "id": id, "supersedes": prev, "unchanged": false, "engine": nf_core::ENGINE_VERSION, "counts": counts,
-               "result": body, "material": material_json(&result), "issues": issues_json(&result) }),
+               "result": body, "material": material_json(&result), "issues": issues_json(&result),
+               "review": review_json(&result) }),
     )
 }
 
