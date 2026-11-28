@@ -231,27 +231,33 @@ impl Ref {
         (dot(p, &self.u[i]) - rp * self.psi[i].sin()) / self.psi[i].cos()
     }
 
-    /// Cut of leg `i` by the joint PLANES of the sphere `rp`, the generator on the surface offset `ao`: root of
-    /// `g_i - g_j` along the generator by bisection (monotone in s), the larger of the two neighbours.
-    pub fn plane_cut(&self, i: usize, th: f64, ao: f64, rp: f64) -> f64 {
-        let mut best = f64::NEG_INFINITY;
-        for &j in &NB[i] {
-            let f = |s: f64| {
-                let p = self.point(i, s, th, ao);
-                self.g(i, rp, &p) - self.g(j, rp, &p)
-            };
-            let (mut lo, mut hi) = (-300.0 * self.rs, 300.0 * self.rs);
-            for _ in 0..200 {
-                let mid = 0.5 * (lo + hi);
-                if f(mid) < 0.0 {
-                    lo = mid;
-                } else {
-                    hi = mid;
-                }
+    /// Root of `g_i - g_j` (the joint plane of leg `i` with its neighbour `j`, sphere radius `rp`) along the generator `th`
+    /// of leg `i` on the surface offset `ao`, by bisection on `+-300 rs` (`g_i - g_j` is affine and increasing in `s` for
+    /// every wye the engine builds, so the root is unique and the kept side of the plane is `s >=` root).
+    pub fn plane_root(&self, i: usize, j: usize, th: f64, ao: f64, rp: f64) -> f64 {
+        let f = |s: f64| {
+            let p = self.point(i, s, th, ao);
+            self.g(i, rp, &p) - self.g(j, rp, &p)
+        };
+        let (mut lo, mut hi) = (-300.0 * self.rs, 300.0 * self.rs);
+        for _ in 0..200 {
+            let mid = 0.5 * (lo + hi);
+            if f(mid) < 0.0 {
+                lo = mid;
+            } else {
+                hi = mid;
             }
-            best = best.max(0.5 * (lo + hi));
         }
-        best
+        0.5 * (lo + hi)
+    }
+
+    /// Cut of leg `i` by the joint PLANES of the sphere `rp`, the generator on the surface offset `ao`: the larger of the
+    /// two neighbours' plane roots.
+    pub fn plane_cut(&self, i: usize, th: f64, ao: f64, rp: f64) -> f64 {
+        NB[i]
+            .iter()
+            .map(|&j| self.plane_root(i, j, th, ao, rp))
+            .fold(f64::NEG_INFINITY, f64::max)
     }
 }
 

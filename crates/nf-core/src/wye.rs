@@ -63,7 +63,8 @@ pub const WYE_JUMP_REL: f64 = 0.05;
 pub const WYE_ON_SURFACE_TOL: f64 = 1e-9;
 pub const WYE_DEFAULT_SEAMS: u32 = 1;
 /// UNVERIFIED (see rule `WYE_JOINT_PLANE_TOL`): hold threshold (mm) of the difference between the two joint-plane rules
-/// under the ZK rule.
+/// under the ZK rule (`wye_joint_plane_delta_over_tol`), and of the fit gap between plates cut on their amplitude surfaces
+/// under either rule (`wye_fit_gap_over_tol`).
 pub const WYE_JOINT_PLANE_TOL: f64 = 0.5;
 const MAX_MM: f64 = crate::shapes::MAX_MM;
 const MIN_MM: f64 = crate::shapes::MIN_MM;
@@ -104,7 +105,7 @@ pub const WYE_NAMED_RULES: [(&str, &str, &str, &str); 17] = [
     ),
     (
         "WYE_JOINT_PLANE_TOL",
-        "0.5 mm: the largest difference between the two joint-plane rules that is accepted without a hold under the ZK rule; chosen as the same order as a plate root gap and as WYE_SAME_DIAMETER_TOL, not taken from a standard or a factory",
+        "0.5 mm: the largest difference between the two joint-plane rules (ZK rule) and the largest fit gap between the plates (either rule) that are accepted without a hold; a fit gap above it is the hold wye_fit_gap_over_tol, one from 1e-6 mm up to it only a question; chosen as the same order as a plate root gap and as WYE_SAME_DIAMETER_TOL, not taken from a standard or a factory",
         "tolerance",
         "UNVERIFIED",
     ),
@@ -332,7 +333,8 @@ pub struct WyeResult {
     pub join_plane_delta_max: f64,
     /// Largest radial distance (mm, sampled) between a cut point (on the plate's amplitude surface) and the amplitude
     /// surface of the neighbour that cuts it, under the rule used: ~0 when the plates meet (default rule, equal walls); the
-    /// step between plates of different wall (branch_t != t) or, under the ZK rule, the fit-up gap.
+    /// step between plates of different wall (branch_t != t) or, under the ZK rule, the fit-up gap. Above
+    /// `WYE_JOINT_PLANE_TOL` it is the hold `wye_fit_gap_over_tol`; from 1e-6 mm up to it, a question.
     pub fit_gap_max: f64,
     /// Largest axial shift (mm) of a cone cut if the cut were carried from the amplitude to the developed surface along the
     /// surface normal instead of along the generator (rule `WYE_CUT_MAP_AXIAL`): `|o - ao| |sin psi|`.
@@ -1202,7 +1204,8 @@ pub fn wye(s: &WyeSpec) -> Result<WyeResult, ShapeRefusal> {
 }
 
 /// As `wye`, with the joint-plane rule chosen. `OuterSphere` is the ZK reading (UNVERIFIED); a difference to the default
-/// above `WYE_JOINT_PLANE_TOL` is then a hold (`wye_joint_plane_delta_over_tol`) that blocks the DXF.
+/// above `WYE_JOINT_PLANE_TOL` is then a hold (`wye_joint_plane_delta_over_tol`) that blocks the DXF. Under either rule a
+/// fit gap above `WYE_JOINT_PLANE_TOL` is the hold `wye_fit_gap_over_tol` (also blocks the DXF).
 pub fn wye_with_rule(s: &WyeSpec, rule: WyeJointRule) -> Result<WyeResult, ShapeRefusal> {
     let su = check_spec(s)?;
     let rs = s.d / 2.0;
@@ -1362,7 +1365,15 @@ pub fn wye_with_rule(s: &WyeSpec, rule: WyeJointRule) -> Result<WyeResult, Shape
             ),
         });
     }
-    if gap > 1e-6 && !(rule == WyeJointRule::OuterSphere && delta > WYE_JOINT_PLANE_TOL) {
+    // a misfit above the tolerance blocks the DXF (hold, whatever the rule); a smaller one is asked about
+    if gap > WYE_JOINT_PLANE_TOL {
+        holds.push(WyeHold {
+            code: "wye_fit_gap_over_tol",
+            message: format!(
+                "The plate edges will not meet by {gap:.3} mm (limit {WYE_JOINT_PLANE_TOL} mm, UNVERIFIED). Use the outer surface as the amplitude, or confirm."
+            ),
+        });
+    } else if gap > 1e-6 {
         questions.push(format!(
             "plates cut on their amplitude surfaces differ by {gap:.3} mm at the joints (plates of different wall, or the ZK joint-plane rule): confirm the fit-up"
         ));

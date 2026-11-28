@@ -805,6 +805,26 @@ fn thickness_rule_and_join_plane_delta() {
     close(z.join_plane_delta_max, want, 1e-6, "zk rule delta");
     assert!(want > wye::WYE_JOINT_PLANE_TOL && z.has_hold("wye_joint_plane_delta_over_tol"));
     assert!(z.fit_gap_max > 0.05, "ZK rule: plates do not meet");
+    println!(
+        "ZK rule, ex3 cone amp mid: delta {:.6} mm, fit gap {:.6} mm",
+        z.join_plane_delta_max, z.fit_gap_max
+    );
+    // there the gap (0.22 mm) is under the tolerance: the delta hold stands alone, the gap is only a question
+    assert!(z.fit_gap_max > 1e-6 && z.fit_gap_max <= wye::WYE_JOINT_PLANE_TOL);
+    assert!(!z.has_hold("wye_fit_gap_over_tol"));
+    assert!(z.questions.iter().any(|q| q.contains("differ by")));
+    // a thick wall (t 40, amplitude mid, ZK rule): the gap itself is over the tolerance, so its hold stands next to the delta hold
+    let mut z40 = ex(3);
+    z40.t = 40.0;
+    z40.amp = Basis::Mid;
+    let z40 = wye::wye_with_rule(&z40, wye::WyeJointRule::OuterSphere).unwrap();
+    println!(
+        "ZK rule, ex3 cone t 40 amp mid: delta {:.6} mm, fit gap {:.6} mm",
+        z40.join_plane_delta_max, z40.fit_gap_max
+    );
+    assert!(z40.has_hold("wye_joint_plane_delta_over_tol"));
+    assert!(z40.fit_gap_max > wye::WYE_JOINT_PLANE_TOL && z40.has_hold("wye_fit_gap_over_tol"));
+    assert!(!z40.questions.iter().any(|q| q.contains("differ by")));
     for th in [0.4, 1.9, 3.3, 5.1] {
         let e = wye::probe::cut(&s, 1, th, 6.0, false).unwrap();
         close(e, rf.plane_cut(1, th, 6.0, 508.0), 1e-6, "zk cut");
@@ -867,7 +887,9 @@ fn thickness_rule_and_join_plane_delta() {
         rc.fit_gap_max, gap
     );
     assert!(gap > 0.1 && rc.fit_gap_max >= gap - 1e-9);
-    assert!(rc.questions.iter().any(|q| q.contains("differ by")));
+    // 1.5 mm is over the 0.5 mm tolerance: a hold that blocks the DXF, not a question
+    assert!(rc.fit_gap_max > wye::WYE_JOINT_PLANE_TOL && rc.has_hold("wye_fit_gap_over_tol"));
+    assert!(!rc.questions.iter().any(|q| q.contains("differ by")));
     // normal-thickness rule is named; the radial alternative is named as not implemented
     assert!(
         wye::WYE_NAMED_RULES
@@ -879,6 +901,87 @@ fn thickness_rule_and_join_plane_delta() {
             .iter()
             .any(|x| x.0 == "WYE_THICKNESS_RADIAL" && x.1.contains("NOT implemented"))
     );
+}
+
+#[test]
+fn fit_gap_over_the_tolerance_is_a_hold_under_it_a_question() {
+    let tol = wye::WYE_JOINT_PLANE_TOL;
+    let is_question = |r: &WyeResult| r.questions.iter().any(|q| q.contains("differ by"));
+    // cylinder wye, main wall 12, branch plates 9, amplitude on the mid surface: the plates are cut on surfaces 6 and 4.5 mm
+    // inside the outer one, so they stand (12 - 9) / 2 = 1.5 mm apart at every joint (hand value), over the 0.5 mm tolerance
+    let mut s = ex(0);
+    s.branch_t = Some(9.0);
+    s.amp = Basis::Mid;
+    let r = run(&s);
+    close(r.fit_gap_max, 1.5, 1e-9, "fit gap (t - branch_t) / 2");
+    assert!(r.has_hold("wye_fit_gap_over_tol"));
+    let h = r
+        .holds
+        .iter()
+        .find(|h| h.code == "wye_fit_gap_over_tol")
+        .unwrap();
+    assert!(
+        h.message.contains("will not meet by 1.500 mm")
+            && h.message.contains("outer surface as the amplitude"),
+        "{}",
+        h.message
+    );
+    // one statement per gap: the hold, not also the question
+    assert!(!is_question(&r));
+    // amplitude on the outer surface: every plate is cut on its own outer surface, the plates meet, nothing to say
+    s.amp = Basis::Outer;
+    let r = run(&s);
+    assert!(r.fit_gap_max < 1e-6);
+    assert!(!r.has_hold("wye_fit_gap_over_tol") && !is_question(&r));
+    // either side of the tolerance: (12 - 11.4) / 2 = 0.3 mm is a question only, (12 - 10.8) / 2 = 0.6 mm is the hold
+    for (bt, gap, held) in [(11.4, 0.3, false), (10.8, 0.6, true)] {
+        let mut s = ex(0);
+        s.branch_t = Some(bt);
+        s.amp = Basis::Mid;
+        let r = run(&s);
+        close(r.fit_gap_max, gap, 1e-9, "fit gap");
+        assert_eq!(r.has_hold("wye_fit_gap_over_tol"), held, "branch_t {bt}");
+        assert_eq!(is_question(&r), !held, "branch_t {bt}");
+    }
+    // the same statement under both joint-plane rules, over the four examples, three amplitudes and three branch walls:
+    // a hold exactly when the gap is over the tolerance, a question exactly from 1e-6 mm up to it, the two never together
+    let (mut built, mut none, mut asked, mut held) = (0, 0, 0, 0);
+    for rule in [
+        wye::WyeJointRule::AmplitudeSphere,
+        wye::WyeJointRule::OuterSphere,
+    ] {
+        for amp in [Basis::Outer, Basis::Mid, Basis::Inner] {
+            for e in 0..4 {
+                let base = ex(e);
+                let walls = if base.branch_d.is_some() {
+                    vec![base.branch_t]
+                } else {
+                    vec![None, Some(base.t - 0.6), Some(base.t - 3.0)]
+                };
+                for bt in walls {
+                    let mut s = base.clone();
+                    s.amp = amp;
+                    s.branch_t = bt;
+                    let r = wye::wye_with_rule(&s, rule)
+                        .unwrap_or_else(|e| panic!("{s:?} refused {}: {}", e.code, e.message));
+                    let g = r.fit_gap_max;
+                    let (hold, question) = (r.has_hold("wye_fit_gap_over_tol"), is_question(&r));
+                    assert_eq!(hold, g > tol, "{s:?} {rule:?}: gap {g}");
+                    assert_eq!(question, g > 1e-6 && g <= tol, "{s:?} {rule:?}: gap {g}");
+                    built += 1;
+                    match (hold, question) {
+                        (true, _) => held += 1,
+                        (false, true) => asked += 1,
+                        _ => none += 1,
+                    }
+                }
+            }
+        }
+    }
+    println!(
+        "fit gap statement over {built} wyes: {held} hold, {asked} question only, {none} nothing (tolerance {tol} mm)"
+    );
+    assert!(built == 60 && held > 0 && asked > 0 && none > 0);
 }
 
 #[test]

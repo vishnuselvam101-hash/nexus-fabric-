@@ -118,28 +118,41 @@ impl Gen {
     }
 }
 
-/// Independent retained-side predicate: the point lies on the kept side of the plane of BOTH neighbours (`g_i >= g_j`, planes
-/// of the sphere of the amplitude surface `Rs - ao`) and ON the plane of one of them (`g_i = g_j`, 1e-6 mm): a cut on the
-/// wrong plane (`g_i = -g_j`) or on the wrong side of the right one fails.
-fn retained_side(rf: &Ref, leg: usize, pt: &V3, ao: f64) -> bool {
+/// Half 1 of the retained-side predicate: the point lies on the kept side of the plane of BOTH neighbours (`g_i >= g_j`,
+/// planes of the sphere of the amplitude surface `Rs - ao`).
+fn on_kept_side(rf: &Ref, leg: usize, pt: &V3, ao: f64) -> bool {
     let rp = rf.rs - ao;
     let gi = rf.g(leg, rp, pt);
-    let kept = NB[leg]
+    NB[leg]
         .iter()
-        .all(|&j| gi >= rf.g(j, rp, pt) - 1e-9 * rf.rs);
-    let on = NB[leg].iter().any(|&j| (gi - rf.g(j, rp, pt)).abs() < 1e-6);
-    kept && on
+        .all(|&j| gi >= rf.g(j, rp, pt) - 1e-9 * rf.rs)
 }
 
-/// Negative control: the predicate rejects a cut point moved back into a neighbour (the wrong side of the plane), for a
-/// grid of cone and cylinder wyes. Its `on the plane` part also rejects the engine's own point once it is moved out along the
-/// generator, so the predicate here is only used for the point ON the cut and the rejection of the point behind it.
+/// Half 2: the point lies ON the plane of one of the neighbours (`g_i = g_j`, 1e-6 mm), not on the mirror plane `g_i = -g_j`.
+fn on_a_plane(rf: &Ref, leg: usize, pt: &V3, ao: f64) -> bool {
+    let rp = rf.rs - ao;
+    let gi = rf.g(leg, rp, pt);
+    NB[leg].iter().any(|&j| (gi - rf.g(j, rp, pt)).abs() < 1e-6)
+}
+
+/// Independent retained-side predicate: both halves. A cut on the wrong plane (`g_i = -g_j`), off the planes, or on the
+/// wrong side of one of them fails.
+fn retained_side(rf: &Ref, leg: usize, pt: &V3, ao: f64) -> bool {
+    on_kept_side(rf, leg, pt, ao) && on_a_plane(rf, leg, pt, ao)
+}
+
+/// Negative controls of the predicate, for a grid of cone and cylinder wyes, each half on its own:
+/// (1) a cut point moved back into a neighbour (25 mm along the generator) is off the planes: the `on a plane` half rejects it;
+/// (2) the point ON the plane of the other neighbour (the smaller of the two plane roots on the generator; the engine's cut
+///     is the larger): it passes the `on a plane` half (asserted), and lies on the far side of the cutting neighbour's plane,
+///     so only the `g_i >= g_j` half can reject it. Taken from the reference alone (plane roots by bisection), not from the
+///     engine; every sample whose two roots differ by more than `1e-3 Rs` is a control, none is skipped by a ratio.
 #[test]
 fn retained_side_predicate_detects_the_wrong_side() {
     let mut g = Gen {
         r: Lcg(SEED ^ 0x5151),
     };
-    let (mut rejected, mut tried) = (0, 0);
+    let (mut rejected, mut tried, mut wrong_root) = (0, 0, 0);
     for k in 0..40 {
         let s = if k % 2 == 0 {
             g.pipe_spec(false, 0)
@@ -151,7 +164,7 @@ fn retained_side_predicate_detects_the_wrong_side() {
         };
         let Ok(r) = wye::wye(&s) else { continue };
         let rf = Ref::new(s.d / 2.0, s.beta1_deg, s.beta2_deg, r.psi_deg.to_radians());
-        for leg in 0..3 {
+        for (leg, nb) in NB.iter().enumerate() {
             let ao = if leg == 0 || r.cone {
                 off(s.amp, s.t)
             } else {
@@ -161,8 +174,31 @@ fn retained_side_predicate_detects_the_wrong_side() {
                 let e = wye::probe::cut(&s, leg, th, ao, true).unwrap();
                 assert!(retained_side(&rf, leg, &rf.point(leg, e, th, ao), ao));
                 tried += 1;
-                if !retained_side(&rf, leg, &rf.point(leg, e - 25.0, th, ao), ao) {
+                // (1) moved back into a neighbour: off the planes
+                let back = rf.point(leg, e - 25.0, th, ao);
+                if !retained_side(&rf, leg, &back, ao) {
                     rejected += 1;
+                }
+                // (2) the wrong root: on the other neighbour's plane, so only the kept-side half can reject it
+                let rp = rf.rs - ao;
+                let ra = rf.plane_root(leg, nb[0], th, ao, rp);
+                let rb = rf.plane_root(leg, nb[1], th, ao, rp);
+                let interior = ra.abs() < 299.0 * rf.rs && rb.abs() < 299.0 * rf.rs;
+                if interior && (ra - rb).abs() > 1e-3 * rf.rs {
+                    let wrong = rf.point(leg, ra.min(rb), th, ao);
+                    assert!(
+                        on_a_plane(&rf, leg, &wrong, ao),
+                        "the wrong-root control must lie on a plane: leg {leg} th {th} {s:?}"
+                    );
+                    assert!(
+                        !on_kept_side(&rf, leg, &wrong, ao),
+                        "the point on the other neighbour's plane is on the wrong side of the cutting one: leg {leg} th {th} {s:?}"
+                    );
+                    assert!(
+                        !retained_side(&rf, leg, &wrong, ao),
+                        "wrong-root control accepted: leg {leg} th {th} {s:?}"
+                    );
+                    wrong_root += 1;
                 }
             }
         }
@@ -170,6 +206,13 @@ fn retained_side_predicate_detects_the_wrong_side() {
     assert!(
         tried > 100 && rejected * 10 >= tried * 9,
         "rejected {rejected} of {tried}"
+    );
+    assert!(
+        wrong_root > 100,
+        "only {wrong_root} wrong-root controls of {tried} samples"
+    );
+    println!(
+        "retained-side controls: {rejected} of {tried} moved-back points rejected; {wrong_root} wrong-root points (on a plane, wrong side) rejected by the kept-side half"
     );
 }
 
