@@ -162,7 +162,7 @@ const EN = {
   'jf1.res.held': 'Held, no DXF',
   'jf1.res.need': 'Needs an answer',
   'jf1.download': 'Download the job package (ZIP)',
-  'jf1.download.note': 'The ZIP has the material list (CSV and Excel), the issue list, the change record and the DXF files of parts that are certified and not held. A held part has no DXF and is listed in the issue list with its reasons. Everything is marked NOT RELEASED. This page approves and releases nothing.',
+  'jf1.download.note': 'The ZIP has the material list (CSV and Excel), the issue list, the change record and the DXF files of parts that are not held. A held part has no DXF and is listed in the issue list with its reasons. Everything is marked NOT RELEASED. This page approves and releases nothing.',
 
   // build status
   'build.short': 'Development build — not validated',

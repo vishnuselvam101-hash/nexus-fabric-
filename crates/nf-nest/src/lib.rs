@@ -8,6 +8,22 @@
 //! Engines: jagua-rs 2.0.0 (MPL-2.0, unmodified, pinned) decides each placement; the bottom-left fill is the fallback
 //! when jagua-rs cannot run for an input. Both results must pass the checker. Other dependencies: nf-dxf (read
 //! the part outlines and write the CAM DXF), encoding_rs (Shift_JIS for the R12 hand-off). See NOTICES.
+// NaN-rejecting range checks are written as negated comparisons on purpose (NaN must fail them).
+#![allow(
+    clippy::manual_clamp,
+    clippy::collapsible_if,
+    clippy::nonminimal_bool,
+    clippy::neg_cmp_op_on_partial_ord
+)]
+#![cfg_attr(
+    test,
+    allow(
+        clippy::err_expect,
+        clippy::manual_is_multiple_of,
+        clippy::useless_format,
+        clippy::type_complexity
+    )
+)]
 
 pub mod check;
 pub mod dxf_out;

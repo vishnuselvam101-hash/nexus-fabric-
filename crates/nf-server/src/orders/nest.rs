@@ -121,7 +121,7 @@ fn nest_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
     let mut inputs: Vec<PartIn> = Vec::new();
     let mut excluded: Vec<Value> = Vec::new();
     for p in result["parts"].as_array().map(Vec::as_slice).unwrap_or(&[]) {
-        let id = format!("{}", p["no"].as_str().unwrap_or("?"));
+        let id = p["no"].as_str().unwrap_or("?").to_string();
         // a quantity wider than 32 bits is clamped, never wrapped: the copies cap refuses it
         let qty = u32::try_from(p["qty"].as_u64().unwrap_or(0)).unwrap_or(u32::MAX);
         let blocked = p["dxf_blocked_by"]

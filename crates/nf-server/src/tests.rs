@@ -6656,18 +6656,15 @@ async fn bad_edits_are_refused_and_an_edited_upload_is_marked() {
         .unwrap();
     assert!(edited.ends_with("(NF CAD edit).dxf"));
     let _ = edited;
-    let text = {
-        let blob = nf_cad::edit::apply(
-            CAD_DXF.as_bytes(),
-            &[nf_cad::edit::Op::Move {
-                ids: vec!["E0".into()],
-                dx: 1.0,
-                dy: 0.0,
-            }],
-        )
-        .unwrap();
-        blob
-    };
+    let text = nf_cad::edit::apply(
+        CAD_DXF.as_bytes(),
+        &[nf_cad::edit::Op::Move {
+            ids: vec!["E0".into()],
+            dx: 1.0,
+            dy: 0.0,
+        }],
+    )
+    .unwrap();
     assert_eq!(
         upload_raw(&t, &t.cookie, "again.dxf", text).await,
         StatusCode::OK

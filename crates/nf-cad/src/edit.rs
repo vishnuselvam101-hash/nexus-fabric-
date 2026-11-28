@@ -169,7 +169,7 @@ fn split(bytes: &[u8]) -> Result<(bool, Vec<RawPair>), EditError> {
     while lines.last().is_some_and(|l| l.trim().is_empty()) {
         lines.pop();
     }
-    if lines.len() % 2 != 0 {
+    if !lines.len().is_multiple_of(2) {
         return Err(err("malformed", "odd number of lines: not a DXF pair file"));
     }
     let pairs = lines
@@ -681,11 +681,13 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
     Ok(bytes_out)
 }
 
+type SpanFn<'a> = dyn Fn(usize, &[Vec<RawPair>]) -> Result<Vec<usize>, EditError> + 'a;
+
 #[allow(clippy::too_many_arguments)]
 fn transform_entity(
     drawing: &crate::Drawing,
     resolve: &dyn Fn(&str) -> Result<usize, EditError>,
-    span: &dyn Fn(usize, &[Vec<RawPair>]) -> Result<Vec<usize>, EditError>,
+    span: &SpanFn<'_>,
     recs: &mut [Vec<RawPair>],
     deleted: &[bool],
     id: &str,

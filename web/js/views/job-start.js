@@ -9,7 +9,7 @@ import { questionsOf, renderQuestions } from '../lib/question-cards.js';
 
 const PROJECT = 'Quick conversions';
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.tif,.tiff';
-// Ready = computed AND certified with a DXF allowed and no block (the ZIP's DXF rule); a computed but blocked part is not ready
+// Ready = computed with a DXF allowed and no block (the ZIP's DXF rule); a computed but blocked part is not ready
 const isReady = (p) => p.state === 'computed' && p.dxf_allowed === true && Array.isArray(p.dxf_blocked_by) && p.dxf_blocked_by.length === 0;
 const NEED = ['held_missing', 'refused', 'not_computed'];
 

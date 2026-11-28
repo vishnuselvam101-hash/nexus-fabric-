@@ -298,6 +298,7 @@ pub fn sample_curve(
     tol: f64,
     max: usize,
 ) -> Result<Vec<P>, String> {
+    #[allow(clippy::too_many_arguments)]
     fn rec(
         f: &dyn Fn(f64) -> P,
         a: f64,
@@ -323,7 +324,7 @@ pub fn sample_curve(
         rec(f, a, m, pa, pm, tol, depth + 1, out, max)?;
         rec(f, m, b, pm, pb, tol, depth + 1, out, max)
     }
-    if !(t1 > t0) || !t0.is_finite() || !t1.is_finite() {
+    if t1 <= t0 || !t0.is_finite() || !t1.is_finite() {
         return Err("empty parameter range".into());
     }
     let mut out = vec![f(t0)];
@@ -348,7 +349,7 @@ pub fn nurbs_at(p: usize, u: &[f64], cp: &[P], w: &[f64], t: f64) -> P {
     } else {
         let (mut lo, mut hi) = (p, n);
         while lo < hi {
-            let mid = (lo + hi + 1) / 2;
+            let mid = (lo + hi).div_ceil(2);
             if u[mid] <= t {
                 lo = mid
             } else {
@@ -368,6 +369,7 @@ pub fn nurbs_at(p: usize, u: &[f64], cp: &[P], w: &[f64], t: f64) -> P {
             let i = k - p + j;
             let den = u[i + p + 1 - r] - u[i];
             let alpha = if den == 0.0 { 0.0 } else { (t - u[i]) / den };
+            #[allow(clippy::needless_range_loop)]
             for c in 0..3 {
                 d[j][c] = (1.0 - alpha) * d[j - 1][c] + alpha * d[j][c];
             }
