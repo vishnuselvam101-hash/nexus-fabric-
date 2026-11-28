@@ -1,0 +1,147 @@
+[
+ {
+  "seq": 1,
+  "step": "look-1",
+  "action": "look",
+  "target": {
+   "page": 1
+  },
+  "value": {
+   "numbers": 34
+  },
+  "reason": "reading page 1 with nf-numread R0",
+  "confidence": null,
+  "flags": [],
+  "tool": "look"
+ },
+ {
+  "seq": 2,
+  "step": "list-2",
+  "action": "point",
+  "target": {
+   "page": 1,
+   "bbox": [
+    820,
+    560,
+    890,
+    580
+   ]
+  },
+  "value": [
+   945.6,
+   2372.5
+  ],
+  "reason": "the material list gives blank 945.6 x 2372.5 for shell",
+  "confidence": 0.99,
+  "flags": [],
+  "tool": "assign"
+ },
+ {
+  "seq": 3,
+  "step": "slot-3c",
+  "action": "click",
+  "target": {
+   "page": 1,
+   "bbox": [
+    127,
+    269,
+    205,
+    290
+   ]
+  },
+  "value": "r_dev",
+  "reason": "'φ301.0' is 150.5 for r_dev: the only assignment that reproduces the material list",
+  "confidence": 0.97,
+  "flags": [],
+  "tool": "assign"
+ },
+ {
+  "seq": 4,
+  "step": "type-4",
+  "action": "type",
+  "target": {
+   "ui": "part-1-r_dev"
+  },
+  "value": 150.5,
+  "reason": "read 'φ301.0' on page 1; the only assignment that matches the material list",
+  "confidence": 0.97,
+  "flags": [],
+  "tool": "write",
+  "write_ref": {
+   "part": "1",
+   "key": "r_dev"
+  }
+ },
+ {
+  "seq": 5,
+  "step": "slot-5p",
+  "action": "point",
+  "target": {
+   "page": 1,
+   "bbox": [
+    456,
+    333,
+    534,
+    350
+   ]
+  },
+  "value": "2372.5",
+  "reason": "flagged reading: a person must check it",
+  "confidence": 0.7,
+  "flags": [
+   "low_confidence"
+  ],
+  "tool": "assign"
+ },
+ {
+  "seq": 6,
+  "step": "cad-6",
+  "action": "measure_entity",
+  "target": {
+   "cad": {
+    "canvas": [
+     40,
+     30
+    ],
+    "entity": "e17"
+   }
+  },
+  "value": null,
+  "reason": "measure the entity (a later CAD tool; shown as pointing)",
+  "confidence": null,
+  "flags": [],
+  "tool": "cad.measure"
+ },
+ {
+  "seq": 7,
+  "step": "compute-7",
+  "action": "compute",
+  "target": {
+   "ui": "compute-btn"
+  },
+  "value": {
+   "job": 1,
+   "state": "REVIEW_REQUIRED"
+  },
+  "reason": "job 1 is REVIEW_REQUIRED; the operator does not approve or release",
+  "confidence": null,
+  "flags": [],
+  "tool": "compute"
+ },
+ {
+  "seq": 8,
+  "step": "ask-8",
+  "action": "ask",
+  "target": {
+   "ui": "hold-1-shell"
+  },
+  "value": {
+   "code": "held",
+   "part": "shell"
+  },
+  "reason": "part shell is held by the AMOEBA gate and gets no DXF",
+  "confidence": null,
+  "flags": [],
+  "tool": "compute"
+ }
+]

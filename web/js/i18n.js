@@ -1894,6 +1894,16 @@ Object.assign(EN, {
   "adm.auto.server": "Automatic sign-in is only available when the program runs on one computer in desktop mode.",
   "adm.auto.done.on": "Automatic sign-in is on.",
   "adm.auto.done.off": "Automatic sign-in is off.",
+  "op.who": "AI operator",
+  "op.paused": "Paused by a person",
+  "op.confidence": "confidence",
+  "op.flagged": "flagged: a person must check",
+  "op.action.look": "Looking",
+  "op.action.point": "Pointing",
+  "op.action.click": "Selecting",
+  "op.action.type": "Entering",
+  "op.action.compute": "Calculating",
+  "op.action.ask": "Question",
 });
 
 Object.assign(JA, {
@@ -1951,6 +1961,16 @@ Object.assign(JA, {
   "adm.auto.server": "自動ログインは、プログラムを1台のパソコンでデスクトップモードとして動かしている場合にのみ使えます。",
   "adm.auto.done.on": "自動ログインをオンにしました。",
   "adm.auto.done.off": "自動ログインをオフにしました。",
+  "op.who": "AIオペレーター",
+  "op.paused": "担当者が一時停止中",
+  "op.confidence": "確信度",
+  "op.flagged": "要確認（担当者が確認します）",
+  "op.action.look": "確認中",
+  "op.action.point": "指しています",
+  "op.action.click": "選択中",
+  "op.action.type": "入力中",
+  "op.action.compute": "計算中",
+  "op.action.ask": "質問",
 });
 
 const MSG = { en: EN, ja: JA };
