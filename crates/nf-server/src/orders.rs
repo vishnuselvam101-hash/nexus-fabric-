@@ -1103,9 +1103,7 @@ fn clean_attached_reading(
     let Some((flags, confidence, read)) = row else {
         return Ok(false);
     };
-    Ok(flags == "[]"
-        && confidence >= AGENT_CONFIRM_MIN_CONFIDENCE
-        && same_number(read, value))
+    Ok(flags == "[]" && confidence >= AGENT_CONFIRM_MIN_CONFIDENCE && same_number(read, value))
 }
 
 /// Everything the confirm gate needs. Kept as a struct because the union of AIOP's stored
@@ -3342,7 +3340,10 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
         ));
     }
     // Phase 1: field validation. No write lock and no model work here.
-    let mut values: Vec<ValueIn> = list.iter().map(|v| parse_value(u, v)).collect::<Result<_, _>>()?;
+    let mut values: Vec<ValueIn> = list
+        .iter()
+        .map(|v| parse_value(u, v))
+        .collect::<Result<_, _>>()?;
     for v in &values {
         agent_reason(u, &v.note)?;
     }
@@ -3512,7 +3513,21 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
             new_state = "PROPOSED";
         }
         let (vid, old_desc) = match &old {
-            Some((id, val, _text, _bbox, src, state, _, old_flag, old_rs, kind, fl, conf, attached)) => {
+            Some((
+                id,
+                val,
+                _text,
+                _bbox,
+                src,
+                state,
+                _,
+                old_flag,
+                old_rs,
+                kind,
+                fl,
+                conf,
+                attached,
+            )) => {
                 let same = content_same && old_flag == &flag && old_rs == &read_source;
                 let meta_same = *fl == flags_json
                     && *conf == v.confidence
@@ -3720,7 +3735,8 @@ fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) ->
                 ))
             },
         )?;
-        for (vid, key, val, text, state, bbox, src, flag, read_source, attached, confidence) in rows {
+        for (vid, key, val, text, state, bbox, src, flag, read_source, attached, confidence) in rows
+        {
             if val.is_none() {
                 missing += 1;
                 continue;

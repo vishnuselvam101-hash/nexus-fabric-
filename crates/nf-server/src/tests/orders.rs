@@ -1299,7 +1299,9 @@ async fn l1r1_the_ai_operator_gives_a_reason_for_every_order_write() {
         .send(
             "PUT",
             &parts,
-            Some(with_ev(json!({ "parts": [{ "no": "1", "shape": "cylinder" }] }))),
+            Some(with_ev(
+                json!({ "parts": [{ "no": "1", "shape": "cylinder" }] }),
+            )),
             &ac,
         )
         .await;
@@ -1346,15 +1348,18 @@ async fn l1r1_the_ai_operator_gives_a_reason_for_every_order_write() {
     assert_eq!(audit_details(&t, "order_parts_reason").len(), 2);
     let undo = format!("{dec}/{did}/undo");
     // an undo by the operator needs a reason and a replayable event as well
-    let (st, _, b) = t
-        .send("POST", &undo, Some(with_ev(json!({}))), &ac)
-        .await;
+    let (st, _, b) = t.send("POST", &undo, Some(with_ev(json!({}))), &ac).await;
     assert_eq!(
         (st, code(&b)),
         (StatusCode::UNPROCESSABLE_ENTITY, json!("decision_reason"))
     );
     let (st, _, b) = t
-        .send("POST", &undo, Some(with_ev(json!({ "note": "wrong flag" }))), &ac)
+        .send(
+            "POST",
+            &undo,
+            Some(with_ev(json!({ "note": "wrong flag" }))),
+            &ac,
+        )
         .await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
 }
@@ -1626,7 +1631,9 @@ async fn l1r2_the_ai_operator_gives_a_reason_on_create_and_upload() {
         .send(
             "POST",
             path,
-            Some(with_ev(json!({ "name": "Job A", "reason": "from the customer PO" }))),
+            Some(with_ev(
+                json!({ "name": "Job A", "reason": "from the customer PO" }),
+            )),
             &ac,
         )
         .await;
