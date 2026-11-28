@@ -810,3 +810,28 @@ fn the_shape_refusal_codes_of_every_module_are_in_the_build_list() {
     b.sort_unstable();
     assert_eq!(a, b);
 }
+
+#[test]
+fn order_rules_are_strict_and_change_the_result() {
+    use serde_json::json;
+    let r = OrderRules::from_json(&json!({"allow": 6.0, "seam_from": "top", "mount": "set_in", "cone_thickness": "radial", "stock": [[1500, 3000]]})).expect("rules");
+    assert_eq!(r.allow, 6.0);
+    assert!(!r.seam_from_bottom);
+    assert_eq!(r.cone_thickness, ThicknessConvention::Radial);
+    for bad in [
+        json!({"bogus": 1}),
+        json!({"mount": "on"}),
+        json!({"allow": "x"}),
+        json!({"stock": [[1]]}),
+        json!(5),
+    ] {
+        assert!(OrderRules::from_json(&bad).is_err(), "{bad}");
+    }
+    assert!(OrderRules::from_json(&json!({})).is_ok());
+    // a rule is not decoration: a smaller stock makes a pipe that fits the default stock not fit
+    let small = OrderRules::from_json(&json!({"stock": [[1000, 1500]]})).expect("rules");
+    let a = compute_order(&[cyl("C1")], &rules());
+    let b = compute_order(&[cyl("C1")], &small);
+    assert!(!a.parts[0].has_hold("stock_fit") && b.parts[0].has_hold("stock_fit"));
+    assert!(a.rules.iter().any(|x| x["name"] == "order.stock"));
+}

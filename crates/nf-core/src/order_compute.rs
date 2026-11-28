@@ -166,6 +166,94 @@ pub const BAND_T_MM: (f64, f64) = (1.5, 50.0);
 pub const BAND_T_OVER_D_MAX: f64 = 0.25;
 
 impl OrderRules {
+    /// Rules from the order's `rules_json` (an object; missing keys keep the provisional defaults). Strict: an unknown
+    /// key or a value of the wrong kind is an error naming it, never ignored. Keys: `allow`, `seam_deg`, `seam_from`
+    /// (`bottom`|`top`), `mount` (`set_on`|`set_in`), `stock` (list of `[width, length]`), `stock_margin`, `seam_gap`
+    /// (number or null), `pad_cut` (`cross`|`along`), `basis` (`outer`|`mid`|`inner`), `cone_thickness`
+    /// (`normal`|`radial`).
+    pub fn from_json(v: &Value) -> Result<OrderRules, String> {
+        let mut r = OrderRules::default();
+        let Some(o) = v.as_object() else {
+            return if v.is_null() {
+                Ok(r)
+            } else {
+                Err("rules must be an object".into())
+            };
+        };
+        let num = |k: &str, x: &Value| -> Result<f64, String> {
+            x.as_f64()
+                .filter(|n| n.is_finite())
+                .ok_or_else(|| format!("rule '{k}' must be a finite number"))
+        };
+        for (k, x) in o {
+            let text = x.as_str().unwrap_or("");
+            match k.as_str() {
+                "allow" => r.allow = num(k, x)?,
+                "seam_deg" => r.seam_deg = num(k, x)?,
+                "stock_margin" => r.stock_margin = num(k, x)?,
+                "seam_gap" => r.seam_gap = if x.is_null() { None } else { Some(num(k, x)?) },
+                "seam_from" => {
+                    r.seam_from_bottom = match text {
+                        "bottom" => true,
+                        "top" => false,
+                        _ => return Err("rule 'seam_from' must be 'bottom' or 'top'".into()),
+                    }
+                }
+                "mount" => {
+                    r.mount = match text {
+                        "set_on" => Mount::SetOn,
+                        "set_in" => Mount::SetIn,
+                        _ => return Err("rule 'mount' must be 'set_on' or 'set_in'".into()),
+                    }
+                }
+                "pad_cut" => {
+                    r.pad_cut = match text {
+                        "cross" => SplitCut::Cross,
+                        "along" => SplitCut::Along,
+                        _ => return Err("rule 'pad_cut' must be 'cross' or 'along'".into()),
+                    }
+                }
+                "basis" => {
+                    r.basis = match text {
+                        "outer" => Basis::Outer,
+                        "mid" => Basis::Mid,
+                        "inner" => Basis::Inner,
+                        _ => return Err("rule 'basis' must be 'outer', 'mid' or 'inner'".into()),
+                    }
+                }
+                "cone_thickness" => {
+                    r.cone_thickness = match text {
+                        "normal" => ThicknessConvention::Normal,
+                        "radial" => ThicknessConvention::Radial,
+                        _ => {
+                            return Err("rule 'cone_thickness' must be 'normal' or 'radial'".into());
+                        }
+                    }
+                }
+                "stock" => {
+                    let a = x.as_array().ok_or_else(|| {
+                        "rule 'stock' must be a list of [width, length]".to_string()
+                    })?;
+                    r.stock = a
+                        .iter()
+                        .map(|e| {
+                            let p = e.as_array().filter(|p| p.len() == 2);
+                            match p.map(|p| (p[0].as_f64(), p[1].as_f64())) {
+                                Some((Some(w), Some(l))) if w > 0.0 && l > 0.0 => {
+                                    Ok(Stock { w, l })
+                                }
+                                _ => Err("rule 'stock' must be a list of [width, length] above 0"
+                                    .to_string()),
+                            }
+                        })
+                        .collect::<Result<_, _>>()?;
+                }
+                other => return Err(format!("unknown rule '{other}'")),
+            }
+        }
+        Ok(r)
+    }
+
     pub fn rules_out(&self) -> Vec<Value> {
         let r = |n: &str, v: String| json!({"name": n, "value": v, "kind": "rule", "status": "UNVERIFIED"});
         vec![

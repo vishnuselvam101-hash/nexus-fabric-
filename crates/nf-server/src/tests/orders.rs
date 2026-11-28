@@ -1171,6 +1171,7 @@ async fn l1r1_a_read_only_licence_blocks_every_order_write() {
         (Method::PUT, "/api/orders/1/parts"),
         (Method::PUT, "/api/orders/1/values"),
         (Method::POST, "/api/orders/1/confirm"),
+        (Method::POST, "/api/orders/1/compute"),
         (Method::POST, "/api/orders/1/decisions"),
         (Method::POST, "/api/orders/1/decisions/2/undo"),
         (Method::POST, "/api/orders/1/pages/3/skip"),
@@ -1667,4 +1668,283 @@ async fn l1r2_a_persons_note_and_the_refusals_are_audited() {
         .await;
     assert_eq!(st, StatusCode::NOT_IMPLEMENTED);
     assert_eq!(audit_details(&t, "order_page_read_refused").len(), 1);
+}
+
+// ---------------------------------------------------------------- NFJ-1 L10: compute
+
+async fn put_parts_values(t: &T, oid: i64, parts: Value, values: Value) {
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/parts"),
+            Some(json!({ "parts": parts })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": values })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+}
+
+fn val(part: &str, key: &str, v: f64) -> Value {
+    json!({ "part": part, "key": key, "value": v, "text": format!("{v}"), "source": "entered" })
+}
+
+#[tokio::test]
+async fn l10_compute_holds_missing_values_and_edits_supersede() {
+    let t = boot();
+    let oid = new_order(&t).await;
+    put_parts_values(
+        &t,
+        oid,
+        json!([
+            { "no": "C1", "name": "pipe", "shape": "cylinder", "qty": 2 },
+            { "no": "P1", "name": "plate", "shape": "plate" }
+        ]),
+        json!([
+            val("C1", "D", 1016.0),
+            val("C1", "t", 12.0),
+            val("C1", "L", 2000.0),
+            val("P1", "t", 16.0),
+            val("P1", "plate_W", 400.0)
+        ]),
+    )
+    .await;
+    // nothing is confirmed yet: every value is PROPOSED or entered-as-proposed, so nothing may be computed
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let id0 = v["id"].as_i64().unwrap();
+    let c1 = v["result"]["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["no"] == "C1")
+        .unwrap()
+        .clone();
+    assert_ne!(
+        c1["state"], "computed",
+        "an unconfirmed value is never computed: {c1}"
+    );
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/confirm"),
+            Some(json!({ "all": true })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, first) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{first}");
+    let parts = first["result"]["parts"].as_array().unwrap();
+    let get = |no: &str| parts.iter().find(|p| p["no"] == no).unwrap().clone();
+    // the cylinder is computed (pattern + mass), the plate misses plate_H: HOLD-MISSING, no pattern, no DXF
+    assert_eq!(get("C1")["state"], "computed", "{}", get("C1"));
+    assert!(get("C1")["unit_mass_kg"].as_f64().unwrap() > 0.0);
+    assert_eq!(get("C1")["qty"], 2);
+    assert_eq!(get("P1")["state"], "held_missing", "{}", get("P1"));
+    assert!(get("P1")["pattern"].as_array().unwrap().is_empty());
+    assert!(get("P1")["dxf"].is_null() && get("P1")["dxf_allowed"] == false);
+    assert_eq!(first["counts"]["dxf_files"], 0);
+    assert_eq!(first["engine"], nf_core::ENGINE_VERSION);
+    assert!(
+        first["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|i| i["no"] == "P1" && i["code"] == "missing")
+    );
+    assert!(
+        first["material"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["no"] == "C1" && m["mass_calc_kg"].as_f64().is_some())
+    );
+    assert!(
+        first["material"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|m| m["no"] != "P1" || m["mass_calc_kg"].is_null())
+    );
+    let id1 = first["id"].as_i64().unwrap();
+    assert_eq!(first["supersedes"], id0);
+    // the same order again: idempotent, no new row
+    let (_, again) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(
+        (again["unchanged"].clone(), again["id"].as_i64()),
+        (json!(true), Some(id1)),
+        "{again}"
+    );
+    // an edit: the next compute is a new row that supersedes the old one
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [val("P1", "plate_H", 300.0)] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    t.call(
+        "POST",
+        &format!("/api/orders/{oid}/confirm"),
+        Some(json!({ "all": true })),
+    )
+    .await;
+    let (st, second) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{second}");
+    let id2 = second["id"].as_i64().unwrap();
+    assert_ne!(id2, id1);
+    assert_eq!(second["supersedes"], id1);
+    let p1 = second["result"]["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["no"] == "P1")
+        .unwrap()
+        .clone();
+    assert_eq!(p1["state"], "computed", "{p1}");
+    assert!(!p1["pattern"].as_array().unwrap().is_empty());
+    // a second edit: a chain of three
+    t.call(
+        "PUT",
+        &format!("/api/orders/{oid}/values"),
+        Some(json!({ "values": [val("C1", "L", 2100.0)] })),
+    )
+    .await;
+    t.call(
+        "POST",
+        &format!("/api/orders/{oid}/confirm"),
+        Some(json!({ "all": true })),
+    )
+    .await;
+    let (_, third) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(third["supersedes"], id2, "{third}");
+    let chain = t.get(&format!("/api/orders/{oid}/compute")).await;
+    let states: Vec<String> = chain["chain"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c["state"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(
+        states,
+        vec!["SUPERSEDED", "SUPERSEDED", "SUPERSEDED", "CURRENT"],
+        "{chain}"
+    );
+    assert_eq!(chain["current"]["id"], third["id"]);
+    assert!(
+        chain["chain"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|c| c["recompute_required"] == false)
+    );
+    // a result stored by another engine is shown but marked for recompute (G21)
+    t.sql("UPDATE order_results SET engine = 'nf-engine 0.4.12+src.0000000000000000' WHERE id = 1");
+    let chain = t.get(&format!("/api/orders/{oid}/compute")).await;
+    assert_eq!(chain["chain"][0]["recompute_required"], true);
+    // computed results are kept: no delete
+    let db = t.app.db();
+    assert!(db.execute("DELETE FROM order_results", []).is_err());
+    drop(db);
+    assert_eq!(audit_details(&t, "order_compute").len(), 4);
+}
+
+#[tokio::test]
+async fn l10_a_held_part_gets_no_dxf_and_the_rules_come_from_the_order() {
+    let t = boot();
+    let oid = new_order(&t).await;
+    put_parts_values(
+        &t,
+        oid,
+        json!([
+            { "no": "T1", "name": "main", "shape": "tee_main" },
+            { "no": "T1b", "name": "branch", "shape": "tee_branch", "attach_part": "T1" }
+        ]),
+        json!([
+            val("T1", "D", 1016.0),
+            val("T1", "t", 12.0),
+            val("T1", "L", 2000.0),
+            val("T1", "branch_D", 508.0),
+            val("T1", "branch_t", 9.0),
+            val("T1", "branch_x", 1000.0),
+            val("T1", "dir", 0.0),
+            val("T1", "e", -40.0),
+            val("T1b", "D", 508.0),
+            val("T1b", "t", 9.0),
+            val("T1b", "H", 600.0)
+        ]),
+    )
+    .await;
+    t.call(
+        "POST",
+        &format!("/api/orders/{oid}/confirm"),
+        Some(json!({ "all": true })),
+    )
+    .await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    for p in v["result"]["parts"].as_array().unwrap() {
+        // a negative offset without a side is refused, never abs()'d
+        assert_eq!(
+            p["refusal"]["code"], "tee_offset_negative_without_side",
+            "{p}"
+        );
+        assert!(p["dxf"].is_null() && p["dxf_allowed"] == false);
+    }
+    // unknown rule keys are refused by name
+    t.sql(&format!(
+        "UPDATE orders SET rules_json = '{{\"bogus\": 1}}' WHERE id = {oid}"
+    ));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
+    assert_eq!(v["code"], "order_rules");
 }

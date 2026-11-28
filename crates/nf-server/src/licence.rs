@@ -316,7 +316,7 @@ pub(crate) fn gated(method: &Method, path: &str) -> bool {
         return false;
     }
     match seg.as_slice() {
-        ["api", "orders", id, "confirm" | "decisions"] => id.parse::<i64>().is_ok(),
+        ["api", "orders", id, "confirm" | "decisions" | "compute"] => id.parse::<i64>().is_ok(),
         ["api", "orders", id, "decisions", did, "undo"] => {
             id.parse::<i64>().is_ok() && did.parse::<i64>().is_ok()
         }
