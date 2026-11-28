@@ -29,6 +29,10 @@ pub const OUTER_LAYER: &str = "CUT_OUTER";
 pub const INNER_LAYER: &str = "CUT_INNER";
 /// Millimetres in the $INSUNITS code of DXF.
 const INSUNITS_MM: i64 = 4;
+/// L11 cap (mm) for a certified bound of the distance from the exact curve to its drawn polyline.
+/// An implementation limit (decision D1), not an engineering tolerance. The digest owns its own copy:
+/// it reads no shared code from the engine.
+pub const EPS_REP_CAP_MM: f64 = 0.05;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Verdict {
@@ -69,14 +73,23 @@ pub struct RefCurve {
     /// One of the two seam edges the engine declares for the part (a straight edge). The seam pair may coincide in the
     /// file (near-360 degree sectors): the two edges are then read as the two sides of one closed outline.
     pub seam: bool,
+    /// Declared upper bound of the distance from the exact curve to the drawn polyline (mm). Some for a curve
+    /// declared as a polyline, None for an exact line or a true arc.
+    pub eps_rep: Option<f64>,
+    /// Whether `eps_rep` is a certified bound. None means the declaration gives no status; it is then not certified.
+    pub eps_rep_certified: Option<bool>,
 }
 
 /// What the job declares for one part: the reference the file is checked against.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Reference {
     pub part: String,
     pub outer: Vec<RefCurve>,
     pub holes: Vec<RefCurve>,
+    /// The pattern's own declared representation bound (mm), when it states one.
+    pub eps_rep: Option<f64>,
+    /// The pattern's own certification statement for that bound. None or false means not certified.
+    pub eps_rep_certified: Option<bool>,
 }
 
 #[derive(Clone, Debug)]
@@ -116,6 +129,7 @@ impl Report {
             "entity_types",
             "not_released",
             "nf_metadata",
+            "representation_certified",
             "contours_closed",
             "seam_gaps",
             "self_intersection",
@@ -221,6 +235,7 @@ pub fn check_text(text: &str, reference: &Reference) -> Report {
         entity_types(&parsed.ents),
         not_released(&parsed),
         nf_metadata(&parsed),
+        representation_certified(reference),
     ];
     let finite = parsed.nonfinite.is_empty();
     let geometry_skip = |name: &'static str| {
@@ -528,6 +543,63 @@ fn nf_metadata(p: &Parsed) -> Check {
         bad.is_empty(),
         if bad.is_empty() {
             "NF metadata complete and consistent".into()
+        } else {
+            bad.join("; ")
+        },
+    )
+}
+
+/// L11: a drawn polyline is judged against the exact curve only through a certified bound. When the bound is
+/// absent, not certified or coarser than the cap, the curves cannot be certified: INCONCLUSIVE (the file is held).
+/// This does not soften a measured defect: a FAIL from any other check still makes the whole report FAIL.
+fn representation_certified(r: &Reference) -> Check {
+    let mut worst = 0.0f64;
+    let mut declared = 0usize;
+    let mut bad = Vec::new();
+    // A reference whose engine statement says "not certified" is held even when no drawn polyline exists:
+    // a shape may have no representation bound at all and still must not produce a DXF.
+    if r.eps_rep_certified == Some(false) {
+        bad.push("the engine does not certify the cut geometry".to_string());
+    }
+    for c in r.outer.iter().chain(r.holes.iter()) {
+        // a curve is declared as a drawn polyline by its bound, or by a non-zero deviation from the exact
+        // curve that is not an arc's display chord
+        if c.eps_rep.is_none() && (c.is_arc || c.max_dev <= 0.0) {
+            continue;
+        }
+        declared += 1;
+        let bound = c.eps_rep.or(r.eps_rep).unwrap_or(c.max_dev);
+        worst = worst.max(bound);
+        if !c.eps_rep_certified.or(r.eps_rep_certified).unwrap_or(false) {
+            bad.push("the drawn polyline bound is not proved".to_string());
+        } else if !bound.is_finite() {
+            bad.push("the proved bound is not a finite number".to_string());
+        } else if bound > EPS_REP_CAP_MM {
+            bad.push(format!(
+                "the proved bound {bound:.6} mm is larger than the {EPS_REP_CAP_MM:.2} mm cap"
+            ));
+        }
+    }
+    bad.sort();
+    bad.dedup();
+    check(
+        "representation_certified",
+        if bad.is_empty() {
+            Verdict::Pass
+        } else {
+            Verdict::Inconclusive
+        },
+        Some(worst),
+        Some(EPS_REP_CAP_MM),
+        None,
+        if bad.is_empty() {
+            if declared == 0 {
+                "no drawn polyline representation is declared; the cap does not apply".into()
+            } else {
+                format!(
+                    "{declared} drawn polyline representation(s) proved within the {EPS_REP_CAP_MM:.2} mm cap"
+                )
+            }
         } else {
             bad.join("; ")
         },

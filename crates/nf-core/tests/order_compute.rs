@@ -178,17 +178,22 @@ fn twelve_part_order_every_part_has_pattern_mass_and_bom_delta() {
             .as_ref()
             .unwrap_or_else(|| panic!("{}: BOM delta", r.no));
         assert!(b.within_tolerance && b.delta_rel < 1e-3, "{}: {b:?}", r.no);
-        // nothing here is certified: the pattern view and an issue entry, never a DXF
-        assert!(
-            !r.certified && r.dxf.is_none() && !r.dxf_allowed,
+        // L11: only a certified part with no hold gets a DXF. Families whose representation is not
+        // yet certified (cone branch, wye) stay withheld with a plain reason.
+        assert!(r.dxf.is_none(), "{}", r.no);
+        assert_eq!(
+            r.dxf_allowed,
+            r.certified && r.dxf_blocked_by.is_empty(),
             "{}",
             r.no
         );
-        assert!(
-            r.dxf_blocked_by.iter().any(|c| c == "not_certified"),
-            "{}",
-            r.no
-        );
+        if !r.certified {
+            assert!(
+                r.dxf_blocked_by.contains(&"not_certified".to_string()),
+                "{}",
+                r.no
+            );
+        }
         assert!(!r.group.is_empty());
     }
     // the tee group is one assembly
@@ -208,7 +213,11 @@ fn twelve_part_order_every_part_has_pattern_mass_and_bom_delta() {
         "BOM mass on one row per part"
     );
     let iss = issues(&res);
-    assert_eq!(iss.iter().filter(|i| i.code == "not_certified").count(), 12);
+    let uncertified = res.parts.iter().filter(|p| p.pattern_view_only).count();
+    assert_eq!(
+        iss.iter().filter(|i| i.code == "not_certified").count(),
+        uncertified
+    );
     assert!(iss.iter().all(|i| !i.message_ja.is_empty()));
 }
 
@@ -571,6 +580,28 @@ fn cone_group(ecc: bool) -> Vec<PartIn> {
 }
 
 #[test]
+fn certified_and_withheld_families_carry_the_representation_status() {
+    let tee = run(&[tee_main("T1"), tee_branch("T1b", "T1")]);
+    for r in &tee {
+        assert!(r.certified, "{}: perpendicular tee must be certified", r.no);
+        assert_eq!(r.eps_rep_certified, Some(true), "{}", r.no);
+        assert!(r.eps_rep.unwrap_or(f64::INFINITY) <= 0.05, "{}", r.no);
+    }
+
+    let bend = one(twelve().remove(2));
+    assert!(!bend.certified);
+    assert_eq!(bend.eps_rep_certified, Some(false));
+
+    let ecc = run(&cone_group(true));
+    assert!(!ecc[0].certified);
+    assert_eq!(ecc[0].eps_rep_certified, Some(false));
+
+    let cb = run(&cone_group(false));
+    assert!(!cb[0].certified);
+    assert_eq!(cb[0].eps_rep_certified, Some(false));
+}
+
+#[test]
 fn cone_branch_group_serializes_the_wiring_fields_and_defaults_to_normal_thickness() {
     let res = compute_order(&cone_group(false), &rules());
     let j = to_json(&res);
@@ -768,7 +799,10 @@ fn any_need_hold_question_or_refusal_means_no_dxf_and_no_final_mass() {
             let blocking = r.holds.iter().any(|h| h.level == "need")
                 || !r.questions.is_empty()
                 || r.refusal.is_some();
-            assert!(r.dxf.is_none() && !r.dxf_allowed, "{}", r.no);
+            assert!(r.dxf.is_none(), "{}", r.no);
+            if blocking || !r.certified {
+                assert!(!r.dxf_allowed, "{}", r.no);
+            }
             if blocking {
                 n_hold += 1;
                 assert!(r.mass_provisional, "{}: held mass is provisional", r.no);
@@ -798,9 +832,9 @@ fn any_need_hold_question_or_refusal_means_no_dxf_and_no_final_mass() {
 }
 
 #[test]
-fn engine_version_is_0_5_0_and_older_results_are_recompute() {
+fn engine_version_is_0_6_0_and_older_results_are_recompute() {
     assert!(
-        nf_core::ENGINE_VERSION.starts_with("nf-engine 0.5.0+src."),
+        nf_core::ENGINE_VERSION.starts_with("nf-engine 0.6.0+src."),
         "{}",
         nf_core::ENGINE_VERSION
     );

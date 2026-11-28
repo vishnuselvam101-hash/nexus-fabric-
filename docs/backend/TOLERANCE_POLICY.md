@@ -405,6 +405,36 @@ threshold changed, no planted fault removed).** Each old value and its reason:
 | ja "no English word" walk and `docs/design/tools/i18n_check.mjs` allow-list | `eps_num`, `eps_rep` not allowed (q.hint, a new tooltip) | allowed as whole identifiers only; no other word added. The ui walk removes the two identifiers before its word rule, which splits at `_` | they are deliberate technical names, shown identically in EN and JA |
 | `validation/seeded_faults.py` | 33 planted faults | 36: the 33 unchanged, plus three planted product verdicts (FAIL, INCONCLUSIVE, unknown) | the verdict split had no planted fault; the new ones test it |
 
+### 8.9 L11 certified cut geometry for the NFJ-1 new shapes (engine 0.6.0)
+
+Sections 8.1–8.8 certify the five `job::run` families and keep the eccentric reducer withheld. L11 adds a second,
+independent route for the NFJ-1 plate shapes reached through `order_compute`, which do not go through `job::run`.
+
+**Proof.** `uem::certify` encloses the exact curve on every parameter cell covering a drawn chord with outward-rounded
+interval arithmetic (`uem::interval`). The maximum distance from the four corners of each cell's enclosure box to the
+drawn segment bounds the whole cell, because the distance to a segment is convex. Every written vertex is enclosed at
+its parameter to cover vertex displacement. Cells are subdivided until each is within `tol + margin`; the reported
+value is the largest cell/vertex distance plus a binary64 rounding margin, capped at `tol`. If any cell, vertex, quotient
+or square root cannot be enclosed, or the bound exceeds the cap, the shape is not certified. Certification requires the
+**whole** pattern: area, extents and auxiliary maps stay estimates in this lane, so only the families whose exact
+map is closed-form and whose drawn edges are all covered are certified.
+
+**Scope.** The 0.05 mm cap is decision D1's implementation limit for these new shapes, not an engineering tolerance;
+the 0.01 mm cap of `develop.rs` and 8.1 remains unchanged for the five old families.
+
+| Family | L11 status | Basis |
+|---|---|---|
+| Tee main, perpendicular thin branches | certified when every hole is certified | exact hole enclosure `(dir + asin((e + r sin θ)/ri), x0 + r cos θ)`; azimuth scaled to plate millimetres; thick and lateral holes withheld |
+| Perpendicular tee branch wrap | certified except at wall tangency | exact cut enclosure `(w(θ−π/2)/(2π), h − tee_y(θ))`; a tangent wall gives a square-root singularity and no bound |
+| Reinforcing pad, thin wall | certified when both the hole and outline bounds prove | exact enclosed hole and circle outline; a constant-width ribbon adds the hole's chord error to each corner arc's chord error and is withheld when their sum exceeds the cap; thick holes withheld |
+| Bend, eccentric cone, cone branch, wye, lateral tee cut, every quadrature-dependent extent or area | withheld (`certified: false`) | no rigorous bound of the exact map and of every drawn edge is available in this lane |
+
+A withheld shape still serializes `eps_rep` as an estimate, `eps_rep_certified: false`, its method, named rules, holds,
+questions and taper flags. It does not get a DXF: `finish()` sets `dxf_allowed` only for a certified result with no
+hold, question or refusal. `nf-digest` re-checks the representation statement of every shape independently, holds a
+file whose bound is absent, uncertified or coarser than its own 0.05 mm cap, and never turns a measured FAIL into a
+PASS. The engine id is `nf-engine 0.6.0+src.<fingerprint>`; results made by older engines are recomputed.
+
 ## 9. Surface declaration of the entered radius (work plan task 1.4, engine 0.4.6)
 
 The entered radius of every family with radii may be declared to refer to a wall surface: `surface_reference` =

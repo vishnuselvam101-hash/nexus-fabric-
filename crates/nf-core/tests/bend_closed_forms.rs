@@ -771,3 +771,18 @@ fn fuzz_every_field_never_panics_never_nan() {
     }
     assert!(combos > 6000);
 }
+
+#[test]
+fn bend_results_state_method_rules_and_uncertified_bounds() {
+    for &(d, t, r, a, j, s1, s2) in &CASES {
+        let mut s = plain(d, t, r, a, j, s1, s2);
+        s.swing = SwingRule::Basis;
+        s.basis = Basis::Mid;
+        s.allow = 4.0;
+        let res = bend(&s).unwrap();
+        assert!(!res.certified, "d {d} j {j}");
+        assert_eq!(res.method, BEND_METHOD);
+        assert!(!res.rules.is_empty());
+        assert!(res.pieces.iter().all(|p| p.net_area.is_finite()));
+    }
+}

@@ -37,7 +37,7 @@ pub const MAX_CYL_SEAMS: u32 = 6;
 /// is stated in the tests (flat case r1 1000, r2 500, L 1: see `ecc_flat_cone_*`). An estimate, not an interval bound.
 pub const ECC_REL_TOL: f64 = 1e-9;
 /// Method tag carried by every eccentric result.
-pub const ECC_METHOD: &str = "adaptive_simpson_richardson";
+pub const ECC_METHOD: &str = "adaptive_simpson_richardson; L11 representation not certified";
 /// Initial panels, depth limit and evaluation budget of one adaptive integral (implementation limits).
 const ECC_INIT_PANELS: usize = 64;
 const ECC_MAX_DEPTH: u32 = 48;

@@ -85,6 +85,8 @@ fn curve(points: &[[f64; 2]], is_arc: bool, max_dev: f64) -> RefCurve {
         max_dev,
         is_arc,
         seam: false,
+        eps_rep: None,
+        eps_rep_certified: None,
     }
 }
 
@@ -101,6 +103,7 @@ fn rect_reference() -> Reference {
             false,
             0.0,
         )],
+        ..Reference::default()
     }
 }
 
@@ -136,7 +139,87 @@ fn clean_closed_profile_passes_every_check() {
         assert_eq!(c.verdict, Verdict::Pass, "{}: {}", c.name, c.detail);
     }
     assert_eq!(rep.verdict(), Verdict::Pass);
-    assert_eq!(rep.checks.len(), 21);
+    assert_eq!(rep.checks.len(), 22);
+}
+
+/// A reference that declares the same drawn-polyline bound for every curve.
+fn declared_polyline(bound: Option<f64>, certified: Option<bool>) -> Reference {
+    let mut r = rect_reference();
+    for c in r.outer.iter_mut().chain(r.holes.iter_mut()) {
+        c.eps_rep = bound;
+        c.eps_rep_certified = certified;
+    }
+    r
+}
+
+#[test]
+fn a_certified_bound_at_the_cap_passes() {
+    let rep = run(
+        &clean(),
+        &declared_polyline(Some(EPS_REP_CAP_MM), Some(true)),
+    );
+    let c = check_named(&rep, "representation_certified");
+    assert_eq!(c.verdict, Verdict::Pass, "{}", c.detail);
+    assert_eq!(rep.verdict(), Verdict::Pass);
+}
+
+#[test]
+fn an_uncertified_or_absent_bound_is_inconclusive() {
+    for certified in [None, Some(false)] {
+        let rep = run(
+            &clean(),
+            &declared_polyline(Some(EPS_REP_CAP_MM), certified),
+        );
+        let c = check_named(&rep, "representation_certified");
+        assert_eq!(c.verdict, Verdict::Inconclusive, "{}", c.detail);
+        assert_eq!(rep.verdict(), Verdict::Inconclusive);
+    }
+
+    // A non-zero declared deviation is a drawn polyline even when no explicit bound is given.
+    let mut r = rect_reference();
+    for c in r.outer.iter_mut().chain(r.holes.iter_mut()) {
+        c.max_dev = EPS_REP_CAP_MM;
+    }
+    let rep = run(&clean(), &r);
+    let c = check_named(&rep, "representation_certified");
+    assert_eq!(c.verdict, Verdict::Inconclusive, "{}", c.detail);
+    assert_eq!(rep.verdict(), Verdict::Inconclusive);
+}
+
+#[test]
+fn a_reference_declared_uncertified_is_inconclusive_without_a_drawn_polyline() {
+    let mut r = rect_reference();
+    r.eps_rep_certified = Some(false);
+    let rep = run(&clean(), &r);
+    let c = check_named(&rep, "representation_certified");
+    assert_eq!(c.verdict, Verdict::Inconclusive, "{}", c.detail);
+    assert_eq!(rep.verdict(), Verdict::Inconclusive);
+}
+
+#[test]
+fn a_bound_larger_than_the_cap_is_inconclusive() {
+    let rep = run(
+        &clean(),
+        &declared_polyline(Some(EPS_REP_CAP_MM + 0.001), Some(true)),
+    );
+    let c = check_named(&rep, "representation_certified");
+    assert_eq!(c.verdict, Verdict::Inconclusive, "{}", c.detail);
+    assert_eq!(rep.verdict(), Verdict::Inconclusive);
+}
+
+#[test]
+fn a_real_geometric_fail_stays_fail_when_the_bound_is_uncertified() {
+    let mut d = Doc::new();
+    d.insunits = Some(4);
+    d.line("CUT_OUTER", [0.0, 0.0], [100.0, 0.0])
+        .line("CUT_OUTER", [100.0, 0.0], [100.0, 50.0])
+        .line("CUT_OUTER", [100.0, 50.0], [0.0, 50.0]);
+    let rep = run(&d, &declared_polyline(Some(EPS_REP_CAP_MM), Some(false)));
+    assert_eq!(
+        check_named(&rep, "representation_certified").verdict,
+        Verdict::Inconclusive
+    );
+    assert_fails(&rep, "contours_closed");
 }
 
 #[test]
@@ -168,6 +251,7 @@ fn clean_profile_built_from_lines_and_an_arc_passes() {
         part: "P2".into(),
         outer: outline,
         holes: vec![],
+        ..Reference::default()
     };
     let rep = run(&d, &r);
     for c in &rep.checks {
@@ -351,6 +435,7 @@ fn opening_outside_the_outline_fails() {
         part: "P1".into(),
         outer: rect_reference().outer,
         holes: vec![curve(&far, false, 0.0)],
+        ..Reference::default()
     };
     assert_fails(&run(&d, &r), "holes_inside_outline");
 }
@@ -497,6 +582,7 @@ fn very_large_radius_arc_matches_its_declared_arc() {
             part: "BIG".into(),
             outer: outline,
             holes: vec![],
+            ..Reference::default()
         },
     );
     let c = rep.checks.iter().find(|c| c.name == "arc_radii").unwrap();
@@ -520,6 +606,7 @@ fn scaled_job(s: f64) -> (Doc, Reference) {
         part: "P1".into(),
         outer: vec![curve(&closed(&RECT), false, 0.0)],
         holes: vec![curve(&closed(&SQUARE), false, 0.0)],
+        ..Reference::default()
     };
     (d, r)
 }
@@ -650,6 +737,7 @@ fn large_valid_part_is_decided_by_the_crossing_test() {
         part: "BIG".into(),
         outer: vec![curve(&closed, false, 0.0)],
         holes: Vec::new(),
+        ..Reference::default()
     };
     let mut d = Doc::new();
     d.insunits = Some(4);
@@ -721,6 +809,7 @@ fn near_full_sector(declared: bool) -> (Doc, Reference) {
             part: "SECTOR".into(),
             outer,
             holes: Vec::new(),
+            ..Reference::default()
         },
     )
 }
@@ -773,6 +862,7 @@ fn features_below_the_tolerance_declared_by_the_reference_are_inconclusive() {
         part: "T".into(),
         outer: vec![curve(&closed_pts, false, 0.0)],
         holes: rect_reference().holes,
+        ..Reference::default()
     };
     let rep = run(&d, &declared);
     let c = check_named(&rep, "tiny_segments");
@@ -783,6 +873,7 @@ fn features_below_the_tolerance_declared_by_the_reference_are_inconclusive() {
         part: "T".into(),
         outer: rect_reference().outer,
         holes: rect_reference().holes,
+        ..Reference::default()
     };
     let rep = run(&d, &undeclared);
     assert_fails(&rep, "tiny_segments");
@@ -874,6 +965,7 @@ fn plate(declared: &[[f64; 2]], drawn: &[[f64; 2]]) -> (Doc, Reference) {
             part: "PLATE".into(),
             outer: vec![curve(&closed, false, 0.0)],
             holes,
+            ..Reference::default()
         },
     )
 }
@@ -985,6 +1077,7 @@ fn plate_case(drawn: &[Vec<[f64; 2]>], holes: Vec<RefCurve>) -> Report {
         part: "PLATE".into(),
         outer: vec![decl_curve(&o)],
         holes,
+        ..Reference::default()
     };
     run(&d, &r)
 }
@@ -1058,6 +1151,8 @@ fn circle_and_slot_openings_at_their_declared_places_pass() {
         max_dev: s,
         is_arc: true,
         seam: false,
+        eps_rep: None,
+        eps_rep_certified: None,
     };
     let mut d = Doc::new();
     d.insunits = Some(4);
@@ -1077,6 +1172,7 @@ fn circle_and_slot_openings_at_their_declared_places_pass() {
             [0.0, 100.0],
         ])],
         holes: vec![circle],
+        ..Reference::default()
     };
     let rep = run(&d, &r);
     let c = check_named(&rep, "hole_position");
@@ -1099,6 +1195,8 @@ fn circle_and_slot_openings_at_their_declared_places_pass() {
         max_dev: sd,
         is_arc: false,
         seam: false,
+        eps_rep: Some(sd),
+        eps_rep_certified: Some(true),
     };
     let mut d = Doc::new();
     d.insunits = Some(4);
@@ -1120,6 +1218,7 @@ fn circle_and_slot_openings_at_their_declared_places_pass() {
             [0.0, 100.0],
         ])],
         holes: vec![slot_curve],
+        ..Reference::default()
     };
     let rep = run(&d, &r);
     let c = check_named(&rep, "hole_position");

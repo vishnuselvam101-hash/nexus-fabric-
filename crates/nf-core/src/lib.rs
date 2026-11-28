@@ -135,7 +135,10 @@ use std::collections::{BTreeMap, BTreeSet};
 /// the engine identifier changes because the engine sources do, and the new refusal codes (`shape_*`, `bend_*`, `tee_*`,
 /// `pad_*`, `conebranch_*`, `ring_*`, `plate_*`, `rib_*`, `cone_*`, `ecc_*`) join docs/backend/REFUSAL_CODES.md.
 /// Results of 0.4.12 are REJECTED with G21 recompute.
-pub const ENGINE_VERSION: &str = concat!("nf-engine 0.5.0+src.", env!("NF_ENGINE_SRC_HASH"));
+/// 0.6.0 (28 Nov 2026): L11 certified representation bounds. Curved outlines of the ported families carry a
+/// rigorous interval enclosure of the exact curve (or remain explicitly uncertified where no bound is available),
+/// so only certified parts may receive a DXF. Results of 0.5.0 are REJECTED with G21 recompute.
+pub const ENGINE_VERSION: &str = concat!("nf-engine 0.6.0+src.", env!("NF_ENGINE_SRC_HASH"));
 
 /// Engine identifiers known to have produced wrong or unidentifiable results.
 /// Stored results carrying one of these (or any identifier other than the

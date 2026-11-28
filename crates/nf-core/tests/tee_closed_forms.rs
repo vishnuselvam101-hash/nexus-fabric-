@@ -171,7 +171,11 @@ fn branch_area_equals_the_complete_elliptic_integral() {
             (r.area_drawn - want).abs() / want
         );
         assert!((r.area_drawn - want).abs() / want < 1e-4);
-        assert!(!r.certified && r.method == tee::TEE_METHOD && !r.rules.is_empty());
+        assert_eq!(r.method, tee::TEE_METHOD);
+        assert!(!r.rules.is_empty());
+        // A branch wall tangent to the main surface has a square-root singularity in the cut curve;
+        // L11 refuses to certify that interval. The other cases have a strict clearance and are certified.
+        assert_eq!(r.certified, ro < rc, "d {d} {mount:?}: ro {ro}, rc {rc}");
     }
 }
 
@@ -274,7 +278,7 @@ fn every_drawn_hole_vertex_lies_on_the_bore_cylinder() {
             assert!(psi.cos() > 0.0, "vertex on the branch side");
         }
         assert_eq!(h.pts.len(), 360);
-        assert!(!h.eps_rep_certified && h.eps_rep.is_finite() && h.eps_rep >= 0.0);
+        assert!(h.eps_rep_certified && h.eps_rep.is_finite() && h.eps_rep >= 0.0);
     }
 }
 
@@ -814,7 +818,14 @@ const POOL: [f64; 14] = [
 ];
 
 fn check_finite_main(r: &tee::TeeMainResult) {
-    assert!(r.mass_kg.is_finite() && r.net_area.is_finite() && !r.certified);
+    assert!(r.mass_kg.is_finite() && r.net_area.is_finite());
+    if r.certified {
+        assert!(
+            r.holes
+                .iter()
+                .all(|h| h.eps_rep_certified && h.eps_rep <= 0.05)
+        );
+    }
     for h in &r.holes {
         assert!(
             h.hole_u.is_finite()
@@ -908,12 +919,10 @@ fn fuzz_no_panic_no_nan_always_a_tee_code() {
         };
         match tee::branch_piece(&bp) {
             Ok(r) => {
-                assert!(
-                    r.net_area.is_finite()
-                        && r.mass_kg.is_finite()
-                        && r.shortest.is_finite()
-                        && !r.certified
-                );
+                assert!(r.net_area.is_finite() && r.mass_kg.is_finite() && r.shortest.is_finite());
+                if r.certified {
+                    assert!(r.eps_rep_certified && r.eps_rep <= 0.05);
+                }
                 assert!(r.marks.iter().all(|m| m.len.is_finite() && m.len > 0.0));
             }
             Err(e) => assert!(allowed.contains(&e.code), "{}", e.code),

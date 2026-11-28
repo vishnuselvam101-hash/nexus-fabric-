@@ -4,6 +4,7 @@
 //! snapshot PASSes. The digest decides nothing by itself: a FAIL or INCONCLUSIVE only holds the file.
 
 use nf_core::job::{CurveView, JobOutput, PatternView};
+use nf_core::order_compute::{PartResult, PatternPiece};
 use nf_digest::{Check, RefCurve, Reference, Report};
 use rusqlite::{Connection, params};
 use serde_json::{Value, json};
@@ -11,7 +12,31 @@ use serde_json::{Value, json};
 /// Gate of the digest (the next free id after G22).
 pub const GATE_ID: &str = "G23";
 
-fn curve(c: &CurveView) -> RefCurve {
+/// `PatternView` does not carry the engine's `eps_rep_certified` flag; its declared assumptions do. Read only
+/// that statement, and call a bound uncertified when the statement is absent or says so (fail closed).
+fn eps_rep_certified(p: &PatternView) -> bool {
+    if p.eps_rep <= 0.0 {
+        return false;
+    }
+    let certified = p
+        .assumptions
+        .iter()
+        .any(|a| a.contains("eps_rep is a certified upper bound"));
+    let not_certified = p
+        .assumptions
+        .iter()
+        .any(|a| a.contains("eps_rep is NOT certified") || a.contains("NOT certified"));
+    certified && !not_certified
+}
+
+fn curve(c: &CurveView, certified: bool) -> RefCurve {
+    // Only a drawn polyline has a representation bound. An arc's points are display chords; the DXF carries
+    // the exact arc, and a line is exact.
+    let eps_rep = if c.kind == "polyline" && !c.points_exact && c.points_max_deviation > 0.0 {
+        Some(c.points_max_deviation)
+    } else {
+        None
+    };
     RefCurve {
         points: c.points.clone(),
         length: c.length,
@@ -19,22 +44,95 @@ fn curve(c: &CurveView) -> RefCurve {
         is_arc: c.kind == "arc",
         // the engine's seam pair: the two straight edges named seam_a and seam_b (uem::develop)
         seam: c.kind == "line" && (c.name == "seam_a" || c.name == "seam_b"),
+        eps_rep,
+        eps_rep_certified: eps_rep.map(|_| certified),
     }
 }
 
 /// The reference one part is checked against: the pattern's outline and openings as the engine declares them.
 pub fn reference(part: &str, pattern: Option<&PatternView>) -> Reference {
     match pattern {
-        Some(p) => Reference {
-            part: part.to_string(),
-            outer: p.curves.iter().map(curve).collect(),
-            holes: p.holes.iter().map(curve).collect(),
-        },
+        Some(p) => {
+            let certified = eps_rep_certified(p);
+            Reference {
+                part: part.to_string(),
+                outer: p.curves.iter().map(|c| curve(c, certified)).collect(),
+                holes: p.holes.iter().map(|c| curve(c, certified)).collect(),
+                eps_rep: (p.eps_rep > 0.0).then_some(p.eps_rep),
+                // no drawn-polyline bound means the certification statement does not apply to this reference
+                eps_rep_certified: (p.eps_rep > 0.0).then_some(certified),
+            }
+        }
         None => Reference {
             part: part.to_string(),
             outer: Vec::new(),
             holes: Vec::new(),
+            eps_rep: None,
+            eps_rep_certified: Some(false),
         },
+    }
+}
+
+/// Reference of one cut piece of an `order_compute` result. The NFJ-1 shapes do not go through `job::run`; their
+/// digest still has to use the engine's own certification statement, not a value copied from the file.
+/// L11 does not write these DXFs yet; the bridge is kept ready for the DXF-writing lane.
+#[allow(dead_code)]
+pub fn reference_for_piece(part: &PartResult, piece: &PatternPiece) -> Reference {
+    let bound = part.eps_rep.filter(|v| v.is_finite() && *v > 0.0);
+    let certified = part.certified && part.eps_rep_certified == Some(true);
+    let polyline = |points: &[[f64; 2]]| {
+        let length = points
+            .windows(2)
+            .map(|w| ((w[0][0] - w[1][0]).powi(2) + (w[0][1] - w[1][1]).powi(2)).sqrt())
+            .sum();
+        RefCurve {
+            points: points.to_vec(),
+            length,
+            max_dev: bound.unwrap_or(0.0),
+            is_arc: false,
+            seam: false,
+            eps_rep: bound,
+            eps_rep_certified: bound.map(|_| certified),
+        }
+    };
+    let mut outer = Vec::new();
+    if !piece.outline.is_empty() {
+        outer.push(polyline(&piece.outline));
+    }
+    let mut holes: Vec<RefCurve> = piece
+        .holes
+        .iter()
+        .filter(|h| !h.is_empty())
+        .map(|h| polyline(h))
+        .collect();
+    for [cx, cy, r] in &piece.circles {
+        if !r.is_finite() || *r <= 0.0 {
+            continue;
+        }
+        let pts: Vec<[f64; 2]> = (0..=64)
+            .map(|k| {
+                let t = 2.0 * std::f64::consts::PI * k as f64 / 64.0;
+                [cx + r * t.cos(), cy + r * t.sin()]
+            })
+            .collect();
+        let length = 2.0 * std::f64::consts::PI * r;
+        holes.push(RefCurve {
+            points: pts,
+            length,
+            max_dev: 0.0,
+            is_arc: true,
+            seam: false,
+            eps_rep: None,
+            eps_rep_certified: None,
+        });
+    }
+    Reference {
+        part: part.no.clone(),
+        outer,
+        holes,
+        eps_rep: bound,
+        // the engine statement is carried even without a drawn-polyline bound: a withheld shape holds its DXF
+        eps_rep_certified: Some(certified),
     }
 }
 
@@ -314,6 +412,126 @@ pub fn stages(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nf_core::order_compute::{OrderRules, PartIn, compute_order};
+    use std::collections::BTreeMap;
+
+    fn curve_view(kind: &str, name: &str, dev: f64) -> CurveView {
+        CurveView {
+            name: name.into(),
+            layer: "CUT_OUTER".into(),
+            kind: kind.into(),
+            points: vec![[0.0, 0.0], [1.0, 0.0]],
+            points_exact: kind == "line",
+            points_max_deviation: dev,
+            length: 1.0,
+        }
+    }
+
+    fn pattern_view(assumptions: Vec<String>) -> PatternView {
+        PatternView {
+            part: "P1".into(),
+            family: "branch_stub".into(),
+            class: "A".into(),
+            marking_side: "outside".into(),
+            eps_num: 1e-9,
+            eps_rep: 0.01,
+            eps_num_governs: false,
+            quantities: BTreeMap::new(),
+            assumptions,
+            curves: vec![
+                curve_view("polyline", "saddle_cut", 0.01),
+                curve_view("line", "seam_a", 0.0),
+            ],
+            holes: vec![curve_view("arc", "opening", 0.002)],
+            dxf_sha256: "sha".into(),
+        }
+    }
+
+    #[test]
+    fn the_reference_carries_the_declared_representation_bound() {
+        let p = pattern_view(vec![
+            "eps_rep is a certified upper bound of the chord error of the drawn polyline".into(),
+        ]);
+        let r = reference("P1", Some(&p));
+        assert_eq!(r.eps_rep, Some(0.01));
+        assert_eq!(r.eps_rep_certified, Some(true));
+        assert_eq!(r.outer[0].eps_rep, Some(0.01));
+        assert_eq!(r.outer[0].eps_rep_certified, Some(true));
+        assert_eq!(r.outer[1].eps_rep, None);
+        assert_eq!(r.outer[1].eps_rep_certified, None);
+        // an arc's points are display chords, not a drawn polyline in the DXF
+        assert_eq!(r.holes[0].eps_rep, None);
+        assert_eq!(r.holes[0].eps_rep_certified, None);
+    }
+
+    #[test]
+    fn a_pattern_without_a_certification_statement_is_uncertified() {
+        let p = pattern_view(vec!["no bound statement".into()]);
+        let r = reference("P1", Some(&p));
+        assert_eq!(r.eps_rep, Some(0.01));
+        assert_eq!(r.eps_rep_certified, Some(false));
+        assert_eq!(r.outer[0].eps_rep_certified, Some(false));
+    }
+
+    #[test]
+    fn a_pattern_that_says_not_certified_is_uncertified() {
+        let p = pattern_view(vec!["eps_rep is NOT certified for this pattern".into()]);
+        let r = reference("P1", Some(&p));
+        assert_eq!(r.eps_rep_certified, Some(false));
+        assert_eq!(r.outer[0].eps_rep_certified, Some(false));
+    }
+
+    #[test]
+    fn an_order_piece_reference_carries_the_engine_certification() {
+        let parts = compute_order(
+            &[
+                PartIn::new("T1", "tee_main")
+                    .v("D", 1016.0)
+                    .v("t", 12.0)
+                    .v("L", 2000.0)
+                    .v("branch_D", 508.0)
+                    .v("branch_t", 9.0)
+                    .v("branch_x", 1000.0)
+                    .v("dir", 0.0),
+                PartIn::new("T1b", "tee_branch")
+                    .v("D", 508.0)
+                    .v("t", 9.0)
+                    .v("H", 600.0)
+                    .attached("T1"),
+            ],
+            &OrderRules::default(),
+        )
+        .parts;
+        let p = &parts[0];
+        let piece = p.pattern.first().expect("tee pattern");
+        let r = reference_for_piece(p, piece);
+        assert!(p.certified, "{}: {:?}", p.no, p.holds);
+        assert_eq!(r.eps_rep, p.eps_rep);
+        assert_eq!(r.eps_rep_certified, Some(true));
+        assert!(!r.outer.is_empty());
+        assert!(r.outer.iter().all(|c| c.eps_rep_certified == Some(true)));
+    }
+
+    #[test]
+    fn a_withheld_order_piece_reference_is_uncertified() {
+        let parts = compute_order(
+            &[PartIn::new("B1", "miter_bend")
+                .v("D", 1016.0)
+                .v("t", 12.0)
+                .v("R", 1500.0)
+                .v("angle", 90.0)
+                .v("joints", 2.0)
+                .v("start_straight", 300.0)
+                .v("end_straight", 300.0)],
+            &OrderRules::default(),
+        )
+        .parts;
+        let p = &parts[0];
+        let piece = p.pattern.first().expect("bend pattern");
+        let r = reference_for_piece(p, piece);
+        assert!(!p.certified);
+        assert_eq!(r.eps_rep_certified, Some(false));
+    }
 
     #[test]
     fn a_failed_digest_is_named_once_in_the_export_reasons() {

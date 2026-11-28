@@ -7,17 +7,19 @@
 //! - Every result states `certified`, `method`, the named `rules` it applied, its `holds`, its `questions`, `eps_rep`
 //!   (an estimate unless `eps_rep_certified`), and for a cone branch the plate-thickness convention and the delta the
 //!   other convention would make.
-//! - Nothing here writes a DXF. Every shape built here is `certified: false` (sampled polylines, quadrature without a
-//!   bound), so under the owner's rule of 24 Nov no cut file is served for it: the part gets a pattern view and an
+//! - Nothing here writes a DXF. A shape is `certified` only where L11 proved a 0.05 mm bound of the drawn
+//!   polyline (perpendicular tee holes/cuts and thin reinforcing-pad outlines). Families whose exact map still
+//!   depends on sampled/quadrature estimates stay `certified: false` and are listed as withheld in
+//!   `CERT-DESIGN.md`. Under the owner's rule of 24 Nov an uncertified or held part gets a pattern view and an
 //!   issue entry. `dxf_blocked_by` lists why; `dxf_allowed` is true only for a certified result with no hold, no
-//!   question and no refusal (no shape of this layer can be, until the certification lane).
+//!   question and no refusal.
 //! - A hold of level `Need`, a question, a flag of a result (`tee_lateral_angle_below_30`), the rib-on-lateral refusal
 //!   and the mid-surface deviation of a cone branch are all holds that block the DXF. A held part's mass is reported
 //!   `mass_provisional` and does not enter the material list (L5b follow-up: `order::build_piece` computes masses for
 //!   invalid holes).
 //! - A PROPOSED value is never computed. A negative offset without a side is refused, never `abs()`'d.
 //!
-//! Not here: DXF/AMOEBA wiring and `eps_rep` certification (lane L11), the JIS standard-table fill, the wye and the
+//! Not here: DXF writing (L11 only sets the gate), the JIS standard-table fill, the wye and the
 //! `Request`/`job::run` path (the five engine families keep their own route, unchanged).
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -537,7 +539,7 @@ pub struct PartResult {
     /// True while a Need hold, a question or a refusal stands: the number is a view, not a result.
     pub mass_provisional: bool,
     pub bom: Option<BomDelta>,
-    /// Always null in this lane: no shape built here is certified (owner rule of 24 Nov).
+    /// Always null in this lane: the gate is decided here, the file is written by a later lane.
     pub dxf: Option<String>,
     pub dxf_allowed: bool,
     pub dxf_blocked_by: Vec<String>,
@@ -1939,6 +1941,9 @@ fn compute_bend(w: &mut Work<'_>, r: &mut PartResult, rules: &OrderRules) {
             r.method = Some(res.method.to_string());
             r.certified = res.certified;
             r.review_length_mm = Some(res.pieces.iter().map(|p| p.center).sum());
+            // Bend extents and areas are numerical estimates: no representation bound is proved.
+            r.eps_rep = None;
+            r.eps_rep_certified = Some(false);
             r.rules = res
                 .rules
                 .iter()
@@ -2398,6 +2403,8 @@ fn compute_tee_group(
                             r.rules = rules_of(bp.rules);
                             r.method = Some(bp.method.to_string());
                             r.certified = bp.certified;
+                            r.eps_rep = Some(bp.eps_rep);
+                            r.eps_rep_certified = Some(bp.eps_rep_certified);
                             r.t_mm = Some(spec.t);
                             r.length_mm = Some(spec.h);
                             let mut pc = piece(
