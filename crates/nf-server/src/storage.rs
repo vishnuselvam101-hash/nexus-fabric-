@@ -12,11 +12,12 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+/// 8: `operator_events` and `operator_state` (the AI operator's event stream, pause; AIOP-1), on top of 7.
 /// 7: `order_results` (the supersede chain of order computes, NFJ-1 L10), on top of 6.
 /// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns). Rollback to an older build
 /// is a restore of the pre-update backup: an older program refuses a newer schema (see the check below) and does not
 /// undo the migration.
-pub const SCHEMA_VERSION: i64 = 7;
+pub const SCHEMA_VERSION: i64 = 8;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
@@ -41,6 +42,8 @@ CREATE TABLE IF NOT EXISTS order_pages(id INTEGER PRIMARY KEY, order_id INTEGER 
 CREATE TABLE IF NOT EXISTS order_parts(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_id INTEGER REFERENCES order_pages(id), no TEXT NOT NULL, name TEXT NOT NULL, shape TEXT NOT NULL, attach_part TEXT, qty INTEGER NOT NULL, table_rows_json TEXT NOT NULL, group_key TEXT, state TEXT NOT NULL, UNIQUE(order_id, no));
 CREATE TABLE IF NOT EXISTS order_values(id INTEGER PRIMARY KEY, part_id INTEGER NOT NULL REFERENCES order_parts(id), key TEXT NOT NULL, value REAL, text TEXT NOT NULL, bbox_json TEXT, source TEXT NOT NULL, state TEXT NOT NULL, was REAL, proposed_value REAL, proposed_by TEXT NOT NULL, edited_by TEXT, edited_at INTEGER, UNIQUE(part_id, key));
 CREATE TABLE IF NOT EXISTS order_results(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), input_hash TEXT NOT NULL, engine TEXT NOT NULL, state TEXT NOT NULL, supersedes INTEGER, result_json TEXT NOT NULL, counts_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS operator_events(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), seq INTEGER NOT NULL, event_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, UNIQUE(order_id, seq));
+CREATE TABLE IF NOT EXISTS operator_state(order_id INTEGER PRIMARY KEY REFERENCES orders(id), paused INTEGER NOT NULL, by_user TEXT NOT NULL, at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS order_decisions(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), part_id INTEGER, value_id INTEGER, kind TEXT NOT NULL, flag TEXT, source TEXT NOT NULL, agent TEXT, reason TEXT NOT NULL, against_hash TEXT NOT NULL, prev_state TEXT, decided_by TEXT NOT NULL, decided_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, undo_note TEXT);
 ";
 
@@ -83,6 +86,8 @@ CREATE TRIGGER IF NOT EXISTS records_no_delete BEFORE DELETE ON records BEGIN SE
 CREATE TRIGGER IF NOT EXISTS amoeba_no_update BEFORE UPDATE ON amoeba_digests BEGIN SELECT RAISE(ABORT, 'AMOEBA snapshots are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS amoeba_no_delete BEFORE DELETE ON amoeba_digests BEGIN SELECT RAISE(ABORT, 'AMOEBA snapshots are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS order_results_no_delete BEFORE DELETE ON order_results BEGIN SELECT RAISE(ABORT, 'computed results are kept; a new compute supersedes them'); END;
+CREATE TRIGGER IF NOT EXISTS operator_events_no_delete BEFORE DELETE ON operator_events BEGIN SELECT RAISE(ABORT, 'operator events are kept; undo marks them undone'); END;
+CREATE TRIGGER IF NOT EXISTS operator_events_no_edit BEFORE UPDATE OF order_id, seq, event_json, created_by, created_at ON operator_events BEGIN SELECT RAISE(ABORT, 'operator events are kept as written'); END;
 CREATE TRIGGER IF NOT EXISTS order_decisions_no_delete BEFORE DELETE ON order_decisions BEGIN SELECT RAISE(ABORT, 'decisions are kept; undo marks them undone'); END;
 ";
 

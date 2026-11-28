@@ -3954,6 +3954,9 @@ mod pdfconv;
 /// NFJ-1 S1-L1: orders (job data, files, pages, parts, values, decisions).
 mod orders;
 
+/// AIOP-1: operator event stream, pause, undo.
+mod operator;
+
 /// Licence system: state machine glue, the read-only gate, seats, renewal (plan cases 12-22
 /// and the owner's enforcement-off cases).
 mod licence;

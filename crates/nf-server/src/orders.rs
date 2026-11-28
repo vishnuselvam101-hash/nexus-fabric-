@@ -21,6 +21,8 @@
 
 use super::*;
 
+mod operator;
+
 /// Implementation limits, stated to the user by the UI.
 pub(crate) const MAX_ORDER_FILES: i64 = 100;
 pub(crate) const MAX_ORDER_PAGES: i64 = 300;
@@ -73,6 +75,7 @@ const MAX_ABS_VALUE: f64 = 1.0e7;
 
 pub(crate) fn routes() -> Router<Arc<App>> {
     Router::new()
+        .merge(operator::routes())
         .route(
             "/api/projects/{id}/orders",
             get(list_orders).post(create_order),
@@ -354,6 +357,21 @@ fn write_access(app: &App, headers: &HeaderMap, oid: i64, what: &str) -> Result<
     let u = auth_db(&db, app, headers)?;
     require(&u, &["admin", "engineer"])?;
     guard_order(app, &db, &u, oid, what)?;
+    // a person paused the operator: its writes wait (the operator's own event post is refused the same way)
+    if u.kind == "agent" && operator::is_paused(&db, oid)? {
+        drop(db);
+        record_alone(
+            app,
+            &u.username,
+            "order_refused",
+            &format!("order #{oid} {what} refused: operator_paused (409)"),
+        )?;
+        return Err(refuse(
+            StatusCode::CONFLICT,
+            "operator_paused",
+            "a person paused the operator on this order",
+        ));
+    }
     Ok(u)
 }
 

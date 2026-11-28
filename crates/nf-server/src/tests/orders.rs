@@ -73,7 +73,7 @@ async fn add_file(t: &T, oid: i64, bytes: Vec<u8>, name: &str) -> (StatusCode, V
     (st, serde_json::from_slice(&body).unwrap_or(Value::Null))
 }
 
-async fn order_with_parts(t: &T) -> i64 {
+pub(super) async fn order_with_parts(t: &T) -> i64 {
     let oid = new_order(t).await;
     for (b, n) in [(PDF_2_PAGES.to_vec(), "a.pdf"), (png(2480, 3508), "b.png")] {
         assert_eq!(add_file(t, oid, b, n).await.0, StatusCode::OK);
@@ -92,7 +92,7 @@ async fn order_with_parts(t: &T) -> i64 {
 }
 
 /// The AI operator's own identity: an engineer account of kind "agent" in project 1.
-fn add_agent(t: &T, name: &str) -> String {
+pub(super) fn add_agent(t: &T, name: &str) -> String {
     let c = add_session(&t.app, name, "engineer");
     t.sql(&format!(
         "UPDATE users SET kind = 'agent' WHERE username = '{name}'"
@@ -101,7 +101,7 @@ fn add_agent(t: &T, name: &str) -> String {
     c
 }
 
-fn audit_details(t: &T, action: &str) -> Vec<String> {
+pub(super) fn audit_details(t: &T, action: &str) -> Vec<String> {
     let db = t.app.db();
     let mut st = db
         .prepare("SELECT detail FROM audit WHERE action = ? ORDER BY id")
