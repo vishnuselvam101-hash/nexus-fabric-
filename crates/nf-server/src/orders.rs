@@ -20,6 +20,7 @@
 //! changes.
 
 use super::*;
+use nf_core::reading::{BoxCheck, ItemRef, OcrCheck, Provenance, StoredCheck, Verdict};
 
 mod operator;
 
@@ -28,6 +29,9 @@ pub(crate) const MAX_ORDER_FILES: i64 = 100;
 pub(crate) const MAX_ORDER_PAGES: i64 = 300;
 const MAX_ORDER_PARTS: usize = 500;
 const MAX_VALUE_BATCH: usize = 500;
+/// Each flagged value runs a second read through the shared model. Capacities are small: a batch
+/// must not be able to keep the model (or the waiting writers) busy for minutes.
+const MAX_FLAGGED_BATCH: usize = 8;
 const MAX_NAME_CHARS: usize = 200;
 const MAX_NOTE_CHARS: usize = 500;
 /// Distinct value keys one part may hold (the shapes use far fewer).
@@ -656,6 +660,401 @@ fn parse_bbox(v: Option<&Value>) -> Result<Option<String>, ApiError> {
     }
 }
 
+/// The number reader is loaded once, from the pinned models, and shared by every request. A stored
+/// verdict can only come from this reader: no request field is allowed to name a verdict.
+static NUMREAD: std::sync::OnceLock<Result<std::sync::Mutex<nf_numread::Reader>, String>> =
+    std::sync::OnceLock::new();
+
+fn numread_lock() -> Result<std::sync::MutexGuard<'static, nf_numread::Reader>, ApiError> {
+    let reader = NUMREAD.get_or_init(|| {
+        nf_numread::Reader::new()
+            .map(std::sync::Mutex::new)
+            .map_err(|e| {
+                // The error names model files and their directories: log it, never send it to a client.
+                elog!("nf-server: the second reader could not be started: {e}");
+                "the pinned models could not be loaded".to_string()
+            })
+    });
+    reader
+        .as_ref()
+        .map_err(|_| {
+            unprocessable(
+                "ocr_no_models",
+                "the second reader could not be started; the pinned models are unavailable",
+            )
+        })?
+        .lock()
+        .map_err(|_| ApiError::Internal("the second reader was poisoned".into()))
+}
+
+#[derive(Clone, Copy)]
+struct FlagContext<'a> {
+    app: &'a App,
+    db: &'a Connection,
+    oid: i64,
+    key: &'a str,
+    value: Option<f64>,
+    text: &'a str,
+    bbox: Option<&'a str>,
+    source: &'a str,
+    part: &'a str,
+}
+
+/// Read the caller's *request* for a check. No database access and no model work here, so this can
+/// run before a write transaction is opened. The caller may only name which page of this order the
+/// box is on; everything else is derived on the server.
+fn flag_request(
+    v: Option<&Value>,
+    value: Option<f64>,
+    source: &str,
+) -> Result<Option<i64>, ApiError> {
+    let (Some(obj), Some(_)) = (v.filter(|v| !matches!(v, Value::Null)), value) else {
+        return Ok(None);
+    };
+    if !READ_SOURCES.contains(&source) {
+        return Ok(None);
+    }
+    let bad = |msg: &str| unprocessable("reading_flag", msg);
+    let obj = obj
+        .as_object()
+        .ok_or_else(|| bad("'flag' must be an object"))?;
+    let page_no = obj
+        .get("page_no")
+        .and_then(Value::as_i64)
+        .filter(|n| *n >= 1)
+        .ok_or_else(|| bad("'flag.page_no' must name a page of this order"))?;
+    Ok(Some(page_no))
+}
+
+/// The result of one server-side second read, before it is persisted. The page hash and size travel
+/// with the verdict so the write transaction can prove the page did not change while OCR ran.
+struct PreparedFlag {
+    json: String,
+    page_sha: String,
+    page: (usize, usize),
+}
+
+/// Run the second read outside any write transaction. The page hash comes from the database, the box
+/// comes from the value, and the verdict and hashes come from `nf-numread`. Client fields named
+/// `ocr`, `verdict`, `model_id` or `input_sha256` are ignored.
+fn run_flag_check(ctx: &FlagContext<'_>, page_no: i64) -> Result<PreparedFlag, ApiError> {
+    let FlagContext {
+        app,
+        db,
+        oid,
+        key,
+        value,
+        text,
+        bbox,
+        source,
+        part,
+    } = *ctx;
+    let bad = |msg: &str| unprocessable("reading_flag", msg);
+    let value = value.ok_or_else(|| bad("a value needs a number before it can be checked"))?;
+    let (sha, w, h): (Option<String>, i64, i64) = db
+        .query_row(
+            "SELECT png_sha256, width, height FROM order_pages WHERE order_id = ? AND page_no = ?",
+            params![oid, page_no],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?
+        .ok_or_else(|| bad("'flag.page_no' is not a page of this order"))?;
+    let sha = sha.ok_or_else(|| bad("the image of that page has not been rendered yet"))?;
+    let page = storage::load_blob(&app.data_dir, &app.key, &sha).map_err(|e| {
+        elog!("nf-server: page image {sha} cannot be read: {e}");
+        unprocessable(
+            "page_image_invalid",
+            "the stored page image failed its integrity check",
+        )
+    })?;
+    let raw: [f64; 4] = serde_json::from_str(
+        bbox.ok_or_else(|| bad("a read value needs 'bbox' before it can be checked"))?,
+    )
+    .map_err(|_| bad("'bbox' must be [x0, y0, x1, y1] in page pixels"))?;
+    let boxed = raw.map(|n| n as f32);
+    let verification = {
+        let reader = numread_lock()?;
+        reader.verify_box(&page, boxed, key, text, value, source)
+    }
+    .map_err(|e| {
+        // Model and path text is logged here, never returned to the caller.
+        elog!("nf-server: the second read failed: {e}");
+        unprocessable("ocr_failed", "the second read could not be made")
+    })?;
+    if w > 0
+        && h > 0
+        && verification.page
+            != (
+                usize::try_from(w).unwrap_or(0),
+                usize::try_from(h).unwrap_or(0),
+            )
+    {
+        return Err(unprocessable(
+            "ocr_not_this_page",
+            "the page image does not match the stored page size",
+        ));
+    }
+    let stored = StoredCheck {
+        item: ItemRef {
+            part: 0,
+            no: part.to_string(),
+            shape: String::new(),
+            key: key.to_string(),
+        },
+        check: verification.check,
+        provenance: Provenance {
+            model_id: nf_numread::MODEL_ID.to_string(),
+            input_sha256: verification.input_sha256,
+            page_sha256: sha.clone(),
+        },
+    };
+    let json = serde_json::to_string(&stored.to_json()).map_err(|e| {
+        unprocessable(
+            "reading_flag",
+            &format!("the reading check could not be stored: {e}"),
+        )
+    })?;
+    Ok(PreparedFlag {
+        json,
+        page_sha: sha,
+        page: verification.page,
+    })
+}
+
+/// Immediately before persisting a prepared check, prove that the page and its size are still the
+/// ones the second read used. A concurrent re-render cannot slip a verdict onto different pixels.
+fn verify_flag_page(
+    db: &Connection,
+    oid: i64,
+    page_no: i64,
+    prepared: &PreparedFlag,
+) -> Result<(), ApiError> {
+    let (sha, w, h): (Option<String>, i64, i64) = db
+        .query_row(
+            "SELECT png_sha256, width, height FROM order_pages WHERE order_id = ? AND page_no = ?",
+            params![oid, page_no],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?
+        .ok_or_else(|| {
+            refuse(
+                StatusCode::CONFLICT,
+                "page_changed",
+                "that page no longer exists",
+            )
+        })?;
+    if sha.as_deref() != Some(prepared.page_sha.as_str())
+        || w <= 0
+        || h <= 0
+        || (
+            usize::try_from(w).unwrap_or(0),
+            usize::try_from(h).unwrap_or(0),
+        ) != prepared.page
+    {
+        return Err(refuse(
+            StatusCode::CONFLICT,
+            "page_changed",
+            "the page changed while the reading was checked; send the value again",
+        ));
+    }
+    Ok(())
+}
+
+/// The verdict used by compute. A damaged stored check on a read value is treated as a conflict,
+/// never as an absent verdict: compute holds such a value for a person instead of using it.
+fn flag_verdict(flag: Option<&str>, value: Option<f64>, source: &str) -> Option<Verdict> {
+    let raw = flag?;
+    let v = serde_json::from_str::<Value>(raw).ok()?;
+    Some(match StoredCheck::from_json(&v, value) {
+        Some(check) => check.check.verdict,
+        None if READ_SOURCES.contains(&source) => Verdict::Conflicting,
+        None => return None,
+    })
+}
+
+/// Whether a stored check may stand behind a confirmation of a read value.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReadingGate {
+    Pass,
+    Blocked,
+    Unverified,
+}
+
+#[derive(Clone, Copy)]
+struct ReadingContext<'a> {
+    db: &'a Connection,
+    oid: i64,
+    part_no: &'a str,
+    key: &'a str,
+    flag: Option<&'a str>,
+    value: Option<f64>,
+    bbox: Option<&'a str>,
+    source: &'a str,
+}
+
+fn reading_gate(ctx: &ReadingContext<'_>) -> Result<ReadingGate, ApiError> {
+    let ReadingContext {
+        db,
+        oid,
+        part_no,
+        key,
+        flag,
+        value,
+        bbox,
+        source,
+    } = *ctx;
+    if value.is_none() || !READ_SOURCES.contains(&source) {
+        return Ok(ReadingGate::Pass);
+    }
+    let Some(raw) = flag else {
+        return Ok(ReadingGate::Unverified);
+    };
+    let v: Value = serde_json::from_str(raw).map_err(|_| {
+        unprocessable(
+            "reading_flag_invalid",
+            "the stored reading check is damaged; a person must check the value",
+        )
+    })?;
+    let Some(check) = StoredCheck::from_json(&v, value) else {
+        return Err(unprocessable(
+            "reading_flag_invalid",
+            "the stored reading check is incomplete or inconsistent; a person must check the value",
+        ));
+    };
+    if check.item.no != part_no || check.item.key != key {
+        return Err(unprocessable(
+            "reading_flag_invalid",
+            "the stored reading check belongs to a different value",
+        ));
+    }
+    // The check is only evidence for the exact page and box the server read. A stored page hash
+    // that is not the stored page, or a box that is no longer on it, cannot support a confirmation.
+    let page: Option<(Option<String>, i64, i64)> = db
+        .query_row(
+            "SELECT p.png_sha256, p.width, p.height FROM order_parts q JOIN order_pages p ON p.id = q.page_id WHERE q.order_id = ? AND q.no = ?",
+            params![oid, part_no],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?;
+    let Some((Some(sha), w, h)) = page else {
+        return Ok(ReadingGate::Unverified);
+    };
+    if sha != check.provenance.page_sha256 || w <= 0 || h <= 0 {
+        return Ok(ReadingGate::Unverified);
+    }
+    let boxed: Option<[f64; 4]> = bbox
+        .and_then(|b| serde_json::from_str(b).ok())
+        .filter(|b: &[f64; 4]| b.iter().all(|n| n.is_finite()));
+    let box_ok = boxed.is_some_and(|b| {
+        matches!(
+            nf_core::reading::check_box(Some(&b), Some((w as f64, h as f64))),
+            BoxCheck::Ok
+        )
+    }) && matches!(check.check.bbox, BoxCheck::Ok);
+    if !box_ok || check.check.verdict.blocks() {
+        return Ok(ReadingGate::Blocked);
+    }
+    let provenance_ok = check.provenance.model_id == nf_numread::MODEL_ID
+        && !check.provenance.input_sha256.is_empty()
+        && sha == check.provenance.page_sha256;
+    // An unchecked or unavailable verdict is not a conflict, but it is not a confirmed reading
+    // either. It stays a proposal until a person checks it.
+    if provenance_ok
+        && check.check.verdict == Verdict::Ok
+        && matches!(check.check.ocr, OcrCheck::Agrees { .. })
+    {
+        Ok(ReadingGate::Pass)
+    } else {
+        Ok(ReadingGate::Unverified)
+    }
+}
+
+fn reading_gate_error(gate: ReadingGate, where_: &str) -> ApiError {
+    match gate {
+        ReadingGate::Blocked => unprocessable(
+            "reading_conflict",
+            &format!(
+                "{where_} has a conflicting reading check; it stays proposed (JA: 読み取り確認が必要です)"
+            ),
+        ),
+        ReadingGate::Unverified => unprocessable(
+            "reading_unverified",
+            &format!(
+                "{where_} has no second read that agrees; a person must check it (JA: 読み取り確認が必要です)"
+            ),
+        ),
+        ReadingGate::Pass => ApiError::Internal("a passing reading gate cannot refuse".into()),
+    }
+}
+
+/// A clean first-pass reading the server itself attached to this value. The attachment is
+/// sticky and cannot be supplied by a caller, so it is evidence when no second read was asked
+/// for. A stored PZ-2 verdict always wins: a first read cannot replace a disagreeing check.
+fn clean_attached_reading(
+    db: &Connection,
+    oid: i64,
+    part_no: &str,
+    value: Option<f64>,
+    rid: i64,
+) -> Result<bool, ApiError> {
+    let Some(value) = value else {
+        return Ok(false);
+    };
+    let row: Option<(String, f64, f64)> = db
+        .query_row(
+            "SELECT r.flags_json, r.confidence, r.value FROM order_readings r
+             JOIN order_parts p ON p.order_id = r.order_id AND p.no = ?
+             JOIN order_pages pg ON pg.id = p.page_id AND pg.order_id = r.order_id
+             WHERE r.id = ? AND r.order_id = ? AND r.page_no = pg.page_no",
+            params![part_no, rid, oid],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?;
+    let Some((flags, confidence, read)) = row else {
+        return Ok(false);
+    };
+    Ok(flags == "[]"
+        && confidence >= AGENT_CONFIRM_MIN_CONFIDENCE
+        && same_number(read, value))
+}
+
+/// The gate used before a value is confirmed and again when compute reads it. AIOP's
+/// server-owned reading attachment, or a person's review of the reading state the operator
+/// stored with the value, substitutes only for a *missing* PZ-2 verdict.
+fn confirm_gate(
+    db: &Connection,
+    oid: i64,
+    part_no: &str,
+    key: &str,
+    flag: Option<&str>,
+    value: Option<f64>,
+    bbox: Option<&str>,
+    source: &str,
+    attached: Option<i64>,
+    person_reviewed: bool,
+) -> Result<ReadingGate, ApiError> {
+    if flag.is_none() && READ_SOURCES.contains(&source) {
+        if let Some(rid) = attached
+            && clean_attached_reading(db, oid, part_no, value, rid)?
+        {
+            return Ok(ReadingGate::Pass);
+        }
+        if person_reviewed {
+            return Ok(ReadingGate::Pass);
+        }
+    }
+    reading_gate(&ReadingContext {
+        db,
+        oid,
+        part_no,
+        key,
+        flag,
+        value,
+        bbox,
+        source,
+    })
+}
+
 fn recompute_part_state(db: &Connection, part: i64) -> rusqlite::Result<()> {
     let state: String = db.query_row(
         "SELECT state FROM order_parts WHERE id = ?",
@@ -943,7 +1342,7 @@ fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
     for (id, head) in parts {
         let vals = q_all(
             db,
-            "SELECT key, value, text, bbox_json, source, state FROM order_values WHERE part_id = ? ORDER BY key",
+            "SELECT key, value, text, bbox_json, source, state, flag FROM order_values WHERE part_id = ? ORDER BY key",
             params![id],
             |r| {
                 Ok(json!([
@@ -954,7 +1353,8 @@ fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
                         r.get::<_, Option<String>>(3)?.as_deref(),
                         &r.get::<_, String>(4)?,
                     ),
-                    r.get::<_, String>(5)?
+                    r.get::<_, String>(5)?,
+                    r.get::<_, Option<String>>(6)?
                 ]))
             },
         )?;
@@ -2063,6 +2463,7 @@ fn put_parts_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) 
 
 // ---------------------------------------------------------------- values
 
+/// A value after field validation, before any model work or database write.
 struct ValueIn {
     part: Value,
     key: String,
@@ -2072,6 +2473,9 @@ struct ValueIn {
     source: String,
     flags: Vec<String>,
     confidence: Option<f64>,
+    /// The page the caller asks to check this value against. No OCR happens in the write
+    /// transaction, and none of the verdict comes from the request.
+    flag_page: Option<i64>,
     confirm: bool,
     note: String,
     /// The server-side reading (`order_readings`) this value comes from. The AI operator confirms only against one.
@@ -2080,7 +2484,41 @@ struct ValueIn {
     attached_reading_id: Option<i64>,
 }
 
-fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
+/// A value from the page must quote the number it holds. Used both for the caller's source and for
+/// the immutable read origin stored on the value, so a relabel cannot drop this check.
+fn check_read_text(text: &str, f: f64) -> Result<(), ApiError> {
+    if text.trim().is_empty() {
+        return Err(unprocessable(
+            "value_text_missing",
+            "a value from the page needs the text it was read from",
+        ));
+    }
+    if text_contains_number(text, f) {
+        return Ok(());
+    }
+    let ambiguous = numbers_in(text)
+        .iter()
+        .any(|r| r.ambiguous && same_number(r.value, f));
+    Err(if ambiguous {
+        unprocessable(
+            "value_text_ambiguous",
+            &format!(
+                "the text '{}' reads {f} only as an ambiguous comma number; write the number as it is on the page, with a point or as a thousands group",
+                clip(text, 60)
+            ),
+        )
+    } else {
+        unprocessable(
+            "value_text_mismatch",
+            &format!(
+                "the text '{}' does not contain the number {f}",
+                clip(text, 60)
+            ),
+        )
+    })
+}
+
+fn parse_value(u: &User, v: &Value) -> Result<ValueIn, ApiError> {
     let part = v
         .get("part")
         .cloned()
@@ -2133,34 +2571,7 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
     if let Some(f) = value
         && READ_SOURCES.contains(&source.as_str())
     {
-        if text.trim().is_empty() {
-            return Err(unprocessable(
-                "value_text_missing",
-                &format!("a value from the page ('{source}') needs the text it was read from"),
-            ));
-        }
-        if !text_contains_number(&text, f) {
-            let ambiguous = numbers_in(&text)
-                .iter()
-                .any(|r| r.ambiguous && same_number(r.value, f));
-            return Err(if ambiguous {
-                unprocessable(
-                    "value_text_ambiguous",
-                    &format!(
-                        "the text '{}' reads {f} only as an ambiguous comma number; write the number as it is on the page, with a point or as a thousands group",
-                        clip(&text, 60)
-                    ),
-                )
-            } else {
-                unprocessable(
-                    "value_text_mismatch",
-                    &format!(
-                        "the text '{}' does not contain the number {f}",
-                        clip(&text, 60)
-                    ),
-                )
-            });
-        }
+        check_read_text(&text, f)?;
     }
     let bbox = parse_bbox(v.get("bbox"))?;
     let flags = match v.get("flags") {
@@ -2220,17 +2631,20 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
             unprocessable("reading_id", "'reading_id' is the id of a stored reading")
         })?),
     };
-    if confirm && reading_id.is_none() && READ_SOURCES.contains(&source.as_str()) {
-        // A confirming caller must state typed reading state. `null` is normalised to "no flags"
-        // and "no confidence" below, so it must not count as an explicit answer here.
-        if !matches!(v.get("flags"), Some(Value::Array(_)))
-            || v.get("confidence").and_then(Value::as_f64).is_none()
-        {
-            return Err(unprocessable(
-                "confirm_needs_reading_state",
-                "a value read from the page needs its flags and confidence before it can be confirmed",
-            ));
-        }
+    // Only the operator must state typed reading state here. A person's confirmation of a
+    // read-source value is checked later by the second-read gate, which reports that reason.
+    if u.kind == "agent"
+        && confirm
+        && reading_id.is_none()
+        && READ_SOURCES.contains(&source.as_str())
+        && (!matches!(v.get("flags"), Some(Value::Array(_)))
+            || v.get("confidence").and_then(Value::as_f64).is_none())
+    {
+        // `null` is normalised to "no flags"/"no confidence" below, so it is not an explicit answer.
+        return Err(unprocessable(
+            "confirm_needs_reading_state",
+            "a value read from the page needs its flags and confidence before it can be confirmed",
+        ));
     }
     // A flag or a low confidence forbids confirmation whatever the caller calls the source;
     // otherwise a flagged reading could be relabelled `derived` and slip through the boundary.
@@ -2246,10 +2660,9 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
             "a low-confidence reading is only proposed; a person must check it",
         ));
     }
+    let flag_page = flag_request(v.get("flag"), value, &source)?;
     let note = text_field(v, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
     Ok(ValueIn {
-        reading_id,
-        attached_reading_id: None,
         part,
         key,
         value,
@@ -2258,8 +2671,11 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
         source,
         flags,
         confidence,
+        flag_page,
         confirm,
         note,
+        reading_id,
+        attached_reading_id: None,
     })
 }
 
@@ -2286,8 +2702,8 @@ fn validate_value_write_events(
             .get("key")
             .and_then(Value::as_str)
             .map(str::to_string)
-            .ok_or_else(|| bad_ref())?;
-        let named_part = w.get("part").cloned().ok_or_else(|| bad_ref())?;
+            .ok_or_else(bad_ref)?;
+        let named_part = w.get("part").cloned().ok_or_else(bad_ref)?;
         let mut written = None;
         for v in values {
             let (pid, pno, _) = find_part(tx, oid, &v.part).map_err(|_| bad_ref())?;
@@ -2301,7 +2717,7 @@ fn validate_value_write_events(
                 break;
             }
         }
-        let (v, _pid) = written.ok_or_else(|| bad_ref())?;
+        let (v, _pid) = written.ok_or_else(bad_ref)?;
         let number = v.value.ok_or_else(|| {
             unprocessable("operator_event", "a write_ref cannot name a missing value")
         })?;
@@ -2473,6 +2889,8 @@ fn insert_decision(db: &Connection, d: &NewDecision<'_>) -> rusqlite::Result<i64
     Ok(db.last_insert_rowid())
 }
 
+// 0 id, 1 value, 2 text, 3 bbox, 4 source, 5 state, 6 proposed_value, 7 flag(PZ-2),
+// 8 read_source(PZ-2), 9 edited_kind, 10 flags_json, 11 confidence, 12 attached_reading_id.
 type OldValue = (
     i64,
     Option<f64>,
@@ -2481,6 +2899,8 @@ type OldValue = (
     String,
     String,
     Option<f64>,
+    Option<String>,
+    Option<String>,
     String,
     String,
     Option<f64>,
@@ -2505,14 +2925,48 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
             &format!("at most {MAX_VALUE_BATCH} values per request"),
         ));
     }
-    let mut values: Vec<ValueIn> = list.iter().map(parse_value).collect::<Result<_, _>>()?;
+    // Phase 1: field validation. No write lock and no model work here.
+    let mut values: Vec<ValueIn> = list.iter().map(|v| parse_value(u, v)).collect::<Result<_, _>>()?;
     for v in &values {
         agent_reason(u, &v.note)?;
     }
     // An agent sends its type events with the values so both commit in one transaction: no pause can land
     // between a written value and its replayable event. Only here may an event carry a `write_ref`; it is checked
     // against the values actually written before the batch is stored.
-    let events = write_events(u, body.get("events"), true)?;
+    let mut events = write_events(u, body.get("events"), true)?;
+    // Phase 2: the second reads. A batch cannot keep the shared reader busy indefinitely.
+    let flagged: Vec<usize> = values
+        .iter()
+        .enumerate()
+        .filter_map(|(i, v)| v.flag_page.map(|_| i))
+        .collect();
+    if flagged.len() > MAX_FLAGGED_BATCH {
+        return Err(unprocessable(
+            "flagged_values_limit",
+            &format!("at most {MAX_FLAGGED_BATCH} values with a second reading per request"),
+        ));
+    }
+    let mut checks: Vec<Option<PreparedFlag>> = (0..values.len()).map(|_| None).collect();
+    {
+        let db = app.db();
+        for i in flagged {
+            let v = &values[i];
+            let (_, pno, _) = find_part(&db, oid, &v.part)?;
+            let ctx = FlagContext {
+                app,
+                db: &db,
+                oid,
+                key: &v.key,
+                value: v.value,
+                text: &v.text,
+                bbox: v.bbox.as_deref(),
+                source: &v.source,
+                part: &pno,
+            };
+            checks[i] = Some(run_flag_check(&ctx, v.flag_page.unwrap_or(0))?);
+        }
+    }
+    // Phase 3: a short write transaction. Nothing in it runs a model.
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
@@ -2525,7 +2979,7 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
     }
     let (mut changed, mut unchanged) = (0, 0);
     let mut touched = BTreeSet::new();
-    for v in &values {
+    for (i, v) in values.iter().enumerate() {
         let flags_json = json!(v.flags).to_string();
         let (pid, pno, pstate) = find_part(&tx, oid, &v.part)?;
         if pstate == "EXCLUDED" {
@@ -2537,7 +2991,7 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
         }
         let old: Option<OldValue> = tx
             .query_row(
-                "SELECT id, value, text, bbox_json, source, state, proposed_value, edited_kind, flags_json, confidence, attached_reading_id FROM order_values WHERE part_id = ? AND key = ?",
+                "SELECT id, value, text, bbox_json, source, state, proposed_value, flag, read_source, edited_kind, flags_json, confidence, attached_reading_id FROM order_values WHERE part_id = ? AND key = ?",
                 params![pid, v.key],
                 |r| {
                     Ok((
@@ -2552,11 +3006,74 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
                         r.get(8)?,
                         r.get(9)?,
                         r.get(10)?,
+                        r.get(11)?,
+                        r.get(12)?,
                     ))
                 },
             )
             .optional()?;
-        let new_state = if v.value.is_none() {
+        // The read origin is set on the first write and never cleared. The caller's `source` is
+        // only a description: relabelling a reading as "entered" cannot drop this origin.
+        let old_read_source = old.as_ref().and_then(|o| o.8.clone());
+        let read_source = old_read_source.clone().or_else(|| {
+            READ_SOURCES
+                .contains(&v.source.as_str())
+                .then(|| v.source.clone())
+        });
+        if let (Some(f), Some(rs)) = (v.value, read_source.as_deref())
+            && READ_SOURCES.contains(&rs)
+        {
+            check_read_text(&v.text, f)?;
+        }
+        // Re-check the page and the box immediately before the verdict is persisted. The OCR ran
+        // before this transaction, so the page could have been re-rendered in between.
+        if let (Some(page_no), Some(prepared)) = (v.flag_page, checks[i].as_ref()) {
+            verify_flag_page(&tx, oid, page_no, prepared)?;
+            let boxed: Option<[f64; 4]> =
+                v.bbox.as_deref().and_then(|b| serde_json::from_str(b).ok());
+            let box_ok = boxed.is_some_and(|b| {
+                matches!(
+                    nf_core::reading::check_box(
+                        Some(&b),
+                        Some((prepared.page.0 as f64, prepared.page.1 as f64))
+                    ),
+                    BoxCheck::Ok
+                )
+            });
+            if !box_ok {
+                return Err(unprocessable(
+                    "ocr_not_this_page",
+                    "the box is not on the stored page",
+                ));
+            }
+        }
+        let old_flag = old.as_ref().and_then(|o| o.7.clone());
+        let content_same = old
+            .as_ref()
+            .is_some_and(|o| o.1 == v.value && o.2 == v.text && o.3 == v.bbox && o.4 == v.source);
+        // A verdict belongs to the exact value, text, box and source it was made on. An edit
+        // without a new check drops the old verdict; a resend of the same value keeps it.
+        let flag = if let Some(prepared) = checks[i].as_ref() {
+            Some(prepared.json.clone())
+        } else if content_same {
+            old_flag.clone()
+        } else {
+            None
+        };
+        let gate_source = read_source.as_deref().unwrap_or(&v.source);
+        let gate = confirm_gate(
+            &tx,
+            oid,
+            &pno,
+            &v.key,
+            flag.as_deref(),
+            v.value,
+            v.bbox.as_deref(),
+            gate_source,
+            v.attached_reading_id,
+            u.kind != "agent" && v.confidence.is_some(),
+        )?;
+        let mut new_state = if v.value.is_none() {
             "MISSING"
         } else if v.confirm {
             "CONFIRMED"
@@ -2569,14 +3086,21 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
         } else {
             "PROPOSED"
         };
+        // A second read that did not agree keeps the value proposed, even if the caller asks
+        // for a confirmation. The model never confirms anything.
+        if gate != ReadingGate::Pass {
+            if v.confirm {
+                return Err(reading_gate_error(gate, &format!("part '{pno}' {}", v.key)));
+            }
+            new_state = "PROPOSED";
+        }
         let (vid, old_desc) = match &old {
-            Some((id, val, text, bbox, src, state, _, kind, fl, conf, attached)) => {
-                let same =
-                    *val == v.value && *text == v.text && *bbox == v.bbox && *src == v.source;
+            Some((id, val, _text, _bbox, src, state, _, old_flag, old_rs, kind, fl, conf, attached)) => {
+                let same = content_same && old_flag == &flag && old_rs == &read_source;
                 let meta_same = *fl == flags_json
                     && *conf == v.confidence
                     && v.attached_reading_id
-                        .map_or(true, |rid| *attached == Some(rid));
+                        .is_none_or(|rid| *attached == Some(rid));
                 // identical content: nothing to write (and a resend never drops an earlier confirmation)
                 if same
                     && (state == new_state || (!v.confirm && state == "CONFIRMED"))
@@ -2599,8 +3123,8 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
                     ));
                 }
                 tx.execute(
-                    "UPDATE order_values SET value = ?, text = ?, bbox_json = ?, source = ?, state = ?, was = ?, edited_by = ?, edited_at = ?, flags_json = ?, confidence = ?, edited_kind = ?, attached_reading_id = COALESCE(attached_reading_id, ?) WHERE id = ?",
-                    params![v.value, v.text, v.bbox, v.source, new_state, val, u.username, now() as i64, flags_json, v.confidence, u.kind, v.attached_reading_id, id],
+                    "UPDATE order_values SET value = ?, text = ?, bbox_json = ?, source = ?, state = ?, flag = ?, read_source = ?, was = ?, edited_by = ?, edited_at = ?, flags_json = ?, confidence = ?, edited_kind = ?, attached_reading_id = COALESCE(attached_reading_id, ?) WHERE id = ?",
+                    params![v.value, v.text, v.bbox, v.source, new_state, flag, read_source, val, u.username, now() as i64, flags_json, v.confidence, u.kind, v.attached_reading_id, id],
                 )?;
                 (*id, format!("{} [{src} {state}]", fmt_val(*val)))
             }
@@ -2621,8 +3145,8 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
                     ));
                 }
                 tx.execute(
-                    "INSERT INTO order_values(part_id, key, value, text, bbox_json, source, state, was, proposed_value, proposed_by, edited_by, edited_at, flags_json, confidence, edited_kind, attached_reading_id) VALUES (?,?,?,?,?,?,?,NULL,?,?,?,?,?,?,?,?)",
-                    params![pid, v.key, v.value, v.text, v.bbox, v.source, new_state, v.value, u.username, u.username, now() as i64, flags_json, v.confidence, u.kind, v.attached_reading_id],
+                    "INSERT INTO order_values(part_id, key, value, text, bbox_json, source, state, flag, read_source, was, proposed_value, proposed_by, edited_by, edited_at, flags_json, confidence, edited_kind, attached_reading_id) VALUES (?,?,?,?,?,?,?,?,?,NULL,?,?,?,?,?,?,?,?)",
+                    params![pid, v.key, v.value, v.text, v.bbox, v.source, new_state, flag, read_source, v.value, u.username, u.username, now() as i64, flags_json, v.confidence, u.kind, v.attached_reading_id],
                 )?;
                 (tx.last_insert_rowid(), "none".to_string())
             }
@@ -2757,7 +3281,7 @@ fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) ->
     for (pid, pno) in &parts {
         let rows = q_all(
             &tx,
-            "SELECT id, key, value, text, state, bbox_json, source FROM order_values WHERE part_id = ? ORDER BY key",
+            "SELECT id, key, value, text, state, bbox_json, source, flag, read_source, attached_reading_id, confidence FROM order_values WHERE part_id = ? ORDER BY key",
             params![pid],
             |r| {
                 Ok((
@@ -2768,16 +3292,35 @@ fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) ->
                     r.get::<_, String>(4)?,
                     r.get::<_, Option<String>>(5)?,
                     r.get::<_, String>(6)?,
+                    r.get::<_, Option<String>>(7)?,
+                    r.get::<_, Option<String>>(8)?,
+                    r.get::<_, Option<i64>>(9)?,
+                    r.get::<_, Option<f64>>(10)?,
                 ))
             },
         )?;
-        for (vid, key, val, text, state, bbox, src) in rows {
+        for (vid, key, val, text, state, bbox, src, flag, read_source, attached, confidence) in rows {
             if val.is_none() {
                 missing += 1;
                 continue;
             }
             if state == "CONFIRMED" {
                 continue;
+            }
+            let gate = confirm_gate(
+                &tx,
+                oid,
+                pno,
+                &key,
+                flag.as_deref(),
+                val,
+                bbox.as_deref(),
+                read_source.as_deref().unwrap_or(&src),
+                attached,
+                confidence.is_some(),
+            )?;
+            if gate != ReadingGate::Pass {
+                return Err(reading_gate_error(gate, &format!("part '{pno}' {key}")));
             }
             tx.execute(
                 "UPDATE order_values SET state = 'CONFIRMED', edited_by = ?, edited_at = ?, edited_kind = ? WHERE id = ?",
@@ -2828,6 +3371,23 @@ async fn post_decision(
     let res = post_decision_do(&app, &headers, &u, oid, &raw);
     settle(&app, &u, oid, "decision", body_text(&raw, "reason"), res).await
 }
+
+/// The value row a decision is made against, with its immutable read origin, the
+/// server-owned reading attachment AIOP uses when no second read was requested, and
+/// the stored AIOP reading state a person can review.
+type DecisionValue = (
+    i64,
+    Option<f64>,
+    String,
+    String,
+    Option<String>,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<i64>,
+    String,
+    Option<f64>,
+);
 
 fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
     let body = request_json(headers, raw)?;
@@ -2986,16 +3546,21 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
         if flag_kind && let Some(code) = flag.as_deref() {
             validate_named_review_code(&tx, oid, &pno, code, kind == "accept")?;
         }
-        let (vid, val, text, state, bbox, src): (
-            i64,
-            Option<f64>,
-            String,
-            String,
-            Option<String>,
-            String,
-        ) = tx
+        let (
+            vid,
+            val,
+            text,
+            state,
+            bbox,
+            src,
+            reading_flag,
+            read_source,
+            attached,
+            _flags_json,
+            confidence,
+        ): DecisionValue = tx
             .query_row(
-                "SELECT id, value, text, state, bbox_json, source FROM order_values WHERE part_id = ? AND key = ?",
+                "SELECT id, value, text, state, bbox_json, source, flag, read_source, attached_reading_id, flags_json, confidence FROM order_values WHERE part_id = ? AND key = ?",
                 params![pid, key],
                 |r| {
                     Ok((
@@ -3005,6 +3570,11 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
                         r.get(3)?,
                         r.get(4)?,
                         r.get(5)?,
+                        r.get(6)?,
+                        r.get(7)?,
+                        r.get(8)?,
+                        r.get(9)?,
+                        r.get(10)?,
                     ))
                 },
             )
@@ -3036,6 +3606,23 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
                 "already_confirmed",
                 &format!("part '{pno}' {key} is confirmed already; undo that decision first"),
             ));
+        }
+        if kind == "confirm" {
+            let gate = confirm_gate(
+                &tx,
+                oid,
+                &pno,
+                &key,
+                reading_flag.as_deref(),
+                val,
+                bbox.as_deref(),
+                read_source.as_deref().unwrap_or(&src),
+                attached,
+                confidence.is_some(),
+            )?;
+            if gate != ReadingGate::Pass {
+                return Err(reading_gate_error(gate, &format!("part '{pno}' {key}")));
+            }
         }
         if flag_kind {
             if !flag.as_deref().is_some_and(valid_key) {
@@ -3215,10 +3802,18 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
     if kind == "confirm"
         && let (Some(vid), Some(pid), Some(prev)) = (value, part, prev.clone())
     {
-        type Cur = (String, Option<f64>, String, String, Option<String>, String);
+        type Cur = (
+            String,
+            Option<f64>,
+            String,
+            String,
+            Option<String>,
+            String,
+            Option<String>,
+        );
         let cur: Option<Cur> = tx
             .query_row(
-                "SELECT key, value, text, state, bbox_json, source FROM order_values WHERE id = ?",
+                "SELECT key, value, text, state, bbox_json, source, read_source FROM order_values WHERE id = ?",
                 params![vid],
                 |r| {
                     Ok((
@@ -3228,6 +3823,7 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
                         r.get(3)?,
                         r.get(4)?,
                         r.get(5)?,
+                        r.get(6)?,
                     ))
                 },
             )
@@ -3239,7 +3835,7 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
             params![vid, against, did],
         )?;
         // the value goes back to its earlier state only while it is still the value that was confirmed
-        if let Some((key, val, text, state, bbox, src)) = cur
+        if let Some((key, val, text, state, bbox, src, _read_source)) = cur
             && state == "CONFIRMED"
             && others == 0
             && value_fp(&key, val, &text, bbox.as_deref(), &src) == against
@@ -3429,7 +4025,7 @@ async fn get_order(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) ->
     for (pid, mut p) in part_rows {
         let values = q_all(
             &db,
-            "SELECT id, key, value, text, bbox_json, source, state, was, proposed_value, proposed_by, edited_by, edited_at FROM order_values WHERE part_id = ? ORDER BY key",
+            "SELECT id, key, value, text, bbox_json, source, state, was, proposed_value, proposed_by, edited_by, edited_at, flag FROM order_values WHERE part_id = ? ORDER BY key",
             params![pid],
             |r| {
                 Ok(
@@ -3437,7 +4033,8 @@ async fn get_order(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) ->
                            "bbox": r.get::<_, Option<String>>(4)?.and_then(|b| serde_json::from_str::<Value>(&b).ok()),
                            "source": r.get::<_, String>(5)?, "state": r.get::<_, String>(6)?, "was": r.get::<_, Option<f64>>(7)?,
                            "proposed_value": r.get::<_, Option<f64>>(8)?, "proposed_by": r.get::<_, String>(9)?,
-                           "edited_by": r.get::<_, Option<String>>(10)?, "edited_at": r.get::<_, Option<i64>>(11)? }),
+                           "edited_by": r.get::<_, Option<String>>(10)?, "edited_at": r.get::<_, Option<i64>>(11)?,
+                           "flag": r.get::<_, Option<String>>(12)?.and_then(|f| serde_json::from_str::<Value>(&f).ok()) }),
                 )
             },
         )?;
@@ -3954,7 +4551,7 @@ fn load_compute_input(
     for (id, no, name, shape, attach, qty, group) in rows {
         let vals = q_all(
             db,
-            "SELECT key, value, source, state FROM order_values WHERE part_id = ? ORDER BY key",
+            "SELECT key, value, source, state, flag, bbox_json, read_source, attached_reading_id FROM order_values WHERE part_id = ? ORDER BY key",
             params![id],
             |r| {
                 Ok((
@@ -3962,6 +4559,10 @@ fn load_compute_input(
                     r.get::<_, Option<f64>>(1)?,
                     r.get::<_, String>(2)?,
                     r.get::<_, String>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, Option<String>>(5)?,
+                    r.get::<_, Option<String>>(6)?,
+                    r.get::<_, Option<i64>>(7)?,
                 ))
             },
         )?;
@@ -3970,19 +4571,49 @@ fn load_compute_input(
         p.qty = qty.clamp(1, 9999) as u32;
         p.attach = attach.clone().filter(|a| !a.is_empty());
         p.group = group.clone().filter(|g| !g.is_empty());
-        for (key, value, source, state) in &vals {
-            let st = match state.as_str() {
+        let mut states = Vec::with_capacity(vals.len());
+        for (key, value, source, state, flag, bbox, read_source, attached) in &vals {
+            let mut state_code = state.as_str();
+            let mut st = match state_code {
                 "CONFIRMED" => oc::ValState::Confirmed,
                 "CORRECTED" => oc::ValState::Corrected,
                 "PROPOSED" => oc::ValState::Proposed,
                 _ => oc::ValState::Missing,
             };
+            let origin = read_source.as_deref().unwrap_or(source);
+            // SECURITY-3 / REVIEW-4: a stored CONFIRMED or CORRECTED is not authority for a read
+            // value. Reuse the same gate the write route uses; a damaged, stale or non-agreeing
+            // check can only hold the value as a proposal here. Never let a compute path trust a
+            // flag the write route refused.
+            if matches!(st, oc::ValState::Confirmed | oc::ValState::Corrected)
+                && READ_SOURCES.contains(&origin)
+            {
+                let gate = confirm_gate(
+                    db,
+                    oid,
+                    &no,
+                    key,
+                    flag.as_deref(),
+                    *value,
+                    bbox.as_deref(),
+                    origin,
+                    *attached,
+                    false,
+                );
+                if !matches!(gate, Ok(ReadingGate::Pass)) {
+                    st = oc::ValState::Proposed;
+                    state_code = "PROPOSED";
+                }
+            }
+            states.push(state_code.to_string());
             p.values.insert(
                 key.clone(),
                 oc::Val {
                     value: *value,
                     state: st,
                     source: source.clone(),
+                    reading_verdict: flag_verdict(flag.as_deref(), *value, origin)
+                        .map(|v| v.code().to_string()),
                 },
             );
         }
@@ -3994,7 +4625,17 @@ fn load_compute_input(
             attach,
             group,
             vals.iter()
-                .map(|(k, v, s, st)| json!([k, v.map(f64::to_bits), s, st]))
+                .zip(states.iter())
+                .map(|((k, v, s, _st, f, _b, rs, _a), state)| {
+                    json!([
+                        k,
+                        v.map(f64::to_bits),
+                        s,
+                        state,
+                        flag_verdict(f.as_deref(), *v, rs.as_deref().unwrap_or(s))
+                            .map(|x| x.code())
+                    ])
+                })
                 .collect::<Vec<_>>()
         ]));
         parts.push(p);

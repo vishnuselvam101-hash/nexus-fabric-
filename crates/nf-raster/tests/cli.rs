@@ -4,8 +4,12 @@
 
 mod common;
 
+use std::cell::RefCell;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use common::{decode_png, fixture_path};
 use sha2::{Digest, Sha256};
@@ -29,10 +33,7 @@ impl Drop for Tmp {
 }
 
 fn run(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_nf-raster"))
-        .args(args)
-        .output()
-        .unwrap()
+    run_with_ledger(args)
 }
 
 fn s(p: &Path) -> &str {
@@ -43,11 +44,70 @@ fn hex(b: &[u8]) -> String {
     format!("{:x}", Sha256::digest(b))
 }
 
+// A private ledger root per test thread, created root-owned in `nf-sandbox`. Each test's crops
+// are counted together even when the input is copied to another path.
+thread_local! {
+    static LEDGER_ROOT: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+}
+
+fn ledger_root() -> PathBuf {
+    LEDGER_ROOT.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        if let Some(p) = slot.as_ref() {
+            return p.clone();
+        }
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let p =
+            std::env::temp_dir().join(format!("nf-raster-ledger-{}-{nanos}", std::process::id()));
+        std::fs::create_dir_all(&p).unwrap();
+        #[cfg(unix)]
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o700)).unwrap();
+        *slot = Some(p.clone());
+        p
+    })
+}
+
+fn run_with_ledger(args: &[&str]) -> Output {
+    let mut c = Command::new(env!("CARGO_BIN_EXE_nf-raster"));
+    c.args(args)
+        .env("NF_CROP_LEDGER_ROOT", ledger_root())
+        .env("HOME", std::env::temp_dir())
+        .stdin(Stdio::null());
+    c.output().unwrap()
+}
+
+fn run_with_root(args: &[&str], root: &Path) -> Output {
+    let mut c = Command::new(env!("CARGO_BIN_EXE_nf-raster"));
+    c.args(args)
+        .env("NF_CROP_LEDGER_ROOT", root)
+        .env("HOME", std::env::temp_dir())
+        .stdin(Stdio::null());
+    c.output().unwrap()
+}
+
+/// The program treats the input's directory as the job directory; put each fixture there.
+fn input(t: &Tmp, name: &str) -> PathBuf {
+    let p = t.p(name);
+    // The cap test needs two distinct input paths for the same source PDF.
+    let source = if name.starts_with("cap") {
+        "scan_g4_small.pdf"
+    } else if name == "oob.pdf" {
+        "scan_g4.pdf"
+    } else {
+        name
+    };
+    std::fs::copy(fixture_path(source), &p).unwrap();
+    p
+}
+
 #[test]
 fn page_writes_a_png_and_a_report_that_matches_it() {
     let t = Tmp::new("page");
     let (png, rep) = (t.p("p.png"), t.p("p.json"));
-    let pdf = fixture_path("scan_g4_small.pdf");
+    let pdf = input(&t, "scan_g4_small.pdf");
     let o = run(&[
         "page",
         "1",
@@ -92,7 +152,7 @@ fn page_writes_a_png_and_a_report_that_matches_it() {
 fn info_writes_json() {
     let t = Tmp::new("info");
     let out = t.p("i.json");
-    let pdf = fixture_path("scan_multi.pdf");
+    let pdf = input(&t, "scan_multi.pdf");
     let o = run(&["info", "--in", s(&pdf), "--out", s(&out)]);
     assert_eq!(
         o.status.code(),
@@ -119,7 +179,7 @@ fn refusals_exit_2_leave_no_png_and_say_why() {
         let (png, rep) = (t.p("r.png"), t.p("r.json"));
         // a file from an earlier run must not survive
         std::fs::write(&png, b"old").unwrap();
-        let pdf = fixture_path(name);
+        let pdf = input(&t, name);
         let o = run(&[
             "page",
             "1",
@@ -160,7 +220,7 @@ fn limits_exit_3() {
         ("bad_bomb.pdf", "compression_ratio"),
         ("bad_huge_dims.pdf", "image_pixels"),
     ] {
-        let pdf = fixture_path(name);
+        let pdf = input(&t, name);
         let o = run(&[
             "page",
             "1",
@@ -183,7 +243,7 @@ fn limits_exit_3() {
 #[test]
 fn bad_arguments_exit_2() {
     let t = Tmp::new("args");
-    let pdf = fixture_path("scan_g4_small.pdf");
+    let pdf = input(&t, "scan_g4_small.pdf");
     let (png, rep) = (t.p("a.png"), t.p("a.json"));
     for (args, code) in [
         (
@@ -278,7 +338,7 @@ fn bad_arguments_exit_2() {
 #[test]
 fn the_worker_is_isolated() {
     let t = Tmp::new("iso");
-    let pdf = fixture_path("scan_dct_gray.pdf");
+    let pdf = input(&t, "scan_dct_gray.pdf");
     let o = run(&[
         "page",
         "1",
@@ -359,4 +419,463 @@ fn a_killed_program_leaves_an_incomplete_report() {
     assert!(!png.exists(), "no PNG under its name");
     let report = std::fs::read_to_string(&rep).unwrap();
     assert!(report.contains("\"status\": \"incomplete\""), "{report}");
+}
+
+#[test]
+fn crop_writes_an_exact_pixel_box_in_the_sandboxed_worker() {
+    let t = Tmp::new("crop");
+    let (png, rep) = (t.p("c.png"), t.p("c.json"));
+    let pdf = input(&t, "scan_g4_small.pdf");
+    // A box within one pixel of page edges is clamped; the fractional edges are snapped out.
+    let o = run(&[
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&png),
+        "--report",
+        s(&rep),
+        "--dpi",
+        "100",
+        "--gray",
+        "--bbox",
+        "100.2,50.3,199.7,149.8",
+    ]);
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    let p = decode_png(&std::fs::read(&png).unwrap());
+    assert_eq!((p.w, p.h, p.ch, p.dpi), (100, 100, 1, 100));
+    let report = std::fs::read_to_string(&rep).unwrap();
+    assert!(report.contains("\"command\": \"crop\""), "{report}");
+    assert!(
+        report.contains("\"crop_px\": [100, 50, 200, 150]"),
+        "{report}"
+    );
+    assert!(
+        report.contains("\"seccomp\": \"allow-list enforced"),
+        "{report}"
+    );
+    assert!(!t.p("c.png.partial").exists());
+}
+
+#[test]
+fn crop_refuses_an_out_of_page_box_and_the_42nd_crop_of_a_page() {
+    let t = Tmp::new("crop-limits");
+    let pdf = input(&t, "cap.pdf");
+    let oob = input(&t, "oob.pdf");
+    let (png, rep) = (t.p("l.png"), t.p("l.json"));
+    let o = run(&[
+        "crop",
+        "1",
+        "--in",
+        s(&oob),
+        "--out",
+        s(&png),
+        "--report",
+        s(&rep),
+        "--dpi",
+        "100",
+        "--gray",
+        "--bbox",
+        "0,0,10000,10000",
+    ]);
+    assert_eq!(
+        o.status.code(),
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(!png.exists());
+    let line = String::from_utf8_lossy(&o.stderr);
+    assert!(line.contains("box_outside_page"), "{line}");
+    for n in 1..=40 {
+        let o = run(&[
+            "crop",
+            "1",
+            "--in",
+            s(&pdf),
+            "--out",
+            s(&png),
+            "--report",
+            s(&rep),
+            "--dpi",
+            "100",
+            "--gray",
+            "--bbox",
+            "10,10,20,20",
+        ]);
+        assert_eq!(
+            o.status.code(),
+            Some(0),
+            "crop {n}: {}",
+            String::from_utf8_lossy(&o.stderr)
+        );
+    }
+    let o = run(&[
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&png),
+        "--report",
+        s(&rep),
+        "--dpi",
+        "100",
+        "--gray",
+        "--bbox",
+        "10,10,20,20",
+    ]);
+    assert_eq!(
+        o.status.code(),
+        Some(3),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(String::from_utf8_lossy(&o.stderr).contains("crops_per_page"));
+    // Changing the report or output name cannot start a fresh count for the same input and page.
+    let other = run(&[
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&t.p("other.png")),
+        "--report",
+        s(&t.p("other.json")),
+        "--dpi",
+        "100",
+        "--gray",
+        "--bbox",
+        "10,10,20,20",
+    ]);
+    assert_eq!(
+        other.status.code(),
+        Some(3),
+        "{}",
+        String::from_utf8_lossy(&other.stderr)
+    );
+
+    let escaped = run(&[
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&Path::new("/tmp").join("nf-raster-escape.png")),
+        "--report",
+        s(&rep),
+        "--bbox",
+        "10,10,20,20",
+    ]);
+    assert_eq!(
+        escaped.status.code(),
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&escaped.stderr)
+    );
+    assert!(String::from_utf8_lossy(&escaped.stderr).contains("path_outside_job"));
+    assert!(!Path::new("/tmp/nf-raster-escape.png").exists());
+}
+
+#[test]
+fn a_copy_of_the_same_pdf_cannot_start_a_fresh_crop_count() {
+    let t = Tmp::new("crop-copy");
+    let pdf = input(&t, "cap.pdf");
+    let copy = input(&t, "cap-copy.pdf");
+    let (png, rep) = (t.p("c.png"), t.p("c.json"));
+    let crop = |p: &Path| {
+        run(&[
+            "crop",
+            "1",
+            "--in",
+            s(p),
+            "--out",
+            s(&png),
+            "--report",
+            s(&rep),
+            "--dpi",
+            "100",
+            "--gray",
+            "--bbox",
+            "10,10,20,20",
+        ])
+    };
+    for _ in 1..=40 {
+        assert_eq!(crop(&pdf).status.code(), Some(0));
+    }
+    let o = crop(&copy);
+    assert_eq!(
+        o.status.code(),
+        Some(3),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(String::from_utf8_lossy(&o.stderr).contains("crops_per_page"));
+}
+
+#[cfg(unix)]
+#[test]
+fn crop_ledger_accepts_the_service_owned_dir_and_refuses_redirects() {
+    let t = Tmp::new("crop-ledger-owner");
+    let pdf = input(&t, "scan_g4_small.pdf");
+    let (png, rep) = (t.p("c.png"), t.p("c.json"));
+    let args = [
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&png),
+        "--report",
+        s(&rep),
+        "--dpi",
+        "100",
+        "--gray",
+        "--bbox",
+        "10,10,20,20",
+    ];
+    // The child has the same effective uid as this test. The pure owner test covers a non-root uid.
+    let allowed = t.p("ledger-allowed");
+    std::fs::create_dir_all(&allowed).unwrap();
+    std::fs::set_permissions(&allowed, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let o = run_with_root(&args, &allowed);
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+
+    let loose = t.p("ledger-loose");
+    std::fs::create_dir_all(&loose).unwrap();
+    std::fs::set_permissions(&loose, std::fs::Permissions::from_mode(0o707)).unwrap();
+    let o = run_with_root(&args, &loose);
+    assert_eq!(o.status.code(), Some(2));
+    let line = String::from_utf8_lossy(&o.stderr);
+    assert!(line.contains("ledger_unreadable"), "{line}");
+
+    let link = t.p("ledger-link");
+    std::os::unix::fs::symlink(&allowed, &link).unwrap();
+    let o = run_with_root(&args, &link);
+    assert_eq!(o.status.code(), Some(2));
+    let line = String::from_utf8_lossy(&o.stderr);
+    assert!(line.contains("ledger_unreadable"), "{line}");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn crop_key_is_created_and_reused_by_an_unprivileged_service_user() {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::MetadataExt;
+    use std::os::unix::process::CommandExt;
+
+    // SAFETY: geteuid has no preconditions.
+    let euid = unsafe { libc::geteuid() };
+    assert_eq!(
+        euid, 0,
+        "setuid(nobody) needs root; this test fails rather than silently skipping"
+    );
+
+    let passwd = std::fs::read_to_string("/etc/passwd").unwrap();
+    let entry = passwd
+        .lines()
+        .find(|line| line.starts_with("nobody:"))
+        .unwrap();
+    let mut fields = entry.split(':');
+    assert_eq!(fields.next(), Some("nobody"));
+    assert!(fields.next().is_some(), "password field");
+    let uid: u32 = fields.next().unwrap().parse().unwrap();
+    let gid: u32 = fields.next().unwrap().parse().unwrap();
+    assert_ne!(uid, 0, "nobody must be unprivileged");
+
+    let chown = |path: &Path| {
+        let name = CString::new(path.as_os_str().as_bytes()).unwrap();
+        // SAFETY: `name` is a live NUL-terminated path for the duration of the call.
+        let rc = unsafe { libc::chown(name.as_ptr(), uid, gid) };
+        assert_eq!(rc, 0, "cannot chown {}", path.display());
+    };
+
+    let t = Tmp::new("crop-key-nobody");
+    let job = t.p("job");
+    let ledger = t.p("ledger");
+    std::fs::create_dir_all(&job).unwrap();
+    std::fs::create_dir_all(&ledger).unwrap();
+    for dir in [&job, &ledger] {
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        chown(dir);
+    }
+    let pdf = job.join("scan.pdf");
+    std::fs::copy(fixture_path("scan_g4_small.pdf"), &pdf).unwrap();
+    chown(&pdf);
+    // The worker re-executes /proc/self/exe. Copy the binary out of the root-only source tree so
+    // the unprivileged child can still reach it after setuid.
+    let exe = job.join("nf-raster");
+    std::fs::copy(env!("CARGO_BIN_EXE_nf-raster"), &exe).unwrap();
+    std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    let crop = |png: &str, report: &str| {
+        let mut c = Command::new(&exe);
+        c.args([
+            "crop",
+            "1",
+            "--in",
+            s(&pdf),
+            "--out",
+            s(&job.join(png)),
+            "--report",
+            s(&job.join(report)),
+            "--dpi",
+            "100",
+            "--gray",
+            "--bbox",
+            "10,10,20,20",
+        ])
+        .env("NF_CROP_LEDGER_ROOT", s(&ledger))
+        .env("HOME", s(&job))
+        .stdin(Stdio::null());
+        let child_gid = gid;
+        let child_uid = uid;
+        unsafe {
+            c.pre_exec(move || {
+                // SAFETY: setgid/setuid have no preconditions here; the test already proved euid 0
+                // and a freshly spawned child has no other threads to disturb.
+                if libc::setgid(child_gid) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                if libc::setuid(child_uid) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        c.output().unwrap()
+    };
+
+    let key = ledger.join(".key");
+    assert!(!key.exists(), "the ledger must start without a key");
+    let first = crop("first.png", "first.json");
+    assert_eq!(
+        first.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    assert!(key.exists(), "the first crop must create the key");
+    let meta = std::fs::metadata(&key).unwrap();
+    assert_eq!((meta.uid(), meta.mode() & 0o777), (uid, 0o600));
+    let created = std::fs::read(&key).unwrap();
+    assert_eq!(created.len(), 32);
+
+    let second = crop("second.png", "second.json");
+    assert_eq!(
+        second.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    assert_eq!(
+        std::fs::read(&key).unwrap(),
+        created,
+        "the key must be reused, not replaced"
+    );
+}
+
+#[test]
+fn a_direct_worker_crop_is_refused_without_a_parent_charge() {
+    let t = Tmp::new("crop-worker");
+    let pdf = input(&t, "scan_g4_small.pdf");
+    let o = Command::new(env!("CARGO_BIN_EXE_nf-raster"))
+        .args([
+            "--worker",
+            "1",
+            "crop",
+            "1",
+            "--in",
+            s(&pdf),
+            "--out",
+            s(&t.p("w.png")),
+            "--report",
+            s(&t.p("w.json")),
+            "--dpi",
+            "100",
+            "--gray",
+            "--bbox",
+            "10,10,20,20",
+        ])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "{:?}", o.status);
+    let answer = String::from_utf8_lossy(&o.stdout);
+    assert!(answer.contains("crop_not_charged"), "{answer}");
+    assert!(!t.p("w.png").exists());
+}
+
+#[test]
+fn a_spent_crop_charge_cannot_be_replayed_by_the_worker() {
+    let t = Tmp::new("crop-replay");
+    let pdf = input(&t, "scan_g4_small.pdf");
+    let crop = run(&[
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&t.p("c.png")),
+        "--report",
+        s(&t.p("c.json")),
+        "--dpi",
+        "100",
+        "--gray",
+        "--bbox",
+        "10,10,20,20",
+    ]);
+    assert_eq!(
+        crop.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&crop.stderr)
+    );
+    // The parent's proof is forgeable only with the trusted root's secret; even a valid proof must
+    // not authorize a second render once its one-use charge has been spent.
+    let secret = std::fs::read(ledger_root().join(".key")).unwrap();
+    let sha = hex(&std::fs::read(&pdf).unwrap());
+    let mut material = secret.clone();
+    material.extend_from_slice(format!("\0crop\0{sha}\0{}\0{}\0", 1, 1).as_bytes());
+    material.extend_from_slice(&secret);
+    let charge = format!("{}:{sha}:1:1", hex(&material));
+    let replay = Command::new(env!("CARGO_BIN_EXE_nf-raster"))
+        .args([
+            "--worker",
+            "1",
+            "crop",
+            "1",
+            "--in",
+            s(&pdf),
+            "--out",
+            s(&t.p("w.png")),
+            "--report",
+            s(&t.p("w.json")),
+            "--dpi",
+            "100",
+            "--gray",
+            "--bbox",
+            "10,10,20,20",
+        ])
+        .env("NF_CROP_LEDGER_ROOT", ledger_root())
+        .env("NF_CROP_CHARGE", charge)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(replay.status.success(), "{:?}", replay.status);
+    let answer = String::from_utf8_lossy(&replay.stdout);
+    assert!(answer.contains("crop_not_charged"), "{answer}");
+    assert!(!t.p("w.png").exists());
 }

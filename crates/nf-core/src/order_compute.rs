@@ -53,6 +53,9 @@ pub struct Val {
     pub state: ValState,
     /// drawing, table, note, count, inferred, standard, entered, fixed (or `group` for a value filled from the group).
     pub source: String,
+    /// Verdict code of a reading cross-check stored with the proposal. A blocking verdict raises the
+    /// `reading_conflict` hold; it never confirms the value and never grants authority to the model.
+    pub reading_verdict: Option<String>,
 }
 
 impl Val {
@@ -61,6 +64,7 @@ impl Val {
             value: Some(v),
             state: ValState::Confirmed,
             source: source.to_string(),
+            reading_verdict: None,
         }
     }
     pub fn proposed(v: f64) -> Val {
@@ -68,6 +72,7 @@ impl Val {
             value: Some(v),
             state: ValState::Proposed,
             source: "drawing".into(),
+            reading_verdict: None,
         }
     }
     pub(crate) fn usable(&self) -> Option<f64> {
@@ -567,6 +572,11 @@ pub const HOLD_TEXT: &[(&str, &str, &str)] = &[
         "source_inferred",
         "A value comes from an inference or a standard table; a person must confirm it.",
         "推定または規格表から得た値です。人の確認が必要です。",
+    ),
+    (
+        "reading_conflict",
+        "A read value disagrees with its text, its box or a second read; it stays proposed and a person must check it.",
+        "読み取った値が文字・枠・再読と一致しません。提案のまま保留し、人の確認が必要です。",
     ),
     (
         "out_of_band",
@@ -1190,6 +1200,7 @@ impl<'a> Work<'a> {
                     value: Some(v),
                     state: ValState::Confirmed,
                     source: "group".into(),
+                    reading_verdict: None,
                 },
             );
             self.filled.push(k.to_string());
@@ -1425,6 +1436,23 @@ fn common_checks(w: &mut Work<'_>, shape: &str) {
         .collect();
     if !proposed.is_empty() {
         let h = hold_out(Level::Need, "value_proposed", &proposed, "part");
+        w.holds.push(h);
+    }
+    // A read value whose cross-check failed blocks just like a missing value. The verdict was stored with
+    // the proposal; this compute only reads the code, it never turns a model result into a confirmation.
+    let conflicting: Vec<String> = w
+        .vals
+        .iter()
+        .filter(|(_, v)| {
+            v.reading_verdict
+                .as_deref()
+                .and_then(crate::reading::Verdict::from_code)
+                .is_some_and(|v| v.blocks())
+        })
+        .map(|(k, _)| k.clone())
+        .collect();
+    if !conflicting.is_empty() {
+        let h = hold_out(Level::Need, "reading_conflict", &conflicting, "part");
         w.holds.push(h);
     }
     // a value that is only inferred or from a table is a question for a person

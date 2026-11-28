@@ -9,6 +9,8 @@
 //! No unsafe code in this crate (the runtime dependency has its own, as any numeric runtime does).
 #![forbid(unsafe_code)]
 
+use nf_core::reading::{same_number, text_contains_number, CheckCtx, ItemCheck, ItemIn, OcrCheck};
+
 mod det;
 pub mod image_in;
 mod rec;
@@ -315,9 +317,159 @@ impl Reader {
         });
         Ok(items)
     }
+
+    /// Read a known box directly, without running the page detector again. The detector can miss a
+    /// small, already located crop; the recogniser reads the crop at its own height.
+    fn read_box_text(&self, crop: &Gray) -> Result<Vec<(String, Option<f64>, f32)>, Error> {
+        let p = &self.params;
+        let upright = rec::recognise(&self.rec, &self.dict, crop, p)?;
+        let mut line = upright;
+        if p.vertical && crop.h as f32 >= 1.5 * crop.w as f32 {
+            for cw in [true, false] {
+                let turned = crop.rotate90(cw);
+                let candidate = rec::recognise(&self.rec, &self.dict, &turned, p)?;
+                if candidate.mean_prob() > line.mean_prob() + p.vertical_margin {
+                    line = candidate;
+                }
+            }
+        }
+        let mut out = Vec::new();
+        if line.steps == 0 {
+            return Ok(out);
+        }
+        for mut tok in text::tokens(&line.chars) {
+            if p.phi_thresh > 0.0 {
+                add_phi(&mut tok, &line, p.phi_thresh);
+            }
+            if let Some(parsed) = text::parse(&tok.text()) {
+                out.push((parsed.text, parsed.value, tok.conf()));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Second read of one proposed value's box: re-read only that part of the page and compare every
+    /// number found with the proposed value. The result is a verdict (proposal only) from
+    /// `nf-core::reading`; no value is accepted or confirmed here. `input_sha256` is the hash of the
+    /// exact grey pixels handed to the second read, and `model_id` says which models made it.
+    pub fn verify_box(
+        &self,
+        page: &[u8],
+        bbox: [f32; 4],
+        key: &str,
+        text: &str,
+        value: f64,
+        source: &str,
+    ) -> Result<BoxVerification, Error> {
+        let g = image_in::decode_png(page)?;
+        let ctx = CheckCtx {
+            page: Some((g.w as f64, g.h as f64)),
+            require_box: true,
+        };
+        let b64 = bbox.map(f64::from);
+        let box_ok = matches!(
+            nf_core::reading::check_box(Some(&b64), ctx.page),
+            nf_core::reading::BoxCheck::Ok
+        );
+        let mut model_error = None;
+        let mut input_sha256 = String::new();
+        let ocr: OcrCheck = if box_ok {
+            let x0 = (bbox[0].floor().max(0.0) as usize).min(g.w);
+            let y0 = (bbox[1].floor().max(0.0) as usize).min(g.h);
+            let x1 = (bbox[2].ceil().max(0.0) as usize).min(g.w);
+            let y1 = (bbox[3].ceil().max(0.0) as usize).min(g.h);
+            match g.crop(x0, y0, x1, y1) {
+                Some(crop) => {
+                    input_sha256 = hex(&crop.data);
+                    match self.read_box_text(&crop) {
+                        Ok(tokens) => {
+                            let read: Vec<String> =
+                                tokens.iter().map(|(t, _, _)| t.clone()).collect();
+                            let matching = |(t, v, _): &(String, Option<f64>, f32)| {
+                                v.is_some_and(|n| same_number(n, value))
+                                    || text_contains_number(t, value)
+                            };
+                            let agrees = tokens.iter().any(matching);
+                            // A low-confidence agreement is evidence, not a confirmation: it stays
+                            // a proposal for a person to check.
+                            let weak = tokens
+                                .iter()
+                                .any(|tok| matching(tok) && tok.2 < LOW_CONFIDENCE_BELOW);
+                            if agrees && weak {
+                                OcrCheck::Unavailable("low_confidence".into())
+                            } else if agrees {
+                                OcrCheck::Agrees { read }
+                            } else {
+                                OcrCheck::Disagrees { read }
+                            }
+                        }
+                        Err(e) => {
+                            model_error = Some(e.to_string());
+                            OcrCheck::Unavailable("ocr_failed".into())
+                        }
+                    }
+                }
+                None => OcrCheck::Unavailable("ocr_failed".into()),
+            }
+        } else {
+            OcrCheck::Unavailable("ocr_bad_box".into())
+        };
+        let check: ItemCheck = nf_core::reading::check_item(
+            &ItemIn {
+                key,
+                value: Some(value),
+                text,
+                bbox: Some(&b64),
+                source,
+            },
+            &ctx,
+            ocr,
+        );
+        Ok(BoxVerification {
+            check,
+            model_id: MODEL_ID,
+            input_sha256,
+            page_sha256: hex(page),
+            page: (g.w, g.h),
+            model_error,
+        })
+    }
 }
 
-/// The detector/recogniser pair drops the diameter sign from many numbers; when its output shows a
+/// Identity of the models whose second read produced a verdict.
+pub const MODEL_ID: &str = "nf-numread R0 / PP-OCRv4 (det+rec)";
+
+/// The verdict of one second read, with the provenance a proposal must carry. The model only
+/// proposes: the person still confirms (and the verdict never grants authority).
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoxVerification {
+    pub check: ItemCheck,
+    pub model_id: &'static str,
+    /// SHA-256 of the grey crop pixels handed to the second read (empty when no crop was made).
+    pub input_sha256: String,
+    /// SHA-256 of the page image the crop came from; binds the verdict to those exact pixels.
+    pub page_sha256: String,
+    /// Size of the page image the crop came from, in pixels.
+    pub page: (usize, usize),
+    /// Model error text when the second read could not be made.
+    pub model_error: Option<String>,
+}
+
+impl BoxVerification {
+    pub fn to_json(&self) -> String {
+        let mut check = self.check.to_json();
+        if let Some(obj) = check.as_object_mut() {
+            obj.insert("model_id".into(), serde_json::json!(self.model_id));
+            obj.insert("input_sha256".into(), serde_json::json!(self.input_sha256));
+            obj.insert("page_sha256".into(), serde_json::json!(self.page_sha256));
+            obj.insert("page".into(), serde_json::json!([self.page.0, self.page.1]));
+            if let Some(e) = &self.model_error {
+                obj.insert("model_error".into(), serde_json::json!(e));
+            }
+        }
+        serde_json::to_string_pretty(&check).unwrap_or_default()
+    }
+}
 /// phi-like glyph in the few steps before a bare number, put the sign back.
 /// Returns true when a sign was inserted.
 fn add_phi(tok: &mut text::Tok, line: &rec::Line, thresh: f32) -> bool {

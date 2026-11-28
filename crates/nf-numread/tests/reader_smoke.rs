@@ -167,3 +167,113 @@ fn oversized_model_file_is_refused_before_hashing() {
     assert!(e.to_string().contains("too large"), "{e}");
     let _ = std::fs::remove_dir_all(&d);
 }
+
+/// PZ-2: the second read of one box returns a stored verdict with its provenance. A correct value
+/// over a box that holds another number must be rejected; a matching one must agree.
+#[test]
+fn verify_box_reports_a_check_with_provenance() {
+    if model_dir().is_none() {
+        return;
+    }
+    let reader = Reader::new().expect("models");
+    let v = reader
+        .verify_box(
+            PAGE,
+            [127.1, 268.8, 204.9, 289.7],
+            "D",
+            "φ301.0",
+            301.0,
+            "read",
+        )
+        .expect("verify");
+    let json: serde_json::Value = serde_json::from_str(&v.to_json()).expect("json");
+    assert_eq!(json["model_id"], nf_numread::MODEL_ID);
+    assert_eq!(json["input_sha256"].as_str().unwrap().len(), 64);
+    assert_eq!(json["page_sha256"], nf_core::sha256_hex(PAGE));
+    assert_eq!(json["page"], serde_json::json!([1766, 1249]));
+    assert_eq!(json["verdict"], "ok", "{json}");
+    assert_eq!(json["ocr"], "agrees", "{json}");
+    assert!(json["ocr_read"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s.as_str() == Some("φ301.0")));
+    // a wrong value over the same box is a blocking verdict; the reader never confirms it
+    let v = reader
+        .verify_box(
+            PAGE,
+            [127.1, 268.8, 204.9, 289.7],
+            "D",
+            "φ999.0",
+            999.0,
+            "read",
+        )
+        .expect("verify");
+    let json: serde_json::Value = serde_json::from_str(&v.to_json()).expect("json");
+    assert_eq!(json["verdict"], "ocr_disagrees", "{json}");
+    assert!(json["reasons"]
+        .as_array()
+        .unwrap()
+        .contains(&serde_json::json!("ocr_other_number")));
+    assert_eq!(json["blocks"], true);
+}
+
+#[test]
+fn verify_box_cli_reports_a_verdict_or_a_usage_error() {
+    let exe = env!("CARGO_BIN_EXE_nf-numread");
+    let bad = std::process::Command::new(exe)
+        .args([
+            "verify_box",
+            "page.png",
+            "--bbox",
+            "1,2",
+            "--text",
+            "x",
+            "--value",
+            "1",
+        ])
+        .output()
+        .expect("run");
+    assert_eq!(bad.status.code(), Some(2));
+    let malformed = std::process::Command::new(exe)
+        .args([
+            "verify_box",
+            "page.png",
+            "--bbox",
+            "1,x,3,4",
+            "--text",
+            "x",
+            "--value",
+            "1",
+        ])
+        .output()
+        .expect("run");
+    assert_eq!(malformed.status.code(), Some(2));
+    if model_dir().is_none() {
+        return;
+    }
+    let path = std::env::temp_dir().join(format!("nf-numread-verify-{}.png", std::process::id()));
+    std::fs::write(&path, PAGE).expect("write");
+    let out = std::process::Command::new(exe)
+        .arg("verify_box")
+        .arg(&path)
+        .args([
+            "--bbox",
+            "127.1,268.8,204.9,289.7",
+            "--text",
+            "φ301.0",
+            "--value",
+            "301.0",
+        ])
+        .output()
+        .expect("run");
+    let _ = std::fs::remove_file(&path);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).expect("json");
+    assert_eq!(json["verdict"], "ok", "{json}");
+    assert_eq!(json["model_id"], nf_numread::MODEL_ID);
+}

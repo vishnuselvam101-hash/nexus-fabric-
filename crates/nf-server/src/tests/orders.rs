@@ -510,9 +510,11 @@ async fn l1_edits_are_audited_with_old_and_new_and_values_keep_provenance() {
         "{}",
         a[0]
     );
+    // SECURITY-2: the value was first read, so its origin stays immutable. Relabelling it
+    // "entered" cannot turn an unverified reading into a computed CORRECTED value.
     assert!(
         a[1].contains("old 216.3 [read PROPOSED]")
-            && a[1].contains("new 219.1 [entered CORRECTED]")
+            && a[1].contains("new 219.1 [entered PROPOSED]")
             && a[1].contains("typo on the scan"),
         "{}",
         a[1]
@@ -526,7 +528,7 @@ async fn l1_edits_are_audited_with_old_and_new_and_values_keep_provenance() {
             val["proposed_value"].clone(),
             val["state"].clone()
         ),
-        (json!(219.1), json!(216.3), json!(216.3), json!("CORRECTED"))
+        (json!(219.1), json!(216.3), json!(216.3), json!("PROPOSED"))
     );
     // parts too: change and exclusion are audited with the old state
     let (st, v) = t.call("PUT", &format!("/api/orders/{oid}/parts"), Some(json!({ "parts": [{ "id": 1, "no": "1", "name": "main", "shape": "cylinder", "qty": 3, "page": 1 }] }))).await;
@@ -670,7 +672,7 @@ async fn l1_a_decision_is_tied_to_its_value_and_can_be_undone() {
     let t = boot();
     let oid = order_with_parts(&t).await;
     let vals = format!("/api/orders/{oid}/values");
-    let (st, _) = t.call("PUT", &vals, Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read" }] }))).await;
+    let (st, _) = t.call("PUT", &vals, Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "entered" }] }))).await;
     assert_eq!(st, StatusCode::OK);
     // automation confirms the value with its reason, under its own service identity
     let dec = format!("/api/orders/{oid}/decisions");
@@ -924,12 +926,14 @@ async fn mark(t: &T, oid: i64) -> i64 {
     k["id"].as_i64().unwrap()
 }
 
+// A plain value for decision-lifecycle tests. Read-source values now need a server-run second
+// read before they can be confirmed; these tests are not about reading and use "entered".
 async fn read_val(t: &T, oid: i64, key: &str, v: f64, text: &str) {
     let (st, r) = t
         .call(
             "PUT",
             &format!("/api/orders/{oid}/values"),
-            Some(json!({ "values": [{ "part": "1", "key": key, "value": v, "text": text, "source": "read" }] })),
+            Some(json!({ "values": [{ "part": "1", "key": key, "value": v, "text": text, "source": "entered" }] })),
         )
         .await;
     assert_eq!(st, StatusCode::OK, "{r}");
@@ -1078,7 +1082,7 @@ async fn l1r1_a_confirmation_does_not_survive_a_changed_source_or_box() {
         )
         .await;
     let id = c["id"].as_i64().unwrap();
-    let (st, _) = t.call("PUT", &format!("/api/orders/{oid}/values"), Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read", "bbox": [5, 5, 50, 50] }] }))).await;
+    let (st, _) = t.call("PUT", &format!("/api/orders/{oid}/values"), Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "entered", "bbox": [5, 5, 50, 50] }] }))).await;
     assert_eq!(st, StatusCode::OK);
     let o = t.get(&format!("/api/orders/{oid}")).await;
     assert_eq!(o["parts"][0]["values"][0]["state"], "PROPOSED");
@@ -3541,4 +3545,542 @@ async fn pz1_named_review_codes_are_validated_for_person_and_agent() {
         }
     }
     assert_eq!(t.count("SELECT COUNT(*) FROM order_decisions"), before);
+}
+
+const REAL_PAGE: &[u8] = include_bytes!("../../../nf-numread/tests/data/synth-test-00000.png");
+
+async fn order_with_real_page(t: &T) -> i64 {
+    let oid = new_order(t).await;
+    assert_eq!(
+        add_file(t, oid, REAL_PAGE.to_vec(), "b.png").await.0,
+        StatusCode::OK
+    );
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/parts"),
+            Some(json!({ "parts": [
+                { "no": "1", "name": "main", "shape": "cylinder", "qty": 2, "page": 1 }
+            ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    oid
+}
+
+#[tokio::test]
+async fn pz2_read_verdict_is_run_on_the_server_and_bound_to_page_and_box() {
+    let t = boot();
+    let oid = order_with_real_page(&t).await;
+    // Every verdict/reason/provenance field a caller sends is ignored; only page_no is used.
+    let flag = json!({
+        "page_no": 1,
+        "verdict": "ok",
+        "ocr": "disagrees",
+        "ocr_read": ["999"],
+        "model_id": "attacker",
+        "input_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    });
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": flag
+            }] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    let f = &o["parts"][0]["values"][0]["flag"];
+    assert_eq!(f["verdict"], "ok", "{o}");
+    assert_eq!(f["model_id"], nf_numread::MODEL_ID);
+    assert_eq!(f["page_sha256"], nf_core::sha256_hex(REAL_PAGE));
+    assert_eq!(f["input_sha256"].as_str().unwrap().len(), 64);
+    assert!(
+        f["ocr_read"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s.as_str() == Some("φ301.0"))
+    );
+    assert_eq!(o["parts"][0]["values"][0]["state"], "PROPOSED");
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions"),
+            Some(json!({ "kind": "confirm", "part": "1", "key": "D" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+}
+
+#[tokio::test]
+async fn pz2_client_cannot_assert_a_second_read_or_an_out_of_page_box() {
+    let t = boot();
+    let oid = order_with_real_page(&t).await;
+    let claimed = json!({
+        "page_no": 1,
+        "ocr": "agrees",
+        "ocr_read": ["999"],
+        "verdict": "ok",
+        "model_id": "attacker"
+    });
+    // An out-of-page box is checked against the stored page before any confirmation.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [10000, 10000, 10001, 10001], "flag": claimed, "confirm": true
+            }] })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("ocr_not_this_page")),
+        "{v}"
+    );
+    // No second read at all cannot confirm a read-source value.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "confirm": true
+            }] })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_unverified")),
+        "{v}"
+    );
+    // A claimed agreement cannot make a disagreeing model agree.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 999.0, "text": "φ999.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": claimed
+            }] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(
+        o["parts"][0]["values"][0]["flag"]["verdict"],
+        "ocr_disagrees"
+    );
+    assert_eq!(
+        o["parts"][0]["values"][0]["flag"]["model_id"],
+        nf_numread::MODEL_ID
+    );
+}
+
+#[tokio::test]
+async fn pz2_relabelling_a_read_value_cannot_drop_its_gate() {
+    let t = boot();
+    let oid = order_with_real_page(&t).await;
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": { "page_no": 1 }
+            }] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    // The caller cannot relabel this value as typed-in and confirm a different number: the stored
+    // read origin keeps the gate in force even when the request source changes.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 999.0, "text": "φ999.0", "source": "entered",
+                "confirm": true
+            }] })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_unverified")),
+        "{v}"
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["parts"][0]["values"][0]["value"], 301.0, "{o}");
+    assert_eq!(o["parts"][0]["values"][0]["source"], "read", "{o}");
+    assert_eq!(o["parts"][0]["values"][0]["state"], "PROPOSED", "{o}");
+}
+
+#[tokio::test]
+async fn pz2_a_disagreeing_flag_keeps_the_value_proposed() {
+    let t = boot();
+    let oid = order_with_real_page(&t).await;
+    // Even with confirm, the model's disagreement refuses the confirmation.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 999.0, "text": "φ999.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": { "page_no": 1 }, "confirm": true
+            }] })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_conflict")),
+        "{v}"
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["parts"][0]["values"].as_array().unwrap().len(), 0, "{o}");
+    // Without confirm, the disagreeing value is stored only as a proposal.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 999.0, "text": "φ999.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": { "page_no": 1 }
+            }] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["parts"][0]["values"][0]["value"], 999.0, "{o}");
+    assert_eq!(o["parts"][0]["values"][0]["state"], "PROPOSED", "{o}");
+}
+
+#[tokio::test]
+async fn pz2_too_many_flagged_values_in_one_batch_is_refused_before_ocr() {
+    let t = boot();
+    let oid = order_with_real_page(&t).await;
+    let values: Vec<Value> = (0..9)
+        .map(|i| {
+            json!({
+                "part": "1", "key": format!("k{i}"), "value": 301.0, "text": "φ301.0",
+                "source": "read", "bbox": [127.1, 268.8, 204.9, 289.7],
+                "flag": { "page_no": 1 }
+            })
+        })
+        .collect();
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": values })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Some("flagged_values_limit")
+        ),
+        "{v}"
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["parts"][0]["values"].as_array().unwrap().len(), 0, "{o}");
+}
+
+#[tokio::test]
+async fn pz2_malformed_stored_flag_fails_closed() {
+    let t = boot();
+    let oid = order_with_real_page(&t).await;
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7]
+            }] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    t.sql(&format!(
+        "UPDATE order_values SET flag = '{{\"verdict\":\"ok\"}}' WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"
+    ));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions"),
+            Some(json!({ "kind": "confirm", "part": "1", "key": "D" })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Some("reading_flag_invalid")
+        ),
+        "{v}"
+    );
+}
+
+/// Rebuild the same data directory, as an upgrade would, without losing the test's temp dir.
+fn reopen_after_upgrade(t: &mut T) {
+    let app = build_app(config(&t.dir)).unwrap();
+    let cookie = add_session(&app, "reopened", "admin");
+    *app.setup_token.lock().unwrap() = None;
+    t.app = app;
+    t.cookie = cookie;
+}
+
+#[tokio::test]
+async fn sec3_migration_downgrades_unproven_read_confirmations_and_compute_holds_them() {
+    let mut t = boot();
+    let oid = order_with_real_page(&t).await;
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [
+                { "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                  "bbox": [127.1, 268.8, 204.9, 289.7] },
+                { "part": "1", "key": "t", "value": 12.0, "text": "12", "source": "entered" },
+                { "part": "1", "key": "L", "value": 2000.0, "text": "2000", "source": "entered" }
+            ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    // Seed the pre-SECURITY-3 shape: a confirmed reading with no second read at all.
+    t.sql(&format!(
+        "UPDATE order_values SET source = 'entered', state = 'CONFIRMED' WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key IN ('t', 'L')"
+    ));
+    t.sql(&format!(
+        "UPDATE order_values SET source = 'read', read_source = NULL, flag = NULL, state = 'CONFIRMED' WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"
+    ));
+    t.app.db().pragma_update(None, "user_version", 8).unwrap();
+    t.sql("DELETE FROM meta WHERE key = 'pz2_read_confirmation_revalidated'");
+
+    reopen_after_upgrade(&mut t);
+
+    let (state, origin): (String, String) = t
+        .app
+        .db()
+        .query_row(
+            &format!("SELECT state, COALESCE(read_source, source) FROM order_values WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"),
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((state.as_str(), origin.as_str()), ("PROPOSED", "read"));
+
+    let part = |v: &Value| {
+        v["result"]["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["no"] == "1")
+            .unwrap()
+            .clone()
+    };
+    let has_issue = |v: &Value, code: &str| {
+        v["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|i| i["no"] == "1" && i["code"] == code)
+    };
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(part(&v)["state"], "held_missing", "{}", part(&v));
+    assert!(part(&v)["dxf"].is_null());
+    assert!(has_issue(&v, "value_proposed"), "{v}");
+
+    // Defense in depth: even after the one-time migration marker is set, a confirmed read row
+    // whose flag is damaged must not reach compute as confirmed.
+    t.sql(&format!(
+        "UPDATE order_values SET state = 'CONFIRMED', flag = 'not json' WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"
+    ));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(part(&v)["state"], "held_missing", "{}", part(&v));
+    assert!(has_issue(&v, "value_proposed"), "{v}");
+
+    // A fresh, page-bound second read still earns confirmation and a computed part.
+    t.sql(&format!(
+        "UPDATE order_values SET state = 'PROPOSED', flag = NULL WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"
+    ));
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": { "page_no": 1 }
+            }] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/confirm"),
+            Some(json!({ "all": true })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(part(&v)["state"], "computed", "{}", part(&v));
+}
+
+#[tokio::test]
+async fn sec4_migration_downgrades_unproven_read_corrections_and_valid_checks_still_compute() {
+    let mut t = boot();
+    let oid = order_with_real_page(&t).await;
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [
+                { "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                  "bbox": [127.1, 268.8, 204.9, 289.7] },
+                { "part": "1", "key": "t", "value": 12.0, "text": "12", "source": "entered" },
+                { "part": "1", "key": "L", "value": 2000.0, "text": "2000", "source": "entered" }
+            ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    t.sql(&format!(
+        "UPDATE order_values SET source = 'entered', state = 'CONFIRMED' WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key IN ('t', 'L')"
+    ));
+    // Seed the pre-gate shape REVIEW-4 found: a corrected reading with no usable second read.
+    t.sql(&format!(
+        "UPDATE order_values SET source = 'read', read_source = NULL, flag = 'not json', state = 'CORRECTED' WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"
+    ));
+    t.app.db().pragma_update(None, "user_version", 8).unwrap();
+    t.sql("DELETE FROM meta WHERE key = 'pz2_read_confirmation_revalidated'");
+
+    reopen_after_upgrade(&mut t);
+
+    let (state, origin): (String, String) = t
+        .app
+        .db()
+        .query_row(
+            &format!("SELECT state, COALESCE(read_source, source) FROM order_values WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"),
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((state.as_str(), origin.as_str()), ("PROPOSED", "read"));
+
+    let part = |v: &Value| {
+        v["result"]["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["no"] == "1")
+            .unwrap()
+            .clone()
+    };
+    let has_issue = |v: &Value, code: &str| {
+        v["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|i| i["no"] == "1" && i["code"] == code)
+    };
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(part(&v)["state"], "held_missing", "{}", part(&v));
+    assert!(part(&v)["dxf"].is_null());
+    assert!(has_issue(&v, "value_proposed"), "{v}");
+
+    // Defense in depth: after the one-time marker is set, a corrected read row with a damaged flag
+    // must still not reach compute as usable.
+    t.sql(&format!(
+        "UPDATE order_values SET state = 'CORRECTED', flag = 'not json' WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"
+    ));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(part(&v)["state"], "held_missing", "{}", part(&v));
+    assert!(has_issue(&v, "value_proposed"), "{v}");
+
+    // A fresh, page-bound second read still earns a usable value and a computed part.
+    t.sql(&format!(
+        "UPDATE order_values SET state = 'PROPOSED', flag = NULL WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"
+    ));
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": { "page_no": 1 }
+            }] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/confirm"),
+            Some(json!({ "all": true })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(part(&v)["state"], "computed", "{}", part(&v));
+
+    // A correct value with a still-valid page-bound check is not held by the new compute gate.
+    t.sql(&format!(
+        "UPDATE order_values SET state = 'CORRECTED' WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"
+    ));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(part(&v)["state"], "computed", "{}", part(&v));
 }

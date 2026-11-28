@@ -499,10 +499,8 @@ fn tool_write(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
             "confidence": f.confidence, "confirm": false, "note": note });
         // Only a plain reading is the written number itself; a marked reading (e.g. a diameter) is scaled, so its
         // stored number is not the value written and cannot be attached to it.
-        if plain {
-            if let Some(id) = reading_id {
-                value["reading_id"] = json!(id);
-            }
+        if plain && let Some(id) = reading_id {
+            value["reading_id"] = json!(id);
         }
         values.push(value);
         shown.push((

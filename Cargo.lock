@@ -887,6 +887,7 @@ dependencies = [
 name = "nf-numread"
 version = "0.1.0"
 dependencies = [
+ "nf-core",
  "png",
  "rten",
  "rten-tensor",

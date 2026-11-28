@@ -15,13 +15,17 @@ use std::path::{Path, PathBuf};
 /// 10: the INT-5 union of the reviewed wave-1 work, all additive, on top of 8: AIOP-1 `operator_events`,
 /// `operator_state`, `order_readings`, `order_values` flags/confidence/edited_kind and the sticky
 /// `attached_reading_id`; PZ-1 `order_material_rows`, `order_page_notes` and the decision review columns;
-/// PZ-2 `order_values.flag`/`read_source`; PZ-3 `projects.default_rules_json`.
+/// PZ-2 `order_values.flag`/`read_source`; PZ-3 `projects.default_rules_json`. PZ-2's one-time SECURITY-3
+/// revalidation is keyed by a marker in `meta`, not by another schema number.
 /// 8: `order_results_immutable` trigger (only state -> SUPERSEDED may change), on top of 7.
 /// 7: `order_results` (the supersede chain of order computes, NFJ-1 L10), on top of 6.
 /// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns). Rollback to an older build
 /// is a restore of the pre-update backup: an older program refuses a newer schema (see the check below) and does not
 /// undo the migration.
 pub const SCHEMA_VERSION: i64 = 10;
+
+/// One-time SECURITY-3 migration marker. Do not reuse this key for another migration.
+const PZ2_READ_REVALIDATED: &str = "pz2_read_confirmation_revalidated";
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
@@ -44,7 +48,7 @@ CREATE TABLE IF NOT EXISTS orders(id INTEGER PRIMARY KEY, project_id INTEGER NOT
 CREATE TABLE IF NOT EXISTS order_files(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), document_id INTEGER NOT NULL REFERENCES documents(id), ord INTEGER NOT NULL, UNIQUE(order_id, ord));
 CREATE TABLE IF NOT EXISTS order_pages(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), file_id INTEGER NOT NULL REFERENCES order_files(id), page_no INTEGER NOT NULL, file_page INTEGER NOT NULL, png_sha256 TEXT, width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0, kind TEXT NOT NULL, read_state TEXT NOT NULL, skipped INTEGER NOT NULL DEFAULT 0, skipped_by TEXT, skipped_at INTEGER, UNIQUE(order_id, page_no));
 CREATE TABLE IF NOT EXISTS order_parts(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_id INTEGER REFERENCES order_pages(id), no TEXT NOT NULL, name TEXT NOT NULL, shape TEXT NOT NULL, attach_part TEXT, qty INTEGER NOT NULL, table_rows_json TEXT NOT NULL, group_key TEXT, state TEXT NOT NULL, UNIQUE(order_id, no));
-CREATE TABLE IF NOT EXISTS order_values(id INTEGER PRIMARY KEY, part_id INTEGER NOT NULL REFERENCES order_parts(id), key TEXT NOT NULL, value REAL, text TEXT NOT NULL, bbox_json TEXT, source TEXT NOT NULL, state TEXT NOT NULL, was REAL, proposed_value REAL, proposed_by TEXT NOT NULL, edited_by TEXT, edited_at INTEGER, UNIQUE(part_id, key));
+CREATE TABLE IF NOT EXISTS order_values(id INTEGER PRIMARY KEY, part_id INTEGER NOT NULL REFERENCES order_parts(id), key TEXT NOT NULL, value REAL, text TEXT NOT NULL, bbox_json TEXT, source TEXT NOT NULL, state TEXT NOT NULL, was REAL, proposed_value REAL, proposed_by TEXT NOT NULL, edited_by TEXT, edited_at INTEGER, flag TEXT, read_source TEXT, UNIQUE(part_id, key));
 CREATE TABLE IF NOT EXISTS order_readings(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, bbox_json TEXT NOT NULL, text TEXT NOT NULL, value REAL, kind TEXT NOT NULL, flags_json TEXT NOT NULL, confidence REAL NOT NULL, reader_id TEXT NOT NULL, model_sha256 TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS order_results(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), input_hash TEXT NOT NULL, engine TEXT NOT NULL, state TEXT NOT NULL, supersedes INTEGER, result_json TEXT NOT NULL, counts_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS operator_events(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), seq INTEGER NOT NULL, event_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, UNIQUE(order_id, seq));
@@ -56,7 +60,7 @@ CREATE TABLE IF NOT EXISTS order_page_notes(id INTEGER PRIMARY KEY, order_id INT
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 21] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 23] = [
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
@@ -97,6 +101,11 @@ const ADDED_COLUMNS: [(&str, &str, &str); 21] = [
     // PZ-1: a designer claim names the review code it answers and carries the text the designer gave.
     ("order_decisions", "review_code", "TEXT"),
     ("order_decisions", "claim_text", "TEXT"),
+    // PZ-2: the reading verdict, its reason codes and the model/input hashes, stored with the proposal.
+    ("order_values", "flag", "TEXT"),
+    // PZ-2: immutable, server-derived read origin. The caller's `source` is only a description;
+    // this records whether the value was actually read by the server, read on paper, or entered.
+    ("order_values", "read_source", "TEXT"),
 ];
 
 /// Append-only at the database level (RC-20). Created at every start, so an older database gets them too.
@@ -439,6 +448,27 @@ pub fn open_storage(data_dir: &Path, key_path: &Path) -> Result<(Connection, [u8
         [],
     )
     .map_err(|e| format!("migration failed (backfill attached readings): {e}"))?;
+    // PZ-2: a value that was first stored as a page reading keeps that origin even if a later edit
+    // relabels it. Backfill rows written before the column existed, so they cannot escape the gate.
+    db.execute("UPDATE order_values SET read_source = source WHERE read_source IS NULL AND source IN ('read', 'drawing', 'table', 'note', 'count')", []).map_err(|e| format!("migration failed (read origin): {e}"))?;
+    // SECURITY-3 / REVIEW-4: a confirmation or correction written before the strict reading gate
+    // may have no second read. Reproducing `StoredCheck`'s strict parse and the page/box checks in
+    // SQL would duplicate the gate and drift from it, so downgrade every read-origin CONFIRMED or
+    // CORRECTED value conservatively on the first open after this build. The value stays with its
+    // evidence; a person confirms or corrects it again through the gated route. The marker makes
+    // this one-time, so later valid checks keep their state. Accepted residual: a pre-v9 row that
+    // was already relabeled to a non-read source (for example `source='entered'` and no
+    // `read_source`) is indistinguishable from a legitimate entered value and is out of scope;
+    // widening this to all numeric values would hold legitimate person-entered data.
+    let revalidated = meta_get(&db, PZ2_READ_REVALIDATED)
+        .map_err(|e| format!("migration failed (read confirmation marker): {e}"))?
+        .is_some();
+    if !revalidated {
+        db.execute("UPDATE order_values SET state = 'PROPOSED' WHERE state IN ('CONFIRMED', 'CORRECTED') AND COALESCE(read_source, source) IN ('read', 'drawing', 'table', 'note', 'count')", [])
+            .map_err(|e| format!("migration failed (read confirmation revalidation): {e}"))?;
+        meta_set(&db, PZ2_READ_REVALIDATED, "1")
+            .map_err(|e| format!("migration failed (read confirmation marker): {e}"))?;
+    }
     // BE-011: record the engine per result. The stored engineering result itself is not rewritten.
     db.execute("UPDATE calculations SET engine = json_extract(result_json, '$.engine') WHERE engine IS NULL AND json_valid(result_json)", []).map_err(|e| format!("migration failed (engine per result): {e}"))?;
     // S-2: the database and the data directory must belong together. At first initialisation a random

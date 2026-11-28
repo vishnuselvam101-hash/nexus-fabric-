@@ -14,6 +14,8 @@ name = "nf-numread"
 path = "src/bin/nf-numread.rs"
 
 [dependencies]
+# The verdicts and box/text checks live in nf-core; this crate only reads pixels.
+nf-core = { path = "../nf-core" }
 # Pure Rust ONNX runtime (the only crate here with unsafe code, inside the runtime itself).
 rten = { version = "0.28", default-features = false, features = ["onnx_format"] }
 rten-tensor = "0.28"
