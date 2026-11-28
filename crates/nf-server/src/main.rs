@@ -5139,6 +5139,24 @@ pub(crate) fn router(app: Arc<App>) -> Router {
             }),
         )
         .route(
+            "/operator-cursor.css",
+            get(|| async {
+                asset(
+                    "text/css; charset=utf-8",
+                    include_str!("../../../web/operator-cursor.css"),
+                )
+            }),
+        )
+        .route(
+            "/js/operator-cursor.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/operator-cursor.js"),
+                )
+            }),
+        )
+        .route(
             "/js/lib/poll.js",
             get(|| async {
                 asset(

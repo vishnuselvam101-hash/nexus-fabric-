@@ -12,12 +12,16 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+/// 9: `operator_events`, `operator_state`, `order_readings` (the server's own record of every number the reader
+/// found on an order page), the `order_values` source/flags/confidence/edited-by columns (the AI operator;
+/// AIOP-1) and `order_values.attached_reading_id` (SECURITY-7), on top of 8. The attachment stays in schema 9;
+/// INT-5 will bump to 10 with the PZ-2 union.
 /// 8: `order_results_immutable` trigger (only state -> SUPERSEDED may change), on top of 7.
 /// 7: `order_results` (the supersede chain of order computes, NFJ-1 L10), on top of 6.
 /// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns). Rollback to an older build
 /// is a restore of the pre-update backup: an older program refuses a newer schema (see the check below) and does not
 /// undo the migration.
-pub const SCHEMA_VERSION: i64 = 8;
+pub const SCHEMA_VERSION: i64 = 9;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
@@ -41,13 +45,16 @@ CREATE TABLE IF NOT EXISTS order_files(id INTEGER PRIMARY KEY, order_id INTEGER 
 CREATE TABLE IF NOT EXISTS order_pages(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), file_id INTEGER NOT NULL REFERENCES order_files(id), page_no INTEGER NOT NULL, file_page INTEGER NOT NULL, png_sha256 TEXT, width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0, kind TEXT NOT NULL, read_state TEXT NOT NULL, skipped INTEGER NOT NULL DEFAULT 0, skipped_by TEXT, skipped_at INTEGER, UNIQUE(order_id, page_no));
 CREATE TABLE IF NOT EXISTS order_parts(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_id INTEGER REFERENCES order_pages(id), no TEXT NOT NULL, name TEXT NOT NULL, shape TEXT NOT NULL, attach_part TEXT, qty INTEGER NOT NULL, table_rows_json TEXT NOT NULL, group_key TEXT, state TEXT NOT NULL, UNIQUE(order_id, no));
 CREATE TABLE IF NOT EXISTS order_values(id INTEGER PRIMARY KEY, part_id INTEGER NOT NULL REFERENCES order_parts(id), key TEXT NOT NULL, value REAL, text TEXT NOT NULL, bbox_json TEXT, source TEXT NOT NULL, state TEXT NOT NULL, was REAL, proposed_value REAL, proposed_by TEXT NOT NULL, edited_by TEXT, edited_at INTEGER, UNIQUE(part_id, key));
+CREATE TABLE IF NOT EXISTS order_readings(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, bbox_json TEXT NOT NULL, text TEXT NOT NULL, value REAL, kind TEXT NOT NULL, flags_json TEXT NOT NULL, confidence REAL NOT NULL, reader_id TEXT NOT NULL, model_sha256 TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS order_results(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), input_hash TEXT NOT NULL, engine TEXT NOT NULL, state TEXT NOT NULL, supersedes INTEGER, result_json TEXT NOT NULL, counts_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS operator_events(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), seq INTEGER NOT NULL, event_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, UNIQUE(order_id, seq));
+CREATE TABLE IF NOT EXISTS operator_state(order_id INTEGER PRIMARY KEY REFERENCES orders(id), paused INTEGER NOT NULL, by_user TEXT NOT NULL, at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS order_decisions(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), part_id INTEGER, value_id INTEGER, kind TEXT NOT NULL, flag TEXT, source TEXT NOT NULL, agent TEXT, reason TEXT NOT NULL, against_hash TEXT NOT NULL, prev_state TEXT, decided_by TEXT NOT NULL, decided_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, undo_note TEXT);
 ";
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 15] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 19] = [
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
@@ -73,6 +80,18 @@ const ADDED_COLUMNS: [(&str, &str, &str); 15] = [
     ("users", "must_change", "INTEGER NOT NULL DEFAULT 0"),
     // NFJ-1: "person" or "agent" (the AI operator's service identity); decides the source of an order decision.
     ("users", "kind", "TEXT NOT NULL DEFAULT 'person'"),
+    // AIOP-1 (schema 9): what the writer said about a reading (reader flags, confidence) and whether the last
+    // edit was a person's ("person") or the AI operator's ("agent"). The server decides on these, not on a caller.
+    ("order_values", "flags_json", "TEXT NOT NULL DEFAULT '[]'"),
+    ("order_values", "confidence", "REAL"),
+    (
+        "order_values",
+        "edited_kind",
+        "TEXT NOT NULL DEFAULT 'person'",
+    ),
+    // SECURITY-7: the server-owned, sticky reading this value was first proposed from. Nullable: a value with no
+    // unambiguous attachment cannot be confirmed by the AI operator.
+    ("order_values", "attached_reading_id", "INTEGER"),
 ];
 
 /// Append-only at the database level (RC-20). Created at every start, so an older database gets them too.
@@ -84,7 +103,11 @@ CREATE TRIGGER IF NOT EXISTS records_no_delete BEFORE DELETE ON records BEGIN SE
 CREATE TRIGGER IF NOT EXISTS amoeba_no_update BEFORE UPDATE ON amoeba_digests BEGIN SELECT RAISE(ABORT, 'AMOEBA snapshots are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS amoeba_no_delete BEFORE DELETE ON amoeba_digests BEGIN SELECT RAISE(ABORT, 'AMOEBA snapshots are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS order_results_no_delete BEFORE DELETE ON order_results BEGIN SELECT RAISE(ABORT, 'computed results are kept; a new compute supersedes them'); END;
+CREATE TRIGGER IF NOT EXISTS operator_events_no_delete BEFORE DELETE ON operator_events BEGIN SELECT RAISE(ABORT, 'operator events are kept; undo marks them undone'); END;
+CREATE TRIGGER IF NOT EXISTS operator_events_no_edit BEFORE UPDATE OF order_id, seq, event_json, created_by, created_at ON operator_events BEGIN SELECT RAISE(ABORT, 'operator events are kept as written'); END;
 CREATE TRIGGER IF NOT EXISTS order_results_immutable BEFORE UPDATE ON order_results WHEN NOT (NEW.state = 'SUPERSEDED' AND NEW.id IS OLD.id AND NEW.order_id IS OLD.order_id AND NEW.input_hash IS OLD.input_hash AND NEW.engine IS OLD.engine AND NEW.supersedes IS OLD.supersedes AND NEW.result_json IS OLD.result_json AND NEW.counts_json IS OLD.counts_json AND NEW.created_by IS OLD.created_by AND NEW.created_at IS OLD.created_at) BEGIN SELECT RAISE(ABORT, 'computed results are immutable; only SUPERSEDED may be set'); END;
+CREATE TRIGGER IF NOT EXISTS order_readings_no_delete BEFORE DELETE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are kept as the reader produced them'); END;
+CREATE TRIGGER IF NOT EXISTS order_readings_no_edit BEFORE UPDATE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS order_decisions_no_delete BEFORE DELETE ON order_decisions BEGIN SELECT RAISE(ABORT, 'decisions are kept; undo marks them undone'); END;
 ";
 
@@ -101,6 +124,7 @@ CREATE INDEX IF NOT EXISTS ix_conv_project ON pdf_conversions(project_id);
 CREATE INDEX IF NOT EXISTS ix_orders_project ON orders(project_id);
 CREATE INDEX IF NOT EXISTS ix_order_pages_order ON order_pages(order_id, page_no);
 CREATE INDEX IF NOT EXISTS ix_order_parts_order ON order_parts(order_id);
+CREATE INDEX IF NOT EXISTS ix_order_readings_page ON order_readings(order_id, page_no, id);
 CREATE INDEX IF NOT EXISTS ix_order_results_order ON order_results(order_id, id);
 CREATE INDEX IF NOT EXISTS ix_order_decisions_order ON order_decisions(order_id, value_id);
 CREATE INDEX IF NOT EXISTS ix_fail_user ON login_failures(username, at);
@@ -388,6 +412,28 @@ pub fn open_storage(data_dir: &Path, key_path: &Path) -> Result<(Connection, [u8
     }
     db.execute_batch(INDEXES)
         .map_err(|e| format!("cannot create indexes: {e}"))?;
+    // SECURITY-7: attach an existing value to the one stored reading that unambiguously is that value on the
+    // value's own page. Several matches (or none) leave it NULL: a person, not the operator, decides then. An
+    // attachment made by a write is never overwritten by this backfill.
+    db.execute(
+        "WITH candidates AS (
+            SELECT v.id AS vid, MIN(r.id) AS rid
+            FROM order_values v
+            JOIN order_parts pt ON pt.id = v.part_id
+            JOIN order_pages pg ON pg.id = pt.page_id AND pg.order_id = pt.order_id
+            JOIN order_readings r ON r.order_id = pt.order_id AND r.page_no = pg.page_no
+             AND r.value IS NOT NULL AND r.value IS v.value
+             AND r.text = v.text AND r.bbox_json IS v.bbox_json
+             AND r.flags_json IS v.flags_json AND r.confidence IS v.confidence
+            WHERE v.attached_reading_id IS NULL
+            GROUP BY v.id
+            HAVING COUNT(*) = 1
+        )
+        UPDATE order_values SET attached_reading_id = (SELECT rid FROM candidates WHERE candidates.vid = order_values.id)
+        WHERE id IN (SELECT vid FROM candidates)",
+        [],
+    )
+    .map_err(|e| format!("migration failed (backfill attached readings): {e}"))?;
     // BE-011: record the engine per result. The stored engineering result itself is not rewritten.
     db.execute("UPDATE calculations SET engine = json_extract(result_json, '$.engine') WHERE engine IS NULL AND json_valid(result_json)", []).map_err(|e| format!("migration failed (engine per result): {e}"))?;
     // S-2: the database and the data directory must belong together. At first initialisation a random

@@ -283,10 +283,13 @@ impl Reader {
                 let raw = tok.text();
                 let confidence = tok.conf();
                 let phi_inferred = p.phi_thresh > 0.0 && add_phi(&mut tok, &line, p.phi_thresh);
-                let Some(parsed) = text::parse(&tok.text()) else {
+                let Some(mut parsed) = text::parse(&tok.text()) else {
                     continue;
                 };
-                let repaired = phi_inferred || parsed.text != raw;
+                // Splitting glued callouts changes the token's boundaries: both halves are
+                // proposals, never a silent confirmed reading.
+                parsed.ambiguous |= tok.split_callout;
+                let repaired = phi_inferred || parsed.text != raw || tok.split_callout;
                 let (first, last) = (tok.chars[0].step, tok.chars[tok.chars.len() - 1].step);
                 let ub = token_box(&upright, line.steps, first, last, pitch);
                 let bbox = to_page(orient, [bx0, by0, bx1, by1], ub);
@@ -335,9 +338,9 @@ fn add_phi(tok: &mut text::Tok, line: &rec::Line, thresh: f32) -> bool {
         .map_or(0, |c| c.step + 1);
     let from = prev_end.max(first.saturating_sub(4));
     let mut best = (0usize, 0f32);
-    for t in from..first {
-        if line.phi[t] > best.1 {
-            best = (t, line.phi[t]);
+    for (t, phi) in line.phi.iter().enumerate().take(first).skip(from) {
+        if *phi > best.1 {
+            best = (t, *phi);
         }
     }
     if best.1 >= thresh {
@@ -443,6 +446,7 @@ mod tests {
         };
         let mut tok = text::Tok {
             chars: line.chars.clone(),
+            split_callout: false,
         };
         let raw = tok.text();
         let conf = tok.conf();
@@ -456,6 +460,7 @@ mod tests {
         // no phi-like step: nothing inserted
         let mut tok2 = text::Tok {
             chars: line.chars.clone(),
+            split_callout: false,
         };
         let quiet = Line {
             phi: vec![0.0; 12],

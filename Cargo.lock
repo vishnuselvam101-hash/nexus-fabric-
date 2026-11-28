@@ -811,6 +811,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "nf-amoeba-agent"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "serde_json",
+ "sha2 0.11.1",
+]
+
+[[package]]
+name = "nf-amoeba-operator"
+version = "0.1.0"
+dependencies = [
+ "nf-amoeba-agent",
+ "nf-core",
+ "rusqlite",
+ "serde_json",
+]
+
+[[package]]
 name = "nf-cadio"
 version = "0.1.0"
 dependencies = [
@@ -933,6 +952,7 @@ dependencies = [
  "nf-core",
  "nf-digest",
  "nf-licence",
+ "nf-numread",
  "rand",
  "rusqlite",
  "serde",
