@@ -952,6 +952,7 @@ dependencies = [
  "hyper-util",
  "nf-core",
  "nf-digest",
+ "nf-jobout",
  "nf-licence",
  "nf-numread",
  "rand",

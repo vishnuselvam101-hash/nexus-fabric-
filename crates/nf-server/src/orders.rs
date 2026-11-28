@@ -103,6 +103,7 @@ pub(crate) fn routes() -> Router<Arc<App>> {
         .route("/api/orders/{oid}/values", axum::routing::put(put_values))
         .route("/api/orders/{oid}/confirm", post(confirm))
         .route("/api/orders/{oid}/compute", post(compute).get(get_results))
+        .route("/api/orders/{oid}/outputs.zip", get(get_outputs_zip))
         .route("/api/orders/{oid}/preview", post(preview_order))
         .route(
             "/api/orders/{oid}/rules",
@@ -5331,6 +5332,213 @@ async fn get_results(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) 
         .optional()?
         .map(|(id, j)| json!({ "id": id, "result": serde_json::from_str::<Value>(&j).unwrap_or(Value::Null) }));
     ok(json!({ "current": current, "chain": chain }))
+}
+
+// ---------------------------------------------------------------- the job package (F1 download)
+
+/// Largest job package the outputs endpoint builds. A bigger one is refused (413), never cut short.
+const MAX_OUTPUTS_BYTES: usize = 64 * 1024 * 1024;
+
+/// `YYYY-MM-DD HH:MM UTC` from unix seconds (the package's own clock text).
+fn utc_stamp(secs: u64) -> String {
+    let z = (secs / 86_400) as i64 + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    let rem = secs % 86_400;
+    format!(
+        "{y:04}-{m:02}-{d:02} {:02}:{:02} UTC",
+        rem / 3600,
+        rem % 3600 / 60
+    )
+}
+
+/// The change record of the package: every decision of the order, newest last.
+fn package_record(rows: &[Value]) -> Vec<nf_jobout::RecordEntry> {
+    rows.iter()
+        .map(|d| nf_jobout::RecordEntry {
+            date: utc_stamp(d["decided_at"].as_u64().unwrap_or(0)),
+            user: d["decided_by"].as_str().unwrap_or("").to_string(),
+            action: match d["undone"].as_bool() {
+                Some(true) => format!("{} (undone)", d["kind"].as_str().unwrap_or("")),
+                _ => d["kind"].as_str().unwrap_or("").to_string(),
+            },
+            before: d["key"].as_str().unwrap_or("").to_string(),
+            after: d["reason"].as_str().unwrap_or("").to_string(),
+        })
+        .collect()
+}
+
+/// The package of one compute. A DXF goes in only for a certified part that no hold blocks; every other part
+/// has no file, and its reasons are in the issue list (one line per part at least).
+fn job_package(
+    oid: i64,
+    name: &str,
+    generated: &str,
+    res: &oc::OrderResult,
+    record: Vec<nf_jobout::RecordEntry>,
+) -> nf_jobout::JobInput {
+    use nf_jobout::{Issue, JobInput, Piece, Provenance};
+    let drawing = format!("order{oid}");
+    let mut parts = oc::jobout_parts(res);
+    for p in &mut parts {
+        p.drawing = drawing.clone();
+    }
+    let mut material = oc::material_rows(res);
+    for m in &mut material {
+        m.drawing = drawing.clone();
+    }
+    let pieces: Vec<Piece> = res
+        .parts
+        .iter()
+        .filter(|p| p.certified && p.dxf_allowed && p.dxf_blocked_by.is_empty())
+        .filter_map(|p| {
+            p.dxf.as_ref().map(|d| Piece {
+                drawing: drawing.clone(),
+                no: p.no.clone(),
+                name: p.name.clone(),
+                label: None,
+                dxf: d.clone().into_bytes(),
+            })
+        })
+        .collect();
+    let mut issues = oc::issues(res);
+    for p in res.parts.iter().filter(|p| !p.dxf_blocked_by.is_empty()) {
+        if issues.iter().any(|i| i.no == p.no) {
+            continue;
+        }
+        let codes = p.dxf_blocked_by.join(", ");
+        issues.push(Issue {
+            code: "held".into(),
+            title_en: "held".into(),
+            title_ja: "保留".into(),
+            message_en: format!("no DXF: held ({codes})"),
+            message_ja: format!("DXFなし：保留（{codes}）"),
+            no: p.no.clone(),
+            name: p.name.clone(),
+            ..Default::default()
+        });
+    }
+    for i in &mut issues {
+        i.drawing = drawing.clone();
+    }
+    JobInput {
+        job_name: name.to_string(),
+        generated: generated.to_string(),
+        checked: None,
+        parts,
+        pieces,
+        material,
+        issues,
+        designer: Vec::new(),
+        record,
+        provenance: Provenance {
+            engine_version: nf_core::ENGINE_VERSION.to_string(),
+            reading: vec![("compute".into(), res.compute.to_string())],
+            rules: res
+                .rules
+                .iter()
+                .enumerate()
+                .map(|(i, r)| (format!("rule {}", i + 1), r.to_string()))
+                .collect(),
+            values: Vec::new(),
+        },
+    }
+}
+
+/// GET /api/orders/{oid}/outputs.zip: the job package of the order's current compute. The stored compute must be
+/// current (state CURRENT, this engine, the same input hash) or the answer is 409. The package is recomputed under
+/// that hash, so it is the stored compute's content. Refused under a read-only licence (licence.rs gated()).
+async fn get_outputs_zip(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) -> Api {
+    let (u, name, input, ctx, stored, record) = {
+        let db = app.db();
+        let u = auth_db(&db, &app, &headers)?;
+        guard_order(&app, &db, &u, oid, "download the job package")?;
+        let head = load_order(&db, oid)?;
+        let input = load_compute_input(&db, oid)?;
+        let ctx = load_review_context(&db, oid)?;
+        let stored = db
+            .query_row(
+                "SELECT id, input_hash, engine, state FROM order_results WHERE order_id = ? ORDER BY id DESC LIMIT 1",
+                params![oid],
+                |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?, r.get::<_, String>(3)?)),
+            )
+            .optional()?;
+        let record = package_record(&decision_view(&db, oid, None)?);
+        (u, head.name, input, ctx, stored, record)
+    };
+    let (parts, rules, hash) = input;
+    let stale = || {
+        fail_json(
+            StatusCode::CONFLICT,
+            json!({
+                "error": "the stored compute of this order is not current: compute the order again, then download the job package",
+                "error_ja": "このオーダーの保存済みの計算結果が現行ではありません。もう一度計算してから、ジョブの出力をダウンロードしてください。",
+                "code": "compute_not_current"
+            }),
+        )
+    };
+    let (id, stored_hash, engine, state) = stored.ok_or_else(stale)?;
+    if state != "CURRENT" || stored_hash != hash || !nf_core::engine_is_current(&engine) {
+        return Err(stale());
+    }
+    let res =
+        tokio::task::spawn_blocking(move || rv::compute_order_with_context(&parts, &rules, &ctx))
+            .await
+            .map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "the compute stopped unexpectedly",
+                )
+            })?;
+    let pkg = job_package(oid, &name, &utc_stamp(now()), &res, record);
+    let n_dxf = pkg.pieces.len();
+    let n_held = res
+        .parts
+        .iter()
+        .filter(|p| !p.dxf_blocked_by.is_empty())
+        .count();
+    let zip = nf_jobout::build_job_zip(&pkg).map_err(|_| {
+        fail(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the job package could not be built; nothing was recorded",
+        )
+    })?;
+    if zip.len() > MAX_OUTPUTS_BYTES {
+        return Err(fail_json(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            json!({
+                "error": format!("the job package is larger than {} MiB; split the order", MAX_OUTPUTS_BYTES / (1024 * 1024)),
+                "error_ja": format!("ジョブの出力が {} MiB を超えています。オーダーを分けてください。", MAX_OUTPUTS_BYTES / (1024 * 1024)),
+                "code": "outputs_too_large"
+            }),
+        ));
+    }
+    record_alone(
+        &app,
+        &u.username,
+        "order_outputs",
+        &format!(
+            "order #{oid} job package from compute #{id}: {n_dxf} DXF, {n_held} held, {} bytes",
+            zip.len()
+        ),
+    )?;
+    Ok((
+        [
+            (header::CONTENT_TYPE, "application/zip".to_string()),
+            (
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"order-{oid}-outputs-NOT-RELEASED.zip\""),
+            ),
+        ],
+        zip,
+    )
+        .into_response())
 }
 
 #[cfg(test)]

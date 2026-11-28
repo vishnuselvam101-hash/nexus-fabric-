@@ -313,6 +313,10 @@ pub(crate) fn gated(method: &Method, path: &str) -> bool {
         return matches!(seg.as_slice(), ["api", "orders", id, "parts" | "values" | "rules"] if id.parse::<i64>().is_ok())
             || matches!(seg.as_slice(), ["api", "projects", id, "rules"] if id.parse::<i64>().is_ok());
     }
+    // the job package is a new DXF export: read-only stops it (docs/business/PRICING_AND_PAYMENT.md)
+    if *method == Method::GET {
+        return matches!(seg.as_slice(), ["api", "orders", id, "outputs.zip"] if id.parse::<i64>().is_ok());
+    }
     if *method != Method::POST {
         return false;
     }

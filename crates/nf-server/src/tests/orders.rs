@@ -4522,3 +4522,140 @@ async fn pz3_a_viewer_reads_rules_but_cannot_preview_or_set_them() {
         );
     }
 }
+
+// ---------------------------------------------------------------- F1: the job package download
+
+/// The entries of a stored ZIP, read by the system unzip (the file must open).
+fn zip_entry_names(z: &[u8], tag: &str) -> Vec<String> {
+    let p = std::env::temp_dir().join(format!("nf-f1-{tag}-{}.zip", std::process::id()));
+    std::fs::write(&p, z).unwrap();
+    let o = std::process::Command::new("unzip")
+        .arg("-Z1")
+        .arg(&p)
+        .output()
+        .unwrap();
+    let _ = std::fs::remove_file(&p);
+    assert!(o.status.success(), "unzip refused the package");
+    String::from_utf8(o.stdout)
+        .unwrap()
+        .lines()
+        .map(String::from)
+        .collect()
+}
+
+fn zip_entry_text(z: &[u8], tag: &str, name: &str) -> String {
+    let p = std::env::temp_dir().join(format!("nf-f1-{tag}-{}.zip", std::process::id()));
+    std::fs::write(&p, z).unwrap();
+    let o = std::process::Command::new("unzip")
+        .arg("-p")
+        .arg(&p)
+        .arg(name)
+        .output()
+        .unwrap();
+    let _ = std::fs::remove_file(&p);
+    String::from_utf8_lossy(&o.stdout).into_owned()
+}
+
+#[tokio::test]
+async fn f1_job_package_holds_no_dxf_is_gated_audited_and_csv_safe() {
+    use axum::http::Method;
+    let t = boot();
+    let oid = new_order(&t).await;
+    assert_eq!(
+        add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0,
+        StatusCode::OK
+    );
+    // a part name that starts with a formula sign must reach the CSV guarded
+    put_parts_values(
+        &t,
+        oid,
+        json!([
+            { "no": "C1", "name": "pipe", "shape": "cylinder", "qty": 2 },
+            { "no": "P1", "name": "=2+3", "shape": "plate" }
+        ]),
+        json!([
+            val("C1", "D", 1016.0),
+            val("C1", "t", 12.0),
+            val("C1", "L", 2000.0),
+            val("P1", "t", 16.0),
+            val("P1", "plate_W", 400.0)
+        ]),
+    )
+    .await;
+    let path = format!("/api/orders/{oid}/outputs.zip");
+    // no compute yet: the package is refused, not built from nothing
+    let (st, _, b) = t.send("GET", &path, None, &[]).await;
+    assert_eq!(st, StatusCode::CONFLICT, "{}", String::from_utf8_lossy(&b));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/confirm"),
+            Some(json!({ "all": true })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(
+        v["result"]["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["no"] == "P1")
+            .unwrap()["state"],
+        "held_missing"
+    );
+    let (st, headers, z) = t.send("GET", &path, None, &[]).await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&z));
+    assert_eq!(headers.get("content-type").unwrap(), "application/zip");
+    assert!(
+        headers
+            .get("content-disposition")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .contains("NOT-RELEASED")
+    );
+    // the package opens; the held part has no DXF (the engine makes none in this lane, so none is in the package)
+    let names = zip_entry_names(&z, "pkg");
+    assert!(names.iter().all(|n| !n.starts_with("dxf/")), "{names:?}");
+    for n in [
+        "materials_en.csv",
+        "materials_ja.csv",
+        "materials.xlsx",
+        "issues.txt",
+        "record.csv",
+        "inputs.json",
+    ] {
+        assert!(names.iter().any(|x| x == n), "{n} missing: {names:?}");
+    }
+    // the held part is named in the issue list with its reason
+    let issues = zip_entry_text(&z, "pkg", "issues.txt");
+    assert!(
+        issues.contains("order1 P1 =2+3: missing [missing]"),
+        "{issues}"
+    );
+    assert!(issues.contains("NOT RELEASED"), "{issues}");
+    // formula-safe CSV: the leading '=' is guarded, never a live formula
+    let csv = zip_entry_text(&z, "pkg", "materials_en.csv");
+    assert!(csv.contains("'=2+3"), "{csv}");
+    assert!(
+        !csv.lines()
+            .any(|l| l.starts_with("=") || l.contains(",=2+3")),
+        "{csv}"
+    );
+    // audited
+    assert_eq!(audit_details(&t, "order_outputs").len(), 1);
+    // a read-only licence stops the package (a new DXF export), while the stored results stay readable
+    assert!(crate::licence::gated(&Method::GET, &path));
+    assert!(!crate::licence::gated(
+        &Method::GET,
+        &format!("/api/orders/{oid}/compute")
+    ));
+}
