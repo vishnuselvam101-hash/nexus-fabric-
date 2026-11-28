@@ -253,3 +253,27 @@ fn cad_tool_arguments_are_refused_when_malformed() {
     let mut empty = nf_cad::tools::CadState::default();
     assert!(run_tool(&reg, &mut empty, "cad_layers", serde_json::json!({})).is_err());
 }
+
+#[test]
+fn hundred_thousand_entities_on_unique_layers_open_fast() {
+    // Layer lookup and counts must be linear: 100k layers would cost ~1e10 compares with a scan per entity.
+    let mut text = String::from("0\nSECTION\n2\nENTITIES\n");
+    for i in 0..nf_cad::MAX_ENTITIES {
+        text.push_str(&format!("0\nLINE\n8\nL{i}\n10\n0\n20\n0\n11\n1\n21\n1\n"));
+    }
+    text.push_str("0\nENDSEC\n0\nEOF\n");
+    assert!(text.len() <= nf_cad::MAX_BYTES, "fixture is {} bytes", text.len());
+    let start = std::time::Instant::now();
+    let d = open(text.as_bytes()).expect("100k entities must open");
+    let took = start.elapsed();
+    assert_eq!(d.entities.len(), nf_cad::MAX_ENTITIES);
+    assert_eq!(d.layers.len(), nf_cad::MAX_ENTITIES);
+    assert!(d.layers.iter().all(|l| l.count == 1));
+    assert!(took < std::time::Duration::from_secs(20), "took {took:?}");
+}
+
+#[test]
+fn polyline_without_seqend_is_warned() {
+    let d = open(b"0\nSECTION\n2\nENTITIES\n0\nPOLYLINE\n70\n0\n8\nA\n0\nVERTEX\n10\n0\n20\n0\n0\nLINE\n8\nB\n10\n0\n20\n0\n11\n1\n21\n1\n0\nENDSEC\n0\nEOF\n").unwrap();
+    assert!(d.entities[0].warnings.iter().any(|w| w.contains("without SEQEND")), "{:?}", d.entities[0].warnings);
+}

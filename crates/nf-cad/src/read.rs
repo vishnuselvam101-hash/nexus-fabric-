@@ -172,7 +172,12 @@ pub fn entities(pairs: &[Pair], limit: usize) -> Result<Vec<Entity>, String> {
             let mut warn = Vec::new();
             let flags = get(r.body, 70).and_then(|s| s.trim().parse::<i64>().ok()).unwrap_or(0);
             let mut v: Vec<Vtx> = Vec::new();
-            while i < recs.len() && recs[i].kind != "SEQEND" {
+            let mut closed_by_seqend = false;
+            while i < recs.len() {
+                if recs[i].kind == "SEQEND" {
+                    closed_by_seqend = true;
+                    break;
+                }
                 if recs[i].kind == "VERTEX" {
                     let mut w = Vec::new();
                     match coord(recs[i].body, 10, 20, &mut w) {
@@ -185,7 +190,11 @@ pub fn entities(pairs: &[Pair], limit: usize) -> Result<Vec<Entity>, String> {
                 }
                 i += 1;
             }
-            i += 1; // SEQEND
+            if closed_by_seqend {
+                i += 1; // SEQEND
+            } else {
+                warn.push("POLYLINE without SEQEND: the records after it to the end of ENTITIES were consumed, not read".into());
+            }
             let geom = poly(v, flags & 1 == 1, &mut warn).unwrap_or(Geom::Unsupported);
             push(&mut out, limit, "POLYLINE", r.body, geom, warn)?;
             continue;

@@ -10,6 +10,7 @@ pub mod read;
 pub mod tools;
 
 use geom::{Geom, P};
+use std::collections::HashMap;
 use nf_cadio::{Document, Limits};
 use read::{Entity, Layer};
 
@@ -61,6 +62,7 @@ pub fn open(bytes: &[u8]) -> Result<Drawing, Refusal> {
     let empty = Vec::new();
     let tables = doc.section("TABLES").map(|s| &s.pairs).unwrap_or(&empty);
     let mut layers = read::layers(tables);
+    let mut index: HashMap<String, usize> = layers.iter().enumerate().map(|(i, l)| (l.name.clone(), i)).collect();
     let entities_pairs = match doc.section("ENTITIES") {
         Some(s) => s.pairs.as_slice(),
         None => {
@@ -73,12 +75,17 @@ pub fn open(bytes: &[u8]) -> Result<Drawing, Refusal> {
         message: m,
     })?;
     for e in &entities {
-        if !layers.iter().any(|l| l.name == e.layer) {
+        if !index.contains_key(&e.layer) {
+            index.insert(e.layer.clone(), layers.len());
             layers.push(Layer { name: e.layer.clone(), colour: 7, on: true, frozen: false, count: 0 });
         }
     }
+    let mut counts: HashMap<&str, usize> = HashMap::new();
+    for e in &entities {
+        *counts.entry(e.layer.as_str()).or_insert(0) += 1;
+    }
     for l in layers.iter_mut() {
-        l.count = entities.iter().filter(|e| e.layer == l.name).count();
+        l.count = counts.get(l.name.as_str()).copied().unwrap_or(0);
     }
     let extents = entities.iter().filter_map(|e| geom::extents(&e.geom)).reduce(|a, b| {
         [a[0].min(b[0]), a[1].min(b[1]), a[2].max(b[2]), a[3].max(b[3])]

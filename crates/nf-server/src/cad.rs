@@ -6,7 +6,52 @@ use crate::*;
 use axum::extract::{Path, Query, State};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Mutex, OnceLock};
+
+/// Parsed drawings kept per process, bounded. Keyed by the SHA-256 of the file bytes.
+const CACHE_ENTRIES: usize = 16;
+
+/// A file parsed once: the drawing (or its refusal) and the quality gate's rules.
+struct Cached {
+    drawing: Result<nf_cad::Drawing, nf_cad::Refusal>,
+    checks: Vec<nf_cad::RuleCheck>,
+}
+
+type Entries = VecDeque<(String, Arc<Cached>)>;
+
+fn cache() -> &'static Mutex<Entries> {
+    static CACHE: OnceLock<Mutex<Entries>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(VecDeque::new()))
+}
+
+/// The cache, recovered if an earlier holder panicked (the entries stay valid).
+fn locked() -> std::sync::MutexGuard<'static, Entries> {
+    cache().lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Parses and gates `bytes` on the blocking pool, reusing the cached result for the same SHA-256.
+async fn parsed(bytes: Vec<u8>) -> Result<Arc<Cached>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let key = nf_core::sha256_hex(&bytes);
+        if let Some(hit) = locked().iter().find(|(k, _)| *k == key).map(|(_, v)| v.clone()) {
+            return hit;
+        }
+        let entry = Arc::new(Cached { drawing: nf_cad::open(&bytes), checks: nf_cad::quality_checks(&bytes) });
+        let mut c = locked();
+        c.push_back((key, entry.clone()));
+        while c.len() > CACHE_ENTRIES {
+            c.pop_front();
+        }
+        entry
+    })
+    .await
+    .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "the drawing could not be read"))
+}
+
+fn drawing_of(c: &Cached) -> Result<&nf_cad::Drawing, ApiError> {
+    c.drawing.as_ref().map_err(|e| refused(e.clone()))
+}
 
 /// A stored drawing: a document of a project, or a job's DXF part.
 enum Src {
@@ -21,14 +66,14 @@ async fn load(app: &Arc<App>, headers: &HeaderMap, src: &Src, action: &str) -> R
             let (u, sha) = {
                 let db = app.db();
                 let u = auth_db(&db, app, headers)?;
-                let row: Option<(i64, String, String)> = db
+                let row: Option<(i64, String, String, i64)> = db
                     .query_row(
-                        "SELECT project_id, detected_type, sha256 FROM documents WHERE id = ?",
+                        "SELECT project_id, detected_type, sha256, size FROM documents WHERE id = ?",
                         [id],
-                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
                     )
                     .optional()?;
-                let Some((project, detected, sha)) = row else {
+                let Some((project, detected, sha, size)) = row else {
                     return Err(fail(StatusCode::NOT_FOUND, "no such document"));
                 };
                 project_guard(app, &db, &u, project, "open a drawing")?;
@@ -37,6 +82,13 @@ async fn load(app: &Arc<App>, headers: &HeaderMap, src: &Src, action: &str) -> R
                         StatusCode::UNSUPPORTED_MEDIA_TYPE,
                         json!({ "error": "only a document detected as DXF can be opened in NF CAD", "code": "not_a_dxf" }),
                     ));
+                }
+                // Refuse on the recorded size before the blob is read and decrypted.
+                if size < 0 || size as u64 > nf_cad::MAX_BYTES as u64 {
+                    return Err(refused(nf_cad::Refusal {
+                        code: "too_large",
+                        message: format!("file is {size} bytes; the limit is {}", nf_cad::MAX_BYTES),
+                    }));
                 }
                 (u, sha)
             };
@@ -67,10 +119,6 @@ fn refused(e: nf_cad::Refusal) -> ApiError {
         _ => StatusCode::UNPROCESSABLE_ENTITY,
     };
     fail_json(status, json!({ "error": e.message, "code": e.code }))
-}
-
-fn open_drawing(bytes: &[u8]) -> Result<nf_cad::Drawing, ApiError> {
-    nf_cad::open(bytes).map_err(refused)
 }
 
 fn q_map(q: &HashMap<String, String>) -> impl Fn(&str) -> Option<String> + '_ {
@@ -110,43 +158,45 @@ fn pick(d: &nf_cad::Drawing, q: &HashMap<String, String>) -> Api {
     Ok(Json(json!({ "entity": hit })).into_response())
 }
 
-fn checks(bytes: &[u8]) -> Api {
+fn checks(c: &Cached) -> Api {
     Ok(Json(json!({
         "context": "checked without the job's declared joint or conventions; a file that is not an NF output is expected to fail the rules that need them",
-        "rules": nf_cad::quality_checks(bytes),
+        "rules": c.checks,
     }))
     .into_response())
 }
 
 async fn doc_model(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Query(q): Query<HashMap<String, String>>) -> Api {
-    let b = load(&app, &headers, &Src::Doc(id), "cad_open").await?;
-    model(&open_drawing(&b)?, &q)
+    let c = parsed(load(&app, &headers, &Src::Doc(id), "cad_open").await?).await?;
+    model(drawing_of(&c)?, &q)
 }
 async fn doc_checks(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api {
-    checks(&load(&app, &headers, &Src::Doc(id), "cad_check").await?)
+    let c = parsed(load(&app, &headers, &Src::Doc(id), "cad_check").await?).await?;
+    checks(&c)
 }
 async fn doc_measure(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Query(q): Query<HashMap<String, String>>) -> Api {
-    let b = load(&app, &headers, &Src::Doc(id), "cad_measure").await?;
-    measure(&open_drawing(&b)?, &q)
+    let c = parsed(load(&app, &headers, &Src::Doc(id), "cad_measure").await?).await?;
+    measure(drawing_of(&c)?, &q)
 }
 async fn doc_pick(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Query(q): Query<HashMap<String, String>>) -> Api {
-    let b = load(&app, &headers, &Src::Doc(id), "cad_pick").await?;
-    pick(&open_drawing(&b)?, &q)
+    let c = parsed(load(&app, &headers, &Src::Doc(id), "cad_pick").await?).await?;
+    pick(drawing_of(&c)?, &q)
 }
 async fn calc_model(State(app): Ctx, headers: HeaderMap, Path((id, part)): Path<(i64, String)>, Query(q): Query<HashMap<String, String>>) -> Api {
-    let b = load(&app, &headers, &Src::Calc(id, part), "cad_open").await?;
-    model(&open_drawing(&b)?, &q)
+    let c = parsed(load(&app, &headers, &Src::Calc(id, part), "cad_open").await?).await?;
+    model(drawing_of(&c)?, &q)
 }
 async fn calc_checks(State(app): Ctx, headers: HeaderMap, Path((id, part)): Path<(i64, String)>) -> Api {
-    checks(&load(&app, &headers, &Src::Calc(id, part), "cad_check").await?)
+    let c = parsed(load(&app, &headers, &Src::Calc(id, part), "cad_check").await?).await?;
+    checks(&c)
 }
 async fn calc_measure(State(app): Ctx, headers: HeaderMap, Path((id, part)): Path<(i64, String)>, Query(q): Query<HashMap<String, String>>) -> Api {
-    let b = load(&app, &headers, &Src::Calc(id, part), "cad_measure").await?;
-    measure(&open_drawing(&b)?, &q)
+    let c = parsed(load(&app, &headers, &Src::Calc(id, part), "cad_measure").await?).await?;
+    measure(drawing_of(&c)?, &q)
 }
 async fn calc_pick(State(app): Ctx, headers: HeaderMap, Path((id, part)): Path<(i64, String)>, Query(q): Query<HashMap<String, String>>) -> Api {
-    let b = load(&app, &headers, &Src::Calc(id, part), "cad_pick").await?;
-    pick(&open_drawing(&b)?, &q)
+    let c = parsed(load(&app, &headers, &Src::Calc(id, part), "cad_pick").await?).await?;
+    pick(drawing_of(&c)?, &q)
 }
 
 /// The viewer's files: the page and its modules, embedded at build time (no build step, no CDN).
@@ -188,4 +238,29 @@ pub(crate) fn routes() -> Router<Arc<App>> {
         .route("/api/cad/calculations/{id}/{part}/checks", get(calc_checks))
         .route("/api/cad/calculations/{id}/{part}/measure", get(calc_measure))
         .route("/api/cad/calculations/{id}/{part}/pick", get(calc_pick))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn get(bytes: Vec<u8>) -> Arc<Cached> {
+        parsed(bytes).await.ok().expect("parse")
+    }
+
+    fn dxf(i: usize) -> Vec<u8> {
+        format!("0\nSECTION\n2\nENTITIES\n0\nPOINT\n10\n{i}\n20\n0\n0\nENDSEC\n0\nEOF\n").into_bytes()
+    }
+
+    #[tokio::test]
+    async fn cache_reuses_by_sha_and_stays_bounded() {
+        let first = get(dxf(1)).await;
+        let again = get(dxf(1)).await;
+        assert!(Arc::ptr_eq(&first, &again), "same bytes must hit the cache");
+        for i in 0..(CACHE_ENTRIES + 5) {
+            get(dxf(1000 + i)).await;
+        }
+        let len = locked().len();
+        assert!(len <= CACHE_ENTRIES, "cache holds {len} entries");
+    }
 }
