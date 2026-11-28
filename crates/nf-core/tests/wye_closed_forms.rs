@@ -168,6 +168,18 @@ fn examples_match_the_independent_verify_script_values() {
     close(p.fan_deg, 84.6180, 5e-4, "fan angle");
     let apex_axial = 508.0 / r.psi_deg.to_radians().sin();
     close(apex_axial, 2161.24, 5e-3, "apex on the axis");
+    for i in 0..4 {
+        let w = run(&ex(i));
+        assert!(
+            !w.certified,
+            "wye example {i} has no certified representation"
+        );
+        assert!(
+            w.pieces
+                .iter()
+                .all(|p| p.eps_rep.is_finite() && p.eps_rep >= 0.0)
+        );
+    }
 }
 
 /// First principles for cylinders: the joint plane of two equal cylinders bisects their axes, (u_i - u_j).P = 0. On the generator

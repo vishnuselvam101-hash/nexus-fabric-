@@ -16,6 +16,7 @@
 //! reducer's vertex term carries a quadrature estimate, so its value is not
 //! certified; every result says which bound it is.
 
+pub mod certify;
 pub mod curve_bound;
 pub mod develop;
 pub mod geometry;

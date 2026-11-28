@@ -1,9 +1,9 @@
 //! NFJ-1 S1-L7b: reinforcing pad (collar plate) round a tee branch, perpendicular or lateral, with the split of the pad
 //! into 2..=12 pieces. Pure functions, no I/O, no engine state.
 //!
-//! Status (stated, not hidden): NOT reachable from `job::run`; nothing here can be served as a cut file;
-//! `ENGINE_VERSION` is unchanged. Every result is `certified: false` with its `method` and named `rules` (all
-//! UNVERIFIED, none confirmed by a factory).
+//! Status (stated, not hidden): `certified: true` only when `uem::certify` proves the 0.05 mm chord bound for the drawn
+//! outline and no hold applies (TOLERANCE_POLICY section 8.9). Otherwise `certified: false` with its `method` and named
+//! `rules` (all UNVERIFIED, none confirmed by a factory). `ENGINE_VERSION` is 0.6.0 since L11.
 //!
 //! Frame (ZK `padPiece` / `offsetRing` / `padSplit`, re-derived; tests are independent): the pad lies on the main outer
 //! surface (radius `Ro`), is rolled from a plate of thickness `t` and is developed at its mid surface `Rp = Ro + t/2`.
@@ -20,8 +20,11 @@
 use crate::shapes::{ShapeRefusal, mass_kg, refuse};
 use crate::tee::{bbox, check_angle, clamp1, lat_cs, lat_hole, mod_p, shoelace};
 use std::f64::consts::PI;
+use uem::P2;
+use uem::certify::{CurveEnclosure, L11_MAX_CHORD_ERROR_MM, certified_rep, clamp};
+use uem::interval::Iv;
 
-pub const PAD_METHOD: &str = "analytic hole (360 point polyline or lat_hole ring), constant-width offset with arcs, ray split on the polylines; areas by shoelace; certified:false";
+pub const PAD_METHOD: &str = "analytic hole (360 point polyline or lat_hole ring), constant-width offset with arcs, ray split on the polylines; areas by shoelace; L11 certified polyline bounds where derivable";
 pub const PAD_POLY_SAMPLES: usize = 360;
 pub const PAD_MAX_SPLIT: u32 = 12;
 /// Direction change (deg) above which a hole vertex is a corner; arc step (deg) of a rounded corner.
@@ -127,6 +130,8 @@ pub struct PadPiece {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PadResult {
+    /// Exact definitions of the drawn hole and outline; empty unless the representation is certified.
+    pub exact: Vec<crate::tee::CurveDecl>,
     /// Outline polyline (closed, first point repeated) and the hole ring (open). Same number of points.
     pub outline: Vec<[f64; 2]>,
     pub hole: Vec<[f64; 2]>,
@@ -423,6 +428,68 @@ fn piece_of(pts: Vec<[f64; 2]>, copies: u32, t: f64) -> PadPiece {
     }
 }
 
+/// Enclosure of the thin pad hole `(Rp·asin((e + ro·sin θ)/Ro), ro·cos θ)`; the first coordinate is already
+/// a plate distance, so distances are measured in millimetres.
+struct PadHoleCurve {
+    rp: f64,
+    ro_main: f64,
+    e: f64,
+    ro: f64,
+}
+
+impl CurveEnclosure for PadHoleCurve {
+    fn enclose(&self, t: Iv) -> Option<(Iv, Iv)> {
+        let arg = clamp(
+            Iv::pt(self.e)
+                .add(Iv::pt(self.ro).mul(t.sin()))
+                .div(Iv::pt(self.ro_main))?,
+            -1.0,
+            1.0,
+        );
+        Some((
+            Iv::pt(self.rp).mul(arg.asin()?),
+            Iv::pt(self.ro).mul(t.cos()),
+        ))
+    }
+}
+
+/// Enclosure of the plan-view circle outline developed on the pad mid surface.
+struct PadCircleCurve {
+    rp: f64,
+    rt: f64,
+    e: f64,
+    rad: f64,
+    xs: f64,
+}
+
+impl CurveEnclosure for PadCircleCurve {
+    fn enclose(&self, t: Iv) -> Option<(Iv, Iv)> {
+        let arg = clamp(
+            Iv::pt(self.e)
+                .add(Iv::pt(self.rad).mul(t.sin()))
+                .div(Iv::pt(self.rt))?,
+            -1.0,
+            1.0,
+        );
+        Some((
+            Iv::pt(self.rp).mul(arg.asin()?),
+            Iv::pt(self.xs).add(Iv::pt(self.rad).mul(t.cos())),
+        ))
+    }
+}
+
+fn params(n: usize) -> Vec<f64> {
+    (0..=n).map(|k| 2.0 * PI * k as f64 / n as f64).collect()
+}
+
+fn closed(points: &[[f64; 2]]) -> Vec<P2> {
+    let mut v: Vec<P2> = points.iter().map(|q| P2::new(q[0], q[1])).collect();
+    if let Some(first) = v.first().copied() {
+        v.push(first);
+    }
+    v
+}
+
 /// Developed pad with its hole, outline and (optionally) its split. See the module comment for the rules.
 pub fn pad(s: &PadSpec) -> Result<PadResult, ShapeRefusal> {
     dim("main_d", s.main_d)?;
@@ -478,6 +545,7 @@ pub fn pad(s: &PadSpec) -> Result<PadResult, ShapeRefusal> {
     let thick = lateral || e.abs() > ro;
     let (mut inn, mut out): (Vec<[f64; 2]>, Vec<[f64; 2]>) = (vec![], vec![]);
     let mut eps_hole = 0.0f64;
+    let mut eps_certified = false;
     if thick {
         let Some(hp) = lat_hole(ro_main, rt, ro, e, ca_sa) else {
             return Err(refuse(
@@ -498,15 +566,26 @@ pub fn pad(s: &PadSpec) -> Result<PadResult, ShapeRefusal> {
         for i in 0..PAD_POLY_SAMPLES {
             inn.push(f(2.0 * PI * i as f64 / PAD_POLY_SAMPLES as f64));
         }
-        let h = 2.0 * PI / PAD_POLY_SAMPLES as f64;
-        for i in 0..PAD_POLY_SAMPLES {
-            let (p, q, m) = (
-                f(h * i as f64),
-                f(h * (i as f64 + 1.0)),
-                f(h * (i as f64 + 0.5)),
-            );
-            let c = [(p[0] + q[0]) / 2.0, (p[1] + q[1]) / 2.0];
-            eps_hole = eps_hole.max((m[0] - c[0]).hypot(m[1] - c[1]));
+        let curve = PadHoleCurve { rp, ro_main, e, ro };
+        if let Some(bound) = certified_rep(
+            &curve,
+            &closed(&inn),
+            &params(PAD_POLY_SAMPLES),
+            L11_MAX_CHORD_ERROR_MM,
+        ) {
+            eps_hole = bound;
+            eps_certified = true;
+        } else {
+            let h = 2.0 * PI / PAD_POLY_SAMPLES as f64;
+            for i in 0..PAD_POLY_SAMPLES {
+                let (p, q, m) = (
+                    f(h * i as f64),
+                    f(h * (i as f64 + 1.0)),
+                    f(h * (i as f64 + 0.5)),
+                );
+                let c = [(p[0] + q[0]) / 2.0, (p[1] + q[1]) / 2.0];
+                eps_hole = eps_hole.max((m[0] - c[0]).hypot(m[1] - c[1]));
+            }
         }
     }
     let xs = if lateral {
@@ -540,13 +619,38 @@ pub fn pad(s: &PadSpec) -> Result<PadResult, ShapeRefusal> {
                         dp / 2.0 * th.cos(),
                     ]);
                 }
+                let curve = PadCircleCurve {
+                    rp,
+                    rt,
+                    e,
+                    rad: dp / 2.0,
+                    xs: 0.0,
+                };
+                if let Some(bound) = certified_rep(
+                    &curve,
+                    &closed(&out),
+                    &params(PAD_POLY_SAMPLES),
+                    L11_MAX_CHORD_ERROR_MM,
+                ) {
+                    eps = eps.max(bound);
+                } else {
+                    eps_certified = false;
+                }
             }
         }
         PadOutline::Width(b) => {
             let (i2, o2) = offset_ring(&inn, b);
             inn = i2;
             out = o2;
-            eps = eps.max(b * (1.0 - (PAD_ARC_STEP_DEG * PI / 360.0).cos()));
+            // The offset of a certified polyline by b has the same chord error plus the exact chord
+            // error of each corner arc of radius b and at most PAD_ARC_STEP_DEG.
+            let arc_bound = b * (1.0 - (PAD_ARC_STEP_DEG * PI / 360.0).cos()) + 1e-12;
+            // The outline is the offset of the drawn hole polyline, so the hole's chord error and the
+            // corner arc's own chord error add; taking the maximum would understate the total.
+            eps = eps_hole + arc_bound;
+            // The offset outline has no independent recompute in nf-digest: it is not certified, so no cut
+            // file is served for it.
+            eps_certified = false;
         }
     }
     // the hole must lie inside the outline (a plan-view circle can fail to enclose a long lateral hole)
@@ -582,6 +686,33 @@ pub fn pad(s: &PadSpec) -> Result<PadResult, ShapeRefusal> {
             "pad area is not a finite positive number",
         ));
     }
+    let exact = if eps_certified && !thick {
+        let base = vec![
+            ("main_d", s.main_d),
+            ("t", s.t),
+            ("branch_d", s.d),
+            ("e", e),
+        ];
+        let mut v = vec![crate::tee::CurveDecl {
+            on_hole: true,
+            index: 0,
+            kind: "pad_hole",
+            params: base.clone(),
+        }];
+        if let PadOutline::Circle(dp) = s.outline {
+            let mut params = base;
+            params.push(("dp", dp));
+            v.push(crate::tee::CurveDecl {
+                on_hole: false,
+                index: 0,
+                kind: "pad_circle",
+                params,
+            });
+        }
+        v
+    } else {
+        Vec::new()
+    };
     let mut res = PadResult {
         outline: pts,
         hole: inn.clone(),
@@ -601,9 +732,10 @@ pub fn pad(s: &PadSpec) -> Result<PadResult, ShapeRefusal> {
         center: [rp * clamp1(e / ro_main).asin(), xs],
         pieces_mass_kg: mass,
         gross_box_mass_kg: mass_kg(w * h, s.t),
+        exact,
         eps_rep: eps,
-        eps_rep_certified: false,
-        certified: false,
+        eps_rep_certified: eps_certified,
+        certified: eps_certified && eps <= L11_MAX_CHORD_ERROR_MM,
         method: PAD_METHOD,
         rules: &PAD_NAMED_RULES,
     };

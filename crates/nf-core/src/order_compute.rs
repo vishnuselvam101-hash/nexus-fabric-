@@ -7,17 +7,19 @@
 //! - Every result states `certified`, `method`, the named `rules` it applied, its `holds`, its `questions`, `eps_rep`
 //!   (an estimate unless `eps_rep_certified`), and for a cone branch the plate-thickness convention and the delta the
 //!   other convention would make.
-//! - Nothing here writes a DXF. Every shape built here is `certified: false` (sampled polylines, quadrature without a
-//!   bound), so under the owner's rule of 24 Nov no cut file is served for it: the part gets a pattern view and an
+//! - Nothing here writes a DXF. A shape is `certified` only where L11 proved a 0.05 mm bound of the drawn
+//!   polyline (perpendicular tee holes/cuts and thin reinforcing-pad outlines). Families whose exact map still
+//!   depends on sampled/quadrature estimates stay `certified: false` and are listed as withheld in
+//!   `CERT-DESIGN.md`. Under the owner's rule of 24 Nov an uncertified or held part gets a pattern view and an
 //!   issue entry. `dxf_blocked_by` lists why; `dxf_allowed` is true only for a certified result with no hold, no
-//!   question and no refusal (no shape of this layer can be, until the certification lane).
+//!   question and no refusal.
 //! - A hold of level `Need`, a question, a flag of a result (`tee_lateral_angle_below_30`), the rib-on-lateral refusal
 //!   and the mid-surface deviation of a cone branch are all holds that block the DXF. A held part's mass is reported
 //!   `mass_provisional` and does not enter the material list (L5b follow-up: `order::build_piece` computes masses for
 //!   invalid holes).
 //! - A PROPOSED value is never computed. A negative offset without a side is refused, never `abs()`'d.
 //!
-//! Not here: DXF/AMOEBA wiring and `eps_rep` certification (lane L11), the JIS standard-table fill, the wye and the
+//! Not here: DXF writing (L11 only sets the gate), the JIS standard-table fill, the wye and the
 //! `Request`/`job::run` path (the five engine families keep their own route, unchanged).
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -29,6 +31,7 @@ use crate::bend::{self, BendSpec, SeamFrom};
 use crate::conebranch::{self, ConeBranchSpec, ThicknessConvention};
 use crate::order::{self, CylParams, Hold, Level, PlateParams, RibGeo, RibParams, TableRow};
 use crate::shapes::{self, Basis, ConeSpec, RingSpec, ShapeRefusal, Stock};
+pub use crate::tee::CurveDecl;
 use crate::tee::{
     self, BranchOnMain, BranchPieceSpec, Mount, TeeMainSpec, TeeSeamFrom, signed_offset,
 };
@@ -514,6 +517,9 @@ pub struct PatternPiece {
     pub holes: Vec<Vec<[f64; 2]>>,
     /// Circular holes: centre x, centre y, radius.
     pub circles: Vec<[f64; 3]>,
+    /// L11: exact definitions (drawing parameters) of the certified drawn curves of this piece. Empty for a piece
+    /// whose representation is not certified.
+    pub curves: Vec<CurveDecl>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -561,11 +567,16 @@ pub struct PartResult {
     /// True while a Need hold, a question or a refusal stands: the number is a view, not a result.
     pub mass_provisional: bool,
     pub bom: Option<BomDelta>,
-    /// Always null in this lane: no shape built here is certified (owner rule of 24 Nov).
+    /// The cut file of the single pattern piece. Written only when `dxf_allowed`; null otherwise. The server
+    /// digests it against the pattern before it is served (amoeba::gate_order_dxf).
     pub dxf: Option<String>,
     pub dxf_allowed: bool,
     pub dxf_blocked_by: Vec<String>,
     pub pattern_view_only: bool,
+    /// `certified` (above) certifies the cut outline only. The enclosed area and the extents are estimates in every
+    /// family at this engine version, so both flags are false.
+    pub area_certified: bool,
+    pub extents_certified: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1098,6 +1109,16 @@ pub const HOLD_TEXT: &[(&str, &str, &str)] = &[
         "この形は認証されていません。展開図の表示と課題の記載のみで、DXFは出しません。",
     ),
     (
+        "several_pieces",
+        "This part has several pattern pieces, so no single cut file is written: a pattern view and an issue entry are given, no DXF.",
+        "この部材は展開図が複数に分かれるため、1つのDXFにまとめていません。展開図の表示と課題の記載のみです。",
+    ),
+    (
+        "digest_failed",
+        "The drawn cut file did not pass the digest against its pattern, so it is not served.",
+        "描かれたDXFが展開図との照合に合格しなかったため、配信していません。",
+    ),
+    (
         "refused",
         "The inputs were refused by the engine; see the refusal code.",
         "入力はエンジンに拒否されました。拒否コードを見てください。",
@@ -1423,6 +1444,8 @@ fn blank(inp: &PartIn, group: &str) -> PartResult {
         dxf: None,
         dxf_allowed: false,
         dxf_blocked_by: Vec::new(),
+        area_certified: false,
+        extents_certified: false,
         pattern_view_only: false,
     }
 }
@@ -1468,6 +1491,31 @@ fn seal(mut r: PartResult, w: Work<'_>, refusal: Option<RefusalOut>) -> PartResu
     r
 }
 
+/// The cut file of one pattern piece: the outline as a closed polyline on CUT_OUTER, every opening as a closed
+/// polyline or a full circle on CUT_INNER, then the release marking (not released) written by nf-dxf.
+fn piece_dxf(pc: &PatternPiece) -> String {
+    use nf_dxf::Entity;
+    let closed = |pts: &[[f64; 2]], layer: &str| Entity::Polyline {
+        layer: layer.into(),
+        pts: pts.iter().map(|p| (p[0], p[1])).collect(),
+        closed: true,
+    };
+    let mut ents = vec![closed(&pc.outline, "CUT_OUTER")];
+    for h in pc.holes.iter().filter(|h| h.len() >= 3) {
+        ents.push(closed(h, "CUT_INNER"));
+    }
+    for [cx, cy, r] in &pc.circles {
+        ents.push(Entity::Arc {
+            layer: "CUT_INNER".into(),
+            c: (*cx, *cy),
+            r: *r,
+            start_deg: 0.0,
+            end_deg: 360.0,
+        });
+    }
+    nf_dxf::write_stated(&ents, &[], &[], &[])
+}
+
 /// Recompute state and the DXF gate from the holds, questions and refusal.
 /// Recompute the state and DXF gate after a review hold is appended.
 pub(crate) fn finish(r: &mut PartResult) {
@@ -1500,9 +1548,21 @@ pub(crate) fn finish(r: &mut PartResult) {
         "computed"
     };
     r.mass_provisional = !(need.is_empty() && r.questions.is_empty() && r.refusal.is_none());
-    r.dxf = None;
+    if r.pattern.len() > 1 {
+        // one cut file per part: a part with several pattern pieces is a pattern view until a lane writes one file
+        // per piece
+        blocked.push("several_pieces".into());
+        blocked.sort();
+    }
     r.dxf_allowed = blocked.is_empty() && r.certified;
+    r.dxf = if r.dxf_allowed {
+        r.pattern.first().map(piece_dxf)
+    } else {
+        None
+    };
     r.dxf_blocked_by = blocked;
+    r.area_certified = false;
+    r.extents_certified = false;
     r.pattern_view_only = !r.pattern.is_empty();
     if r.state == "held_missing" || r.state == "refused" || r.state == "not_computed" {
         r.unit_mass_kg = None;
@@ -1968,6 +2028,9 @@ fn compute_bend(w: &mut Work<'_>, r: &mut PartResult, rules: &OrderRules) {
             r.method = Some(res.method.to_string());
             r.certified = res.certified;
             r.review_length_mm = Some(res.pieces.iter().map(|p| p.center).sum());
+            // Bend extents and areas are numerical estimates: no representation bound is proved.
+            r.eps_rep = None;
+            r.eps_rep_certified = Some(false);
             r.rules = res
                 .rules
                 .iter()
@@ -2360,6 +2423,25 @@ fn compute_tee_group(
                     .iter()
                     .map(|hi| t_res.holes[*hi].pts.clone())
                     .collect();
+                if t_res.certified && t_res.holes.iter().all(|h| h.exact.is_some()) {
+                    pc.curves.push(CurveDecl {
+                        on_hole: false,
+                        index: 0,
+                        kind: "rect",
+                        params: vec![
+                            ("main_d", w.num("D").unwrap_or(0.0)),
+                            ("main_t", tt),
+                            ("seams", f64::from(t_res.seams_n)),
+                            ("l", t_res.l),
+                        ],
+                    });
+                    for (j, hi) in pl.holes.iter().enumerate() {
+                        if let Some(mut d) = t_res.holes[*hi].exact.clone() {
+                            d.index = j;
+                            pc.curves.push(d);
+                        }
+                    }
+                }
                 r.pattern.push(pc);
             }
             r.eps_rep = t_res
@@ -2427,6 +2509,8 @@ fn compute_tee_group(
                             r.rules = rules_of(bp.rules);
                             r.method = Some(bp.method.to_string());
                             r.certified = bp.certified;
+                            r.eps_rep = Some(bp.eps_rep);
+                            r.eps_rep_certified = Some(bp.eps_rep_certified);
                             r.t_mm = Some(spec.t);
                             r.length_mm = Some(spec.h);
                             let mut pc = piece(
@@ -2439,6 +2523,7 @@ fn compute_tee_group(
                                 1,
                             );
                             pc.outline = open(bp.outline.clone());
+                            pc.curves.extend(bp.exact.clone());
                             r.pattern.push(pc);
                             for f in &bp.flags {
                                 // BranchPieceResult.flags are advisory in nf-core: here they are holds
@@ -2511,6 +2596,7 @@ fn compute_tee_group(
                                     );
                                     pc.outline = open(p.outline.clone());
                                     pc.holes = vec![open(p.hole.clone())];
+                                    pc.curves = p.exact.clone();
                                     r.pattern.push(pc);
                                 } else {
                                     for (k, pp) in p.pieces.iter().enumerate() {
@@ -3154,6 +3240,12 @@ pub fn issues(res: &OrderResult) -> Vec<nf_jobout::Issue> {
         if p.pattern_view_only {
             let (en, ja) = text_of("not_certified");
             out.push(mk("not_certified", en, ja));
+        }
+        for code in ["several_pieces", "digest_failed"] {
+            if p.dxf_blocked_by.iter().any(|c| c == code) {
+                let (en, ja) = text_of(code);
+                out.push(mk(code, en, ja));
+            }
         }
     }
     out

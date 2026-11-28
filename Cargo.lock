@@ -1204,6 +1204,7 @@ dependencies = [
  "nf-cad",
  "nf-core",
  "nf-digest",
+ "nf-dxf",
  "nf-estimate",
  "nf-jobout",
  "nf-licence",

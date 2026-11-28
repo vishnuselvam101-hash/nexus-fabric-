@@ -2,8 +2,8 @@
 //! sheets. Pure functions, no I/O, no engine state.
 //!
 //! Status (stated, not hidden): NOT reachable from `job::run`. No `Request` variant, no `Pattern`, no DXF and no AMOEBA
-//! digest is produced from it, so nothing computed here can be served as a cut file. `ENGINE_VERSION` is unchanged by
-//! this lane (the wiring lane bumps it to 0.5.0). Every result is marked `certified: false` with its `method`.
+//! digest is produced from it, so nothing computed here can be served as a cut file. `ENGINE_VERSION` is bumped by
+//! L11 (0.6.0). A result is `certified` only where a rigorous bound of the drawn cut error is available.
 //!
 //! Geometry (spec docs/shapes/spec_miterbend.md for the equal-diameter bend, ZK spec_redbend.md for the reducing one):
 //! the centre line is the polygon circumscribed about the arc of radius `R`; `joints` cut planes split it into
@@ -46,7 +46,8 @@ pub const JOINTS_QUESTION: &str = "joints not on the drawing: confirm";
 /// Relative acceptance of the developed-area quadrature estimate.
 pub const AREA_REL_TOL: f64 = 1e-9;
 /// Method tag carried by every result.
-pub const BEND_METHOD: &str = "closed_form_cuts+adaptive_simpson_area+sampled_extents";
+pub const BEND_METHOD: &str =
+    "closed_form_cuts+adaptive_simpson_area+sampled_extents; L11 representation not certified";
 const EXTENT_SAMPLES: usize = 1440;
 
 /// (name, value, kind, status)

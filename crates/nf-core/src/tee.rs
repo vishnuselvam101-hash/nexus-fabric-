@@ -2,9 +2,10 @@
 //! several branches on one main, longitudinal seam rule. Pure functions, no I/O, no engine state.
 //!
 //! Status (stated, not hidden): NOT reachable from `job::run`. No `Request` variant, no `Pattern`, no DXF and no AMOEBA
-//! digest is produced from it, so nothing computed here can be served as a cut file. `ENGINE_VERSION` is unchanged by
-//! this lane (the wiring lane bumps it to 0.5.0). Every result is marked `certified: false` with its `method`, and
-//! lists the named `rules` it applied (all UNVERIFIED, none confirmed by a factory).
+//! digest is produced from it, so nothing computed here can be served as a cut file. `ENGINE_VERSION` is bumped by
+//! L11 (0.6.0). Thin openings and perpendicular cuts carry certified bounds where they can be proved; a result is
+//! `certified` only when every drawn hole is. It lists the named `rules` it applied (all UNVERIFIED, none confirmed
+//! by a factory).
 //!
 //! Frame (ZK `shared.js` teeY / teeHoleA / branchPiece / teeMainPiece, re-derived here, tests are independent):
 //! the main axis is `x`, azimuth `alpha` is 0 at the top, 90 right, 180 bottom, 270 left seen from the start end.
@@ -27,6 +28,11 @@
 
 use crate::shapes::{ShapeRefusal, adaptive_simpson, mass_kg, refuse};
 use std::f64::consts::PI;
+use uem::P2;
+use uem::certify::{
+    CurveEnclosure, L11_MAX_CHORD_ERROR_MM, certified_rep, clamp, max0, sqrt_nonneg,
+};
+use uem::interval::Iv;
 
 const MAX_MM: f64 = crate::shapes::MAX_MM;
 const MIN_MM: f64 = crate::shapes::MIN_MM;
@@ -34,8 +40,7 @@ const MIN_MM: f64 = crate::shapes::MIN_MM;
 pub const AREA_REL_TOL: f64 = 1e-9;
 
 /// Method tag carried by every result.
-pub const TEE_METHOD: &str =
-    "closed_form_contact_curves+sampled_polylines+adaptive_simpson_branch_area+searched_gaps";
+pub const TEE_METHOD: &str = "closed_form_contact_curves+sampled_polylines+adaptive_simpson_branch_area+searched_gaps+L11_interval_bound_on_certified_curves";
 /// Hole and cut polyline sizes (ZK parity) and the number of marking points round a branch.
 pub const TEE_POLY_SAMPLES: usize = 360;
 pub const TEE_MARKS: usize = 16;
@@ -147,6 +152,18 @@ pub const TEE_REFUSAL_CODES: [&str; 18] = [
 ];
 /// Codes that are not in the list above but are raised by the shared numerics.
 pub const TEE_EXTRA_REFUSAL_CODES: [&str; 2] = ["tee_area_not_converged", "tee_result_not_finite"];
+
+/// Exact definition of one certified drawn curve: the drawing parameters an independent checker needs to rebuild
+/// the curve in plate coordinates (serialized with the pattern piece, read by nf-digest).
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CurveDecl {
+    /// A hole of the piece (true) or its outline (false), by position in the drawn file.
+    pub on_hole: bool,
+    pub index: usize,
+    /// `rect`, `tee_hole`, `tee_cut`, `pad_hole` or `pad_circle`.
+    pub kind: &'static str,
+    pub params: Vec<(&'static str, f64)>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mount {
@@ -591,6 +608,74 @@ pub(crate) fn shoelace(pts: &[[f64; 2]]) -> f64 {
     s.abs() / 2.0
 }
 
+/// Enclosure of the exact thin-hole outline `(dir + asin((e + rh sin θ)/ri), x0 + rh cos θ)`.
+struct ThinHoleCurve {
+    dir: f64,
+    /// Left edge of the plate strip this hole is drawn in: `u(a) = rm·(a − left)`.
+    left: f64,
+    x0: f64,
+    e: f64,
+    rh: f64,
+    ri: f64,
+    /// Plate circumference radius; the first drawn coordinate is an azimuth in radians and must be scaled
+    /// to millimetres before a distance to the drawn chord is measured.
+    scale: f64,
+}
+
+impl CurveEnclosure for ThinHoleCurve {
+    fn enclose(&self, t: Iv) -> Option<(Iv, Iv)> {
+        let arg = clamp(
+            Iv::pt(self.e)
+                .add(Iv::pt(self.rh).mul(t.sin()))
+                .div(Iv::pt(self.ri))?,
+            -1.0,
+            1.0,
+        );
+        let phi = arg.asin()?;
+        let x = Iv::pt((self.dir - self.left) * self.scale).add(phi.mul(Iv::pt(self.scale)));
+        let y = Iv::pt(self.x0).add(Iv::pt(self.rh).mul(t.cos()));
+        Some((x, y))
+    }
+}
+
+/// Enclosure of the perpendicular branch cut `(w(θ−π/2)/(2π), h − tee_y(θ))`.
+struct PerpCutCurve {
+    rc: f64,
+    ri: f64,
+    ro: f64,
+    e: f64,
+    w: f64,
+    h: f64,
+}
+
+impl CurveEnclosure for PerpCutCurve {
+    fn enclose(&self, t: Iv) -> Option<(Iv, Iv)> {
+        let a = Iv::pt(self.e).add(Iv::pt(self.ri).mul(t.sin()));
+        let b = Iv::pt(self.e).add(Iv::pt(self.ro).mul(t.sin()));
+        let abs = |v: Iv| {
+            if v.lo > 0.0 {
+                v
+            } else if v.hi < 0.0 {
+                v.neg()
+            } else {
+                Iv::new(0.0, v.lo.abs().max(v.hi.abs()))
+            }
+        };
+        let ma = abs(a);
+        let mb = abs(b);
+        // The exact wall height uses min(|a|, |b|), so both bounds meet: the lower bound is the smaller
+        // lower bound and the upper bound is the smaller upper bound. A previous hull of the two absolute
+        // enclosures added the upper bound of `max`, which is not an enclosure of `min`.
+        let m = Iv::new(ma.lo.min(mb.lo), ma.hi.min(mb.hi));
+        let inside = max0(Iv::pt(self.rc * self.rc).sub(m.mul(m)));
+        let tau = sqrt_nonneg(inside)?;
+        let x = Iv::pt(self.w)
+            .mul(t.sub(Iv::pt(PI / 2.0)))
+            .div(Iv::pt(2.0 * PI))?;
+        Some((x, Iv::pt(self.h).sub(tau)))
+    }
+}
+
 /// One branch hole on the main, internal (angles are absolute azimuths in rad).
 struct HoleA {
     name: String,
@@ -849,6 +934,8 @@ fn sagitta_estimate(f: &dyn Fn(f64) -> [f64; 2], n: usize) -> f64 {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HoleOut {
     pub name: String,
+    /// Exact definition of the drawn outline; present only when its representation bound is certified.
+    pub exact: Option<CurveDecl>,
     /// Plate index (0-based) holding the hole.
     pub plate: usize,
     /// Closed polygon in plate coordinates (`u`, axial `x`), without repeating the first vertex.
@@ -962,6 +1049,8 @@ pub struct BranchMark {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BranchPieceResult {
+    /// Exact definition of the drawn cut line; present only when its representation bound is certified.
+    pub exact: Option<CurveDecl>,
     /// Circumference at the mid surface.
     pub circ: f64,
     pub marks: Vec<BranchMark>,
@@ -977,6 +1066,9 @@ pub struct BranchPieceResult {
     pub extent_refine_gain: f64,
     /// Length of the drawn cut line.
     pub cut_length: f64,
+    /// Certified bound (or estimate) of the distance from the exact cut curve to the drawn polyline.
+    pub eps_rep: f64,
+    pub eps_rep_certified: bool,
     /// Net area (adaptive Simpson), its estimate, and the area of the drawn polygon.
     pub net_area: f64,
     pub area_err: f64,
@@ -1217,7 +1309,42 @@ pub fn branch_piece(s: &BranchPieceSpec) -> Result<BranchPieceResult, ShapeRefus
     outline.extend(cut.iter().rev().copied());
     let area_drawn = shoelace(&outline);
     let mass = mass_kg(net_area, s.t);
+    let cut_certified = if is_lateral(s.angle_deg) {
+        None
+    } else {
+        let pts: Vec<P2> = cut.iter().map(|q| P2::new(q[0], q[1])).collect();
+        let params: Vec<f64> = (0..=poly_n)
+            .map(|k| th0 + 2.0 * PI * k as f64 / poly_n as f64)
+            .collect();
+        let curve = PerpCutCurve {
+            rc,
+            ri,
+            ro,
+            e: s.e,
+            w,
+            h: s.h,
+        };
+        certified_rep(&curve, &pts, &params, L11_MAX_CHORD_ERROR_MM)
+    };
+    let cut_eps = cut_certified.unwrap_or_else(|| {
+        sagitta_estimate(&|th| [w * (th - th0) / (2.0 * PI), len_at(th)], poly_n)
+    });
+    let exact = cut_certified.map(|_| CurveDecl {
+        on_hole: false,
+        index: 0,
+        kind: "tee_cut",
+        params: vec![
+            ("main_d", s.main_d),
+            ("main_t", s.main_t),
+            ("set_in", if s.mount == Mount::SetIn { 1.0 } else { 0.0 }),
+            ("branch_d", s.d),
+            ("branch_t", s.t),
+            ("e", s.e),
+            ("h", s.h),
+        ],
+    });
     let res = BranchPieceResult {
+        exact,
         circ: w,
         marks,
         cut_length: polyline_len(&cut, false),
@@ -1228,6 +1355,8 @@ pub fn branch_piece(s: &BranchPieceSpec) -> Result<BranchPieceResult, ShapeRefus
         shortest_sampled: lo_s,
         longest_sampled: hi_s,
         extent_refine_gain: gain,
+        eps_rep: cut_eps,
+        eps_rep_certified: cut_certified.is_some(),
         net_area,
         area_err,
         area_drawn,
@@ -1238,7 +1367,7 @@ pub fn branch_piece(s: &BranchPieceSpec) -> Result<BranchPieceResult, ShapeRefus
         } else {
             vec![]
         },
-        certified: false,
+        certified: cut_certified.is_some(),
         method: TEE_METHOD,
         rules: &TEE_NAMED_RULES,
     };
@@ -1426,7 +1555,7 @@ pub fn tee_main(s: &TeeMainSpec) -> Result<TeeMainResult, ShapeRefusal> {
         if x > 180.0 + 1e-9 { x - 360.0 } else { x }
     };
     let mut holes = Vec::new();
-    for h in &hs {
+    for (bi, h) in hs.iter().enumerate() {
         let off = mod_p(h.kc - ah, 2.0 * PI);
         let jj = (n - 1).min((off / step).floor() as usize);
         let left = ah + step * jj as f64;
@@ -1439,13 +1568,60 @@ pub fn tee_main(s: &TeeMainSpec) -> Result<TeeMainResult, ShapeRefusal> {
             let q = h.hp(th);
             [u(q[0]), q[1]]
         };
-        let eps = if h.thick {
-            h.eps_thick
+        let certified = if h.thick {
+            None
         } else {
-            sagitta_estimate(&fh, TEE_POLY_SAMPLES)
+            // Use the same points that are written to the pattern, including the strip offset `left`.
+            // A previous version enclosed `rm·azimuth` but compared it with points shifted by `rm·left`;
+            // that failed closed away from a zero seam and was not a proof of the drawn outline.
+            let mut drawn: Vec<P2> = pts.iter().map(|q| P2::new(q[0], q[1])).collect();
+            if let Some(first) = drawn.first().copied() {
+                drawn.push(first);
+            }
+            let params: Vec<f64> = (0..=TEE_POLY_SAMPLES)
+                .map(|k| 2.0 * PI * k as f64 / TEE_POLY_SAMPLES as f64)
+                .collect();
+            let curve = ThinHoleCurve {
+                dir: h.dir,
+                left,
+                x0: h.x0,
+                e: h.e,
+                rh: h.rh,
+                ri: h.ri_main,
+                scale: rm,
+            };
+            certified_rep(&curve, &drawn, &params, L11_MAX_CHORD_ERROR_MM)
+        };
+        let eps = match certified {
+            Some(v) => v,
+            None => {
+                let _ = &fh;
+                if h.thick {
+                    h.eps_thick
+                } else {
+                    sagitta_estimate(&fh, TEE_POLY_SAMPLES)
+                }
+            }
         };
         let from = deg(h.lo);
+        let exact = certified.map(|_| CurveDecl {
+            on_hole: true,
+            index: 0,
+            kind: "tee_hole",
+            params: vec![
+                ("main_d", s.d),
+                ("main_t", s.t),
+                ("set_in", if s.mount == Mount::SetIn { 1.0 } else { 0.0 }),
+                ("branch_d", s.branches[bi].d),
+                ("branch_t", s.branches[bi].t),
+                ("e", h.e),
+                ("x0", h.x0),
+                // plate angle of the branch axis from the left edge of its plate strip: u = rm (plate_dir + asin(..))
+                ("plate_dir", u(h.c) / rm - clamp1(h.e / h.ri_main).asin()),
+            ],
+        });
         holes.push(HoleOut {
+            exact,
             name: h.name.clone(),
             plate: jj,
             marks: h.marks.iter().map(|m| [u(m.0), m.1]).collect(),
@@ -1469,7 +1645,7 @@ pub fn tee_main(s: &TeeMainSpec) -> Result<TeeMainResult, ShapeRefusal> {
             seam_dist_alt: seam_dist(h, &alt),
             area,
             eps_rep: eps,
-            eps_rep_certified: false,
+            eps_rep_certified: certified.is_some(),
             x_given: h.x_given,
             pts,
         });
@@ -1583,7 +1759,7 @@ pub fn tee_main(s: &TeeMainSpec) -> Result<TeeMainResult, ShapeRefusal> {
         mass_kg: mass_kg(net_area, s.t),
         holds,
         questions,
-        certified: false,
+        certified: !holes.is_empty() && holes.iter().all(|h| h.eps_rep_certified),
         method: TEE_METHOD,
         rules: &TEE_NAMED_RULES,
         holes,

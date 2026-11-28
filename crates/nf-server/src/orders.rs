@@ -5319,7 +5319,7 @@ async fn compute_do(
         let db = app.db();
         load_review_context(&db, oid)?
     };
-    let result =
+    let mut result =
         tokio::task::spawn_blocking(move || rv::compute_order_with_context(&parts, &rules, &ctx))
             .await
             .map_err(|_| {
@@ -5328,6 +5328,7 @@ async fn compute_do(
                     "the compute stopped unexpectedly",
                 )
             })?;
+    crate::amoeba::gate_order_dxf(&mut result);
     let counts = counts_of(&result);
     let body = oc::to_json(&result);
     let mut db = app.db();

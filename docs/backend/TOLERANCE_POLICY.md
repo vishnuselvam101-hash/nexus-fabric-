@@ -405,6 +405,49 @@ threshold changed, no planted fault removed).** Each old value and its reason:
 | ja "no English word" walk and `docs/design/tools/i18n_check.mjs` allow-list | `eps_num`, `eps_rep` not allowed (q.hint, a new tooltip) | allowed as whole identifiers only; no other word added. The ui walk removes the two identifiers before its word rule, which splits at `_` | they are deliberate technical names, shown identically in EN and JA |
 | `validation/seeded_faults.py` | 33 planted faults | 36: the 33 unchanged, plus three planted product verdicts (FAIL, INCONCLUSIVE, unknown) | the verdict split had no planted fault; the new ones test it |
 
+### 8.9 L11 certified cut geometry for the NFJ-1 new shapes (engine 0.6.0)
+
+Sections 8.1–8.8 certify the five `job::run` families and keep the eccentric reducer withheld. L11 adds a second,
+independent route for the NFJ-1 plate shapes reached through `order_compute`, which do not go through `job::run`.
+
+**Proof.** `uem::certify` encloses the exact curve on every parameter cell covering a drawn chord with outward-rounded
+interval arithmetic (`uem::interval`). The maximum distance from the four corners of each cell's enclosure box to the
+drawn segment bounds the whole cell, because the distance to a segment is convex. Every written vertex is enclosed at
+its parameter to cover vertex displacement. Cells are subdivided until each is within `tol + margin`; the reported
+value is the largest cell/vertex distance plus a binary64 rounding margin, capped at `tol`. If any cell, vertex, quotient
+or square root cannot be enclosed, or the bound exceeds the cap, the shape is not certified.
+
+**What `certified` means.** `certified: true` certifies the cut **outline** only: every drawn edge of the outline and of
+each opening lies within the 0.05 mm bound of the exact curve. It does not certify the enclosed area or the extents.
+Both are estimates in every family at this engine version and are reported with `area_certified: false` and
+`extents_certified: false`.
+
+**Scope.** The 0.05 mm cap is decision D1's implementation limit for these new shapes, not an engineering tolerance;
+the 0.01 mm cap of `develop.rs` and 8.1 remains unchanged for the five old families.
+
+| Family | L11 status | Basis |
+|---|---|---|
+| Tee main, perpendicular thin branches | certified when every hole is certified | exact hole enclosure `(dir + asin((e + r sin θ)/ri), x0 + r cos θ)`; azimuth scaled to plate millimetres; thick and lateral holes withheld |
+| Perpendicular tee branch wrap | certified except at wall tangency | exact cut enclosure `(w(θ−π/2)/(2π), h − tee_y(θ))`; a tangent wall gives a square-root singularity and no bound |
+| Reinforcing pad, thin wall | certified when both the hole and outline bounds prove | exact enclosed hole and circle outline; a constant-width ribbon adds the hole's chord error to each corner arc's chord error and is withheld when their sum exceeds the cap; thick holes withheld |
+| Bend, eccentric cone, cone branch, wye, lateral tee cut, every quadrature-dependent extent or area | withheld (`certified: false`) | no rigorous bound of the exact map and of every drawn edge is available in this lane |
+
+A withheld shape still serializes `eps_rep` as an estimate, `eps_rep_certified: false`, its method, named rules, holds,
+questions and taper flags.
+
+**DXF.** `order_compute` writes a cut file only when `dxf_allowed` holds: a certified outline, no hold, question or
+refusal, and a single pattern piece (`several_pieces` otherwise). The file has the outline as a closed polyline on
+`CUT_OUTER`, each opening as a closed polyline or full circle on `CUT_INNER`, and the not-released marking. The server
+digests every such file against its own pattern piece before it is served (`amoeba::gate_order_dxf`); a file that is
+not a PASS is withheld and its part gets `digest_failed`. A measured defect is a FAIL, never an INCONCLUSIVE.
+
+**Digest limits.** The digest compares the drawn file with the reference built from the engine's own pattern output.
+That is a consistency check, not an independent recomputation from the drawing parameters: a re-derivation of the
+exact curves in `nf-digest` is not implemented in this lane. The digest also holds a file whose declared bound is
+absent, uncertified or coarser than the 0.05 mm cap.
+
+The engine id is `nf-engine 0.6.0+src.<fingerprint>`; results made by older engines are recomputed.
+
 ## 9. Surface declaration of the entered radius (work plan task 1.4, engine 0.4.6)
 
 The entered radius of every family with radii may be declared to refer to a wall surface: `surface_reference` =

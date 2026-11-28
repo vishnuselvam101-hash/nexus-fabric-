@@ -14,6 +14,7 @@ use nf_core::tee::{
 };
 use nf_core::tee_pad::{self as pad, PAD_REFUSAL_CODES, PadOutline, PadSpec, SplitCut};
 use std::f64::consts::PI;
+use uem::certify::L11_MAX_CHORD_ERROR_MM;
 
 #[allow(clippy::too_many_arguments)]
 fn lat_piece(
@@ -447,7 +448,14 @@ fn pad_hole_area_and_offset_area_follow_closed_forms() {
         // outline stays B away from the hole everywhere
         let mn = min_dist(&r.outline, &r.hole);
         assert!(mn >= b - 0.1, "outline to hole {mn} < B {b}");
-        assert!(r.mass_kg > 0.0 && !r.certified && !r.eps_rep_certified);
+        // The constant-width outline is the offset of the drawn hole polyline: the hole's chord error
+        // and the corner arcs' chord errors add, so a wide ribbon can exceed the 0.05 mm cap and is then
+        // withheld even though the bound itself is certified.
+        assert!(r.mass_kg > 0.0 && r.eps_rep.is_finite() && r.eps_rep >= 0.0);
+        assert_eq!(
+            r.certified,
+            r.eps_rep <= L11_MAX_CHORD_ERROR_MM && r.eps_rep_certified
+        );
     }
 }
 
@@ -910,7 +918,10 @@ fn fuzz_lateral_and_pad_no_panic_no_nan_always_coded() {
         ) {
             Ok(r) => {
                 built += 1;
-                assert!(r.net_area.is_finite() && r.mass_kg.is_finite() && !r.certified);
+                assert!(r.net_area.is_finite() && r.mass_kg.is_finite());
+                if r.certified {
+                    assert!(r.eps_rep_certified && r.eps_rep <= 0.05);
+                }
                 assert!(r.marks.iter().all(|m| m.len.is_finite()));
             }
             Err(e) => {
@@ -975,12 +986,10 @@ fn fuzz_lateral_and_pad_no_panic_no_nan_always_coded() {
         match pad::pad(&spec) {
             Ok(r) => {
                 built += 1;
-                assert!(
-                    r.net_area.is_finite()
-                        && r.mass_kg.is_finite()
-                        && !r.certified
-                        && r.eps_rep.is_finite()
-                );
+                assert!(r.net_area.is_finite() && r.mass_kg.is_finite() && r.eps_rep.is_finite());
+                if r.certified {
+                    assert!(r.eps_rep_certified && r.eps_rep <= 0.05);
+                }
             }
             Err(e) => {
                 refused += 1;

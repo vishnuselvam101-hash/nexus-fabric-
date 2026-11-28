@@ -16,6 +16,11 @@ fn engine_id_is_derived_from_the_engine_sources_and_changes_with_them() {
     );
     let now = source_fingerprint(&files);
     assert!(
+        nf_core::ENGINE_VERSION.starts_with("nf-engine 0.6.0+src."),
+        "L11 certified representation bounds require an engine version bump: {}",
+        nf_core::ENGINE_VERSION
+    );
+    assert!(
         nf_core::ENGINE_VERSION.ends_with(&now),
         "the embedded engine id {} must carry the fingerprint {now} of the sources it was built from",
         nf_core::ENGINE_VERSION
