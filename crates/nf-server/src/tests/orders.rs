@@ -1280,7 +1280,7 @@ async fn l1r1_the_ai_operator_gives_a_reason_for_every_order_write() {
     // a value edit, a parts edit and a page skip without a reason are refused
     let vals = format!("/api/orders/{oid}/values");
     let (st, _, b) = t
-        .send("PUT", &vals, Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read" }] })), &ac)
+        .send("PUT", &vals, Some(with_ev(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read" }] }))), &ac)
         .await;
     assert_eq!(
         (st, code(&b)),
@@ -1291,7 +1291,7 @@ async fn l1r1_the_ai_operator_gives_a_reason_for_every_order_write() {
         .send(
             "PUT",
             &parts,
-            Some(json!({ "parts": [{ "no": "1", "shape": "cylinder" }] })),
+            Some(with_ev(json!({ "parts": [{ "no": "1", "shape": "cylinder" }] }))),
             &ac,
         )
         .await;
@@ -1303,7 +1303,7 @@ async fn l1r1_the_ai_operator_gives_a_reason_for_every_order_write() {
         .send(
             "POST",
             &format!("/api/orders/{oid}/pages/1/skip"),
-            Some(json!({})),
+            Some(with_ev(json!({}))),
             &ac,
         )
         .await;
@@ -1337,14 +1337,16 @@ async fn l1r1_the_ai_operator_gives_a_reason_for_every_order_write() {
     // the refused edit above (no reason) and this accepted one each keep their reason row
     assert_eq!(audit_details(&t, "order_parts_reason").len(), 2);
     let undo = format!("{dec}/{did}/undo");
-    // an undo by the operator needs a reason as well
-    let (st, _, b) = t.send("POST", &undo, Some(json!({})), &ac).await;
+    // an undo by the operator needs a reason and a replayable event as well
+    let (st, _, b) = t
+        .send("POST", &undo, Some(with_ev(json!({}))), &ac)
+        .await;
     assert_eq!(
         (st, code(&b)),
         (StatusCode::UNPROCESSABLE_ENTITY, json!("decision_reason"))
     );
     let (st, _, b) = t
-        .send("POST", &undo, Some(json!({ "note": "wrong flag" })), &ac)
+        .send("POST", &undo, Some(with_ev(json!({ "note": "wrong flag" }))), &ac)
         .await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
 }
@@ -1601,7 +1603,7 @@ async fn l1r2_the_ai_operator_gives_a_reason_on_create_and_upload() {
     let ac = [("cookie", ac.as_str())];
     let path = "/api/projects/1/orders";
     let (st, _, b) = t
-        .send("POST", path, Some(json!({ "name": "Job A" })), &ac)
+        .send("POST", path, Some(with_ev(json!({ "name": "Job A" }))), &ac)
         .await;
     assert_eq!(
         (st, code_of(&b)),
@@ -1611,7 +1613,7 @@ async fn l1r2_the_ai_operator_gives_a_reason_on_create_and_upload() {
         .send(
             "POST",
             path,
-            Some(json!({ "name": "Job A", "reason": "from the customer PO" })),
+            Some(with_ev(json!({ "name": "Job A", "reason": "from the customer PO" }))),
             &ac,
         )
         .await;
@@ -1736,7 +1738,7 @@ async fn l1r2_an_ai_operator_undoes_only_its_own_decisions() {
             .send(
                 "POST",
                 &format!("{dec}/{id}/undo"),
-                Some(json!({ "note": "try" })),
+                Some(with_ev(json!({ "note": "try" }))),
                 &ac,
             )
             .await;
@@ -1753,7 +1755,7 @@ async fn l1r2_an_ai_operator_undoes_only_its_own_decisions() {
         .send(
             "POST",
             &format!("{dec}/{own}/undo"),
-            Some(json!({ "note": "wrong flag" })),
+            Some(with_ev(json!({ "note": "wrong flag" }))),
             &ac,
         )
         .await;

@@ -519,6 +519,7 @@ async fn aiop_undo_puts_a_typed_value_back_and_refuses_when_it_was_changed() {
     let agent = add_agent(&t, "operator-ai");
     let ac = [("cookie", agent.as_str())];
     let base = format!("/api/orders/{oid}/operator");
+    let vals = format!("/api/orders/{oid}/values");
     // the value, its server-owned reading attachment and the tool-write event commit together
     let (propose, confirm, _) = agent_typed_confirm(&t, oid, &agent, "D", 216.3, "φ216.3").await;
     assert_eq!((propose, confirm), (StatusCode::OK, StatusCode::OK));
@@ -549,9 +550,10 @@ async fn aiop_undo_puts_a_typed_value_back_and_refuses_when_it_was_changed() {
         .find(|x| x["key"] == "D")
         .unwrap()
         .clone();
+    // undoing the confirmation returns the value to the operator's proposal, not to a missing value
     assert_eq!(
         (val["state"].clone(), val["value"].clone()),
-        (json!("MISSING"), Value::Null),
+        (json!("PROPOSED"), json!(216.3)),
         "{val}"
     );
     assert!(
@@ -573,11 +575,40 @@ async fn aiop_undo_puts_a_typed_value_back_and_refuses_when_it_was_changed() {
         (StatusCode::CONFLICT, json!("value_changed_since")),
         "the earlier proposal is no longer the operator's value to undo"
     );
-    // after a person's undo the value is the person's: the operator does not type over it again
-    let (propose, _, code) = agent_typed_confirm(&t, oid, &agent, "D", 100.0, "100").await;
+    // after a person's undo the value is the person's: the operator does not type over it again, even with the
+    // reading it was first attached to (a new reading would be refused by the sticky attachment first).
+    let attached: Option<i64> = {
+        let db = t.app.db();
+        db.query_row(
+            "SELECT attached_reading_id FROM order_values WHERE key = 'D'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    let mut e = ev(
+        "confirm-again",
+        "confirm",
+        json!({ "ui": "part-1-D" }),
+        "typed from the page",
+    );
+    e["write_ref"] = json!({ "part": "1", "key": "D" });
+    let again = json!({ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read",
+        "flags": [], "confidence": 0.97, "reading_id": attached, "confirm": true,
+        "note": "typed from the page" });
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &vals,
+            Some(json!({ "values": [again], "events": [e] })),
+            &ac,
+        )
+        .await;
     assert_eq!(
-        (propose, code),
-        (StatusCode::CONFLICT, json!("person_value_protected"))
+        (st, code(&b)),
+        (StatusCode::CONFLICT, json!("person_value_protected")),
+        "{}",
+        String::from_utf8_lossy(&b)
     );
     // a value a person changed after the operator typed it is not rolled back
     let (propose, confirm, _) = agent_typed_confirm(&t, oid, &agent, "t", 100.0, "100").await;
