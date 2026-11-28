@@ -91,10 +91,23 @@ async function main() {
     const parts = (await (await api.get(`/api/orders/${oid}`)).json()).parts || [];
     check('result counts add up to the parts', counts.reduce((a, b) => a + b, 0) === parts.length, JSON.stringify(counts) + ' vs ' + parts.length);
     check('current step is 3', (await p.getAttribute('.jf1-panel', 'data-cur')) === '3');
+    const resParts = (await (await api.get(`/api/orders/${oid}/compute`)).json())?.current?.result?.parts || [];
+    const readyExpect = resParts.filter((x) => x.state === 'computed' && x.dxf_allowed === true && !(x.dxf_blocked_by || []).length).length;
+    check('Ready counts only parts with a DXF allowed and no block', counts[0] === readyExpect, `ui ${counts[0]}, api ${readyExpect}`);
     const dl = p.locator('#jf1-outputs');
     const dlHref = (await dl.count()) ? await dl.getAttribute('href') : '';
     check('download links to the job package of the order', dlHref === `/api/orders/${oid}/outputs.zip`, dlHref);
     const pkg = await api.get(dlHref);
+    // a refused download (409/413) shows the server message and does not save a JSON file
+    await p.route('**' + dlHref, (route) => route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: 'stale result: compute again' }) }));
+    let savedFile = false;
+    p.once('download', () => { savedFile = true; });
+    await p.locator('#jf1-outputs').click();
+    await p.waitForSelector('[data-dl-err]:not([hidden])', { timeout: 10000 }).catch(() => {});
+    const dlErr = (await p.textContent('[data-dl-err]').catch(() => '')) || '';
+    check('refused ZIP shows the server message', dlErr.includes('stale result: compute again'), dlErr);
+    check('refused ZIP saves no file', !savedFile);
+    await p.unroute('**' + dlHref);
     check('the job package downloads as a ZIP', pkg.status() === 200 && (pkg.headers()['content-type'] || '').includes('application/zip'));
     check('no approve or release control on the page', (await p.locator('button', { hasText: /approve|release|承認|リリース/i }).count()) === 0);
     check('held parts never show a DXF link', (await p.locator('a[href*="dxf"]').count()) === 0);

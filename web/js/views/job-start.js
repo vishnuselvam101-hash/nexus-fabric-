@@ -7,8 +7,8 @@ import { createCursor } from '../operator-cursor.js';
 
 const PROJECT = 'Quick conversions';
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.tif,.tiff';
-const READY = ['computed'];
-const HELD = ['held'];
+// Ready = computed AND certified with a DXF allowed and no block (the ZIP's DXF rule); a computed but blocked part is not ready
+const isReady = (p) => p.state === 'computed' && p.dxf_allowed === true && Array.isArray(p.dxf_blocked_by) && p.dxf_blocked_by.length === 0;
 const NEED = ['held_missing', 'refused', 'not_computed'];
 
 let host = null, root = null, cursor = null, stopFollow = null, busy = false, oid = null, files = [];
@@ -74,11 +74,13 @@ async function render() {
       </section>
       <div class="jf1-download">
         ${resParts.length ? `<a class="jf1-btn jf1-primary" id="jf1-outputs" href="/api/orders/${oid}/outputs.zip" download>${esc(t('jf1.download'))}</a>` : `<button type="button" class="jf1-btn" disabled>${esc(t('jf1.download'))}</button>`}
+        <p class="jf1-err" data-dl-err role="alert" hidden></p>
         <p class="jf1-note">${esc(t('jf1.download.note'))}</p>
       </div>
     </div>`;
   root.querySelector('[data-act="calc"]')?.addEventListener('click', compute);
   root.querySelector('[data-act="new"]')?.addEventListener('click', () => { location.hash = '#/start'; });
+  root.querySelector('#jf1-outputs')?.addEventListener('click', download);
   follow();
 }
 
@@ -154,7 +156,8 @@ function pagesHtml(pages) {
 
 function resultHtml(parts) {
   const count = (list) => parts.filter((p) => list.includes(p.state)).length;
-  const ready = count(READY), held = count(HELD), need = count(NEED);
+  // held = every computed part that is not ready (blocked, no DXF); need = open questions. The three add up to the parts.
+  const ready = parts.filter(isReady).length, need = count(NEED), held = parts.length - ready - need;
   return `<section class="jf1-result" aria-labelledby="jf1-res-h">
     <h2 id="jf1-res-h">${esc(t('jf1.res.summary', { ready, held, need }))}</h2>
     <dl class="jf1-counts">
@@ -163,6 +166,31 @@ function resultHtml(parts) {
       <div><dt>${esc(t('jf1.res.need'))}</dt><dd class="mono">${need}</dd></div>
     </dl>
   </section>`;
+}
+
+// Fetch the ZIP first: a refusal (409 stale result, 413 too large, licence) shows the server's message instead of saving a JSON file
+async function download(ev) {
+  ev.preventDefault();
+  const a = ev.currentTarget, err = $('[data-dl-err]');
+  err.hidden = true; err.textContent = '';
+  try {
+    const res = await fetch(a.getAttribute('href'), { headers: { 'X-NF-Request': '1' }, credentials: 'same-origin' });
+    if (!res.ok) {
+      let detail = {};
+      try { detail = await res.json(); } catch { /* not JSON */ }
+      throw new ApiError(detail.error || detail.message || res.statusText, { status: res.status, ...detail });
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const cd = res.headers.get('content-disposition') || '';
+    const name = (cd.match(/filename="([^"]+)"/) || [])[1] || 'job-package.zip';
+    link.href = url; link.download = name;
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {
+    err.hidden = false; err.textContent = msgOf(e);
+  }
 }
 
 async function compute() {
