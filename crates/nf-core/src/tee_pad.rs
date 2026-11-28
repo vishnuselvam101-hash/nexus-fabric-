@@ -1,9 +1,9 @@
 //! NFJ-1 S1-L7b: reinforcing pad (collar plate) round a tee branch, perpendicular or lateral, with the split of the pad
 //! into 2..=12 pieces. Pure functions, no I/O, no engine state.
 //!
-//! Status (stated, not hidden): NOT reachable from `job::run`; nothing here can be served as a cut file;
-//! `ENGINE_VERSION` is unchanged. Every result is `certified: false` with its `method` and named `rules` (all
-//! UNVERIFIED, none confirmed by a factory).
+//! Status (stated, not hidden): `certified: true` only when `uem::certify` proves the 0.05 mm chord bound for the drawn
+//! outline and no hold applies (TOLERANCE_POLICY section 8.9). Otherwise `certified: false` with its `method` and named
+//! `rules` (all UNVERIFIED, none confirmed by a factory). `ENGINE_VERSION` is 0.6.0 since L11.
 //!
 //! Frame (ZK `padPiece` / `offsetRing` / `padSplit`, re-derived; tests are independent): the pad lies on the main outer
 //! surface (radius `Ro`), is rolled from a plate of thickness `t` and is developed at its mid surface `Rp = Ro + t/2`.
