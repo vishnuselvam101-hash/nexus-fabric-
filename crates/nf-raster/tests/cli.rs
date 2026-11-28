@@ -740,14 +740,16 @@ fn crop_key_is_created_and_reused_by_an_unprivileged_service_user() {
         .env("NF_CROP_LEDGER_ROOT", s(&ledger))
         .env("HOME", s(&job))
         .stdin(Stdio::null());
+        let child_gid = gid;
+        let child_uid = uid;
         unsafe {
-            c.pre_exec(|| {
+            c.pre_exec(move || {
                 // SAFETY: setgid/setuid have no preconditions here; the test already proved euid 0
                 // and a freshly spawned child has no other threads to disturb.
-                if libc::setgid(gid) != 0 {
+                if libc::setgid(child_gid) != 0 {
                     return Err(std::io::Error::last_os_error());
                 }
-                if libc::setuid(uid) != 0 {
+                if libc::setuid(child_uid) != 0 {
                     return Err(std::io::Error::last_os_error());
                 }
                 Ok(())
