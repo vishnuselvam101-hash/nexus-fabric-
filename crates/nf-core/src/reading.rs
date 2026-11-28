@@ -907,6 +907,12 @@ pub fn text_contains_number(text: &str, value: f64) -> bool {
         .any(|n| !n.ambiguous && same_number(n.value, value))
 }
 
+/// True if one of the strings a second reading returned names `value`. An `agrees` label without
+/// such a string is not evidence: the value must be among the numbers the model actually read.
+pub fn ocr_read_has_value(read: &[String], value: f64) -> bool {
+    read.iter().any(|s| text_contains_number(s, value))
+}
+
 /// True if `value` is in `text` only as an ambiguous reading (a decimal comma).
 pub fn text_has_only_ambiguous(text: &str, value: f64) -> bool {
     let nums = parse_dim(text);
@@ -1133,6 +1139,19 @@ impl TextCheck {
             TextCheck::NoNumber => "no_number",
         }
     }
+
+    /// The stored form; unknown codes are refused.
+    pub fn from_code(code: &str) -> Option<TextCheck> {
+        Some(match code {
+            "not_read" => TextCheck::NotRead,
+            "matches" => TextCheck::Matches,
+            "word" => TextCheck::Word,
+            "ambiguous" => TextCheck::Ambiguous,
+            "mismatch" => TextCheck::Mismatch,
+            "no_number" => TextCheck::NoNumber,
+            _ => return None,
+        })
+    }
 }
 
 /// Is `value` written in `text` for parameter `key`? The value must be one of the numbers of the text (any of them:
@@ -1183,21 +1202,49 @@ pub const BOX_MAX_PAGE_FRACTION: f64 = 0.05;
 pub const BOX_EDGE_TOL_PX: f64 = 1.0;
 
 /// What the box of a value says.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BoxCheck {
     /// No box given (hand-made readings and typed values have none).
     Absent,
     Ok,
     /// Not usable; the reason code says why.
-    Invalid(&'static str),
+    Invalid(String),
 }
 
+/// Every reason a box can be refused. A stored check is read back strictly: only these codes are
+/// accepted, so a hand-written flag cannot invent a box reason.
+pub const BOX_REASONS: [&str; 6] = [
+    "box_not_four_numbers",
+    "box_inverted",
+    "box_too_small",
+    "box_outside_page",
+    "box_too_large",
+    "box_missing",
+];
+
 impl BoxCheck {
-    pub fn code(self) -> &'static str {
+    pub fn code(&self) -> &'static str {
         match self {
             BoxCheck::Absent => "absent",
             BoxCheck::Ok => "ok",
             BoxCheck::Invalid(_) => "invalid",
+        }
+    }
+
+    pub fn reason(&self) -> &str {
+        match self {
+            BoxCheck::Invalid(r) => r,
+            _ => "",
+        }
+    }
+
+    /// The stored form; unknown codes are refused.
+    pub fn from_json(code: &str, reason: &str) -> Option<BoxCheck> {
+        match code {
+            "absent" if reason.is_empty() => Some(BoxCheck::Absent),
+            "ok" if reason.is_empty() => Some(BoxCheck::Ok),
+            "invalid" if BOX_REASONS.contains(&reason) => Some(BoxCheck::Invalid(reason.into())),
+            _ => None,
         }
     }
 }
@@ -1211,24 +1258,24 @@ pub fn check_box(bbox: Option<&[f64]>, page: Option<(f64, f64)>) -> BoxCheck {
         return BoxCheck::Absent;
     };
     let &[x0, y0, x1, y1] = b else {
-        return BoxCheck::Invalid("box_not_four_numbers");
+        return BoxCheck::Invalid("box_not_four_numbers".into());
     };
     if ![x0, y0, x1, y1].iter().all(|v| v.is_finite()) {
-        return BoxCheck::Invalid("box_not_four_numbers");
+        return BoxCheck::Invalid("box_not_four_numbers".into());
     }
     if x1 <= x0 || y1 <= y0 {
-        return BoxCheck::Invalid("box_inverted");
+        return BoxCheck::Invalid("box_inverted".into());
     }
     if x1 - x0 < BOX_MIN_SIDE_PX || y1 - y0 < BOX_MIN_SIDE_PX {
-        return BoxCheck::Invalid("box_too_small");
+        return BoxCheck::Invalid("box_too_small".into());
     }
     if let Some((w, h)) = page.filter(|(w, h)| *w > 0.0 && *h > 0.0) {
         let tol = BOX_EDGE_TOL_PX;
         if x0 < -tol || y0 < -tol || x1 > w + tol || y1 > h + tol {
-            return BoxCheck::Invalid("box_outside_page");
+            return BoxCheck::Invalid("box_outside_page".into());
         }
         if (x1 - x0) * (y1 - y0) > BOX_MAX_PAGE_FRACTION * w * h {
-            return BoxCheck::Invalid("box_too_large");
+            return BoxCheck::Invalid("box_too_large".into());
         }
     }
     BoxCheck::Ok
@@ -1255,6 +1302,24 @@ impl OcrCheck {
             OcrCheck::Disagrees { .. } => "disagrees",
             OcrCheck::Unavailable(_) => "unavailable",
         }
+    }
+
+    /// The stored form. A second read that claims to agree but names no numbers, or numbers that do
+    /// not contain the value, is a disagreement — an `agrees` label alone carries no authority.
+    pub fn from_json(code: &str, read: &[String], reason: &str) -> Option<OcrCheck> {
+        Some(match code {
+            "not_run" if read.is_empty() && reason.is_empty() => OcrCheck::NotRun,
+            "agrees" if !read.is_empty() && reason.is_empty() => OcrCheck::Agrees {
+                read: read.to_vec(),
+            },
+            "disagrees" if reason.is_empty() => OcrCheck::Disagrees {
+                read: read.to_vec(),
+            },
+            "unavailable" if !reason.is_empty() && read.is_empty() => {
+                OcrCheck::Unavailable(reason.into())
+            }
+            _ => return None,
+        })
     }
 }
 
@@ -1411,6 +1476,16 @@ pub const VERDICT_TEXT: &[(&str, &str, &str)] = &[
         "付けた場所に文字がありません。",
     ),
     (
+        "ocr_read_mismatch",
+        "The second reading did not read the value it is said to have read.",
+        "もう一度の読み取りは、報告された値を読んでいません。",
+    ),
+    (
+        "ocr_bad_box",
+        "The marked place could not be read a second time because it is not usable.",
+        "付けた場所が使えないので、もう一度読めませんでした。",
+    ),
+    (
         "ocr_no_models",
         "The number reader is not installed on this computer.",
         "このコンピューターには数の読み取り機能が入っていません。",
@@ -1481,9 +1556,12 @@ pub struct ItemCheck {
 impl ItemCheck {
     /// Stored form (order_values.reading_check) and API form; `provenance` adds model id and input sha256.
     pub fn to_json(&self) -> Value {
-        let read = match &self.ocr {
-            OcrCheck::Agrees { read } | OcrCheck::Disagrees { read } => read.clone(),
-            _ => Vec::new(),
+        let (read, ocr_reason) = match &self.ocr {
+            OcrCheck::Agrees { read } | OcrCheck::Disagrees { read } => {
+                (read.clone(), String::new())
+            }
+            OcrCheck::Unavailable(why) => (Vec::new(), why.clone()),
+            OcrCheck::NotRun => (Vec::new(), String::new()),
         };
         let (en, ja) = self.verdict.text();
         json!({
@@ -1491,8 +1569,10 @@ impl ItemCheck {
             "blocks": self.verdict.blocks(),
             "text": self.text.code(),
             "box": self.bbox.code(),
+            "box_reason": self.bbox.reason(),
             "ocr": self.ocr.code(),
             "ocr_read": read,
+            "ocr_reason": ocr_reason,
             "reasons": self.reasons,
             "message_en": en,
             "message_ja": ja,
@@ -1506,7 +1586,10 @@ impl ItemCheck {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Provenance {
     pub model_id: String,
+    /// SHA-256 of the exact crop pixels handed to the second read.
     pub input_sha256: String,
+    /// SHA-256 of the exact page image the crop came from.
+    pub page_sha256: String,
 }
 
 /// One checked value with its provenance, as stored on the proposal (an additive column in `order_values`).
@@ -1527,8 +1610,64 @@ impl StoredCheck {
             obj.insert("key".into(), json!(self.item.key));
             obj.insert("model_id".into(), json!(self.provenance.model_id));
             obj.insert("input_sha256".into(), json!(self.provenance.input_sha256));
+            obj.insert("page_sha256".into(), json!(self.provenance.page_sha256));
         }
         v
+    }
+
+    /// Read a stored check back strictly. A missing, unknown or inconsistent field refuses the
+    /// flag: a hand-edited row cannot name a verdict or a provenance that was never produced here.
+    pub fn from_json(v: &Value, value: Option<f64>) -> Option<StoredCheck> {
+        fn sha(s: &str, allow_empty: bool) -> bool {
+            (allow_empty && s.is_empty())
+                || (s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+        }
+        let obj = v.as_object()?;
+        let str_ = |k: &str| obj.get(k).and_then(Value::as_str);
+        let verdict = Verdict::from_code(str_("verdict")?)?;
+        if obj.get("blocks")?.as_bool()? != verdict.blocks() {
+            return None;
+        }
+        let (en, ja) = verdict.text();
+        if str_("message_en")? != en || str_("message_ja")? != ja {
+            return None;
+        }
+        let text = TextCheck::from_code(str_("text")?)?;
+        let bbox = BoxCheck::from_json(str_("box")?, str_("box_reason")?)?;
+        let read: Vec<String> = serde_json::from_value(obj.get("ocr_read")?.clone()).ok()?;
+        let ocr = OcrCheck::from_json(str_("ocr")?, &read, str_("ocr_reason")?)?;
+        if let OcrCheck::Agrees { read } = &ocr
+            && !value.is_some_and(|v| ocr_read_has_value(read, v))
+        {
+            return None;
+        }
+        let reasons: Vec<String> = serde_json::from_value(obj.get("reasons")?.clone()).ok()?;
+        let item = ItemRef {
+            part: usize::try_from(obj.get("part")?.as_u64()?).ok()?,
+            no: str_("no")?.to_string(),
+            shape: str_("shape")?.to_string(),
+            key: str_("key")?.to_string(),
+        };
+        let input_sha256 = str_("input_sha256")?.to_string();
+        let page_sha256 = str_("page_sha256")?.to_string();
+        if !sha(&input_sha256, true) || !sha(&page_sha256, false) {
+            return None;
+        }
+        Some(StoredCheck {
+            item,
+            check: ItemCheck {
+                verdict,
+                text,
+                bbox,
+                ocr,
+                reasons,
+            },
+            provenance: Provenance {
+                model_id: str_("model_id")?.to_string(),
+                input_sha256,
+                page_sha256,
+            },
+        })
     }
 }
 
@@ -1564,12 +1703,20 @@ pub fn check_item(item: &ItemIn<'_>, ctx: &CheckCtx, ocr: OcrCheck) -> ItemCheck
         TextCheck::NotRead | TextCheck::Matches | TextCheck::Word => {}
     }
     let bbox = match check_box(item.bbox, ctx.page) {
-        BoxCheck::Absent if ctx.require_box => BoxCheck::Invalid("box_missing"),
+        BoxCheck::Absent if ctx.require_box => BoxCheck::Invalid("box_missing".into()),
         b => b,
     };
-    if let BoxCheck::Invalid(why) = bbox {
+    if let BoxCheck::Invalid(why) = &bbox {
         worst(Verdict::BoxInvalid, why, &mut reasons);
     }
+    let ocr = match ocr {
+        // A claimed agreement must be backed by the numbers the second read returned.
+        OcrCheck::Agrees { read } if !ocr_read_has_value(&read, value) => {
+            worst(Verdict::OcrDisagrees, "ocr_read_mismatch", &mut reasons);
+            OcrCheck::Disagrees { read }
+        }
+        other => other,
+    };
     match &ocr {
         OcrCheck::Disagrees { read } if read.is_empty() => {
             worst(Verdict::OcrDisagrees, "ocr_box_blank", &mut reasons)
@@ -1711,6 +1858,8 @@ mod tests {
             "box_too_large",
             "ocr_other_number",
             "ocr_box_blank",
+            "ocr_read_mismatch",
+            "ocr_bad_box",
             "ocr_no_models",
             "ocr_nothing_read",
             "ocr_not_a_number",
@@ -1878,7 +2027,7 @@ mod tests {
         };
         let ctx = CheckCtx::default();
         let (mut injected, mut caught) = (0usize, 0usize);
-        let (mut correct, mut false_flagged) = (0usize, 0usize);
+        let (mut correct, mut right_accepted) = (0usize, 0usize);
         for line in text.lines() {
             if line.trim().is_empty() {
                 continue;
@@ -1914,7 +2063,7 @@ mod tests {
                 let ok = check_item(&item, &ctx, OcrCheck::NotRun);
                 correct += 1;
                 if !ok.verdict.blocks() {
-                    false_flagged += 1;
+                    right_accepted += 1;
                 }
                 let wrong = value + 1.0;
                 let item = ItemIn {
@@ -1937,8 +2086,8 @@ mod tests {
             100.0 * caught as f64 / injected as f64,
             caught,
             injected,
-            100.0 * (correct - false_flagged) as f64 / correct as f64,
-            correct - false_flagged,
+            100.0 * right_accepted as f64 / correct as f64,
+            right_accepted,
             correct
         );
     }
@@ -2020,6 +2169,7 @@ mod tests {
             provenance: Provenance {
                 model_id: "nf-numread R0".into(),
                 input_sha256: "abc123".into(),
+                page_sha256: "def456".into(),
             },
         };
         let json = stored.to_json();
@@ -2029,5 +2179,66 @@ mod tests {
         assert_eq!(json["input_sha256"], "abc123");
         assert!(Verdict::Conflicting.blocks());
         assert!(!Verdict::Ok.blocks() && !Verdict::OcrUnavailable.blocks());
+    }
+
+    #[test]
+    fn a_claimed_agreement_must_contain_the_value() {
+        let item = ItemIn {
+            key: "D",
+            value: Some(216.3),
+            text: "φ216.3",
+            bbox: Some(&[10.0, 10.0, 60.0, 40.0]),
+            source: "read",
+        };
+        let agrees = check_item(
+            &item,
+            &CheckCtx {
+                page: Some((200.0, 200.0)),
+                require_box: true,
+            },
+            OcrCheck::Agrees {
+                read: vec!["999".into()],
+            },
+        );
+        assert_eq!(agrees.verdict, Verdict::OcrDisagrees);
+        assert_eq!(agrees.ocr.code(), "disagrees");
+        assert!(agrees.reasons.iter().any(|r| r == "ocr_read_mismatch"));
+    }
+
+    #[test]
+    fn stored_flags_are_parsed_strictly() {
+        let sha = "a".repeat(64);
+        let check = ItemCheck {
+            verdict: Verdict::Ok,
+            text: TextCheck::Matches,
+            bbox: BoxCheck::Ok,
+            ocr: OcrCheck::Agrees {
+                read: vec!["216.3".into()],
+            },
+            reasons: Vec::new(),
+        };
+        let stored = StoredCheck {
+            item: ItemRef {
+                part: 0,
+                no: "1".into(),
+                shape: String::new(),
+                key: "D".into(),
+            },
+            check,
+            provenance: Provenance {
+                model_id: "nf-numread R0 / PP-OCRv4 (det+rec)".into(),
+                input_sha256: sha.clone(),
+                page_sha256: sha.clone(),
+            },
+        };
+        let good = stored.to_json();
+        assert!(StoredCheck::from_json(&good, Some(216.3)).is_some());
+        let mut tampered = good.clone();
+        tampered["ocr_read"] = json!(["999"]);
+        assert!(StoredCheck::from_json(&tampered, Some(216.3)).is_none());
+        let mut tampered = good;
+        tampered["verdict"] = json!("ok");
+        tampered["blocks"] = json!(true);
+        assert!(StoredCheck::from_json(&tampered, Some(216.3)).is_none());
     }
 }

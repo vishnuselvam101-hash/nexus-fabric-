@@ -80,10 +80,14 @@ fn verify_box(args: &[String]) -> ExitCode {
                     eprintln!("nf-numread: --bbox needs four numbers\n{USAGE}");
                     return ExitCode::from(2);
                 };
-                let p: Vec<f32> = v.split(',').filter_map(|s| s.trim().parse().ok()).collect();
-                let a: [f32; 4] = match p.try_into() {
-                    Ok(a) => a,
-                    Err(_) => {
+                let p: Result<Vec<f32>, _> = v.split(',').map(|s| s.trim().parse()).collect();
+                let a: [f32; 4] = match p
+                    .ok()
+                    .and_then(|p| p.try_into().ok())
+                    .filter(|a: &[f32; 4]| a.iter().all(|n| n.is_finite()))
+                {
+                    Some(a) => a,
+                    None => {
                         eprintln!("nf-numread: --bbox must be x0,y0,x1,y1 in page pixels");
                         return ExitCode::from(2);
                     }

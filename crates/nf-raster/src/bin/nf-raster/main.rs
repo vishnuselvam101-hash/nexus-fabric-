@@ -28,7 +28,7 @@
 
 mod sandbox;
 
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
@@ -99,6 +99,50 @@ fn exit_with(code: i32, status: &str, reason: &str, limit: Option<&str>, message
 
 fn invalid(code: &str, message: &str) -> ! {
     exit_with(2, "refused", code, None, message)
+}
+
+/// The input is the trust anchor: its directory is the job directory. Outputs may not be named
+/// outside it, through an absolute path, `..` or a symbolic link.
+fn job_dir(input: &Path) -> (PathBuf, PathBuf) {
+    let real = fs::canonicalize(input)
+        .unwrap_or_else(|e| invalid("input_unreadable", &format!("cannot open the input: {e}")));
+    let root = real
+        .parent()
+        .unwrap_or_else(|| Path::new("/"))
+        .to_path_buf();
+    (real, root)
+}
+
+fn confined_path(path: &Path, root: &Path, what: &str) -> PathBuf {
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let real_parent = fs::canonicalize(parent).unwrap_or_else(|e| {
+        invalid(
+            "output_unwritable",
+            &format!("cannot use the {what} directory: {e}"),
+        )
+    });
+    if real_parent != root {
+        invalid(
+            "path_outside_job",
+            &format!("the {what} must be inside the input's directory"),
+        );
+    }
+    if fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) {
+        invalid(
+            "path_outside_job",
+            &format!("the {what} must not be a symbolic link"),
+        );
+    }
+    let name = path.file_name().unwrap_or_else(|| {
+        invalid(
+            "invalid_arguments",
+            &format!("the {what} needs a file name"),
+        )
+    });
+    real_parent.join(name)
 }
 
 fn parse_args(argv: &[String]) -> Args {
@@ -223,6 +267,9 @@ fn parse_args(argv: &[String]) -> Args {
         crop: bbox,
         ..Options::default()
     };
+    let (input, root) = job_dir(&input);
+    let output = confined_path(&output, &root, "output");
+    let report = confined_path(&report, &root, "report");
     Args {
         command,
         input,
@@ -324,20 +371,63 @@ fn write_whole(path: &Path, bytes: &[u8]) -> bool {
     written.is_ok()
 }
 
-/// Counts live beside the report, so the cap follows the job's output directory and never
-/// touches global state. Each record is the page number and its count (two little-endian u32).
-fn ledger_path(report: &Path) -> PathBuf {
-    let mut name = report.as_os_str().to_os_string();
-    name.push(".crop-ledger");
-    PathBuf::from(name)
+/// The counter is keyed by the canonical input and page and lives in the input's own directory.
+/// A caller cannot start a fresh count by changing `--report` or by naming another output file.
+/// Each record is the page number and its count (two little-endian u32).
+fn crop_paths(input: &Path, page: u32) -> (PathBuf, PathBuf) {
+    let job_dir = input.parent().unwrap_or_else(|| Path::new("/"));
+    let key = sha256_hex(format!("{}\0{}", input.display(), page).as_bytes());
+    (
+        job_dir.join(format!(".nf-raster-crop-{key}.ledger")),
+        job_dir.join(format!(".nf-raster-crop-{key}.lock")),
+    )
 }
 
-/// Charge one crop to a page. The ledger is written atomically: an interrupted run never leaves
-/// a half record. A concurrent writer can lose one increment; the limit is an implementation
-/// guard, not a security decision, and the renderer's own pixel/bomb limits still apply.
-fn charge_crop(report: &Path, page: u32) -> Result<(), Outcome> {
-    let path = ledger_path(report);
-    let old = match std::fs::read(&path) {
+fn no_symlink(path: &Path, what: &str) -> Result<(), Outcome> {
+    if fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Err(failed(
+            2,
+            "refused",
+            "path_outside_job",
+            None,
+            &format!("the {what} must not be a symbolic link"),
+        ));
+    }
+    Ok(())
+}
+
+/// Charge one crop to a page before any rendering. The lock is held across the read, the check
+/// and the atomic write, so concurrent runs cannot both claim the last slot. An interrupted run
+/// leaves either the old count or the new one, never a half record.
+fn charge_crop(input: &Path, page: u32) -> Result<(), Outcome> {
+    let (ledger, lock_path) = crop_paths(input, page);
+    no_symlink(&lock_path, "crop lock")?;
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock_path)
+        .map_err(|_| {
+            failed(
+                2,
+                "refused",
+                "ledger_unreadable",
+                None,
+                "the crop count could not be locked",
+            )
+        })?;
+    lock.lock().map_err(|_| {
+        failed(
+            2,
+            "refused",
+            "ledger_unreadable",
+            None,
+            "the crop count could not be locked",
+        )
+    })?;
+    no_symlink(&ledger, "crop ledger")?;
+    let old = match fs::read(&ledger) {
         Ok(b) => b,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(_) => {
@@ -375,8 +465,7 @@ fn charge_crop(report: &Path, page: u32) -> Result<(), Outcome> {
         };
         records.push((p, c));
     }
-    let entry = records.iter_mut().find(|(p, _)| *p == page);
-    let count = match entry {
+    match records.iter_mut().find(|(p, _)| *p == page) {
         Some((_, c)) => {
             if *c >= MAX_CROPS_PER_PAGE {
                 return Err(failed(
@@ -388,20 +477,15 @@ fn charge_crop(report: &Path, page: u32) -> Result<(), Outcome> {
                 ));
             }
             *c += 1;
-            *c
         }
-        None => {
-            records.push((page, 1));
-            1
-        }
-    };
-    let _ = count;
+        None => records.push((page, 1)),
+    }
     let mut bytes = Vec::with_capacity(records.len() * 8);
     for (p, c) in records {
         bytes.extend_from_slice(&p.to_le_bytes());
         bytes.extend_from_slice(&c.to_le_bytes());
     }
-    if !write_whole(&path, &bytes) {
+    if !write_whole(&ledger, &bytes) {
         return Err(failed(
             70,
             "internal_error",
@@ -455,19 +539,20 @@ fn parent(argv: &[String]) -> ! {
         remove_if_present(&out_partial);
         invalid("output_unwritable", "cannot write the report");
     }
+    // A crop is charged now, before its render starts: the 41st request does no work at all.
+    if args.command == Command_::Crop {
+        if let Err(outcome) = charge_crop(&args.input, args.options.page) {
+            remove_if_present(&out_partial);
+            let _ = write_whole(&args.report, &outcome.report);
+            eprintln!("{}", outcome.line);
+            std::process::exit(outcome.code);
+        }
+    }
     let max_out = MAX_OUTPUT_BYTES;
 
     let outcome = run_worker(argv, input, max_out);
 
     if outcome.code == 0 {
-        if args.command == Command_::Crop {
-            if let Err(outcome) = charge_crop(&args.report, args.options.page) {
-                remove_if_present(&out_partial);
-                let _ = write_whole(&args.report, &outcome.report);
-                eprintln!("{}", outcome.line);
-                std::process::exit(outcome.code);
-            }
-        }
         let mut out_file = create(&out_partial, "output");
         let written = out_file.write_all(&outcome.dxf).is_ok() && out_file.flush().is_ok();
         drop(out_file);

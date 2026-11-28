@@ -189,6 +189,8 @@ fn verify_box_reports_a_check_with_provenance() {
     let json: serde_json::Value = serde_json::from_str(&v.to_json()).expect("json");
     assert_eq!(json["model_id"], nf_numread::MODEL_ID);
     assert_eq!(json["input_sha256"].as_str().unwrap().len(), 64);
+    assert_eq!(json["page_sha256"], nf_core::sha256_hex(PAGE));
+    assert_eq!(json["page"], serde_json::json!([1766, 1249]));
     assert_eq!(json["verdict"], "ok", "{json}");
     assert_eq!(json["ocr"], "agrees", "{json}");
     assert!(json["ocr_read"]
@@ -233,6 +235,20 @@ fn verify_box_cli_reports_a_verdict_or_a_usage_error() {
         .output()
         .expect("run");
     assert_eq!(bad.status.code(), Some(2));
+    let malformed = std::process::Command::new(exe)
+        .args([
+            "verify_box",
+            "page.png",
+            "--bbox",
+            "1,x,3,4",
+            "--text",
+            "x",
+            "--value",
+            "1",
+        ])
+        .output()
+        .expect("run");
+    assert_eq!(malformed.status.code(), Some(2));
     if model_dir().is_none() {
         return;
     }

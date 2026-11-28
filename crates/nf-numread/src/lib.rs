@@ -417,6 +417,8 @@ impl Reader {
             check,
             model_id: MODEL_ID,
             input_sha256,
+            page_sha256: hex(page),
+            page: (g.w, g.h),
             model_error,
         })
     }
@@ -433,6 +435,10 @@ pub struct BoxVerification {
     pub model_id: &'static str,
     /// SHA-256 of the grey crop pixels handed to the second read (empty when no crop was made).
     pub input_sha256: String,
+    /// SHA-256 of the page image the crop came from; binds the verdict to those exact pixels.
+    pub page_sha256: String,
+    /// Size of the page image the crop came from, in pixels.
+    pub page: (usize, usize),
     /// Model error text when the second read could not be made.
     pub model_error: Option<String>,
 }
@@ -443,6 +449,8 @@ impl BoxVerification {
         if let Some(obj) = check.as_object_mut() {
             obj.insert("model_id".into(), serde_json::json!(self.model_id));
             obj.insert("input_sha256".into(), serde_json::json!(self.input_sha256));
+            obj.insert("page_sha256".into(), serde_json::json!(self.page_sha256));
+            obj.insert("page".into(), serde_json::json!([self.page.0, self.page.1]));
             if let Some(e) = &self.model_error {
                 obj.insert("model_error".into(), serde_json::json!(e));
             }

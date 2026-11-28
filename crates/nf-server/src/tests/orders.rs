@@ -585,7 +585,7 @@ async fn l1_a_decision_is_tied_to_its_value_and_can_be_undone() {
     let t = boot();
     let oid = order_with_parts(&t).await;
     let vals = format!("/api/orders/{oid}/values");
-    let (st, _) = t.call("PUT", &vals, Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read" }] }))).await;
+    let (st, _) = t.call("PUT", &vals, Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "entered" }] }))).await;
     assert_eq!(st, StatusCode::OK);
     // automation confirms the value with its reason, under its own service identity
     let dec = format!("/api/orders/{oid}/decisions");
@@ -837,12 +837,14 @@ async fn mark(t: &T, oid: i64) -> i64 {
     k["id"].as_i64().unwrap()
 }
 
+// A plain value for decision-lifecycle tests. Read-source values now need a server-run second
+// read before they can be confirmed; these tests are not about reading and use "entered".
 async fn read_val(t: &T, oid: i64, key: &str, v: f64, text: &str) {
     let (st, r) = t
         .call(
             "PUT",
             &format!("/api/orders/{oid}/values"),
-            Some(json!({ "values": [{ "part": "1", "key": key, "value": v, "text": text, "source": "read" }] })),
+            Some(json!({ "values": [{ "part": "1", "key": key, "value": v, "text": text, "source": "entered" }] })),
         )
         .await;
     assert_eq!(st, StatusCode::OK, "{r}");
@@ -992,7 +994,7 @@ async fn l1r1_a_confirmation_does_not_survive_a_changed_source_or_box() {
         )
         .await;
     let id = c["id"].as_i64().unwrap();
-    let (st, _) = t.call("PUT", &format!("/api/orders/{oid}/values"), Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read", "bbox": [5, 5, 50, 50] }] }))).await;
+    let (st, _) = t.call("PUT", &format!("/api/orders/{oid}/values"), Some(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "entered", "bbox": [5, 5, 50, 50] }] }))).await;
     assert_eq!(st, StatusCode::OK);
     let o = t.get(&format!("/api/orders/{oid}")).await;
     assert_eq!(o["parts"][0]["values"][0]["state"], "PROPOSED");
@@ -1949,69 +1951,95 @@ async fn l10_a_held_part_gets_no_dxf_and_the_rules_come_from_the_order() {
     assert_eq!(v["code"], "order_rules");
 }
 
+const REAL_PAGE: &[u8] = include_bytes!("../../../nf-numread/tests/data/synth-test-00000.png");
+
+async fn order_with_real_page(t: &T) -> i64 {
+    let oid = new_order(t).await;
+    assert_eq!(
+        add_file(t, oid, REAL_PAGE.to_vec(), "b.png").await.0,
+        StatusCode::OK
+    );
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/parts"),
+            Some(json!({ "parts": [
+                { "no": "1", "name": "main", "shape": "cylinder", "qty": 2, "page": 1 }
+            ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    oid
+}
+
 #[tokio::test]
-async fn pz2_a_reading_verdict_is_stored_with_the_proposal_and_never_confirms_it() {
+async fn pz2_read_verdict_is_run_on_the_server_and_bound_to_page_and_box() {
     let t = boot();
-    let oid = order_with_parts(&t).await;
+    let oid = order_with_real_page(&t).await;
+    // Every verdict/reason/provenance field a caller sends is ignored; only page_no is used.
     let flag = json!({
-        "model_id": "nf-numread-verify-1",
-        "input_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        "page": [2480.0, 3508.0],
+        "page_no": 1,
+        "verdict": "ok",
         "ocr": "disagrees",
-        "ocr_read": ["999"]
+        "ocr_read": ["999"],
+        "model_id": "attacker",
+        "input_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
     });
     let (st, v) = t
         .call(
             "PUT",
             &format!("/api/orders/{oid}/values"),
-            Some(json!({ "values": [
-        { "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read",
-          "bbox": [10, 20, 90, 60], "flag": flag }
-    ] })),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": flag
+            }] })),
         )
         .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let o = t.get(&format!("/api/orders/{oid}")).await;
     let f = &o["parts"][0]["values"][0]["flag"];
-    assert_eq!(f["verdict"], "ocr_disagrees", "{o}");
-    assert_eq!(f["model_id"], "nf-numread-verify-1");
-    assert_eq!(f["input_sha256"], flag["input_sha256"]);
+    assert_eq!(f["verdict"], "ok", "{o}");
+    assert_eq!(f["model_id"], nf_numread::MODEL_ID);
+    assert_eq!(f["page_sha256"], nf_core::sha256_hex(REAL_PAGE));
+    assert_eq!(f["input_sha256"].as_str().unwrap().len(), 64);
+    assert!(
+        f["ocr_read"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s.as_str() == Some("φ301.0"))
+    );
     assert_eq!(o["parts"][0]["values"][0]["state"], "PROPOSED");
-    // a blocking verdict refuses both a direct confirmation and a confirm-all
     let (st, v) = t
         .call(
             "POST",
             &format!("/api/orders/{oid}/decisions"),
-            Some(json!({
-                "kind": "confirm", "part": "1", "key": "D"
-            })),
+            Some(json!({ "kind": "confirm", "part": "1", "key": "D" })),
         )
         .await;
-    assert_eq!(
-        (st, v["code"].as_str()),
-        (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_conflict")),
-        "{v}"
-    );
-    let (st, v) = t
-        .call(
-            "POST",
-            &format!("/api/orders/{oid}/confirm"),
-            Some(json!({ "all": true })),
-        )
-        .await;
-    assert_eq!(
-        (st, v["code"].as_str()),
-        (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_conflict")),
-        "{v}"
-    );
+    assert_eq!(st, StatusCode::OK, "{v}");
+}
+
+#[tokio::test]
+async fn pz2_client_cannot_assert_a_second_read_or_an_out_of_page_box() {
+    let t = boot();
+    let oid = order_with_real_page(&t).await;
+    let claimed = json!({
+        "page_no": 1,
+        "ocr": "agrees",
+        "ocr_read": ["999"],
+        "verdict": "ok",
+        "model_id": "attacker"
+    });
+    // An out-of-page box is checked against the stored page before any confirmation.
     let (st, v) = t
         .call(
             "PUT",
             &format!("/api/orders/{oid}/values"),
-            Some(json!({ "values": [
-        { "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read",
-          "bbox": [10, 20, 90, 60], "confirm": true }
-    ] })),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [10000, 10000, 10001, 10001], "flag": claimed, "confirm": true
+            }] })),
         )
         .await;
     assert_eq!(
@@ -2019,16 +2047,76 @@ async fn pz2_a_reading_verdict_is_stored_with_the_proposal_and_never_confirms_it
         (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_conflict")),
         "{v}"
     );
-    // a second check that agrees replaces the first; then a person may confirm
-    let (st, v) = t.call("PUT", &format!("/api/orders/{oid}/values"), Some(json!({ "values": [
-        { "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read",
-          "bbox": [10, 20, 90, 60], "confirm": true, "flag": {
-            "model_id": "nf-numread-verify-1", "input_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-            "page": [2480.0, 3508.0], "ocr": "agrees", "ocr_read": ["216.3"]
-          } }
-    ] }))).await;
+    // No second read at all cannot confirm a read-source value.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "confirm": true
+            }] })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_unverified")),
+        "{v}"
+    );
+    // A claimed agreement cannot make a disagreeing model agree.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 999.0, "text": "φ999.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": claimed
+            }] })),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let o = t.get(&format!("/api/orders/{oid}")).await;
-    assert_eq!(o["parts"][0]["values"][0]["flag"]["verdict"], "ok");
-    assert_eq!(o["parts"][0]["values"][0]["state"], "CONFIRMED");
+    assert_eq!(
+        o["parts"][0]["values"][0]["flag"]["verdict"],
+        "ocr_disagrees"
+    );
+    assert_eq!(
+        o["parts"][0]["values"][0]["flag"]["model_id"],
+        nf_numread::MODEL_ID
+    );
+}
+
+#[tokio::test]
+async fn pz2_malformed_stored_flag_fails_closed() {
+    let t = boot();
+    let oid = order_with_real_page(&t).await;
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7]
+            }] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    t.sql(&format!(
+        "UPDATE order_values SET flag = '{{\"verdict\":\"ok\"}}' WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"
+    ));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions"),
+            Some(json!({ "kind": "confirm", "part": "1", "key": "D" })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Some("reading_flag_invalid")
+        ),
+        "{v}"
+    );
 }

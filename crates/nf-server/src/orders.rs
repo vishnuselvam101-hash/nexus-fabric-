@@ -20,7 +20,7 @@
 //! changes.
 
 use super::*;
-use nf_core::reading::{CheckCtx, ItemIn, ItemRef, OcrCheck, Provenance, StoredCheck, Verdict};
+use nf_core::reading::{BoxCheck, ItemRef, OcrCheck, Provenance, StoredCheck, Verdict};
 
 /// Implementation limits, stated to the user by the UI.
 pub(crate) const MAX_ORDER_FILES: i64 = 100;
@@ -506,94 +506,112 @@ fn parse_bbox(v: Option<&Value>) -> Result<Option<String>, ApiError> {
     }
 }
 
-/// The verdict of the reading check stored with a proposal. The stored JSON is made here, from the
-/// current value, text, box and source and the second read's outcome; a caller cannot hand us a
-/// "verdict": ok to make a bad reading pass. The model only reports what it read (PZ-2).
-fn parse_flag(
-    v: Option<&Value>,
-    key: &str,
+/// The number reader is loaded once, from the pinned models, and shared by every request. A stored
+/// verdict can only come from this reader: no request field is allowed to name a verdict.
+static NUMREAD: std::sync::OnceLock<Result<std::sync::Mutex<nf_numread::Reader>, String>> =
+    std::sync::OnceLock::new();
+
+fn numread_lock() -> Result<std::sync::MutexGuard<'static, nf_numread::Reader>, ApiError> {
+    let reader = NUMREAD.get_or_init(|| {
+        nf_numread::Reader::new()
+            .map(std::sync::Mutex::new)
+            .map_err(|e| e.to_string())
+    });
+    reader
+        .as_ref()
+        .map_err(|e| {
+            unprocessable(
+                "ocr_no_models",
+                &format!("the second reader could not be started: {e}"),
+            )
+        })?
+        .lock()
+        .map_err(|_| ApiError::Internal("the second reader was poisoned".into()))
+}
+
+#[derive(Clone, Copy)]
+struct FlagContext<'a> {
+    app: &'a App,
+    db: &'a Connection,
+    oid: i64,
+    key: &'a str,
     value: Option<f64>,
-    text: &str,
-    bbox: Option<&str>,
-    source: &str,
-    part: &str,
-) -> Result<Option<String>, ApiError> {
+    text: &'a str,
+    bbox: Option<&'a str>,
+    source: &'a str,
+    part: &'a str,
+}
+
+/// Run the second read here. The request may only name which page of this order the box is on; the
+/// page hash comes from the database, the box comes from the value, and the verdict and hashes come
+/// from `nf-numread`. Client fields named `ocr`, `verdict`, `model_id` or `input_sha256` are ignored.
+fn parse_flag(ctx: &FlagContext<'_>, v: Option<&Value>) -> Result<Option<String>, ApiError> {
+    let FlagContext {
+        app,
+        db,
+        oid,
+        key,
+        value,
+        text,
+        bbox,
+        source,
+        part,
+    } = *ctx;
     let Some(obj) = v.filter(|v| !matches!(v, Value::Null)) else {
+        return Ok(None);
+    };
+    // Only values that claim to be on a page get a second read.
+    let (Some(value), true) = (value, READ_SOURCES.contains(&source)) else {
         return Ok(None);
     };
     let bad = |msg: &str| unprocessable("reading_flag", msg);
     let obj = obj
         .as_object()
         .ok_or_else(|| bad("'flag' must be an object"))?;
-    let wrapper = Value::Object(obj.clone());
-    let model_id = text_field(&wrapper, "model_id", 96)?
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| bad("'flag.model_id' must name the reader"))?;
-    let input_sha256 = text_field(&wrapper, "input_sha256", 64)?
-        .filter(|s| s.is_empty() || (s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit())))
-        .ok_or_else(|| bad("'flag.input_sha256' must be a SHA-256 hex string"))?;
-    let page = match obj.get("page") {
-        None | Some(Value::Null) => None,
-        Some(Value::Array(a)) if a.len() == 2 => {
-            let n: Option<Vec<f64>> = a
-                .iter()
-                .map(|x| {
-                    x.as_f64()
-                        .filter(|f| f.is_finite() && (1.0..=1.0e6).contains(f))
-                })
-                .collect();
-            let n = n.ok_or_else(|| bad("'flag.page' must be [width, height] in pixels"))?;
-            Some((n[0], n[1]))
-        }
-        Some(_) => return Err(bad("'flag.page' must be [width, height] in pixels")),
-    };
-    let code = text_field(&wrapper, "ocr", 32)?.unwrap_or_else(|| "not_run".to_string());
-    let read: Vec<String> = match obj.get("ocr_read") {
-        None | Some(Value::Null) => Vec::new(),
-        Some(Value::Array(a)) => a
-            .iter()
-            .map(|x| {
-                x.as_str()
-                    .filter(|s| s.chars().count() <= 100)
-                    .map(str::to_string)
-                    .ok_or_else(|| bad("'flag.ocr_read' must hold short strings"))
-            })
-            .collect::<Result<_, _>>()?,
-        Some(_) => return Err(bad("'flag.ocr_read' must be an array")),
-    };
-    if read.len() > 20 {
-        return Err(bad("'flag.ocr_read' holds at most 20 strings"));
+    let page_no = obj
+        .get("page_no")
+        .and_then(Value::as_i64)
+        .filter(|n| *n >= 1)
+        .ok_or_else(|| bad("'flag.page_no' must name a page of this order"))?;
+    let (sha, w, h): (Option<String>, i64, i64) = db
+        .query_row(
+            "SELECT png_sha256, width, height FROM order_pages WHERE order_id = ? AND page_no = ?",
+            params![oid, page_no],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?
+        .ok_or_else(|| bad("'flag.page_no' is not a page of this order"))?;
+    let sha = sha.ok_or_else(|| bad("the image of that page has not been rendered yet"))?;
+    let page = storage::load_blob(&app.data_dir, &app.key, &sha).map_err(|e| {
+        elog!("nf-server: page image {sha} cannot be read: {e}");
+        unprocessable(
+            "page_image_invalid",
+            "the stored page image failed its integrity check",
+        )
+    })?;
+    let raw: [f64; 4] = serde_json::from_str(
+        bbox.ok_or_else(|| bad("a read value needs 'bbox' before it can be checked"))?,
+    )
+    .map_err(|_| bad("'bbox' must be [x0, y0, x1, y1] in page pixels"))?;
+    let boxed = raw.map(|n| n as f32);
+    let verification = {
+        let reader = numread_lock()?;
+        reader.verify_box(&page, boxed, key, text, value, source)
     }
-    let ocr = match code.as_str() {
-        "not_run" => OcrCheck::NotRun,
-        "agrees" => OcrCheck::Agrees { read },
-        "disagrees" => OcrCheck::Disagrees { read },
-        "unavailable" => OcrCheck::Unavailable(
-            text_field(&wrapper, "ocr_reason", 64)?.unwrap_or_else(|| "unavailable".to_string()),
-        ),
-        _ => {
-            return Err(bad(
-                "'flag.ocr' must be not_run, agrees, disagrees or unavailable",
-            ));
-        }
-    };
-    let bbox_vec: Option<Vec<f64>> = bbox
-        .and_then(|b| serde_json::from_str::<Vec<f64>>(b).ok())
-        .filter(|b| b.len() == 4 && b.iter().all(|f| f.is_finite()));
-    let check = nf_core::reading::check_item(
-        &ItemIn {
-            key,
-            value,
-            text,
-            bbox: bbox_vec.as_deref(),
-            source,
-        },
-        &CheckCtx {
-            page,
-            require_box: READ_SOURCES.contains(&source),
-        },
-        ocr,
-    );
+    .map_err(|e| unprocessable("ocr_failed", &format!("the second read failed: {e}")))?;
+    if w > 0
+        && h > 0
+        && verification.page
+            != (
+                usize::try_from(w).unwrap_or(0),
+                usize::try_from(h).unwrap_or(0),
+            )
+    {
+        return Err(unprocessable(
+            "ocr_not_this_page",
+            "the page image does not match the stored page size",
+        ));
+    }
     let stored = StoredCheck {
         item: ItemRef {
             part: 0,
@@ -601,10 +619,11 @@ fn parse_flag(
             shape: String::new(),
             key: key.to_string(),
         },
-        check,
+        check: verification.check,
         provenance: Provenance {
-            model_id,
-            input_sha256,
+            model_id: nf_numread::MODEL_ID.to_string(),
+            input_sha256: verification.input_sha256,
+            page_sha256: sha,
         },
     };
     serde_json::to_string(&stored.to_json())
@@ -617,16 +636,126 @@ fn parse_flag(
         })
 }
 
-fn flag_verdict(flag: Option<&str>) -> Option<Verdict> {
-    serde_json::from_str::<Value>(flag?)
-        .ok()?
-        .get("verdict")?
-        .as_str()
-        .and_then(Verdict::from_code)
+/// The verdict used by compute. A damaged stored check on a read value is treated as a conflict,
+/// never as an absent verdict: compute holds such a value for a person instead of using it.
+fn flag_verdict(flag: Option<&str>, value: Option<f64>, source: &str) -> Option<Verdict> {
+    let raw = flag?;
+    let v = serde_json::from_str::<Value>(raw).ok()?;
+    Some(match StoredCheck::from_json(&v, value) {
+        Some(check) => check.check.verdict,
+        None if READ_SOURCES.contains(&source) => Verdict::Conflicting,
+        None => return None,
+    })
 }
 
-fn flag_blocks(flag: Option<&str>) -> bool {
-    flag_verdict(flag).is_some_and(Verdict::blocks)
+/// Whether a stored check may stand behind a confirmation of a read value.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReadingGate {
+    Pass,
+    Blocked,
+    Unverified,
+}
+
+#[derive(Clone, Copy)]
+struct ReadingContext<'a> {
+    db: &'a Connection,
+    oid: i64,
+    part_no: &'a str,
+    key: &'a str,
+    flag: Option<&'a str>,
+    value: Option<f64>,
+    bbox: Option<&'a str>,
+    source: &'a str,
+}
+
+fn reading_gate(ctx: &ReadingContext<'_>) -> Result<ReadingGate, ApiError> {
+    let ReadingContext {
+        db,
+        oid,
+        part_no,
+        key,
+        flag,
+        value,
+        bbox,
+        source,
+    } = *ctx;
+    if value.is_none() || !READ_SOURCES.contains(&source) {
+        return Ok(ReadingGate::Pass);
+    }
+    let Some(raw) = flag else {
+        return Ok(ReadingGate::Unverified);
+    };
+    let v: Value = serde_json::from_str(raw).map_err(|_| {
+        unprocessable(
+            "reading_flag_invalid",
+            "the stored reading check is damaged; a person must check the value",
+        )
+    })?;
+    let Some(check) = StoredCheck::from_json(&v, value) else {
+        return Err(unprocessable(
+            "reading_flag_invalid",
+            "the stored reading check is incomplete or inconsistent; a person must check the value",
+        ));
+    };
+    if check.item.no != part_no || check.item.key != key {
+        return Err(unprocessable(
+            "reading_flag_invalid",
+            "the stored reading check belongs to a different value",
+        ));
+    }
+    // The check is only evidence for the exact page and box the server read. A stored page hash
+    // that is not the stored page, or a box that is no longer on it, cannot support a confirmation.
+    let page: Option<(Option<String>, i64, i64)> = db
+        .query_row(
+            "SELECT p.png_sha256, p.width, p.height FROM order_parts q JOIN order_pages p ON p.id = q.page_id WHERE q.order_id = ? AND q.no = ?",
+            params![oid, part_no],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional()?;
+    let Some((Some(sha), w, h)) = page else {
+        return Ok(ReadingGate::Unverified);
+    };
+    if sha != check.provenance.page_sha256 || w <= 0 || h <= 0 {
+        return Ok(ReadingGate::Unverified);
+    }
+    let boxed: Option<[f64; 4]> = bbox
+        .and_then(|b| serde_json::from_str(b).ok())
+        .filter(|b: &[f64; 4]| b.iter().all(|n| n.is_finite()));
+    let box_ok = boxed.is_some_and(|b| {
+        matches!(
+            nf_core::reading::check_box(Some(&b), Some((w as f64, h as f64))),
+            BoxCheck::Ok
+        )
+    }) && matches!(check.check.bbox, BoxCheck::Ok);
+    if !box_ok || check.check.verdict.blocks() {
+        return Ok(ReadingGate::Blocked);
+    }
+    let provenance_ok = check.provenance.model_id == nf_numread::MODEL_ID
+        && !check.provenance.input_sha256.is_empty()
+        && sha == check.provenance.page_sha256;
+    if provenance_ok && matches!(check.check.ocr, OcrCheck::Agrees { .. }) {
+        Ok(ReadingGate::Pass)
+    } else {
+        Ok(ReadingGate::Unverified)
+    }
+}
+
+fn reading_gate_error(gate: ReadingGate, where_: &str) -> ApiError {
+    match gate {
+        ReadingGate::Blocked => unprocessable(
+            "reading_conflict",
+            &format!(
+                "{where_} has a conflicting reading check; it stays proposed (JA: 読み取り確認が必要です)"
+            ),
+        ),
+        ReadingGate::Unverified => unprocessable(
+            "reading_unverified",
+            &format!(
+                "{where_} has no second read that agrees; a person must check it (JA: 読み取り確認が必要です)"
+            ),
+        ),
+        ReadingGate::Pass => ApiError::Internal("a passing reading gate cannot refuse".into()),
+    }
 }
 
 fn recompute_part_state(db: &Connection, part: i64) -> rusqlite::Result<()> {
@@ -1484,7 +1613,7 @@ struct ValueIn {
     note: String,
 }
 
-fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
+fn parse_value(app: &App, db: &Connection, oid: i64, v: &Value) -> Result<ValueIn, ApiError> {
     let part = v
         .get("part")
         .cloned()
@@ -1589,19 +1718,33 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
         _ => String::new(),
     };
     let flag = parse_flag(
+        &FlagContext {
+            app,
+            db,
+            oid,
+            key: &key,
+            value,
+            text: &text,
+            bbox: bbox.as_deref(),
+            source: &source,
+            part: &part_no,
+        },
         v.get("flag"),
-        &key,
-        value,
-        &text,
-        bbox.as_deref(),
-        &source,
-        &part_no,
     )?;
-    if confirm && flag_blocks(flag.as_deref()) {
-        return Err(unprocessable(
-            "reading_conflict",
-            "a value with a conflicting reading check stays proposed; a person must check it first (EN: reading conflict / JA: 読み取り確認が必要です)",
-        ));
+    if confirm {
+        let gate = reading_gate(&ReadingContext {
+            db,
+            oid,
+            part_no: &part_no,
+            key: &key,
+            flag: flag.as_deref(),
+            value,
+            bbox: bbox.as_deref(),
+            source: &source,
+        })?;
+        if gate != ReadingGate::Pass {
+            return Err(reading_gate_error(gate, &format!("part '{part_no}' {key}")));
+        }
     }
     let note = text_field(v, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
     Ok(ValueIn {
@@ -1690,14 +1833,17 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
             &format!("at most {MAX_VALUE_BATCH} values per request"),
         ));
     }
-    let values: Vec<ValueIn> = list.iter().map(parse_value).collect::<Result<_, _>>()?;
-    for v in &values {
-        agent_reason(u, &v.note)?;
-    }
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
     guard_order(app, &tx, u, oid, "edit values")?;
+    let values: Vec<ValueIn> = list
+        .iter()
+        .map(|v| parse_value(app, &tx, oid, v))
+        .collect::<Result<_, _>>()?;
+    for v in &values {
+        agent_reason(u, &v.note)?;
+    }
     let (mut changed, mut unchanged) = (0, 0);
     let mut touched = BTreeSet::new();
     for v in &values {
@@ -1750,12 +1896,19 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
             .flag
             .clone()
             .or_else(|| if content_same { old_flag.clone() } else { None });
-        if flag_blocks(flag.as_deref()) {
+        let gate = reading_gate(&ReadingContext {
+            db: &tx,
+            oid,
+            part_no: &pno,
+            key: &v.key,
+            flag: flag.as_deref(),
+            value: v.value,
+            bbox: v.bbox.as_deref(),
+            source: &v.source,
+        })?;
+        if gate != ReadingGate::Pass {
             if v.confirm {
-                return Err(unprocessable(
-                    "reading_conflict",
-                    "a value with a conflicting reading check stays proposed; a person must check it first (EN: reading conflict / JA: 読み取り確認が必要です)",
-                ));
+                return Err(reading_gate_error(gate, &format!("part '{pno}' {}", v.key)));
             }
             new_state = "PROPOSED";
         }
@@ -1931,13 +2084,18 @@ fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) ->
             if state == "CONFIRMED" {
                 continue;
             }
-            if flag_blocks(flag.as_deref()) {
-                return Err(unprocessable(
-                    "reading_conflict",
-                    &format!(
-                        "part '{pno}' {key} has a conflicting reading check; it stays proposed (JA: 読み取り確認が必要です)"
-                    ),
-                ));
+            let gate = reading_gate(&ReadingContext {
+                db: &tx,
+                oid,
+                part_no: pno,
+                key: &key,
+                flag: flag.as_deref(),
+                value: val,
+                bbox: bbox.as_deref(),
+                source: &src,
+            })?;
+            if gate != ReadingGate::Pass {
+                return Err(reading_gate_error(gate, &format!("part '{pno}' {key}")));
             }
             tx.execute(
                 "UPDATE order_values SET state = 'CONFIRMED', edited_by = ?, edited_at = ? WHERE id = ?",
@@ -2101,13 +2259,20 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
                 &format!("part '{pno}' {key} is confirmed already; undo that decision first"),
             ));
         }
-        if kind == "confirm" && flag_blocks(reading_flag.as_deref()) {
-            return Err(unprocessable(
-                "reading_conflict",
-                &format!(
-                    "part '{pno}' {key} has a conflicting reading check; it stays proposed (JA: 読み取り確認が必要です)"
-                ),
-            ));
+        if kind == "confirm" {
+            let gate = reading_gate(&ReadingContext {
+                db: &tx,
+                oid,
+                part_no: &pno,
+                key: &key,
+                flag: reading_flag.as_deref(),
+                value: val,
+                bbox: bbox.as_deref(),
+                source: &src,
+            })?;
+            if gate != ReadingGate::Pass {
+                return Err(reading_gate_error(gate, &format!("part '{pno}' {key}")));
+            }
         }
         if kind == "accept_flag" {
             if !flag.as_deref().is_some_and(valid_key) {
@@ -2476,7 +2641,8 @@ fn load_compute_input(
                     value: *value,
                     state: st,
                     source: source.clone(),
-                    reading_verdict: flag_verdict(flag.as_deref()).map(|v| v.code().to_string()),
+                    reading_verdict: flag_verdict(flag.as_deref(), *value, source)
+                        .map(|v| v.code().to_string()),
                 },
             );
         }
@@ -2494,7 +2660,7 @@ fn load_compute_input(
                         v.map(f64::to_bits),
                         s,
                         st,
-                        flag_verdict(f.as_deref()).map(|x| x.code())
+                        flag_verdict(f.as_deref(), *v, s).map(|x| x.code())
                     ])
                 })
                 .collect::<Vec<_>>()

@@ -15,6 +15,7 @@ hyper-util = { version = "0.1.20", features = ["tokio", "service", "server-grace
 nf-core = { version = "0.1.0", path = "../nf-core" }
 nf-digest = { version = "0.1.0", path = "../nf-digest" }
 nf-licence = { version = "0.1.0", path = "../nf-licence" }
+nf-numread = { version = "0.1.0", path = "../nf-numread" }
 rand = "0.10.4"
 rusqlite = { version = "0.43.0", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }

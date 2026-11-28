@@ -43,11 +43,24 @@ fn hex(b: &[u8]) -> String {
     format!("{:x}", Sha256::digest(b))
 }
 
+/// The program treats the input's directory as the job directory; put each fixture there.
+fn input(t: &Tmp, name: &str) -> PathBuf {
+    let p = t.p(name);
+    // The cap test needs two distinct input paths for the same source PDF.
+    let source = if name == "cap.pdf" || name == "oob.pdf" {
+        "scan_g4_small.pdf"
+    } else {
+        name
+    };
+    std::fs::copy(fixture_path(source), &p).unwrap();
+    p
+}
+
 #[test]
 fn page_writes_a_png_and_a_report_that_matches_it() {
     let t = Tmp::new("page");
     let (png, rep) = (t.p("p.png"), t.p("p.json"));
-    let pdf = fixture_path("scan_g4_small.pdf");
+    let pdf = input(&t, "scan_g4_small.pdf");
     let o = run(&[
         "page",
         "1",
@@ -92,7 +105,7 @@ fn page_writes_a_png_and_a_report_that_matches_it() {
 fn info_writes_json() {
     let t = Tmp::new("info");
     let out = t.p("i.json");
-    let pdf = fixture_path("scan_multi.pdf");
+    let pdf = input(&t, "scan_multi.pdf");
     let o = run(&["info", "--in", s(&pdf), "--out", s(&out)]);
     assert_eq!(
         o.status.code(),
@@ -119,7 +132,7 @@ fn refusals_exit_2_leave_no_png_and_say_why() {
         let (png, rep) = (t.p("r.png"), t.p("r.json"));
         // a file from an earlier run must not survive
         std::fs::write(&png, b"old").unwrap();
-        let pdf = fixture_path(name);
+        let pdf = input(&t, name);
         let o = run(&[
             "page",
             "1",
@@ -160,7 +173,7 @@ fn limits_exit_3() {
         ("bad_bomb.pdf", "compression_ratio"),
         ("bad_huge_dims.pdf", "image_pixels"),
     ] {
-        let pdf = fixture_path(name);
+        let pdf = input(&t, name);
         let o = run(&[
             "page",
             "1",
@@ -183,7 +196,7 @@ fn limits_exit_3() {
 #[test]
 fn bad_arguments_exit_2() {
     let t = Tmp::new("args");
-    let pdf = fixture_path("scan_g4_small.pdf");
+    let pdf = input(&t, "scan_g4_small.pdf");
     let (png, rep) = (t.p("a.png"), t.p("a.json"));
     for (args, code) in [
         (
@@ -278,7 +291,7 @@ fn bad_arguments_exit_2() {
 #[test]
 fn the_worker_is_isolated() {
     let t = Tmp::new("iso");
-    let pdf = fixture_path("scan_dct_gray.pdf");
+    let pdf = input(&t, "scan_dct_gray.pdf");
     let o = run(&[
         "page",
         "1",
@@ -365,7 +378,7 @@ fn a_killed_program_leaves_an_incomplete_report() {
 fn crop_writes_an_exact_pixel_box_in_the_sandboxed_worker() {
     let t = Tmp::new("crop");
     let (png, rep) = (t.p("c.png"), t.p("c.json"));
-    let pdf = fixture_path("scan_g4_small.pdf");
+    let pdf = input(&t, "scan_g4_small.pdf");
     // A box within one pixel of page edges is clamped; the fractional edges are snapped out.
     let o = run(&[
         "crop",
@@ -406,13 +419,14 @@ fn crop_writes_an_exact_pixel_box_in_the_sandboxed_worker() {
 #[test]
 fn crop_refuses_an_out_of_page_box_and_the_42nd_crop_of_a_page() {
     let t = Tmp::new("crop-limits");
-    let pdf = fixture_path("scan_g4_small.pdf");
+    let pdf = input(&t, "cap.pdf");
+    let oob = input(&t, "oob.pdf");
     let (png, rep) = (t.p("l.png"), t.p("l.json"));
     let o = run(&[
         "crop",
         "1",
         "--in",
-        s(&pdf),
+        s(&oob),
         "--out",
         s(&png),
         "--report",
@@ -477,4 +491,47 @@ fn crop_refuses_an_out_of_page_box_and_the_42nd_crop_of_a_page() {
         String::from_utf8_lossy(&o.stderr)
     );
     assert!(String::from_utf8_lossy(&o.stderr).contains("crops_per_page"));
+    // Changing the report or output name cannot start a fresh count for the same input and page.
+    let other = run(&[
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&t.p("other.png")),
+        "--report",
+        s(&t.p("other.json")),
+        "--dpi",
+        "100",
+        "--gray",
+        "--bbox",
+        "10,10,20,20",
+    ]);
+    assert_eq!(
+        other.status.code(),
+        Some(3),
+        "{}",
+        String::from_utf8_lossy(&other.stderr)
+    );
+
+    let escaped = run(&[
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&Path::new("/tmp").join("nf-raster-escape.png")),
+        "--report",
+        s(&rep),
+        "--bbox",
+        "10,10,20,20",
+    ]);
+    assert_eq!(
+        escaped.status.code(),
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&escaped.stderr)
+    );
+    assert!(String::from_utf8_lossy(&escaped.stderr).contains("path_outside_job"));
+    assert!(!Path::new("/tmp/nf-raster-escape.png").exists());
 }
