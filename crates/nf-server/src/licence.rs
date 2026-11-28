@@ -313,6 +313,10 @@ pub(crate) fn gated(method: &Method, path: &str) -> bool {
         return matches!(seg.as_slice(), ["api", "orders", id, "parts" | "values" | "rules"] if id.parse::<i64>().is_ok())
             || matches!(seg.as_slice(), ["api", "projects", id, "rules"] if id.parse::<i64>().is_ok());
     }
+    // the quote estimate is paid-tier output: gated like new work, read or not
+    if *method == Method::GET {
+        return matches!(seg.as_slice(), ["api", "orders", id, "estimate"] if id.parse::<i64>().is_ok());
+    }
     if *method != Method::POST {
         return false;
     }

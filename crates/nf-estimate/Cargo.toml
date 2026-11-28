@@ -1,0 +1,18 @@
+[package]
+name = "nf-estimate"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Proprietary"
+publish = false
+description = "Quote and cost estimate from verified geometry: mass, cut and weld length, pierces, factory rates (unset = hold)"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+nf-jobout = { path = "../nf-jobout" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
+
+[dev-dependencies]
+nf-core = { path = "../nf-core" }
