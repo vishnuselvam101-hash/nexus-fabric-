@@ -132,10 +132,23 @@ pub(super) fn add_reading(
     flags: &[&str],
     conf: f64,
 ) -> i64 {
+    add_reading_on_page(t, oid, 1, text, value, flags, conf)
+}
+
+/// The same record on a chosen page, for the cross-page confirmation test.
+pub(super) fn add_reading_on_page(
+    t: &T,
+    oid: i64,
+    page: i64,
+    text: &str,
+    value: f64,
+    flags: &[&str],
+    conf: f64,
+) -> i64 {
     let db = t.app.db();
     db.execute(
         "INSERT INTO order_readings(order_id, page_no, bbox_json, text, value, kind, flags_json, confidence, reader_id, model_sha256, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-        params![oid, 1, "[10.0,20.0,80.0,40.0]", text, value, "number", json!(flags).to_string(), conf, "test reader", "0".repeat(64), "test", 0],
+        params![oid, page, "[10.0,20.0,80.0,40.0]", text, value, "number", json!(flags).to_string(), conf, "test reader", "0".repeat(64), "test", 0],
     )
     .unwrap();
     db.last_insert_rowid()

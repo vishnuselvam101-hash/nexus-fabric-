@@ -1,6 +1,9 @@
 //! AIOP-1: the operator event stream, pause and undo, driven through the real router.
 
-use super::orders::{add_agent, add_reading, order_with_parts, png, raw_with, with_ev};
+use super::orders::{
+    add_agent, add_reading, add_reading_on_page, agent_clean_read, order_with_parts, png, raw_with,
+    with_ev,
+};
 use super::*;
 
 fn ev(step: &str, action: &str, target: Value, reason: &str) -> Value {
@@ -657,6 +660,38 @@ async fn aiop_the_operator_confirms_only_against_a_clean_server_side_reading() {
 }
 
 #[tokio::test]
+async fn aiop_a_clean_reading_of_another_page_cannot_confirm_a_page_one_value() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let agent = add_agent(&t, "operator-ai");
+    let ac = [("cookie", agent.as_str())];
+    let vals = format!("/api/orders/{oid}/values");
+    // the agent has a clean, high-confidence server reading, but it was read on page 2
+    let page_2 = add_reading_on_page(&t, oid, 2, "216.3", 216.3, &[], 0.97);
+    let cross_page = confirm_body("D", 216.3, Some(page_2), json!([]), 0.99);
+    let (st, _, b) = t.send("PUT", &vals, Some(cross_page), &ac).await;
+    assert_eq!(
+        (st, code(&b)),
+        (StatusCode::FORBIDDEN, json!("agent_cannot_confirm")),
+        "a page-2 reading is not proof of a page-1 value: {}",
+        String::from_utf8_lossy(&b)
+    );
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_values"), 0);
+    assert_eq!(t.count("SELECT COUNT(*) FROM operator_events"), 0);
+    // the same value read on the part's own page is accepted
+    let page_1 = add_reading_on_page(&t, oid, 1, "216.3", 216.3, &[], 0.97);
+    let own_page = confirm_body("D", 216.3, Some(page_1), json!([]), 0.99);
+    let (st, _, b) = t.send("PUT", &vals, Some(own_page), &ac).await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(d_value(&o, "D")["state"], "CONFIRMED");
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM order_values WHERE key = 'D' AND source = 'read'"),
+        1
+    );
+}
+
+#[tokio::test]
 async fn aiop_a_value_a_person_set_or_checked_is_not_overwritten_by_the_operator() {
     let t = boot();
     let oid = order_with_parts(&t).await;
@@ -1163,6 +1198,87 @@ async fn aiop_every_write_of_the_operator_needs_an_event() {
             (StatusCode::CONFLICT, json!("operator_paused"))
         );
     }
+}
+
+#[tokio::test]
+async fn aiop_create_read_and_undo_writes_carry_events_too() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let agent = add_agent(&t, "operator-ai");
+    let ac = [("cookie", agent.as_str())];
+    let no_event = (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        json!("operator_event_required"),
+    );
+    // creating an order and reading a page are writes: neither may be event-free
+    let create = "/api/projects/1/orders";
+    let (st, _, b) = t
+        .send(
+            "POST",
+            create,
+            Some(json!({ "name": "agent order", "reason": "r" })),
+            &ac,
+        )
+        .await;
+    assert_eq!((st, code(&b)), no_event);
+    assert_eq!(t.count("SELECT COUNT(*) FROM orders"), 1);
+    let read = format!("/api/orders/{oid}/pages/3/read");
+    let (st, _, b) = t.send("POST", &read, Some(json!({})), &ac).await;
+    assert_eq!((st, code(&b)), no_event);
+    // an agent-made confirmation can be undone, but only with an event of its own
+    agent_clean_read(&t, &agent, oid, "D", 216.3, "216.3").await;
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    let did = o["decisions"][0]["id"].as_i64().unwrap();
+    let undo = format!("/api/orders/{oid}/decisions/{did}/undo");
+    let events_before_undo = t.count("SELECT COUNT(*) FROM operator_events");
+    let (st, _, b) = t
+        .send("POST", &undo, Some(json!({ "note": "n" })), &ac)
+        .await;
+    assert_eq!((st, code(&b)), no_event);
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM operator_events"),
+        events_before_undo
+    );
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM order_decisions WHERE undone_at IS NOT NULL"),
+        0
+    );
+    let (st, _, b) = t
+        .send("POST", &undo, Some(with_ev(json!({ "note": "n" }))), &ac)
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM order_decisions WHERE undone_at IS NOT NULL"),
+        1
+    );
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM operator_events"),
+        events_before_undo + 1
+    );
+    // with an event, the new order holds that event in its own transaction
+    let (st, _, b) = t
+        .send(
+            "POST",
+            create,
+            Some(with_ev(json!({ "name": "agent order", "reason": "r" }))),
+            &ac,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let new_oid = b["id"].as_i64().unwrap();
+    assert_eq!(
+        t.count(&format!(
+            "SELECT COUNT(*) FROM operator_events WHERE order_id = {new_oid}"
+        )),
+        1
+    );
+    // the operator's own undo is person-only; a person still sends no events
+    let base = format!("/api/orders/{oid}/operator/undo");
+    let (st, v) = person(&t, "POST", &base, with_ev(json!({ "note": "n" }))).await;
+    assert_eq!(
+        (st, v["code"].clone()),
+        (StatusCode::FORBIDDEN, json!("operator_agent_only"))
+    );
 }
 
 #[tokio::test]

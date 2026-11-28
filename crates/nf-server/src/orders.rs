@@ -765,6 +765,7 @@ async fn create_order(
         }
         Some(_) => return Err(unprocessable("rules_type", "'rules' must be an object")),
     };
+    let events = write_events(&u, body.get("events"))?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, &u)?;
@@ -774,6 +775,7 @@ async fn create_order(
         params![project, name, "OPEN", rules, u.username, now() as i64],
     )?;
     let oid = tx.last_insert_rowid();
+    store_write_events(&app, &tx, &u, oid, &events)?;
     let reason_text = if reason.trim().is_empty() {
         String::new()
     } else {
@@ -1144,8 +1146,19 @@ pub(crate) fn store_readings(
     Ok(rows)
 }
 
-async fn read_page(State(app): Ctx, headers: HeaderMap, Path((oid, n)): Path<(i64, i64)>) -> Api {
+async fn read_page(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path((oid, n)): Path<(i64, i64)>,
+    raw: Bytes,
+) -> Api {
     let u = write_access(&app, &headers, oid, "read page")?;
+    let body = if raw.is_empty() {
+        json!({})
+    } else {
+        request_json(&headers, &raw)?
+    };
+    let events = write_events(&u, body.get("events"))?;
     let png: Option<String> = {
         let db = app.db();
         db.query_row(
@@ -1156,7 +1169,7 @@ async fn read_page(State(app): Ctx, headers: HeaderMap, Path((oid, n)): Path<(i6
         .optional()?
         .ok_or_else(not_found)?
     };
-    let res = read_page_do(&app, &u, oid, n, png).await;
+    let res = read_page_do(&app, &u, oid, n, png, events).await;
     match res {
         Err(ApiError::Resp(r)) if r.status() == StatusCode::NOT_IMPLEMENTED => {
             // the refused read is on record: it is a request the build cannot serve
@@ -1172,7 +1185,14 @@ async fn read_page(State(app): Ctx, headers: HeaderMap, Path((oid, n)): Path<(i6
     }
 }
 
-async fn read_page_do(app: &Arc<App>, u: &User, oid: i64, n: i64, png: Option<String>) -> Api {
+async fn read_page_do(
+    app: &Arc<App>,
+    u: &User,
+    oid: i64,
+    n: i64,
+    png: Option<String>,
+    events: Option<Vec<Value>>,
+) -> Api {
     if !cfg!(feature = "number-reader") {
         return Err(reader_missing());
     }
@@ -1203,6 +1223,7 @@ async fn read_page_do(app: &Arc<App>, u: &User, oid: i64, n: i64, png: Option<St
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
     guard_order_tx(app, &tx, u, oid, "read page")?;
+    store_write_events(app, &tx, u, oid, &events)?;
     let rows = store_readings(app, &tx, u, oid, n, &out)?;
     tx.execute(
         "UPDATE order_pages SET read_state = 'read' WHERE order_id = ? AND page_no = ? AND read_state IN ('none', 'failed')",
@@ -1987,8 +2008,16 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
 
 /// Tie a value to the stored reading it names. The reading's own text, box, flags, confidence and source replace
 /// what the caller sent. The AI operator sets CONFIRMED only through a reading whose stored value is the value,
-/// whose stored flags are empty and whose stored confidence is at least AGENT_CONFIRM_MIN_CONFIDENCE.
-fn bind_reading(tx: &Connection, oid: i64, u: &User, v: &mut ValueIn) -> Result<(), ApiError> {
+/// whose stored flags are empty, whose stored confidence is at least AGENT_CONFIRM_MIN_CONFIDENCE and which was
+/// read on the page of the target part (`order_parts.page_id -> order_pages.page_no`). A caller's bbox is never
+/// proof of the page.
+fn bind_reading(
+    tx: &Connection,
+    oid: i64,
+    u: &User,
+    part: i64,
+    v: &mut ValueIn,
+) -> Result<(), ApiError> {
     let agent = u.kind == "agent";
     let deny = |msg: String| {
         if agent {
@@ -2012,19 +2041,38 @@ fn bind_reading(tx: &Connection, oid: i64, u: &User, v: &mut ValueIn) -> Result<
             "'reading_id' is for the AI operator's own writes",
         ));
     }
-    type Rd = (String, Option<f64>, String, String, f64);
-    let row: Option<Rd> = tx
+    let target_page: Option<i64> = tx
         .query_row(
-            "SELECT text, value, bbox_json, flags_json, confidence FROM order_readings WHERE id = ? AND order_id = ?",
-            params![rid, oid],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            "SELECT pg.page_no FROM order_parts pt JOIN order_pages pg ON pg.id = pt.page_id AND pg.order_id = pt.order_id WHERE pt.id = ? AND pt.order_id = ?",
+            params![part, oid],
+            |r| r.get(0),
         )
         .optional()?;
-    let Some((text, value, bbox, flags, conf)) = row else {
+    let Some(target_page) = target_page else {
+        return Err(deny(format!(
+            "part '{}' is not on a page of this order",
+            v.part
+        )));
+    };
+    type Rd = (i64, String, Option<f64>, String, String, f64);
+    let row: Option<Rd> = tx
+        .query_row(
+            "SELECT page_no, text, value, bbox_json, flags_json, confidence FROM order_readings WHERE id = ? AND order_id = ?",
+            params![rid, oid],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)),
+        )
+        .optional()?;
+    let Some((page, text, value, bbox, flags, conf)) = row else {
         return Err(deny(format!(
             "reading #{rid} is not a reading of this order"
         )));
     };
+    if page != target_page {
+        return Err(deny(format!(
+            "reading #{rid} is of page {page} but part '{}' is on page {target_page}",
+            v.part
+        )));
+    }
     if !matches!((value, v.value), (Some(a), Some(b)) if same_number(a, b)) {
         return Err(deny(format!(
             "reading #{rid} is {} but '{}' is {}",
@@ -2140,10 +2188,11 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
     still_writer(&tx, u)?;
     guard_order_tx(app, &tx, u, oid, "edit values")?;
     store_write_events(app, &tx, u, oid, &events)?;
-    // The AI operator confirms only against a reading the server itself stored; what the caller says about flags,
-    // confidence or source never grants anything (it can only make a refusal stricter, in `parse_value`).
+    // The AI operator confirms only against a reading the server itself stored for the target part's page;
+    // what the caller says about flags, confidence, source or bbox never grants anything.
     for v in values.iter_mut() {
-        bind_reading(&tx, oid, u, v)?;
+        let (pid, _, _) = find_part(&tx, oid, &v.part)?;
+        bind_reading(&tx, oid, u, pid, v)?;
     }
     let (mut changed, mut unchanged) = (0, 0);
     let mut touched = BTreeSet::new();
@@ -2622,10 +2671,12 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
     };
     let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
     agent_reason(u, &note)?;
+    let events = write_events(u, body.get("events"))?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
     guard_order_tx(app, &tx, u, oid, "undo decision")?;
+    store_write_events(app, &tx, u, oid, &events)?;
     type Row = (
         String,
         Option<i64>,

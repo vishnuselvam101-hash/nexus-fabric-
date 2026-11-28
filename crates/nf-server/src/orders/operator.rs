@@ -8,13 +8,14 @@
 //!
 //! What the operator may decide (server side, not on its word): it may set CONFIRMED only by naming a `reading_id`
 //! of a reading this server stored (`order_readings`, written when the server's reader read the page) whose stored
-//! value is the value, whose stored flags are empty and whose stored confidence is >= AGENT_CONFIRM_MIN_CONFIDENCE;
-//! flags, confidence and source the caller claims never grant anything (403 agent_cannot_confirm). /confirm, a
-//! decision `confirm` and `accept_flag` are a person's. It does not overwrite a value last edited by a person or in
-//! state CONFIRMED/CORRECTED, and does not change, exclude, drop or skip a part or page that holds one
-//! (409 person_value_protected). Every write (parts, skip, upload, decision, compute, values) carries at least one
-//! event (422 operator_event_required), stored in the same transaction. Flags, confidence and who edited last are
-//! stored per value.
+//! value is the value, whose stored flags are empty, whose stored confidence is >= AGENT_CONFIRM_MIN_CONFIDENCE and
+//! which was read on the page of the target part (a reading of another page never confirms it); flags, confidence,
+//! source and bbox the caller claims never grant anything (403 agent_cannot_confirm). /confirm, a decision `confirm`
+//! and `accept_flag` are a person's. It does not overwrite a value last edited by a person or in state
+//! CONFIRMED/CORRECTED, and does not change, exclude, drop or skip a part or page that holds one
+//! (409 person_value_protected). Every operator write (parts, skip, upload, decision, compute, values, read page,
+//! create order, undo decision) carries at least one event (422 operator_event_required), stored in the same
+//! transaction. Flags, confidence and who edited last are stored per value.
 //!
 //! Pause in flight: every write of the operator re-reads the pause inside the transaction that writes. A write
 //! that committed before the pause landed is complete (values and events commit together, so it is replayable and
@@ -405,10 +406,12 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
     };
     let to_seq = body.get("to_seq").and_then(Value::as_i64);
     let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
+    let events = write_events(u, body.get("events"))?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
     guard_order_tx(app, &tx, u, oid, "undo operator")?;
+    store_write_events(app, &tx, u, oid, &events)?;
     let writes = q_all(
         &tx,
         "SELECT seq, event_json, created_by FROM operator_events WHERE order_id = ? AND undone_at IS NULL AND json_extract(event_json, '$.write_ref') IS NOT NULL AND seq >= ? ORDER BY seq DESC",

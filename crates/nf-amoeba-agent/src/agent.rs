@@ -217,7 +217,14 @@ impl<T: Transport> Agent<T> {
             }
             "order_read_page" => {
                 let (o, n) = (int(a, "order")?, int(a, "page")?);
-                self.post_answer(&format!("/api/orders/{o}/pages/{n}/read"), None)
+                let events = a
+                    .get("events")
+                    .ok_or("'events' is required for the order read")?;
+                self.send_json(
+                    "POST",
+                    &format!("/api/orders/{o}/pages/{n}/read"),
+                    json!({ "events": events }),
+                )
             }
             "order_put_parts" => {
                 let o = int(a, "order")?;

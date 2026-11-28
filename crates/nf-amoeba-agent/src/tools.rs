@@ -207,10 +207,11 @@ pub fn definitions() -> Vec<Value> {
         ),
         def(
             "order_read_page",
-            "Have the server read one page with its number reader; it stores every reading with an id. Returns the readings.",
+            "Have the server read one page with its number reader; it stores every reading with an id and the read event in the same transaction. Returns the readings.",
             obj(
-                json!({ "order": id("Order id."), "page": id("Page number in the order.") }),
-                &["order", "page"],
+                json!({ "order": id("Order id."), "page": id("Page number in the order."),
+                        "events": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Operator events of this read (at least one), stored with the readings." } }),
+                &["order", "page", "events"],
             ),
         ),
         def(
@@ -285,6 +286,20 @@ mod tests {
         assert_eq!(
             names,
             TOOLS.iter().map(|s| s.to_string()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn order_read_page_requires_its_write_event() {
+        let d = definitions()
+            .into_iter()
+            .find(|d| d["name"] == "order_read_page")
+            .unwrap();
+        assert!(
+            d["parameters"]["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("events"))
         );
     }
 }

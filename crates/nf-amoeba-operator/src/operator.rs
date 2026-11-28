@@ -292,10 +292,19 @@ fn tool_look(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
             json!({ "order": order, "page": page }),
         )?;
         if r["readings"].as_array().is_none_or(|a| a.is_empty()) {
+            // the read writes readings and the page's read state, so it carries its own look event
+            let rs = ctx.step("look");
+            let read_event = Event::new(
+                &format!("{rs}r"),
+                "look",
+                Target::Page { page, bbox: None },
+                &format!("reading page {page} with the server's reader"),
+            )
+            .reason_key("op.reason.look", json!({ "page": page }));
             call_ok(
                 ctx.hands,
                 "order_read_page",
-                json!({ "order": order, "page": page }),
+                json!({ "order": order, "page": page, "events": tool_events(vec![read_event], "look") }),
             )?;
             r = call_ok(
                 ctx.hands,
