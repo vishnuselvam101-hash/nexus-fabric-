@@ -33,6 +33,7 @@ mod machine;
 mod membrane;
 mod orders;
 mod pdfconv;
+mod rulepacks;
 mod storage;
 #[cfg(test)]
 mod tests;
@@ -5328,6 +5329,7 @@ pub(crate) fn router(app: Arc<App>) -> Router {
         .route("/api/projects/{id}/calculations", post(calculate))
         .merge(orders::routes())
         .merge(machine::routes())
+        .merge(rulepacks::routes())
         .route("/api/documents/{id}/pdf-to-dxf", post(pdfconv::convert))
         .route("/api/pdf-conversions/{id}", get(pdfconv::get_conversion))
         .route("/api/pdf-conversions/{id}/{file}", get(pdfconv::get_file))

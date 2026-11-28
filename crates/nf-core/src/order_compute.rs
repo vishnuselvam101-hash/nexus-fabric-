@@ -126,6 +126,9 @@ impl PartIn {
     }
 }
 
+/// Key of the rules object that carries the rule pack's open rules (`OrderRules::pack_unconfirmed`).
+pub const PACK_HOLDS_KEY: &str = "pack_unconfirmed";
+
 /// Factory rules of one order (DESIGN 2.4). ALL are provisional ZK defaults, none confirmed by a factory.
 #[derive(Debug, Clone)]
 pub struct OrderRules {
@@ -147,6 +150,10 @@ pub struct OrderRules {
     /// `rules_out` ("set in the order's rules" instead of the provisional default's origin). Not part of the
     /// fingerprint: two rule sets with the same effective values are the same rules.
     pub explicit: BTreeSet<String>,
+    /// Engine-read rules of the assigned rule pack that are `null` or not CONFIRMED (set by the server, never read
+    /// from JSON). While non-empty every part of the order holds (`rule_pack_unconfirmed`): the engine never uses a
+    /// provisional default in place of a factory rule the pack leaves open. Not part of the fingerprint.
+    pub pack_unconfirmed: Vec<String>,
 }
 
 impl Default for OrderRules {
@@ -166,6 +173,7 @@ impl Default for OrderRules {
             basis: Basis::Mid,
             cone_thickness: ThicknessConvention::Normal,
             explicit: BTreeSet::new(),
+            pack_unconfirmed: Vec::new(),
         }
     }
 }
@@ -269,7 +277,23 @@ impl OrderRules {
                 .filter(|n| n.is_finite())
                 .ok_or_else(|| format!("rule '{k}' must be a finite number"))
         };
+        // set by the server from the assigned rule pack (never by a person's rules object, see the server's parse)
+        if let Some(list) = o.get(PACK_HOLDS_KEY) {
+            r.pack_unconfirmed = list
+                .as_array()
+                .ok_or("pack_unconfirmed must be a list of rule keys")?
+                .iter()
+                .map(|x| {
+                    x.as_str()
+                        .map(str::to_string)
+                        .ok_or_else(|| "pack_unconfirmed must be a list of rule keys".to_string())
+                })
+                .collect::<Result<_, _>>()?;
+        }
         for (k, x) in o {
+            if k == PACK_HOLDS_KEY {
+                continue;
+            }
             let text = x.as_str().unwrap_or("");
             match k.as_str() {
                 "allow" => r.allow = num(k, x)?,
@@ -686,6 +710,11 @@ pub const HOLD_TEXT: &[(&str, &str, &str)] = &[
         "missing",
         "A needed value is missing or not yet confirmed; the part is not computed.",
         "必要な値がないか未確認のため、この部材は計算していません。",
+    ),
+    (
+        "rule_pack_unconfirmed",
+        "A factory rule of the assigned rule pack is empty, UNVERIFIED or skipped; the part is held until a person confirms it.",
+        "割り当てた工場の決まりのうち、空・未検証・スキップのものがあるため保留。人が確認するまで保留します。",
     ),
     (
         "value_proposed",
@@ -2887,6 +2916,18 @@ fn fill_cb_common(r: &mut PartResult, c: &conebranch::ConeBranchResult) {
 
 /// Compute every part of an order. Pure and deterministic: the same parts and rules give the same bytes of JSON.
 pub fn compute_order(parts: &[PartIn], rules: &OrderRules) -> OrderResult {
+    let mut res = compute_order_core(parts, rules);
+    if !rules.pack_unconfirmed.is_empty() {
+        let keys: Vec<&str> = rules.pack_unconfirmed.iter().map(String::as_str).collect();
+        let nos: Vec<String> = res.parts.iter().map(|p| p.no.clone()).collect();
+        for no in nos {
+            add_review_hold(&mut res, &no, "rule_pack_unconfirmed", &keys);
+        }
+    }
+    res
+}
+
+fn compute_order_core(parts: &[PartIn], rules: &OrderRules) -> OrderResult {
     let mut results: Vec<Option<PartResult>> = (0..parts.len()).map(|_| None).collect();
     let mut groups: BTreeMap<String, Vec<usize>> = BTreeMap::new();
     for (i, p) in parts.iter().enumerate() {

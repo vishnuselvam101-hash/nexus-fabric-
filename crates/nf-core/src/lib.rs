@@ -30,6 +30,7 @@ pub mod order_compute;
 pub mod preview;
 pub mod reading;
 pub mod review;
+pub mod rulepack;
 pub mod shapes;
 pub mod tee;
 pub mod tee_pad;

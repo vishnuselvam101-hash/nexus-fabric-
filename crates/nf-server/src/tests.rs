@@ -3956,6 +3956,9 @@ mod pdfconv;
 /// NFJ-1 S1-L1: orders (job data, files, pages, parts, values, decisions).
 mod orders;
 
+/// PAR-2: factory rule packs (import, person-only writes, interview, engine overlay).
+mod rulepacks;
+
 /// AIOP-1: operator event stream, pause, undo.
 mod operator;
 

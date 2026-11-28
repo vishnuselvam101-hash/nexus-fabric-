@@ -222,6 +222,13 @@ fn parse_rules(v: &Value) -> Result<(Value, nf_core::order_compute::OrderRules),
     if !v.is_object() {
         return Err(unprocessable("rules_type", "'rules' must be an object"));
     }
+    // the rule pack's open rules are set by the server only; a person's rules object cannot switch holds on or off
+    if v.get(nf_core::order_compute::PACK_HOLDS_KEY).is_some() {
+        return Err(unprocessable(
+            "rules_invalid",
+            "'pack_unconfirmed' is set by the assigned rule pack, not in the order's rules",
+        ));
+    }
     let s = v.to_string();
     if s.len() > MAX_RULES_BYTES {
         return Err(unprocessable(
@@ -292,13 +299,18 @@ fn rules_fingerprint(db: &Connection, oid: i64) -> Result<String, ApiError> {
         .optional()?
         .ok_or_else(not_found)?;
     let v: Value = serde_json::from_str(&rules).unwrap_or(Value::Null);
+    let v = super::rulepacks::pack_overlay(db, oid, v)?;
     let r = nf_core::order_compute::OrderRules::from_json(&v).map_err(|m| {
         unprocessable(
             "order_rules",
             &format!("the order's rules cannot be used: {m}"),
         )
     })?;
-    Ok(r.fingerprint())
+    // a decision is bound to the pack too: its id, hash and every rule's status (no pack keeps the old fingerprint)
+    match super::rulepacks::pack_identity(db, oid)? {
+        Some(pack) => Ok(format!("{}|{pack}", r.fingerprint())),
+        None => Ok(r.fingerprint()),
+    }
 }
 
 /// A decision made by this build is tied to both the thing decided on and the effective rules. The prefix lets
@@ -1686,11 +1698,15 @@ async fn get_order_rules(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i6
     let db = app.db();
     let u = auth_db(&db, &app, &headers)?;
     let head = guard_order(&app, &db, &u, oid, "read order rules")?;
-    let v: Value = serde_json::from_str(&head.rules).unwrap_or(Value::Null);
-    let (v, r) = parse_rules(&v)?;
+    let own: Value = serde_json::from_str(&head.rules).unwrap_or(Value::Null);
+    let (v, _) = parse_rules(&own)?;
+    let effective = super::rulepacks::pack_overlay(&db, oid, own)?;
+    let r = nf_core::order_compute::OrderRules::from_json(&effective)
+        .map_err(|m| unprocessable("rules_invalid", &m))?;
     let (_, _, hash) = load_compute_input(&db, oid)?;
     let mut out = rules_view(&v, &r, "order");
     out["parts_hash"] = json!(hash);
+    out["rule_pack"] = super::rulepacks::pack_summary(&db, oid)?;
     ok(out)
 }
 
@@ -1802,6 +1818,7 @@ async fn preview_order(
         )?;
         serde_json::from_str(&raw).unwrap_or(Value::Null)
     };
+    let rules = super::rulepacks::pack_overlay(&app.db(), oid, rules)?;
     // The same review inputs the compute endpoint uses: a preview of an unchanged order must show the
     // exact result that is already persisted, including PZ-1's page and material-table holds.
     let ctx = {
@@ -1864,6 +1881,7 @@ async fn rule_impact_order(
         )?;
         serde_json::from_str(&raw).unwrap_or(Value::Null)
     };
+    let rules_a = super::rulepacks::pack_overlay(&app.db(), oid, rules_a)?;
     let ctx = {
         let db = app.db();
         load_review_context(&db, oid)?
@@ -5095,6 +5113,7 @@ fn load_compute_input(
     if !rules_v.is_object() {
         return Err(corrupt());
     }
+    let rules_v = super::rulepacks::pack_overlay(db, oid, rules_v)?;
     let rules = oc::OrderRules::from_json(&rules_v).map_err(|m| {
         unprocessable(
             "order_rules",
