@@ -21,10 +21,13 @@
 //! engineer approval.
 
 pub mod bend;
+pub mod conebranch;
 pub mod deps;
 pub mod job;
 pub mod order;
 pub mod shapes;
+pub mod tee;
+pub mod tee_pad;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
