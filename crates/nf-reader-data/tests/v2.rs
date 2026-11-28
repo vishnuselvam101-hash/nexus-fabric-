@@ -81,14 +81,28 @@ fn check_policy(mix: Mix, n: u64, seed: u64) -> (usize, usize, usize) {
         assert_eq!(t["mix"], mix.name());
         let cl = t["clutter"].as_array().unwrap();
         let its = t["items"].as_array().unwrap();
-        assert!(!cl.is_empty(), "{}", t["page_id"]);
+        assert!(mix == Mix::Default || !cl.is_empty(), "{}", t["page_id"]);
         max_bom = max_bom.max(its.iter().filter(|i| i["type"] == "bom").count());
         for it in its {
-            assert!(
-                it["type"] != "title" && it["type"] != "note",
-                "{}",
-                it["text"]
-            );
+            assert!(it["type"] != "title", "{}", it["text"]);
+            if it["type"] == "title_field" {
+                assert!(
+                    [
+                        "material",
+                        "thickness",
+                        "quantity",
+                        "drawing_no",
+                        "scale",
+                        "rev"
+                    ]
+                    .contains(&it["field"].as_str().unwrap()),
+                    "{}",
+                    it["text"]
+                );
+            }
+            if it["type"] == "note" {
+                assert!(it["number"].is_array());
+            }
             for c in cl {
                 assert_ne!(it["id"], c["id"]);
                 assert!(
@@ -117,6 +131,34 @@ fn clutter_is_printed_but_never_in_the_answer_key_in_every_mix() {
     assert!(wb > 8, "long BOM tables: {wb}");
     let (di, dc, _) = check_policy(Mix::Default, 48, 5);
     assert!(dc > 0 && di > 0);
+}
+
+#[test]
+fn title_facts_and_fabrication_notes_are_keyed_with_types() {
+    let d = tmp("typed");
+    generate_smoke_mix(&d, 32, 11, 4, Mix::Default).unwrap();
+    let text = std::fs::read_to_string(d.join("smoke/truth.jsonl")).unwrap();
+    for line in text.lines() {
+        let t: serde_json::Value = serde_json::from_str(line).unwrap();
+        let its = t["items"].as_array().unwrap();
+        for f in [
+            "material",
+            "thickness",
+            "quantity",
+            "drawing_no",
+            "scale",
+            "rev",
+        ] {
+            assert!(
+                its.iter()
+                    .any(|i| i["type"] == "title_field" && i["field"] == f),
+                "{} lacks {f}",
+                t["page_id"]
+            );
+        }
+        assert!(its.iter().any(|i| i["type"] == "note"), "{}", t["page_id"]);
+    }
+    let _ = std::fs::remove_dir_all(d);
 }
 
 #[test]

@@ -1989,45 +1989,56 @@ fn reducer_concentric(c: &mut Ctx) {
 
 // ---------------------------------------------------------------- title, BOM, notes, symbols
 
-fn title_block(c: &mut Ctx, drawing_no: &str, material: &str, date: &str, scale: &str) {
+fn title_block(c: &mut Ctx, drawing_no: &str, material: &str, scale: &str, seed: u64) {
     let (w, h, u) = (c.w, c.h, c.u);
-    let (x0, y0, x1, y1) = (0.64 * w, 0.84 * h, w - 20.0 * u, h - 20.0 * u);
+    let (x0, y0, x1, y1) = (0.64 * w, 0.80 * h, w - 20.0 * u, h - 20.0 * u);
     c.shape = "title".into();
     c.p.rect([x0, y0, x1, y1], 1.6 * u);
-    let row = (y1 - y0) / 6.0;
+    let row = (y1 - y0) / 8.0;
     let f = 20.0 * u;
     let lang = c.p.lang;
+    let ja = lang != Lang::En;
     let name = names(&c.part.clone(), lang);
     let tx = x0 + 14.0 * u;
-    let rows: [(&'static str, String, &str); 6] = [
+    let dec = c.p.dec;
+    let rev = ((b'A' + crate::layout::rev_of(seed) as u8) as char).to_string();
+    let rows: [(&'static str, String, &str); 8] = [
         ("title", name.to_string(), "drawing_name"),
         ("title", format!("NO. {drawing_no}"), "drawing_no"),
         (
             "title",
-            format!(
-                "{} {material}",
-                if lang == Lang::En {
-                    "MATERIAL"
-                } else {
-                    "材質"
-                }
-            ),
+            format!("{} {material}", if ja { "材質" } else { "MATERIAL" }),
             "material",
         ),
         (
             "title",
-            format!(
-                "{} {scale}",
-                if lang == Lang::En { "SCALE" } else { "尺度" }
-            ),
+            format!("{} {scale}", if ja { "尺度" } else { "SCALE" }),
             "scale",
         ),
-        ("tolerance_note", String::new(), "general_tolerance"),
         (
             "title",
-            format!("{} {date}", if lang == Lang::En { "DATE" } else { "日付" }),
-            "date",
+            format!(
+                "{} {:.dec$}",
+                if ja { "板厚" } else { "THK" },
+                crate::layout::thickness_of(seed)
+            ),
+            "thickness",
         ),
+        (
+            "title",
+            format!(
+                "{} {}",
+                if ja { "数量" } else { "QTY" },
+                crate::layout::quantity_of(seed)
+            ),
+            "quantity",
+        ),
+        (
+            "title",
+            format!("{} {rev}", if ja { "改訂" } else { "REV" }),
+            "rev",
+        ),
+        ("tolerance_note", String::new(), "general_tolerance"),
     ];
     for (i, (kind, s, what)) in rows.iter().enumerate() {
         let y = y0 + row * (i as f64 + 0.7);
@@ -2108,12 +2119,13 @@ fn dense_edges(c: &mut Ctx, r: &mut Rng, want: usize) {
     c.lead_d = ld0;
 }
 
-/// Negative examples: text a reader must not report as a dimension. Drawn in the image, never in the answer key.
-fn weak1_clutter(p: &mut Page, r: &mut Rng, drawing_no: &str) {
+/// Negative examples: grid labels and zone marks, revision-table rows other than the current revision, and
+/// part-balloon numbers. Drawn in the image, never in the answer key (the title-block facts and notes are keyed).
+fn weak1_clutter(p: &mut Page, r: &mut Rng, seed: u64) {
     let (w, h, u) = (p.w, p.h, p.u);
     let ja = p.lang == Lang::Ja;
     let f = 17.0 * u;
-    // grid references along the top and left inside edges of the frame
+    // grid references and zone ticks along the top and left inside edges of the frame
     for i in 0..6 {
         let x = w * (i as f64 + 0.5) / 6.0;
         p.clutter_text(
@@ -2132,76 +2144,70 @@ fn weak1_clutter(p: &mut Page, r: &mut Rng, drawing_no: &str) {
             f,
             false,
         );
-    }
-    // revision table above the bill of materials
-    let (x0, x1) = (0.64 * w, w - 20.0 * u);
-    let (y0, rh) = (0.31 * h, 0.05 * h);
-    let rows = r.int(2, 3) as usize;
-    p.rect([x0, y0, x1, y0 + rh * (rows as f64 + 1.0)], 1.2 * u);
-    for k in 1..=rows {
-        let y = y0 + rh * k as f64;
-        p.line(x0, y, x1, y, 1.0 * u);
-    }
-    let cols = [0.03, 0.14, 0.38, 0.9];
-    let head = if ja {
-        ["改訂", "日付", "内容", "担当"]
-    } else {
-        ["REV", "DATE", "DESCRIPTION", "BY"]
-    };
-    let what = if ja {
-        ["初版", "寸法修正", "図面番号変更"]
-    } else {
-        ["FIRST ISSUE", "DIM CORRECTED", "DWG NO CHANGED"]
-    };
-    for (i, s) in head.iter().enumerate() {
-        p.clutter_text(
-            s,
-            x0 + cols[i] * (x1 - x0),
-            y0 + 0.62 * rh,
-            Anchor::Start,
-            f,
-            true,
-        );
-    }
-    for (k, what_k) in what.iter().enumerate().take(rows) {
-        let y = y0 + rh * (k as f64 + 1.62);
-        let date = format!("2026-{:02}-{:02}", r.int(1, 12), r.int(1, 28));
-        let rev = ((b'A' + k as u8) as char).to_string();
-        for (i, s) in [rev.as_str(), date.as_str(), what_k, "VS"]
-            .iter()
-            .enumerate()
-        {
-            p.clutter_text(s, x0 + cols[i] * (x1 - x0), y, Anchor::Start, f, false);
+        let xt = w * i as f64 / 6.0;
+        if i > 0 {
+            p.line(xt, 20.0 * u, xt, 30.0 * u, 1.2 * u);
         }
     }
-    // numbered notes, part and drawing numbers at free spots
-    let pool_en = [
-        "NOTE 1. WELD PER JIS Z 3801".to_string(),
-        "2. PAINT 2 COATS 80 MICRON".to_string(),
-        "REF DWG NO. 4417-203".to_string(),
-        "P/N 4400-217-03".to_string(),
-        "PART NO. 25-A113".to_string(),
-        "SHT 1 OF 2".to_string(),
-        format!("DWG NO. {drawing_no}"),
-        "ITEM 3 QTY 2".to_string(),
-        "3. HYDROTEST 1.5 X DESIGN".to_string(),
-    ];
-    let pool_ja = [
-        "注1. 溶接はJIS Z 3801による".to_string(),
-        "2. 塗装 2回 80 ミクロン".to_string(),
-        "参照図 4417-203".to_string(),
-        "品番 4400-217-03".to_string(),
-        "部品番号 25-A113".to_string(),
-        "第1葉 全2葉".to_string(),
-        format!("図面番号 {drawing_no}"),
-        "3. 水圧試験 設計圧の1.5倍".to_string(),
-    ];
-    let pool: &[String] = if ja { &pool_ja } else { &pool_en };
-    for _ in 0..r.int(6, 10) {
-        let s = pool[r.int(0, pool.len() as i64 - 1) as usize].clone();
+    // revision table above the bill of materials: the revisions before the current one (the current one is the
+    // keyed title-block field)
+    let rows = crate::layout::rev_of(seed);
+    if rows > 0 {
+        let (x0, x1) = (0.64 * w, w - 20.0 * u);
+        let (y0, rh) = (0.31 * h, 0.05 * h);
+        p.rect([x0, y0, x1, y0 + rh * (rows as f64 + 1.0)], 1.2 * u);
+        for k in 1..=rows {
+            let y = y0 + rh * k as f64;
+            p.line(x0, y, x1, y, 1.0 * u);
+        }
+        let cols = [0.03, 0.14, 0.38, 0.9];
+        let head = if ja {
+            ["改訂", "日付", "内容", "担当"]
+        } else {
+            ["REV", "DATE", "DESCRIPTION", "BY"]
+        };
+        let what = if ja {
+            ["初版", "寸法修正", "図面変更"]
+        } else {
+            ["FIRST ISSUE", "DIM CORRECTED", "DWG UPDATED"]
+        };
+        for (i, s) in head.iter().enumerate() {
+            p.clutter_text(
+                s,
+                x0 + cols[i] * (x1 - x0),
+                y0 + 0.62 * rh,
+                Anchor::Start,
+                f,
+                true,
+            );
+        }
+        for (k, what_k) in what.iter().enumerate().take(rows) {
+            let y = y0 + rh * (k as f64 + 1.62);
+            let date = format!("2026-{:02}-{:02}", r.int(1, 12), r.int(1, 28));
+            let rev = ((b'A' + k as u8) as char).to_string();
+            for (i, s) in [rev.as_str(), date.as_str(), what_k, "VS"]
+                .iter()
+                .enumerate()
+            {
+                p.clutter_text(s, x0 + cols[i] * (x1 - x0), y, Anchor::Start, f, false);
+            }
+        }
+    }
+    // part balloons: a circled item number at free spots
+    for _ in 0..r.int(4, 8) {
+        let n = r.int(1, 9).to_string();
         for _ in 0..40 {
-            let (x, y) = (w * r.range(0.04, 0.58), h * r.range(0.08, 0.95));
-            if p.clutter_text(&s, x, y, Anchor::Start, f, false) {
+            let (x, y) = (w * r.range(0.05, 0.58), h * r.range(0.1, 0.93));
+            let rad = 15.0 * u;
+            let b = [x - rad, y - rad, x + rad, y + rad];
+            if p.free(b) && p.clutter_text(&n, x, y + 0.3 * f, Anchor::Middle, f, false) {
+                let pts: Vec<(f64, f64)> = (0..24)
+                    .map(|k| {
+                        let a = k as f64 * std::f64::consts::TAU / 24.0;
+                        (x + rad * a.cos(), y + rad * a.sin())
+                    })
+                    .collect();
+                p.poly(&pts, true, 1.2 * u, "none");
                 break;
             }
         }
@@ -2210,7 +2216,7 @@ fn weak1_clutter(p: &mut Page, r: &mut Rng, drawing_no: &str) {
 
 fn bom(c: &mut Ctx) {
     let (w, h, u) = (c.w, c.h, c.u);
-    let (x0, y0, x1, y1) = (0.64 * w, 0.60 * h, w - 20.0 * u, 0.84 * h - 4.0 * u);
+    let (x0, y0, x1, y1) = (0.64 * w, 0.58 * h, w - 20.0 * u, 0.80 * h - 4.0 * u);
     c.shape = "bom".into();
     c.p.rect([x0, y0, x1, y1], 1.2 * u);
     let lang = c.p.lang;
@@ -2321,7 +2327,26 @@ fn notes(c: &mut Ctx) {
         "全ての角をバリ取り",
         "鋭い角面取り 0.5 以下",
     ];
-    let lines = if lang == Lang::En { lines_en } else { lines_ja };
+    let mut lines: Vec<&str> = if lang == Lang::En { lines_en } else { lines_ja }.to_vec();
+    // fabrication facts NF reads (material, welds, finish)
+    let fab_en = [
+        "MATERIAL AS PER TITLE BLOCK",
+        "ALL WELDS TO JIS Z 3801",
+        "FILLET WELDS 4 MM UNLESS NOTED",
+        "PICKLE AND PASSIVATE AFTER WELDING",
+        "SHOT BLAST AND PAINT 2 COATS",
+    ];
+    let fab_ja = [
+        "材質は表題欄による",
+        "溶接はJIS Z 3801による",
+        "すみ肉溶接は指示なき限り4 mm",
+        "溶接後に酸洗い及び不動態化処理",
+        "ショットブラスト後に塗装2回",
+    ];
+    let fab = if lang == Lang::En { fab_en } else { fab_ja };
+    let k = c.r.int(0, 4) as usize;
+    lines.push(fab[k]);
+    lines.push(fab[(k + 1 + c.r.int(0, 3) as usize) % 5]);
     for s in lines {
         c.put_word("note", s, "note", x, y + f, Anchor::Start, false, f);
         y += 1.9 * f;
@@ -2501,14 +2526,13 @@ pub fn build_new(
         c.finish(ax, ay, ra);
     }
     let drawing_no = format!("NFR-{}-{:08X}", fam_code(fam), seed & 0xFFFF_FFFF);
-    let date = format!("2026-{:02}-{:02}", rl.int(1, 12), rl.int(1, 28));
     let material = *rl.pick(&["SS400", "SUS304", "SUS316L", "STPG370", "A5052"]);
     let scale = *rl.pick(&["1:1", "1:2", "1:5", "2:1"]);
-    title_block(&mut c, &drawing_no, material, &date, scale);
+    title_block(&mut c, &drawing_no, material, scale, seed);
     bom(&mut c);
     notes(&mut c);
     if c.weak {
-        weak1_clutter(&mut c.p, &mut rw, &drawing_no);
+        weak1_clutter(&mut c.p, &mut rw, seed);
     }
     if deg == "hand" {
         for _ in 0..2 {
@@ -2568,15 +2592,13 @@ pub fn build_new(
     }
 }
 
-// ANSWER-KEY POLICY (one rule for every page, every family, every mix: default and weak1; train, val and test).
-//   READINGS, in the key: dimensions (linear, diameter, radius, angle, thickness callouts), BOM table cells (header,
-//   part, quantity, material), tolerance notes (general tolerance class), surface finish, weld symbols.
-//   CLUTTER, never in the key but printed: title-block fields (name, drawing no., material, scale, date), notes text
-//   (general notes, hand notes), revision table, grid letters and numbers, part and drawing numbers, numbered notes.
-// Items of kind `title` and `note` are demoted to clutter here, so engine-backed and generator-owned pages agree.
-// The truth file lists clutter as objects with id and box so tests can compare by element, never by text.
-const CLUTTER_KINDS: [&str; 2] = ["title", "note"];
-
+// ANSWER-KEY POLICY (one rule for every page, every family, every mix; train, val and test).
+//   KEYED, each with a `type`: dimension, bom (cells and header), tolerance_note, surface_finish, weld, label, note
+//   (the full note text plus the numbers it states, `number`), and title_field with a `field` of material, thickness,
+//   quantity, drawing_no, scale or rev (value = exact text; `number` where one applies).
+//   CLUTTER, printed but not keyed (exported under `clutter` with id and box): grid labels, revision-table rows other
+//   than the current revision, part-balloon numbers, border and zone marks, and the title rows with no NF use
+//   (drawing name, date, sheet). The rule itself lives in `Item::key_type`.
 /// Key items with their shape labels, and clutter as (text, box).
 type KeySplit<'a> = (Vec<(&'a Item, String)>, Vec<(String, B)>);
 
@@ -2590,7 +2612,7 @@ fn key_split<'a>(page: &'a Page, shapes: &'a [String]) -> KeySplit<'a> {
         .zip(page.cboxes.iter().copied())
         .collect();
     for (i, it) in page.items.iter().enumerate() {
-        if CLUTTER_KINDS.contains(&it.kind) {
+        if it.key_type().is_none() {
             clutter.push((it.text.clone(), it.b));
         } else {
             keep.push((it, shapes.get(i).cloned().unwrap_or_default()));
@@ -2625,9 +2647,10 @@ fn item_json(
     h: f64,
 ) -> Value {
     let rb = rot_box(it.b, skew, w / 2.0, h / 2.0);
-    json!({
+    let (ty, field) = it.key_type().unwrap_or((it.kind, None));
+    let mut v = json!({
         "id": format!("{pid}-{idx:03}"),
-        "type": it.kind,
+        "type": ty,
         "text": it.text,
         "value": it.value,
         "unit": it.unit,
@@ -2645,7 +2668,14 @@ fn item_json(
         "part_id": part_id,
         "seed": seed,
         "shape": shape,
-    })
+    });
+    if let Some(f) = field {
+        v["field"] = json!(f);
+    }
+    if let Some(n) = it.key_number() {
+        v["number"] = n;
+    }
+    v
 }
 
 /// Page-level truth fields shared by v1 and v2 pages.
@@ -2824,11 +2854,7 @@ fn build_one(
         if mix_ == Mix::Weak1 {
             // engine-backed pages keep their layout; the negative examples go into the free space around it
             let mut rw = Rng::new(mix(&[seed, 23]));
-            weak1_clutter(
-                &mut page,
-                &mut rw,
-                &format!("NFR-{}-{:08X}", fam_code(fam), seed & 0xFFFF_FFFF),
-            );
+            weak1_clutter(&mut page, &mut rw, seed);
         }
         Ok((pid, meta, page, shapes, skew))
     } else {

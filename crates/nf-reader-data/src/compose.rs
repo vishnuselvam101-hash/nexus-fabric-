@@ -10,6 +10,7 @@ pub struct Ids {
     pub drawing_no: String,
     pub date: String,
     pub material: &'static str,
+    pub seed: u64,
 }
 
 pub const MATERIALS: [&str; 5] = ["SS400", "SUS304", "SUS316L", "STPG370", "A5052"];
@@ -797,6 +798,10 @@ fn notes_and_title(
         "Seam welds not shown.",
         "Marking on outside surface.",
         "Do not scale the drawing.",
+        "Material as per title block.",
+        "All welds to JIS Z 3801.",
+        "Fillet welds 4 mm unless noted.",
+        "Pickle and passivate after welding.",
     ];
     let pool_ja = [
         "寸法の単位はミリメートル。",
@@ -805,9 +810,13 @@ fn notes_and_title(
         "溶接継目は図示しない。",
         "刻印は外面に施す。",
         "図面から寸法を読み取らないこと。",
+        "材質は表題欄による。",
+        "溶接はJIS Z 3801による。",
+        "すみ肉溶接は指示なき限り4 mm。",
+        "溶接後に酸洗い及び不動態化処理を行う。",
     ];
-    let mut idx: Vec<usize> = (0..6).collect();
-    for i in (1..6).rev() {
+    let mut idx: Vec<usize> = (0..10).collect();
+    for i in (1..10).rev() {
         idx.swap(i, rng.int(0, i as i64) as usize);
     }
     for &i in idx.iter().take(rng.int(2, 4) as usize) {
@@ -847,29 +856,43 @@ fn notes_and_title(
     p.raw(&format!("<circle cx=\"{:.1}\" cy=\"{:.1}\" r=\"{:.1}\" fill=\"none\" stroke=\"#000\" stroke-width=\"{:.1}\"/>", cx + 30.0 * u, sy + 30.0 * u, 13.0 * u, 1.2 * u));
 
     // title block (bottom of the right column)
-    let ty0 = rc[3] - 300.0 * u;
-    let labels_en = ["Title", "Drawing No.", "Material", "Scale", "Date", "Sheet"];
-    let labels_ja = ["品名", "図番", "材質", "尺度", "日付", "枚数"];
+    let rows = 7usize;
+    let ty0 = rc[3] - 50.0 * u * rows as f64;
+    let labels_en = [
+        "Title",
+        "Drawing No.",
+        "Material",
+        "Scale",
+        "Thickness",
+        "Qty",
+        "Rev",
+    ];
+    let labels_ja = ["品名", "図番", "材質", "尺度", "板厚", "数量", "改訂"];
     let vals = [
         drawing_name(fam, lang).to_string(),
         ids.drawing_no.clone(),
         ids.material.to_string(),
         "NTS".to_string(),
-        ids.date.clone(),
-        "1/1".to_string(),
+        format!("{:.1}", crate::layout::thickness_of(ids.seed)),
+        format!("{} PCS", crate::layout::quantity_of(ids.seed)),
+        format!(
+            "REV {}",
+            (b'A' + crate::layout::rev_of(ids.seed) as u8) as char
+        ),
     ];
     let whats = [
         "part name",
         "drawing number",
         "material",
         "scale",
-        "date",
-        "sheet",
+        "thickness",
+        "quantity",
+        "rev",
     ];
     let lw = 200.0 * u;
     p.rect([rc[0], ty0, rc[2], rc[3]], 2.4 * u);
     p.line(rc[0] + lw, ty0, rc[0] + lw, rc[3], 1.5 * u);
-    for i in 0..6 {
+    for i in 0..rows {
         let ry = ty0 + 50.0 * u * i as f64;
         if i > 0 {
             p.line(rc[0], ry, rc[2], ry, 1.5 * u);

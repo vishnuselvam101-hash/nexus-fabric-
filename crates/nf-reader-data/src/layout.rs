@@ -103,6 +103,61 @@ pub struct Item {
     pub b: B,
 }
 
+impl Item {
+    /// Answer-key type and field of this printed text, or `None` when it is clutter (not keyed).
+    /// Policy (all pages, all mixes): keyed are dimension, bom (and its header), tolerance_note, surface_finish, weld,
+    /// label, `note` (full text, with the numbers it states) and `title_field` (field: material, thickness, quantity,
+    /// drawing_no, scale, rev). Clutter: drawing name, date, sheet (title rows with no NF use), grid labels, revision
+    /// rows other than the current one, part balloons, zone marks.
+    pub fn key_type(&self) -> Option<(&'static str, Option<&'static str>)> {
+        if self.kind != "title" {
+            return Some((self.kind, None));
+        }
+        let what = match &self.src {
+            Some(Source::Structure { what }) => what.as_str(),
+            _ => "",
+        };
+        match what {
+            "drawing_no" | "drawing number" => Some(("title_field", Some("drawing_no"))),
+            "material" => Some(("title_field", Some("material"))),
+            "scale" => Some(("title_field", Some("scale"))),
+            "thickness" => Some(("title_field", Some("thickness"))),
+            "quantity" => Some(("title_field", Some("quantity"))),
+            "rev" => Some(("title_field", Some("rev"))),
+            _ => None,
+        }
+    }
+    /// The number a keyed text states, where one applies: all numbers of a note, the thickness and quantity of a
+    /// title field, the ratio of a scale.
+    pub fn key_number(&self) -> Option<Value> {
+        let nums: Vec<f64> = self
+            .text
+            .split(|c: char| !(c.is_ascii_digit() || c == '.'))
+            .filter(|t| t.chars().any(|c| c.is_ascii_digit()))
+            .filter_map(|t| t.parse().ok())
+            .collect();
+        match self.key_type()? {
+            ("note", _) => Some(json!(nums)),
+            ("title_field", Some("thickness" | "quantity")) => nums.first().map(|n| json!(n)),
+            ("title_field", Some("scale")) if nums.len() == 2 && nums[1] != 0.0 => {
+                Some(json!(nums[0] / nums[1]))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Current revision letter index (0 = A), thickness (mm) and quantity of the title block, from the page seed alone.
+pub fn rev_of(seed: u64) -> usize {
+    (crate::rng::mix(&[seed, 31]) % 4) as usize
+}
+pub fn thickness_of(seed: u64) -> f64 {
+    [2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0][(crate::rng::mix(&[seed, 32]) % 8) as usize]
+}
+pub fn quantity_of(seed: u64) -> u64 {
+    1 + crate::rng::mix(&[seed, 33]) % 12
+}
+
 pub struct Page {
     pub w: f64,
     pub h: f64,

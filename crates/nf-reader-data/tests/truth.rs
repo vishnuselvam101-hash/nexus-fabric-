@@ -319,11 +319,19 @@ fn text_only_render_ink_matches_truth_boxes() {
             // pixel quantisation limits very short or small strings (one glyph is ~8 px wide, small BOM text is ~12 px high), and scan noise next to a
             // box can add a stray cluster: those get a lower per-item floor, every group must still average >= 0.9
             let floor = if spec.scan {
-                if t.chars().count() >= 3 { 0.7 } else { 0.6 }
+                if t.chars().count() >= 3 {
+                    0.7
+                } else if t.chars().count() == 1 {
+                    0.5
+                } else {
+                    0.6
+                }
             } else if t.chars().count() >= 3 && bx[3] - bx[1] >= 18.0 {
                 0.9
             } else if t.chars().count() >= 3 {
                 0.85
+            } else if t.chars().count() == 1 {
+                0.6
             } else {
                 0.7
             };

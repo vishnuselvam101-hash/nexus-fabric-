@@ -158,6 +158,7 @@ pub fn build(spec: &Spec, req: &Request, out: JobOutput) -> Built {
         drawing_no: format!("NFR-{}-{:08X}", fam_code(spec.fam), spec.seed & 0xFFFF_FFFF),
         date: format!("2026-{:02}-{:02}", rl.int(1, 12), rl.int(1, 28)),
         material: MATERIALS[rl.int(0, 4) as usize],
+        seed: spec.seed,
     };
     compose(&mut page, &mut rl, &out, spec.fam, &ids);
     let fx = spec.scan.then(|| {
@@ -186,34 +187,49 @@ pub fn build(spec: &Spec, req: &Request, out: JobOutput) -> Built {
     let pid = page_id(spec);
     let part_id = format!("{}-{}", fam_code(spec.fam), ids.drawing_no);
     let req_json = serde_json::to_value(&out.request).unwrap_or(Value::Null);
-    let items: Vec<Value> = page
-        .items
-        .iter()
-        .enumerate()
-        .map(|(i, it)| {
-            json!({
-                "id": format!("{pid}-{i:03}"),
-                "type": it.kind,
+    let skew_box = |b: crate::layout::B| r1(rot(b, skew, cx, cy));
+    // answer-key policy: see `Item::key_type`; text without a key type is clutter (printed, not keyed)
+    let mut items: Vec<Value> = vec![];
+    let mut clutter: Vec<Value> = vec![];
+    for it in &page.items {
+        let Some((ty, field)) = it.key_type() else {
+            clutter.push(json!({
+                "id": format!("{pid}-c{:03}", clutter.len()),
                 "text": it.text,
-                "value": it.value,
-                "unit": it.unit,
-                "tolerance": it.tol,
-                "tolerance_source": it.tol_source,
-                "source": it.src,
-                "decimals": it.decimals,
-                "box": r1(rot(it.b, skew, cx, cy)),
+                "box": skew_box(it.b),
                 "box_page": r1(it.b),
-                "page": 0,
-                "shape": it.part,
-                "language": spec.lang.name(),
-                "style": spec.style.name(),
-                "family": spec.fam,
-                "part": it.part,
-                "part_id": part_id,
-                "seed": spec.seed
-            })
-        })
-        .collect();
+            }));
+            continue;
+        };
+        let mut v = json!({
+            "id": format!("{pid}-{:03}", items.len()),
+            "type": ty,
+            "text": it.text,
+            "value": it.value,
+            "unit": it.unit,
+            "tolerance": it.tol,
+            "tolerance_source": it.tol_source,
+            "source": it.src,
+            "decimals": it.decimals,
+            "box": skew_box(it.b),
+            "box_page": r1(it.b),
+            "page": 0,
+            "shape": it.part,
+            "language": spec.lang.name(),
+            "style": spec.style.name(),
+            "family": spec.fam,
+            "part": it.part,
+            "part_id": part_id,
+            "seed": spec.seed
+        });
+        if let Some(f) = field {
+            v["field"] = json!(f);
+        }
+        if let Some(n) = it.key_number() {
+            v["number"] = n;
+        }
+        items.push(v);
+    }
     let truth = json!({
         "schema": SCHEMA,
         "page_id": pid,
@@ -235,7 +251,8 @@ pub fn build(spec: &Spec, req: &Request, out: JobOutput) -> Built {
         "pdf": format!("{}/pdf/{pid}.pdf", spec.split),
         "engine": out.engine,
         "request": req_json,
-        "items": items
+        "items": items,
+        "clutter": clutter
     });
     Built {
         page,
