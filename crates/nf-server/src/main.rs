@@ -3940,6 +3940,7 @@ async fn get_dxf(
         }
     };
     crate::cad::refuse_if_edited(&bytes)?;
+    crate::cad::refuse_if_edited_sha(&tx, &sha)?;
     app.audit(
         &tx,
         &u.username,

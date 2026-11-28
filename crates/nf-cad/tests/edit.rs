@@ -170,3 +170,49 @@ fn mirror_about_any_line_angle_through_a_point() {
         g => panic!("{g:?}"),
     }
 }
+
+#[test]
+fn non_finite_results_are_refused() {
+    // (3,0) scaled by 1e200 twice: 3e400 overflows to inf and must not be written
+    let e = apply(
+        &dxf(LINE),
+        &[
+            Op::Scale { ids: vec!["E0".into()], cx: 0.0, cy: 0.0, factor: 1e200 },
+            Op::Scale { ids: vec!["E0".into()], cx: 0.0, cy: 0.0, factor: 1e200 },
+        ],
+    )
+    .unwrap_err();
+    assert_eq!(e.code, "non_finite");
+}
+
+#[test]
+fn untouched_records_are_copied_byte_for_byte() {
+    // a line (E0) and an arc (E1); edit only the arc. The line's record must appear unchanged in the output.
+    let parent = dxf(&format!("{LINE}{ARC}"));
+    let child = apply(&parent, &[Op::Move { ids: vec!["E1".into()], dx: 1.0, dy: 0.0 }]).unwrap();
+    assert!(String::from_utf8_lossy(&parent).contains(LINE));
+    assert!(String::from_utf8_lossy(&child).contains(LINE), "untouched LINE copied exactly");
+    // the moved arc is the one that changed
+    match only(&child, "ARC").geom {
+        Geom::Arc { c, .. } => assert_eq!(c, [2.0, 1.0]),
+        g => panic!("{g:?}"),
+    }
+}
+
+#[test]
+fn repeated_ids_in_one_op_move_an_entity_once() {
+    let child = apply(&dxf(LINE), &[Op::Move { ids: vec!["E0".into(), "E0".into()], dx: 1.0, dy: 0.0 }]).unwrap();
+    match only(&child, "LINE").geom {
+        Geom::Line { a, .. } => assert_eq!(a, [1.0, 0.0]),
+        g => panic!("{g:?}"),
+    }
+}
+
+#[test]
+fn an_edited_file_edited_again_keeps_exactly_one_marker() {
+    let once = apply(&dxf(LINE), &[Op::Move { ids: vec!["E0".into()], dx: 1.0, dy: 0.0 }]).unwrap();
+    let twice = apply(&once, &[Op::Move { ids: vec!["E0".into()], dx: 1.0, dy: 0.0 }]).unwrap();
+    let text = String::from_utf8_lossy(&twice).to_string();
+    assert_eq!(text.matches("EDITED IN NF CAD").count(), 1, "one marker line, replaced not stacked");
+    assert!(is_edited(&twice));
+}

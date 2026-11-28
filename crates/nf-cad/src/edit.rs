@@ -74,6 +74,22 @@ fn fmt(v: f64) -> String {
     format!("{v}")
 }
 
+fn unique(ids: &[String]) -> Vec<&String> {
+    let mut seen = std::collections::HashSet::new();
+    ids.iter().filter(|i| seen.insert(i.as_str())).collect()
+}
+
+/// The header without the marker, with the value after $HANDSEED blanked: what must not change.
+fn normal_head(v: &[RawPair]) -> Vec<RawPair> {
+    let mut out: Vec<RawPair> = v.iter().filter(|p| !(p.code == MARK_CODE && p.value.starts_with(MARK_PREFIX))).cloned().collect();
+    if let Some(k) = out.iter().position(|p| p.code == "9" && p.value.trim() == "$HANDSEED") {
+        if k + 1 < out.len() {
+            out[k + 1].value = String::new();
+        }
+    }
+    out
+}
+
 fn code_of(p: &RawPair) -> Option<u16> {
     p.code.trim().parse().ok()
 }
@@ -294,6 +310,9 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
         recs.push(pairs[start..i].to_vec());
     }
     let mut deleted = vec![false; recs.len()];
+    let mut touched = vec![false; recs.len()];
+    let orig_recs = recs.clone();
+    let orig_head = head.clone();
     let kind_of = |r: &[RawPair]| r.first().map(|p| p.value.trim().to_string()).unwrap_or_default();
 
     // Maximum handle in the file: new entities take the next ones.
@@ -335,7 +354,6 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
         Err(err("unsupported_op", "a POLYLINE without SEQEND is not editable"))
     };
 
-    let mut touched_ids: Vec<String> = Vec::new();
     for op0 in ops {
         // an angle mirror is the two-point mirror through c and c + (cos, sin)
         let converted;
@@ -349,33 +367,33 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
         };
         match op {
             Op::Move { ids, dx, dy } => {
-                for id in ids {
-                    transform_entity(&drawing, &resolve, &span, &mut recs, &deleted, id, Xf::Move(*dx, *dy), &mut touched_ids)?;
+                for id in unique(ids) {
+                    transform_entity(&drawing, &resolve, &span, &mut recs, &deleted, id, Xf::Move(*dx, *dy), &mut touched)?;
                 }
             }
             Op::Rotate { ids, cx, cy, deg } => {
-                for id in ids {
-                    transform_entity(&drawing, &resolve, &span, &mut recs, &deleted, id, Xf::Rotate([*cx, *cy], *deg), &mut touched_ids)?;
+                for id in unique(ids) {
+                    transform_entity(&drawing, &resolve, &span, &mut recs, &deleted, id, Xf::Rotate([*cx, *cy], *deg), &mut touched)?;
                 }
             }
             Op::Mirror { ids, a, b } => {
                 if a == b {
                     return Err(err("bad_request", "mirror axis needs two different points"));
                 }
-                for id in ids {
-                    transform_entity(&drawing, &resolve, &span, &mut recs, &deleted, id, Xf::Mirror(*a, *b), &mut touched_ids)?;
+                for id in unique(ids) {
+                    transform_entity(&drawing, &resolve, &span, &mut recs, &deleted, id, Xf::Mirror(*a, *b), &mut touched)?;
                 }
             }
             Op::Scale { ids, cx, cy, factor } => {
                 if !(factor.is_finite() && *factor > 0.0) {
                     return Err(err("bad_request", "scale factor must be a positive number"));
                 }
-                for id in ids {
-                    transform_entity(&drawing, &resolve, &span, &mut recs, &deleted, id, Xf::Scale([*cx, *cy], *factor), &mut touched_ids)?;
+                for id in unique(ids) {
+                    transform_entity(&drawing, &resolve, &span, &mut recs, &deleted, id, Xf::Scale([*cx, *cy], *factor), &mut touched)?;
                 }
             }
             Op::Delete { ids } => {
-                for id in ids {
+                for id in unique(ids) {
                     let r = resolve(id)?;
                     if deleted[r] {
                         return Err(err("unknown_entity", format!("'{id}' is already deleted in this edit")));
@@ -387,11 +405,12 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
             }
             Op::SetLayer { ids, layer } => {
                 check_layer(layer, &layers)?;
-                for id in ids {
+                for id in unique(ids) {
                     let r = resolve(id)?;
                     if deleted[r] {
                         return Err(err("unknown_entity", format!("'{id}' is deleted in this edit")));
                     }
+                    touched[r] = true;
                     let rec = &mut recs[r];
                     match rec.iter().position(|p| p.code == "8") {
                         Some(k) => rec[k].value = layer.clone(),
@@ -411,13 +430,23 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
     }
 
     // Header: keep $HANDSEED ahead of every handle written.
-    let mut head = head;
+    let mut head: Vec<RawPair> = head.into_iter().filter(|p| !(p.code == MARK_CODE && p.value.starts_with(MARK_PREFIX))).collect();
     if let Some(k) = head.iter().position(|p| p.code == "9" && p.value.trim() == "$HANDSEED") {
         if k + 1 < head.len() && head[k + 1].code == "5" {
             head[k + 1].value = format!("{:X}", next_handle + 1);
         }
     }
 
+    // Every record that was not edited, and the head and tail, must equal the parent byte for byte (only the
+    // marker and $HANDSEED may differ).
+    for r in 0..recs.len() {
+        if !deleted[r] && !touched[r] && recs[r] != orig_recs[r] {
+            return Err(err("edit_integrity", format!("record {r} changed without being edited")));
+        }
+    }
+    if normal_head(&head) != normal_head(&orig_head) || tail.as_slice() != &pairs[ee..] {
+        return Err(err("edit_integrity", "the header or the trailer changed outside the marker and $HANDSEED"));
+    }
     let mut body: Vec<RawPair> = Vec::new();
     for (r, rec) in recs.iter().enumerate() {
         if !deleted[r] {
@@ -432,6 +461,18 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
     out.extend(head);
     out.extend(body);
     out.extend(tail);
+    // No coordinate, scale or angle may be non-finite ("inf" and "NaN" parse as f64, so they are checked here).
+    for p in &out {
+        if let Ok(code) = p.code.parse::<u16>() {
+            if (10..=59).contains(&code) {
+                if let Ok(v) = p.value.trim().parse::<f64>() {
+                    if !v.is_finite() {
+                        return Err(err("non_finite", format!("group {code} would be {v}: the edit is refused")));
+                    }
+                }
+            }
+        }
+    }
     let bytes_out = join(&out, crlf);
 
     // The result must read back as a drawing; a version that does not is never returned.
@@ -448,7 +489,7 @@ fn transform_entity(
     deleted: &[bool],
     id: &str,
     xf: Xf,
-    touched: &mut Vec<String>,
+    touched: &mut [bool],
 ) -> Result<(), EditError> {
     let r = resolve(id)?;
     if deleted[r] {
@@ -464,6 +505,7 @@ fn transform_entity(
         return Err(unsupported(&kind, if xf.mirrors() { "mirror" } else { "this operation" }));
     }
     for j in span(r, recs)? {
+        touched[j] = true;
         let k = recs[j].first().map(|p| p.value.trim().to_string()).unwrap_or_default();
         // a POLYLINE header holds an elevation point, not geometry: only its VERTEX records move
         match k.as_str() {
@@ -472,7 +514,6 @@ fn transform_entity(
             _ => transform_pairs(&kind, &mut recs[j][1..], xf)?,
         }
     }
-    touched.push(id.to_string());
     Ok(())
 }
 

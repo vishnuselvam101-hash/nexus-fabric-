@@ -277,11 +277,7 @@ fn edited_name(name: &str) -> String {
 }
 
 fn edit_refused(e: nf_cad::edit::EditError) -> ApiError {
-    let status = match e.code {
-        "malformed" => StatusCode::UNPROCESSABLE_ENTITY,
-        _ => StatusCode::UNPROCESSABLE_ENTITY,
-    };
-    fail_json(status, json!({ "error": e.message, "code": e.code }))
+    fail_json(StatusCode::UNPROCESSABLE_ENTITY, json!({ "error": e.message, "code": e.code }))
 }
 
 #[derive(serde::Deserialize)]
@@ -369,7 +365,9 @@ async fn doc_undo(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> A
     require(&u, &["admin", "engineer"])?;
     let doc = doc_row(&db, id)?;
     project_guard(&app, &db, &u, doc.project, "undo a drawing edit")?;
-    let row: Option<(i64, String, String)> = db
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    // the version row is read inside the transaction, so the undo is recorded against what was current
+    let row: Option<(i64, String, String)> = tx
         .query_row(
             "SELECT parent_document, parent_sha256, child_sha256 FROM cad_versions WHERE child_document = ? AND kind = 'edit' ORDER BY id DESC LIMIT 1",
             [id],
@@ -379,7 +377,6 @@ async fn doc_undo(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> A
     let Some((parent, psha, csha)) = row else {
         return Err(fail_json(StatusCode::CONFLICT, json!({ "error": "nothing to undo: this document is not an NF CAD edit", "code": "not_an_edit" })));
     };
-    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     tx.execute(
         "INSERT INTO cad_versions(child_document, parent_document, parent_sha256, child_sha256, kind, ops_json, author, created_at) VALUES (?,?,?,?,?,?,?,?)",
         rusqlite::params![id, parent, psha, csha, "undo", "[]", u.username, now() as i64],
@@ -405,12 +402,21 @@ async fn doc_versions(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) 
     ok(json!({ "document_id": id, "cad_edited": doc.size >= 0 && is_cad_edited(&db, id), "parent": parent, "children": children }))
 }
 
-/// True when a document is an NF CAD edit or carries the edit marker. Shared helper: the export and nest routes
-/// call it before they serve a document as a certified pattern.
+/// True when a document is an NF CAD edit (the flag set on an edited version, or a version row for it). The original
+/// document a version was made from is NOT an edit: it stays certifiable. Shared helper for the export and nest routes.
 pub(crate) fn is_cad_edited(db: &rusqlite::Connection, id: i64) -> bool {
     let flagged = db.query_row("SELECT cad_edited FROM documents WHERE id = ?", [id], |r| r.get::<_, i64>(0)).map(|v| v == 1).unwrap_or(false);
-    let versioned = db.query_row("SELECT COUNT(*) FROM cad_versions WHERE child_document = ? OR parent_document = ?", [id, id], |r| r.get::<_, i64>(0)).map(|n| n > 0).unwrap_or(false);
+    let versioned = db.query_row("SELECT COUNT(*) FROM cad_versions WHERE child_document = ?", [id], |r| r.get::<_, i64>(0)).map(|n| n > 0).unwrap_or(false);
     flagged || versioned
+}
+
+/// The same question for a stored file by its hash: a certified pattern whose bytes are an edited document's are refused.
+pub(crate) fn refuse_if_edited_sha(db: &rusqlite::Connection, sha: &str) -> Result<(), ApiError> {
+    let edited: i64 = db.query_row("SELECT COUNT(*) FROM documents WHERE sha256 = ? AND cad_edited = 1", [sha], |r| r.get(0))?;
+    if edited > 0 {
+        return Err(fail_json(StatusCode::CONFLICT, json!({ "error": "this file is an NF CAD edit: it is not a verified NF pattern and cannot be served as one", "code": "edited_not_certified" })));
+    }
+    Ok(())
 }
 
 /// The NF CAD routes, merged into the router (so the security and licence layers cover them).

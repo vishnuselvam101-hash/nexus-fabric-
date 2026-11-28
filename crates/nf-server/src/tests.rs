@@ -6289,6 +6289,10 @@ async fn cad_versions_cannot_be_updated_or_deleted_and_the_helper_sees_both_side
     assert!(db.execute("UPDATE cad_versions SET author = 'x'", []).is_err(), "update refused");
     assert!(db.execute("DELETE FROM cad_versions", []).is_err(), "delete refused");
     assert!(crate::cad::is_cad_edited(&db, child), "child is an edit");
-    assert!(crate::cad::is_cad_edited(&db, parent), "parent of an edit is linked");
+    assert!(!crate::cad::is_cad_edited(&db, parent), "the original stays certifiable");
+    let psha: String = db.query_row("SELECT sha256 FROM documents WHERE id = ?", [parent], |r| r.get(0)).unwrap();
+    let csha: String = db.query_row("SELECT sha256 FROM documents WHERE id = ?", [child], |r| r.get(0)).unwrap();
+    assert!(crate::cad::refuse_if_edited_sha(&db, &csha).is_err(), "the edited bytes are refused by hash");
+    assert!(crate::cad::refuse_if_edited_sha(&db, &psha).is_ok(), "the original bytes stay certifiable");
     assert!(!crate::cad::is_cad_edited(&db, 999), "unknown document is not edited");
 }
