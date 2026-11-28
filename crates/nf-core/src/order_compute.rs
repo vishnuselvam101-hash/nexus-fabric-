@@ -1493,7 +1493,7 @@ fn seal(mut r: PartResult, w: Work<'_>, refusal: Option<RefusalOut>) -> PartResu
 
 /// The cut file of one pattern piece: the outline as a closed polyline on CUT_OUTER, every opening as a closed
 /// polyline or a full circle on CUT_INNER, then the release marking (not released) written by nf-dxf.
-fn piece_dxf(pc: &PatternPiece) -> String {
+pub fn piece_dxf(pc: &PatternPiece) -> String {
     use nf_dxf::Entity;
     let closed = |pts: &[[f64; 2]], layer: &str| Entity::Polyline {
         layer: layer.into(),

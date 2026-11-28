@@ -186,6 +186,15 @@ pub fn gate_order_dxf(res: &mut nf_core::order_compute::OrderResult) {
     }
 }
 
+/// The independent digest verdict of one order part's DXF against its own pattern piece, as "PASS" or the
+/// verdict name; None when the part has no file or no pattern piece to check it against.
+pub fn order_dxf_verdict(p: &nf_core::order_compute::PartResult) -> Option<String> {
+    let text = p.dxf.as_ref()?;
+    let pc = p.pattern.first()?;
+    let reference = reference_for_piece(p, pc);
+    Some(nf_digest::check_text(text, &reference).verdict().as_str().to_string())
+}
+
 /// One digest of one DXF file, ready to be stored.
 pub struct Digest {
     pub part: String,

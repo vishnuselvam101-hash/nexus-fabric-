@@ -4805,11 +4805,84 @@ async fn an_edit_after_the_override_makes_it_stale() {
 }
 
 #[tokio::test]
-#[ignore = "needs L11 DXF writing"]
 async fn override_lets_a_certified_digest_pass_dxf_through_marked() {
-    // End to end once L11 writes certified DXFs and stores a digest verdict: the package carries the DXF with
-    // "PERSON OVERRIDE — NOT VERIFIED BY NF" and the issue list names the override.
-    unimplemented!("needs L11 DXF writing");
+    let t = boot();
+    let oid = new_order(&t).await;
+    assert_eq!(add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0, StatusCode::OK);
+    // a certified shape (the tee) whose main diameter is inferred: held with source_inferred only
+    put_parts_values(
+        &t,
+        oid,
+        json!([
+            { "no": "T1", "name": "main", "shape": "tee_main", "qty": 1 },
+            { "no": "T1b", "name": "branch", "shape": "tee_branch", "attach_part": "T1", "qty": 1 }
+        ]),
+        json!([
+            inferred("T1", "D", 1016.0),
+            val("T1", "t", 12.0),
+            val("T1", "L", 2000.0),
+            val("T1", "branch_D", 508.0),
+            val("T1", "branch_t", 9.0),
+            val("T1", "branch_x", 1000.0),
+            val("T1", "dir", 0.0),
+            val("T1", "e", 0.0),
+            val("T1b", "D", 508.0),
+            val("T1b", "t", 9.0),
+            val("T1b", "H", 600.0)
+        ]),
+    )
+    .await;
+    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/confirm"), Some(json!({ "all": true }))).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/compute"), Some(json!({}))).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let main = v["result"]["parts"].as_array().unwrap().iter().find(|p| p["no"] == "T1").unwrap().clone();
+    assert!(main["holds"].as_array().unwrap().iter().any(|h| h["code"] == "source_inferred"), "{main}");
+    let path = format!("/api/orders/{oid}/outputs.zip");
+    let (st, _, z) = t.send("GET", &path, None, &[]).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(
+        !zip_entry_names(&z, "ov0").iter().any(|n| n.contains("T1.dxf") || n.contains("T1_")),
+        "the held part has no DXF before the override"
+    );
+    let (st, v) = post_override(&t, oid, &t.cookie.clone(), json!({ "part": "T1", "code": "source_inferred", "reason": GOOD_REASON })).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, _, z) = t.send("GET", &path, None, &[]).await;
+    assert_eq!(st, StatusCode::OK);
+    let names = zip_entry_names(&z, "ov1");
+    let marked: Vec<&String> = names
+        .iter()
+        .filter(|n| n.starts_with("dxf/") && n.ends_with(".dxf"))
+        .filter(|n| zip_entry_text(&z, "ov1", n).contains("PERSON OVERRIDE \u{2014} NOT VERIFIED BY NF"))
+        .collect();
+    assert_eq!(marked.len(), 1, "exactly the overridden part goes out marked: {names:?}");
+    assert!(zip_entry_text(&z, "ov1", "issues.txt").contains("override #1"));
+}
+
+/// An override of a code outside the allow-list (a row forced into the table) never lets a DXF through.
+#[tokio::test]
+async fn an_override_of_a_held_non_allow_list_code_still_gives_no_dxf() {
+    let t = boot();
+    let oid = new_order(&t).await;
+    assert_eq!(add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0, StatusCode::OK);
+    put_parts_values(
+        &t,
+        oid,
+        json!([{ "no": "P1", "name": "plate", "shape": "plate", "qty": 1 }]),
+        json!([val("P1", "t", 16.0)]),
+    )
+    .await;
+    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/confirm"), Some(json!({ "all": true }))).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/compute"), Some(json!({}))).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(v["result"]["parts"][0]["state"], "held_missing", "{v}");
+    let hash: String = t.app.db().query_row("SELECT input_hash FROM order_results WHERE order_id = ?1 ORDER BY id DESC LIMIT 1", [oid], |r| r.get(0)).unwrap();
+    t.sql(&format!("INSERT INTO order_hold_overrides(order_id, part_no, code, reason, against_hash, by_user, at) VALUES ({oid}, 'P1', 'missing', '{GOOD_REASON}', '{hash}', 'admin', 1)"));
+    let (st, _, z) = t.send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[]).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(zip_entry_names(&z, "ov2").iter().all(|n| !n.starts_with("dxf/")));
+    assert!(zip_entry_text(&z, "ov2", "issues.txt").contains("no DXF"));
 }
 
 #[test]
@@ -4828,7 +4901,7 @@ fn a_read_only_licence_stops_the_override_routes() {
 async fn int6_certified_tee_dxf_reaches_package_nest_and_machine_export() {
     let out = temp_dir("int6-machine-out");
     std::fs::create_dir_all(&out).unwrap();
-    let t = boot_with_exports(vec![out.clone()]);
+    let mut t = boot_with_exports(vec![out.clone()]);
     let oid = new_order(&t).await;
     assert_eq!(
         add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0,
@@ -4892,9 +4965,57 @@ async fn int6_certified_tee_dxf_reaches_package_nest_and_machine_export() {
     let (st, v) = t.call("POST", "/api/machine/profiles", Some(machine_profile_json())).await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let id = t.job(good_assembly()).await;
+    replay_matches(&mut t, id).await;
     let (st, v) = t
         .call("POST", &format!("/api/calculations/{id}/export"), Some(json!({ "profile": "PLASMA-A", "folder": 0 })))
         .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     assert_eq!(v["written"], json!(true));
+}
+
+/// A file edited in NF CAD is never certified output: an order holding one gets no job package and no nesting.
+#[tokio::test]
+async fn int7_an_order_with_an_nf_cad_edit_gets_no_package_and_no_nest() {
+    let t = boot();
+    let oid = new_order(&t).await;
+    assert_eq!(add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0, StatusCode::OK);
+    put_parts_values(
+        &t,
+        oid,
+        json!([{ "no": "C1", "name": "pipe", "shape": "cylinder", "qty": 1 }]),
+        json!([val("C1", "D", 216.3), val("C1", "t", 12.0), val("C1", "L", 2000.0)]),
+    )
+    .await;
+    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/confirm"), Some(json!({ "all": true }))).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/compute"), Some(json!({}))).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/decisions"), Some(json!({ "kind": "mark_checked" }))).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    // the same order is served before an edited file is attached
+    let (st, _, _) = t.send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[]).await;
+    assert_eq!(st, StatusCode::OK);
+    t.sql("INSERT INTO documents(project_id, filename, detected_type, size, sha256, extension_mismatch, record_id, created_by, created_at, cad_edited) VALUES (1,'e.dxf','dxf',1,'ee11','0','r','admin',0,1)");
+    t.sql(&format!("INSERT INTO order_files(order_id, document_id, ord) SELECT {oid}, id, 99 FROM documents WHERE sha256 = 'ee11'"));
+    let (st, _, b) = t.send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[]).await;
+    assert_eq!((st, code_of(&b)), (StatusCode::CONFLICT, json!("edited_not_certified")), "{}", String::from_utf8_lossy(&b));
+    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/nest"), Some(json!({}))).await;
+    assert_eq!((st, v["code"].clone()), (StatusCode::CONFLICT, json!("edited_not_certified")), "{v}");
+}
+
+/// The machine export refuses a job whose DXF bytes are an NF CAD edit, and writes nothing.
+#[tokio::test]
+async fn int7_machine_export_refuses_the_bytes_of_an_nf_cad_edit() {
+    let out = temp_dir("int7-machine-out");
+    std::fs::create_dir_all(&out).unwrap();
+    let mut t = boot_with_exports(vec![out.clone()]);
+    let (st, v) = t.call("POST", "/api/machine/profiles", Some(machine_profile_json())).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let id = t.job(good_assembly()).await;
+    replay_matches(&mut t, id).await;
+    let sha: String = t.app.db().query_row("SELECT dxf_sha256 FROM amoeba_digests WHERE calc_id = ?1 LIMIT 1", [id], |r| r.get(0)).unwrap();
+    t.sql(&format!("INSERT INTO documents(project_id, filename, detected_type, size, sha256, extension_mismatch, record_id, created_by, created_at, cad_edited) VALUES (1,'e.dxf','dxf',1,'{sha}','0','r','admin',0,1)"));
+    let (st, v) = t.call("POST", &format!("/api/calculations/{id}/export"), Some(json!({ "profile": "PLASMA-A", "folder": 0 }))).await;
+    assert_eq!((st, v["code"].clone()), (StatusCode::CONFLICT, json!("edited_not_certified")), "{v}");
+    assert_eq!(files_in(&out), 0);
 }

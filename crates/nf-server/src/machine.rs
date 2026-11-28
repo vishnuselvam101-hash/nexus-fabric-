@@ -240,6 +240,9 @@ async fn export_calc(
             "nothing to export: this job has no verified DXF records",
         ));
     };
+    for (_, sha) in &records.dxf {
+        crate::cad::refuse_if_edited_sha(&db, sha)?;
+    }
     let mut parts = Vec::new();
     for (part, sha) in &records.dxf {
         let held = export_held(&c, &e, &rows, part, sha);

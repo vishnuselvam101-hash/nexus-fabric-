@@ -477,6 +477,31 @@ fn body_text(raw: &[u8], key: &str) -> String {
         .unwrap_or_default()
 }
 
+/// An order whose attached files include an NF CAD edit, or whose DXF text is the bytes of an edited document,
+/// is never served as certified output (job package, nesting): a person's edit is not an NF verification.
+pub(crate) fn refuse_edited_order(
+    db: &rusqlite::Connection,
+    oid: i64,
+    dxfs: &[&str],
+) -> Result<(), ApiError> {
+    let mut st = db.prepare("SELECT document_id FROM order_files WHERE order_id = ?")?;
+    let docs: Vec<i64> = st
+        .query_map(params![oid], |r| r.get(0))?
+        .collect::<Result<_, _>>()?;
+    for d in docs {
+        if crate::cad::is_cad_edited(db, d) {
+            return Err(fail_json(
+                StatusCode::CONFLICT,
+                json!({ "error": "an attached file was edited in NF CAD: it is not a verified NF pattern, so no certified output is made from this order", "code": "edited_not_certified" }),
+            ));
+        }
+    }
+    for d in dxfs {
+        crate::cad::refuse_if_edited_sha(db, &nf_core::sha256_hex(d.as_bytes()))?;
+    }
+    Ok(())
+}
+
 /// Writes one audit row in its own transaction. Used after a refused request has rolled back: the refusal is on
 /// record and nothing else of the request is.
 fn record_alone(app: &App, who: &str, action: &str, detail: &str) -> Result<(), ApiError> {
@@ -5629,8 +5654,23 @@ async fn get_outputs_zip(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i6
                     "the compute stopped unexpectedly",
                 )
             })?;
-    // No digest is stored for an order's DXF until L11 writes one: until then an override cannot let a file through.
-    let pkg = job_package(oid, &name, &utc_stamp(now()), &res, record, &over, &|_| None);
+    // The package never carries a file the server digest did not pass; an override reads the same verdict.
+    let mut res = res;
+    // A held part has no file from the engine. Where a person overrode a hold, the file of its single certified
+    // piece is drawn here so the server digest can judge it; the gate still decides whether it goes out.
+    for p in res.parts.iter_mut() {
+        let overridden = over.iter().any(|o| o.part == p.no);
+        if overridden && p.dxf.is_none() && p.certified && p.refusal.is_none() && p.pattern.len() == 1 {
+            p.dxf = p.pattern.first().map(oc::piece_dxf);
+        }
+    }
+    crate::amoeba::gate_order_dxf(&mut res);
+    {
+        let db = app.db();
+        let files: Vec<&str> = res.parts.iter().filter_map(|p| p.dxf.as_deref()).collect();
+        refuse_edited_order(&db, oid, &files)?;
+    }
+    let pkg = job_package(oid, &name, &utc_stamp(now()), &res, record, &over, &crate::amoeba::order_dxf_verdict);
     let n_dxf = pkg.pieces.len();
     let n_held = res
         .parts

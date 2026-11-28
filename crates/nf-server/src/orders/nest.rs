@@ -95,6 +95,17 @@ fn nest_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
             "compute the order before nesting",
         ));
     };
+    let result: Value = serde_json::from_str(&result_json).unwrap_or(Value::Null);
+    {
+        let files: Vec<&str> = result["parts"]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .filter_map(|p| p["dxf"].as_str())
+            .collect();
+        super::refuse_edited_order(&db, oid, &files)?;
+    }
     let checked = decision_view(&db, oid, None)?
         .iter()
         .rev()
@@ -105,7 +116,6 @@ fn nest_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
             "a person must mark the order as checked before nesting",
         ));
     }
-    let result: Value = serde_json::from_str(&result_json).unwrap_or(Value::Null);
 
     // certified and unheld: the DXF is allowed by the gate, has no hold, and is one closed outline
     let mut inputs: Vec<PartIn> = Vec::new();
