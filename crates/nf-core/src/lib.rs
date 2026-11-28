@@ -20,6 +20,7 @@
 //! exploration, investigations, coverage ledger, lanes/overlays, quarantine,
 //! engineer approval.
 
+pub mod assign;
 pub mod bend;
 pub mod conebranch;
 pub mod deps;
