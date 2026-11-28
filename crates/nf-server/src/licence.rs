@@ -325,6 +325,7 @@ pub(crate) fn gated(method: &Method, path: &str) -> bool {
         ] => id.parse::<i64>().is_ok(),
         ["api", "orders", id, "operator", "events" | "undo"] => id.parse::<i64>().is_ok(),
         ["api", "orders", id, "rules", "impact"] => id.parse::<i64>().is_ok(),
+        ["api", "cad", "documents", id, "edit" | "undo"] => id.parse::<i64>().is_ok(),
         ["api", "orders", id, "decisions", did, "undo"] => {
             id.parse::<i64>().is_ok() && did.parse::<i64>().is_ok()
         }

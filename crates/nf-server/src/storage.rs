@@ -56,11 +56,14 @@ CREATE TABLE IF NOT EXISTS operator_state(order_id INTEGER PRIMARY KEY REFERENCE
 CREATE TABLE IF NOT EXISTS order_decisions(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), part_id INTEGER, value_id INTEGER, kind TEXT NOT NULL, flag TEXT, source TEXT NOT NULL, agent TEXT, reason TEXT NOT NULL, against_hash TEXT NOT NULL, prev_state TEXT, decided_by TEXT NOT NULL, decided_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, undo_note TEXT);
 CREATE TABLE IF NOT EXISTS order_material_rows(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, no TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL, length TEXT NOT NULL, qty REAL, mass REAL, UNIQUE(order_id, page_no, no));
 CREATE TABLE IF NOT EXISTS order_page_notes(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'note', text TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS cad_versions(id INTEGER PRIMARY KEY, child_document INTEGER NOT NULL, parent_document INTEGER NOT NULL, parent_sha256 TEXT NOT NULL, child_sha256 TEXT NOT NULL, kind TEXT NOT NULL, ops_json TEXT NOT NULL, author TEXT NOT NULL, created_at INTEGER NOT NULL);
 ";
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 25] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 26] = [
+    // NF CAD phase 2: 1 for a document written by an NF CAD edit or carrying the edit marker
+    ("documents", "cad_edited", "INTEGER NOT NULL DEFAULT 0"),
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
