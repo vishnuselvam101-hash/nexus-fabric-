@@ -512,3 +512,17 @@ fn new_body(e: &NewEntity, layers: &[String]) -> Result<(&'static str, String, V
         }
     }
 }
+
+/// The entity ids an operation list names (for validation before anything is applied).
+pub fn touched_ids(ops: &[Op]) -> Vec<String> {
+    let mut out = Vec::new();
+    for op in ops {
+        match op {
+            Op::Move { ids, .. } | Op::Rotate { ids, .. } | Op::Mirror { ids, .. } | Op::Scale { ids, .. } | Op::Delete { ids } | Op::SetLayer { ids, .. } => {
+                out.extend(ids.iter().cloned())
+            }
+            Op::Add { .. } => {}
+        }
+    }
+    out
+}
