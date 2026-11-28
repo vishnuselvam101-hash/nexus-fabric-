@@ -441,6 +441,13 @@ fn tee_group_holds_block_the_dxf() {
         rib.clone(),
     ]);
     assert_hold(&r[2], "tee_rib_on_lateral_unsupported");
+    // the angle given only on the branch part (not on the main) holds the rib as well
+    let r = run(&[
+        tee_main("T1"),
+        tee_branch("T1b", "T1").v("branch_angle", 45.0),
+        rib.clone(),
+    ]);
+    assert_hold(&r[2], "tee_rib_on_lateral_unsupported");
     // ... and the same rib on a perpendicular branch is not held for that
     let r = run(&[tee_main("T1"), tee_branch("T1b", "T1"), rib]);
     assert!(!r[2].has_hold("tee_rib_on_lateral_unsupported"));
@@ -834,4 +841,17 @@ fn order_rules_are_strict_and_change_the_result() {
     let b = compute_order(&[cyl("C1")], &small);
     assert!(!a.parts[0].has_hold("stock_fit") && b.parts[0].has_hold("stock_fit"));
     assert!(a.rules.iter().any(|x| x["name"] == "order.stock"));
+}
+
+#[test]
+fn a_main_with_its_own_branch_keys_and_no_branch_part_gets_a_hole() {
+    let r = run(&[tee_main("T1")]);
+    let m = &r[0];
+    assert!(m.refusal.is_none(), "{:?}", m.refusal);
+    assert_eq!(m.state, "computed", "{:?} {:?}", m.holds, m.questions);
+    assert!(
+        m.pattern.iter().any(|p| !p.holes.is_empty()),
+        "the branch hole is on the plate"
+    );
+    assert!(m.unit_mass_kg.is_some_and(|k| k > 0.0));
 }

@@ -1819,6 +1819,10 @@ fn compute_tee_group(
             }
         }
     }
+    // the angle of the branch a rib stands on, read before any part's work is taken out below
+    let rib_angle = works[&m]
+        .num("branch_angle")
+        .or_else(|| single_branch.and_then(|b| works.get(&b).and_then(|w| w.num("branch_angle"))));
     // ---- missing values per part
     let mut incomplete: BTreeMap<usize, bool> = BTreeMap::new();
     for i in idxs {
@@ -2169,12 +2173,7 @@ fn compute_tee_group(
         res.insert(*pr, r);
     }
     // ---- ribs
-    let branch_angle =
-        single_branch.and_then(|b| works.get(&b).and_then(|w| w.num("branch_angle")));
-    let branch_angle = branch_angle.or_else(|| {
-        // the rib's branch: the single branch of the group, else the main's own branch angle
-        parts[m].values.get("branch_angle").and_then(Val::usable)
-    });
+    let branch_angle = rib_angle;
     for rb in &ribs {
         let mut w = works.remove(rb).expect("rib");
         let mut r = res.remove(rb).expect("rib res");
@@ -2510,6 +2509,12 @@ fn compute_cone_group(
 
 fn fill_cb_common(r: &mut PartResult, c: &conebranch::ConeBranchResult) {
     r.rules = rules_of(c.rules);
+    r.rules.push(json!({
+        "name": "CB_MID_SURFACE_TOL",
+        "value": format!("{} mm", conebranch::CB_MID_SURFACE_TOL),
+        "kind": "implementation tolerance: a cone whose neutral surface departs more than this from the developed cone is held",
+        "status": "UNVERIFIED",
+    }));
     r.method = Some(c.method.to_string());
     r.certified = c.certified;
     r.eps_rep = Some(c.hole.eps_rep);
