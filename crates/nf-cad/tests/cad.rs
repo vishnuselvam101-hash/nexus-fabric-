@@ -277,3 +277,29 @@ fn polyline_without_seqend_is_warned() {
     let d = open(b"0\nSECTION\n2\nENTITIES\n0\nPOLYLINE\n70\n0\n8\nA\n0\nVERTEX\n10\n0\n20\n0\n0\nLINE\n8\nB\n10\n0\n20\n0\n11\n1\n21\n1\n0\nENDSEC\n0\nEOF\n").unwrap();
     assert!(d.entities[0].warnings.iter().any(|w| w.contains("without SEQEND")), "{:?}", d.entities[0].warnings);
 }
+
+#[test]
+fn propose_edit_is_a_question_and_changes_nothing() {
+    use nf_amoeba_operator::events::Target;
+    let _ = Target::Cad { canvas: None, entity: None };
+    let mut reg = nf_amoeba_operator::operator::Registry::default();
+    nf_cad::tools::register(&mut reg);
+    for n in ["cad_blocks", "cad_dimensions", "cad_hatches", "cad_propose_edit"] {
+        assert!(reg.names().contains(&n), "{n} is registered");
+    }
+    let mut st = nf_cad::tools::CadState::load(BASIC).unwrap();
+    let before = st.drawing.clone();
+    let out = run_tool(
+        &reg,
+        &mut st,
+        "cad_propose_edit",
+        serde_json::json!({"question": "move the circle?", "ops": [{"op": "move", "ids": ["E1"], "dx": 1.0, "dy": 0.0}]}),
+    )
+    .unwrap();
+    assert_eq!(out.events[0].action, "ask");
+    assert_eq!(out.result["applied"], false);
+    assert_eq!(st.drawing, before, "the drawing is unchanged");
+    // unknown fields and unknown ids are refused
+    assert!(run_tool(&reg, &mut st, "cad_propose_edit", serde_json::json!({"question": "x", "ops": [{"op": "delete", "ids": ["E0"], "force": true}]})).is_err());
+    assert!(run_tool(&reg, &mut st, "cad_propose_edit", serde_json::json!({"question": "x", "ops": [{"op": "delete", "ids": ["E99"]}]})).is_err());
+}

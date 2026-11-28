@@ -60,11 +60,14 @@ CREATE TABLE IF NOT EXISTS rule_packs(id INTEGER PRIMARY KEY, name TEXT NOT NULL
 CREATE TABLE IF NOT EXISTS rule_pack_assignments(scope TEXT NOT NULL, target_id INTEGER NOT NULL, pack_id INTEGER NOT NULL REFERENCES rule_packs(id), assigned_by TEXT NOT NULL, assigned_at INTEGER NOT NULL, PRIMARY KEY(scope, target_id));
 CREATE TABLE IF NOT EXISTS rule_confirmations(id INTEGER PRIMARY KEY, pack_id INTEGER NOT NULL REFERENCES rule_packs(id), rule_key TEXT NOT NULL, prev_json TEXT NOT NULL, new_json TEXT NOT NULL, confirmed_by TEXT NOT NULL, confirmed_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER);
 CREATE TABLE IF NOT EXISTS order_hold_overrides(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), part_no TEXT NOT NULL, code TEXT NOT NULL, reason TEXT NOT NULL, against_hash TEXT NOT NULL, by_user TEXT NOT NULL, at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, undo_note TEXT);
+CREATE TABLE IF NOT EXISTS cad_versions(id INTEGER PRIMARY KEY, child_document INTEGER NOT NULL, parent_document INTEGER NOT NULL, parent_sha256 TEXT NOT NULL, child_sha256 TEXT NOT NULL, kind TEXT NOT NULL, ops_json TEXT NOT NULL, author TEXT NOT NULL, created_at INTEGER NOT NULL);
 ";
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 25] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 26] = [
+    // NF CAD phase 2: 1 for a document written by an NF CAD edit or carrying the edit marker
+    ("documents", "cad_edited", "INTEGER NOT NULL DEFAULT 0"),
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
@@ -142,6 +145,8 @@ CREATE TRIGGER IF NOT EXISTS operator_events_no_edit BEFORE UPDATE OF order_id, 
 CREATE TRIGGER IF NOT EXISTS order_results_immutable BEFORE UPDATE ON order_results WHEN NOT (NEW.state = 'SUPERSEDED' AND NEW.id IS OLD.id AND NEW.order_id IS OLD.order_id AND NEW.input_hash IS OLD.input_hash AND NEW.engine IS OLD.engine AND NEW.supersedes IS OLD.supersedes AND NEW.result_json IS OLD.result_json AND NEW.counts_json IS OLD.counts_json AND NEW.created_by IS OLD.created_by AND NEW.created_at IS OLD.created_at) BEGIN SELECT RAISE(ABORT, 'computed results are immutable; only SUPERSEDED may be set'); END;
 CREATE TRIGGER IF NOT EXISTS order_readings_no_delete BEFORE DELETE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are kept as the reader produced them'); END;
 CREATE TRIGGER IF NOT EXISTS order_readings_no_edit BEFORE UPDATE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS cad_versions_no_update BEFORE UPDATE ON cad_versions BEGIN SELECT RAISE(ABORT, 'CAD versions are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS cad_versions_no_delete BEFORE DELETE ON cad_versions BEGIN SELECT RAISE(ABORT, 'CAD versions are kept'); END;
 CREATE TRIGGER IF NOT EXISTS order_decisions_no_delete BEFORE DELETE ON order_decisions BEGIN SELECT RAISE(ABORT, 'decisions are kept; undo marks them undone'); END;
 CREATE TRIGGER IF NOT EXISTS order_hold_overrides_no_delete BEFORE DELETE ON order_hold_overrides BEGIN SELECT RAISE(ABORT, 'overrides are kept; undo marks them undone'); END;
 ";

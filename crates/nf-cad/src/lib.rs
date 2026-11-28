@@ -5,6 +5,7 @@
 //! Independence: this crate is not a dependency of `nf-digest`, and it never edits `uem`, `nf-dxf` or
 //! `nf-core`. `nf-dxf` is used only to call its quality gate.
 
+pub mod edit;
 pub mod geom;
 pub mod read;
 pub mod tools;
@@ -70,10 +71,10 @@ pub fn open(bytes: &[u8]) -> Result<Drawing, Refusal> {
             &[]
         }
     };
-    let entities = read::entities(entities_pairs, MAX_ENTITIES).map_err(|m| Refusal {
-        code: "too_many_entities",
-        message: m,
-    })?;
+    let block_pairs = doc.section("BLOCKS").map(|s| s.pairs.as_slice()).unwrap_or(&[]);
+    let blocks = read::blocks(block_pairs);
+    let (entities, expand_warnings) = read::entities(entities_pairs, &blocks, MAX_ENTITIES).map_err(|(code, message)| Refusal { code, message })?;
+    warnings.extend(expand_warnings);
     for e in &entities {
         if !index.contains_key(&e.layer) {
             index.insert(e.layer.clone(), layers.len());
@@ -90,7 +91,7 @@ pub fn open(bytes: &[u8]) -> Result<Drawing, Refusal> {
     let extents = entities.iter().filter_map(|e| geom::extents(&e.geom)).reduce(|a, b| {
         [a[0].min(b[0]), a[1].min(b[1]), a[2].max(b[2]), a[3].max(b[3])]
     });
-    let unsupported = entities.iter().filter(|e| matches!(e.geom, Geom::Unsupported)).count();
+    let unsupported = read::unread(&entities);
     if unsupported > 0 {
         warnings.push(format!("{unsupported} entities of a type phase 1 does not measure (listed, not read)"));
     }
@@ -252,6 +253,8 @@ pub fn entity_json(e: &Entity) -> serde_json::Value {
         "layer": e.layer,
         "geom": geom,
         "extents": geom::extents(&e.geom),
+        "parent": e.parent,
+        "record": e.record,
         "warnings": e.warnings,
     })
 }

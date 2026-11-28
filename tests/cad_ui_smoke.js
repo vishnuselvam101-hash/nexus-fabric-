@@ -50,14 +50,35 @@ const check = (name, ok) => { console.log(`${ok ? 'ok  ' : 'FAIL'} - ${name}`); 
   await page.waitForFunction(() => document.getElementById('checks-out').textContent.includes('readable'), null, { timeout: 10000 });
   check('checks: all rules listed', (await page.textContent('#checks-out')).includes('units_declared'));
 
+  // edit (documents only): undo on an original is refused by the server; an add-line makes a NEW version the page opens
+  check('edit: tools enabled on a document', !(await page.isDisabled('#e-move')));
+  await page.click('#e-undo');
+  await page.waitForFunction(() => /not an NF CAD edit/.test(document.getElementById('info').textContent), null, { timeout: 10000 });
+  check('undo: refused on an original document', /not an NF CAD edit/.test(await page.textContent('#info')));
+  await page.click('#e-line');
+  const ebox = await page.locator('#view').boundingBox();
+  await page.mouse.click(ebox.x + ebox.width * 0.2, ebox.y + ebox.height * 0.8);
+  await page.mouse.click(ebox.x + ebox.width * 0.8, ebox.y + ebox.height * 0.8);
+  await page.waitForURL(/src=doc(?::|%3A)(?!1(&|$))\d+/, { timeout: 15000 });
+  await page.waitForFunction(() => /New version|新しいバージョン/.test(document.getElementById('edit-note').textContent), null, { timeout: 15000 });
+  check('edit: add line opens a new version marked not verified', /not a verified NF pattern|検証済みNFパターンではありません/.test(await page.textContent('#edit-note')));
+  await page.click('#e-undo');
+  await page.waitForURL(/src=doc(?::|%3A)1(&|$)/, { timeout: 15000 });
+  check('undo: back to the original document', true);
+  await page.click('#e-redo');
+  await page.waitForURL(/src=doc(?::|%3A)(?!1(&|$))\d+/, { timeout: 15000 });
+  check('redo: opens the edited version again', true);
+
   // Japanese switch keeps the page working
   await page.goto(`${BASE}/cad?src=doc:${DOC}&lang=ja`);
   await page.waitForFunction(() => /要素数/.test(document.getElementById('status').textContent), null, { timeout: 15000 });
   check('EN/JA: Japanese labels render', true);
 
   // no console or page errors
-  check('no page errors', errors.length === 0);
-  if (errors.length) console.log(errors.slice(0, 5).join('\n'));
+  // the refused undo of an original is an expected 409, logged by the browser: it is the only allowed console error
+  const unexpected = errors.filter((e) => !/409 \(Conflict\)/.test(e));
+  check('no page errors', unexpected.length === 0);
+  if (unexpected.length) console.log(unexpected.slice(0, 5).join('\n'));
   await browser.close();
   if (fails.length) { console.log(`${fails.length} failed`); process.exit(1); }
   console.log('all UI checks passed');

@@ -21,6 +21,26 @@
       <button type="button" id="fit"></button>
       <button type="button" id="checks"></button>
     </div>
+    <h2 id="edit-h"></h2>
+    <div class="tools edit" role="toolbar" aria-labelledby="edit-h">
+      <button type="button" data-edit="move" id="e-move"></button>
+      <button type="button" data-edit="rotate" id="e-rotate"></button>
+      <button type="button" data-edit="mirror" id="e-mirror"></button>
+      <button type="button" data-edit="scale" id="e-scale"></button>
+      <button type="button" data-edit="delete" id="e-delete"></button>
+      <button type="button" data-edit="line" id="e-line"></button>
+      <button type="button" data-edit="layer" id="e-layer"></button>
+      <button type="button" data-edit="undo" id="e-undo"></button>
+      <button type="button" data-edit="redo" id="e-redo"></button>
+    </div>
+    <div class="edit-form" id="edit-form">
+      <label id="l-dx" for="f-dx"></label><input id="f-dx" type="number" step="any" value="0">
+      <label id="l-dy" for="f-dy"></label><input id="f-dy" type="number" step="any" value="0">
+      <label id="l-deg" for="f-deg"></label><input id="f-deg" type="number" step="any" value="90">
+      <label id="l-factor" for="f-factor"></label><input id="f-factor" type="number" step="any" min="0.000001" value="2">
+      <label id="l-layer" for="f-layer"></label><input id="f-layer" type="text" maxlength="255" value="0">
+    </div>
+    <p id="edit-note" class="edit-note" role="status"></p>
     <h2 id="layers-h"></h2>
     <ul id="layers" class="layers"></ul>
     <section id="info" class="info" aria-live="polite"></section>

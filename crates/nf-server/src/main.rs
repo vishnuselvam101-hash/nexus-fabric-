@@ -1880,6 +1880,9 @@ fn register_document(
         params![project, filename, detected, bytes.len() as i64, sha, mismatch, artifact.id, u.username, now() as i64],
     )?;
     let doc_id = tx.last_insert_rowid();
+    if crate::cad::is_marked(bytes) {
+        tx.execute("UPDATE documents SET cad_edited = 1 WHERE id = ?", [doc_id])?;
+    }
     app.fault("upload.after_document")?;
     // New immutable snapshot of the whole project (engulfment), linked to its predecessor.
     let members: Vec<String> = q_all(
@@ -3940,6 +3943,8 @@ async fn get_dxf(
             }
         }
     };
+    crate::cad::refuse_if_edited(&bytes)?;
+    crate::cad::refuse_if_edited_sha(&tx, &sha)?;
     app.audit(
         &tx,
         &u.username,

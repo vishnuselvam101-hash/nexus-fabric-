@@ -244,3 +244,158 @@ fn bulge_point(a: P, b: P, bulge: f64, t: f64) -> P {
     let ang = a0 + theta * t;
     [c[0] + r * ang.cos(), c[1] + r * ang.sin()]
 }
+
+/// Default chord tolerance for curves evaluated to polylines (drawing units). A sampled curve deviates from
+/// the true curve by at most this much at every segment midpoint.
+pub const CHORD_TOL: f64 = 0.001;
+/// Cap on the points of one evaluated curve. Above it the curve is not evaluated (reported as a warning).
+pub const MAX_CURVE_POINTS: usize = 20_000;
+
+/// Adaptive sampling of `f` over [t0, t1]: 16 uniform spans, then bisection until the midpoint of each span lies
+/// within `tol` of its chord. Returns every sample, including both ends. Errors when more than `max` points are
+/// needed.
+pub fn sample_curve(f: &dyn Fn(f64) -> P, t0: f64, t1: f64, tol: f64, max: usize) -> Result<Vec<P>, String> {
+    fn rec(f: &dyn Fn(f64) -> P, a: f64, b: f64, pa: P, pb: P, tol: f64, depth: u32, out: &mut Vec<P>, max: usize) -> Result<(), String> {
+        let m = 0.5 * (a + b);
+        let pm = f(m);
+        let chord_mid = [(pa[0] + pb[0]) / 2.0, (pa[1] + pb[1]) / 2.0];
+        if dist(pm, chord_mid) <= tol || depth >= 24 {
+            if out.len() >= max {
+                return Err(format!("more than {max} points"));
+            }
+            out.push(pb);
+            return Ok(());
+        }
+        let _ = pm;
+        rec(f, a, m, pa, pm, tol, depth + 1, out, max)?;
+        rec(f, m, b, pm, pb, tol, depth + 1, out, max)
+    }
+    if !(t1 > t0) || !t0.is_finite() || !t1.is_finite() {
+        return Err("empty parameter range".into());
+    }
+    let mut out = vec![f(t0)];
+    let n = 16;
+    let mut pa = out[0];
+    for k in 1..=n {
+        let a = t0 + (t1 - t0) * (k - 1) as f64 / n as f64;
+        let b = t0 + (t1 - t0) * k as f64 / n as f64;
+        let pb = f(b);
+        rec(f, a, b, pa, pb, tol, 0, &mut out, max)?;
+        pa = pb;
+    }
+    Ok(out)
+}
+
+/// Evaluates a NURBS curve (degree `p`, knot vector `u`, control points `cp` with weights `w`) at `t`, using
+/// de Boor on homogeneous coordinates. The valid domain is [u[p], u[n+1]] where n + 1 = cp.len().
+pub fn nurbs_at(p: usize, u: &[f64], cp: &[P], w: &[f64], t: f64) -> P {
+    let n = cp.len() - 1;
+    let k = if t >= u[n + 1] {
+        n
+    } else {
+        let (mut lo, mut hi) = (p, n);
+        while lo < hi {
+            let mid = (lo + hi + 1) / 2;
+            if u[mid] <= t { lo = mid } else { hi = mid - 1 }
+        }
+        lo
+    };
+    let mut d: Vec<[f64; 3]> = (0..=p)
+        .map(|j| {
+            let i = k - p + j;
+            [cp[i][0] * w[i], cp[i][1] * w[i], w[i]]
+        })
+        .collect();
+    for r in 1..=p {
+        for j in (r..=p).rev() {
+            let i = k - p + j;
+            let den = u[i + p + 1 - r] - u[i];
+            let alpha = if den == 0.0 { 0.0 } else { (t - u[i]) / den };
+            for c in 0..3 {
+                d[j][c] = (1.0 - alpha) * d[j - 1][c] + alpha * d[j][c];
+            }
+        }
+    }
+    let wt = d[p][2];
+    if wt == 0.0 { [0.0, 0.0] } else { [d[p][0] / wt, d[p][1] / wt] }
+}
+
+/// An affine map x' = a x + c y + e, y' = b x + d y + f.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Affine {
+    pub m: [f64; 4],
+    pub t: P,
+}
+
+impl Affine {
+    pub fn identity() -> Affine {
+        Affine { m: [1.0, 0.0, 0.0, 1.0], t: [0.0, 0.0] }
+    }
+    pub fn apply(&self, p: P) -> P {
+        let [a, b, c, d] = self.m;
+        [a * p[0] + c * p[1] + self.t[0], b * p[0] + d * p[1] + self.t[1]]
+    }
+    /// The linear part applied to a vector (no translation).
+    pub fn linear(&self, v: P) -> P {
+        let [a, b, c, d] = self.m;
+        [a * v[0] + c * v[1], b * v[0] + d * v[1]]
+    }
+    pub fn det(&self) -> f64 {
+        let [a, b, c, d] = self.m;
+        a * d - b * c
+    }
+    /// Composition: first `self`, then `o` (o(self(p))).
+    pub fn then(&self, o: &Affine) -> Affine {
+        let [a, b, c, d] = self.m;
+        let [e, f, g, h] = o.m;
+        Affine {
+            m: [e * a + g * b, f * a + h * b, e * c + g * d, f * c + h * d],
+            t: o.apply(self.t),
+        }
+    }
+    pub fn translate(dx: f64, dy: f64) -> Affine {
+        Affine { m: [1.0, 0.0, 0.0, 1.0], t: [dx, dy] }
+    }
+    /// Rotation by `deg` counter-clockwise about the origin.
+    pub fn rotate(deg: f64) -> Affine {
+        let (s, c) = deg.to_radians().sin_cos();
+        Affine { m: [c, s, -s, c], t: [0.0, 0.0] }
+    }
+    pub fn scale(sx: f64, sy: f64) -> Affine {
+        Affine { m: [sx, 0.0, 0.0, sy], t: [0.0, 0.0] }
+    }
+    /// Reflection across the line through `a` and `b`.
+    pub fn mirror(a: P, b: P) -> Affine {
+        let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+        let l2 = dx * dx + dy * dy;
+        let (ux, uy) = (dx / l2.sqrt(), dy / l2.sqrt());
+        // reflection matrix 2 u u^T - I
+        let m = [2.0 * ux * ux - 1.0, 2.0 * ux * uy, 2.0 * ux * uy, 2.0 * uy * uy - 1.0];
+        let lin = Affine { m, t: [0.0, 0.0] };
+        let ta = lin.linear(a);
+        Affine { m, t: [a[0] - ta[0], a[1] - ta[1]] }
+    }
+    /// True when the map preserves angles and scales lengths by one factor (rotation, mirror, uniform scale).
+    pub fn is_similarity(&self) -> Option<f64> {
+        let [a, b, c, d] = self.m;
+        let s1 = (a * a + b * b).sqrt();
+        let s2 = (c * c + d * d).sqrt();
+        let orth = (a * c + b * d).abs() <= 1e-9 * s1 * s2;
+        if s1 > 0.0 && (s1 - s2).abs() <= 1e-9 * s1 && orth { Some(s1) } else { None }
+    }
+}
+
+/// Ellipse sample: centre `c`, major axis vector `a` (from the centre), minor/major ratio, parametric angle `t`.
+pub fn ellipse_at(c: P, a: P, ratio: f64, t: f64) -> P {
+    let bx = -a[1] * ratio;
+    let by = a[0] * ratio;
+    let (s, co) = t.sin_cos();
+    [c[0] + a[0] * co + bx * s, c[1] + a[1] * co + by * s]
+}
+
+/// Closed-form check helper used by tests: the complete elliptic integral of the second kind E(k).
+pub fn ellipse_perimeter_series(a: f64, b: f64) -> f64 {
+    // Ramanujan's approximation, accurate to about 1e-6 relative for b/a in (0, 1].
+    let h = ((a - b) / (a + b)).powi(2);
+    std::f64::consts::PI * (a + b) * (1.0 + 3.0 * h / (10.0 + (4.0 - 3.0 * h).sqrt()))
+}
