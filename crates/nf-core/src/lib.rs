@@ -28,6 +28,7 @@ pub mod order;
 pub mod shapes;
 pub mod tee;
 pub mod tee_pad;
+pub mod wye;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
