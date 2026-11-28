@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS operator_state(order_id INTEGER PRIMARY KEY REFERENCE
 CREATE TABLE IF NOT EXISTS order_decisions(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), part_id INTEGER, value_id INTEGER, kind TEXT NOT NULL, flag TEXT, source TEXT NOT NULL, agent TEXT, reason TEXT NOT NULL, against_hash TEXT NOT NULL, prev_state TEXT, decided_by TEXT NOT NULL, decided_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, undo_note TEXT);
 CREATE TABLE IF NOT EXISTS order_material_rows(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, no TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL, length TEXT NOT NULL, qty REAL, mass REAL, UNIQUE(order_id, page_no, no));
 CREATE TABLE IF NOT EXISTS order_page_notes(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'note', text TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS order_hold_overrides(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), part_no TEXT NOT NULL, code TEXT NOT NULL, reason TEXT NOT NULL, against_hash TEXT NOT NULL, by_user TEXT NOT NULL, at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, undo_note TEXT);
 ";
 
 /// Columns added after the first schema. Each is added only if absent, and a
@@ -136,6 +137,7 @@ CREATE TRIGGER IF NOT EXISTS order_results_immutable BEFORE UPDATE ON order_resu
 CREATE TRIGGER IF NOT EXISTS order_readings_no_delete BEFORE DELETE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are kept as the reader produced them'); END;
 CREATE TRIGGER IF NOT EXISTS order_readings_no_edit BEFORE UPDATE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS order_decisions_no_delete BEFORE DELETE ON order_decisions BEGIN SELECT RAISE(ABORT, 'decisions are kept; undo marks them undone'); END;
+CREATE TRIGGER IF NOT EXISTS order_hold_overrides_no_delete BEFORE DELETE ON order_hold_overrides BEGIN SELECT RAISE(ABORT, 'overrides are kept; undo marks them undone'); END;
 ";
 
 const INDEXES: &str = "

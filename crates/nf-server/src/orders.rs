@@ -23,6 +23,7 @@ use super::*;
 use nf_core::reading::{BoxCheck, ItemRef, OcrCheck, Provenance, StoredCheck, Verdict};
 
 mod operator;
+mod overrides;
 
 /// Implementation limits, stated to the user by the UI.
 pub(crate) const MAX_ORDER_FILES: i64 = 100;
@@ -85,6 +86,7 @@ const MAX_ABS_VALUE: f64 = 1.0e7;
 pub(crate) fn routes() -> Router<Arc<App>> {
     Router::new()
         .merge(operator::routes())
+        .merge(overrides::routes())
         .route(
             "/api/projects/{id}/orders",
             get(list_orders).post(create_order),
@@ -5382,6 +5384,8 @@ fn job_package(
     generated: &str,
     res: &oc::OrderResult,
     record: Vec<nf_jobout::RecordEntry>,
+    over: &[overrides::ActiveOverride],
+    digest_of: &dyn Fn(&oc::PartResult) -> Option<String>,
 ) -> nf_jobout::JobInput {
     use nf_jobout::{Issue, JobInput, Piece, Provenance};
     let drawing = format!("order{oid}");
@@ -5393,21 +5397,54 @@ fn job_package(
     for m in &mut material {
         m.drawing = drawing.clone();
     }
-    let pieces: Vec<Piece> = res
-        .parts
-        .iter()
-        .filter(|p| p.certified && p.dxf_allowed && p.dxf_blocked_by.is_empty())
-        .filter_map(|p| {
-            p.dxf.as_ref().map(|d| Piece {
+    let mut pieces: Vec<Piece> = Vec::new();
+    let mut override_issues: Vec<Issue> = Vec::new();
+    for p in &res.parts {
+        let mine: Vec<&overrides::ActiveOverride> = over.iter().filter(|o| o.part == p.no).collect();
+        let normal = p.certified && p.dxf_allowed && p.dxf_blocked_by.is_empty();
+        let codes: Vec<String> = mine.iter().map(|o| o.code.clone()).collect();
+        let digest = digest_of(p);
+        let gate = overrides::override_gate(&overrides::gate_of(p), &codes, digest.as_deref());
+        let through = !normal && !mine.is_empty() && gate == overrides::Gate::Allowed;
+        for o in &mine {
+            let when = utc_stamp(o.at.max(0) as u64);
+            let (fate_en, fate_ja) = if through {
+                ("its DXF is marked and let through", "DXFに印を付けて出力しました")
+            } else {
+                ("no DXF: the part is not otherwise certified with a digest PASS", "DXFなし：他の条件（認証・ダイジェスト合格）を満たしていません")
+            };
+            override_issues.push(Issue {
+                code: "person_override".into(),
+                title_en: "PERSON OVERRIDE".into(),
+                title_ja: "担当者による上書き".into(),
+                message_en: format!("override #{}: {} overridden by {} at {when}: {} ({fate_en})", o.id, o.code, o.by, o.reason),
+                message_ja: format!("上書き #{}：{} を {} が {when} に上書き：{}（{fate_ja}）", o.id, o.code, o.by, o.reason),
+                no: p.no.clone(),
+                name: p.name.clone(),
+                ..Default::default()
+            });
+        }
+        if let Some(d) = p.dxf.as_ref().filter(|_| normal || through) {
+            let (dxf, label) = if through {
+                let notes: Vec<String> = mine
+                    .iter()
+                    .map(|o| format!("override of {} by {} at {}: {}", o.code, o.by, utc_stamp(o.at.max(0) as u64), o.reason))
+                    .collect();
+                (overrides::mark_dxf(d, &notes), Some("PERSON-OVERRIDE".to_string()))
+            } else {
+                (d.clone(), None)
+            };
+            pieces.push(Piece {
                 drawing: drawing.clone(),
                 no: p.no.clone(),
                 name: p.name.clone(),
-                label: None,
-                dxf: d.clone().into_bytes(),
-            })
-        })
-        .collect();
+                label,
+                dxf: dxf.into_bytes(),
+            });
+        }
+    }
     let mut issues = oc::issues(res);
+    issues.extend(override_issues);
     for p in res.parts.iter().filter(|p| !p.dxf_blocked_by.is_empty()) {
         if issues.iter().any(|i| i.no == p.no) {
             continue;
@@ -5455,7 +5492,7 @@ fn job_package(
 /// current (state CURRENT, this engine, the same input hash) or the answer is 409. The package is recomputed under
 /// that hash, so it is the stored compute's content. Refused under a read-only licence (licence.rs gated()).
 async fn get_outputs_zip(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) -> Api {
-    let (u, name, input, ctx, stored, record) = {
+    let (u, name, input, ctx, stored, record, over) = {
         let db = app.db();
         let u = auth_db(&db, &app, &headers)?;
         guard_order(&app, &db, &u, oid, "download the job package")?;
@@ -5470,7 +5507,8 @@ async fn get_outputs_zip(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i6
             )
             .optional()?;
         let record = package_record(&decision_view(&db, oid, None)?);
-        (u, head.name, input, ctx, stored, record)
+        let over = overrides::active_overrides(&db, oid, &input.2)?;
+        (u, head.name, input, ctx, stored, record, over)
     };
     let (parts, rules, hash) = input;
     let stale = || {
@@ -5496,7 +5534,8 @@ async fn get_outputs_zip(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i6
                     "the compute stopped unexpectedly",
                 )
             })?;
-    let pkg = job_package(oid, &name, &utc_stamp(now()), &res, record);
+    // No digest is stored for an order's DXF until L11 writes one: until then an override cannot let a file through.
+    let pkg = job_package(oid, &name, &utc_stamp(now()), &res, record, &over, &|_| None);
     let n_dxf = pkg.pieces.len();
     let n_held = res
         .parts

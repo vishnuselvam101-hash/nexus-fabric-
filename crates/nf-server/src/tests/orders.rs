@@ -4659,3 +4659,130 @@ async fn f1_job_package_holds_no_dxf_is_gated_audited_and_csv_safe() {
         &format!("/api/orders/{oid}/compute")
     ));
 }
+
+// ---------------------------------------------------------------- 6B: a person's hold override
+
+fn inferred(part: &str, key: &str, v: f64) -> Value {
+    json!({ "part": part, "key": key, "value": v, "text": format!("{v}"), "source": "inferred" })
+}
+
+/// An order whose part C1 computes with a `source_inferred` hold (D is inferred), values confirmed.
+async fn order_with_inferred_hold(t: &T) -> i64 {
+    let oid = new_order(t).await;
+    assert_eq!(
+        add_file(t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0,
+        StatusCode::OK
+    );
+    put_parts_values(
+        t,
+        oid,
+        json!([{ "no": "C1", "name": "pipe", "shape": "cylinder", "qty": 1 }]),
+        json!([inferred("C1", "D", 216.3), val("C1", "t", 12.0), val("C1", "L", 2000.0)]),
+    )
+    .await;
+    let (st, v) = t
+        .call("POST", &format!("/api/orders/{oid}/confirm"), Some(json!({ "all": true })))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call("POST", &format!("/api/orders/{oid}/compute"), Some(json!({})))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let c1 = v["result"]["parts"].as_array().unwrap().iter().find(|p| p["no"] == "C1").unwrap().clone();
+    assert!(
+        c1["holds"].as_array().unwrap().iter().any(|h| h["code"] == "source_inferred"),
+        "fixture must hold C1 with source_inferred: {c1}"
+    );
+    oid
+}
+
+async fn post_override(t: &T, oid: i64, cookie: &str, body: Value) -> (StatusCode, Value) {
+    let (st, _, b) = t
+        .send("POST", &format!("/api/orders/{oid}/overrides"), Some(body), &[("cookie", cookie)])
+        .await;
+    (st, serde_json::from_slice(&b).unwrap_or(Value::Null))
+}
+
+const GOOD_REASON: &str = "checked the drawing by hand: D is 216.3";
+
+#[tokio::test]
+async fn override_is_person_only_reasoned_allow_listed_audited_and_undoable() {
+    let t = boot();
+    let oid = order_with_inferred_hold(&t).await;
+    let ac = add_agent(&t, "operator-bot");
+    let body = json!({ "part": "C1", "code": "source_inferred", "reason": GOOD_REASON });
+    // an agent is refused whatever it says, and the refusal is on record
+    let (st, v) = post_override(&t, oid, &ac, body.clone()).await;
+    assert_eq!((st, v["code"].clone()), (StatusCode::FORBIDDEN, json!("override_person_only")), "{v}");
+    assert!(audit_details(&t, "order_refused").iter().any(|d| d.contains("override_person_only")));
+    // reason shorter than 20 characters
+    let (st, v) = post_override(&t, oid, &t.cookie.clone(), json!({ "part": "C1", "code": "source_inferred", "reason": "too short" })).await;
+    assert_eq!((st, v["code"].clone()), (StatusCode::UNPROCESSABLE_ENTITY, json!("override_reason")), "{v}");
+    // codes outside the allow-list: never-wave, uncertified and anything else are 409
+    for code in ["missing", "not_certified", "refused", "reading_conflict", "mass_total", "FLAT_STOP"] {
+        let (st, v) = post_override(&t, oid, &t.cookie.clone(), json!({ "part": "C1", "code": code, "reason": GOOD_REASON })).await;
+        assert_eq!((st, v["code"].clone()), (StatusCode::CONFLICT, json!("override_not_allowed")), "{code}: {v}");
+    }
+    // an allow-list code the part does not hold
+    let (st, v) = post_override(&t, oid, &t.cookie.clone(), json!({ "part": "C1", "code": "out_of_band", "reason": GOOD_REASON })).await;
+    assert_eq!((st, v["code"].clone()), (StatusCode::CONFLICT, json!("override_no_hold")), "{v}");
+    assert!(audit_details(&t, "order_override").is_empty());
+    // a person's override is recorded with name, time and reason
+    let (st, v) = post_override(&t, oid, &t.cookie.clone(), body.clone()).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let id = v["id"].as_i64().unwrap();
+    assert!(audit_details(&t, "order_override").iter().any(|d| d.contains("source_inferred") && d.contains(GOOD_REASON)));
+    let (st, v) = post_override(&t, oid, &t.cookie.clone(), body).await;
+    assert_eq!((st, v["code"].clone()), (StatusCode::CONFLICT, json!("override_exists")), "{v}");
+    let l = t.get(&format!("/api/orders/{oid}/overrides")).await;
+    let row = &l["overrides"][0];
+    assert_eq!((row["part"].clone(), row["code"].clone(), row["active"].clone()), (json!("C1"), json!("source_inferred"), json!(true)), "{l}");
+    assert_eq!(row["reason"], GOOD_REASON);
+    assert!(row["by"].as_str().is_some_and(|b| !b.is_empty()) && row["at"].as_i64().unwrap() > 0, "{l}");
+    // the issue list lists it, and no DXF went out (no digest exists before L11)
+    let (st, _, z) = t.send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[]).await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&z));
+    let issues = zip_entry_text(&z, "pkg", "issues.txt");
+    assert!(issues.contains("person_override") || issues.contains("PERSON OVERRIDE"), "{issues}");
+    assert!(zip_entry_names(&z, "pkg").iter().all(|n| !n.starts_with("dxf/")));
+    // an agent cannot undo it; a person can, once
+    let (st, _, _) = t.send("POST", &format!("/api/orders/{oid}/overrides/{id}/undo"), Some(json!({})), &[("cookie", &ac)]).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/overrides/{id}/undo"), Some(json!({ "note": "changed my mind" }))).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert!(!audit_details(&t, "order_override_undo").is_empty());
+    let (st, _) = t.call("POST", &format!("/api/orders/{oid}/overrides/{id}/undo"), Some(json!({}))).await;
+    assert_eq!(st, StatusCode::CONFLICT);
+    let l = t.get(&format!("/api/orders/{oid}/overrides")).await;
+    assert_eq!(l["overrides"][0]["active"], false, "{l}");
+    let (_, _, z) = t.send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[]).await;
+    assert!(!zip_entry_text(&z, "pkg", "issues.txt").contains("person_override"));
+}
+
+#[tokio::test]
+async fn an_edit_after_the_override_makes_it_stale() {
+    let t = boot();
+    let oid = order_with_inferred_hold(&t).await;
+    let (st, v) = post_override(&t, oid, &t.cookie.clone(), json!({ "part": "C1", "code": "source_inferred", "reason": GOOD_REASON })).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t.call("PUT", &format!("/api/orders/{oid}/values"), Some(json!({ "values": [val("C1", "L", 2100.0)] }))).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let l = t.get(&format!("/api/orders/{oid}/overrides")).await;
+    assert_eq!((l["overrides"][0]["active"].clone(), l["overrides"][0]["stale"].clone()), (json!(false), json!(true)), "{l}");
+}
+
+#[tokio::test]
+#[ignore = "needs L11 DXF writing"]
+async fn override_lets_a_certified_digest_pass_dxf_through_marked() {
+    // End to end once L11 writes certified DXFs and stores a digest verdict: the package carries the DXF with
+    // "PERSON OVERRIDE — NOT VERIFIED BY NF" and the issue list names the override.
+    unimplemented!("needs L11 DXF writing");
+}
+
+#[test]
+fn a_read_only_licence_stops_the_override_routes() {
+    use axum::http::Method;
+    assert!(crate::licence::gated(&Method::POST, "/api/orders/1/overrides"));
+    assert!(crate::licence::gated(&Method::POST, "/api/orders/1/overrides/2/undo"));
+    assert!(!crate::licence::gated(&Method::GET, "/api/orders/1/overrides"));
+}
