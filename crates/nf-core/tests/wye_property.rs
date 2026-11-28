@@ -118,6 +118,61 @@ impl Gen {
     }
 }
 
+/// Independent retained-side predicate: the point lies on the kept side of the plane of BOTH neighbours (`g_i >= g_j`, planes
+/// of the sphere of the amplitude surface `Rs - ao`) and ON the plane of one of them (`g_i = g_j`, 1e-6 mm): a cut on the
+/// wrong plane (`g_i = -g_j`) or on the wrong side of the right one fails.
+fn retained_side(rf: &Ref, leg: usize, pt: &V3, ao: f64) -> bool {
+    let rp = rf.rs - ao;
+    let gi = rf.g(leg, rp, pt);
+    let kept = NB[leg]
+        .iter()
+        .all(|&j| gi >= rf.g(j, rp, pt) - 1e-9 * rf.rs);
+    let on = NB[leg].iter().any(|&j| (gi - rf.g(j, rp, pt)).abs() < 1e-6);
+    kept && on
+}
+
+/// Negative control: the predicate rejects a cut point moved back into a neighbour (the wrong side of the plane), for a
+/// grid of cone and cylinder wyes. Its `on the plane` part also rejects the engine's own point once it is moved out along the
+/// generator, so the predicate here is only used for the point ON the cut and the rejection of the point behind it.
+#[test]
+fn retained_side_predicate_detects_the_wrong_side() {
+    let mut g = Gen {
+        r: Lcg(SEED ^ 0x5151),
+    };
+    let (mut rejected, mut tried) = (0, 0);
+    for k in 0..40 {
+        let s = if k % 2 == 0 {
+            g.pipe_spec(false, 0)
+        } else {
+            match g.cone_spec(true, false) {
+                Some(s) => s,
+                None => continue,
+            }
+        };
+        let Ok(r) = wye::wye(&s) else { continue };
+        let rf = Ref::new(s.d / 2.0, s.beta1_deg, s.beta2_deg, r.psi_deg.to_radians());
+        for leg in 0..3 {
+            let ao = if leg == 0 || r.cone {
+                off(s.amp, s.t)
+            } else {
+                off(s.amp, s.branch_t.unwrap_or(s.t))
+            };
+            for th in [0.3, 1.2, 2.5, 4.0, 5.5] {
+                let e = wye::probe::cut(&s, leg, th, ao, true).unwrap();
+                assert!(retained_side(&rf, leg, &rf.point(leg, e, th, ao), ao));
+                tried += 1;
+                if !retained_side(&rf, leg, &rf.point(leg, e - 25.0, th, ao), ao) {
+                    rejected += 1;
+                }
+            }
+        }
+    }
+    assert!(
+        tried > 100 && rejected * 10 >= tried * 9,
+        "rejected {rejected} of {tried}"
+    );
+}
+
 struct Tally {
     built: usize,
     refused: usize,
@@ -129,6 +184,8 @@ struct Tally {
     cone_built: usize,
     ao_cases: usize,
     grazing_skipped: usize,
+    retained_checked: usize,
+    worst_gap: f64,
 }
 
 fn check_spec(s: &WyeSpec, rng: &mut Lcg, t: &mut Tally) {
@@ -188,10 +245,6 @@ fn check_spec(s: &WyeSpec, rng: &mut Lcg, t: &mut Tally) {
             }
             assert!(r.welds.iter().all(|w| w.is_finite() && *w > 0.0));
             assert!(!r.certified && r.method.contains("certified:false"));
-            for c in verify_wye(s, &r).unwrap() {
-                assert!(c.ok, "verify failed {c:?} on {s:?}");
-            }
-            t.verified += 1;
             let psi = r.psi_deg.to_radians();
             if r.cone {
                 t.cone_built += 1;
@@ -204,7 +257,7 @@ fn check_spec(s: &WyeSpec, rng: &mut Lcg, t: &mut Tally) {
                 if ao > 0.0 {
                     t.ao_cases += 1;
                 }
-                let eng = |th: f64| wye::probe::cut(s, p.leg, th, ao, false).unwrap();
+                let eng = |th: f64| wye::probe::cut(s, p.leg, th, ao, true).unwrap();
                 let (cmin, cmax) = wye::probe::extremes(s, p.leg, ao).unwrap();
                 let hi = (p.s_end).min(cmax + 1.5 * rf.rs + 0.5 * cmax.abs());
                 let mut ths: Vec<f64> = (0..16).map(|k| PI / 8.0 * k as f64).collect();
@@ -222,6 +275,29 @@ fn check_spec(s: &WyeSpec, rng: &mut Lcg, t: &mut Tally) {
                         e >= cmin - 1e-9 && e <= cmax + 1e-9,
                         "cut outside closed-form range"
                     );
+                    // retained side (independent): the cut point lies on the kept side of the plane of BOTH neighbours
+                    // (g_i >= g_j, the planes of the amplitude sphere); on the plane of the neighbour that cuts it
+                    let pt = rf.point(p.leg, e, th, ao);
+                    assert!(
+                        retained_side(&rf, p.leg, &pt, ao),
+                        "retained side violated: leg {} th {th} on {s:?}",
+                        p.leg
+                    );
+                    let mut gap = f64::INFINITY;
+                    for &j in &NB[p.leg] {
+                        let (sj, perp) = rf.axis_coords(j, &pt);
+                        gap = gap.min((perp - rf.rho(j, sj, ao)).abs());
+                    }
+                    t.retained_checked += 1;
+                    // plates of one wall cut on their own offset surfaces meet (the default joint-plane rule)
+                    if p.t == s.t && (r.cone || s.branch_t.is_none_or(|b| b == s.t)) {
+                        t.worst_gap = t.worst_gap.max(gap);
+                        assert!(
+                            gap < 1e-6,
+                            "plates do not meet: gap {gap} mm, leg {} th {th} on {s:?}",
+                            p.leg
+                        );
+                    }
                     // within 0.1 rad of the crotch angles (90 / 270 deg) the cylinder surfaces meet at a grazing angle: the surface scans are
                     // ill-conditioned there (error ~ 1e-5 mm at 0.1 rad, measured), so the plane bisection is the reference there
                     // a leg within 0.05 deg of straight makes two cylinders nearly coaxial: the same ill-conditioning (the lateral limit
@@ -245,7 +321,7 @@ fn check_spec(s: &WyeSpec, rng: &mut Lcg, t: &mut Tally) {
                         continue;
                     }
                     let reference = if ao > 0.0 || near_crotch {
-                        Some(rf.plane_cut(p.leg, th, ao, rf.rs))
+                        Some(rf.plane_cut(p.leg, th, ao, rf.rs - ao))
                     } else if !r.cone {
                         rf.pierce_h(p.leg, th, 0.0, 0.0, hi, true)
                     } else {
@@ -268,6 +344,10 @@ fn check_spec(s: &WyeSpec, rng: &mut Lcg, t: &mut Tally) {
                     );
                 }
             }
+            for c in verify_wye(s, &r).unwrap() {
+                assert!(c.ok, "verify failed {c:?} on {s:?}");
+            }
+            t.verified += 1;
         }
     }
 }
@@ -287,6 +367,8 @@ fn property_against_the_independent_reference() {
         cone_built: 0,
         ao_cases: 0,
         grazing_skipped: 0,
+        retained_checked: 0,
+        worst_gap: 0.0,
     };
     let mut specs: Vec<WyeSpec> = Vec::new();
     for _ in 0..100 {
@@ -364,7 +446,7 @@ fn property_against_the_independent_reference() {
         check_spec(s, &mut rng, &mut t);
     }
     println!(
-        "wye property: {} specs, {} built ({} with cone legs, {} piece checks with an offset amplitude), {} refused {:?}; {} cut comparisons; worst cut error outer {:.3e} mm, offset amp {:.3e} mm; verify_wye ok on {}; {} cone samples not scanned (a double root the scan cannot see; the engine's point is checked on a neighbour surface instead)",
+        "wye property: {} specs, {} built ({} with cone legs, {} piece checks with an offset amplitude), {} refused {:?}; {} cut comparisons; worst cut error outer {:.3e} mm, offset amp {:.3e} mm; verify_wye ok on {}; {} cone samples not scanned (a double root the scan cannot see; the engine's point is checked on a neighbour surface instead); retained-side check (g_i >= g_j, independent) on {} samples including all {} skipped ones, worst plate gap {:.3e} mm (equal walls)",
         specs.len(),
         t.built,
         t.cone_built,
@@ -375,7 +457,10 @@ fn property_against_the_independent_reference() {
         t.worst_cut,
         t.worst_ao,
         t.verified,
-        t.grazing_skipped
+        t.grazing_skipped,
+        t.retained_checked,
+        t.grazing_skipped,
+        t.worst_gap
     );
     assert!(t.built >= 300 && t.cone_built >= 60 && t.refused >= 20);
     assert!(t.worst_cut < 1e-6 && t.worst_ao < 1e-6);
@@ -503,8 +588,8 @@ fn symmetric_inputs_and_swap() {
         let Ok(res) = wye::wye(&s) else { continue };
         for th in (0..90).map(|i| PI * 2.0 * i as f64 / 90.0) {
             let (a, c) = (
-                wye::probe::cut(&s, 1, th, 0.0, false).unwrap(),
-                wye::probe::cut(&s, 2, th, 0.0, false).unwrap(),
+                wye::probe::cut(&s, 1, th, 0.0, true).unwrap(),
+                wye::probe::cut(&s, 2, th, 0.0, true).unwrap(),
             );
             assert!(
                 (a - c).abs() < 1e-9 * (1.0 + a.abs()),

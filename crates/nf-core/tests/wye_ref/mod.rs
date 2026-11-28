@@ -227,7 +227,7 @@ impl Ref {
     }
 
     /// `g_i(p) - g_j(p)` of the common-sphere joint plane for the sphere radius `rp`.
-    fn g(&self, i: usize, rp: f64, p: &V3) -> f64 {
+    pub fn g(&self, i: usize, rp: f64, p: &V3) -> f64 {
         (dot(p, &self.u[i]) - rp * self.psi[i].sin()) / self.psi[i].cos()
     }
 

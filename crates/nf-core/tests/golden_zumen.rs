@@ -3535,12 +3535,18 @@ fn wy_ex(i: usize) -> WyeSpec {
     }
 }
 
+/// Golden parity runs the ZK joint-plane reading: planes from the OUTER sphere (rule `WYE_JOINT_PLANES_OUTER_SPHERE`, UNVERIFIED).
+/// The engine default is the amplitude sphere; s16 must stay 124/0/12/32 under the ZK rule.
+fn zk_wye(s: &WyeSpec) -> Result<WyeResult, nf_core::shapes::ShapeRefusal> {
+    wye::wye_with_rule(s, wye::WyeJointRule::OuterSphere)
+}
+
 fn wy_run(s: &WyeSpec) -> Option<WyeResult> {
-    wye::wye(s).ok()
+    zk_wye(s).ok()
 }
 
 fn wy_code(s: &WyeSpec) -> Option<&'static str> {
-    wye::wye(s).err().map(|e| e.code)
+    zk_wye(s).err().map(|e| e.code)
 }
 
 fn wsym(a: [f64; 9]) -> Vec<f64> {
@@ -3620,12 +3626,12 @@ fn wy_read(file: &str, edit: impl Fn(&mut Value)) -> Option<WyeSpec> {
 }
 
 fn wy_read_run(file: &str, edit: impl Fn(&mut Value)) -> Option<WyeResult> {
-    wye::wye(&wy_read(file, edit)?).ok()
+    zk_wye(&wy_read(file, edit)?).ok()
 }
 
 /// Reading outcome: `Some(result)` built, `None` refused (a refusal where the spec exists).
 fn wy_read_code(file: &str, edit: impl Fn(&mut Value)) -> Option<&'static str> {
-    wye::wye(&wy_read(file, edit)?).err().map(|e| e.code)
+    zk_wye(&wy_read(file, edit)?).err().map(|e| e.code)
 }
 
 fn wset(v: &mut Value, k: &str, x: Value) {
@@ -3893,7 +3899,7 @@ fn eval_s16(n: usize) -> Option<Got> {
         163 => {
             let mut s = wy_read(K, |_| {})?;
             s.basis = WBasis::Outer;
-            num(wye::wye(&s).ok()?.pieces[0].w)
+            num(zk_wye(&s).ok()?.pieces[0].w)
         }
         164 => {
             flag(wy_read_code(KC, |v| wset(v, "t", (-5).into())) == Some("wye_value_not_positive"))
@@ -3926,6 +3932,10 @@ fn real_engine_status_wye() {
         .collect();
     assert_eq!(part.len(), 168);
     let r = run_real(&RustShapes, &part);
+    println!(
+        "s16 joint rule: {} (ZK parity, UNVERIFIED; the engine default is WYE_JOINT_PLANES_AMPLITUDE_SPHERE)",
+        wye::WyeJointRule::OuterSphere.name()
+    );
     println!(
         "s16: {} OK, {} NG, {} PENDING, {} derived (not counted) of {}",
         r.ok,

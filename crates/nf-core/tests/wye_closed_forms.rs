@@ -768,20 +768,106 @@ fn thickness_rule_and_join_plane_delta() {
     // cylinders: the joint plane does not depend on the radius, so the amplitude surface changes nothing
     let mut s = ex(0);
     s.amp = Basis::Inner;
-    assert_eq!(run(&s).join_plane_delta_max, 0.0);
-    // cone with the amplitude on the mid surface: the plates' own joint planes differ from the outer ones by a stated amount
+    let r = run(&s);
+    assert_eq!(r.join_plane_delta_max, 0.0);
+    assert!(r.fit_gap_max < 1e-6, "equal walls: plates meet");
+    assert_eq!(r.joint_rule, "WYE_JOINT_PLANES_AMPLITUDE_SPHERE");
+    // cone with the amplitude on the mid surface: the two rules differ by a stated amount, over ALL legs (the cylinder main's
+    // joints with the cones move too)
     let mut s = ex(3);
     s.amp = Basis::Mid;
     let r = run(&s);
     assert!(r.join_plane_delta_max > 0.0 && r.join_plane_delta_max < 20.0);
-    // and equals the independent reference's difference between the two plane rules (bisection), at the sampled angles
+    // equals the independent reference's difference between the two plane rules (bisection), at the sampled angles
     let rf = Ref::new(508.0, 30.0, 30.0, r.psi_deg.to_radians());
     let mut want = 0.0f64;
-    for k in 0..145 {
-        let th = 2.0 * PI * k as f64 / 144.0;
-        want = want.max((rf.plane_cut(1, th, 6.0, 508.0) - rf.plane_cut(1, th, 6.0, 502.0)).abs());
+    let mut want_leg = [0.0f64; 3];
+    for (leg, wl) in want_leg.iter_mut().enumerate() {
+        for k in 0..145 {
+            let th = 2.0 * PI * k as f64 / 144.0;
+            let d = (rf.plane_cut(leg, th, 6.0, 508.0) - rf.plane_cut(leg, th, 6.0, 502.0)).abs();
+            *wl = wl.max(d);
+            want = want.max(d);
+        }
     }
+    println!(
+        "joint-plane delta, ex3 cone amp mid: {:.6} mm (main {:.6}, legs {:.6} / {:.6}); fit gap default {:.3e} mm",
+        r.join_plane_delta_max, want_leg[0], want_leg[1], want_leg[2], r.fit_gap_max
+    );
     close(r.join_plane_delta_max, want, 1e-6, "join plane delta");
+    assert!(want_leg[0] > 0.0, "the cylinder main is part of the delta");
+    // default rule: plates meet (independent check below in tests/wye_property.rs over 500 specs; here the engine's own gap)
+    assert!(r.fit_gap_max < 1e-6);
+    assert!(!r.has_hold("wye_joint_plane_delta_over_tol"));
+    // the ZK rule: outer-sphere planes, same cut as the outer reference, a hold above the tolerance, a gap that is the fit-up error
+    let z = wye::wye_with_rule(&s, wye::WyeJointRule::OuterSphere).unwrap();
+    assert_eq!(z.joint_rule, "WYE_JOINT_PLANES_OUTER_SPHERE");
+    close(z.join_plane_delta_max, want, 1e-6, "zk rule delta");
+    assert!(want > wye::WYE_JOINT_PLANE_TOL && z.has_hold("wye_joint_plane_delta_over_tol"));
+    assert!(z.fit_gap_max > 0.05, "ZK rule: plates do not meet");
+    for th in [0.4, 1.9, 3.3, 5.1] {
+        let e = wye::probe::cut(&s, 1, th, 6.0, false).unwrap();
+        close(e, rf.plane_cut(1, th, 6.0, 508.0), 1e-6, "zk cut");
+    }
+    // ZK rule with a small delta: no hold (thin wall)
+    let mut thin = ex(3);
+    thin.amp = Basis::Mid;
+    thin.t = 0.5;
+    thin.branch_t = Some(0.5);
+    let zt = wye::wye_with_rule(&thin, wye::WyeJointRule::OuterSphere).unwrap();
+    assert!(
+        zt.join_plane_delta_max <= wye::WYE_JOINT_PLANE_TOL
+            && !zt.has_hold("wye_joint_plane_delta_over_tol")
+    );
+    // outer amplitude: both rules identical
+    let o = ex(3);
+    let (a, b) = (
+        run(&o),
+        wye::wye_with_rule(&o, wye::WyeJointRule::OuterSphere).unwrap(),
+    );
+    assert_eq!((a.join_plane_delta_max, b.join_plane_delta_max), (0.0, 0.0));
+    assert_eq!(a.pieces[1].marks, b.pieces[1].marks);
+    // cut-map shift, quantified: cone, basis mid (o = 6), amplitude outer: |o - ao| sin(psi)
+    let psi = a.psi_deg.to_radians();
+    close(
+        a.cut_map_axial_shift_max,
+        6.0 * psi.sin(),
+        1e-12,
+        "cut map shift",
+    );
+    assert_eq!(run(&ex(0)).cut_map_axial_shift_max, 0.0);
+    // cylinder legs of another wall (branch_t != t): no plane delta, but the plates cut on their own offset surfaces step
+    // against each other by the stated fit gap (independent: the radial distance of the cut point from the cutting neighbour's
+    // own offset surface, on the 144-angle grid the engine also samples)
+    let mut c = ex(0);
+    c.branch_t = Some(9.0);
+    c.amp = Basis::Mid;
+    let rc = run(&c);
+    assert_eq!(rc.join_plane_delta_max, 0.0);
+    let rf = Ref::new(508.0, 45.0, 45.0, 0.0);
+    let aos = [6.0, 4.5, 4.5];
+    let mut gap = 0.0f64;
+    for leg in 0..3 {
+        for k in 0..144 {
+            let th = 2.0 * PI * k as f64 / 144.0;
+            let e = wye::probe::cut(&c, leg, th, aos[leg], true).unwrap();
+            let pt = rf.point(leg, e, th, aos[leg]);
+            let g = NB[leg]
+                .iter()
+                .map(|&j| {
+                    let (sj, perp) = rf.axis_coords(j, &pt);
+                    (perp - rf.rho(j, sj, aos[j])).abs()
+                })
+                .fold(f64::INFINITY, f64::min);
+            gap = gap.max(g);
+        }
+    }
+    println!(
+        "cylinder wye branch_t 9 vs t 12, amp mid: fit gap engine {:.6} mm, independent grid {:.6} mm",
+        rc.fit_gap_max, gap
+    );
+    assert!(gap > 0.1 && rc.fit_gap_max >= gap - 1e-9);
+    assert!(rc.questions.iter().any(|q| q.contains("differ by")));
     // normal-thickness rule is named; the radial alternative is named as not implemented
     assert!(
         wye::WYE_NAMED_RULES

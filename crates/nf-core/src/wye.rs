@@ -62,13 +62,16 @@ pub const WYE_JUMP_REL: f64 = 0.05;
 /// Output invariant: residual of a cut point on the surface of the neighbour that cuts it, in mm per mm of `Rs`.
 pub const WYE_ON_SURFACE_TOL: f64 = 1e-9;
 pub const WYE_DEFAULT_SEAMS: u32 = 1;
+/// UNVERIFIED (see rule `WYE_JOINT_PLANE_TOL`): hold threshold (mm) of the difference between the two joint-plane rules
+/// under the ZK rule.
+pub const WYE_JOINT_PLANE_TOL: f64 = 0.5;
 const MAX_MM: f64 = crate::shapes::MAX_MM;
 const MIN_MM: f64 = crate::shapes::MIN_MM;
 /// First seam: `-45 deg` from the plane-of-Y line of the first neighbour towards the `-z` crotch point (ZK `ths`).
 const SEAM0: f64 = -PI / 4.0;
 
 /// (name, value, kind, status)
-pub const WYE_NAMED_RULES: [(&str, &str, &str, &str); 15] = [
+pub const WYE_NAMED_RULES: [(&str, &str, &str, &str); 17] = [
     (
         "WYE_CONSTRUCTION_COMMON_SPHERE",
         "every leg's outer surface (cylinder or cone) touches the sphere of radius D/2 about the intersection of the three centre lines; legs are joined in the planes g_i = g_j; a wye with a branch narrower than the main needs the cone legs (cylinders alone leave the crotch open)",
@@ -88,14 +91,26 @@ pub const WYE_NAMED_RULES: [(&str, &str, &str, &str); 15] = [
         "UNVERIFIED",
     ),
     (
-        "WYE_JOIN_PLANE_OUTER_SPHERE",
-        "the joint planes come from the OUTER sphere; the cut surface offset by the cut-amplitude setting is cut by those same planes (ZK parity); with an inner / mid amplitude and a cone the two plates' own-surface joint planes would differ (result.join_plane_delta_max)",
+        "WYE_JOINT_PLANES_AMPLITUDE_SPHERE",
+        "DEFAULT: the joint planes of a plate come from the sphere of its own cut-amplitude surface (radius Rs - ao), so two plates cut on their offset surfaces meet (valid because WYE_CONE_THICKNESS_IS_MAIN: every offset surface is tangent to that sphere)",
         "rule (cut construction)",
         "UNVERIFIED",
     ),
     (
+        "WYE_JOINT_PLANES_OUTER_SPHERE",
+        "ZK parity (selected with `wye_with_rule(.., WyeJointRule::OuterSphere)`): the joint planes come from the OUTER sphere even when the amplitude surface is offset, so plates cut on offset surfaces meet only on the outer-sphere planes; the difference to the default is result.join_plane_delta_max and, above WYE_JOINT_PLANE_TOL, a hold",
+        "rule (cut construction)",
+        "UNVERIFIED",
+    ),
+    (
+        "WYE_JOINT_PLANE_TOL",
+        "0.5 mm: the largest difference between the two joint-plane rules that is accepted without a hold under the ZK rule; chosen as the same order as a plate root gap and as WYE_SAME_DIAMETER_TOL, not taken from a standard or a factory",
+        "tolerance",
+        "UNVERIFIED",
+    ),
+    (
         "WYE_CUT_MAP_AXIAL",
-        "the cut found on the amplitude surface is carried to the developed (neutral) surface along the same generator at the same axial position",
+        "the cut found on the amplitude surface is carried to the developed (neutral) surface along the same generator at the same axial position; carrying it along the surface normal instead would move a cone cut axially by |o - ao| sin(psi) (result.cut_map_axial_shift_max)",
         "rule (development)",
         "UNVERIFIED",
     ),
@@ -187,6 +202,36 @@ pub const WYE_REFUSAL_CODES: [&str; 22] = [
 ];
 
 // ---------------------------------------------------------------- spec and result
+
+/// Where the joint planes of a plate come from (rules `WYE_JOINT_PLANES_AMPLITUDE_SPHERE` / `WYE_JOINT_PLANES_OUTER_SPHERE`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WyeJointRule {
+    /// Default: the sphere of the plate's amplitude surface (radius `Rs - ao`).
+    AmplitudeSphere,
+    /// ZK parity: the outer sphere (radius `Rs`) for every amplitude.
+    OuterSphere,
+}
+
+impl WyeJointRule {
+    pub fn name(self) -> &'static str {
+        match self {
+            WyeJointRule::AmplitudeSphere => "WYE_JOINT_PLANES_AMPLITUDE_SPHERE",
+            WyeJointRule::OuterSphere => "WYE_JOINT_PLANES_OUTER_SPHERE",
+        }
+    }
+    fn radius(self, rs: f64, ao: f64) -> f64 {
+        match self {
+            WyeJointRule::AmplitudeSphere => rs - ao,
+            WyeJointRule::OuterSphere => rs,
+        }
+    }
+    fn other(self) -> WyeJointRule {
+        match self {
+            WyeJointRule::AmplitudeSphere => WyeJointRule::OuterSphere,
+            WyeJointRule::OuterSphere => WyeJointRule::AmplitudeSphere,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WyeSpec {
@@ -280,9 +325,18 @@ pub struct WyeResult {
     /// Weld lengths on the outer surface: main-leg 1, main-leg 2, leg 1-leg 2 (mm).
     pub welds: [f64; 3],
     pub total_mass_kg: f64,
-    /// Largest change (mm, sampled) of a cut when the joint planes are taken from the plate's own amplitude surface instead
-    /// of the outer sphere (0 for cylinders or an outer amplitude).
+    /// Name of the joint-plane rule used.
+    pub joint_rule: &'static str,
+    /// Largest change (mm, sampled at 144 angles) of any cut between the two joint-plane rules, all three legs (0 for an
+    /// outer amplitude and for cylinders, whose joint planes do not depend on the sphere).
     pub join_plane_delta_max: f64,
+    /// Largest radial distance (mm, sampled) between a cut point (on the plate's amplitude surface) and the amplitude
+    /// surface of the neighbour that cuts it, under the rule used: ~0 when the plates meet (default rule, equal walls); the
+    /// step between plates of different wall (branch_t != t) or, under the ZK rule, the fit-up gap.
+    pub fit_gap_max: f64,
+    /// Largest axial shift (mm) of a cone cut if the cut were carried from the amplitude to the developed surface along the
+    /// surface normal instead of along the generator (rule `WYE_CUT_MAP_AXIAL`): `|o - ao| |sin psi|`.
+    pub cut_map_axial_shift_max: f64,
     pub holds: Vec<WyeHold>,
     pub questions: Vec<String>,
     pub certified: bool,
@@ -761,13 +815,23 @@ fn check_spec(s: &WyeSpec) -> Result<Setup, ShapeRefusal> {
     })
 }
 
+/// Rule and running diagnostics shared by the leg pieces of one wye.
+struct LegCtx {
+    rule: WyeJointRule,
+    /// Cut-amplitude offset of each leg's plate.
+    aos: [f64; 3],
+    delta: f64,
+    gap: f64,
+    shift: f64,
+}
+
 /// Everything about one leg's pipe or cone piece.
 fn leg_piece(
     m: &Model,
     s: &WyeSpec,
     plan: &LegPlan,
     seams_n: u32,
-    ao_delta: &mut f64,
+    ctx: &mut LegCtx,
 ) -> Result<WyePiece, ShapeRefusal> {
     let i = plan.leg;
     let psi = m.legs[i].psi;
@@ -776,7 +840,7 @@ fn leg_piece(
     let o = off(s.basis, plan.t);
     let ao = off(s.amp, plan.t);
     let rs = m.rs;
-    let lc = LegCut::new(m, i, ao, rs)?;
+    let lc = LegCut::new(m, i, ao, ctx.rule.radius(rs, ao))?;
     // surface offsets must stay positive over the whole leg
     for (name, off_v) in [("basis", o), ("amp", ao)] {
         for sv in [lc.cmin.min(plan.s_end), lc.cmax.max(plan.s_end)] {
@@ -897,13 +961,23 @@ fn leg_piece(
             format!("leg {i}: area {area} (error estimate {area_err}) not trustworthy"),
         ));
     }
-    // how far the joint planes of the plate's own amplitude surface would move the cut
-    if ao > 0.0 && psi.abs() > 1e-12 {
-        let own = LegCut::new(m, i, ao, rs - ao)?;
+    // difference between the two joint-plane rules (every leg: the main's joints with a cone also move)
+    if ao > 0.0 {
+        let alt = LegCut::new(m, i, ao, ctx.rule.other().radius(rs, ao))?;
         for k in 0..145 {
             let th = 2.0 * PI * f64::from(k) / 144.0;
-            *ao_delta = ao_delta.max((lc.cut(th) - own.cut(th)).abs());
+            ctx.delta = ctx.delta.max((lc.cut(th) - alt.cut(th)).abs());
         }
+    }
+    // fit-up gap on the amplitude surfaces: at the marks, the kinks and 144 more angles
+    let mut ths: Vec<f64> = (0..144).map(|k| 2.0 * PI * f64::from(k) / 144.0).collect();
+    ths.extend((0..WYE_MARKS).map(|k| PI / 8.0 * k as f64));
+    ths.extend(lc.breaks.iter().copied());
+    for th in ths {
+        ctx.gap = ctx.gap.max(fit_gap(m, i, &lc, ao, &ctx.aos, th));
+    }
+    if cone {
+        ctx.shift = ctx.shift.max((o - ao).abs() * sp.abs());
     }
     let seams_deg = (0..n)
         .map(|j| mod_p(-45.0 + 360.0 * f64::from(j) / f64::from(n), 360.0))
@@ -1076,6 +1150,24 @@ fn surface_residual(m: &Model, i: usize, lc: &LegCut, th: f64) -> f64 {
     perp - (m.rs - sj * lj.psi.sin()) / lj.psi.cos()
 }
 
+/// Radial distance of the cut point of leg `i` at `th` (on its surface offset `ao`) from the surface of the neighbour that
+/// cuts it there, offset by that neighbour's own amplitude `aos[j]`: from vectors.
+fn fit_gap(m: &Model, i: usize, lc: &LegCut, ao: f64, aos: &[f64; 3], th: f64) -> f64 {
+    let li = &m.legs[i];
+    let s = lc.cut(th);
+    let rho = (m.rs - s * li.psi.sin() - ao) / li.psi.cos();
+    let p = [
+        s * li.u[0] + rho * th.cos() * li.e1[0],
+        s * li.u[1] + rho * th.cos() * li.e1[1],
+        rho * th.sin(),
+    ];
+    let j = li.nb[lc.who(th)];
+    let lj = &m.legs[j];
+    let sj = dot(&p, &lj.u);
+    let perp = (dot(&p, &p) - sj * sj).max(0.0).sqrt();
+    (perp - (m.rs - sj * lj.psi.sin() - aos[j]) / lj.psi.cos()).abs()
+}
+
 /// Weld length (outer surface, 3D polyline) of the joint of leg `i` with leg `j`, seen from leg `i`.
 fn weld_from(m: &Model, i: usize, j: usize) -> Result<f64, ShapeRefusal> {
     let lc = LegCut::new(m, i, 0.0, m.rs)?;
@@ -1106,6 +1198,12 @@ fn weld_from(m: &Model, i: usize, j: usize) -> Result<f64, ShapeRefusal> {
 
 /// Build every piece of the wye. Errors are coded refusals (`wye_*`); holds and questions are in the result.
 pub fn wye(s: &WyeSpec) -> Result<WyeResult, ShapeRefusal> {
+    wye_with_rule(s, WyeJointRule::AmplitudeSphere)
+}
+
+/// As `wye`, with the joint-plane rule chosen. `OuterSphere` is the ZK reading (UNVERIFIED); a difference to the default
+/// above `WYE_JOINT_PLANE_TOL` is then a hold (`wye_joint_plane_delta_over_tol`) that blocks the DXF.
+pub fn wye_with_rule(s: &WyeSpec, rule: WyeJointRule) -> Result<WyeResult, ShapeRefusal> {
     let su = check_spec(s)?;
     let rs = s.d / 2.0;
     let (b1, b2) = (s.beta1_deg.to_radians(), s.beta2_deg.to_radians());
@@ -1141,11 +1239,24 @@ pub fn wye(s: &WyeSpec) -> Result<WyeResult, ShapeRefusal> {
             s_end: s.h2,
         });
     }
-    let mut delta = 0.0f64;
+    let mut aos = [0.0f64; 3];
+    for p in &plans {
+        aos[p.leg] = off(s.amp, p.t);
+    }
+    let mut ctx = LegCtx {
+        rule,
+        aos,
+        delta: 0.0,
+        gap: 0.0,
+        shift: 0.0,
+    };
     let mut pieces = Vec::new();
     for p in &plans {
-        pieces.push(leg_piece(&m, s, p, seams_n, &mut delta)?);
+        pieces.push(leg_piece(&m, s, p, seams_n, &mut ctx)?);
     }
+    let LegCtx {
+        delta, gap, shift, ..
+    } = ctx;
     if su.cone {
         // branch pipes beyond the cones
         let r = su.r_branch;
@@ -1217,7 +1328,15 @@ pub fn wye(s: &WyeSpec) -> Result<WyeResult, ShapeRefusal> {
         }
     }
     let total_mass_kg: f64 = pieces.iter().map(|p| p.mass_kg).sum();
-    if !finite_all(&[total_mass_kg, welds[0], welds[1], welds[2], delta]) || !finite_all(&m.crotch)
+    if !finite_all(&[
+        total_mass_kg,
+        welds[0],
+        welds[1],
+        welds[2],
+        delta,
+        gap,
+        shift,
+    ]) || !finite_all(&m.crotch)
     {
         return Err(refuse(
             "wye_result_not_finite",
@@ -1234,6 +1353,19 @@ pub fn wye(s: &WyeSpec) -> Result<WyeResult, ShapeRefusal> {
                 "angle between the legs {ang} deg is outside 30..90 deg: confirm (AWWA C208 4.1.10)"
             ),
         });
+    }
+    if rule == WyeJointRule::OuterSphere && delta > WYE_JOINT_PLANE_TOL {
+        holds.push(WyeHold {
+            code: "wye_joint_plane_delta_over_tol",
+            message: format!(
+                "joint planes from the outer sphere (ZK rule) move a cut by {delta:.3} mm against the amplitude-surface planes (tolerance {WYE_JOINT_PLANE_TOL} mm, UNVERIFIED): plates cut on their offset surfaces do not meet (gap {gap:.3} mm); confirm the rule or use the cut amplitude 'outer'"
+            ),
+        });
+    }
+    if gap > 1e-6 && !(rule == WyeJointRule::OuterSphere && delta > WYE_JOINT_PLANE_TOL) {
+        questions.push(format!(
+            "plates cut on their amplitude surfaces differ by {gap:.3} mm at the joints (plates of different wall, or the ZK joint-plane rule): confirm the fit-up"
+        ));
     }
     if s.beta1_deg < 1e-9 || s.beta2_deg < 1e-9 {
         holds.push(WyeHold {
@@ -1286,7 +1418,10 @@ pub fn wye(s: &WyeSpec) -> Result<WyeResult, ShapeRefusal> {
         cone: su.cone,
         welds,
         total_mass_kg,
+        joint_rule: rule.name(),
         join_plane_delta_max: delta,
+        fit_gap_max: gap,
+        cut_map_axial_shift_max: shift,
         holds,
         questions,
         certified: false,
@@ -1431,7 +1566,7 @@ pub mod probe {
         Some(LegCut::new(&m, leg, ao, rp).ok()?.cut(th))
     }
 
-    /// (cut min, cut max) in closed form.
+    /// (cut min, cut max) in closed form, default joint-plane rule (sphere `Rs - ao`).
     pub fn extremes(s: &WyeSpec, leg: usize, ao: f64) -> Option<(f64, f64)> {
         let su = check_spec(s).ok()?;
         let rs = s.d / 2.0;
@@ -1442,7 +1577,7 @@ pub mod probe {
             su.psi,
         )
         .ok()?;
-        let lc = LegCut::new(&m, leg, ao, rs).ok()?;
+        let lc = LegCut::new(&m, leg, ao, rs - ao).ok()?;
         Some((lc.cmin, lc.cmax))
     }
 
