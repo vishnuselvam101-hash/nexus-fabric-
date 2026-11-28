@@ -140,6 +140,36 @@ fn r1(b: B) -> Value {
     ])
 }
 
+/// Vertices of a drawn circle (a multiple of 4, so the extreme points are exact).
+const CIRCLE_PTS: usize = 96;
+
+/// Generator mix. `Default` is the original distribution; `Weak1` weights the failure modes of the zero-shot 8B
+/// (error analysis, 50 test pages): dense small dimension labels, long BOM tables, and negative-example clutter
+/// (title-block fields, revision tables, grid references, numbered notes, part and drawing numbers) that is drawn
+/// but never in the answer key.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Mix {
+    #[default]
+    Default,
+    Weak1,
+}
+
+impl Mix {
+    pub fn from_name(s: &str) -> Option<Mix> {
+        match s {
+            "default" => Some(Mix::Default),
+            "weak1" => Some(Mix::Weak1),
+            _ => None,
+        }
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            Mix::Default => "default",
+            Mix::Weak1 => "weak1",
+        }
+    }
+}
+
 /// Generator-owned page under construction: the page canvas, parameters, and the shape label of each placed item.
 pub struct Ctx {
     pub p: Page,
@@ -164,6 +194,11 @@ pub struct Ctx {
     pub vpolys: Vec<Vec<(f64, f64)>>,
     /// Set while a label is deliberately not tied to one drawn element (checked explicitly or not geometric).
     pub skip_chk: bool,
+    /// Weak1 mix: title-block and note text is clutter (not in the key), the BOM has many rows.
+    pub weak: bool,
+    pub weak_bom: bool,
+    /// Distance of a leader label from its target (px).
+    pub lead_d: f64,
 }
 
 impl Ctx {
@@ -206,9 +241,9 @@ impl Ctx {
         self.p.poly(&q, true, 1.6 * self.u, fill);
     }
     fn circle(&mut self, cx: f64, cy: f64, r: f64) {
-        let pts: Vec<(f64, f64)> = (0..36)
+        let pts: Vec<(f64, f64)> = (0..CIRCLE_PTS)
             .map(|k| {
-                let a = k as f64 * std::f64::consts::TAU / 36.0;
+                let a = k as f64 * std::f64::consts::TAU / CIRCLE_PTS as f64;
                 (cx + r * a.cos(), cy + r * a.sin())
             })
             .collect();
@@ -315,7 +350,7 @@ impl Ctx {
     /// and the page axes (either the angle or its supplement; 0.25 deg plus 0.3 %).
     fn check_angle(&mut self, v: f64) {
         let mut dirs: Vec<f64> = vec![0.0, 90.0];
-        for p in self.vpolys.iter().filter(|p| p.len() != 36) {
+        for p in self.vpolys.iter().filter(|p| p.len() != CIRCLE_PTS) {
             let n = p.len();
             let closed = n > 2;
             for i in 0..if closed { n } else { n - 1 } {
@@ -361,7 +396,7 @@ impl Ctx {
         src: Source,
         kind: &'static str,
     ) -> bool {
-        let c = self.cands(tx, ty, 60.0 * self.u);
+        let c = self.cands(tx, ty, self.lead_d);
         let text = num_text(prefix, v, unit, self.p.dec);
         let u = self.u;
         for &(x, y, a) in &c {
@@ -1428,19 +1463,28 @@ fn tank_shell(c: &mut Ctx) {
 /// Developed outline of one cylindrical bend piece from the closed-form cut z(psi) = (A + B cos psi) / (1 + D cos psi)
 /// (`nf_core::bend::cut_z`): front cut, then back cut reversed; x is the arc along the outer-basis circumference from
 /// the seam (45 deg from the heel).
-fn bend_piece_outline(m: &nf_core::bend::BendModel, p: &nf_core::bend::PieceModel) -> Vec<[f64; 2]> {
+fn bend_piece_outline(
+    m: &nf_core::bend::BendModel,
+    p: &nf_core::bend::PieceModel,
+) -> Vec<[f64; 2]> {
     let rb = p.rho0 + m.ao;
     let ph = 135f64.to_radians();
     let n = 240;
     let psi = |i: usize| ph + std::f64::consts::TAU * i as f64 / n as f64;
     let mut v: Vec<[f64; 2]> = (0..=n)
-        .map(|i| [rb * (psi(i) - ph), nf_core::bend::cut_z(p, psi(i), false) - p.zlo])
+        .map(|i| {
+            [
+                rb * (psi(i) - ph),
+                nf_core::bend::cut_z(p, psi(i), false) - p.zlo,
+            ]
+        })
         .collect();
-    v.extend(
-        (0..=n)
-            .rev()
-            .map(|i| [rb * (psi(i) - ph), nf_core::bend::cut_z(p, psi(i), true) - p.zlo]),
-    );
+    v.extend((0..=n).rev().map(|i| {
+        [
+            rb * (psi(i) - ph),
+            nf_core::bend::cut_z(p, psi(i), true) - p.zlo,
+        ]
+    }));
     v
 }
 
@@ -1500,7 +1544,10 @@ fn mitred_bend(c: &mut Ctx) {
     let defl = (ang(cl[1], cl[2]) - ang(cl[0], cl[1])).to_degrees().abs();
     let mitre = dv("mitre_cut", &[("theta", theta), ("n", n)]);
     c.check_val(defl / 2.0, mitre, 0.25 + 0.003 * mitre);
-    let (jx, jy) = c.px(ro * cr * phis[0].to_radians().cos(), ro * cr * phis[0].to_radians().sin());
+    let (jx, jy) = c.px(
+        ro * cr * phis[0].to_radians().cos(),
+        ro * cr * phis[0].to_radians().sin(),
+    );
     c.skip_chk = true;
     c.leader(
         jx,
@@ -1620,11 +1667,7 @@ fn tee_lateral(c: &mut Ctx) {
         c.shape = "rib".into();
         for sg in [1.0, -1.0] {
             c.outline(
-                &[
-                    (sg * h2, yb),
-                    (sg * (h2 + rib), yb),
-                    (sg * h2, yb + rib),
-                ],
+                &[(sg * h2, yb), (sg * (h2 + rib), yb), (sg * h2, yb + rib)],
                 "none",
             );
         }
@@ -1647,11 +1690,27 @@ fn tee_lateral(c: &mut Ctx) {
     let cell = c.cell(1);
     let mid = (cell[1] + cell[3]) / 2.0;
     tee_branch_flat(c, [cell[0], cell[1], cell[2], mid], dm, db, hb, alpha);
-    tee_pad_flat(c, [cell[0], mid, cell[2], cell[3]], dm, db, pad, padt, alpha);
+    tee_pad_flat(
+        c,
+        [cell[0], mid, cell[2], cell[3]],
+        dm,
+        db,
+        pad,
+        padt,
+        alpha,
+    );
 }
 
 /// Developed pad plate and its hole from `nf_core::tee_pad::pad` (the engine's polylines, drawn as given).
-fn tee_pad_flat(c: &mut Ctx, cell: [f64; 4], dm: f64, db: f64, pad: f64, padt: f64, alpha: f64) -> bool {
+fn tee_pad_flat(
+    c: &mut Ctx,
+    cell: [f64; 4],
+    dm: f64,
+    db: f64,
+    pad: f64,
+    padt: f64,
+    alpha: f64,
+) -> bool {
     let spec = nf_core::tee_pad::PadSpec {
         main_d: dm,
         t: padt,
@@ -1699,7 +1758,10 @@ fn wye(c: &mut Ctx) {
     // true silhouette of the equal-diameter wye: main edges to the joints, leg end faces square to the leg axes,
     // the crotch where the two inner generatrices meet
     let h = d / 2.0;
-    let (u1, u2) = ((a1.to_radians().cos(), a1.to_radians().sin()), (a2.to_radians().cos(), -a2.to_radians().sin()));
+    let (u1, u2) = (
+        (a1.to_radians().cos(), a1.to_radians().sin()),
+        (a2.to_radians().cos(), -a2.to_radians().sin()),
+    );
     let (n1, n2) = ((-u1.1, u1.0), (-u2.1, u2.0));
     let off = |p: (f64, f64), n: (f64, f64), k: f64| (p.0 + n.0 * k, p.1 + n.1 * k);
     // n2 = rot90(u2) points up (towards leg 1): the inner side of leg 2 is +n2, the outer side -n2
@@ -1994,6 +2056,9 @@ fn title_block(c: &mut Ctx, drawing_no: &str, material: &str, date: &str, scale:
                 let _ = b;
                 c.shapes.push("title".into());
             }
+        } else if c.weak {
+            let fs = if i == 0 { f * 1.3 } else { f };
+            c.p.clutter_text(s, tx, y, Anchor::Start, fs, i == 0);
         } else {
             c.put_word(
                 "title",
@@ -2009,14 +2074,156 @@ fn title_block(c: &mut Ctx, drawing_no: &str, material: &str, date: &str, scale:
     }
 }
 
+/// Dense-dimension pages: many small, crowded labels. Each one is the exact length of a straight edge drawn in the last
+/// view (truth: derived `edge_len` from the drawn coordinate differences).
+fn dense_edges(c: &mut Ctx, r: &mut Rng, want: usize) {
+    let u = c.u;
+    let mut cand: Vec<((f64, f64), (f64, f64))> = vec![];
+    for p in c
+        .vpolys
+        .iter()
+        .filter(|p| p.len() != CIRCLE_PTS && p.len() <= 40)
+    {
+        let n = p.len();
+        for i in 0..if n > 2 { n } else { n - 1 } {
+            let (a, b) = (p[i], p[(i + 1) % n]);
+            if (a.0 - b.0).hypot(a.1 - b.1) * c.sc >= 28.0 * u {
+                cand.push((a, b));
+            }
+        }
+    }
+    for i in (1..cand.len()).rev() {
+        let j = r.int(0, i as i64) as usize;
+        cand.swap(i, j);
+    }
+    let (fs0, ld0) = (c.fs, c.lead_d);
+    c.fs = fs0 * 0.72;
+    c.lead_d = 26.0 * u;
+    c.shape = "dims".into();
+    for (a, b) in cand.into_iter().take(want) {
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let inp = [("dx", dx), ("dy", dy)];
+        let v = dv("edge_len", &inp);
+        let (x, y) = c.px((a.0 + b.0) / 2.0, (a.1 + b.1) / 2.0);
+        c.leader(x, y, "", v, "mm", der("edge_len", &inp), "dimension");
+    }
+    c.fs = fs0;
+    c.lead_d = ld0;
+}
+
+/// Negative examples: text a reader must not report as a dimension. Drawn in the image, never in the answer key.
+fn weak1_clutter(p: &mut Page, r: &mut Rng, drawing_no: &str) {
+    let (w, h, u) = (p.w, p.h, p.u);
+    let ja = p.lang == Lang::Ja;
+    let f = 17.0 * u;
+    // grid references along the top and left inside edges of the frame
+    for i in 0..6 {
+        let x = w * (i as f64 + 0.5) / 6.0;
+        p.clutter_text(
+            &((b'A' + i as u8) as char).to_string(),
+            x,
+            50.0 * u,
+            Anchor::Middle,
+            f,
+            false,
+        );
+        p.clutter_text(
+            &(i + 1).to_string(),
+            40.0 * u,
+            h * (i as f64 + 0.5) / 6.0,
+            Anchor::Middle,
+            f,
+            false,
+        );
+    }
+    // revision table above the bill of materials
+    let (x0, x1) = (0.64 * w, w - 20.0 * u);
+    let (y0, rh) = (0.31 * h, 0.05 * h);
+    let rows = r.int(2, 3) as usize;
+    p.rect([x0, y0, x1, y0 + rh * (rows as f64 + 1.0)], 1.2 * u);
+    for k in 1..=rows {
+        let y = y0 + rh * k as f64;
+        p.line(x0, y, x1, y, 1.0 * u);
+    }
+    let cols = [0.03, 0.14, 0.38, 0.9];
+    let head = if ja {
+        ["改訂", "日付", "内容", "担当"]
+    } else {
+        ["REV", "DATE", "DESCRIPTION", "BY"]
+    };
+    let what = if ja {
+        ["初版", "寸法修正", "図面番号変更"]
+    } else {
+        ["FIRST ISSUE", "DIM CORRECTED", "DWG NO CHANGED"]
+    };
+    for (i, s) in head.iter().enumerate() {
+        p.clutter_text(
+            s,
+            x0 + cols[i] * (x1 - x0),
+            y0 + 0.62 * rh,
+            Anchor::Start,
+            f,
+            true,
+        );
+    }
+    for (k, what_k) in what.iter().enumerate().take(rows) {
+        let y = y0 + rh * (k as f64 + 1.62);
+        let date = format!("2026-{:02}-{:02}", r.int(1, 12), r.int(1, 28));
+        let rev = ((b'A' + k as u8) as char).to_string();
+        for (i, s) in [rev.as_str(), date.as_str(), what_k, "VS"]
+            .iter()
+            .enumerate()
+        {
+            p.clutter_text(s, x0 + cols[i] * (x1 - x0), y, Anchor::Start, f, false);
+        }
+    }
+    // numbered notes, part and drawing numbers at free spots
+    let pool_en = [
+        "NOTE 1. WELD PER JIS Z 3801".to_string(),
+        "2. PAINT 2 COATS 80 MICRON".to_string(),
+        "REF DWG NO. 4417-203".to_string(),
+        "P/N 4400-217-03".to_string(),
+        "PART NO. 25-A113".to_string(),
+        "SHT 1 OF 2".to_string(),
+        format!("DWG NO. {drawing_no}"),
+        "ITEM 3 QTY 2".to_string(),
+        "3. HYDROTEST 1.5 X DESIGN".to_string(),
+    ];
+    let pool_ja = [
+        "注1. 溶接はJIS Z 3801による".to_string(),
+        "2. 塗装 2回 80 ミクロン".to_string(),
+        "参照図 4417-203".to_string(),
+        "品番 4400-217-03".to_string(),
+        "部品番号 25-A113".to_string(),
+        "第1葉 全2葉".to_string(),
+        format!("図面番号 {drawing_no}"),
+        "3. 水圧試験 設計圧の1.5倍".to_string(),
+    ];
+    let pool: &[String] = if ja { &pool_ja } else { &pool_en };
+    for _ in 0..r.int(6, 10) {
+        let s = pool[r.int(0, pool.len() as i64 - 1) as usize].clone();
+        for _ in 0..40 {
+            let (x, y) = (w * r.range(0.04, 0.58), h * r.range(0.08, 0.95));
+            if p.clutter_text(&s, x, y, Anchor::Start, f, false) {
+                break;
+            }
+        }
+    }
+}
+
 fn bom(c: &mut Ctx) {
     let (w, h, u) = (c.w, c.h, c.u);
     let (x0, y0, x1, y1) = (0.64 * w, 0.60 * h, w - 20.0 * u, 0.84 * h - 4.0 * u);
     c.shape = "bom".into();
     c.p.rect([x0, y0, x1, y1], 1.2 * u);
     let lang = c.p.lang;
-    let rowh = (y1 - y0) / 5.0;
-    let f = 19.0 * u;
+    let n = if c.weak_bom { c.r.int(6, 11) } else { 0 };
+    let rowh = (y1 - y0) / if c.weak_bom { n as f64 + 1.0 } else { 5.0 };
+    let f = if c.weak_bom {
+        (19.0 * u).min(rowh * 0.62)
+    } else {
+        19.0 * u
+    };
     let cols = [0.03, 0.12, 0.62, 0.78];
     let head = if lang == Lang::En {
         ["NO.", "PART", "QTY", "MATERIAL"]
@@ -2029,7 +2236,7 @@ fn bom(c: &mut Ctx) {
         c.shape = "bom_header".into();
         c.put_word("bom_header", s, "bom_header", x, y, Anchor::Start, false, f);
     }
-    let n = c.r.int(2, 4);
+    let n = if c.weak_bom { n } else { c.r.int(2, 4) };
     let mats = ["SS400", "SUS304", "A5052", "STPG370"];
     let parts_en = ["BODY", "COVER", "GUSSET", "PAD", "NUT"];
     let parts_ja = ["本体", "カバー", "ガセット", "パッド", "ナット"];
@@ -2119,7 +2326,11 @@ fn notes(c: &mut Ctx) {
     ];
     let lines = if lang == Lang::En { lines_en } else { lines_ja };
     for s in lines {
-        c.put_word("note", s, "note", x, y + f, Anchor::Start, false, f);
+        if c.weak {
+            c.p.clutter_text(s, x, y + f, Anchor::Start, f, false);
+        } else {
+            c.put_word("note", s, "note", x, y + f, Anchor::Start, false, f);
+        }
         y += 1.9 * f;
     }
     let ra = *c.r.pick(&[0.8, 1.6, 3.2, 6.3, 12.5]);
@@ -2224,6 +2435,7 @@ pub fn build_new(
     lang: Lang,
     style: Style,
     deg: &'static str,
+    mix_: Mix,
 ) -> Page2 {
     let mut rl = Rng::new(mix(&[seed, 20]));
     let w = rl.int(1600, 2400) as f64;
@@ -2251,6 +2463,9 @@ pub fn build_new(
         geom_fail: 0,
         vpolys: vec![],
         skip_chk: false,
+        weak: mix_ == Mix::Weak1,
+        weak_bom: false,
+        lead_d: 60.0 * u,
     };
     c.p.rect([20.0 * u, 20.0 * u, w - 20.0 * u, h - 20.0 * u], 2.2 * u);
     match fam {
@@ -2265,6 +2480,14 @@ pub fn build_new(
         "wye" => wye(&mut c),
         "branch_on_cone" => branch_on_cone(&mut c),
         _ => reducer_concentric(&mut c),
+    }
+    let mut rw = Rng::new(mix(&[seed, 23]));
+    if c.weak {
+        c.weak_bom = rw.chance(0.8);
+        if rw.chance(0.7) {
+            let want = rw.int(8, 16) as usize;
+            dense_edges(&mut c, &mut rw, want);
+        }
     }
     // weld and surface-finish symbols (about half the pages), anchored on the first view's frame
     let mut ri = Rng::new(mix(&[seed, 22]));
@@ -2291,6 +2514,9 @@ pub fn build_new(
     title_block(&mut c, &drawing_no, material, &date, scale);
     bom(&mut c);
     notes(&mut c);
+    if c.weak {
+        weak1_clutter(&mut c.p, &mut rw, &drawing_no);
+    }
     if deg == "hand" {
         for _ in 0..2 {
             hand_note(&mut c);
@@ -2480,6 +2706,7 @@ fn build_one(
     lang: Lang,
     style: Style,
     deg: &'static str,
+    mix_: Mix,
 ) -> Result<(String, P2Meta, Page, Vec<String>, f64), String> {
     let _ = k;
     let pid = format!("smoke-{k:05}");
@@ -2560,10 +2787,19 @@ fn build_one(
             geom_fail: 0,
         };
         let _ = items;
-        let page = b.page;
+        let mut page = b.page;
+        if mix_ == Mix::Weak1 {
+            // engine-backed pages keep their layout; the negative examples go into the free space around it
+            let mut rw = Rng::new(mix(&[seed, 23]));
+            weak1_clutter(
+                &mut page,
+                &mut rw,
+                &format!("NFR-{}-{:08X}", fam_code(fam), seed & 0xFFFF_FFFF),
+            );
+        }
         Ok((pid, meta, page, shapes, skew))
     } else {
-        let p2 = build_new(seed, k, fam, lang, style, deg);
+        let p2 = build_new(seed, k, fam, lang, style, deg, mix_);
         let skew = p2.fx.as_ref().map(|f| f.skew).unwrap_or(0.0);
         let meta = P2Meta {
             pid: pid.clone(),
@@ -2590,6 +2826,17 @@ fn build_one(
 
 /// Generate `n` smoke pages into `out/smoke/{png,pdf}` and `out/smoke/truth.jsonl`. Deterministic by `seed`.
 pub fn generate_smoke(out: &Path, n: u64, seed: u64, threads: usize) -> Result<usize, String> {
+    generate_smoke_mix(out, n, seed, threads, Mix::Default)
+}
+
+/// As `generate_smoke`, with a named generator mix (`Mix::Weak1`: see [`Mix`]).
+pub fn generate_smoke_mix(
+    out: &Path,
+    n: u64,
+    seed: u64,
+    threads: usize,
+    mix_: Mix,
+) -> Result<usize, String> {
     let split_dir = out.join("smoke");
     std::fs::create_dir_all(&split_dir).map_err(|e| e.to_string())?;
     let fams = all_families();
@@ -2615,7 +2862,7 @@ pub fn generate_smoke(out: &Path, n: u64, seed: u64, threads: usize) -> Result<u
                         };
                         let deg = DEGS[(k % 5) as usize];
                         let sd = mix(&[seed, 0x5A, k]);
-                        let r = build_one(sd, k, fam, lang, style, deg).and_then(
+                        let r = build_one(sd, k, fam, lang, style, deg, mix_).and_then(
                             |(pid, meta, page, shapes, skew)| {
                                 write_images(
                                     out,
@@ -2649,7 +2896,13 @@ pub fn generate_smoke(out: &Path, n: u64, seed: u64, threads: usize) -> Result<u
                                         )
                                     })
                                     .collect();
-                                Ok(page_truth(&meta, items).to_string())
+                                let mut tv = page_truth(&meta, items);
+                                if mix_ != Mix::Default {
+                                    tv["mix"] = json!(mix_.name());
+                                    // printed but not in the answer key: negative examples
+                                    tv["clutter"] = json!(page.clutter);
+                                }
+                                Ok(tv.to_string())
                             },
                         );
                         v.push((k, r));

@@ -119,6 +119,9 @@ pub struct Page {
     pub segs: Vec<B>,
     /// While set, a text item must also have a clear leader from its left edge to this point.
     pub leader: Option<(f64, f64)>,
+    /// Printed text that is NOT in the answer key (negative examples): the strings, and their ink boxes.
+    pub clutter: Vec<String>,
+    pub cboxes: Vec<B>,
 }
 
 impl Page {
@@ -136,6 +139,8 @@ impl Page {
             gtol,
             segs: vec![],
             leader: None,
+            clutter: vec![],
+            cboxes: vec![],
         }
     }
     pub fn raw(&mut self, s: &str) {
@@ -277,6 +282,9 @@ impl Page {
         if self.items.iter().any(|i| inter(i.b, b, pad)) {
             return false;
         }
+        if self.cboxes.iter().any(|c| inter(*c, b, pad)) {
+            return false;
+        }
         let sp = 2.0 * self.u;
         if self.segs.iter().any(|s| seg_hits(*s, b, sp)) {
             return false;
@@ -287,6 +295,44 @@ impl Page {
                 return false;
             }
         }
+        true
+    }
+    /// Print text that stays in the image but is not an answer-key item (title-block fields, revision tables, grid
+    /// references, numbered notes, part and drawing numbers). Same placement rules as an item; `false` when it collides.
+    pub fn clutter_text(
+        &mut self,
+        s: &str,
+        x: f64,
+        base: f64,
+        anchor: Anchor,
+        fs: f64,
+        bold: bool,
+    ) -> bool {
+        let w = text_w(s, fs);
+        let xl = match anchor {
+            Anchor::Start => x,
+            Anchor::Middle => x - w / 2.0,
+            Anchor::End => x - w,
+        };
+        let b = Page::text_box(xl, base, s, fs);
+        if !self.free(b) {
+            return false;
+        }
+        let lang = if self.lang == Lang::Ja {
+            " xml:lang=\"ja\""
+        } else {
+            ""
+        };
+        let el = format!(
+            "<text x=\"{xl:.1}\" y=\"{base:.1}\" font-size=\"{fs:.1}\" font-family=\"{FONT}\"{lang}{} fill=\"#000\">{}</text>",
+            if bold { " font-weight=\"bold\"" } else { "" },
+            esc(s)
+        );
+        self.text_body.push_str(&el);
+        self.text_body.push('\n');
+        self.raw(&el);
+        self.clutter.push(s.to_string());
+        self.cboxes.push(b);
         true
     }
     /// Place a text item. Returns its box, or `None` (nothing drawn, nothing recorded) when it would collide.

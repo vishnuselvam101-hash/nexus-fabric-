@@ -39,6 +39,8 @@ pub fn derive(name: &str, i: &Inputs) -> Option<f64> {
         }
         "tank_length" => g("l")? + 2.0 * g("od")? / (2.0 * g("ratio")?),
         // centreline length of a bend of centreline radius r over theta degrees
+        // length of a drawn straight edge from its coordinate differences (dense-dimension pages)
+        "edge_len" => g("dx")?.hypot(g("dy")?),
         "arc_length" => g("r")? * g("theta")?.to_radians(),
         // mitre cut angle from square: the total deflection split over the two pieces of each of the n-1 joints
         "mitre_cut" => g("theta")? / (2.0 * (g("n")? - 1.0)),

@@ -13,18 +13,26 @@ fn main() {
     let cmd = a.first().map(String::as_str).unwrap_or("");
     if cmd != "generate" && cmd != "sample" && cmd != "smoke" {
         eprintln!(
-            "usage: nf-reader-data generate --out DIR [--seed N] [--train N] [--val N] [--test N] [--threads N] [--batch N]\n       nf-reader-data sample --out DIR [--seed N]   (20 pages)\n       nf-reader-data smoke --out DIR [--n N] [--seed N] [--threads N]   (v2 families, split smoke)"
+            "usage: nf-reader-data generate --out DIR [--seed N] [--train N] [--val N] [--test N] [--threads N] [--batch N]\n       nf-reader-data sample --out DIR [--seed N]   (20 pages)\n       nf-reader-data smoke --out DIR [--n N] [--seed N] [--threads N] [--mix default|weak1]   (v2 families, split smoke)"
         );
         std::process::exit(2);
     }
     let num = |k: &str, d: u64| arg(&a, k).and_then(|v| v.parse().ok()).unwrap_or(d);
     let out = PathBuf::from(arg(&a, "--out").unwrap_or_else(|| "out".into()));
     if cmd == "smoke" {
-        match nf_reader_data::v2::generate_smoke(
+        let mix = match arg(&a, "--mix") {
+            None => nf_reader_data::v2::Mix::Default,
+            Some(n) => nf_reader_data::v2::Mix::from_name(&n).unwrap_or_else(|| {
+                eprintln!("unknown --mix {n} (default | weak1)");
+                std::process::exit(2);
+            }),
+        };
+        match nf_reader_data::v2::generate_smoke_mix(
             &out,
             num("--n", 200),
             num("--seed", 1),
             num("--threads", 4) as usize,
+            mix,
         ) {
             Ok(n) => println!("smoke pages {n}"),
             Err(e) => {
