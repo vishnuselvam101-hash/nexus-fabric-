@@ -188,6 +188,9 @@ pub mod refusal {
     // the order API: a never-wave review kind cannot be accepted by a person or by the AI operator
     pub const REVIEW_NEVER_WAVE: &str = "review_never_wave";
 
+    // the order API: an older page-input decision cannot be undone while a later one is still active
+    pub const CONTEXT_UNDO_OUT_OF_ORDER: &str = "context_undo_out_of_order";
+
     /// Every code of this build, in the order of the table in docs/backend/REFUSAL_CODES.md.
     /// The refusal codes of the zumen-kirizu shape modules (`shapes`, `bend`, `tee`, `tee_pad`, `conebranch`), wired in 0.5.0.
     pub const SHAPE_CODES: [&str; 80] = [
@@ -273,7 +276,7 @@ pub mod refusal {
         "conebranch_cut_not_continuous",
     ];
 
-    pub const ALL: [&str; 123] = [
+    pub const ALL: [&str; 124] = [
         REQUEST_NOT_OBJECT,
         FAMILY_UNKNOWN,
         FIELD_MISSING,
@@ -317,6 +320,7 @@ pub mod refusal {
         CORRECTED_RESULT_FAILED_VERIFICATION,
         NO_PATTERN_PRODUCED,
         REVIEW_NEVER_WAVE,
+        CONTEXT_UNDO_OUT_OF_ORDER,
         "shape_value_not_finite",
         "shape_value_not_positive",
         "shape_value_too_large",

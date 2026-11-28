@@ -667,6 +667,20 @@ fn restore_review_context(db: &Connection, oid: i64, before: &Value) -> rusqlite
     Ok(())
 }
 
+/// A restore made while undoing a context decision is an audited context decision, but it is not another
+/// page-input edit to undo in order: the original PUT decisions stay the things that must be undone in reverse.
+fn is_context_restore_flag(flag: Option<&str>) -> bool {
+    flag.is_some_and(|f| f.ends_with("_restore"))
+}
+
+fn context_restore_flag(flag: Option<&str>) -> String {
+    if is_context_restore_flag(flag) {
+        flag.unwrap_or("context").to_string()
+    } else {
+        format!("{}_restore", flag.unwrap_or("context"))
+    }
+}
+
 /// Review codes open on one part in the current compute. A designer exit may answer only one of these; a missing
 /// or stale compute names none, so an answer cannot be invented against a review that was never raised.
 fn review_holds_for_part(
@@ -713,6 +727,43 @@ fn review_holds_for_part(
     out.sort();
     out.dedup();
     Ok(out)
+}
+
+/// Every decision that names a catalogue review code must answer a hold that is open on its part now. Legacy
+/// `accept_flag` flags that are not catalogue rows stay as they were; only a review code gets this gate.
+fn validate_named_review_code(
+    db: &Connection,
+    oid: i64,
+    part_no: &str,
+    code: &str,
+    require_catalogue: bool,
+) -> Result<(), ApiError> {
+    if rv::row(code).is_none() {
+        return if require_catalogue {
+            Err(unprocessable(
+                "decision_code",
+                &format!("'{code}' is not a review catalogue code"),
+            ))
+        } else {
+            Ok(())
+        };
+    }
+    let canonical = rv::canonical(code);
+    let holds = review_holds_for_part(db, oid, part_no)?;
+    if !holds.iter().any(|h| rv::canonical(h) == canonical) {
+        return Err(unprocessable(
+            "review_hold_missing",
+            &format!(
+                "part '{part_no}' has no open review '{canonical}' for this decision; {}",
+                if holds.is_empty() {
+                    "no review is open".to_string()
+                } else {
+                    format!("open: {}", holds.join(", "))
+                }
+            ),
+        ));
+    }
+    Ok(())
 }
 
 /// Everything a "checked" mark is made against: the files, the pages (and which are skipped), the parts and
@@ -2042,13 +2093,12 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
     } else {
         text_field(&body, "flag", 64)?.filter(|s| !s.is_empty())
     };
-    if flag_kind {
-        let code = flag.as_deref().unwrap_or_default();
-        let stopped = rv::is_never_wave(code)
-            || flag
-                .as_deref()
-                .and_then(rv::row)
-                .is_some_and(|r| !r.may_accept);
+    if let Some(code) = flag.as_deref() {
+        // Any decision that names a review code is bound by the same stop, including a designer claim and a
+        // hand-drawn exit. Legacy `accept_flag` flags that are not catalogue rows are not review codes; only
+        // an accept of a catalogue row uses `may_accept` to decide whether an answer is allowed.
+        let stopped =
+            rv::is_never_wave(code) || (flag_kind && rv::row(code).is_some_and(|r| !r.may_accept));
         if stopped {
             // A never-wave kind is a stop, not an answer. No reason and no identity can turn it into one: the
             // same refusal covers a person and the AI operator, and `settle` puts it on the audit log. The
@@ -2059,7 +2109,7 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
                 nf_core::refusal::REVIEW_NEVER_WAVE,
                 &[&canonical],
                 &format!(
-                    "{code} is a review stop that cannot be accepted; enter the value or take the hand-drawn exit instead"
+                    "{code} is a review stop that cannot be answered; enter the value or take the hand-drawn exit instead"
                 ),
             ));
         }
@@ -2126,27 +2176,7 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
         // A designer answer is not a waiver: if it names a code, that code must be a review actually open on
         // this part. Alias spellings and case are folded the same way as the catalogue and the never-wave check.
         if let Some(code) = flag.as_deref() {
-            let canonical = rv::canonical(code);
-            if rv::row(code).is_none() {
-                return Err(unprocessable(
-                    "decision_code",
-                    &format!("'{code}' is not a review catalogue code"),
-                ));
-            }
-            let holds = review_holds_for_part(&tx, oid, &pno)?;
-            if !holds.iter().any(|h| rv::canonical(h) == canonical) {
-                return Err(unprocessable(
-                    "review_hold_missing",
-                    &format!(
-                        "part '{pno}' has no open review '{canonical}' for this exit; {}",
-                        if holds.is_empty() {
-                            "no review is open".to_string()
-                        } else {
-                            format!("open: {}", holds.join(", "))
-                        }
-                    ),
-                ));
-            }
+            validate_named_review_code(&tx, oid, &pno, code, true)?;
         }
         d.part = Some(pid);
         d.flag = flag.as_deref();
@@ -2163,6 +2193,9 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
                 "part_excluded",
                 &format!("part '{pno}' is excluded"),
             ));
+        }
+        if flag_kind && let Some(code) = flag.as_deref() {
+            validate_named_review_code(&tx, oid, &pno, code, kind == "accept")?;
         }
         let (vid, val, text, state, bbox, src): (
             i64,
@@ -2298,10 +2331,11 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
         bool,
         String,
         Option<String>,
+        Option<String>,
     );
     let row: Option<Row> = tx
         .query_row(
-            "SELECT kind, part_id, value_id, against_hash, prev_state, undone_at IS NOT NULL, decided_by, claim_text FROM order_decisions WHERE id = ? AND order_id = ?",
+            "SELECT kind, part_id, value_id, against_hash, prev_state, undone_at IS NOT NULL, decided_by, flag, claim_text FROM order_decisions WHERE id = ? AND order_id = ?",
             params![did, oid],
             |r| {
                 Ok((
@@ -2313,11 +2347,12 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
                     r.get(5)?,
                     r.get(6)?,
                     r.get(7)?,
+                    r.get(8)?,
                 ))
             },
         )
         .optional()?;
-    let Some((kind, part, value, against, prev, undone, decided_by, snapshot)) = row else {
+    let Some((kind, part, value, against, prev, undone, decided_by, flag, snapshot)) = row else {
         return Err(not_found());
     };
     // an AI operator undoes only its own decisions; a person's decision and a checked mark are a person's to undo
@@ -2335,11 +2370,30 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
             "this decision was undone already",
         ));
     }
+    if kind == "review_context" {
+        let later = q_all(
+            &tx,
+            "SELECT id, flag FROM order_decisions WHERE order_id = ? AND kind = 'review_context' AND id > ? AND undone_at IS NULL",
+            params![oid, did],
+            |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<String>>(1)?)),
+        )?;
+        if later
+            .iter()
+            .any(|(_, later_flag)| !is_context_restore_flag(later_flag.as_deref()))
+        {
+            return Err(refuse(
+                StatusCode::CONFLICT,
+                nf_core::refusal::CONTEXT_UNDO_OUT_OF_ORDER,
+                "undo the latest page-input decision first",
+            ));
+        }
+    }
     tx.execute(
         "UPDATE order_decisions SET undone_by = ?, undone_at = ?, undo_note = ? WHERE id = ?",
         params![u.username, now() as i64, note, did],
     )?;
     let mut reverted = false;
+    let mut restored: Option<(Value, Value)> = None;
     if kind == "confirm"
         && let (Some(vid), Some(pid), Some(prev)) = (value, part, prev.clone())
     {
@@ -2384,29 +2438,66 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
         && let Some(snap) = snapshot
     {
         let saved: Value = serde_json::from_str(&snap).unwrap_or(Value::Null);
-        let current = review_context_state(&tx, oid)?.1;
-        // Restore only a snapshot that matches the inputs this decision was made against; a later edit is a
-        // separate decision and is not overwritten by undoing an older one.
-        if current == against
+        let (current_ctx, current_fp) = review_context_state(&tx, oid)?;
+        // Restore only a snapshot that matches the inputs this decision was made against. The out-of-order
+        // check above keeps a later active page-input decision from being skipped over. A restore writes its
+        // own audited context decision so the restored inputs still have an effective reason for being set.
+        if current_fp == against
             && saved["before"][0].is_array()
             && saved["before"][1].is_array()
             && saved["after"][0].is_array()
             && saved["after"][1].is_array()
         {
             restore_review_context(&tx, oid, &saved["before"])?;
-            if review_context_state(&tx, oid)?.1 == prev.as_deref().unwrap_or_default() {
+            let (after_ctx, after_fp) = review_context_state(&tx, oid)?;
+            if after_fp == prev.as_deref().unwrap_or_default() {
                 reverted = true;
+                let detail = json!({ "before": &current_ctx, "after": &after_ctx }).to_string();
+                let reason = format!("restored by undo of decision #{did}: {note}");
+                let agent = (u.kind == "agent").then_some(u.username.clone());
+                let restore_flag = context_restore_flag(flag.as_deref());
+                let rid = insert_decision(
+                    &tx,
+                    &NewDecision {
+                        order: oid,
+                        part: None,
+                        value: None,
+                        kind: "review_context",
+                        flag: Some(&restore_flag),
+                        source: actor_source(u),
+                        agent: agent.as_deref(),
+                        reason: &reason,
+                        against: after_fp,
+                        prev_state: Some(&current_fp),
+                        who: &u.username,
+                    },
+                )?;
+                tx.execute(
+                    "UPDATE order_decisions SET claim_text = ? WHERE id = ?",
+                    params![detail, rid],
+                )?;
+                restored = Some((current_ctx, after_ctx));
             } else {
-                restore_review_context(&tx, oid, &saved["after"])?;
+                restore_review_context(&tx, oid, &current_ctx)?;
             }
         }
     }
+    let restored_detail = restored
+        .as_ref()
+        .map(|(old, new)| {
+            format!(
+                " context {}->{}",
+                clip(&old.to_string(), 260),
+                clip(&new.to_string(), 260)
+            )
+        })
+        .unwrap_or_default();
     app.audit(
         &tx,
         &u.username,
         "order_decision_undone",
         &format!(
-            "order #{oid} decision #{did} {kind} undone, value reverted {reverted} {}",
+            "order #{oid} decision #{did} {kind} undone, value reverted {reverted}{restored_detail} {}",
             clip(&note, 300)
         ),
     )?;
