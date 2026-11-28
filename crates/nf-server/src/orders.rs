@@ -1108,21 +1108,37 @@ fn clean_attached_reading(
         && same_number(read, value))
 }
 
+/// Everything the confirm gate needs. Kept as a struct because the union of AIOP's stored
+/// attachment and PZ-2's verdict inputs is too wide for a positional argument list.
+struct ConfirmGateContext<'a> {
+    db: &'a Connection,
+    oid: i64,
+    part_no: &'a str,
+    key: &'a str,
+    flag: Option<&'a str>,
+    value: Option<f64>,
+    bbox: Option<&'a str>,
+    source: &'a str,
+    attached: Option<i64>,
+    person_reviewed: bool,
+}
+
 /// The gate used before a value is confirmed and again when compute reads it. AIOP's
 /// server-owned reading attachment, or a person's review of the reading state the operator
 /// stored with the value, substitutes only for a *missing* PZ-2 verdict.
-fn confirm_gate(
-    db: &Connection,
-    oid: i64,
-    part_no: &str,
-    key: &str,
-    flag: Option<&str>,
-    value: Option<f64>,
-    bbox: Option<&str>,
-    source: &str,
-    attached: Option<i64>,
-    person_reviewed: bool,
-) -> Result<ReadingGate, ApiError> {
+fn confirm_gate(ctx: &ConfirmGateContext<'_>) -> Result<ReadingGate, ApiError> {
+    let ConfirmGateContext {
+        db,
+        oid,
+        part_no,
+        key,
+        flag,
+        value,
+        bbox,
+        source,
+        attached,
+        person_reviewed,
+    } = *ctx;
     if flag.is_none() && READ_SOURCES.contains(&source) {
         if let Some(rid) = attached
             && clean_attached_reading(db, oid, part_no, value, rid)?
@@ -3452,18 +3468,18 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
             None
         };
         let gate_source = read_source.as_deref().unwrap_or(&v.source);
-        let gate = confirm_gate(
-            &tx,
+        let gate = confirm_gate(&ConfirmGateContext {
+            db: &tx,
             oid,
-            &pno,
-            &v.key,
-            flag.as_deref(),
-            v.value,
-            v.bbox.as_deref(),
-            gate_source,
-            v.attached_reading_id,
-            u.kind != "agent" && v.confidence.is_some(),
-        )?;
+            part_no: &pno,
+            key: &v.key,
+            flag: flag.as_deref(),
+            value: v.value,
+            bbox: v.bbox.as_deref(),
+            source: gate_source,
+            attached: v.attached_reading_id,
+            person_reviewed: u.kind != "agent" && v.confidence.is_some(),
+        })?;
         let mut new_state = if v.value.is_none() {
             "MISSING"
         } else if v.confirm {
@@ -3702,18 +3718,18 @@ fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) ->
             if state == "CONFIRMED" {
                 continue;
             }
-            let gate = confirm_gate(
-                &tx,
+            let gate = confirm_gate(&ConfirmGateContext {
+                db: &tx,
                 oid,
-                pno,
-                &key,
-                flag.as_deref(),
-                val,
-                bbox.as_deref(),
-                read_source.as_deref().unwrap_or(&src),
+                part_no: pno,
+                key: &key,
+                flag: flag.as_deref(),
+                value: val,
+                bbox: bbox.as_deref(),
+                source: read_source.as_deref().unwrap_or(&src),
                 attached,
-                confidence.is_some(),
-            )?;
+                person_reviewed: confidence.is_some(),
+            })?;
             if gate != ReadingGate::Pass {
                 return Err(reading_gate_error(gate, &format!("part '{pno}' {key}")));
             }
@@ -4005,18 +4021,18 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
             ));
         }
         if kind == "confirm" {
-            let gate = confirm_gate(
-                &tx,
+            let gate = confirm_gate(&ConfirmGateContext {
+                db: &tx,
                 oid,
-                &pno,
-                &key,
-                reading_flag.as_deref(),
-                val,
-                bbox.as_deref(),
-                read_source.as_deref().unwrap_or(&src),
+                part_no: &pno,
+                key: &key,
+                flag: reading_flag.as_deref(),
+                value: val,
+                bbox: bbox.as_deref(),
+                source: read_source.as_deref().unwrap_or(&src),
                 attached,
-                confidence.is_some(),
-            )?;
+                person_reviewed: confidence.is_some(),
+            })?;
             if gate != ReadingGate::Pass {
                 return Err(reading_gate_error(gate, &format!("part '{pno}' {key}")));
             }
@@ -4998,18 +5014,18 @@ fn load_compute_input(
             if matches!(st, oc::ValState::Confirmed | oc::ValState::Corrected)
                 && READ_SOURCES.contains(&origin)
             {
-                let gate = confirm_gate(
+                let gate = confirm_gate(&ConfirmGateContext {
                     db,
                     oid,
-                    &no,
+                    part_no: &no,
                     key,
-                    flag.as_deref(),
-                    *value,
-                    bbox.as_deref(),
-                    origin,
-                    *attached,
-                    false,
-                );
+                    flag: flag.as_deref(),
+                    value: *value,
+                    bbox: bbox.as_deref(),
+                    source: origin,
+                    attached: *attached,
+                    person_reviewed: false,
+                });
                 if !matches!(gate, Ok(ReadingGate::Pass)) {
                     st = oc::ValState::Proposed;
                     state_code = "PROPOSED";
