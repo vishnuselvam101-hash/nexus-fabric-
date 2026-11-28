@@ -686,6 +686,7 @@ impl RealEngine for RustShapes {
             "s12" => eval_s12(n),
             "s13" => eval_s13(n),
             "s15" => eval_s15(n),
+            "s16" => eval_s16(n),
             _ => None,
         }
     }
@@ -3465,4 +3466,496 @@ fn s15_normal_default_versus_zk_radial_report() {
         "s15 NORMAL default vs RADIAL (ZK parity): {differ} of {compared} numeric cases differ (> 1e-9), {over_tol} of them leave ZK's tolerance (not counted as NG); largest absolute change {max_abs:.4} in the case's own unit (case {max_id}); largest relative change {max_rel:.4} (case {rel_id})"
     );
     assert_eq!(cb_conv(), ThicknessConvention::Radial);
+}
+
+// ======================================================================================================
+// Lane S1-L9b: section s16 (test_build.mjs:874-997, wye / Y-branch). Every input value is written from the ZK test source
+// (examples 1-4 and the thickness-rule block) or read from K_yfork / K_yfork_cone; every answer is computed by
+// `nf_core::wye`. Mapping conventions (stated): ZK `need` check count = holds of the result; a ZK "stops with wye_bad" or "has a
+// need text" is answered by the coded refusal / hold that says the same thing; "builds pieces" = the result's pieces.
+// Not ported (PENDING, stated): the DXF writer (117-118), the build() texts that need the material table, the stock or the
+// BOM mass (124 125 126 131 157 158 160 161 162), the lateral limit with ZK's cutTau helper (112; covered by
+// tests/wye_closed_forms.rs from first principles). The derived cases (ZK's own output copied into the extraction) are
+// computed, never counted.
+// ======================================================================================================
+
+use nf_core::shapes::Basis as WBasis;
+use nf_core::wye::{self, WyeKind, WyeResult, WyeSpec};
+
+fn wsp(
+    d: f64,
+    t: f64,
+    b: (f64, f64),
+    l: f64,
+    h: (f64, f64),
+    cone: Option<(f64, f64, f64)>,
+    split: u32,
+) -> WyeSpec {
+    WyeSpec {
+        d,
+        t,
+        beta1_deg: b.0,
+        beta2_deg: b.1,
+        l,
+        h1: h.0,
+        h2: h.1,
+        branch_d: cone.map(|c| c.0),
+        branch_t: cone.map(|c| c.1),
+        cone_s: cone.map(|c| c.2),
+        split: Some(split),
+        basis: WBasis::Mid,
+        amp: WBasis::Outer,
+    }
+}
+
+/// Examples 1-4 and the beta 30/45 cone wye (G5) of test_build.mjs:880-883, 921.
+fn wy_ex(i: usize) -> WyeSpec {
+    match i {
+        0 => wsp(1016.0, 12.0, (45.0, 45.0), 500.0, (900.0, 900.0), None, 1),
+        1 => wsp(1625.6, 12.0, (30.0, 30.0), 600.0, (2200.0, 2200.0), None, 1),
+        2 => wsp(610.0, 9.0, (30.0, 45.0), 400.0, (1000.0, 900.0), None, 2),
+        3 => wsp(
+            1016.0,
+            12.0,
+            (30.0, 30.0),
+            500.0,
+            (1500.0, 1500.0),
+            Some((610.0, 9.0, 900.0)),
+            1,
+        ),
+        _ => wsp(
+            1016.0,
+            12.0,
+            (30.0, 45.0),
+            500.0,
+            (1500.0, 1500.0),
+            Some((610.0, 9.0, 900.0)),
+            1,
+        ),
+    }
+}
+
+/// Golden parity runs the ZK joint-plane reading: planes from the OUTER sphere (rule `WYE_JOINT_PLANES_OUTER_SPHERE`, UNVERIFIED).
+/// The engine default is the amplitude sphere; s16 must stay 124/0/12/32 under the ZK rule.
+fn zk_wye(s: &WyeSpec) -> Result<WyeResult, nf_core::shapes::ShapeRefusal> {
+    wye::wye_with_rule(s, wye::WyeJointRule::OuterSphere)
+}
+
+fn wy_run(s: &WyeSpec) -> Option<WyeResult> {
+    zk_wye(s).ok()
+}
+
+fn wy_code(s: &WyeSpec) -> Option<&'static str> {
+    zk_wye(s).err().map(|e| e.code)
+}
+
+fn wsym(a: [f64; 9]) -> Vec<f64> {
+    let mut v = a.to_vec();
+    v.extend(a[1..8].iter().rev());
+    v
+}
+
+/// Expected 16 marks of block `b` (test_build.mjs:889-899).
+fn wy_marks(b: usize) -> Vec<f64> {
+    let b1x = vec![
+        689.5795, 705.5968, 751.2102, 819.4756, 900.0, 705.5968, 540.7898, 430.6692, 392.0,
+        430.6692, 540.7898, 705.5968, 900.0, 819.4756, 751.2102, 705.5968,
+    ];
+    match b {
+        0 => wsym([
+            289.5795, 305.5968, 351.2102, 419.4756, 500.0, 419.4756, 351.2102, 305.5968, 289.5795,
+        ]),
+        1 | 2 => b1x,
+        3 => wsym([
+            382.2109, 398.7891, 445.9998, 516.6557, 600.0, 516.6557, 445.9998, 398.7891, 382.2109,
+        ]),
+        4 => vec![
+            1982.2109, 1998.7891, 2045.9998, 2116.6557, 2200.0, 1661.2541, 1204.5274, 899.3523,
+            792.1891, 899.3523, 1204.5274, 1661.2541, 2200.0, 2116.6557, 2045.9998, 1998.7891,
+        ],
+        5 => vec![
+            318.2755, 324.4964, 342.212, 368.7254, 400.0, 351.6536, 310.6676, 283.2816, 273.6649,
+            283.2816, 310.6676, 351.6536, 400.0, 368.7254, 342.212, 324.4964,
+        ],
+        6 => vec![
+            918.2755, 924.4964, 942.212, 968.7254, 1000.0, 847.8896, 718.9366, 632.7729, 602.5163,
+            632.7729, 718.9366, 847.8896, 1000.0, 968.7254, 942.212, 924.4964,
+        ],
+        7 => vec![
+            773.6649, 783.2816, 810.6676, 851.6536, 900.0, 747.8896, 618.9366, 532.7729, 502.5163,
+            532.7729, 618.9366, 747.8896, 900.0, 851.6536, 810.6676, 783.2816,
+        ],
+        8 => wsym([
+            426.7715, 437.2909, 467.2473, 512.0804, 564.9646, 512.0804, 467.2473, 437.2909,
+            426.7715,
+        ]),
+        _ => vec![
+            729.8662, 739.166, 766.1232, 807.8276, 859.241, 618.7707, 417.8662, 305.5659, 269.541,
+            305.5659, 417.8662, 618.7707, 859.241, 807.8276, 766.1232, 739.166,
+        ],
+    }
+}
+
+/// Reading of K_yfork / K_yfork_cone into a spec, the way ZK `build` takes the values (wye_angle, optional leg_angle / H2).
+fn wy_read(file: &str, edit: impl Fn(&mut Value)) -> Option<WyeSpec> {
+    let mut v: Value = serde_json::from_str(
+        &std::fs::read_to_string(golden_dir().join("readings").join(file)).ok()?,
+    )
+    .ok()?;
+    edit(&mut v);
+    let p = &v["parts"][0];
+    let g = |k: &str| p["params"][k]["value"].as_f64();
+    let delta = g("wye_angle")?;
+    let b1 = g("leg_angle").unwrap_or(delta / 2.0);
+    let h = g("H")?;
+    Some(WyeSpec {
+        d: g("D")?,
+        t: g("t")?,
+        beta1_deg: b1,
+        beta2_deg: delta - b1,
+        l: g("L")?,
+        h1: h,
+        h2: g("H2").unwrap_or(h),
+        branch_d: g("branch_D"),
+        branch_t: g("branch_t"),
+        cone_s: g("cone_s"),
+        split: g("split").map(|n| n as u32),
+        basis: WBasis::Mid,
+        amp: WBasis::Outer,
+    })
+}
+
+fn wy_read_run(file: &str, edit: impl Fn(&mut Value)) -> Option<WyeResult> {
+    zk_wye(&wy_read(file, edit)?).ok()
+}
+
+/// Reading outcome: `Some(result)` built, `None` refused (a refusal where the spec exists).
+fn wy_read_code(file: &str, edit: impl Fn(&mut Value)) -> Option<&'static str> {
+    zk_wye(&wy_read(file, edit)?).err().map(|e| e.code)
+}
+
+fn wset(v: &mut Value, k: &str, x: Value) {
+    v["parts"][0]["params"][k] =
+        serde_json::json!({ "value": x, "text": "", "bbox": null, "source": "drawing" });
+}
+
+fn wmax_mark_diff(p: &wye::WyePiece, want: &[f64]) -> f64 {
+    p.marks
+        .iter()
+        .zip(want)
+        .map(|(m, w)| (m.len - w).abs())
+        .fold(0.0, f64::max)
+}
+
+fn eval_s16(n: usize) -> Option<Got> {
+    const K: &str = "K_yfork.json";
+    const KC: &str = "K_yfork_cone.json";
+    // 1-70: ten pieces x 7 values (circ, w, h, kg, shortest, longest, 16 marks within 0.1)
+    const PIECES: [(usize, usize); 10] = [
+        (0, 0),
+        (0, 1),
+        (0, 2),
+        (1, 0),
+        (1, 1),
+        (2, 0),
+        (2, 1),
+        (2, 2),
+        (3, 0),
+        (3, 1),
+    ];
+    if (1..=70).contains(&n) {
+        let (ex, pi) = PIECES[(n - 1) / 7];
+        let r = wy_run(&wy_ex(ex))?;
+        let p = &r.pieces[pi];
+        return match (n - 1) % 7 {
+            0 => num(p.circ),
+            1 => num(p.w),
+            2 => num(p.h),
+            3 => num(p.mass_kg),
+            4 => num(p.shortest),
+            5 => num(p.longest),
+            _ => flag(wmax_mark_diff(p, &wy_marks((n - 1) / 7)) <= 0.1),
+        };
+    }
+    let r4 = || wy_run(&wy_ex(3));
+    match n {
+        71..=73 => {
+            let r = wy_run(&wy_ex(2))?;
+            let hh = [400.0, 1000.0, 900.0][n - 71];
+            let p = &r.pieces[n - 71];
+            flag(
+                p.plates.len() == 2
+                    && p.plates.iter().all(|q| {
+                        let mut xs = q.iter().map(|a| a[0]);
+                        let (lo, hi) = xs
+                            .by_ref()
+                            .fold((f64::MAX, f64::MIN), |(l, h), x| (l.min(x), h.max(x)));
+                        let ymax = q.iter().map(|a| a[1]).fold(f64::MIN, f64::max);
+                        (hi - lo - 944.0486).abs() < 0.1 && (ymax - hh).abs() < 0.1
+                    }),
+            )
+        }
+        74 => num(r4()?.pieces[1].psi_deg),
+        75 => num(r4()?.pieces[1].fan_deg),
+        76 => num(r4()?.pieces[1].apex),
+        77 => num(r4()?.crotch[0]),
+        78 => num(r4()?.pieces[3].circ),
+        79 => num(r4()?.pieces[3].h),
+        80 => num(r4()?.pieces[3].mass_kg),
+        81 => num(wy_run(&wy_ex(4))?.pieces[0].mass_kg),
+        82 => num(wy_run(&wy_ex(4))?.pieces[0].shortest),
+        83 => num(wy_run(&wy_ex(4))?.pieces[1].mass_kg),
+        84 => num(wy_run(&wy_ex(4))?.pieces[2].mass_kg),
+        85 => num(wy_run(&wy_ex(4))?.pieces[2].h),
+        86 => num(wy_run(&wy_ex(4))?.pieces[2].marks[0].len),
+        87 => {
+            let c = wy_run(&wy_ex(4))?.crotch;
+            flag(
+                (c[0] - 67.37764).abs() < 1e-3
+                    && (c[1] + 8.87043).abs() < 1e-3
+                    && (c[2] - 507.92255).abs() < 1e-3,
+            )
+        }
+        88..=107 => {
+            // (basis, amp, leg piece) of the five thickness-rule variants, four values each
+            let (b, a, pi) = [
+                (WBasis::Outer, WBasis::Outer, 1),
+                (WBasis::Inner, WBasis::Outer, 1),
+                (WBasis::Mid, WBasis::Mid, 1),
+                (WBasis::Mid, WBasis::Inner, 1),
+                (WBasis::Mid, WBasis::Mid, 0),
+            ][(n - 88) / 4];
+            let mut s = wy_ex(0);
+            s.basis = b;
+            s.amp = a;
+            let r = wy_run(&s)?;
+            let p = &r.pieces[pi];
+            match (n - 88) % 4 {
+                0 => num(p.circ),
+                1 => num(p.mass_kg),
+                2 => num(p.marks[0].len),
+                _ => num(p.marks[8].len),
+            }
+        }
+        108..=111 => {
+            let mut s = wy_ex(3);
+            s.amp = WBasis::Mid;
+            let r = wy_run(&s)?;
+            let p = &r.pieces[1];
+            match n {
+                108 => num(p.w),
+                109 => num(p.h),
+                110 => num(p.mass_kg),
+                _ => num(p.shortest),
+            }
+        }
+        113..=115 => {
+            let s = wy_ex([0, 2, 3][n - 113]);
+            let r = wy_run(&s)?;
+            let c = wye::verify_wye(&s, &r).ok()?;
+            flag(
+                c.iter()
+                    .find(|k| k.name == "cut_on_neighbour_surface")
+                    .is_some_and(|k| k.value < 1e-6),
+            )
+        }
+        116 => {
+            let c = r4()?.crotch;
+            flag((c[0] - 64.96458).abs() < 1e-4 && c[1].abs() < 1e-9 && (c[2] - 508.0).abs() < 1e-9)
+        }
+        // 119: pieces are main, leg 1, leg 2
+        119 => {
+            let r = wy_read_run(K, |_| {})?;
+            flag(r.pieces.len() == 3 && r.pieces.iter().enumerate().all(|(i, p)| p.leg == i))
+        }
+        120..=122 => num((wy_read_run(K, |_| {})?.pieces[n - 120].mass_kg * 10.0).round() / 10.0),
+        123 => count(wy_read_run(K, |_| {})?.holds.len()),
+        127 => {
+            let r = wy_read_run(KC, |_| {})?;
+            flag(
+                r.pieces.len() == 5
+                    && r.pieces.iter().map(|p| p.kind).collect::<Vec<_>>()
+                        == [
+                            WyeKind::Pipe,
+                            WyeKind::Cone,
+                            WyeKind::Cone,
+                            WyeKind::Tube,
+                            WyeKind::Tube,
+                        ],
+            )
+        }
+        128 => num(wy_read_run(KC, |_| {})?.pieces[3].t),
+        129 => num(wy_read_run(KC, |_| {})?.pieces[1].t),
+        130 => count(wy_read_run(KC, |_| {})?.holds.len()),
+        132 => flag(
+            wy_read_run(KC, |_| {})?
+                .questions
+                .iter()
+                .any(|q| q.contains("64.96")),
+        ),
+        133 => {
+            let r = wy_read_run(K, |v| wset(v, "split", 2.into()))?;
+            flag(r.pieces.iter().all(|p| p.n == 2))
+        }
+        134 => num(wy_read_run(K, |v| wset(v, "split", 2.into()))?.pieces[0].mass_kg),
+        135 => flag(
+            wy_read_run(K, |v| wset(v, "wye_angle", 100.into()))?
+                .has_hold("wye_angle_outside_awwa_range"),
+        ),
+        136 => num(wy_read_run(K, |v| wset(v, "wye_angle", 100.into()))?
+            .pieces
+            .len() as f64),
+        137 => flag(
+            wy_read_code(K, |v| wset(v, "wye_angle", 180.into())) == Some("wye_angle_out_of_range"),
+        ),
+        138 => num(wy_read_run(K, |v| wset(v, "wye_angle", 180.into()))
+            .map_or(0, |r| r.pieces.len()) as f64),
+        139 => flag(
+            wy_read_run(K, |v| {
+                wset(v, "leg_angle", 0.into());
+                wset(v, "L", 600.into());
+            })?
+            .has_hold("wye_leg_straight"),
+        ),
+        140 => num(wy_read_run(K, |v| {
+            wset(v, "leg_angle", 0.into());
+            wset(v, "L", 600.into());
+        })?
+        .pieces
+        .len() as f64),
+        141 => flag(
+            wy_read_code(K, |v| wset(v, "leg_angle", 120.into())) == Some("wye_angle_out_of_range"),
+        ),
+        142 => num(wy_read_run(K, |v| {
+            wset(v, "leg_angle", 30.into());
+            wset(v, "H2", 800.into());
+        })?
+        .pieces[2]
+            .h),
+        143 => {
+            let r = wy_read_run(K, |v| {
+                wset(v, "leg_angle", 30.into());
+                wset(v, "H2", 800.into());
+            })?;
+            flag(r.pieces[1].mass_kg != r.pieces[2].mass_kg)
+        }
+        144 => flag(wy_read_code(K, |v| wset(v, "L", 200.into())) == Some("wye_end_inside_cut")),
+        145 => {
+            num(wy_read_run(K, |v| wset(v, "L", 200.into())).map_or(0, |r| r.pieces.len()) as f64)
+        }
+        146 => flag(
+            wy_read_code(K, |v| {
+                wset(v, "branch_D", 610.into());
+                wset(v, "branch_t", 9.into());
+            }) == Some("wye_cone_length_missing"),
+        ),
+        147 => num(wy_read_run(K, |v| {
+            wset(v, "branch_D", 610.into());
+            wset(v, "branch_t", 9.into());
+        })
+        .map_or(0, |r| r.pieces.len()) as f64),
+        148 => count(
+            wy_read_run(K, |v| wset(v, "branch_D", serde_json::json!(1016.3)))?
+                .holds
+                .len(),
+        ),
+        149 => {
+            let r = wy_read_run(K, |v| wset(v, "branch_t", 9.into()))?;
+            flag(r.pieces[0].t == 12.0 && r.pieces[1].t == 9.0 && r.pieces[2].t == 9.0)
+        }
+        150 => flag(
+            wy_read_code(KC, |v| v["parts"][0]["params"]["branch_t"] = Value::Null)
+                == Some("wye_branch_t_missing"),
+        ),
+        151 => flag(
+            wy_read_code(KC, |v| wset(v, "cone_s", 300.into())) == Some("wye_cone_not_buildable"),
+        ),
+        152 => flag(
+            wy_read_code(KC, |v| wset(v, "wye_angle", 20.into())) == Some("wye_cone_too_steep"),
+        ),
+        153 => {
+            flag(wy_read_code(KC, |v| wset(v, "cone_s", 520.into())) == Some("wye_end_inside_cut"))
+        }
+        154 => flag(
+            wy_read_code(KC, |v| wset(v, "H", 800.into())) == Some("wye_tube_length_not_positive"),
+        ),
+        155 | 156 => {
+            let r = wy_read_run(KC, |v| {
+                wset(v, "D", 610.into());
+                wset(v, "t", 9.into());
+                wset(v, "branch_D", 1016.into());
+                wset(v, "branch_t", 12.into());
+            })?;
+            if n == 155 {
+                flag(r.has_hold("wye_branch_wider_than_main"))
+            } else {
+                flag(r.pieces.len() == 5)
+            }
+        }
+        159 => {
+            // quantity 2 = two plates per piece is the order front half (PENDING); here only that every piece builds
+            None
+        }
+        163 => {
+            let mut s = wy_read(K, |_| {})?;
+            s.basis = WBasis::Outer;
+            num(zk_wye(&s).ok()?.pieces[0].w)
+        }
+        164 => {
+            flag(wy_read_code(KC, |v| wset(v, "t", (-5).into())) == Some("wye_value_not_positive"))
+        }
+        165 => flag(wy_read_code(KC, |v| wset(v, "D", 0.into())) == Some("wye_value_not_positive")),
+        166 => flag(
+            wy_read_code(KC, |v| wset(v, "branch_D", 0.into())) == Some("wye_value_not_positive"),
+        ),
+        167 => flag(
+            wy_read_code(KC, |v| wset(v, "branch_t", 700.into())) == Some("wye_wall_too_thick"),
+        ),
+        168 => {
+            let mut s = wy_read(KC, |v| wset(v, "t", 300.into()))?;
+            s.basis = WBasis::Inner;
+            flag(wy_code(&s) == Some("wye_cone_mouth_inside_apex"))
+        }
+        // 112 (ZK cutTau helper), 117-118 (DXF), 124-126, 131, 157-158, 160-162 (material table / stock): PENDING
+        // 135/137/139/141/144/146/150-154/156 are the coded holds / refusals above.
+        _ => None,
+    }
+}
+
+#[test]
+fn real_engine_status_wye() {
+    let (cases, _) = load_cases();
+    let part: Vec<Case> = cases
+        .iter()
+        .filter(|c| c.section == "s16")
+        .cloned()
+        .collect();
+    assert_eq!(part.len(), 168);
+    let r = run_real(&RustShapes, &part);
+    println!(
+        "s16 joint rule: {} (ZK parity, UNVERIFIED; the engine default is WYE_JOINT_PLANES_AMPLITUDE_SPHERE)",
+        wye::WyeJointRule::OuterSphere.name()
+    );
+    println!(
+        "s16: {} OK, {} NG, {} PENDING, {} derived (not counted) of {}",
+        r.ok,
+        r.ng,
+        r.pending,
+        r.derived_uncounted,
+        part.len()
+    );
+    for l in &r.ng_lines {
+        println!("{l}");
+    }
+    let mut dok = 0;
+    let mut dpend = 0;
+    for c in part.iter().filter(|c| !c.derived.is_empty()) {
+        match judge(c, RustShapes.eval(&key_of(c))) {
+            Verdict::Ok => dok += 1,
+            Verdict::Pending => dpend += 1,
+            Verdict::Ng => println!("derived {} DISAGREES with ZK's number: {}", c.id, c.name),
+        }
+    }
+    println!("s16 derived: {dok} computed within tolerance (not counted), {dpend} PENDING");
+    assert_eq!(r.ng, 0, "NG cases in s16");
 }
