@@ -1,0 +1,18 @@
+[package]
+name = "nf-cad"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Proprietary"
+publish = false
+description = "NF CAD phase 1: read-only DXF entities, layers, measurement, picking and quality re-check, with AMOEBA tool bindings. Must not be a dependency of nf-digest."
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+nf-cadio = { path = "../nf-cadio" }
+# quality re-check only (nf_dxf::quality::quality_gate); this crate never edits nf-dxf
+nf-dxf = { path = "../nf-dxf" }
+nf-amoeba-operator = { path = "../nf-amoeba-operator" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

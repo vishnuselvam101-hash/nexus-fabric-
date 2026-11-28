@@ -830,6 +830,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nf-cad"
+version = "0.1.0"
+dependencies = [
+ "nf-amoeba-operator",
+ "nf-cadio",
+ "nf-dxf",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "nf-cadio"
 version = "0.1.0"
 dependencies = [
