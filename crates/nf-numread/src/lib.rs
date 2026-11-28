@@ -338,9 +338,9 @@ fn add_phi(tok: &mut text::Tok, line: &rec::Line, thresh: f32) -> bool {
         .map_or(0, |c| c.step + 1);
     let from = prev_end.max(first.saturating_sub(4));
     let mut best = (0usize, 0f32);
-    for t in from..first {
-        if line.phi[t] > best.1 {
-            best = (t, line.phi[t]);
+    for (t, phi) in line.phi.iter().enumerate().take(first).skip(from) {
+        if *phi > best.1 {
+            best = (t, *phi);
         }
     }
     if best.1 >= thresh {
