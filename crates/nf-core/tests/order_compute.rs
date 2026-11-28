@@ -507,6 +507,25 @@ fn negative_offset_without_a_side_is_refused_and_with_a_side_is_used() {
 }
 
 #[test]
+fn rib_with_a_negative_offset_and_no_side_is_refused() {
+    let rib = PartIn::new("T1r", "tee_rib")
+        .v("t", 9.0)
+        .v("rib_b", 150.0)
+        .v("rib_h", 100.0)
+        .v("rib_n1", 1.0)
+        .attached("T1");
+    let r = run(&[tee_main("T1").v("e", -30.0), tee_branch("T1b", "T1"), rib]);
+    assert_eq!(
+        r[2].refusal.as_ref().map(|f| f.code.as_str()),
+        Some("tee_offset_negative_without_side"),
+        "{:?}",
+        r[2].holds
+    );
+    assert_blocks(&r[2], "refused");
+    assert!(r[2].pattern.is_empty());
+}
+
+#[test]
 fn rib_front_half_holds_block_the_dxf() {
     let rib = |b: f64, h: f64| {
         PartIn::new("T1r", "tee_rib")

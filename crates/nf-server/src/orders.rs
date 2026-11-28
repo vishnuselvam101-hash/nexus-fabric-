@@ -2228,7 +2228,14 @@ fn load_compute_input(
     oid: i64,
 ) -> Result<(Vec<oc::PartIn>, oc::OrderRules, String), ApiError> {
     let head = load_order(db, oid)?;
-    let rules_v: Value = serde_json::from_str(&head.rules).unwrap_or(json!({}));
+    // stored rules that cannot be read are an error, never the default rules
+    let rules_v: Value = serde_json::from_str(&head.rules).map_err(|_| {
+        refuse(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "order_rules_corrupt",
+            "the order's stored rules are damaged and cannot be read; the compute is refused",
+        )
+    })?;
     let rules = oc::OrderRules::from_json(&rules_v).map_err(|m| {
         unprocessable(
             "order_rules",
@@ -2413,7 +2420,7 @@ async fn compute_do(app: Arc<App>, u: &User, oid: i64, note: &str) -> Api {
     )?;
     let id = tx.last_insert_rowid();
     tx.execute(
-        "UPDATE order_results SET state = 'SUPERSEDED' WHERE order_id = ? AND id <> ?",
+        "UPDATE order_results SET state = 'SUPERSEDED' WHERE order_id = ? AND id <> ? AND state <> 'SUPERSEDED'",
         params![oid, id],
     )?;
     app.audit(

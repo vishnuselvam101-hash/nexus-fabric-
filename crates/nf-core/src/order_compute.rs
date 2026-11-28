@@ -1603,6 +1603,8 @@ fn compute_bend(w: &mut Work<'_>, r: &mut PartResult, rules: &OrderRules) {
                 .iter()
                 .map(|(n, v, s)| json!({"name": n, "value": v, "kind": "rule", "status": s}))
                 .collect();
+            // defensive guard: the joint count is a required input of this shape, so today the table rule is not
+            // reached; kept so that a future table-sourced count is asked about, never silently used
             if let Some(q) = res.question {
                 w.question("bend_joints_not_on_drawing", q);
             }
@@ -2190,6 +2192,9 @@ fn compute_tee_group(
                 } else {
                     refusal = Some(refusal_of(&e));
                 }
+            } else if let Err(e) = signed_e(&w, "e") {
+                // a negative offset without a side is refused before the rib is built, never abs()'d
+                refusal = Some(refusal_of(&e));
             } else {
                 let g = |k: &str| w.num(k);
                 let p = RibParams {

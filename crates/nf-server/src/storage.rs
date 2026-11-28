@@ -12,11 +12,12 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+/// 8: `order_results_immutable` trigger (only state -> SUPERSEDED may change), on top of 7.
 /// 7: `order_results` (the supersede chain of order computes, NFJ-1 L10), on top of 6.
 /// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns). Rollback to an older build
 /// is a restore of the pre-update backup: an older program refuses a newer schema (see the check below) and does not
 /// undo the migration.
-pub const SCHEMA_VERSION: i64 = 7;
+pub const SCHEMA_VERSION: i64 = 8;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
@@ -83,6 +84,7 @@ CREATE TRIGGER IF NOT EXISTS records_no_delete BEFORE DELETE ON records BEGIN SE
 CREATE TRIGGER IF NOT EXISTS amoeba_no_update BEFORE UPDATE ON amoeba_digests BEGIN SELECT RAISE(ABORT, 'AMOEBA snapshots are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS amoeba_no_delete BEFORE DELETE ON amoeba_digests BEGIN SELECT RAISE(ABORT, 'AMOEBA snapshots are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS order_results_no_delete BEFORE DELETE ON order_results BEGIN SELECT RAISE(ABORT, 'computed results are kept; a new compute supersedes them'); END;
+CREATE TRIGGER IF NOT EXISTS order_results_immutable BEFORE UPDATE ON order_results WHEN NOT (NEW.state = 'SUPERSEDED' AND NEW.id IS OLD.id AND NEW.order_id IS OLD.order_id AND NEW.input_hash IS OLD.input_hash AND NEW.engine IS OLD.engine AND NEW.supersedes IS OLD.supersedes AND NEW.result_json IS OLD.result_json AND NEW.counts_json IS OLD.counts_json AND NEW.created_by IS OLD.created_by AND NEW.created_at IS OLD.created_at) BEGIN SELECT RAISE(ABORT, 'computed results are immutable; only SUPERSEDED may be set'); END;
 CREATE TRIGGER IF NOT EXISTS order_decisions_no_delete BEFORE DELETE ON order_decisions BEGIN SELECT RAISE(ABORT, 'decisions are kept; undo marks them undone'); END;
 ";
 

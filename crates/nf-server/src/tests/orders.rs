@@ -1875,7 +1875,33 @@ async fn l10_compute_holds_missing_values_and_edits_supersede() {
             .iter()
             .all(|c| c["recompute_required"] == false)
     );
-    // a result stored by another engine is shown but marked for recompute (G21)
+    // computed results are immutable: only state -> SUPERSEDED may change
+    {
+        let db = t.app.db();
+        for sql in [
+            "UPDATE order_results SET result_json = '{}' WHERE id = 1",
+            "UPDATE order_results SET input_hash = 'x' WHERE id = 1",
+            "UPDATE order_results SET supersedes = 99 WHERE id = 2",
+            "UPDATE order_results SET state = 'CURRENT' WHERE id = 1",
+            "UPDATE order_results SET state = 'SUPERSEDED', result_json = '{}' WHERE id = 4",
+        ] {
+            assert!(db.execute(sql, []).is_err(), "{sql}");
+        }
+        assert!(
+            db.execute(
+                "UPDATE order_results SET state = 'SUPERSEDED' WHERE id = 4",
+                []
+            )
+            .is_ok()
+        );
+        db.execute(
+            "UPDATE order_results SET state = 'CURRENT' WHERE id = 4",
+            [],
+        )
+        .expect_err("a superseded result cannot be revived");
+    }
+    // a result stored by another engine is shown but marked for recompute (G21); the test simulates the old build
+    t.sql("DROP TRIGGER order_results_immutable");
     t.sql("UPDATE order_results SET engine = 'nf-engine 0.4.12+src.0000000000000000' WHERE id = 1");
     let chain = t.get(&format!("/api/orders/{oid}/compute")).await;
     assert_eq!(chain["chain"][0]["recompute_required"], true);
@@ -1947,4 +1973,17 @@ async fn l10_a_held_part_gets_no_dxf_and_the_rules_come_from_the_order() {
         .await;
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
     assert_eq!(v["code"], "order_rules");
+    // stored rules that are not even JSON are refused, never replaced by the defaults
+    t.sql(&format!(
+        "UPDATE orders SET rules_json = 'not json {{' WHERE id = {oid}"
+    ));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
+    assert_eq!(v["code"], "order_rules_corrupt");
 }
