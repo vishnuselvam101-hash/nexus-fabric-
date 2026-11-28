@@ -315,6 +315,11 @@ fn actor_source(u: &User) -> &'static str {
     if u.kind == "agent" { "auto" } else { "person" }
 }
 
+/// Who an edit counts as: `order_parts.edited_kind` and `order_values.edited_kind` hold this.
+fn actor_kind(u: &User) -> &'static str {
+    if u.kind == "agent" { "agent" } else { "person" }
+}
+
 /// The AI operator has to say why for every confirmation it makes.
 fn agent_reason(u: &User, reason: &str) -> Result<(), ApiError> {
     if u.kind == "agent" && reason.trim().is_empty() {
@@ -375,9 +380,18 @@ fn store_write_events(
     Ok(())
 }
 
-/// True if the part holds a value a person edited, or one that is CONFIRMED or CORRECTED. The AI operator does
-/// not change, exclude or drop such a part.
+/// True if a person last edited the part itself (its number, name, shape, quantity, page, links, state), or it
+/// holds a value a person edited, or one that is CONFIRMED or CORRECTED. The AI operator does not change, exclude
+/// or drop such a part, whether or not it holds values.
 fn part_is_protected(tx: &Connection, part: i64) -> rusqlite::Result<bool> {
+    if q_count(
+        tx,
+        "SELECT COUNT(*) FROM order_parts WHERE id = ? AND edited_kind = 'person'",
+        params![part],
+    )? > 0
+    {
+        return Ok(true);
+    }
     Ok(q_count(
         tx,
         "SELECT COUNT(*) FROM order_values WHERE part_id = ? AND (edited_kind = 'person' OR state IN ('CONFIRMED', 'CORRECTED'))",
@@ -1634,6 +1648,7 @@ async fn put_project_rules(
         let db = app.db();
         let u = auth_db(&db, &app, &headers)?;
         require(&u, &["admin", "engineer"])?;
+        person_only(&u, "agent_cannot_edit_rules", "change the factory rules")?;
         project_guard(&app, &db, &u, id, "set project rules")?;
         u
     };
@@ -1688,6 +1703,7 @@ async fn put_order_rules(
     raw: Bytes,
 ) -> Api {
     let u = write_access(&app, &headers, oid, "set order rules")?;
+    person_only(&u, "agent_cannot_edit_rules", "change the factory rules")?;
     let body = request_json(&headers, &raw)?;
     let reason = text_field(&body, "reason", MAX_NOTE_CHARS)?.unwrap_or_default();
     agent_reason(&u, &reason)?;
@@ -2791,8 +2807,8 @@ fn put_parts_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) 
         match p.id {
             None => {
                 tx.execute(
-                    "INSERT INTO order_parts(order_id, page_id, no, name, shape, attach_part, qty, table_rows_json, group_key, state) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    params![oid, page_id, p.no, p.name, p.shape, p.attach, p.qty, p.rows, p.group, if p.exclude { "EXCLUDED" } else { "DRAFT" }],
+                    "INSERT INTO order_parts(order_id, page_id, no, name, shape, attach_part, qty, table_rows_json, group_key, state, edited_kind) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    params![oid, page_id, p.no, p.name, p.shape, p.attach, p.qty, p.rows, p.group, if p.exclude { "EXCLUDED" } else { "DRAFT" }, actor_kind(u)],
                 )?;
                 let id = tx.last_insert_rowid();
                 added += 1;
@@ -2832,6 +2848,10 @@ fn put_parts_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) 
                 let old = olds.get(&id).cloned().unwrap_or_default();
                 if new != old {
                     changed += 1;
+                    tx.execute(
+                        "UPDATE order_parts SET edited_kind = ? WHERE id = ?",
+                        params![actor_kind(u), id],
+                    )?;
                     app.audit(
                         &tx,
                         &u.username,
@@ -2859,8 +2879,8 @@ fn put_parts_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) 
         )?;
         if state != "EXCLUDED" {
             tx.execute(
-                "UPDATE order_parts SET state = 'EXCLUDED' WHERE id = ?",
-                params![id],
+                "UPDATE order_parts SET state = 'EXCLUDED', edited_kind = ? WHERE id = ?",
+                params![actor_kind(u), id],
             )?;
             excluded += 1;
             app.audit(
@@ -3664,6 +3684,21 @@ fn agent_cannot_confirm(u: &User, what: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+/// Page inputs (material table, page notes) and factory rules are a person's. The AI operator may only propose a
+/// change through a question or an event; it never writes them.
+fn person_only(u: &User, code: &str, what: &str) -> Result<(), ApiError> {
+    if u.kind == "agent" {
+        return Err(refuse(
+            StatusCode::FORBIDDEN,
+            code,
+            &format!(
+                "the AI operator cannot {what}; a person does, the operator may ask a question"
+            ),
+        ));
+    }
+    Ok(())
+}
+
 fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
     agent_cannot_confirm(u, "confirm values for a part or for the order")?;
     let body = request_json(headers, raw)?;
@@ -4279,8 +4314,17 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
             && others == 0
         {
             let base = value_fp(&key, val, &text, bbox.as_deref(), &src);
+            // A v2 fingerprint also binds the rules, which cannot be told apart from the value afterwards. If the
+            // rules changed since, the value is still the one that was confirmed as long as it is CONFIRMED and no
+            // later confirmation of it counts (an edit puts it back to PROPOSED first). Undo must not leave a
+            // value CONFIRMED that the person just withdrew.
             let same = if against.starts_with("v2:") {
                 decision_fp(&base, &rules_fingerprint(&tx, oid)?) == against
+                    || q_count(
+                        &tx,
+                        "SELECT COUNT(*) FROM order_decisions WHERE value_id = ? AND kind = 'confirm' AND undone_at IS NULL AND id > ?",
+                        params![vid, did],
+                    )? == 0
             } else {
                 base == against
             };
@@ -4634,6 +4678,7 @@ async fn put_materials(
 }
 
 fn put_materials_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
+    person_only(u, "agent_cannot_edit_materials", "edit the material table")?;
     let body = request_json(headers, raw)?;
     let reason = required_reason(&body)?;
     let rows = body
@@ -4668,7 +4713,7 @@ fn put_materials_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
-    guard_order(app, &tx, u, oid, "edit material table")?;
+    guard_order_tx(app, &tx, u, oid, "edit material table")?;
     for r in &parsed {
         page_of(&tx, oid, r.page)?;
     }
@@ -4736,6 +4781,7 @@ async fn put_notes(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, ra
 }
 
 fn put_notes_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
+    person_only(u, "agent_cannot_edit_notes", "edit the page notes")?;
     let body = request_json(headers, raw)?;
     let reason = required_reason(&body)?;
     let list = body
@@ -4775,7 +4821,7 @@ fn put_notes_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) 
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
-    guard_order(app, &tx, u, oid, "edit page notes")?;
+    guard_order_tx(app, &tx, u, oid, "edit page notes")?;
     for (page, _, _) in &parsed {
         page_of(&tx, oid, *page)?;
     }

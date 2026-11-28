@@ -1222,6 +1222,7 @@ async fn schema_8_develop_database_migrates_to_10_additively() {
          ALTER TABLE order_values DROP COLUMN flag; ALTER TABLE order_values DROP COLUMN read_source;
          ALTER TABLE order_decisions DROP COLUMN review_code; ALTER TABLE order_decisions DROP COLUMN claim_text;
          ALTER TABLE projects DROP COLUMN default_rules_json;
+         ALTER TABLE order_parts DROP COLUMN edited_kind;
          PRAGMA user_version = 8;",
     ).unwrap();
     drop(t.app.db());
@@ -1290,6 +1291,202 @@ async fn schema_8_develop_database_migrates_to_10_additively() {
     assert_eq!((rules.as_str(), kind.as_str()), ("{}", "person"));
 }
 
+#[tokio::test]
+async fn agent_cannot_write_notes_materials_or_rules_and_a_person_note_survives() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let agent = add_agent(&t, "operator-ai");
+    let ac = [("cookie", agent.as_str())];
+    let (st, v) = person(
+        &t,
+        "PUT",
+        &format!("/api/orders/{oid}/notes"),
+        json!({ "reason": "page 2 is blurry", "notes": [{ "page": 1, "kind": "note", "text": "unreadable: page 2" }] }),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let code = |b: &[u8]| {
+        serde_json::from_slice::<Value>(b)
+            .unwrap_or(Value::Null)
+            .get("code")
+            .cloned()
+            .unwrap_or(Value::Null)
+    };
+    for (path, body, want) in [
+        (
+            format!("/api/orders/{oid}/notes"),
+            with_ev(json!({ "reason": "clean up", "notes": [] })),
+            "agent_cannot_edit_notes",
+        ),
+        (
+            format!("/api/orders/{oid}/materials"),
+            with_ev(json!({ "reason": "clean up", "rows": [] })),
+            "agent_cannot_edit_materials",
+        ),
+        (
+            format!("/api/orders/{oid}/rules"),
+            with_ev(
+                json!({ "reason": "tune", "rules": {"allow": 9.0}, "expected_rules_hash": "x" }),
+            ),
+            "agent_cannot_edit_rules",
+        ),
+        (
+            "/api/projects/1/rules".to_string(),
+            with_ev(json!({ "reason": "tune", "rules": {"allow": 9.0} })),
+            "agent_cannot_edit_rules",
+        ),
+    ] {
+        let (st, _, b) = t.send("PUT", &path, Some(body), &ac).await;
+        assert_eq!(
+            (st, code(&b)),
+            (StatusCode::FORBIDDEN, json!(want)),
+            "{path}"
+        );
+    }
+    // the person's note is still there, and nothing of the agent's attempts was written
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM order_page_notes WHERE text = 'unreadable: page 2'"),
+        1
+    );
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_page_notes"), 1);
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["notes"].as_array().unwrap().len(), 1, "{o}");
+}
+
+#[tokio::test]
+async fn agent_cannot_exclude_a_person_added_part_that_has_no_values() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let agent = add_agent(&t, "operator-ai");
+    let ac = [("cookie", agent.as_str())];
+    let parts = format!("/api/orders/{oid}/parts");
+    // no value on any part: only the part's own author marks it as a person's
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_values"), 0);
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM order_parts WHERE edited_kind = 'person'"),
+        2
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    let id2 = o["parts"][1]["id"].clone();
+    let id1 = o["parts"][0]["id"].clone();
+    let keep = |qty: i64| json!({ "id": id1, "no": "1", "name": "main", "shape": "cylinder", "qty": qty, "page": 1 });
+    let two = json!({ "id": id2, "no": "2", "name": "branch", "shape": "tee_branch", "page": 1, "attach_part": "1" });
+    for (name, list) in [
+        ("omit", json!([keep(2)])),
+        ("qty", json!([keep(3), two.clone()])),
+        (
+            "exclude",
+            json!([keep(2), { "id": id2, "no": "2", "name": "branch", "shape": "tee_branch", "page": 1, "attach_part": "1", "state": "EXCLUDED" }]),
+        ),
+    ] {
+        let (st, _, b) = t.send("PUT", &parts, Some(parts_body(list)), &ac).await;
+        let c = serde_json::from_slice::<Value>(&b).unwrap_or(Value::Null)["code"].clone();
+        assert_eq!(
+            (st, c),
+            (StatusCode::CONFLICT, json!("person_value_protected")),
+            "{name}"
+        );
+    }
+    assert_eq!(
+        t.count(
+            "SELECT COUNT(*) FROM order_parts WHERE state = 'EXCLUDED' OR qty <> 2 AND no = '1'"
+        ),
+        0
+    );
+    // a part the agent added itself is the agent's to change, and a person's edit takes it over
+    let mut mine = json!({ "no": "3", "name": "mine", "shape": "plate", "qty": 1, "page": 1 });
+    let (st, _, _) = t
+        .send(
+            "PUT",
+            &parts,
+            Some(parts_body(json!([keep(2), two.clone(), mine.clone()]))),
+            &ac,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM order_parts WHERE no = '3' AND edited_kind = 'agent'"),
+        1
+    );
+    let id3 = t.get(&format!("/api/orders/{oid}")).await["parts"][2]["id"].clone();
+    mine["id"] = id3;
+    mine["qty"] = json!(4);
+    let (st, v) = person(
+        &t,
+        "PUT",
+        &parts,
+        json!({ "parts": [keep(2), two.clone(), mine.clone()] }),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM order_parts WHERE no = '3' AND edited_kind = 'person'"),
+        1
+    );
+    mine["qty"] = json!(5);
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &parts,
+            Some(parts_body(json!([keep(2), two, mine]))),
+            &ac,
+        )
+        .await;
+    let c = serde_json::from_slice::<Value>(&b).unwrap_or(Value::Null)["code"].clone();
+    assert_eq!(
+        (st, c),
+        (StatusCode::CONFLICT, json!("person_value_protected"))
+    );
+}
+
+#[tokio::test]
+async fn undoing_a_confirm_after_a_rules_change_returns_the_value_to_proposed() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let (st, v) = person(
+        &t,
+        "PUT",
+        &format!("/api/orders/{oid}/values"),
+        json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "216.3", "source": "entered" }] }),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let dec = format!("/api/orders/{oid}/decisions");
+    let (st, d) = person(
+        &t,
+        "POST",
+        &dec,
+        json!({ "kind": "confirm", "part": "1", "key": "D", "reason": "checked on the drawing" }),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{d}");
+    let did = d["id"].as_i64().unwrap();
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM order_values WHERE key = 'D' AND state = 'CONFIRMED'"),
+        1
+    );
+    // the factory rules change after the confirmation: the decision's fingerprint no longer matches
+    t.sql(&format!(
+        "UPDATE orders SET rules_json = '{{\"allow\": 7.0}}' WHERE id = {oid}"
+    ));
+    let (st, u) = person(
+        &t,
+        "POST",
+        &format!("{dec}/{did}/undo"),
+        json!({ "note": "withdrawn" }),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{u}");
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM order_values WHERE key = 'D' AND state = 'PROPOSED'"),
+        1
+    );
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM order_values WHERE state = 'CONFIRMED'"),
+        0
+    );
+}
+
 // ---------------------------------------------------------------- round 2: person parts, events on every write
 
 fn parts_body(parts: Value) -> Value {
@@ -1315,7 +1512,8 @@ async fn aiop_the_operator_does_not_change_exclude_drop_or_skip_what_a_person_se
     let agent = add_agent(&t, "operator-ai");
     let ac = [("cookie", agent.as_str())];
     let parts = format!("/api/orders/{oid}/parts");
-    // before any person value the operator may reshape part 1
+    // a part the operator made itself, before any person value, it may reshape
+    t.sql("UPDATE order_parts SET edited_kind = 'agent'");
     let (st, _, b) = t
         .send(
             "PUT",

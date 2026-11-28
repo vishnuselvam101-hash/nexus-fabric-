@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS order_page_notes(id INTEGER PRIMARY KEY, order_id INT
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 24] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 25] = [
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
@@ -106,6 +106,13 @@ const ADDED_COLUMNS: [(&str, &str, &str); 24] = [
     // PZ-2: immutable, server-derived read origin. The caller's `source` is only a description;
     // this records whether the value was actually read by the server, read on paper, or entered.
     ("order_values", "read_source", "TEXT"),
+    // INT-5: who last edited the part itself ("person" or "agent"); a person-edited part is protected from the AI
+    // operator. Parts that predate the column count as a person's.
+    (
+        "order_parts",
+        "edited_kind",
+        "TEXT NOT NULL DEFAULT 'person'",
+    ),
     // PZ-3: factory rules copied from a project into orders created afterwards.
     (
         "projects",
