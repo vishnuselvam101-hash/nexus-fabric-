@@ -13,8 +13,9 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// 9: `operator_events`, `operator_state`, `order_readings` (the server's own record of every number the reader
-/// found on an order page) and the `order_values` source/flags/confidence/edited-by columns (the AI operator;
-/// AIOP-1), on top of 8.
+/// found on an order page), the `order_values` source/flags/confidence/edited-by columns (the AI operator;
+/// AIOP-1) and `order_values.attached_reading_id` (SECURITY-7), on top of 8. The attachment stays in schema 9;
+/// INT-5 will bump to 10 with the PZ-2 union.
 /// 8: `order_results_immutable` trigger (only state -> SUPERSEDED may change), on top of 7.
 /// 7: `order_results` (the supersede chain of order computes, NFJ-1 L10), on top of 6.
 /// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns). Rollback to an older build
@@ -53,7 +54,7 @@ CREATE TABLE IF NOT EXISTS order_decisions(id INTEGER PRIMARY KEY, order_id INTE
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 18] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 19] = [
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
@@ -88,6 +89,9 @@ const ADDED_COLUMNS: [(&str, &str, &str); 18] = [
         "edited_kind",
         "TEXT NOT NULL DEFAULT 'person'",
     ),
+    // SECURITY-7: the server-owned, sticky reading this value was first proposed from. Nullable: a value with no
+    // unambiguous attachment cannot be confirmed by the AI operator.
+    ("order_values", "attached_reading_id", "INTEGER"),
 ];
 
 /// Append-only at the database level (RC-20). Created at every start, so an older database gets them too.
@@ -408,6 +412,28 @@ pub fn open_storage(data_dir: &Path, key_path: &Path) -> Result<(Connection, [u8
     }
     db.execute_batch(INDEXES)
         .map_err(|e| format!("cannot create indexes: {e}"))?;
+    // SECURITY-7: attach an existing value to the one stored reading that unambiguously is that value on the
+    // value's own page. Several matches (or none) leave it NULL: a person, not the operator, decides then. An
+    // attachment made by a write is never overwritten by this backfill.
+    db.execute(
+        "WITH candidates AS (
+            SELECT v.id AS vid, MIN(r.id) AS rid
+            FROM order_values v
+            JOIN order_parts pt ON pt.id = v.part_id
+            JOIN order_pages pg ON pg.id = pt.page_id AND pg.order_id = pt.order_id
+            JOIN order_readings r ON r.order_id = pt.order_id AND r.page_no = pg.page_no
+             AND r.value IS NOT NULL AND r.value IS v.value
+             AND r.text = v.text AND r.bbox_json IS v.bbox_json
+             AND r.flags_json IS v.flags_json AND r.confidence IS v.confidence
+            WHERE v.attached_reading_id IS NULL
+            GROUP BY v.id
+            HAVING COUNT(*) = 1
+        )
+        UPDATE order_values SET attached_reading_id = (SELECT rid FROM candidates WHERE candidates.vid = order_values.id)
+        WHERE id IN (SELECT vid FROM candidates)",
+        [],
+    )
+    .map_err(|e| format!("migration failed (backfill attached readings): {e}"))?;
     // BE-011: record the engine per result. The stored engineering result itself is not rewritten.
     db.execute("UPDATE calculations SET engine = json_extract(result_json, '$.engine') WHERE engine IS NULL AND json_valid(result_json)", []).map_err(|e| format!("migration failed (engine per result): {e}"))?;
     // S-2: the database and the data directory must belong together. At first initialisation a random

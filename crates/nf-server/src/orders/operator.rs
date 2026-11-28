@@ -9,13 +9,16 @@
 //! What the operator may decide (server side, not on its word): it may set CONFIRMED only by naming a `reading_id`
 //! of a reading this server stored (`order_readings`, written when the server's reader read the page) whose stored
 //! value is the value, whose stored flags are empty, whose stored confidence is >= AGENT_CONFIRM_MIN_CONFIDENCE and
-//! which was read on the page of the target part (a reading of another page never confirms it); flags, confidence,
+//! which was read on the page of the target part (a reading of another page never confirms it). The attachment is
+//! server-owned: the first proposal fixes it, and a confirmation of another reading is refused. Flags, confidence,
 //! source and bbox the caller claims never grant anything (403 agent_cannot_confirm). /confirm, a decision `confirm`
 //! and `accept_flag` are a person's. It does not overwrite a value last edited by a person or in state
 //! CONFIRMED/CORRECTED, and does not change, exclude, drop or skip a part or page that holds one
 //! (409 person_value_protected). Every operator write (parts, skip, upload, decision, compute, values, read page,
 //! create order, undo decision) carries at least one event (422 operator_event_required), stored in the same
-//! transaction. Flags, confidence and who edited last are stored per value.
+//! transaction. Flags, confidence and who edited last are stored per value. Only a value write may carry an event's
+//! `write_ref`; the server checks it against the value actually written and stores that number, so a caller cannot
+//! steer a person's undo from another route.
 //!
 //! Pause in flight: every write of the operator re-reads the pause inside the transaction that writes. A write
 //! that committed before the pause landed is complete (values and events commit together, so it is replayable and
@@ -65,9 +68,16 @@ fn bad(msg: &str) -> ApiError {
     unprocessable("operator_event", msg)
 }
 
-/// Check one event and return the stored form (known fields only; `seq` is added by the server).
-fn parse_event(v: &Value) -> Result<Value, ApiError> {
+/// Check one event and return the stored form (known fields only; `seq` is added by the server). A `write_ref`
+/// is server-authoritative: only a value write may carry one, and only after the server has checked it against
+/// the value actually written. Every other route refuses it here.
+fn parse_event(v: &Value, allow_write_ref: bool) -> Result<Value, ApiError> {
     let o = v.as_object().ok_or_else(|| bad("an event is an object"))?;
+    if !allow_write_ref && o.get("write_ref").is_some_and(|w| !w.is_null()) {
+        return Err(bad(
+            "'write_ref' is set by a value write, not by this event",
+        ));
+    }
     let step = o.get("step").and_then(Value::as_str).unwrap_or_default();
     if !short_word(step, 40, "_.-") {
         return Err(bad(
@@ -180,10 +190,16 @@ fn parse_event(v: &Value) -> Result<Value, ApiError> {
     let write_ref = match o.get("write_ref") {
         None | Some(Value::Null) => Value::Null,
         Some(w) => {
-            let part = w.get("part").and_then(Value::as_str).unwrap_or_default();
+            let part = match w.get("part") {
+                Some(Value::String(s)) if plain_id(s, 40) => Value::String(s.clone()),
+                Some(Value::Number(n)) if n.as_i64().is_some_and(|i| i >= 1) => {
+                    json!(n.as_i64().unwrap_or(0))
+                }
+                _ => return Err(bad("'write_ref' names a part 'no' or id and a value key")),
+            };
             let key = w.get("key").and_then(Value::as_str).unwrap_or_default();
-            if !plain_id(part, 40) || !valid_key(key) {
-                return Err(bad("'write_ref' names a part 'no' and a value key"));
+            if !valid_key(key) {
+                return Err(bad("'write_ref' names a part 'no' or id and a value key"));
             }
             json!({ "part": part, "key": key })
         }
@@ -226,15 +242,21 @@ async fn post_events(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, 
     settle(&app, &u, oid, "operator events", String::new(), res).await
 }
 
-/// Parse an event list shared by the event route and the atomic value write.
-pub(super) fn parse_event_list(list: &[Value]) -> Result<Vec<Value>, ApiError> {
+/// Parse an event list shared by the event route and the atomic value write. Only a value write may carry a
+/// `write_ref`; the caller of this function says so explicitly rather than relying on event action names.
+pub(super) fn parse_event_list(
+    list: &[Value],
+    allow_write_ref: bool,
+) -> Result<Vec<Value>, ApiError> {
     if list.is_empty() || list.len() > MAX_EVENTS_PER_BATCH {
         return Err(unprocessable(
             "operator_event",
             &format!("send 1 to {MAX_EVENTS_PER_BATCH} events per request"),
         ));
     }
-    list.iter().map(parse_event).collect()
+    list.iter()
+        .map(|e| parse_event(e, allow_write_ref))
+        .collect()
 }
 
 /// Store a checked event batch inside the caller's transaction: values and their events commit together.
@@ -301,7 +323,7 @@ fn post_events_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]
         .get("events")
         .and_then(Value::as_array)
         .ok_or_else(|| unprocessable("operator_event", "the body needs an 'events' list"))?;
-    let events = parse_event_list(list)?;
+    let events = parse_event_list(list, false)?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
@@ -406,7 +428,7 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
     };
     let to_seq = body.get("to_seq").and_then(Value::as_i64);
     let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
-    let events = write_events(u, body.get("events"))?;
+    let events = write_events(u, body.get("events"), false)?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
@@ -439,17 +461,12 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
     let mut undone = Vec::new();
     for (seq, ev, by) in writes.into_iter().take(take) {
         let e: Value = serde_json::from_str(&ev).unwrap_or(Value::Null);
-        let (part, key) = (
-            e["write_ref"]["part"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string(),
-            e["write_ref"]["key"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string(),
-        );
-        let (pid, _, _) = find_part(&tx, oid, &json!(part))?;
+        let part_ref = e["write_ref"]["part"].clone();
+        let key = e["write_ref"]["key"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        let (pid, pno, _) = find_part(&tx, oid, &part_ref)?;
         let row: Option<ValueRow> = tx
             .query_row(
                 "SELECT id, value, was, edited_by FROM order_values WHERE part_id = ? AND key = ?",
@@ -470,7 +487,7 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
                 StatusCode::CONFLICT,
                 "value_changed_since",
                 &format!(
-                    "'{key}' of part '{part}' was changed after the operator typed it; undo is not applied"
+                    "'{key}' of part '{pno}' was changed after the operator typed it; undo is not applied"
                 ),
             ));
         }
@@ -493,7 +510,7 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
             &u.username,
             "operator_undo",
             &format!(
-                "order #{oid} event {seq}: '{key}' of part '{part}' back to {} (operator had written {}) {}",
+                "order #{oid} event {seq}: '{key}' of part '{pno}' back to {} (operator had written {}) {}",
                 fmt_val(was),
                 fmt_val(wrote),
                 clip(&note, 200)

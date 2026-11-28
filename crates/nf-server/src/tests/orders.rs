@@ -154,15 +154,32 @@ pub(super) fn add_reading_on_page(
     db.last_insert_rowid()
 }
 
-/// An order value the AI operator wrote and confirmed as a clean page reading (creates its own decision).
+/// An order value the AI operator proposed from its clean page reading and then confirmed (creates its own decision).
+/// The server-owned attachment is set by the proposal; a confirmation cannot create it.
 pub(super) async fn agent_clean_read(t: &T, ac: &str, oid: i64, key: &str, v: f64, text: &str) {
     let rid = add_reading(t, oid, text, v, &[], 0.97);
+    let value = json!({ "part": "1", "key": key, "value": v, "text": text, "source": "read",
+        "flags": [], "confidence": 0.97, "note": "read from the page" });
+    let mut propose = value.clone();
+    propose["confirm"] = json!(false);
+    propose["reading_id"] = json!(rid);
     let (st, _, b) = t
         .send(
             "PUT",
             &format!("/api/orders/{oid}/values"),
-            Some(with_ev(json!({ "values": [{ "part": "1", "key": key, "value": v, "text": text, "source": "read",
-                "flags": [], "confidence": 0.97, "confirm": true, "reading_id": rid, "note": "read from the page" }] }))),
+            Some(with_ev(json!({ "values": [propose] }))),
+            &[("cookie", ac)],
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let mut confirm = value;
+    confirm["confirm"] = json!(true);
+    confirm["reading_id"] = json!(rid);
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(with_ev(json!({ "values": [confirm] }))),
             &[("cookie", ac)],
         )
         .await;
@@ -1381,6 +1398,16 @@ async fn aiop_a_confirmed_page_reading_must_be_clean_and_confident() {
         );
     }
     let rid = add_reading(&t, oid, "φ216.3", 216.3, &[], 0.97);
+    let propose = json!({ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read", "confirm": false, "flags": [], "confidence": 0.97, "reading_id": rid, "note": "matches the list" });
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &vals,
+            Some(with_ev(json!({ "values": [propose] }))),
+            &ac,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
     let mut body = value(Some(json!([])), Some(json!(0.97)));
     body["values"][0]["reading_id"] = json!(rid);
     let (st, _, b) = t.send("PUT", &vals, Some(body), &ac).await;

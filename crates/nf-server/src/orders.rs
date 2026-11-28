@@ -221,11 +221,16 @@ fn agent_reason(u: &User, reason: &str) -> Result<(), ApiError> {
 
 /// The operator events of a write of the AI operator (`events` in the body). Every write of the AI operator
 /// carries at least one, so a person can see and replay it (422 operator_event_required); a person's write carries
-/// none (403 operator_agent_only). They are stored by `store_write_events` in the transaction of the write.
-fn write_events(u: &User, events: Option<&Value>) -> Result<Option<Vec<Value>>, ApiError> {
+/// none (403 operator_agent_only). They are stored by `store_write_events` in the transaction of the write. Only
+/// `put_values` may carry a `write_ref`; the flag is explicit, never derived from an action name.
+fn write_events(
+    u: &User,
+    events: Option<&Value>,
+    allow_write_ref: bool,
+) -> Result<Option<Vec<Value>>, ApiError> {
     let list = match events {
         None | Some(Value::Null) => None,
-        Some(Value::Array(a)) => Some(operator::parse_event_list(a)?),
+        Some(Value::Array(a)) => Some(operator::parse_event_list(a, allow_write_ref)?),
         Some(_) => {
             return Err(unprocessable(
                 "operator_event",
@@ -765,7 +770,7 @@ async fn create_order(
         }
         Some(_) => return Err(unprocessable("rules_type", "'rules' must be an object")),
     };
-    let events = write_events(&u, body.get("events"))?;
+    let events = write_events(&u, body.get("events"), false)?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, &u)?;
@@ -858,7 +863,7 @@ async fn upload_file_do(
                 })?,
         ),
     };
-    let events = write_events(u, header_events.as_ref())?;
+    let events = write_events(u, header_events.as_ref(), false)?;
     let (bytes, _slot) = read_upload_body(app, headers, body).await?;
     let filename = upload_filename(headers);
     let mut db = app.db();
@@ -1158,7 +1163,7 @@ async fn read_page(
     } else {
         request_json(&headers, &raw)?
     };
-    let events = write_events(&u, body.get("events"))?;
+    let events = write_events(&u, body.get("events"), false)?;
     let png: Option<String> = {
         let db = app.db();
         db.query_row(
@@ -1299,7 +1304,7 @@ fn skip_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, n: i64, raw: &[u8
     };
     let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
     agent_reason(u, &note)?;
-    let events = write_events(u, body.get("events"))?;
+    let events = write_events(u, body.get("events"), false)?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
@@ -1594,7 +1599,7 @@ fn put_parts_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) 
     let body = request_json(headers, raw)?;
     let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
     agent_reason(u, &note)?;
-    let events = write_events(u, body.get("events"))?;
+    let events = write_events(u, body.get("events"), false)?;
     let list = body
         .get("parts")
         .and_then(Value::as_array)
@@ -1822,6 +1827,8 @@ struct ValueIn {
     note: String,
     /// The server-side reading (`order_readings`) this value comes from. The AI operator confirms only against one.
     reading_id: Option<i64>,
+    /// The sticky attachment written with this value: set on its first proposal, never replaced afterwards.
+    attached_reading_id: Option<i64>,
 }
 
 fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
@@ -1993,6 +2000,7 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
     let note = text_field(v, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
     Ok(ValueIn {
         reading_id,
+        attached_reading_id: None,
         part,
         key,
         value,
@@ -2006,11 +2014,60 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
     })
 }
 
+/// Validate the `write_ref` of every value-write event against the values actually written in this batch, then
+/// put the server-side number into the stored event so a person's undo reverts what the server wrote. Events
+/// without a `write_ref` are ordinary replay events and are left alone.
+fn validate_value_write_events(
+    tx: &Connection,
+    oid: i64,
+    events: &mut [Value],
+    values: &[ValueIn],
+) -> Result<(), ApiError> {
+    let bad_ref = || {
+        unprocessable(
+            "operator_event",
+            "an event's write_ref must name a value written in this request",
+        )
+    };
+    for e in events.iter_mut() {
+        let Some(w) = e.get("write_ref").filter(|w| !w.is_null()) else {
+            continue;
+        };
+        let key = w
+            .get("key")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| bad_ref())?;
+        let named_part = w.get("part").cloned().ok_or_else(|| bad_ref())?;
+        let mut written = None;
+        for v in values {
+            let (pid, pno, _) = find_part(tx, oid, &v.part).map_err(|_| bad_ref())?;
+            let part_matches = match &named_part {
+                Value::String(no) => no == &pno,
+                Value::Number(_) => named_part == json!(pid),
+                _ => false,
+            };
+            if part_matches && v.key == key {
+                written = Some((v, pid));
+                break;
+            }
+        }
+        let (v, _pid) = written.ok_or_else(|| bad_ref())?;
+        let number = v.value.ok_or_else(|| {
+            unprocessable("operator_event", "a write_ref cannot name a missing value")
+        })?;
+        e["value"] = json!(number);
+    }
+    Ok(())
+}
+
 /// Tie a value to the stored reading it names. The reading's own text, box, flags, confidence and source replace
 /// what the caller sent. The AI operator sets CONFIRMED only through a reading whose stored value is the value,
 /// whose stored flags are empty, whose stored confidence is at least AGENT_CONFIRM_MIN_CONFIDENCE and which was
 /// read on the page of the target part (`order_parts.page_id -> order_pages.page_no`). A caller's bbox is never
-/// proof of the page.
+/// proof of the page. The attachment is server-owned and sticky: a proposal sets it once, and a confirmation must
+/// name that same reading. Without part geometry the server cannot prove which part a reading physically belongs
+/// to, so the first attachment remains the operator's assignment; it cannot be switched later.
 fn bind_reading(
     tx: &Connection,
     oid: i64,
@@ -2040,6 +2097,27 @@ fn bind_reading(
             "reading_agent_only",
             "'reading_id' is for the AI operator's own writes",
         ));
+    }
+    let attached: Option<i64> = tx
+        .query_row(
+            "SELECT attached_reading_id FROM order_values WHERE part_id = ? AND key = ?",
+            params![part, v.key],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if v.confirm {
+        // A confirmation that would create (or switch) the attachment is not a confirmation of this value.
+        if attached != Some(rid) {
+            return Err(deny(format!(
+                "reading #{rid} is not the reading '{}' was first proposed from; only a person may change that assignment",
+                v.key
+            )));
+        }
+    } else if let Some(id) = attached.filter(|id| *id != rid) {
+        return Err(deny(format!(
+            "'{}' is already attached to reading #{id}; a proposal cannot switch it",
+            v.key
+        )));
     }
     let target_page: Option<i64> = tx
         .query_row(
@@ -2098,6 +2176,7 @@ fn bind_reading(
     v.source = "read".to_string();
     v.flags = serde_json::from_str(&flags).unwrap_or_default();
     v.confidence = Some(conf);
+    v.attached_reading_id = attached.or(Some(rid));
     Ok(())
 }
 
@@ -2156,6 +2235,7 @@ type OldValue = (
     String,
     String,
     Option<f64>,
+    Option<i64>,
 );
 
 async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw: Bytes) -> Api {
@@ -2181,13 +2261,13 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
         agent_reason(u, &v.note)?;
     }
     // An agent sends its type events with the values so both commit in one transaction: no pause can land
-    // between a written value and its replayable event.
-    let events = write_events(u, body.get("events"))?;
+    // between a written value and its replayable event. Only here may an event carry a `write_ref`; it is checked
+    // against the values actually written before the batch is stored.
+    let events = write_events(u, body.get("events"), true)?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
     guard_order_tx(app, &tx, u, oid, "edit values")?;
-    store_write_events(app, &tx, u, oid, &events)?;
     // The AI operator confirms only against a reading the server itself stored for the target part's page;
     // what the caller says about flags, confidence, source or bbox never grants anything.
     for v in values.iter_mut() {
@@ -2208,7 +2288,7 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
         }
         let old: Option<OldValue> = tx
             .query_row(
-                "SELECT id, value, text, bbox_json, source, state, proposed_value, edited_kind, flags_json, confidence FROM order_values WHERE part_id = ? AND key = ?",
+                "SELECT id, value, text, bbox_json, source, state, proposed_value, edited_kind, flags_json, confidence, attached_reading_id FROM order_values WHERE part_id = ? AND key = ?",
                 params![pid, v.key],
                 |r| {
                     Ok((
@@ -2222,6 +2302,7 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
                         r.get(7)?,
                         r.get(8)?,
                         r.get(9)?,
+                        r.get(10)?,
                     ))
                 },
             )
@@ -2240,10 +2321,13 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
             "PROPOSED"
         };
         let (vid, old_desc) = match &old {
-            Some((id, val, text, bbox, src, state, _, kind, fl, conf)) => {
+            Some((id, val, text, bbox, src, state, _, kind, fl, conf, attached)) => {
                 let same =
                     *val == v.value && *text == v.text && *bbox == v.bbox && *src == v.source;
-                let meta_same = *fl == flags_json && *conf == v.confidence;
+                let meta_same = *fl == flags_json
+                    && *conf == v.confidence
+                    && v.attached_reading_id
+                        .map_or(true, |rid| *attached == Some(rid));
                 // identical content: nothing to write (and a resend never drops an earlier confirmation)
                 if same
                     && (state == new_state || (!v.confirm && state == "CONFIRMED"))
@@ -2266,8 +2350,8 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
                     ));
                 }
                 tx.execute(
-                    "UPDATE order_values SET value = ?, text = ?, bbox_json = ?, source = ?, state = ?, was = ?, edited_by = ?, edited_at = ?, flags_json = ?, confidence = ?, edited_kind = ? WHERE id = ?",
-                    params![v.value, v.text, v.bbox, v.source, new_state, val, u.username, now() as i64, flags_json, v.confidence, u.kind, id],
+                    "UPDATE order_values SET value = ?, text = ?, bbox_json = ?, source = ?, state = ?, was = ?, edited_by = ?, edited_at = ?, flags_json = ?, confidence = ?, edited_kind = ?, attached_reading_id = COALESCE(attached_reading_id, ?) WHERE id = ?",
+                    params![v.value, v.text, v.bbox, v.source, new_state, val, u.username, now() as i64, flags_json, v.confidence, u.kind, v.attached_reading_id, id],
                 )?;
                 (*id, format!("{} [{src} {state}]", fmt_val(*val)))
             }
@@ -2288,8 +2372,8 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
                     ));
                 }
                 tx.execute(
-                    "INSERT INTO order_values(part_id, key, value, text, bbox_json, source, state, was, proposed_value, proposed_by, edited_by, edited_at, flags_json, confidence, edited_kind) VALUES (?,?,?,?,?,?,?,NULL,?,?,?,?,?,?,?)",
-                    params![pid, v.key, v.value, v.text, v.bbox, v.source, new_state, v.value, u.username, u.username, now() as i64, flags_json, v.confidence, u.kind],
+                    "INSERT INTO order_values(part_id, key, value, text, bbox_json, source, state, was, proposed_value, proposed_by, edited_by, edited_at, flags_json, confidence, edited_kind, attached_reading_id) VALUES (?,?,?,?,?,?,?,NULL,?,?,?,?,?,?,?,?)",
+                    params![pid, v.key, v.value, v.text, v.bbox, v.source, new_state, v.value, u.username, u.username, now() as i64, flags_json, v.confidence, u.kind, v.attached_reading_id],
                 )?;
                 (tx.last_insert_rowid(), "none".to_string())
             }
@@ -2340,6 +2424,10 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
             )?;
         }
     }
+    if let Some(es) = events.as_mut() {
+        validate_value_write_events(&tx, oid, es, &values)?;
+    }
+    store_write_events(app, &tx, u, oid, &events)?;
     for pid in touched {
         recompute_part_state(&tx, pid)?;
     }
@@ -2514,7 +2602,7 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
         ));
     }
     let reason = text_field(&body, "reason", MAX_NOTE_CHARS)?.unwrap_or_default();
-    let events = write_events(u, body.get("events"))?;
+    let events = write_events(u, body.get("events"), false)?;
     if kind == "mark_checked" && u.kind == "agent" {
         return Err(refuse(
             StatusCode::FORBIDDEN,
@@ -2671,7 +2759,7 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
     };
     let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
     agent_reason(u, &note)?;
-    let events = write_events(u, body.get("events"))?;
+    let events = write_events(u, body.get("events"), false)?;
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
@@ -3063,7 +3151,7 @@ async fn compute_do(
         } else {
             Some(request_json(headers, raw)?)
         };
-        write_events(u, body.as_ref().and_then(|b| b.get("events")))?
+        write_events(u, body.as_ref().and_then(|b| b.get("events")), false)?
     } else {
         None
     };

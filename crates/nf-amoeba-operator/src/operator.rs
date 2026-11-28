@@ -293,6 +293,10 @@ fn tool_look(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
         )?;
         if r["readings"].as_array().is_none_or(|a| a.is_empty()) {
             // the read writes readings and the page's read state, so it carries its own look event
+            let fallback = r["reader"]
+                .as_str()
+                .unwrap_or("the server's reader")
+                .to_string();
             let rs = ctx.step("look");
             let read_event = Event::new(
                 &format!("{rs}r"),
@@ -300,7 +304,7 @@ fn tool_look(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
                 Target::Page { page, bbox: None },
                 &format!("reading page {page} with the server's reader"),
             )
-            .reason_key("op.reason.look", json!({ "page": page }));
+            .reason_key("op.reason.look", json!({ "page": page, "name": fallback }));
             call_ok(
                 ctx.hands,
                 "order_read_page",
@@ -448,11 +452,14 @@ fn tool_write(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
         )
     };
     let mut values = Vec::new();
+    let mut confirm_values = Vec::new();
     let mut shown = Vec::new();
+    let mut confirm_shown = Vec::new();
     for f in &asg.fills {
         // The server lets the operator confirm only a clean reading of the page: a plain number (source "read"),
         // no flags, confidence at or above the server's threshold. Anything else is proposed for a person.
-        // The operator asks; the server decides from its own record of the reading (`reading_id`).
+        // The reading attachment is server-owned: every proposal names its reading, and only a later write
+        // confirms the value from that same reading.
         let plain = assign::mark_of(&f.text) == assign::Mark::Plain;
         let reading_id = ctx
             .pages
@@ -489,9 +496,13 @@ fn tool_write(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
         };
         let mut value = json!({ "part": spec.no, "key": f.key, "value": f.value, "text": f.text,
             "bbox": f.bbox.map(f64::from), "source": source, "flags": f.flags,
-            "confidence": f.confidence, "confirm": confirm, "note": note });
-        if confirm {
-            value["reading_id"] = json!(reading_id);
+            "confidence": f.confidence, "confirm": false, "note": note });
+        // Only a plain reading is the written number itself; a marked reading (e.g. a diameter) is scaled, so its
+        // stored number is not the value written and cannot be attached to it.
+        if plain {
+            if let Some(id) = reading_id {
+                value["reading_id"] = json!(id);
+            }
         }
         values.push(value);
         shown.push((
@@ -499,10 +510,24 @@ fn tool_write(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
             f.value,
             f.confidence,
             f.flags.clone(),
-            note,
+            note.clone(),
             reason_key,
-            reason_args,
+            reason_args.clone(),
         ));
+        if confirm {
+            confirm_values.push(json!({ "part": spec.no, "key": f.key, "value": f.value,
+                "text": f.text, "bbox": f.bbox.map(f64::from), "source": source,
+                "flags": f.flags, "confidence": f.confidence, "confirm": true,
+                "reading_id": reading_id, "note": note }));
+            confirm_shown.push((
+                f.key.clone(),
+                f.value,
+                f.confidence,
+                f.flags.clone(),
+                note,
+                reason_args,
+            ));
+        }
     }
     for (k, v) in &asg.fixed {
         values.push(json!({ "part": spec.no, "key": k, "value": v, "text": "", "source": "fixed", "flags": [], "confidence": 1.0, "confirm": false,
@@ -544,6 +569,32 @@ fn tool_write(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
         "order_put_values",
         json!({ "order": order, "values": values, "events": event_json }),
     )?;
+    // The attachment is made by the proposal above. Only now can this value be confirmed from that reading;
+    // a caller cannot attach it directly by sending `confirm: true` on its first write.
+    if !confirm_values.is_empty() {
+        let mut confirm_events = Vec::new();
+        for (key, value, conf, flags, note, reason_args) in confirm_shown {
+            let s = ctx.step("confirm");
+            confirm_events.push(
+                Event::new(
+                    &s,
+                    "confirm",
+                    ui(&format!("part-{}-{}", spec.no, key)),
+                    &note,
+                )
+                .value(json!(value))
+                .reason_key("op.reason.read", reason_args)
+                .confidence(conf)
+                .flags(&flags)
+                .written(&spec.no, &key),
+            );
+        }
+        call_ok(
+            ctx.hands,
+            "order_put_values",
+            json!({ "order": order, "values": confirm_values, "events": tool_events(confirm_events, "write") }),
+        )?;
+    }
     unit_of(ctx, a)?.written = true;
     Ok(ToolOut {
         events: vec![],
