@@ -1076,6 +1076,16 @@ pub const HOLD_TEXT: &[(&str, &str, &str)] = &[
         "この形は認証されていません。展開図の表示と課題の記載のみで、DXFは出しません。",
     ),
     (
+        "several_pieces",
+        "This part has several pattern pieces, so no single cut file is written: a pattern view and an issue entry are given, no DXF.",
+        "この部材は展開図が複数に分かれるため、1つのDXFにまとめていません。展開図の表示と課題の記載のみです。",
+    ),
+    (
+        "digest_failed",
+        "The drawn cut file did not pass the digest against its pattern, so it is not served.",
+        "描かれたDXFが展開図との照合に合格しなかったため、配信していません。",
+    ),
+    (
         "refused",
         "The inputs were refused by the engine; see the refusal code.",
         "入力はエンジンに拒否されました。拒否コードを見てください。",
@@ -3164,6 +3174,12 @@ pub fn issues(res: &OrderResult) -> Vec<nf_jobout::Issue> {
         if p.pattern_view_only {
             let (en, ja) = text_of("not_certified");
             out.push(mk("not_certified", en, ja));
+        }
+        for code in ["several_pieces", "digest_failed"] {
+            if p.dxf_blocked_by.iter().any(|c| c == code) {
+                let (en, ja) = text_of(code);
+                out.push(mk(code, en, ja));
+            }
         }
     }
     out
