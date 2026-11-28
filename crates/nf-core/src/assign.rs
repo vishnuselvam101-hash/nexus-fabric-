@@ -128,6 +128,8 @@ pub struct Pre {
     pub map: Vec<(String, String)>,
     /// (part of the unit's list, part of the smaller request)
     pub row: (String, String),
+    /// the unit's list prints width and height the other way round
+    pub swap: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -165,10 +167,11 @@ impl Verifier for FamilyVerifier {
         for (k, v) in values {
             obj.insert(k.clone(), serde_json::json!(v));
         }
-        // text fields the family needs are not on a page; the declared default of the legacy requests
+        // the surface a drawing's radii refer to is not on a page and a blank does not depend on it: the engine's
+        // own word for 'not declared' is used, never a guess
         let needs_surface = matches!(unit.family.as_str(), "branch_stub" | "header_with_branch");
         if needs_surface && !obj.contains_key("surface_reference") {
-            obj.insert("surface_reference".into(), serde_json::json!("outside"));
+            obj.insert("surface_reference".into(), serde_json::json!("unknown"));
         }
         let req = match Request::parse_strict(&serde_json::Value::Object(obj)) {
             Ok(r) => r,
@@ -331,7 +334,8 @@ fn narrow(unit: &Unit, cands: &mut [Vec<(f64, Reading)>], verifier: &dyn Verifie
     for pre in &unit.pre {
         let Some(mut sub) = family_unit(&unit.id, &pre.family, vec![]) else { continue };
         let Some(row) = unit.bom.iter().find(|b| b.part == pre.row.0) else { continue };
-        sub.bom = vec![BomRow { part: pre.row.1.clone(), ..row.clone() }];
+        let (width, height) = if pre.swap { (row.height, row.width) } else { (row.width, row.height) };
+        sub.bom = vec![BomRow { part: pre.row.1.clone(), width, height, decimals: row.decimals }];
         sub.slots.clear();
         let mut sub_cands = Vec::new();
         let mut positions = Vec::new();
@@ -399,7 +403,11 @@ pub fn assign(unit: &Unit, readings: &[Reading], verifier: &dyn Verifier) -> Ass
     if total > MAX_COMBINATIONS {
         out.question = Some(q(
             "too_many_candidates",
-            format!("Unit {}: {total} possible assignments; too many to check.", unit.id),
+            format!(
+                "Unit {}: {total} possible assignments ({}); too many to check.",
+                unit.id,
+                unit.slots.iter().zip(&cands).map(|(s, c)| format!("{} {}", s.key, c.len())).collect::<Vec<_>>().join(", ")
+            ),
             format!("ユニット {}: 組み合わせが {total} 通りあり、確認できません。", unit.id),
         ));
         return out;
@@ -527,11 +535,12 @@ pub fn family_unit(id: &str, family: &str, bom: Vec<BomRow>) -> Option<Unit> {
             u.fixed.insert("delta".into(), 0.0);
             let m = |a: &str, b: &str| (a.to_string(), b.to_string());
             u.pre = vec![
-                Pre { family: "cylinder_shell".into(), map: vec![m("header_radius", "r_dev"), m("header_length", "length")], row: m("header", "shell") },
+                Pre { family: "cylinder_shell".into(), map: vec![m("header_radius", "r_dev"), m("header_length", "length")], row: m("header", "shell"), swap: true },
                 Pre {
                     family: "branch_stub".into(),
                     map: vec![m("header_radius", "header_radius"), m("branch_radius", "branch_radius"), m("beta_deg", "beta_deg"), m("s_end", "s_end")],
                     row: m("branch", "branch"),
+                    swap: false,
                 },
             ];
         }
@@ -730,8 +739,8 @@ mod tests {
         let cases = [
             json!({"family":"cone_frustum","r1":277.5,"r2":82.0,"h":186.0}),
             json!({"family":"eccentric_reducer","r1":305.0,"r2":205.0,"h":579.5,"e":26.5}),
-            json!({"family":"header_with_branch","beta_deg":80.0,"branch_dev_radius":161.0,"branch_radius":161.0,"branch_station":956.0,"delta":0.0,"header_dev_radius":500.0,"header_length":1996.0,"header_radius":500.0,"s_end":1007.0,"surface_reference":"outside"}),
-            json!({"family":"branch_stub","header_radius":189.0,"branch_radius":79.0,"branch_dev_radius":79.0,"beta_deg":71.0,"delta":0.0,"s_end":679.0,"surface_reference":"outside"}),
+            json!({"family":"header_with_branch","beta_deg":80.0,"branch_dev_radius":161.0,"branch_radius":161.0,"branch_station":956.0,"delta":0.0,"header_dev_radius":500.0,"header_length":1996.0,"header_radius":500.0,"s_end":1007.0,"surface_reference":"unknown"}),
+            json!({"family":"branch_stub","header_radius":189.0,"branch_radius":79.0,"branch_dev_radius":79.0,"beta_deg":71.0,"delta":0.0,"s_end":679.0,"surface_reference":"unknown"}),
         ];
         for req in cases {
             let fam = req["family"].as_str().unwrap().to_string();

@@ -382,7 +382,7 @@ fn tool_compute(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
         }
     }
     if matches!(spec.family.as_str(), "branch_stub" | "header_with_branch") {
-        params.insert("surface_reference".into(), json!("outside"));
+        params.insert("surface_reference".into(), json!("unknown"));
     }
     let s = ctx.step("compute");
     events.push(Event::new(&format!("{s}c"), "click", ui("compute-btn"), &format!("calculate {} with the confirmed numbers", spec.family)));
