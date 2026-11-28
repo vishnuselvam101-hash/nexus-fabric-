@@ -4522,3 +4522,36 @@ async fn pz3_a_viewer_reads_rules_but_cannot_preview_or_set_them() {
         );
     }
 }
+
+/// Nesting is person-only: the AI operator gets 403 before anything is read, and the refusal is audited. A person
+/// who nests an order that is not computed and checked gets the refusal code, nothing is written.
+#[tokio::test]
+async fn nest_is_person_only_and_the_agent_refusal_is_audited() {
+    let t = boot();
+    let oid = new_order(&t).await;
+    let ac = add_agent(&t, "aiop");
+    let (st, _, bytes) = t
+        .send(
+            "POST",
+            &format!("/api/orders/{oid}/nest"),
+            Some(json!({})),
+            &[("cookie", ac.as_str())],
+        )
+        .await;
+    assert_eq!(
+        st,
+        StatusCode::FORBIDDEN,
+        "{}",
+        String::from_utf8_lossy(&bytes)
+    );
+    assert!(String::from_utf8_lossy(&bytes).contains("agent_cannot_nest"));
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM audit WHERE action = 'nest_refused'"),
+        1
+    );
+    let (st, v) = t
+        .call("POST", &format!("/api/orders/{oid}/nest"), Some(json!({})))
+        .await;
+    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
+    assert_eq!(v["code"], "order_not_computed");
+}

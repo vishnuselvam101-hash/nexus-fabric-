@@ -42,12 +42,12 @@ impl PipePlan {
 /// First-fit decreasing. A cut must fit one stock length on its own.
 pub fn cut_pipes(items: &[PipeIn], stock_mm: f64, kerf_mm: f64) -> Result<PipePlan, NestError> {
     if !(stock_mm > 0.0 && stock_mm <= 20000.0) || !(0.0..=2.0).contains(&kerf_mm) {
-        return Err(NestError(
-            "stock must be above 0 and at most 20000 mm; kerf 0 to 2 mm (UNVERIFIED rules)".into(),
+        return Err(NestError::new(
+            "stock must be above 0 and at most 20000 mm; kerf 0 to 2 mm (UNVERIFIED rules)",
         ));
     }
     if items.len() > crate::MAX_PARTS {
-        return Err(NestError(format!(
+        return Err(NestError::new(format!(
             "at most {} part kinds per cut list",
             crate::MAX_PARTS
         )));
@@ -55,10 +55,10 @@ pub fn cut_pipes(items: &[PipeIn], stock_mm: f64, kerf_mm: f64) -> Result<PipePl
     let mut cuts: Vec<(String, f64)> = Vec::new();
     for it in items {
         if !(it.len_mm > 0.0) {
-            return Err(NestError(format!("pipe {} has no length", it.id)));
+            return Err(NestError::new(format!("pipe {} has no length", it.id)));
         }
         if it.len_mm > stock_mm {
-            return Err(NestError(format!(
+            return Err(NestError::new(format!(
                 "pipe {} ({} mm) is longer than the stock ({stock_mm} mm)",
                 it.id, it.len_mm
             )));

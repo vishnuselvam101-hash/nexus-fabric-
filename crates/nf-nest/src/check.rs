@@ -1,9 +1,10 @@
-//! The independent nest checker. It re-derives every placed outline from the input and the stored rotation and
-//! corner, then tests the result with its own geometry (not the placer's functions). Only a nest that passes
-//! `check` can become a `CheckedNest`, and only a `CheckedNest` can be written to DXF.
+//! The independent nest checker. It re-derives every placed outline from the certified inputs (the part outlines
+//! the caller passes in, never the list the nester returns) and the stored rotation and corner, then tests the result
+//! with its own geometry (not the placer's functions). Only a nest that passes `check` can become a `CheckedNest`,
+//! and only a `CheckedNest` can be written to DXF.
 
 use crate::pipes::{PipeIn, PipePlan};
-use crate::{Nest, NestError, PartIn};
+use crate::{Nest, NestError, PartIn, Rules};
 
 const TOL: f64 = 1e-6;
 /// Tolerance on the clearance, mm: the engine works in f32, so its placements can sit 1e-4 mm off the f64 outline.
@@ -146,18 +147,50 @@ fn find<'a>(parts: &'a [PartIn], id: &str) -> Option<&'a PartIn> {
     parts.iter().find(|p| p.id == id)
 }
 
-/// Full nest check. Returns every violation found, or a `CheckedNest`.
-pub fn check(n: Nest) -> Result<CheckedNest, Vec<String>> {
+/// True when the closed outline has no finite-coordinate fault and no two non-adjacent edges touch or cross.
+pub fn outline_is_simple(p: &[(f64, f64)]) -> bool {
+    let n = p.len();
+    if n < 3 || p.iter().any(|q| !q.0.is_finite() || !q.1.is_finite()) {
+        return false;
+    }
+    for i in 0..n {
+        for j in (i + 1)..n {
+            if j == i + 1 || (i == 0 && j == n - 1) {
+                continue;
+            }
+            if segments_cross(p[i], p[(i + 1) % n], p[j], p[(j + 1) % n]) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Full nest check against the certified inputs and the rules asked for. Returns every violation found, or a
+/// `CheckedNest`. The nest must have been made from exactly these inputs and rules: its own copy of either is not
+/// trusted.
+pub fn check(inputs: &[PartIn], rules: &Rules, n: Nest) -> Result<CheckedNest, Vec<String>> {
     let mut bad: Vec<String> = Vec::new();
-    if let Err(NestError(m)) = n.rules.validate() {
-        bad.push(m);
+    if let Err(NestError { msg, .. }) = rules.validate() {
+        bad.push(msg);
         return Err(bad);
     }
-    let r = &n.rules;
+    if n.rules != *rules {
+        bad.push("the nest was made with other rules than the rules asked for".into());
+    }
+    if n.parts != inputs {
+        bad.push("the nest's parts are not the certified input parts".into());
+    }
+    for p in inputs {
+        if !outline_is_simple(&p.outline) {
+            bad.push(format!("part {} outline crosses itself", p.id));
+        }
+    }
+    let r = rules;
     let clr = r.clearance();
 
     // every part placed exactly once per copy
-    for p in &n.parts {
+    for p in inputs {
         let mut copies: Vec<u32> = n
             .sheets
             .iter()
@@ -176,7 +209,7 @@ pub fn check(n: Nest) -> Result<CheckedNest, Vec<String>> {
     }
     for s in &n.sheets {
         for q in &s.placed {
-            if find(&n.parts, &q.id).is_none() {
+            if find(inputs, &q.id).is_none() {
                 bad.push(format!("placed part {} is not in the input", q.id));
             }
         }
@@ -184,7 +217,7 @@ pub fn check(n: Nest) -> Result<CheckedNest, Vec<String>> {
 
     for (si, s) in n.sheets.iter().enumerate() {
         for q in &s.placed {
-            let Some(src) = find(&n.parts, &q.id) else {
+            let Some(src) = find(inputs, &q.id) else {
                 continue;
             };
             if !r.rotations.contains(&q.rot) {

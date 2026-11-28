@@ -2,8 +2,8 @@
 //! stock sheet and returns each sheet checked by nf-nest's independent checker, with its NOT RELEASED sheet DXF.
 //! Stock size, kerf, part gap, edge margin and rotations are named rules, UNVERIFIED until a factory confirms
 //! them. Nothing here approves or releases: the output is a plan for a person to check.
-//! Only a person may nest (admin or engineer), the order must be computed and carry a "checked" mark, and the
-//! request is audited.
+//! Only a person may nest (admin or engineer; the AI operator is refused with 403 and the refusal is audited), the
+//! order must be computed and carry a "checked" mark, and the request is audited.
 
 use super::*;
 use nf_nest::check::check;
@@ -21,6 +21,20 @@ pub(super) async fn nest_order(
     raw: Bytes,
 ) -> Api {
     let u = write_access(&app, &headers, oid, "nest order")?;
+    if u.kind == "agent" {
+        record_alone(
+            &app,
+            &u.username,
+            "nest_refused",
+            &format!("order {oid}: the AI operator may not nest (403)"),
+        )?;
+        return Err(fail_code(
+            StatusCode::FORBIDDEN,
+            "agent_cannot_nest",
+            &[],
+            "the AI operator cannot nest; a person does",
+        ));
+    }
     let res = nest_do(&app, &headers, &u, oid, &raw);
     settle(&app, &u, oid, "nest", String::new(), res).await
 }
@@ -65,7 +79,7 @@ fn nest_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
     };
     rules
         .validate()
-        .map_err(|e| unprocessable("nest_rules", &e.0))?;
+        .map_err(|e| unprocessable(e.code, &e.msg))?;
 
     let db = app.db();
     let result_json: Option<String> = db
@@ -98,7 +112,8 @@ fn nest_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
     let mut excluded: Vec<Value> = Vec::new();
     for p in result["parts"].as_array().map(Vec::as_slice).unwrap_or(&[]) {
         let id = format!("{}", p["no"].as_str().unwrap_or("?"));
-        let qty = p["qty"].as_u64().unwrap_or(0) as u32;
+        // a quantity wider than 32 bits is clamped, never wrapped: the copies cap refuses it
+        let qty = u32::try_from(p["qty"].as_u64().unwrap_or(0)).unwrap_or(u32::MAX);
         let blocked = p["dxf_blocked_by"]
             .as_array()
             .is_some_and(|a| !a.is_empty());
@@ -127,7 +142,7 @@ fn nest_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
             json!({ "status": "no_parts", "rules": rules_json(&rules), "sheets": [], "excluded": excluded }),
         );
     }
-    let planned = nest(&inputs, &rules).map_err(|e| unprocessable("nest_fit", &e.0))?;
+    let planned = nest(&inputs, &rules).map_err(|e| unprocessable(e.code, &e.msg))?;
     if planned.sheets.len() > MAX_NEST_SHEETS {
         return Err(unprocessable(
             "nest_limit",
@@ -137,7 +152,7 @@ fn nest_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
             ),
         ));
     }
-    let checked_nest = check(planned).map_err(|errs| {
+    let checked_nest = check(&inputs, &rules, planned).map_err(|errs| {
         // a failed check is never written out as a sheet
         unprocessable("nest_check_failed", &errs.join("; "))
     })?;

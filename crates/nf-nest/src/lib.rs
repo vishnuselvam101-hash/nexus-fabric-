@@ -20,6 +20,7 @@ pub mod pipes;
 mod tests;
 
 use geom::P;
+use std::time::{Duration, Instant};
 
 /// Rule names as they appear in the output. All are UNVERIFIED until a factory confirms them.
 pub const RULE_STOCK: &str = "NEST_STOCK_SIZE";
@@ -28,13 +29,50 @@ pub const RULE_GAP: &str = "NEST_PART_GAP_MM";
 pub const RULE_EDGE: &str = "NEST_EDGE_MM";
 pub const RULE_ROT: &str = "NEST_ROTATION_STEPS";
 pub const MAX_PARTS: usize = 500;
+/// Most copies placed in one nest (the sum of every part's quantity). Placement is quadratic in the copies.
+pub const MAX_COPIES: u64 = 10_000;
+/// Wall-time budget of one nest. Past it the nest is refused with code `nest_timeout`; there is no partial result.
+pub const NEST_BUDGET: Duration = Duration::from_secs(20);
 
+/// A refusal: a stable code (for the client) and a message that names the rule, part or limit it broke.
 #[derive(Clone, Debug, PartialEq)]
-pub struct NestError(pub String);
+pub struct NestError {
+    pub code: &'static str,
+    pub msg: String,
+}
+
+impl NestError {
+    /// A refusal with the generic code `nest_refused`.
+    pub fn new(msg: impl Into<String>) -> NestError {
+        NestError::coded("nest_refused", msg)
+    }
+
+    pub fn coded(code: &'static str, msg: impl Into<String>) -> NestError {
+        NestError {
+            code,
+            msg: msg.into(),
+        }
+    }
+}
 
 impl std::fmt::Display for NestError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
+        f.write_str(&self.msg)
+    }
+}
+
+/// Fails with `nest_timeout` once the deadline has passed.
+pub(crate) fn out_of_time(deadline: Instant) -> Result<(), NestError> {
+    if Instant::now() >= deadline {
+        Err(NestError::coded(
+            "nest_timeout",
+            format!(
+                "the nest ran past its {} s budget; fewer parts or copies per nest",
+                NEST_BUDGET.as_secs()
+            ),
+        ))
+    } else {
+        Ok(())
     }
 }
 
@@ -73,7 +111,7 @@ impl Rules {
 
     pub fn validate(&self) -> Result<(), NestError> {
         let bad = |m: &str| {
-            Err(NestError(format!(
+            Err(NestError::new(format!(
                 "{m} (rule {RULE_STOCK}/{RULE_KERF}/{RULE_GAP}/{RULE_EDGE}, UNVERIFIED)"
             )))
         };
@@ -101,7 +139,7 @@ impl Rules {
                 .iter()
                 .any(|r| ![0, 90, 180, 270].contains(r))
         {
-            return Err(NestError(format!(
+            return Err(NestError::new(format!(
                 "rotation steps must be a non-empty subset of 0, 90, 180, 270 ({RULE_ROT})"
             )));
         }
@@ -168,7 +206,16 @@ pub(crate) fn prepare(parts: &[PartIn]) -> Result<Vec<(usize, u32, Vec<P>)>, Nes
     for (i, p) in parts.iter().enumerate() {
         let c = geom::centre(&p.outline);
         if c.len() < 3 || geom::area(&c) <= 0.0 {
-            return Err(NestError(format!("part {} has no usable outline", p.id)));
+            return Err(NestError::coded(
+                "nest_outline",
+                format!("part {} has no usable outline", p.id),
+            ));
+        }
+        if !check::outline_is_simple(&c) {
+            return Err(NestError::coded(
+                "nest_outline",
+                format!("part {} outline crosses itself; it cannot be nested", p.id),
+            ));
         }
         for k in 0..p.qty {
             out.push((i, k, c.clone()));
@@ -183,24 +230,55 @@ pub(crate) fn prepare(parts: &[PartIn]) -> Result<Vec<(usize, u32, Vec<P>)>, Nes
     Ok(out)
 }
 
-/// Nest with jagua-rs (its collision engine decides each placement). If jagua-rs cannot run for these inputs,
-/// the bottom-left fill is used and `engine` says so. Either result must still pass `check::check`.
+/// Nest with jagua-rs within `NEST_BUDGET`. Refused with a code when the input is over a limit or runs out of time.
+/// If jagua-rs cannot run for these inputs (an engine error, or a panic inside it), the bottom-left fill is used and
+/// `engine` says why. Either result must still pass `check::check`.
 pub fn nest(parts: &[PartIn], rules: &Rules) -> Result<Nest, NestError> {
+    nest_within(parts, rules, NEST_BUDGET)
+}
+
+/// `nest` with its own wall-time budget.
+pub fn nest_within(parts: &[PartIn], rules: &Rules, budget: Duration) -> Result<Nest, NestError> {
+    nest_with_engine(parts, rules, Instant::now() + budget, jagua::nest)
+}
+
+pub(crate) type Engine =
+    fn(&[PartIn], &Rules, &[(usize, u32, Vec<P>)], Instant) -> Result<Nest, NestError>;
+
+/// The nest with a given primary engine. Split out so that the fallback (an engine error or panic) can be tested.
+pub(crate) fn nest_with_engine(
+    parts: &[PartIn],
+    rules: &Rules,
+    deadline: Instant,
+    engine: Engine,
+) -> Result<Nest, NestError> {
     rules.validate()?;
     if parts.len() > MAX_PARTS {
-        return Err(NestError(format!(
-            "at most {MAX_PARTS} part kinds per nest"
-        )));
+        return Err(NestError::coded(
+            "nest_parts",
+            format!("at most {MAX_PARTS} part kinds per nest"),
+        ));
+    }
+    let copies: u64 = parts.iter().map(|p| u64::from(p.qty)).sum();
+    if copies > MAX_COPIES {
+        return Err(NestError::coded(
+            "nest_too_many_copies",
+            format!("the nest asks for {copies} copies; at most {MAX_COPIES} per nest"),
+        ));
     }
     let prepared = prepare(parts)?;
-    match jagua::nest(parts, rules, &prepared) {
-        Ok(n) => Ok(n),
-        Err(e) => {
-            let mut n = blf(parts, rules, &prepared)?;
-            n.engine = format!("bottom-left fill (jagua-rs not used: {e})");
-            Ok(n)
-        }
-    }
+    out_of_time(deadline)?;
+    let why = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        engine(parts, rules, &prepared, deadline)
+    })) {
+        Ok(Ok(n)) => return Ok(n),
+        Ok(Err(e)) if e.code == "nest_timeout" => return Err(e),
+        Ok(Err(e)) => format!("jagua-rs not used: {}", e.msg),
+        Err(_) => "jagua-rs not used: it panicked".to_string(),
+    };
+    let mut n = blf(parts, rules, &prepared, deadline)?;
+    n.engine = format!("bottom-left fill ({why})");
+    Ok(n)
 }
 
 /// The candidate corners of a sheet, lowest then leftmost first: the sheet corner and the corners beside placed parts.
@@ -227,11 +305,13 @@ pub(crate) fn blf(
     parts: &[PartIn],
     rules: &Rules,
     prepared: &[(usize, u32, Vec<P>)],
+    deadline: Instant,
 ) -> Result<Nest, NestError> {
     let clr = rules.clearance();
     let edge = rules.edge_mm;
     let mut sheets: Vec<Sheet> = Vec::new();
     for (i, copy, centred) in prepared {
+        out_of_time(deadline)?;
         let mut done = false;
         for si in 0..=sheets.len() {
             if si == sheets.len() {
@@ -249,14 +329,20 @@ pub(crate) fn blf(
                 break;
             }
             if si + 1 == sheets.len() && sheets[si].placed.is_empty() {
-                return Err(NestError(format!(
-                    "part {} does not fit the stock sheet (rule {RULE_STOCK}, UNVERIFIED)",
-                    parts[*i].id
-                )));
+                return Err(NestError::coded(
+                    "nest_fit",
+                    format!(
+                        "part {} does not fit the stock sheet (rule {RULE_STOCK}, UNVERIFIED)",
+                        parts[*i].id
+                    ),
+                ));
             }
         }
         if !done {
-            return Err(NestError("internal: a part was not placed".into()));
+            return Err(NestError::coded(
+                "nest_internal",
+                "internal: a part was not placed",
+            ));
         }
     }
     Ok(Nest {

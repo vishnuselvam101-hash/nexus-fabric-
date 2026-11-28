@@ -4,7 +4,7 @@
 //! verifies it. The engine works in f32, so the margin also covers rounding.
 
 use crate::geom::{self, EPS, P};
-use crate::{Nest, PartIn, Placed, Rules, Sheet};
+use crate::{Nest, NestError, PartIn, Placed, Rules, Sheet, out_of_time};
 use jagua_rs::collision_detection::CDEConfig;
 use jagua_rs::entities::Layout;
 use jagua_rs::geometry::DTransformation;
@@ -14,26 +14,29 @@ use jagua_rs::io::ext_repr::{
 };
 use jagua_rs::io::import::Importer;
 use std::sync::Arc;
+use std::time::Instant;
 
 /// Extra separation in mm above kerf + gap, covering f32 rounding of the engine.
 pub const MARGIN: f64 = 0.02;
 
 pub const ENGINE: &str = "jagua-rs 2.0.0 (MPL-2.0)";
 
-fn s<E: std::fmt::Display>(e: E) -> String {
-    e.to_string()
+fn s<E: std::fmt::Display>(e: E) -> NestError {
+    NestError::new(e.to_string())
 }
 
-/// Nest with jagua-rs. Errors name the engine failure; the caller falls back to the bottom-left fill.
+/// Nest with jagua-rs. Errors name the engine failure (the caller falls back to the bottom-left fill), except a
+/// `nest_timeout`, which is final.
 pub fn nest(
     parts: &[PartIn],
     rules: &Rules,
     prepared: &[(usize, u32, Vec<P>)],
-) -> Result<Nest, String> {
+    deadline: Instant,
+) -> Result<Nest, NestError> {
     let clr = rules.clearance();
     let edge = rules.edge_mm;
     if rules.sheet_w - 2.0 * edge <= 0.0 || rules.sheet_h - 2.0 * edge <= 0.0 {
-        return Err("sheet smaller than its edge margin".into());
+        return Err(NestError::new("sheet smaller than its edge margin"));
     }
     let imp = Importer::new(
         CDEConfig {
@@ -76,6 +79,7 @@ pub fn nest(
     let mut layouts: Vec<Layout> = Vec::new();
     let mut sheets: Vec<Sheet> = Vec::new();
     for (i, copy, centred) in prepared {
+        out_of_time(deadline)?;
         let mut done = false;
         for si in 0..=sheets.len() {
             if si == sheets.len() {
@@ -89,8 +93,7 @@ pub fn nest(
                 &items[*i],
                 centred,
                 rules,
-                clr,
-                edge,
+                deadline,
             )? {
                 let pk = layouts[si].place_item(&items[*i], dt(rot, t));
                 debug_assert!(layouts[si].placed_items().contains_key(pk));
@@ -105,14 +108,14 @@ pub fn nest(
                 break;
             }
             if si + 1 == sheets.len() && sheets[si].placed.is_empty() {
-                return Err(format!(
-                    "part {} does not fit the stock sheet",
-                    parts[*i].id
+                return Err(NestError::coded(
+                    "nest_fit",
+                    format!("part {} does not fit the stock sheet", parts[*i].id),
                 ));
             }
         }
         if !done {
-            return Err("a part was not placed".into());
+            return Err(NestError::coded("nest_internal", "a part was not placed"));
         }
     }
     Ok(Nest {
@@ -135,13 +138,12 @@ fn best(
     item: &Arc<jagua_rs::entities::Item>,
     centred: &[P],
     rules: &Rules,
-    clr: f64,
-    edge: f64,
-) -> Result<Option<(u32, P, Vec<P>)>, String> {
+    deadline: Instant,
+) -> Result<Option<(u32, P, Vec<P>)>, NestError> {
     // The engine inflates each item by half the separation, so neighbours and the container edge are kept a full
     // separation (plus a sliver so touching inflated outlines are not refused) away.
-    let g = clr + MARGIN + 1e-3;
-    let e = edge + g;
+    let g = rules.clearance() + MARGIN + 1e-3;
+    let e = rules.edge_mm + g;
     let cands = crate::corners(sheet, g, e);
     let mut best: Option<(u32, P, Vec<P>, P)> = None;
     for &rot in &rules.rotations {
@@ -149,6 +151,7 @@ fn best(
         let (x0, y0, x1, y1) = geom::bbox(&r);
         let (w, h) = (x1 - x0, y1 - y0);
         for &c in &cands {
+            out_of_time(deadline)?;
             if c.0 + w > rules.sheet_w - e + EPS || c.1 + h > rules.sheet_h - e + EPS {
                 continue;
             }

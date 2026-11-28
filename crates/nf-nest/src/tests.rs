@@ -1,8 +1,9 @@
-use crate::check::{check, check_pipes};
+use crate::check::{CheckedNest, check, check_pipes, outline_is_simple};
 use crate::dxf_out::{DxfFormat, mtext_escape, sheet_dxf};
+use crate::geom;
 use crate::outline::outline_from_dxf;
 use crate::pipes::{PipeIn, cut_pipes};
-use crate::{Nest, PartIn, Rules, nest, utilisation};
+use crate::{Nest, NestError, PartIn, Rules, nest, nest_within, utilisation};
 use encoding_rs::SHIFT_JIS;
 
 fn rect(w: f64, h: f64) -> Vec<(f64, f64)> {
@@ -42,6 +43,13 @@ impl Rng {
     }
 }
 
+/// The checker with the inputs and rules the nest was made from (what the server passes, from its own records).
+fn ck(n: Nest) -> Result<CheckedNest, Vec<String>> {
+    let inputs = n.parts.clone();
+    let rules = n.rules.clone();
+    check(&inputs, &rules, n)
+}
+
 fn valid_nest() -> Nest {
     let parts = vec![
         part("A", rect(400.0, 300.0), 2),
@@ -52,7 +60,7 @@ fn valid_nest() -> Nest {
 
 #[test]
 fn valid_nest_passes_check() {
-    assert!(check(valid_nest()).is_ok());
+    assert!(ck(valid_nest()).is_ok());
 }
 
 #[test]
@@ -67,7 +75,7 @@ fn checker_catches_injected_overlap() {
     );
     n.sheets[0].placed[1].pts = moved;
     n.sheets[0].placed[1].pose = moved_t;
-    let errs = check(n).err().expect("must fail");
+    let errs = ck(n).err().expect("must fail");
     assert!(
         errs.iter()
             .any(|e| e.contains("overlap") || e.contains("does not match")),
@@ -89,7 +97,7 @@ fn checker_catches_kerf_violation() {
         crate::geom::place_corner(&crate::geom::centre(&parts[0].outline), 0, (x1 + 0.1, 0.0));
     n.sheets[0].placed[1].pts = shape;
     n.sheets[0].placed[1].pose = shape_t;
-    let errs = check(n).err().expect("must fail");
+    let errs = ck(n).err().expect("must fail");
     assert!(errs.iter().any(|e| e.contains("apart")), "{errs:?}");
 }
 
@@ -106,7 +114,7 @@ fn checker_catches_off_sheet_duplicate_drop_and_rotation() {
     off.sheets[0].placed[0].pts = shape;
     off.sheets[0].placed[0].pose = shape_t;
     assert!(
-        check(off)
+        ck(off)
             .err()
             .expect("off sheet")
             .iter()
@@ -117,7 +125,7 @@ fn checker_catches_off_sheet_duplicate_drop_and_rotation() {
     let copy = dup.sheets[0].placed[0].clone();
     dup.sheets[0].placed.push(copy);
     assert!(
-        check(dup)
+        ck(dup)
             .err()
             .expect("dup")
             .iter()
@@ -127,7 +135,7 @@ fn checker_catches_off_sheet_duplicate_drop_and_rotation() {
     let mut drop = base.clone();
     drop.sheets[0].placed.pop();
     assert!(
-        check(drop)
+        ck(drop)
             .err()
             .expect("drop")
             .iter()
@@ -137,7 +145,7 @@ fn checker_catches_off_sheet_duplicate_drop_and_rotation() {
     let mut rot = base.clone();
     rot.sheets[0].placed[0].rot = 180;
     rot.rules.rotations = vec![0, 90];
-    assert!(check(rot).is_err());
+    assert!(ck(rot).is_err());
 }
 
 #[test]
@@ -169,7 +177,7 @@ fn random_nests_pass_check_and_place_every_copy() {
             rotations: vec![0, 90, 180, 270],
         };
         let n = nest(&parts, &rules).expect("random parts fit");
-        let checked = check(n).unwrap_or_else(|e| panic!("trial {trial}: {e:?}"));
+        let checked = ck(n).unwrap_or_else(|e| panic!("trial {trial}: {e:?}"));
         let (per, all) = utilisation(checked.nest());
         assert!(per.iter().all(|u| *u <= 100.0 + 1e-6) && all <= 100.0 + 1e-6);
     }
@@ -181,7 +189,7 @@ fn fixed_set_utilisation() {
     let parts = vec![part("R", rect(400.0, 300.0), 6)];
     let n = nest(&parts, &flat_rules(1000.0, 1000.0)).expect("nest");
     assert_eq!(n.sheets.len(), 1);
-    let checked = check(n).expect("passes");
+    let checked = ck(n).expect("passes");
     let (per, all) = utilisation(checked.nest());
     assert!((per[0] - 72.0).abs() < 1e-9, "got {per:?}");
     assert!((all - 72.0).abs() < 1e-9);
@@ -208,7 +216,7 @@ fn outline_from_dxf_closed_loop_and_hole_refusal() {
 
 #[test]
 fn sheet_dxf_only_from_checked_nest() {
-    let c = check(valid_nest()).expect("passes");
+    let c = ck(valid_nest()).expect("passes");
     let bytes = sheet_dxf(&c, 0, DxfFormat::R2000Mtext).expect("sheet 1");
     let text = String::from_utf8(bytes).expect("ascii");
     assert!(text.contains("NOT RELEASED"));
@@ -266,11 +274,17 @@ fn jagua_engine_used_and_compared_with_bottom_left_on_fixed_set() {
         crate::jagua::ENGINE,
         "jagua-rs must place this set, not the fallback"
     );
-    let jc = check(j).expect("jagua nest passes the checker");
+    let jc = ck(j).expect("jagua nest passes the checker");
     let (jp, ja) = utilisation(jc.nest());
     let prepared = crate::prepare(&parts).expect("prepared");
-    let b = crate::blf(&parts, &rules, &prepared).expect("bottom-left nest");
-    let bc = check(b).expect("bottom-left nest passes the checker");
+    let b = crate::blf(
+        &parts,
+        &rules,
+        &prepared,
+        std::time::Instant::now() + std::time::Duration::from_secs(60),
+    )
+    .expect("bottom-left nest");
+    let bc = ck(b).expect("bottom-left nest passes the checker");
     let (bp, ba) = utilisation(bc.nest());
     println!(
         "FIXED SET jagua: sheets {} util {:.2}% {:?} | bottom-left: sheets {} util {:.2}% {:?}",
@@ -300,7 +314,7 @@ fn mtext_unescape(s: &str) -> String {
 
 #[test]
 fn japanese_marking_reads_back_in_both_formats() {
-    let c = check(valid_nest()).expect("passes");
+    let c = ck(valid_nest()).expect("passes");
     // R2000: UTF-8 MTEXT with escapes; read back by decoding the escapes
     let r2000 =
         String::from_utf8(sheet_dxf(&c, 0, DxfFormat::R2000Mtext).expect("sheet")).expect("utf8");
@@ -380,7 +394,7 @@ fn certified_pad_dxf_nests_checks_and_writes_a_sheet() {
         rotations: vec![0, 90],
     };
     let n = nest(&parts, &rules).expect("pads nest");
-    let checked = check(n).expect("checker passes");
+    let checked = ck(n).expect("checker passes");
     let (per, _) = utilisation(checked.nest());
     assert_eq!(
         checked
@@ -395,4 +409,174 @@ fn certified_pad_dxf_nests_checks_and_writes_a_sheet() {
     let dxf = sheet_dxf(&checked, 0, DxfFormat::R2000Mtext).expect("sheet 1");
     let text = String::from_utf8(dxf).expect("ascii");
     assert!(text.contains("NOT RELEASED") && text.contains("PAD-01"));
+}
+
+#[test]
+fn copies_and_parts_are_capped_and_refused_with_a_code() {
+    let r = flat_rules(1000.0, 1000.0);
+    let one = |qty: u32| nest(&[part("A", rect(10.0, 10.0), qty)], &r);
+    assert_eq!(one(10_001).unwrap_err().code, "nest_too_many_copies");
+    // the cap is on the total, over every part
+    let two = nest(
+        &[
+            part("A", rect(10.0, 10.0), 6_000),
+            part("B", rect(10.0, 10.0), 4_001),
+        ],
+        &r,
+    );
+    assert_eq!(two.unwrap_err().code, "nest_too_many_copies");
+    // a quantity that would wrap in a 32-bit count is still a refusal (the server clamps, the total is summed wide)
+    let many = (0..=crate::MAX_PARTS)
+        .map(|i| part(&format!("P{i}"), rect(1.0, 1.0), 1))
+        .collect::<Vec<_>>();
+    assert_eq!(nest(&many, &r).unwrap_err().code, "nest_parts");
+    assert_eq!(
+        nest(&[part("A", rect(10.0, 10.0), 0)], &flat_rules(0.0, 10.0))
+            .unwrap_err()
+            .code,
+        "nest_refused",
+        "rule errors keep the generic code"
+    );
+}
+
+#[test]
+fn wall_time_budget_refuses_with_nest_timeout_and_no_partial_result() {
+    let parts = vec![part("A", rect(400.0, 300.0), 2)];
+    let e = nest_within(
+        &parts,
+        &flat_rules(1000.0, 1000.0),
+        std::time::Duration::ZERO,
+    )
+    .expect_err("an exhausted budget refuses");
+    assert_eq!(e.code, "nest_timeout");
+    assert!(
+        nest_within(
+            &parts,
+            &flat_rules(1000.0, 1000.0),
+            std::time::Duration::from_secs(60)
+        )
+        .is_ok()
+    );
+}
+
+fn engine_panics(
+    _: &[PartIn],
+    _: &Rules,
+    _: &[(usize, u32, Vec<(f64, f64)>)],
+    _: std::time::Instant,
+) -> Result<Nest, NestError> {
+    panic!("jagua-rs failed inside")
+}
+
+fn engine_refuses(
+    _: &[PartIn],
+    _: &Rules,
+    _: &[(usize, u32, Vec<(f64, f64)>)],
+    _: std::time::Instant,
+) -> Result<Nest, NestError> {
+    Err(NestError::new("the engine refused this input"))
+}
+
+fn engine_times_out(
+    _: &[PartIn],
+    _: &Rules,
+    _: &[(usize, u32, Vec<(f64, f64)>)],
+    _: std::time::Instant,
+) -> Result<Nest, NestError> {
+    Err(NestError::coded("nest_timeout", "engine budget"))
+}
+
+#[test]
+fn a_jagua_panic_or_error_falls_back_to_bottom_left_and_still_checks() {
+    let parts = vec![
+        part("A", rect(400.0, 300.0), 2),
+        part("B", vec![(0.0, 0.0), (250.0, 0.0), (0.0, 250.0)], 3),
+    ];
+    let r = flat_rules(1000.0, 1000.0);
+    let far = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    for (engine, want) in [
+        (engine_panics as crate::Engine, "it panicked"),
+        (
+            engine_refuses as crate::Engine,
+            "the engine refused this input",
+        ),
+    ] {
+        let n = crate::nest_with_engine(&parts, &r, far, engine).expect("falls back");
+        assert!(
+            n.engine.starts_with("bottom-left fill (") && n.engine.contains(want),
+            "{}",
+            n.engine
+        );
+        let placed: usize = n.sheets.iter().map(|s| s.placed.len()).sum();
+        assert_eq!(placed, 5, "every copy placed by the fallback");
+        assert!(ck(n).is_ok());
+    }
+    // a timeout is final: no fallback runs past the budget
+    let e = crate::nest_with_engine(&parts, &r, far, engine_times_out as crate::Engine)
+        .expect_err("timeout is not swallowed");
+    assert_eq!(e.code, "nest_timeout");
+}
+
+#[test]
+fn self_intersecting_outlines_are_refused_by_nest_and_by_the_checker() {
+    let bowtie = vec![(0.0, 0.0), (100.0, 100.0), (100.0, 0.0), (0.0, 100.0)];
+    let r = flat_rules(1000.0, 1000.0);
+    let e = nest(&[part("X", bowtie.clone(), 1)], &r).unwrap_err();
+    assert_eq!(e.code, "nest_outline");
+    assert!(outline_is_simple(&rect(3.0, 2.0)));
+    assert!(outline_is_simple(&[(0.0, 0.0), (5.0, 0.0), (0.0, 5.0)]));
+    assert!(!outline_is_simple(&bowtie));
+    assert!(!outline_is_simple(&[
+        (0.0, 0.0),
+        (1.0, 0.0),
+        (f64::NAN, 1.0)
+    ]));
+    // a nest made from a self-intersecting input does not pass the checker either
+    let inputs = vec![part("X", bowtie, 1)];
+    let fake = Nest {
+        rules: r.clone(),
+        parts: inputs.clone(),
+        sheets: Vec::new(),
+        engine: "test".into(),
+    };
+    let errs = check(&inputs, &r, fake).err().expect("must fail");
+    assert!(
+        errs.iter().any(|m| m.contains("crosses itself")),
+        "{errs:?}"
+    );
+}
+
+#[test]
+fn checker_takes_the_certified_inputs_not_the_nesters_copy() {
+    let r = flat_rules(1000.0, 1000.0);
+    let inputs = vec![
+        part("A", rect(400.0, 300.0), 2),
+        part("B", vec![(0.0, 0.0), (250.0, 0.0), (0.0, 250.0)], 3),
+    ];
+    let good = nest(&inputs, &r).expect("nest");
+    assert!(check(&inputs, &r, good.clone()).is_ok());
+
+    // the nester's own parts list is replaced by a bigger part: the certified input still decides
+    let mut tampered = good.clone();
+    tampered.parts[0].outline = rect(400.0, 310.0);
+    let errs = check(&inputs, &r, tampered).err().expect("must fail");
+    assert!(
+        errs.iter().any(|m| m.contains("not the certified input")),
+        "{errs:?}"
+    );
+
+    // the placed outline grown to match the tampered list is caught by the certified input too
+    let mut grown = good.clone();
+    grown.parts[0].outline = rect(400.0, 310.0);
+    grown.sheets[0].placed[0].pts =
+        geom::place_corner(&geom::centre(&rect(400.0, 310.0)), 0, (5.0, 5.0)).1;
+    assert!(check(&inputs, &r, grown).is_err());
+
+    // rules other than the ones asked for are refused
+    let other = Rules {
+        kerf_mm: 0.1,
+        ..r.clone()
+    };
+    let errs = check(&inputs, &other, good).err().expect("must fail");
+    assert!(errs.iter().any(|m| m.contains("other rules")), "{errs:?}");
 }
