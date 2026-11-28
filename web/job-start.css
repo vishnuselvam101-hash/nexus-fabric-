@@ -59,3 +59,25 @@
 @media (prefers-reduced-motion: reduce) {
   .jf1 *, .jf1 *::before, .jf1 *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+.jf1-link { text-decoration: none; display: inline-flex; align-items: center; }
+.jf1-questions h2 { margin-bottom: 8px; }
+.qc { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 14px; background: var(--jf1-inset); border: 1px solid var(--jf1-border); border-radius: var(--jf1-radius); padding: 12px; margin-bottom: 10px; }
+.qc-crop { position: relative; min-height: 90px; width: 100%; border-radius: 8px; border: 1px solid var(--jf1-border-2); background-color: #fff; background-repeat: no-repeat; overflow: hidden; display: grid; place-items: center; color: var(--jf1-t3); font-size: 13px; text-align: center; padding: 6px; }
+.qc-mark { position: absolute; border: 2px solid var(--jf1-accent); border-radius: 4px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--jf1-accent) 30%, transparent); }
+.qc-q { margin: 0 0 10px; font-size: 17px; line-height: 1.5; font-weight: 500; }
+.qc-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.qc-btn { font: inherit; font-size: 16px; font-weight: 600; padding: 12px 18px; min-height: 48px; border-radius: 10px; border: 1px solid var(--jf1-border-2); background: var(--jf1-raised); color: var(--jf1-t1); cursor: pointer; }
+.qc-btn:focus-visible, .qc-num:focus-visible { outline: 3px solid var(--jf1-accent); outline-offset: 2px; }
+.qc-btn:disabled { opacity: .5; cursor: not-allowed; }
+.qc-primary { background: var(--jf1-accent); border-color: var(--jf1-accent); color: var(--jf1-accent-ink); }
+.qc-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-top: 10px; }
+.qc-form[hidden] { display: none; }
+.qc-form label { display: grid; gap: 4px; font-size: 13px; color: var(--jf1-t2); }
+.qc-num { font-size: 18px; padding: 10px 12px; min-height: 48px; width: 12ch; border-radius: 8px; border: 1px solid var(--jf1-border-2); background: var(--jf1-raised); color: var(--jf1-t1); }
+.qc-msg { margin: 8px 0 0; font-size: 14px; color: var(--jf1-ok); min-height: 1em; }
+.qc-msg.qc-bad { color: var(--jf1-bad); }
+@media (max-width: 560px) { .qc { grid-template-columns: 1fr; } .qc-btn { flex: 1 1 100%; } }
+/* headings and plain text keep the card's ink in either page theme */
+.jf1 h1, .jf1 h2, .jf1 h3, .jf1 label, .qc-q { color: var(--jf1-t1); }
+.jf1 .jf1-note, .jf1 .lv-note { color: var(--jf1-t3); }

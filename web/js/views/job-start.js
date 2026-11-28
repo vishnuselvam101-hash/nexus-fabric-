@@ -4,6 +4,8 @@
 import { api, uploadFile, esc, ApiError } from '../api.js';
 import { t } from '../i18n.js';
 import { createCursor } from '../operator-cursor.js';
+import { mountLiveControls } from '../lib/live-controls.js';
+import { questionsOf, renderQuestions } from '../lib/question-cards.js';
 
 const PROJECT = 'Quick conversions';
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.tif,.tiff';
@@ -11,7 +13,7 @@ const ACCEPT = '.pdf,.png,.jpg,.jpeg,.tif,.tiff';
 const isReady = (p) => p.state === 'computed' && p.dxf_allowed === true && Array.isArray(p.dxf_blocked_by) && p.dxf_blocked_by.length === 0;
 const NEED = ['held_missing', 'refused', 'not_computed'];
 
-let host = null, root = null, cursor = null, stopFollow = null, busy = false, oid = null, files = [];
+let host = null, root = null, cursor = null, stopFollow = null, controls = null, busy = false, oid = null, files = [], lastSeq = -1;
 
 const $ = (sel) => root.querySelector(sel);
 const msgOf = (e) => (e instanceof ApiError ? e.message : (e?.message || 'Unexpected error'));
@@ -28,11 +30,16 @@ export async function mount(viewEl, params = {}) {
 }
 
 export function unmount() {
-  if (stopFollow) stopFollow();
-  if (cursor) cursor.destroy();
-  stopFollow = null; cursor = null;
+  stopLive();
   root?.remove();
   root = null; host = null;
+}
+
+function stopLive() {
+  if (stopFollow) stopFollow();
+  if (cursor) cursor.destroy();
+  if (controls) controls.destroy();
+  stopFollow = null; cursor = null; controls = null; lastSeq = -1;
 }
 
 const steps = (cur) => [1, 2, 3].map((n) => {
@@ -43,6 +50,7 @@ const steps = (cur) => [1, 2, 3].map((n) => {
 
 async function render() {
   if (!root) return;
+  stopLive();
   if (!oid) return renderIntake();
   let order;
   try { order = await api(`/api/orders/${oid}`); } catch (e) { return renderError(e); }
@@ -65,10 +73,16 @@ async function render() {
       <div class="jf1-actions">
         <button type="button" class="jf1-btn jf1-primary" data-act="calc" ${busy || !parts.length ? 'disabled' : ''}>${esc(busy ? t('jf1.calcing') : t('jf1.calc'))}</button>
         <button type="button" class="jf1-btn" data-act="new">${esc(t('jf1.restart'))}</button>
+        <a class="jf1-btn jf1-link" href="#/pro/${oid}">${esc(t('jf2.live.pro'))}</a>
       </div>
       ${parts.length ? '' : `<p class="jf1-note">${esc(t('jf1.noParts'))}</p>`}
+      <section class="jf1-questions" aria-labelledby="jf1-q-h">
+        <h2 id="jf1-q-h">${esc(t('jf2.q.title'))}</h2>
+        <div data-questions></div>
+      </section>
       <section class="jf1-feed" aria-labelledby="jf1-feed-h">
         <h2 id="jf1-feed-h">${esc(t('jf1.feed'))}</h2>
+        <div data-controls></div>
         <div class="jf1-stage" data-stage><p class="jf1-note" data-none>${esc(t('jf1.feed.none'))}</p></div>
         <ol class="jf1-log" data-log aria-live="polite"></ol>
       </section>
@@ -81,7 +95,7 @@ async function render() {
   root.querySelector('[data-act="calc"]')?.addEventListener('click', compute);
   root.querySelector('[data-act="new"]')?.addEventListener('click', () => { location.hash = '#/start'; });
   root.querySelector('#jf1-outputs')?.addEventListener('click', download);
-  follow();
+  follow(order);
 }
 
 function renderIntake() {
@@ -215,20 +229,40 @@ function setCalc(on) {
   if (b) { b.disabled = on; b.textContent = on ? t('jf1.calcing') : t('jf1.calc'); }
 }
 
-// AMOEBA's events: the cursor shows them on the page; the log lists the same reasons in words.
-function follow() {
+// AMOEBA's events: the blob cursor shows them on the page; the log lists the same reasons in words. The controls pause,
+// undo or take over (a person's); the question cards show what AMOEBA needs answered.
+async function showQuestions(order) {
+  const box = root?.querySelector('[data-questions]');
+  if (!box) return;
+  renderQuestions(box, oid, questionsOf(order), { onAnswered: async () => { await refreshQuestions(); } });
+}
+
+async function refreshQuestions() {
+  if (!root) return;
+  try { await showQuestions(await api(`/api/orders/${oid}`)); } catch { /* the next change tries again */ }
+}
+
+function follow(order) {
   if (!root) return;
   const stage = root.querySelector('[data-stage]');
   const log = root.querySelector('[data-log]');
+  showQuestions(order);
   cursor = createCursor({
     root: stage,
+    look: 'blob',
     onEvent(ev) {
       root?.querySelector('[data-none]')?.remove();
       const li = document.createElement('li');
       li.textContent = `${ev.action || ''} ${ev.reason || ''}`.trim();
       log?.append(li);
     },
+    onPoll(d) {
+      controls?.update(d);
+      if (lastSeq >= 0 && d.last_seq !== lastSeq) refreshQuestions();
+      lastSeq = d.last_seq;
+    },
   });
+  controls = mountLiveControls(root.querySelector('[data-controls]'), { oid, cursor, onChange: (act) => { if (act === 'undo') refreshQuestions(); } });
   stopFollow = cursor.follow(oid);
 }
 

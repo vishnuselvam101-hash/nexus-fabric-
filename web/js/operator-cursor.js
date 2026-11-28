@@ -64,7 +64,13 @@ export function createCursor(options = {}) {
   layer.dataset.reduced = reduced ? '1' : '0';
   const cursor = el('div', 'op-cursor', layer);
   cursor.setAttribute('aria-hidden', 'true');
-  cursor.innerHTML = '<svg viewBox="0 0 16 16" width="20" height="20" focusable="false"><path d="M2 1l11 6.2-4.9 1.3L6.4 13.6z" fill="currentColor" stroke="var(--op-outline, #fff)" stroke-width="1"/></svg>';
+  if (options.look === 'blob') {
+    // pick 1C: a living AMOEBA blob. Pure CSS (a morphing shape), so it needs no WebGL; still when motion is reduced.
+    cursor.classList.add('op-blob');
+    cursor.innerHTML = '<span class="op-blob-body"></span><span class="op-blob-core"></span>';
+  } else {
+    cursor.innerHTML = '<svg viewBox="0 0 16 16" width="20" height="20" focusable="false"><path d="M2 1l11 6.2-4.9 1.3L6.4 13.6z" fill="currentColor" stroke="var(--op-outline, #fff)" stroke-width="1"/></svg>';
+  }
   const ripple = el('div', 'op-ripple', layer);
   const chip = el('div', 'op-chip', layer);
   const tip = el('div', 'op-tip', layer);
@@ -78,6 +84,9 @@ export function createCursor(options = {}) {
   badge.textContent = t('op.paused');
 
   let stopped = false, paused = false, seen = 0, lastEvent = null;
+  // Watch (default) / Fast / Instant: how long each step takes. Only the replay changes, never what happens.
+  let factor = 1;
+  const nap = (ms) => (factor === 0 || reduced ? Promise.resolve() : sleep(ms / factor));
   const waiters = [];
   const waitFree = async () => { while (paused && !stopped) await new Promise((r) => waiters.push(r)); };
 
@@ -113,14 +122,14 @@ export function createCursor(options = {}) {
     const cx = rect ? rect.left + rect.width / 2 : vw / 2;
     const cy = rect ? rect.top + rect.height / 2 : vh - 60;
     layer.dataset.target = rect ? '1' : '0';
-    cursor.style.transitionDuration = reduced ? '0ms' : '';
+    cursor.style.transitionDuration = reduced || factor === 0 ? '0ms' : factor > 1 ? `${Math.round(420 / factor)}ms` : '';
     place(cursor, cx, cy);
     place(chip, Math.min(cx + 14, vw - 160), Math.min(cy + 22, vh - 40));
     place(tip, Math.max(8, Math.min(cx + 14, vw - 330)), Math.max(8, Math.min(cy - 64, vh - 110)));
     layer.classList.add('op-on');
     chip.textContent = '';
     chip.hidden = true;
-    if (!reduced) await sleep(380);
+    await nap(380);
     if (stopped) return;
     if (action === 'click' || action === 'compute') {
       place(ripple, cx, cy);
@@ -132,9 +141,10 @@ export function createCursor(options = {}) {
       const text = typeof ev.value === 'object' ? JSON.stringify(ev.value) : String(ev.value ?? '');
       chip.hidden = text === '';
       if (reduced) chip.textContent = text;
-      else for (const ch of text) { if (stopped) return; chip.textContent += ch; await sleep(35); }
+      else if (factor === 0) chip.textContent = text;
+      else for (const ch of text) { if (stopped) return; chip.textContent += ch; await nap(35); }
     }
-    await sleep(reduced ? 60 : action === 'ask' ? 900 : 320);
+    await (reduced || factor === 0 ? sleep(factor === 0 ? 0 : 60) : nap(action === 'ask' ? 900 : 320));
     seen = Math.max(seen, ev.seq || 0);
   }
 
@@ -150,6 +160,9 @@ export function createCursor(options = {}) {
         if (typeof options.onEvent === 'function') options.onEvent(ev);
       }
     },
+    /** 'watch' (default), 'fast' or 'instant'. */
+    setSpeed(mode) { factor = mode === 'instant' ? 0 : mode === 'fast' ? 4 : 1; },
+    get paused() { return paused; },
     pause() { paused = true; badge.hidden = false; },
     resume() { paused = false; badge.hidden = true; waiters.splice(0).forEach((r) => r()); },
     stop() { stopped = true; api.resume(); },
@@ -170,6 +183,7 @@ export function createCursor(options = {}) {
           if (r.ok) {
             const d = await r.json();
             if (d.paused) api.pause(); else if (paused) api.resume();
+            if (typeof options.onPoll === 'function') options.onPoll(d);
             const fresh = (d.events || []).filter((e) => e.seq > after);
             if (fresh.length) {
               after = fresh[fresh.length - 1].seq;

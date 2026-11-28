@@ -5166,6 +5166,42 @@ pub(crate) fn router(app: Arc<App>) -> Router {
             }),
         )
         .route(
+            "/job-pro.css",
+            get(|| async {
+                asset(
+                    "text/css; charset=utf-8",
+                    include_str!("../../../web/job-pro.css"),
+                )
+            }),
+        )
+        .route(
+            "/js/views/job-pro.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/views/job-pro.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/lib/live-controls.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/lib/live-controls.js"),
+                )
+            }),
+        )
+        .route(
+            "/js/lib/question-cards.js",
+            get(|| async {
+                asset(
+                    "text/javascript; charset=utf-8",
+                    include_str!("../../../web/js/lib/question-cards.js"),
+                )
+            }),
+        )
+        .route(
             "/job-start.css",
             get(|| async {
                 asset(
