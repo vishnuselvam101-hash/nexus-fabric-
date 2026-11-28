@@ -6276,3 +6276,19 @@ fn an_edited_file_is_never_served_as_a_certified_pattern() {
     assert!(crate::licence::gated(&axum::http::Method::POST, "/api/cad/documents/3/undo"));
     assert!(!crate::licence::gated(&axum::http::Method::GET, "/api/cad/documents/3/versions"));
 }
+
+#[tokio::test]
+async fn cad_versions_cannot_be_updated_or_deleted_and_the_helper_sees_both_sides() {
+    let t = boot();
+    upload_raw(&t, &t.cookie, "part.dxf", CAD_DXF.as_bytes().to_vec()).await;
+    let parent = last_doc(&t);
+    let (st, v) = t.call("POST", &format!("/api/cad/documents/{parent}/edit"), Some(move_op())).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let child = v["document_id"].as_i64().unwrap();
+    let db = t.app.db();
+    assert!(db.execute("UPDATE cad_versions SET author = 'x'", []).is_err(), "update refused");
+    assert!(db.execute("DELETE FROM cad_versions", []).is_err(), "delete refused");
+    assert!(crate::cad::is_cad_edited(&db, child), "child is an edit");
+    assert!(crate::cad::is_cad_edited(&db, parent), "parent of an edit is linked");
+    assert!(!crate::cad::is_cad_edited(&db, 999), "unknown document is not edited");
+}

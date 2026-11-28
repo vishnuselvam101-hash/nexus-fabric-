@@ -41,6 +41,8 @@ pub enum Op {
     Move { ids: Vec<String>, dx: f64, dy: f64 },
     Rotate { ids: Vec<String>, cx: f64, cy: f64, deg: f64 },
     Mirror { ids: Vec<String>, a: P, b: P },
+    /// Mirror about the line through `c` at `deg` degrees from +X (any line: an angle through a point).
+    MirrorAngle { ids: Vec<String>, c: P, deg: f64 },
     Scale { ids: Vec<String>, cx: f64, cy: f64, factor: f64 },
     Delete { ids: Vec<String> },
     SetLayer { ids: Vec<String>, layer: String },
@@ -334,7 +336,17 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
     };
 
     let mut touched_ids: Vec<String> = Vec::new();
-    for op in ops {
+    for op0 in ops {
+        // an angle mirror is the two-point mirror through c and c + (cos, sin)
+        let converted;
+        let op: &Op = match op0 {
+            Op::MirrorAngle { ids, c, deg } => {
+                let (sn, cs) = deg.to_radians().sin_cos();
+                converted = Op::Mirror { ids: ids.clone(), a: *c, b: [c[0] + cs, c[1] + sn] };
+                &converted
+            }
+            other => other,
+        };
         match op {
             Op::Move { ids, dx, dy } => {
                 for id in ids {
@@ -387,6 +399,7 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
                     }
                 }
             }
+            Op::MirrorAngle { .. } => unreachable!("converted to Op::Mirror above"),
             Op::Add { entity } => {
                 let (kind, layer, body) = new_body(entity, &layers)?;
                 next_handle += 1;
@@ -518,7 +531,7 @@ pub fn touched_ids(ops: &[Op]) -> Vec<String> {
     let mut out = Vec::new();
     for op in ops {
         match op {
-            Op::Move { ids, .. } | Op::Rotate { ids, .. } | Op::Mirror { ids, .. } | Op::Scale { ids, .. } | Op::Delete { ids } | Op::SetLayer { ids, .. } => {
+            Op::Move { ids, .. } | Op::Rotate { ids, .. } | Op::Mirror { ids, .. } | Op::MirrorAngle { ids, .. } | Op::Scale { ids, .. } | Op::Delete { ids } | Op::SetLayer { ids, .. } => {
                 out.extend(ids.iter().cloned())
             }
             Op::Add { .. } => {}

@@ -138,6 +138,8 @@ CREATE TRIGGER IF NOT EXISTS operator_events_no_edit BEFORE UPDATE OF order_id, 
 CREATE TRIGGER IF NOT EXISTS order_results_immutable BEFORE UPDATE ON order_results WHEN NOT (NEW.state = 'SUPERSEDED' AND NEW.id IS OLD.id AND NEW.order_id IS OLD.order_id AND NEW.input_hash IS OLD.input_hash AND NEW.engine IS OLD.engine AND NEW.supersedes IS OLD.supersedes AND NEW.result_json IS OLD.result_json AND NEW.counts_json IS OLD.counts_json AND NEW.created_by IS OLD.created_by AND NEW.created_at IS OLD.created_at) BEGIN SELECT RAISE(ABORT, 'computed results are immutable; only SUPERSEDED may be set'); END;
 CREATE TRIGGER IF NOT EXISTS order_readings_no_delete BEFORE DELETE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are kept as the reader produced them'); END;
 CREATE TRIGGER IF NOT EXISTS order_readings_no_edit BEFORE UPDATE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS cad_versions_no_update BEFORE UPDATE ON cad_versions BEGIN SELECT RAISE(ABORT, 'CAD versions are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS cad_versions_no_delete BEFORE DELETE ON cad_versions BEGIN SELECT RAISE(ABORT, 'CAD versions are kept'); END;
 CREATE TRIGGER IF NOT EXISTS order_decisions_no_delete BEFORE DELETE ON order_decisions BEGIN SELECT RAISE(ABORT, 'decisions are kept; undo marks them undone'); END;
 ";
 

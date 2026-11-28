@@ -402,11 +402,15 @@ async fn doc_versions(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) 
     let children: Vec<Value> = stmt
         .query_map([id], |r| Ok(json!({ "document_id": r.get::<_, i64>(0)?, "sha256": r.get::<_, String>(1)?, "author": r.get::<_, String>(2)?, "created_at": r.get::<_, i64>(3)? })))?
         .collect::<Result<_, _>>()?;
-    ok(json!({ "document_id": id, "cad_edited": doc.size >= 0 && is_marked_doc(&db, id), "parent": parent, "children": children }))
+    ok(json!({ "document_id": id, "cad_edited": doc.size >= 0 && is_cad_edited(&db, id), "parent": parent, "children": children }))
 }
 
-fn is_marked_doc(db: &rusqlite::Connection, id: i64) -> bool {
-    db.query_row("SELECT cad_edited FROM documents WHERE id = ?", [id], |r| r.get::<_, i64>(0)).map(|v| v == 1).unwrap_or(false)
+/// True when a document is an NF CAD edit or carries the edit marker. Shared helper: the export and nest routes
+/// call it before they serve a document as a certified pattern.
+pub(crate) fn is_cad_edited(db: &rusqlite::Connection, id: i64) -> bool {
+    let flagged = db.query_row("SELECT cad_edited FROM documents WHERE id = ?", [id], |r| r.get::<_, i64>(0)).map(|v| v == 1).unwrap_or(false);
+    let versioned = db.query_row("SELECT COUNT(*) FROM cad_versions WHERE child_document = ? OR parent_document = ?", [id, id], |r| r.get::<_, i64>(0)).map(|n| n > 0).unwrap_or(false);
+    flagged || versioned
 }
 
 /// The NF CAD routes, merged into the router (so the security and licence layers cover them).

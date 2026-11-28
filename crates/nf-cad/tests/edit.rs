@@ -150,3 +150,23 @@ fn quality_gate_runs_on_an_edited_version_and_marks_it() {
     assert_eq!(checks.len(), nf_dxf::quality::RULES.len(), "every rule reported");
     assert!(is_edited(&child));
 }
+
+#[test]
+fn mirror_about_any_line_angle_through_a_point() {
+    // line (0,0)-(3,0); mirror about the vertical line through the origin (90 degrees) -> (0,0)-(-3,0)
+    let bytes = dxf(LINE);
+    let m = apply(&bytes, &[Op::MirrorAngle { ids: vec!["E0".into()], c: [0.0, 0.0], deg: 90.0 }]).unwrap();
+    match only(&m, "LINE").geom {
+        Geom::Line { a, b } => {
+            assert!(a[0].abs() < 1e-9 && a[1].abs() < 1e-9, "a {a:?}");
+            assert!((b[0] + 3.0).abs() < 1e-9 && b[1].abs() < 1e-9, "b {b:?}");
+        }
+        g => panic!("{g:?}"),
+    }
+    // 0 degrees through the origin: the x axis, so (3,0) stays put
+    let m = apply(&bytes, &[Op::MirrorAngle { ids: vec!["E0".into()], c: [0.0, 0.0], deg: 0.0 }]).unwrap();
+    match only(&m, "LINE").geom {
+        Geom::Line { b, .. } => assert!((b[0] - 3.0).abs() < 1e-9 && b[1].abs() < 1e-9, "b {b:?}"),
+        g => panic!("{g:?}"),
+    }
+}
