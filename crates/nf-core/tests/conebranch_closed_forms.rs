@@ -9,7 +9,7 @@
 
 use nf_core::conebranch::{
     self, CB_DEFAULT_SPLIT, CONEBRANCH_NAMED_RULES, CONEBRANCH_REFUSAL_CODES, ConeBranchResult,
-    ConeBranchSpec, probe,
+    ConeBranchSpec, ThicknessConvention, probe,
 };
 use nf_core::tee::{self, BranchOnMain, BranchPieceSpec, Mount, TeeMainSpec};
 use std::f64::consts::PI;
@@ -35,7 +35,7 @@ fn sp(
         l,
         t: 12.0,
         ecc,
-        flat_deg: Some(flat),
+        flat_deg: if ecc { Some(flat) } else { None },
         d,
         tb: 9.0,
         x: Some(x),
@@ -120,14 +120,18 @@ fn examples() -> Vec<ConeBranchSpec> {
     ]
 }
 
+/// The earlier tests check the ZK-parity (radial) rule against the physical model written for it; the normal default
+/// has its own tests below.
+fn cb(s: &ConeBranchSpec) -> Result<ConeBranchResult, nf_core::shapes::ShapeRefusal> {
+    conebranch::cone_branch_with(s, ThicknessConvention::Radial)
+}
+
 fn run(s: &ConeBranchSpec) -> ConeBranchResult {
-    conebranch::cone_branch(s).unwrap_or_else(|e| panic!("{s:?}: {} {}", e.code, e.message))
+    cb(s).unwrap_or_else(|e| panic!("{s:?}: {} {}", e.code, e.message))
 }
 
 fn code(s: &ConeBranchSpec) -> &'static str {
-    conebranch::cone_branch(s)
-        .expect_err("expected a refusal")
-        .code
+    cb(s).expect_err("expected a refusal").code
 }
 
 // ------------------------------------------------------------------------------------ physical model (Da frame)
@@ -1100,7 +1104,7 @@ fn a_blocked_cone_blocks_the_branch() {
     // DESIGN L2: no branch piece is returned when the cone cannot be built (the result type holds both or neither)
     let mut s = examples()[0].clone();
     s.x = Some(-50.0);
-    let e = conebranch::cone_branch(&s).expect_err("refused");
+    let e = cb(&s).expect_err("refused");
     assert!(
         e.code == "conebranch_hole_beyond_mouth" || e.code == "conebranch_branch_not_within_cone",
         "{}",
@@ -1196,7 +1200,7 @@ fn fuzz_no_panic_no_nan_and_coded_refusals() {
             l: draw(&mut rng, &GOOD_L),
             t: draw(&mut rng, &GOOD_T),
             ecc: it % 3 == 0,
-            flat_deg: if it % 5 == 0 {
+            flat_deg: if it % 5 == 0 || it % 3 != 0 {
                 None
             } else {
                 Some(draw(&mut rng, &GOOD_A))
@@ -1232,7 +1236,7 @@ fn fuzz_no_panic_no_nan_and_coded_refusals() {
                 None
             },
         };
-        match conebranch::cone_branch(&s) {
+        match cb(&s) {
             Ok(r) => {
                 ok += 1;
                 assert!(r.branch.marks.iter().all(|m| m.len.is_finite()));
@@ -1286,7 +1290,7 @@ fn fuzz_no_panic_no_nan_and_coded_refusals() {
             p.d = s.d * dd;
             p.h += dh;
             p.e += de;
-            match conebranch::cone_branch(&p) {
+            match cb(&p) {
                 Ok(r) => {
                     ok2 += 1;
                     assert!(
@@ -1302,4 +1306,462 @@ fn fuzz_no_panic_no_nan_and_coded_refusals() {
         }
     }
     assert!(ok2 > 5);
+}
+
+// ------------------------------------------------------------------------------------ NORMAL thickness (the default)
+//
+// First principles, no engine formula: the plate is the set of points `P(x, a) - d n(x, a)`, `0 <= d <= T`, where
+// `P` is the OUTER surface (the drawing surface) and `n` its outward unit normal taken from a finite-difference cross
+// product. The inner surface is `d = T`, the neutral surface `d = T/2`. The axial coordinate of an offset point is
+// `x - d n_x`, so a point of the offset surface with a given axial coordinate is found by bisection.
+
+impl World {
+    fn surf(&self, x: f64, a: f64) -> [f64; 3] {
+        let c = self.c(x);
+        let r = self.rad(x, 0.0);
+        [x, c[0] + r * a.cos(), c[1] + r * a.sin()]
+    }
+    fn outer_normal(&self, x: f64, a: f64) -> [f64; 3] {
+        let (hx, ha) = (1e-5, 1e-7);
+        let (xp, xm) = (self.surf(x + hx, a), self.surf(x - hx, a));
+        let (ap, am) = (self.surf(x, a + ha), self.surf(x, a - ha));
+        let sub = |p: [f64; 3], q: [f64; 3], h: f64| {
+            [
+                (p[0] - q[0]) / (2.0 * h),
+                (p[1] - q[1]) / (2.0 * h),
+                (p[2] - q[2]) / (2.0 * h),
+            ]
+        };
+        let (tx, ta) = (sub(xp, xm, hx), sub(ap, am, ha));
+        let mut n = [
+            tx[1] * ta[2] - tx[2] * ta[1],
+            tx[2] * ta[0] - tx[0] * ta[2],
+            tx[0] * ta[1] - tx[1] * ta[0],
+        ];
+        let l = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
+        for q in &mut n {
+            *q /= l;
+        }
+        if n[1] * a.cos() + n[2] * a.sin() < 0.0 {
+            for q in &mut n {
+                *q = -*q;
+            }
+        }
+        n
+    }
+    /// The point of the surface offset by `d` along the inward normal that has axial coordinate `xw` at azimuth `a`,
+    /// with the normal of the parent point.
+    fn offset_pt(&self, xw: f64, a: f64, d: f64) -> ([f64; 3], [f64; 3]) {
+        let (mut lo, mut hi) = (xw - 5.0 * d - 1.0, xw + 5.0 * d + 1.0);
+        for _ in 0..50 {
+            let m = 0.5 * (lo + hi);
+            if m - d * self.outer_normal(m, a)[0] < xw {
+                lo = m;
+            } else {
+                hi = m;
+            }
+        }
+        let xs = 0.5 * (lo + hi);
+        let (p, n) = (self.surf(xs, a), self.outer_normal(xs, a));
+        ([p[0] - d * n[0], p[1] - d * n[1], p[2] - d * n[2]], n)
+    }
+    fn lat3(&self, p: [f64; 3]) -> f64 {
+        p[1] * self.v[0] + p[2] * self.v[1]
+    }
+    fn along3(&self, p: [f64; 3]) -> f64 {
+        p[1] * self.u[0] + p[2] * self.u[1]
+    }
+    /// Highest along-branch coordinate at which the wall line (axial `xw`, lateral `lw`) meets the INNER surface:
+    /// scan the azimuth for sign changes of the lateral offset, bisect each.
+    fn inner_contact(&self, xw: f64, lw: f64) -> Option<f64> {
+        const N: usize = 90;
+        let f = |a: f64| self.lat3(self.offset_pt(xw, a, self.t).0) - lw;
+        let mut best: Option<f64> = None;
+        let mut prev = (0.0, f(0.0));
+        for i in 1..=N {
+            let a = 2.0 * PI * i as f64 / N as f64;
+            let fa = f(a);
+            if prev.1 * fa <= 0.0 {
+                let (mut lo, mut hi, flo) = (prev.0, a, prev.1);
+                for _ in 0..50 {
+                    let m = 0.5 * (lo + hi);
+                    if f(m) * flo <= 0.0 {
+                        hi = m;
+                    } else {
+                        lo = m;
+                    }
+                }
+                let t = self.along3(self.offset_pt(xw, 0.5 * (lo + hi), self.t).0);
+                best = Some(best.map_or(t, |b: f64| b.max(t)));
+            }
+            prev = (a, fa);
+        }
+        best
+    }
+    fn cut_brute_inner_normal(&self, th: f64) -> f64 {
+        (0..=40)
+            .filter_map(|i| {
+                let rho = self.ri + (self.ro - self.ri) * f64::from(i) / 40.0;
+                self.inner_contact(self.x0 + rho * th.cos(), self.e + rho * th.sin())
+            })
+            .fold(f64::NEG_INFINITY, f64::max)
+    }
+    /// Smallest squared distance from the branch axis over the plate through the neutral point of axial coordinate
+    /// `xm` at azimuth `a` (points `M + w n`, `|w| <= T/2`; the squared distance is a convex quadratic in `w`).
+    fn band_min_normal(&self, xm: f64, a: f64) -> f64 {
+        let (m, n) = self.offset_pt(xm, a, self.t / 2.0);
+        let (dx, dl) = (m[0] - self.x0, self.lat3(m) - self.e);
+        let (nx, nl) = (n[0], n[1] * self.v[0] + n[2] * self.v[1]);
+        let (aa, bb) = (nx * nx + nl * nl, 2.0 * (dx * nx + dl * nl));
+        let w = if aa > 1e-18 {
+            (-bb / (2.0 * aa)).clamp(-self.t / 2.0, self.t / 2.0)
+        } else {
+            0.0
+        };
+        let (px, pl) = (dx + w * nx, dl + w * nl);
+        px * px + pl * pl
+    }
+    fn hole_brute_normal(&self, a: f64, rh: f64) -> Option<[f64; 2]> {
+        let (lo, hi) = (self.x0 - rh - 4.0 * self.t, self.x0 + rh + 4.0 * self.t);
+        let n = 400usize;
+        let xs: Vec<f64> = (0..=n)
+            .map(|i| lo + (hi - lo) * i as f64 / n as f64)
+            .collect();
+        let ins: Vec<bool> = xs
+            .iter()
+            .map(|&x| self.band_min_normal(x, a) < rh * rh)
+            .collect();
+        let first = ins.iter().position(|&b| b)?;
+        let last = ins.iter().rposition(|&b| b)?;
+        let refine = |mut out: f64, mut inn: f64| {
+            for _ in 0..50 {
+                let m = 0.5 * (out + inn);
+                if self.band_min_normal(m, a) < rh * rh {
+                    inn = m;
+                } else {
+                    out = m;
+                }
+            }
+            inn
+        };
+        Some([
+            refine(xs[first.saturating_sub(1)], xs[first]),
+            refine(xs[(last + 1).min(n)], xs[last]),
+        ])
+    }
+}
+
+fn normal_specs() -> Vec<ConeBranchSpec> {
+    let ex = examples();
+    vec![
+        ex[1].clone(), // concentric set-in, offset
+        sp(
+            true,
+            1219.2,
+            914.4,
+            1200.0,
+            0.0,
+            406.4,
+            600.0,
+            120.0,
+            -50.0,
+            900.0,
+            2,
+            Mount::SetIn,
+        ), // eccentric set-in
+        ex[0].clone(), // concentric set-on
+        ex[3].clone(), // eccentric set-on, branch at 90 deg
+        sp(
+            true,
+            1219.2,
+            914.4,
+            1200.0,
+            0.0,
+            406.4,
+            500.0,
+            60.0,
+            80.0,
+            900.0,
+            2,
+            Mount::SetIn,
+        ),
+    ]
+}
+
+fn run_n(s: &ConeBranchSpec) -> ConeBranchResult {
+    conebranch::cone_branch(s).unwrap_or_else(|e| panic!("{s:?}: {} {}", e.code, e.message))
+}
+
+#[test]
+fn normal_default_set_in_cut_equals_root_finding_on_the_offset_surface() {
+    let mut worst = 0.0f64;
+    for s in normal_specs().iter().filter(|s| s.mount == Mount::SetIn) {
+        let w = World::of(s);
+        for i in 0..8 {
+            let th = 2.0 * PI * f64::from(i) / 8.0 + 0.3;
+            let want = w.cut_brute_inner_normal(th);
+            let got = probe::cut_t_conv(s, th, ThicknessConvention::Normal).unwrap();
+            worst = worst.max((want - got).abs());
+            assert!(
+                (want - got).abs() < 2e-3,
+                "{s:?} th {th}: offset-surface scan {want} engine {got}"
+            );
+        }
+    }
+    println!("max |engine - offset surface scan| of the set-in normal cut: {worst:e} mm");
+}
+
+#[test]
+fn normal_default_hole_interval_equals_scan_of_the_plate_normal_to_the_surface() {
+    let mut worst = 0.0f64;
+    for s in &normal_specs() {
+        let w = World::of(s);
+        let r = run_n(s);
+        let rh = if s.mount == Mount::SetIn {
+            s.d / 2.0
+        } else {
+            s.d / 2.0 - s.tb
+        };
+        let a0 = r.hole.az_start_deg.to_radians();
+        let span = r.hole.az_span_deg.to_radians();
+        for i in (2..40).step_by(4) {
+            let a = a0 + span * (f64::from(i) / 40.0);
+            let (want, got) = (
+                w.hole_brute_normal(a, rh),
+                probe::hole_iv_conv(s, a, ThicknessConvention::Normal),
+            );
+            let (b, g) = (want.expect("scan"), got.expect("closed"));
+            let dd = (b[0] - g[0]).abs().max((b[1] - g[1]).abs());
+            worst = worst.max(dd);
+            assert!(dd < 5e-4, "{s:?} a {a}: {g:?} vs {b:?}");
+        }
+        for a in [a0 - 0.02, a0 + span + 0.02] {
+            assert!(
+                probe::hole_iv_conv(s, a, ThicknessConvention::Normal).is_none(),
+                "{s:?}: interval outside the span"
+            );
+            assert!(
+                w.hole_brute_normal(a, rh).is_none(),
+                "{s:?}: scan finds a hole outside the span"
+            );
+        }
+    }
+    println!("max |closed form - normal scan| over hole intervals: {worst:e} mm");
+}
+
+#[test]
+fn normal_default_weld_line_sits_on_the_neutral_surface_along_the_normal() {
+    // the weld curve lies on the OUTER surface; its image on the neutral surface is the outer point minus (T/2) n
+    for s in normal_specs().iter().take(4) {
+        let w = World::of(s);
+        let m = 24usize;
+        let got = probe::weld(s, ThicknessConvention::Normal, m);
+        assert_eq!(got.len(), m);
+        for (i, q) in got.iter().enumerate() {
+            let th = 2.0 * PI * i as f64 / m as f64;
+            let (xw, lw) = (w.x0 + w.ro * th.cos(), w.e + w.ro * th.sin());
+            let t = w.contact(xw, lw, 0.0).expect("contact");
+            let p = [xw, t * w.u[0] + lw * w.v[0], t * w.u[1] + lw * w.v[1]];
+            let c = w.c(xw);
+            let a = (p[2] - c[1]).atan2(p[1] - c[0]);
+            let n = w.outer_normal(xw, a);
+            let x_mid = xw - (w.t / 2.0) * n[0];
+            let da = (q[1] - a + PI).rem_euclid(2.0 * PI) - PI;
+            assert!(
+                (q[0] - x_mid).abs() < 1e-5 && da.abs() < 1e-9,
+                "{s:?} i {i}: engine {q:?} vs x {x_mid} a {a}"
+            );
+        }
+    }
+}
+
+#[test]
+fn normal_is_the_default_and_concentric_normal_is_radial_with_t_over_cos_gamma() {
+    // first principles: a concentric plate T thick along the normal is T / cos(gamma) = T sqrt(1 + k^2) thick between
+    // section circles, so the branch cut, the developed fan and the cone pieces equal those of the radial rule with
+    // that thickness (the hole band and the weld image do NOT: they follow the normal, see their own tests)
+    for s in normal_specs()
+        .iter()
+        .filter(|s| !s.ecc)
+        .chain(std::iter::once(&examples()[0]))
+    {
+        let a = run_n(s);
+        assert_eq!(a.thickness_convention, ThicknessConvention::Normal);
+        let k = ((s.db - s.da) / 2.0 / s.l).abs();
+        let mut s_r = s.clone();
+        s_r.t = s.t * (1.0 + k * k).sqrt();
+        let b = run(&s_r);
+        assert_eq!(b.thickness_convention, ThicknessConvention::Radial);
+        for (p, q) in a.branch.marks.iter().zip(&b.branch.marks) {
+            assert!(
+                (p.len - q.len).abs() < 1e-7,
+                "mark {}: {} vs {}",
+                p.i,
+                p.len,
+                q.len
+            );
+        }
+        assert!((a.fan_total_angle - b.fan_total_angle).abs() < 1e-12);
+        assert!((a.cone_area - b.cone_area).abs() < 1e-6 * b.cone_area);
+        assert!((a.branch.net_area - b.branch.net_area).abs() < 1e-6 * b.branch.net_area);
+        assert!(a.cone_mass_kg > 0.0);
+    }
+}
+
+#[test]
+fn thickness_delta_states_the_change_between_the_two_rules() {
+    let mut any_hole_change = false;
+    for s in &normal_specs() {
+        let n = run_n(s);
+        let r = run(s);
+        let (dn, dr) = (
+            n.thickness_delta.as_ref().expect("delta (normal run)"),
+            r.thickness_delta.as_ref().expect("delta (radial run)"),
+        );
+        assert_eq!(n.thickness_convention, ThicknessConvention::Normal);
+        assert_eq!(dn.other, ThicknessConvention::Radial);
+        assert_eq!(dr.other, ThicknessConvention::Normal);
+        assert_eq!(dn.cut_shift_marks.len(), 17);
+        // the delta is exactly the difference of the two runs' own numbers
+        for (i, d) in dn.cut_shift_marks.iter().enumerate() {
+            let diff = n.branch.marks[i].len - r.branch.marks[i].len;
+            assert!((d - diff).abs() < 1e-7, "{s:?} mark {i}: {d} vs {diff}");
+            assert!((d + dr.cut_shift_marks[i]).abs() < 1e-7);
+        }
+        // the hole delta is taken at ONE azimuth (the middle of the normal run's hole), through the probes
+        let am = (n.hole.az_start_deg + n.hole.az_span_deg / 2.0).to_radians();
+        let len = |c| {
+            let v = probe::hole_iv_conv(s, am, c).unwrap();
+            v[1] - v[0]
+        };
+        let hn = len(ThicknessConvention::Normal) - len(ThicknessConvention::Radial);
+        assert!((dn.hole_len_delta.unwrap() - hn).abs() < 1e-6, "{s:?}");
+        assert!((dn.hole_len_this - n.hole.len_normal_cut).abs() < 1e-6);
+        let mid = |c| {
+            let v = probe::hole_iv_conv(s, am, c).unwrap();
+            0.5 * (v[1] + v[0])
+        };
+        let ms = mid(ThicknessConvention::Normal) - mid(ThicknessConvention::Radial);
+        assert!((dn.hole_mid_shift.unwrap() - ms).abs() < 1e-6, "{s:?}");
+        any_hole_change |= hn.abs() > 1e-3 || ms.abs() > 1e-3;
+        // set-on touches the outer surface only: no cut shift at all
+        if s.mount == Mount::SetOn {
+            assert!(dn.cut_shift_max == 0.0 && dn.cut_shift_marks.iter().all(|d| *d == 0.0));
+        } else {
+            assert!(
+                dn.cut_shift_max > 0.1,
+                "{s:?}: set-in shift {}",
+                dn.cut_shift_max
+            );
+        }
+        // concentric: the neutral surface is exact, eccentric: stated deviation (below 1 percent of T)
+        if s.ecc {
+            assert!(dn.mid_surface_dev > 0.0 && dn.mid_surface_dev < 0.01 * s.t);
+        } else {
+            assert!(dn.mid_surface_dev < 1e-12);
+        }
+        println!(
+            "{} {:?}: half angle {:.2} deg: set-in cut shift max {:.4} mm (mark 4: {:.4}), hole length {:.4} (radial) -> {:.4} (normal) ({:+.4}), hole centre shift {:+.4}, neutral surface deviation {:.5}",
+            if s.ecc { "ecc" } else { "conc" },
+            s.mount,
+            (((s.db - s.da) / 2.0 / s.l).abs()).atan().to_degrees(),
+            dn.cut_shift_max,
+            dn.cut_shift_marks[4],
+            dn.hole_len_other.unwrap(),
+            dn.hole_len_this,
+            dn.hole_len_delta.unwrap(),
+            dn.hole_mid_shift.unwrap(),
+            dn.mid_surface_dev
+        );
+    }
+    assert!(
+        any_hole_change,
+        "the hole length never changes with the rule"
+    );
+}
+
+#[test]
+fn normal_hole_is_consistent_and_inner_only_is_shorter() {
+    for s in &normal_specs() {
+        let r = run_n(s);
+        let inner = r.hole.len_inner_only.expect("inner only");
+        assert!(inner > 0.0 && inner < r.hole.len_normal_cut, "{s:?}");
+    }
+}
+
+#[test]
+fn negative_seam_gap_is_refused_and_zero_is_allowed() {
+    for conv in [ThicknessConvention::Normal, ThicknessConvention::Radial] {
+        let mut s = examples()[0].clone();
+        s.seam_gap = Some(-1.0);
+        assert_eq!(
+            conebranch::cone_branch_with(&s, conv).unwrap_err().code,
+            "conebranch_seam_gap_negative"
+        );
+        s.seam_gap = Some(-1e-9);
+        assert_eq!(code(&s), "conebranch_seam_gap_negative");
+        s.seam_gap = Some(0.0);
+        assert!(conebranch::cone_branch_with(&s, conv).is_ok());
+    }
+}
+
+#[test]
+fn flat_side_on_a_concentric_cone_is_refused_never_ignored() {
+    for conv in [ThicknessConvention::Normal, ThicknessConvention::Radial] {
+        for f in [0.0, 30.0, f64::NAN] {
+            let mut s = examples()[0].clone();
+            s.flat_deg = Some(f);
+            assert_eq!(
+                conebranch::cone_branch_with(&s, conv).unwrap_err().code,
+                "conebranch_flat_not_applicable",
+                "flat {f}"
+            );
+        }
+    }
+    // an eccentric cone still takes it (and still asks when it is missing)
+    let mut e = examples()[2].clone();
+    e.flat_deg = Some(30.0);
+    assert!(conebranch::cone_branch(&e).is_ok());
+    for c in [
+        "conebranch_seam_gap_negative",
+        "conebranch_flat_not_applicable",
+    ] {
+        assert!(CONEBRANCH_REFUSAL_CODES.contains(&c));
+    }
+}
+
+#[test]
+fn normal_rule_is_named_and_the_radial_one_stays_available() {
+    for want in ["CONEBRANCH_THICKNESS_NORMAL", "CONEBRANCH_THICKNESS_RADIAL"] {
+        assert!(
+            CONEBRANCH_NAMED_RULES
+                .iter()
+                .any(|r| r.0 == want && r.3 == "UNVERIFIED"),
+            "{want}"
+        );
+    }
+}
+
+#[test]
+fn small_mouth_written_first_is_the_same_part_under_the_normal_rule() {
+    let big = run_n(&examples()[3]);
+    let small = run_n(&sp(
+        true,
+        914.4,
+        1219.2,
+        1200.0,
+        0.0,
+        406.4,
+        600.0,
+        270.0,
+        -152.4,
+        900.0,
+        2,
+        Mount::SetOn,
+    ));
+    for (p, q) in big.branch.marks.iter().zip(&small.branch.marks) {
+        assert!((p.len - q.len).abs() < 1e-6);
+    }
+    assert!((small.hole.x_min - (1200.0 - big.hole.x_max)).abs() < 1e-6);
+    assert!((small.hole.x_max - (1200.0 - big.hole.x_min)).abs() < 1e-6);
 }

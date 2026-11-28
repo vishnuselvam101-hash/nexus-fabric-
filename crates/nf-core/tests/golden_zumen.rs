@@ -2840,7 +2840,18 @@ fn real_engine_status_pads_and_review() {
 // 0371), which belong to the order front half (wiring lane). The 17 derived cases are computed, never counted.
 // ======================================================================================================
 
-use nf_core::conebranch::{self, ConeBranchResult, ConeBranchSpec};
+use nf_core::conebranch::{self, ConeBranchResult, ConeBranchSpec, ThicknessConvention};
+use std::cell::Cell;
+
+thread_local! {
+    /// Plate thickness rule the s15 runner computes with. The golden table is ZK's: ZK reads the thickness radially, so
+    /// the runner selects the RADIAL rule (ZK parity). The report test flips it to the NORMAL default to state how
+    /// far the default differs (not counted as NG).
+    static CB_CONV: Cell<ThicknessConvention> = const { Cell::new(ThicknessConvention::Radial) };
+}
+fn cb_conv() -> ThicknessConvention {
+    CB_CONV.with(Cell::get)
+}
 
 #[allow(clippy::too_many_arguments)]
 fn cb(
@@ -2863,7 +2874,7 @@ fn cb(
         l,
         t: 12.0,
         ecc,
-        flat_deg: Some(flat),
+        flat_deg: if ecc { Some(flat) } else { None },
         d,
         tb: 9.0,
         x: Some(x),
@@ -2945,17 +2956,19 @@ fn cb_run(s: &ConeBranchSpec) -> Option<ConeBranchResult> {
     use std::sync::{Mutex, OnceLock};
     static MEMO: OnceLock<Mutex<HashMap<String, Option<ConeBranchResult>>>> = OnceLock::new();
     let memo = MEMO.get_or_init(|| Mutex::new(HashMap::new()));
-    let key = format!("{s:?}");
+    let key = format!("{:?}{s:?}", cb_conv());
     if let Some(v) = memo.lock().unwrap().get(&key) {
         return v.clone();
     }
-    let v = conebranch::cone_branch(s).ok();
+    let v = conebranch::cone_branch_with(s, cb_conv()).ok();
     memo.lock().unwrap().insert(key, v.clone());
     v
 }
 
 fn cb_code(s: &ConeBranchSpec) -> Option<&'static str> {
-    conebranch::cone_branch(s).err().map(|e| e.code)
+    conebranch::cone_branch_with(s, cb_conv())
+        .err()
+        .map(|e| e.code)
 }
 
 /// Reading of K_cone_branch / K_ecc_branch into a spec (cone part + branch part), the way ZK `build` takes the values.
@@ -2978,7 +2991,7 @@ fn cb_read(file: &str, edit: impl Fn(&mut Value)) -> Option<ConeBranchSpec> {
         l: g(c, "L")?,
         t: g(c, "t")?,
         ecc,
-        flat_deg: g(c, "flat_side"),
+        flat_deg: if ecc { g(c, "flat_side") } else { None },
         d: g(b, "D").or(g(c, "branch_D"))?,
         tb: g(b, "t").or(g(c, "branch_t"))?,
         x: g(b, "branch_x").or(g(c, "branch_x")),
@@ -3364,6 +3377,11 @@ fn eval_s15(n: usize) -> Option<Got> {
 
 #[test]
 fn real_engine_status_conebranch() {
+    println!(
+        "s15 runner thickness rule: {} (ZK parity: ZK reads the cone plate thickness radially)",
+        cb_conv().name()
+    );
+    assert_eq!(cb_conv(), ThicknessConvention::Radial);
     let (cases, _) = load_cases();
     let part: Vec<Case> = cases
         .iter()
@@ -3397,4 +3415,54 @@ fn real_engine_status_conebranch() {
     }
     println!("s15 derived: {dok} computed and within tolerance (not counted), 3 PENDING");
     assert_eq!(dok, 14);
+}
+
+/// Report only (never counted as NG): the same s15 cases under the NORMAL default, against ZK's numbers. A difference here
+/// is the stated effect of the thickness rule, not an engine error.
+#[test]
+fn s15_normal_default_versus_zk_radial_report() {
+    let (cases, _) = load_cases();
+    let part: Vec<Case> = cases
+        .iter()
+        .filter(|c| c.section == "s15" && c.derived.is_empty())
+        .cloned()
+        .collect();
+    let run_all = |conv: ThicknessConvention| -> Vec<Option<Got>> {
+        CB_CONV.with(|c| c.set(conv));
+        let v = part.iter().map(|c| RustShapes.eval(&key_of(c))).collect();
+        CB_CONV.with(|c| c.set(ThicknessConvention::Radial));
+        v
+    };
+    let rad = run_all(ThicknessConvention::Radial);
+    let nor = run_all(ThicknessConvention::Normal);
+    let (mut differ, mut over_tol, mut compared) = (0usize, 0usize, 0usize);
+    let (mut max_abs, mut max_id) = (0.0f64, String::new());
+    let (mut max_rel, mut rel_id) = (0.0f64, String::new());
+    for ((c, r), n) in part.iter().zip(&rad).zip(&nor) {
+        if let (Some(Got::Num(a)), Some(Got::Num(b))) = (r, n) {
+            compared += 1;
+            let d = (a - b).abs();
+            if d > 1e-9 {
+                differ += 1;
+            }
+            if d > max_abs {
+                max_abs = d;
+                max_id = format!("{} {}", c.id, c.name);
+            }
+            let rel = d / a.abs().max(1e-9);
+            if rel > max_rel {
+                max_rel = rel;
+                rel_id = format!("{} {}", c.id, c.name);
+            }
+            if matches!(judge(c, n.clone()), Verdict::Ng)
+                && matches!(judge(c, r.clone()), Verdict::Ok)
+            {
+                over_tol += 1;
+            }
+        }
+    }
+    println!(
+        "s15 NORMAL default vs RADIAL (ZK parity): {differ} of {compared} numeric cases differ (> 1e-9), {over_tol} of them leave ZK's tolerance (not counted as NG); largest absolute change {max_abs:.4} in the case's own unit (case {max_id}); largest relative change {max_rel:.4} (case {rel_id})"
+    );
+    assert_eq!(cb_conv(), ThicknessConvention::Radial);
 }

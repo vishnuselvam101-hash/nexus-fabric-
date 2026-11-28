@@ -14,10 +14,16 @@
 //! `x0`. A wall line of the branch (radius `rho`, angle `th`, `th = 0` towards `+x`) stays in the plane `x = x0 +
 //! rho cos(th)` and meets the section circle there: the contact is closed form.
 //!
-//! The cone plate thickness is taken radially (a section circle of radius `Ro - d`), NOT along the surface normal: rule
-//! `CONEBRANCH_THICKNESS_RADIAL`, UNVERIFIED (ZK spec 6). The normal thickness of a plate that is `T` radially is
-//! `T cos(half angle)`; the effect is quantified in tests/conebranch_closed_forms.rs and is below 0.5 mm for the
-//! reference examples, 1.6 mm at 30 deg half angle.
+//! Plate thickness convention (`ThicknessConvention`). DEFAULT = `Normal` (rule `CONEBRANCH_THICKNESS_NORMAL`, UNVERIFIED):
+//! the given `T` is measured along the cone surface normal, which is what a plate of `T` is. The outer surface is the
+//! drawing surface, the inner surface its offset by `T` along the inward normal, the neutral (developed) surface the
+//! offset by `T/2`. For a concentric cone this is the radial convention with `T / cos(half angle)`; for an eccentric one
+//! the normal direction depends on the azimuth (`n = (-kap, cos a, sin a) / sqrt(1 + kap^2)`, `kap = k + cs cos a`) and
+//! the hole band and the set-in cut follow it point by point (the set-in cut by root finding on the offset surface).
+//! The eccentric neutral surface is not exactly a cone: the fan is the cone at the mean normal-mid depth, the deviation
+//! is returned as `mid_surface_dev`. `Radial` (rule `CONEBRANCH_THICKNESS_RADIAL`, ZK parity, UNVERIFIED) takes `T` as a
+//! section-circle depth `Ro - d` (hole band normal, set-in cut radial: ZK's own mixture); the golden runner selects it.
+//! `ConeBranchResult::thickness_delta` states what the other convention would change.
 //!
 //! Numerics: the eccentric development angle `psi(a)` is the arc length of the unit generator direction on the unit
 //! sphere, integrated by adaptive Simpson into a table (error estimate returned, a result above `FAN_REL_TOL` is
@@ -27,6 +33,28 @@
 use crate::shapes::{Basis, ConeSpec, ShapeRefusal, adaptive_simpson, cone_split, mass_kg, refuse};
 use crate::tee::{Mount, mod_p, shoelace};
 use std::f64::consts::PI;
+
+/// How the cone plate thickness `T` is read (see the module note). `Normal` is the default of `cone_branch`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThicknessConvention {
+    Normal,
+    Radial,
+}
+
+impl ThicknessConvention {
+    pub fn name(self) -> &'static str {
+        match self {
+            ThicknessConvention::Normal => "normal",
+            ThicknessConvention::Radial => "radial",
+        }
+    }
+    pub fn other(self) -> ThicknessConvention {
+        match self {
+            ThicknessConvention::Normal => ThicknessConvention::Radial,
+            ThicknessConvention::Radial => ThicknessConvention::Normal,
+        }
+    }
+}
 
 pub const CONEBRANCH_METHOD: &str = "closed_form_contact_curves+analytic_interval_hole+sphere_arclength_fan_table+adaptive_simpson_areas+searched_seams; sampled polylines; certified:false";
 /// Polyline sizes (ZK parity) and marking points round the branch.
@@ -54,22 +82,28 @@ const MAX_MM: f64 = crate::shapes::MAX_MM;
 const MIN_MM: f64 = crate::shapes::MIN_MM;
 
 /// (name, value, kind, status)
-pub const CONEBRANCH_NAMED_RULES: [(&str, &str, &str, &str); 11] = [
+pub const CONEBRANCH_NAMED_RULES: [(&str, &str, &str, &str); 12] = [
+    (
+        "CONEBRANCH_THICKNESS_NORMAL",
+        "DEFAULT: the cone plate thickness T is measured along the surface normal (outer surface = drawing surface, inner = offset by T inward, neutral surface = offset by T/2); for an eccentric cone the normal depends on the azimuth; the hole band and the set-in cut both use it; the result states the change against the radial rule",
+        "rule (basis)",
+        "UNVERIFIED",
+    ),
     (
         "CONEBRANCH_THICKNESS_RADIAL",
-        "the cone plate thickness is taken radially (section circle Ro - d), not along the surface normal; the developed surface is the radial mid surface Ra - T/2; the branch contact surface is the outer (set-on) or radial-T inner (set-in) circle",
+        "ALTERNATIVE (ZK parity, selected by the golden runner only): the cone plate thickness is taken radially (section circle Ro - d), not along the surface normal; the developed surface is the radial mid surface Ra - T/2; the branch contact surface is the outer (set-on) or radial-T inner (set-in) circle; the hole band is cut along the normal about that mid surface",
         "rule (basis)",
         "UNVERIFIED",
     ),
     (
         "CONEBRANCH_HOLE_NORMAL_CUT",
-        "the hole in the cone is cut square to the plate (along the surface normal) so that the branch bore (set-on: inner radius, set-in: outer radius) touches the plate nowhere across its thickness; it reaches (T/2) sin(half angle) further than a hole cut at the inner surface only",
+        "the hole in the cone is cut square to the plate (along the surface normal) so that the branch bore (set-on: inner radius, set-in: outer radius) touches the plate nowhere across its thickness; it reaches about (T/2) sin(half angle) further than a hole cut at the inner surface only",
         "rule (hole construction)",
         "UNVERIFIED",
     ),
     (
         "CONEBRANCH_BRANCH_CUT_SURFACE",
-        "branch cut at the highest point where the branch wall meets the cone outer (set-on) or radial-T inner (set-in) surface",
+        "branch cut at the highest point where the branch wall meets the cone outer surface (set-on) or the inner surface (set-in: offset by T along the normal, or the radial-T circle under the radial rule)",
         "rule (cut construction)",
         "UNVERIFIED",
     ),
@@ -123,7 +157,7 @@ pub const CONEBRANCH_NAMED_RULES: [(&str, &str, &str, &str); 11] = [
     ),
 ];
 
-pub const CONEBRANCH_REFUSAL_CODES: [&str; 16] = [
+pub const CONEBRANCH_REFUSAL_CODES: [&str; 18] = [
     "conebranch_value_not_finite",
     "conebranch_value_not_positive",
     "conebranch_value_too_large",
@@ -140,6 +174,8 @@ pub const CONEBRANCH_REFUSAL_CODES: [&str; 16] = [
     "conebranch_area_not_converged",
     "conebranch_seam_not_placeable",
     "conebranch_result_not_finite",
+    "conebranch_seam_gap_negative",
+    "conebranch_flat_not_applicable",
 ];
 
 // ---------------------------------------------------------------- spec and result
@@ -155,8 +191,8 @@ pub struct ConeBranchSpec {
     /// Eccentric cone (two parallel circles with a common tangent line, the flat side).
     pub ecc: bool,
     /// Azimuth (deg, seen from the `da` mouth, 0 top, 90 right) of the flat side. `None` for an eccentric cone:
-    /// taken as 0 with a question and the hold `conebranch_flat_side_unconfirmed`. Ignored (not dropped: must be `None`
-    /// or any finite value) for a concentric cone.
+    /// taken as 0 with a question and the hold `conebranch_flat_side_unconfirmed`. A concentric cone has no flat side:
+    /// any `Some` is refused (`conebranch_flat_not_applicable`), never silently ignored.
     pub flat_deg: Option<f64>,
     /// Branch outer diameter and wall.
     pub d: f64,
@@ -173,7 +209,7 @@ pub struct ConeBranchSpec {
     pub mount: Mount,
     /// Pieces the cone is cut into (2..=12); `None`: 2.
     pub split: Option<u32>,
-    /// Clear distance seam to hole (mm); `None`: `CB_SEAM_GAP_T` x t.
+    /// Clear distance seam to hole (mm, not negative: `conebranch_seam_gap_negative`); `None`: `CB_SEAM_GAP_T` x t.
     pub seam_gap: Option<f64>,
 }
 
@@ -278,6 +314,25 @@ pub struct CbSeamInfo {
     pub seam_weld: f64,
 }
 
+/// What the OTHER thickness convention would change (this - other), so the user sees the magnitude.
+/// `None` in the result when the other convention cannot be built for the same input.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CbThicknessDelta {
+    pub other: ThicknessConvention,
+    /// Change of the branch cut length at the 17 marks (mm, this - other); exactly 0 for set-on (outer surface only).
+    pub cut_shift_marks: Vec<f64>,
+    /// Largest |change| of the cut length over 145 sampled angles (mm; sampled, not a bound).
+    pub cut_shift_max: f64,
+    /// Axial length of the hole at the middle azimuth in both conventions and their difference (mm).
+    pub hole_len_this: f64,
+    pub hole_len_other: Option<f64>,
+    pub hole_len_delta: Option<f64>,
+    /// Shift of the hole centre along the cone axis at that azimuth (mm, this - other).
+    pub hole_mid_shift: Option<f64>,
+    /// Largest distance (mm) between the true neutral-surface depth and the cone the fan develops (0 concentric).
+    pub mid_surface_dev: f64,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ConeBranchResult {
     pub branch: CbBranchPiece,
@@ -294,6 +349,9 @@ pub struct ConeBranchResult {
     pub cone_area_err: f64,
     /// Whole cone mass with the hole subtracted.
     pub cone_mass_kg: f64,
+    /// Convention the numbers above were computed with, and what the other one would change.
+    pub thickness_convention: ThicknessConvention,
+    pub thickness_delta: Option<CbThicknessDelta>,
     pub holds: Vec<CbHold>,
     pub questions: Vec<&'static str>,
     pub certified: bool,
@@ -386,9 +444,17 @@ struct Model {
     rh: f64,
     dc: f64,
     tb: f64,
+    conv: ThicknessConvention,
+    inn: bool,
+    /// Radial depth of the developed (neutral) cone below the outer cone, doubled: `t` (radial) or the mean normal-mid
+    /// depth (normal). Fan, fit check, seeds and the concentric cone pieces use it.
+    tdev: f64,
 }
 
-fn setup(s: &ConeBranchSpec) -> Result<(Model, Vec<&'static str>), ShapeRefusal> {
+fn setup(
+    s: &ConeBranchSpec,
+    conv: ThicknessConvention,
+) -> Result<(Model, Vec<&'static str>), ShapeRefusal> {
     let da = dim("da", s.da)?;
     let db = dim("db", s.db)?;
     let l = dim("l", s.l)?;
@@ -407,6 +473,13 @@ fn setup(s: &ConeBranchSpec) -> Result<(Model, Vec<&'static str>), ShapeRefusal>
         }
     };
     let flat = match (s.ecc, s.flat_deg) {
+        (false, Some(_)) => {
+            return Err(refuse(
+                "conebranch_flat_not_applicable",
+                "flat_deg",
+                "a concentric cone has no flat side: flat_deg must not be given (it is refused, not ignored)",
+            ));
+        }
         (_, Some(f)) => ang("flat_deg", f)?,
         (true, None) => {
             questions.push(CB_FLAT_QUESTION);
@@ -428,6 +501,15 @@ fn setup(s: &ConeBranchSpec) -> Result<(Model, Vec<&'static str>), ShapeRefusal>
     }
     if let Some(g) = s.seam_gap {
         num("seam_gap", g)?;
+        if g < 0.0 {
+            return Err(refuse(
+                "conebranch_seam_gap_negative",
+                "seam_gap",
+                format!(
+                    "seam_gap must not be negative (got {g}); a negative gap would let a seam run through the hole"
+                ),
+            ));
+        }
     }
     let (ra0, rb0) = (da / 2.0, db / 2.0);
     if (rb0 - ra0).abs() / l <= 1e-9 {
@@ -468,7 +550,7 @@ fn setup(s: &ConeBranchSpec) -> Result<(Model, Vec<&'static str>), ShapeRefusal>
     }
     let (ra, rb) = if flip { (rb0, ra0) } else { (ra0, rb0) };
     let inn = s.mount == Mount::SetIn;
-    let m = Model {
+    let mut m = Model {
         ra,
         rb,
         l,
@@ -488,11 +570,57 @@ fn setup(s: &ConeBranchSpec) -> Result<(Model, Vec<&'static str>), ShapeRefusal>
         rh: if inn { ro } else { ro - tb },
         dc: if inn { t } else { 0.0 },
         tb,
+        conv,
+        inn,
+        tdev: t,
     };
+    if conv == ThicknessConvention::Normal {
+        m.tdev = 2.0 * m.rho_mean();
+        m.dc = if inn { m.tdev } else { 0.0 };
+        if m.tdev >= ra0.min(rb0) {
+            return Err(refuse(
+                "conebranch_wall_too_thick",
+                "t",
+                "the cone plate (radial equivalent of the normal thickness) is as thick as the radius of one mouth",
+            ));
+        }
+    }
     Ok((m, questions))
 }
 
 impl Model {
+    /// `kap = k + cs cos a` (the axial slope of the outer surface along the generator at azimuth `a`) and `sqrt(1 + kap^2)`.
+    fn kap_nn(&self, a: f64) -> (f64, f64) {
+        let kap = self.k + self.cs * a.cos();
+        (kap, (1.0 + kap * kap).sqrt())
+    }
+    /// Radial depth (at fixed axial position) of the neutral surface below the outer cone at azimuth `a`.
+    fn rho_at(&self, a: f64) -> f64 {
+        match self.conv {
+            ThicknessConvention::Radial => self.t / 2.0,
+            ThicknessConvention::Normal => {
+                let (kap, nn) = self.kap_nn(a);
+                self.t / (2.0 * nn) * (1.0 + self.k * kap)
+            }
+        }
+    }
+    fn rho_mean(&self) -> f64 {
+        const N: usize = 720;
+        (0..N)
+            .map(|i| self.rho_at(2.0 * PI * i as f64 / N as f64))
+            .sum::<f64>()
+            / N as f64
+    }
+    /// Axial shift of the neutral-surface point below the outer surface point at azimuth `a` (normal convention only).
+    fn x_shift(&self, a: f64) -> f64 {
+        match self.conv {
+            ThicknessConvention::Radial => 0.0,
+            ThicknessConvention::Normal => {
+                let (kap, nn) = self.kap_nn(a);
+                self.t / 2.0 * kap / nn
+            }
+        }
+    }
     fn az(&self, a: f64) -> f64 {
         if self.flip { self.f - a } else { self.f + a }
     }
@@ -584,7 +712,7 @@ impl Model {
         let kap = self.k + self.cs * a.cos();
         let nn = (1.0 + kap * kap).sqrt();
         let p1 = -self.cs * self.dir.sin() + self.k * s_;
-        let v0 = (self.ra - self.t / 2.0) * s_;
+        let v0 = self.v0(a, s_, kap, nn);
         let (rh, t) = (self.rh, self.t);
         let mut los: Vec<f64> = vec![];
         let mut his: Vec<f64> = vec![];
@@ -624,6 +752,147 @@ impl Model {
         Some([lo, hi])
     }
 
+    /// Lateral coordinate (at `x = 0`) of the neutral-surface point at azimuth `a`. Radial: the radial mid cone. Normal:
+    /// the point `S(x_s, a) - (T/2) n` written in its own axial coordinate `x_m = x_s + (T/2) kap / nn`.
+    fn v0(&self, a: f64, s_: f64, kap: f64, nn: f64) -> f64 {
+        match self.conv {
+            ThicknessConvention::Radial => (self.ra - self.t / 2.0) * s_,
+            ThicknessConvention::Normal => {
+                (self.ra - self.rho_at(a)) * s_
+                    + self.cs * self.dir.sin() * (self.t / 2.0) * kap / nn
+            }
+        }
+    }
+
+    /// Interval of the inner surface only (`w = -T/2`) in the normal convention (kept for the record).
+    fn iv_inner_normal(&self, a: f64) -> Option<[f64; 2]> {
+        let s_ = (a - self.dir).sin();
+        let (kap, nn) = self.kap_nn(a);
+        let p1 = -self.cs * self.dir.sin() + self.k * s_;
+        let v0 = self.v0(a, s_, kap, nn);
+        let w = -self.t / 2.0;
+        let cx = self.x0 + w * kap / nn;
+        let q = v0 + w * s_ / nn - self.e;
+        let a2 = 1.0 + p1 * p1;
+        let a1 = 2.0 * (-cx + p1 * q);
+        let a0 = cx * cx + q * q - self.rh * self.rh;
+        let d = a1 * a1 - 4.0 * a2 * a0;
+        if d < 0.0 {
+            None
+        } else {
+            Some([(-a1 - d.sqrt()) / (2.0 * a2), (-a1 + d.sqrt()) / (2.0 * a2)])
+        }
+    }
+
+    /// Point `(lateral, along-branch)` where the INNER surface (outer surface offset by `T` along the inward normal) has
+    /// the axial coordinate `xw` at normal azimuth `a`. The axial coordinate of the offset point is
+    /// `x_s + T kap / nn`, so `x_s` is explicit.
+    fn inner_pt(&self, xw: f64, a: f64) -> [f64; 2] {
+        let (kap, nn) = self.kap_nn(a);
+        let xs = xw - self.t * kap / nn;
+        let rr = self.ra + self.k * xs - self.t / nn;
+        let y = self.cs * xs + rr * a.cos();
+        let z = rr * a.sin();
+        let (sd, cd) = self.dir.sin_cos();
+        [-y * sd + z * cd, y * cd + z * sd]
+    }
+
+    /// Highest along-branch coordinate at which the wall line `(xw, lw)` meets the inner surface (normal convention):
+    /// sign changes of the lateral coordinate round the azimuth, refined by the Illinois method.
+    fn inner_hit(&self, xw: f64, lw: f64) -> Option<f64> {
+        const N: usize = 36;
+        let f = |a: f64| self.inner_pt(xw, a)[0] - lw;
+        let mut best: Option<f64> = None;
+        let mut a_prev = 0.0;
+        let mut f_prev = f(a_prev);
+        for i in 1..=N {
+            let a_cur = 2.0 * PI * i as f64 / N as f64;
+            let f_cur = f(a_cur);
+            if f_prev * f_cur <= 0.0 && !(f_prev == 0.0 && f_cur == 0.0) {
+                let (mut lo, mut hi, mut flo, mut fhi) = (a_prev, a_cur, f_prev, f_cur);
+                let mut side = 0i8;
+                let mut a_r = lo;
+                for _ in 0..80 {
+                    a_r = if fhi == flo {
+                        0.5 * (lo + hi)
+                    } else {
+                        (lo * fhi - hi * flo) / (fhi - flo)
+                    };
+                    let fr = f(a_r);
+                    if fr == 0.0 || (hi - lo).abs() < 1e-15 {
+                        break;
+                    }
+                    if fr * fhi > 0.0 {
+                        hi = a_r;
+                        fhi = fr;
+                        if side == -1 {
+                            flo *= 0.5;
+                        }
+                        side = -1;
+                    } else {
+                        lo = a_r;
+                        flo = fr;
+                        if side == 1 {
+                            fhi *= 0.5;
+                        }
+                        side = 1;
+                    }
+                    if fr.abs() < 1e-13 {
+                        break;
+                    }
+                }
+                let t = self.inner_pt(xw, a_r)[1];
+                best = Some(best.map_or(t, |b: f64| b.max(t)));
+            }
+            a_prev = a_cur;
+            f_prev = f_cur;
+        }
+        best
+    }
+
+    /// Highest contact of the branch wall (`ri..=ro`) at angle `th` with the inner surface (normal convention): the
+    /// wall radius is searched (coarse samples, then golden section round the best one).
+    fn cut_inner_normal(&self, th: f64) -> Option<f64> {
+        const S: usize = 8;
+        let (c, s_) = (th.cos(), th.sin());
+        let g = |rho: f64| self.inner_hit(self.x0 + rho * c, self.e + rho * s_);
+        let rho_of = |i: usize| self.ri + (self.ro - self.ri) * i as f64 / S as f64;
+        let vals: Vec<Option<f64>> = (0..=S).map(|i| g(rho_of(i))).collect();
+        let (mut bi, mut bv) = (usize::MAX, f64::NEG_INFINITY);
+        for (i, v) in vals.iter().enumerate() {
+            if let Some(v) = v
+                && *v > bv
+            {
+                bv = *v;
+                bi = i;
+            }
+        }
+        if bi == usize::MAX {
+            return None;
+        }
+        let (mut a, mut b) = (rho_of(bi.saturating_sub(1)), rho_of((bi + 1).min(S)));
+        let key = |rho: f64| g(rho).unwrap_or(f64::NEG_INFINITY);
+        for _ in 0..40 {
+            let (c1, c2) = (a + 0.381_966 * (b - a), a + 0.618_034 * (b - a));
+            if key(c1) >= key(c2) {
+                b = c2;
+            } else {
+                a = c1;
+            }
+        }
+        let v = key((a + b) / 2.0);
+        Some(bv.max(v))
+    }
+
+    /// Highest contact of the branch wall with the surface the branch meets (outer for set-on, inner for set-in).
+    fn cutc(&self, th: f64) -> Option<f64> {
+        if self.inn && self.conv == ThicknessConvention::Normal {
+            self.cut_inner_normal(th)
+        } else {
+            self.cut(th, self.dc)
+        }
+    }
+
     /// Same, cut at the inner (radial T) surface only (the tee rule; kept for the record).
     fn iv_inner(&self, a: f64) -> Option<[f64; 2]> {
         let sa = (a - self.dir).sin();
@@ -649,11 +918,9 @@ impl Model {
             };
             let x = self.x0 + self.ro * th.cos();
             let l = self.e + self.ro * th.sin();
-            out.push([
-                x,
-                (t * self.dir.sin() + l * self.dir.cos())
-                    .atan2(t * self.dir.cos() - l * self.dir.sin() - self.cs * x),
-            ]);
+            let az = (t * self.dir.sin() + l * self.dir.cos())
+                .atan2(t * self.dir.cos() - l * self.dir.sin() - self.cs * x);
+            out.push([x + self.x_shift(az), az]);
         }
         out
     }
@@ -698,7 +965,7 @@ fn edge(m: &Model, ac: f64, sg: f64, iv: &dyn Fn(&Model, f64) -> Option<[f64; 2]
 }
 
 fn hole_ring(m: &Model, n: usize) -> Result<HoleRing, HoleFail> {
-    let tc = m.hit(0.0, 0.0, m.t).ok_or(HoleFail::NotThrough)?;
+    let tc = m.hit(0.0, 0.0, m.tdev).ok_or(HoleFail::NotThrough)?;
     let y = tc * m.dir.cos() - m.e * m.dir.sin();
     let z = tc * m.dir.sin() + m.e * m.dir.cos();
     let ac = z.atan2(y - m.cs * m.x0);
@@ -797,7 +1064,7 @@ impl Fan {
 }
 
 fn fan(m: &Model) -> Result<Fan, ShapeRefusal> {
-    let r0 = m.ra - m.t / 2.0;
+    let r0 = m.ra - m.tdev / 2.0;
     let xa = -r0 / m.k;
     if !m.ecc {
         let sg = m.k.abs() / (1.0 + m.k * m.k).sqrt();
@@ -1004,10 +1271,9 @@ fn finite_all(v: &[f64]) -> bool {
 // ---------------------------------------------------------------- branch piece
 
 fn branch_piece(m: &Model) -> Result<CbBranchPiece, ShapeRefusal> {
-    let d = m.dc;
     let w = 2.0 * PI * m.rm;
     let len_at = |th: f64| -> Result<f64, ShapeRefusal> {
-        let q = m.cut(th, d).filter(|q| q.is_finite()).ok_or_else(|| {
+        let q = m.cutc(th).filter(|q| q.is_finite()).ok_or_else(|| {
             refuse(
                 "conebranch_cut_not_found",
                 "d",
@@ -1043,10 +1309,10 @@ fn branch_piece(m: &Model) -> Result<CbBranchPiece, ShapeRefusal> {
         ));
     }
     // exact extremes: golden-section on each sampled bracket of a local minimum / maximum
-    let (shortest, longest) = refine_extremes(m, d, &cut, w);
+    let (shortest, longest) = refine_extremes(m, &cut, w);
     let h = m.h;
     let (v, err) = adaptive_simpson(
-        &|th| m.cut(th, d).map_or(f64::NAN, |q| h - q),
+        &|th| m.cutc(th).map_or(f64::NAN, |q| h - q),
         PI / 2.0,
         PI / 2.0 + 2.0 * PI,
     );
@@ -1083,10 +1349,10 @@ fn branch_piece(m: &Model) -> Result<CbBranchPiece, ShapeRefusal> {
     })
 }
 
-fn refine_extremes(m: &Model, d: f64, cut: &[[f64; 2]], w: f64) -> (f64, f64) {
+fn refine_extremes(m: &Model, cut: &[[f64; 2]], w: f64) -> (f64, f64) {
     let f = |u: f64| -> f64 {
         let th = PI / 2.0 + 2.0 * PI * u / w;
-        m.cut(th, d).map_or(f64::NAN, |q| m.h - q)
+        m.cutc(th).map_or(f64::NAN, |q| m.h - q)
     };
     let n = cut.len() - 1;
     let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
@@ -1132,6 +1398,14 @@ fn refine_extremes(m: &Model, d: f64, cut: &[[f64; 2]], w: f64) -> (f64, f64) {
 /// Branch cut and cone pieces of a branch on a cone. The feasibility of the cone (fit, hole, mouth) is decided once:
 /// a cone that cannot be built refuses the whole result, the branch is never returned alone (DESIGN L2).
 pub fn cone_branch(s: &ConeBranchSpec) -> Result<ConeBranchResult, ShapeRefusal> {
+    cone_branch_with(s, ThicknessConvention::Normal)
+}
+
+/// The same with the plate thickness convention chosen by the caller (the golden runner selects `Radial` for ZK parity).
+pub fn cone_branch_with(
+    s: &ConeBranchSpec,
+    conv: ThicknessConvention,
+) -> Result<ConeBranchResult, ShapeRefusal> {
     let n = match s.split {
         None => CB_DEFAULT_SPLIT,
         Some(n) if (2..=CB_MAX_SPLIT).contains(&n) => n,
@@ -1143,7 +1417,7 @@ pub fn cone_branch(s: &ConeBranchSpec) -> Result<ConeBranchResult, ShapeRefusal>
             ));
         }
     };
-    let (m, questions) = setup(s)?;
+    let (m, questions) = setup(s, conv)?;
     // 1. the cone: fit, hole, mouth
     for i in 0..360 {
         let th = 2.0 * PI * f64::from(i) / 360.0;
@@ -1194,7 +1468,7 @@ pub fn cone_branch(s: &ConeBranchSpec) -> Result<ConeBranchResult, ShapeRefusal>
     let mut hm = vec![];
     for k in 0..16usize {
         let th = 2.0 * PI * k as f64 / 16.0;
-        let Some(tt) = m.hit(m.rh, th, m.t) else {
+        let Some(tt) = m.hit(m.rh, th, m.tdev) else {
             continue;
         };
         let x = m.x0 + m.rh * th.cos();
@@ -1238,7 +1512,11 @@ pub fn cone_branch(s: &ConeBranchSpec) -> Result<ConeBranchResult, ShapeRefusal>
     let (area_h, area_h_err) = adaptive_simpson(&integrand, 0.0, PI);
     let iv_inner_len = {
         let ac = hh.am;
-        m.iv_inner(ac).map(|v| v[1] - v[0])
+        match conv {
+            ThicknessConvention::Radial => m.iv_inner(ac),
+            ThicknessConvention::Normal => m.iv_inner_normal(ac),
+        }
+        .map(|v| v[1] - v[0])
     };
     let len_normal = m.iv(hh.am).map_or(0.0, |v| v[1] - v[0]);
     let perimeter = polyline_len(&hole) + {
@@ -1296,7 +1574,7 @@ pub fn cone_branch(s: &ConeBranchSpec) -> Result<ConeBranchResult, ShapeRefusal>
             d1: s.da.min(s.db),
             d2: s.da.max(s.db),
             l: m.l,
-            t: m.t,
+            t: m.tdev,
             basis: Basis::Mid,
             split: n,
         })?;
@@ -1430,6 +1708,7 @@ pub fn cone_branch(s: &ConeBranchSpec) -> Result<ConeBranchResult, ShapeRefusal>
             "a result value is not finite; refused",
         ));
     }
+    let thickness_delta = thickness_delta(s, &m, &branch, hh.am);
     let seam_info = CbSeamInfo {
         deg: sdeg,
         rule_deg: rdeg,
@@ -1452,11 +1731,56 @@ pub fn cone_branch(s: &ConeBranchSpec) -> Result<ConeBranchResult, ShapeRefusal>
         cone_area,
         cone_area_err,
         cone_mass_kg: cone_mass,
+        thickness_convention: conv,
+        thickness_delta,
         holds,
         questions,
         certified: false,
         method: CONEBRANCH_METHOD,
         rules: &CONEBRANCH_NAMED_RULES,
+    })
+}
+
+/// What the other convention changes: the branch cut length (set-in only) and the hole length at the middle azimuth.
+fn thickness_delta(
+    s: &ConeBranchSpec,
+    m: &Model,
+    branch: &CbBranchPiece,
+    am: f64,
+) -> Option<CbThicknessDelta> {
+    let other = m.conv.other();
+    let (o, _) = setup(s, other).ok()?;
+    let len_of = |q: &Model, th: f64| q.cutc(th).map(|v| q.h - v);
+    let th_at = |i: usize| PI / 2.0 + 2.0 * PI * i as f64 / CB_CUT_SAMPLES as f64;
+    let (mut marks, mut mx) = (vec![], 0.0f64);
+    if m.inn {
+        let stride = CB_CUT_SAMPLES / 144;
+        for i in (0..=CB_CUT_SAMPLES).step_by(stride) {
+            let this = branch.cut[i][1];
+            let d = this - len_of(&o, th_at(i))?;
+            mx = mx.max(d.abs());
+        }
+        for mk in &branch.marks {
+            marks.push(mk.len - len_of(&o, th_at(mk.i * (CB_CUT_SAMPLES / CB_MARKS)))?);
+        }
+    } else {
+        marks = vec![0.0; branch.marks.len()];
+    }
+    let len = |q: &Model| q.iv(am).map(|v| v[1] - v[0]);
+    let mid = |q: &Model| q.iv(am).map(|v| 0.5 * (v[1] + v[0]));
+    let this = len(m)?;
+    let oth = len(&o);
+    Some(CbThicknessDelta {
+        other,
+        cut_shift_marks: marks,
+        cut_shift_max: mx,
+        hole_len_this: this,
+        hole_len_other: oth,
+        hole_len_delta: oth.map(|v| this - v),
+        hole_mid_shift: mid(&o).and_then(|v| mid(m).map(|w| w - v)),
+        mid_surface_dev: (0..720)
+            .map(|i| (m.rho_at(2.0 * PI * f64::from(i) / 720.0) - m.tdev / 2.0).abs())
+            .fold(0.0, f64::max),
     })
 }
 
@@ -1467,13 +1791,23 @@ pub mod probe {
 
     /// Highest contact of the branch wall with the cone surface at angle `th` (ZK `cbCut`), by the closed form.
     pub fn cut_t(s: &ConeBranchSpec, th: f64) -> Option<f64> {
-        let (m, _) = setup(s).ok()?;
-        m.cut(th, m.dc)
+        cut_t_conv(s, th, ThicknessConvention::Radial)
+    }
+    pub fn cut_t_conv(s: &ConeBranchSpec, th: f64, conv: ThicknessConvention) -> Option<f64> {
+        let (m, _) = setup(s, conv).ok()?;
+        m.cutc(th)
     }
     /// Hole interval `[lo, hi]` of the development surface at the internal azimuth `a`.
     pub fn hole_iv(s: &ConeBranchSpec, a: f64) -> Option<[f64; 2]> {
-        let (m, _) = setup(s).ok()?;
+        hole_iv_conv(s, a, ThicknessConvention::Radial)
+    }
+    pub fn hole_iv_conv(s: &ConeBranchSpec, a: f64, conv: ThicknessConvention) -> Option<[f64; 2]> {
+        let (m, _) = setup(s, conv).ok()?;
         m.iv(a)
+    }
+    /// Weld line points `[x_dev, azimuth]` (internal frame) at `m` equal steps round the branch (`th = 2 pi i / m`).
+    pub fn weld(s: &ConeBranchSpec, conv: ThicknessConvention, m: usize) -> Vec<[f64; 2]> {
+        setup(s, conv).map_or(vec![], |(mm, _)| mm.weld(m))
     }
     /// The development of the cone (built once; the eccentric one holds a table).
     pub struct FanProbe(Fan);
@@ -1492,12 +1826,12 @@ pub mod probe {
         }
     }
     pub fn fan_of(s: &ConeBranchSpec) -> Option<FanProbe> {
-        let (m, _) = setup(s).ok()?;
+        let (m, _) = setup(s, ThicknessConvention::Radial).ok()?;
         Some(FanProbe(fan(&m).ok()?))
     }
     /// The internal model: (ra, rb, k, cs, flip, x0, dir, e, h, rh, dc, f).
     pub fn model(s: &ConeBranchSpec) -> Option<[f64; 12]> {
-        let (m, _) = setup(s).ok()?;
+        let (m, _) = setup(s, ThicknessConvention::Radial).ok()?;
         Some([
             m.ra,
             m.rb,
