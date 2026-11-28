@@ -76,6 +76,10 @@ pub struct RasterLimits {
     pub max_total_image_bytes: u64,
     /// Pages whose kind `info` works out one by one.
     pub max_info_pages: u32,
+    /// Pixels and bytes of one crop (PZ-2). A crop is always smaller than the page canvas that
+    /// produced it; these bounds stop a caller from turning many small crops into a large image.
+    pub max_crop_pixels: u64,
+    pub max_crop_bytes: u64,
 }
 
 impl Default for RasterLimits {
@@ -97,6 +101,8 @@ impl Default for RasterLimits {
             max_canvas_bytes: 210_000_000,
             max_total_image_bytes: 800_000_000,
             max_info_pages: 2_000,
+            max_crop_pixels: 16_000_000,
+            max_crop_bytes: 64_000_000,
         }
     }
 }
@@ -108,6 +114,8 @@ pub struct Options {
     pub dpi: u32,
     /// Gray output (one channel); otherwise RGB when the page has colour images.
     pub gray: bool,
+    /// A pixel box [x0, y0, x1, y1] on the rendered page: only that part is encoded (PZ-2).
+    pub crop: Option<[f32; 4]>,
     pub limits: RasterLimits,
     pub time_limit: Duration,
 }
@@ -118,6 +126,7 @@ impl Default for Options {
             page: 1,
             dpi: DEFAULT_DPI,
             gray: false,
+            crop: None,
             limits: RasterLimits::default(),
             // A0 at 300 dpi measured 9-43 s wall on the build host (8 cores, load 20-24), with
             // 25-29 s CPU; the gray run reached the old 60 s limit under that load. The worker's
@@ -446,15 +455,20 @@ pub fn render(input: &[u8], opts: &Options) -> Result<Rendered, Box<Failure>> {
             }
         }
     }
-    let png = png::encode(w, h, ch, opts.dpi, &canvas.data).ok_or_else(|| {
+    let (data, out_w, out_h, crop) = match opts.crop {
+        Some(box_) => crop_canvas(&canvas.data, w, h, ch, box_, &opts.limits).map_err(fail)?,
+        None => (canvas.data, w, h, None),
+    };
+    let png = png::encode(out_w, out_h, ch, opts.dpi, &data).ok_or_else(|| {
         fail(Fault::Malformed(
             "the page image could not be encoded".into(),
         ))
     })?;
     Ok(Rendered {
         png,
-        width: w,
-        height: h,
+        width: out_w,
+        height: out_h,
+        crop_px: crop,
         channels: ch,
         dpi: opts.dpi,
         page: opts.page,
@@ -473,6 +487,74 @@ pub fn render(input: &[u8], opts: &Options) -> Result<Rendered, Box<Failure>> {
         input_bytes: input.len(),
         elapsed_ms: start.elapsed().as_millis() as u64,
     })
+}
+
+type CropResult = (Vec<u8>, u32, u32, Option<[u32; 4]>);
+
+/// Crop the rendered canvas to a box in page pixels. A box edge may lie up to one pixel outside
+/// the page (reader boxes are approximate); it is clamped. The four returned integers are the
+/// exact box written to the PNG and the report (PZ-2).
+fn crop_canvas(
+    data: &[u8],
+    w: u32,
+    h: u32,
+    ch: usize,
+    bbox: [f32; 4],
+    limits: &RasterLimits,
+) -> Result<CropResult, Fault> {
+    if !bbox.iter().all(|v| v.is_finite()) {
+        return Err(Fault::Refused(
+            "invalid_bbox",
+            "the box must hold four finite numbers".into(),
+        ));
+    }
+    let b = bbox.map(f64::from);
+    if b[1] >= b[3] || b[0] >= b[2] {
+        return Err(Fault::Refused(
+            "invalid_bbox",
+            "the box must be x0,y0,x1,y1 with x1 and y1 after x0 and y0".into(),
+        ));
+    }
+    let tol = 1.0;
+    if b[0] < -tol || b[1] < -tol || b[2] > f64::from(w) + tol || b[3] > f64::from(h) + tol {
+        return Err(Fault::Refused(
+            "box_outside_page",
+            "the box lies outside the page (more than one pixel)".into(),
+        ));
+    }
+    let x0 = b[0].floor().max(0.0) as u32;
+    let y0 = b[1].floor().max(0.0) as u32;
+    let x1 = (b[2].ceil() as u32).min(w);
+    let y1 = (b[3].ceil() as u32).min(h);
+    if x1 <= x0 || y1 <= y0 || x1 - x0 < 2 || y1 - y0 < 2 {
+        return Err(Fault::Refused(
+            "bbox_too_small",
+            "the box must cover at least two by two pixels".into(),
+        ));
+    }
+    let pixels = u64::from(x1 - x0) * u64::from(y1 - y0);
+    let bytes = pixels * ch as u64;
+    if pixels > limits.max_crop_pixels || bytes > limits.max_crop_bytes {
+        return Err(Fault::Limit(
+            "crop_pixels",
+            "the crop is larger than the limit allows".into(),
+        ));
+    }
+    let row = w as usize * ch;
+    let from = x0 as usize * ch;
+    let to = x1 as usize * ch;
+    let mut out = Vec::with_capacity(bytes as usize);
+    for line in data
+        .chunks_exact(row)
+        .skip(y0 as usize)
+        .take((y1 - y0) as usize)
+    {
+        let Some(piece) = line.get(from..to) else {
+            return Err(Fault::Malformed("the page canvas is short".into()));
+        };
+        out.extend_from_slice(piece);
+    }
+    Ok((out, x1 - x0, y1 - y0, Some([x0, y0, x1, y1])))
 }
 
 fn warning_text(code: &str) -> &'static str {

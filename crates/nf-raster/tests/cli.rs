@@ -360,3 +360,121 @@ fn a_killed_program_leaves_an_incomplete_report() {
     let report = std::fs::read_to_string(&rep).unwrap();
     assert!(report.contains("\"status\": \"incomplete\""), "{report}");
 }
+
+#[test]
+fn crop_writes_an_exact_pixel_box_in_the_sandboxed_worker() {
+    let t = Tmp::new("crop");
+    let (png, rep) = (t.p("c.png"), t.p("c.json"));
+    let pdf = fixture_path("scan_g4_small.pdf");
+    // A box within one pixel of page edges is clamped; the fractional edges are snapped out.
+    let o = run(&[
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&png),
+        "--report",
+        s(&rep),
+        "--dpi",
+        "100",
+        "--gray",
+        "--bbox",
+        "100.2,50.3,199.7,149.8",
+    ]);
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    let p = decode_png(&std::fs::read(&png).unwrap());
+    assert_eq!((p.w, p.h, p.ch, p.dpi), (100, 100, 1, 100));
+    let report = std::fs::read_to_string(&rep).unwrap();
+    assert!(report.contains("\"command\": \"crop\""), "{report}");
+    assert!(
+        report.contains("\"crop_px\": [100, 50, 200, 150]"),
+        "{report}"
+    );
+    assert!(
+        report.contains("\"seccomp\": \"allow-list enforced"),
+        "{report}"
+    );
+    assert!(!t.p("c.png.partial").exists());
+}
+
+#[test]
+fn crop_refuses_an_out_of_page_box_and_the_42nd_crop_of_a_page() {
+    let t = Tmp::new("crop-limits");
+    let pdf = fixture_path("scan_g4_small.pdf");
+    let (png, rep) = (t.p("l.png"), t.p("l.json"));
+    let o = run(&[
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&png),
+        "--report",
+        s(&rep),
+        "--dpi",
+        "100",
+        "--gray",
+        "--bbox",
+        "0,0,10000,10000",
+    ]);
+    assert_eq!(
+        o.status.code(),
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(!png.exists());
+    let line = String::from_utf8_lossy(&o.stderr);
+    assert!(line.contains("box_outside_page"), "{line}");
+    for n in 1..=40 {
+        let o = run(&[
+            "crop",
+            "1",
+            "--in",
+            s(&pdf),
+            "--out",
+            s(&png),
+            "--report",
+            s(&rep),
+            "--dpi",
+            "100",
+            "--gray",
+            "--bbox",
+            "10,10,20,20",
+        ]);
+        assert_eq!(
+            o.status.code(),
+            Some(0),
+            "crop {n}: {}",
+            String::from_utf8_lossy(&o.stderr)
+        );
+    }
+    let o = run(&[
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&png),
+        "--report",
+        s(&rep),
+        "--dpi",
+        "100",
+        "--gray",
+        "--bbox",
+        "10,10,20,20",
+    ]);
+    assert_eq!(
+        o.status.code(),
+        Some(3),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(String::from_utf8_lossy(&o.stderr).contains("crops_per_page"));
+}

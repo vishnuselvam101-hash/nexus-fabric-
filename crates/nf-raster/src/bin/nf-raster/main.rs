@@ -2,6 +2,7 @@
 //!
 //! nf-raster info --in <pdf> --out <json>
 //! nf-raster page <N> --in <pdf> --out <png> --report <json> [--dpi 200] [--gray]
+//! nf-raster crop <N> --in <pdf> --out <png> --report <json> --bbox x0,y0,x1,y1 [--dpi 200] [--gray]
 //!
 //! Exit codes: 0 done; 2 refused (code and message as JSON on stderr); 3 limit exceeded
 //! (JSON on stderr); 70 internal error (JSON on stderr). For `page` the report file is written
@@ -36,7 +37,7 @@ use std::time::{Duration, Instant};
 
 use nf_raster::{info, render, sha256_hex, FailureKind, Options, MAX_DPI, MIN_DPI};
 
-const USAGE: &str = "usage: nf-raster info --in <pdf> --out <json>\n       nf-raster page <N> --in <pdf> --out <png> --report <json> [--dpi 200] [--gray]";
+const USAGE: &str = "usage: nf-raster info --in <pdf> --out <json>\n       nf-raster page <N> --in <pdf> --out <png> --report <json> [--dpi 200] [--gray]\n       nf-raster crop <N> --in <pdf> --out <png> --report <json> --bbox x0,y0,x1,y1 [--dpi 200] [--gray]";
 
 /// First argument of a worker process (not for direct use).
 const WORKER_FLAG: &str = "--worker";
@@ -48,6 +49,8 @@ const MAX_REPORT_BYTES: usize = 16 << 20;
 const MAX_LINE_BYTES: usize = 64 << 10;
 /// Implementation limit: the largest PNG (or info JSON) the parent accepts from the worker.
 const MAX_OUTPUT_BYTES: usize = 256 << 20;
+/// Implementation limit: crops of one page, counted by the parent across runs (PZ-2).
+const MAX_CROPS_PER_PAGE: u32 = 40;
 /// Implementation limit: the largest input file.
 const MAX_INPUT_BYTES: u64 = 64 << 20;
 /// First bytes of the worker's answer on its standard output.
@@ -57,6 +60,7 @@ const FRAME_MAGIC: &[u8; 8] = b"NFRASTR1";
 enum Command_ {
     Info,
     Page,
+    Crop,
 }
 
 struct Args {
@@ -102,6 +106,7 @@ fn parse_args(argv: &[String]) -> Args {
     let command = match it.next().map(String::as_str) {
         Some("info") => Command_::Info,
         Some("page") => Command_::Page,
+        Some("crop") => Command_::Crop,
         Some("--help") | Some("-h") => {
             println!("{USAGE}");
             std::process::exit(0);
@@ -115,6 +120,7 @@ fn parse_args(argv: &[String]) -> Args {
     let mut output = None;
     let mut report = None;
     let mut page: Option<u32> = None;
+    let mut bbox: Option<[f32; 4]> = None;
     let mut dpi = nf_raster::DEFAULT_DPI;
     let mut gray = false;
     let mut probe = false;
@@ -144,6 +150,22 @@ fn parse_args(argv: &[String]) -> Args {
                     );
                 }
             }
+            "--bbox" => {
+                let v = value();
+                let parts: Vec<f32> = v
+                    .split(',')
+                    .map(|s| s.trim().parse::<f32>())
+                    .collect::<Result<_, _>>()
+                    .unwrap_or_else(|_| {
+                        invalid("invalid_bbox", "--bbox must be x0,y0,x1,y1 in page pixels")
+                    });
+                bbox = parts.try_into().ok().filter(|b: &[f32; 4]| {
+                    b.iter().all(|n| n.is_finite()) && b[0] < b[2] && b[1] < b[3]
+                });
+                if bbox.is_none() {
+                    invalid("invalid_bbox", "--bbox must be x0,y0,x1,y1 in page pixels");
+                }
+            }
             "--gray" => gray = true,
             "--isolation-probe" => probe = true,
             "--help" | "-h" => {
@@ -151,7 +173,10 @@ fn parse_args(argv: &[String]) -> Args {
                 std::process::exit(0);
             }
             other => {
-                if command == Command_::Page && page.is_none() && !other.starts_with('-') {
+                if matches!(command, Command_::Page | Command_::Crop)
+                    && page.is_none()
+                    && !other.starts_with('-')
+                {
                     page = Some(other.parse().unwrap_or_else(|_| {
                         invalid("invalid_page", "the page must be a whole number from 1")
                     }));
@@ -177,18 +202,25 @@ fn parse_args(argv: &[String]) -> Args {
             name.push(".report");
             PathBuf::from(name)
         }
-        (Command_::Page, None) => invalid(
+        (Command_::Page | Command_::Crop, None) => invalid(
             "invalid_arguments",
-            &format!("--report is required for page\n{USAGE}"),
+            &format!("--report is required for page and crop\n{USAGE}"),
         ),
     };
-    if command == Command_::Page && page.is_none() {
-        invalid("invalid_page", "the page number is required: page <N>");
+    if matches!(command, Command_::Page | Command_::Crop) && page.is_none() {
+        invalid("invalid_page", "the page number is required: <command> <N>");
+    }
+    if command == Command_::Crop && bbox.is_none() {
+        invalid("invalid_bbox", "--bbox is required for crop");
+    }
+    if command != Command_::Crop && bbox.is_some() {
+        invalid("invalid_arguments", "--bbox is only valid for crop");
     }
     let options = Options {
         page: page.unwrap_or(1),
         dpi,
         gray,
+        crop: bbox,
         ..Options::default()
     };
     Args {
@@ -292,6 +324,95 @@ fn write_whole(path: &Path, bytes: &[u8]) -> bool {
     written.is_ok()
 }
 
+/// Counts live beside the report, so the cap follows the job's output directory and never
+/// touches global state. Each record is the page number and its count (two little-endian u32).
+fn ledger_path(report: &Path) -> PathBuf {
+    let mut name = report.as_os_str().to_os_string();
+    name.push(".crop-ledger");
+    PathBuf::from(name)
+}
+
+/// Charge one crop to a page. The ledger is written atomically: an interrupted run never leaves
+/// a half record. A concurrent writer can lose one increment; the limit is an implementation
+/// guard, not a security decision, and the renderer's own pixel/bomb limits still apply.
+fn charge_crop(report: &Path, page: u32) -> Result<(), Outcome> {
+    let path = ledger_path(report);
+    let old = match std::fs::read(&path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(_) => {
+            return Err(failed(
+                2,
+                "refused",
+                "ledger_unreadable",
+                None,
+                "the crop count could not be read",
+            ))
+        }
+    };
+    if old.len() > 64 * 1024 || old.len() % 8 != 0 {
+        return Err(failed(
+            2,
+            "refused",
+            "ledger_invalid",
+            None,
+            "the crop count is damaged",
+        ));
+    }
+    let mut records: Vec<(u32, u32)> = Vec::new();
+    for pair in old.chunks_exact(8) {
+        let n = |i: usize| -> Option<u32> {
+            Some(u32::from_le_bytes(pair.get(i..i + 4)?.try_into().ok()?))
+        };
+        let (Some(p), Some(c)) = (n(0), n(4)) else {
+            return Err(failed(
+                2,
+                "refused",
+                "ledger_invalid",
+                None,
+                "the crop count is damaged",
+            ));
+        };
+        records.push((p, c));
+    }
+    let entry = records.iter_mut().find(|(p, _)| *p == page);
+    let count = match entry {
+        Some((_, c)) => {
+            if *c >= MAX_CROPS_PER_PAGE {
+                return Err(failed(
+                    3,
+                    "limit_exceeded",
+                    "limit_exceeded",
+                    Some("crops_per_page"),
+                    &format!("no more than {MAX_CROPS_PER_PAGE} crops of one page are allowed"),
+                ));
+            }
+            *c += 1;
+            *c
+        }
+        None => {
+            records.push((page, 1));
+            1
+        }
+    };
+    let _ = count;
+    let mut bytes = Vec::with_capacity(records.len() * 8);
+    for (p, c) in records {
+        bytes.extend_from_slice(&p.to_le_bytes());
+        bytes.extend_from_slice(&c.to_le_bytes());
+    }
+    if !write_whole(&path, &bytes) {
+        return Err(failed(
+            70,
+            "internal_error",
+            "ledger_write_failed",
+            None,
+            "the crop count could not be written",
+        ));
+    }
+    Ok(())
+}
+
 /// The report written before the worker starts. If this program is ended from outside (a
 /// signal, a kill by the caller's own timeout), the report says so and no output exists.
 fn incomplete_report() -> String {
@@ -339,6 +460,14 @@ fn parent(argv: &[String]) -> ! {
     let outcome = run_worker(argv, input, max_out);
 
     if outcome.code == 0 {
+        if args.command == Command_::Crop {
+            if let Err(outcome) = charge_crop(&args.report, args.options.page) {
+                remove_if_present(&out_partial);
+                let _ = write_whole(&args.report, &outcome.report);
+                eprintln!("{}", outcome.line);
+                std::process::exit(outcome.code);
+            }
+        }
         let mut out_file = create(&out_partial, "output");
         let written = out_file.write_all(&outcome.dxf).is_ok() && out_file.flush().is_ok();
         drop(out_file);
@@ -667,7 +796,7 @@ fn worker(argv: &[String]) -> ! {
             let json = i.to_json(&isolation).into_bytes();
             (json.clone(), json)
         }),
-        Command_::Page => render(&data, &args.options).map(|r| {
+        Command_::Page | Command_::Crop => render(&data, &args.options).map(|r| {
             let png_hash = sha256_hex(&r.png);
             let report = r.to_json(&png_hash, &isolation).into_bytes();
             (report, r.png)

@@ -69,6 +69,8 @@ pub struct Rendered {
     pub png: Vec<u8>,
     pub width: u32,
     pub height: u32,
+    /// Exact pixel box used by `nf-raster crop`, when this is a crop (PZ-2).
+    pub crop_px: Option<[u32; 4]>,
     pub channels: usize,
     pub dpi: u32,
     pub page: u32,
@@ -168,9 +170,13 @@ impl Rendered {
                 )
             })
             .collect();
+        let crop_json = self.crop_px.map_or("null".to_string(), |b| {
+            format!("[{}, {}, {}, {}]", b[0], b[1], b[2], b[3])
+        });
         format!(
-            "{{\n  \"tool\": \"nf-raster\",\n  \"version\": {},\n  \"command\": \"page\",\n  \"status\": \"rendered\",\n  \"sha256\": {},\n  \"input_bytes\": {},\n  \"page\": {},\n  \"page_count\": {},\n  \"kind\": {},\n  \"dpi\": {},\n  \"width_px\": {},\n  \"height_px\": {},\n  \"expected_width_px\": {:.3},\n  \"expected_height_px\": {:.3},\n  \"channels\": {},\n  \"page_width_pt\": {:.3},\n  \"page_height_pt\": {:.3},\n  \"rotate\": {},\n  \"images\": {},\n  \"lines\": {},\n  \"image_filters\": {{{}}},\n  \"warnings\": [{}],\n  \"elapsed_ms\": {},\n  \"png_bytes\": {},\n  \"png_sha256\": {},\n  \"isolation\": {}\n}}\n",
+            "{{\n  \"tool\": \"nf-raster\",\n  \"version\": {},\n  \"command\": {},\n  \"status\": \"rendered\",\n  \"sha256\": {},\n  \"input_bytes\": {},\n  \"page\": {},\n  \"page_count\": {},\n  \"kind\": {},\n  \"dpi\": {},\n  \"width_px\": {},\n  \"height_px\": {},\n  \"crop_px\": {},\n  \"expected_width_px\": {:.3},\n  \"expected_height_px\": {:.3},\n  \"channels\": {},\n  \"page_width_pt\": {:.3},\n  \"page_height_pt\": {:.3},\n  \"rotate\": {},\n  \"images\": {},\n  \"lines\": {},\n  \"image_filters\": {{{}}},\n  \"warnings\": [{}],\n  \"elapsed_ms\": {},\n  \"png_bytes\": {},\n  \"png_sha256\": {},\n  \"isolation\": {}\n}}\n",
             json_str(crate::VERSION),
+            json_str(if self.crop_px.is_some() { "crop" } else { "page" }),
             json_str(&self.sha256),
             self.input_bytes,
             self.page,
@@ -179,6 +185,7 @@ impl Rendered {
             self.dpi,
             self.width,
             self.height,
+            crop_json,
             self.expected_width,
             self.expected_height,
             self.channels,

@@ -20,6 +20,7 @@
 //! changes.
 
 use super::*;
+use nf_core::reading::{CheckCtx, ItemIn, ItemRef, OcrCheck, Provenance, StoredCheck, Verdict};
 
 /// Implementation limits, stated to the user by the UI.
 pub(crate) const MAX_ORDER_FILES: i64 = 100;
@@ -505,6 +506,129 @@ fn parse_bbox(v: Option<&Value>) -> Result<Option<String>, ApiError> {
     }
 }
 
+/// The verdict of the reading check stored with a proposal. The stored JSON is made here, from the
+/// current value, text, box and source and the second read's outcome; a caller cannot hand us a
+/// "verdict": ok to make a bad reading pass. The model only reports what it read (PZ-2).
+fn parse_flag(
+    v: Option<&Value>,
+    key: &str,
+    value: Option<f64>,
+    text: &str,
+    bbox: Option<&str>,
+    source: &str,
+    part: &str,
+) -> Result<Option<String>, ApiError> {
+    let Some(obj) = v.filter(|v| !matches!(v, Value::Null)) else {
+        return Ok(None);
+    };
+    let bad = |msg: &str| unprocessable("reading_flag", msg);
+    let obj = obj
+        .as_object()
+        .ok_or_else(|| bad("'flag' must be an object"))?;
+    let wrapper = Value::Object(obj.clone());
+    let model_id = text_field(&wrapper, "model_id", 96)?
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| bad("'flag.model_id' must name the reader"))?;
+    let input_sha256 = text_field(&wrapper, "input_sha256", 64)?
+        .filter(|s| s.is_empty() || (s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit())))
+        .ok_or_else(|| bad("'flag.input_sha256' must be a SHA-256 hex string"))?;
+    let page = match obj.get("page") {
+        None | Some(Value::Null) => None,
+        Some(Value::Array(a)) if a.len() == 2 => {
+            let n: Option<Vec<f64>> = a
+                .iter()
+                .map(|x| {
+                    x.as_f64()
+                        .filter(|f| f.is_finite() && (1.0..=1.0e6).contains(f))
+                })
+                .collect();
+            let n = n.ok_or_else(|| bad("'flag.page' must be [width, height] in pixels"))?;
+            Some((n[0], n[1]))
+        }
+        Some(_) => return Err(bad("'flag.page' must be [width, height] in pixels")),
+    };
+    let code = text_field(&wrapper, "ocr", 32)?.unwrap_or_else(|| "not_run".to_string());
+    let read: Vec<String> = match obj.get("ocr_read") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(a)) => a
+            .iter()
+            .map(|x| {
+                x.as_str()
+                    .filter(|s| s.chars().count() <= 100)
+                    .map(str::to_string)
+                    .ok_or_else(|| bad("'flag.ocr_read' must hold short strings"))
+            })
+            .collect::<Result<_, _>>()?,
+        Some(_) => return Err(bad("'flag.ocr_read' must be an array")),
+    };
+    if read.len() > 20 {
+        return Err(bad("'flag.ocr_read' holds at most 20 strings"));
+    }
+    let ocr = match code.as_str() {
+        "not_run" => OcrCheck::NotRun,
+        "agrees" => OcrCheck::Agrees { read },
+        "disagrees" => OcrCheck::Disagrees { read },
+        "unavailable" => OcrCheck::Unavailable(
+            text_field(&wrapper, "ocr_reason", 64)?.unwrap_or_else(|| "unavailable".to_string()),
+        ),
+        _ => {
+            return Err(bad(
+                "'flag.ocr' must be not_run, agrees, disagrees or unavailable",
+            ));
+        }
+    };
+    let bbox_vec: Option<Vec<f64>> = bbox
+        .and_then(|b| serde_json::from_str::<Vec<f64>>(b).ok())
+        .filter(|b| b.len() == 4 && b.iter().all(|f| f.is_finite()));
+    let check = nf_core::reading::check_item(
+        &ItemIn {
+            key,
+            value,
+            text,
+            bbox: bbox_vec.as_deref(),
+            source,
+        },
+        &CheckCtx {
+            page,
+            require_box: READ_SOURCES.contains(&source),
+        },
+        ocr,
+    );
+    let stored = StoredCheck {
+        item: ItemRef {
+            part: 0,
+            no: part.to_string(),
+            shape: String::new(),
+            key: key.to_string(),
+        },
+        check,
+        provenance: Provenance {
+            model_id,
+            input_sha256,
+        },
+    };
+    serde_json::to_string(&stored.to_json())
+        .map(Some)
+        .map_err(|e| {
+            unprocessable(
+                "reading_flag",
+                &format!("the reading check could not be stored: {e}"),
+            )
+        })
+}
+
+fn flag_verdict(flag: Option<&str>) -> Option<Verdict> {
+    serde_json::from_str::<Value>(flag?)
+        .ok()?
+        .get("verdict")?
+        .as_str()
+        .and_then(Verdict::from_code)
+}
+
+fn flag_blocks(flag: Option<&str>) -> bool {
+    flag_verdict(flag).is_some_and(Verdict::blocks)
+}
+
 fn recompute_part_state(db: &Connection, part: i64) -> rusqlite::Result<()> {
     let state: String = db.query_row(
         "SELECT state FROM order_parts WHERE id = ?",
@@ -579,7 +703,7 @@ fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
     for (id, head) in parts {
         let vals = q_all(
             db,
-            "SELECT key, value, text, bbox_json, source, state FROM order_values WHERE part_id = ? ORDER BY key",
+            "SELECT key, value, text, bbox_json, source, state, flag FROM order_values WHERE part_id = ? ORDER BY key",
             params![id],
             |r| {
                 Ok(json!([
@@ -590,7 +714,8 @@ fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
                         r.get::<_, Option<String>>(3)?.as_deref(),
                         &r.get::<_, String>(4)?,
                     ),
-                    r.get::<_, String>(5)?
+                    r.get::<_, String>(5)?,
+                    r.get::<_, Option<String>>(6)?
                 ]))
             },
         )?;
@@ -1353,6 +1478,8 @@ struct ValueIn {
     text: String,
     bbox: Option<String>,
     source: String,
+    /// Canonical reading check (verdict, reasons, model id, input hash), or None when no check was made.
+    flag: Option<String>,
     confirm: bool,
     note: String,
 }
@@ -1456,6 +1583,26 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
             "a missing value cannot be confirmed",
         ));
     }
+    let part_no = match &part {
+        Value::String(s) => s.clone(),
+        Value::Number(n) => n.to_string(),
+        _ => String::new(),
+    };
+    let flag = parse_flag(
+        v.get("flag"),
+        &key,
+        value,
+        &text,
+        bbox.as_deref(),
+        &source,
+        &part_no,
+    )?;
+    if confirm && flag_blocks(flag.as_deref()) {
+        return Err(unprocessable(
+            "reading_conflict",
+            "a value with a conflicting reading check stays proposed; a person must check it first (EN: reading conflict / JA: 読み取り確認が必要です)",
+        ));
+    }
     let note = text_field(v, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
     Ok(ValueIn {
         part,
@@ -1464,6 +1611,7 @@ fn parse_value(v: &Value) -> Result<ValueIn, ApiError> {
         text,
         bbox,
         source,
+        flag,
         confirm,
         note,
     })
@@ -1521,6 +1669,7 @@ type OldValue = (
     String,
     String,
     Option<f64>,
+    Option<String>,
 );
 
 async fn put_values(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw: Bytes) -> Api {
@@ -1562,7 +1711,7 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
         }
         let old: Option<OldValue> = tx
             .query_row(
-                "SELECT id, value, text, bbox_json, source, state, proposed_value FROM order_values WHERE part_id = ? AND key = ?",
+                "SELECT id, value, text, bbox_json, source, state, proposed_value, flag FROM order_values WHERE part_id = ? AND key = ?",
                 params![pid, v.key],
                 |r| {
                     Ok((
@@ -1573,11 +1722,12 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
                         r.get(4)?,
                         r.get(5)?,
                         r.get(6)?,
+                        r.get(7)?,
                     ))
                 },
             )
             .optional()?;
-        let new_state = if v.value.is_none() {
+        let mut new_state = if v.value.is_none() {
             "MISSING"
         } else if v.confirm {
             "CONFIRMED"
@@ -1590,18 +1740,38 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
         } else {
             "PROPOSED"
         };
+        let old_flag = old.as_ref().and_then(|o| o.7.clone());
+        let content_same = old
+            .as_ref()
+            .is_some_and(|o| o.1 == v.value && o.2 == v.text && o.3 == v.bbox && o.4 == v.source);
+        // A verdict belongs to the exact value, text, box and source it was made on. An edit without a
+        // new check drops the old verdict; a resend of the same value keeps it.
+        let flag = v
+            .flag
+            .clone()
+            .or_else(|| if content_same { old_flag.clone() } else { None });
+        if flag_blocks(flag.as_deref()) {
+            if v.confirm {
+                return Err(unprocessable(
+                    "reading_conflict",
+                    "a value with a conflicting reading check stays proposed; a person must check it first (EN: reading conflict / JA: 読み取り確認が必要です)",
+                ));
+            }
+            new_state = "PROPOSED";
+        }
         let (vid, old_desc) = match &old {
-            Some((id, val, text, bbox, src, state, _)) => {
-                let same =
+            Some((id, val, text, bbox, src, state, _, _)) => {
+                let content_same =
                     *val == v.value && *text == v.text && *bbox == v.bbox && *src == v.source;
+                let same = content_same && old_flag == flag;
                 // identical content: nothing to write (and a resend never drops an earlier confirmation)
                 if same && (state == new_state || (!v.confirm && state == "CONFIRMED")) {
                     unchanged += 1;
                     continue;
                 }
                 tx.execute(
-                    "UPDATE order_values SET value = ?, text = ?, bbox_json = ?, source = ?, state = ?, was = ?, edited_by = ?, edited_at = ? WHERE id = ?",
-                    params![v.value, v.text, v.bbox, v.source, new_state, val, u.username, now() as i64, id],
+                    "UPDATE order_values SET value = ?, text = ?, bbox_json = ?, source = ?, state = ?, flag = ?, was = ?, edited_by = ?, edited_at = ? WHERE id = ?",
+                    params![v.value, v.text, v.bbox, v.source, new_state, flag, val, u.username, now() as i64, id],
                 )?;
                 (*id, format!("{} [{src} {state}]", fmt_val(*val)))
             }
@@ -1622,8 +1792,8 @@ fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8])
                     ));
                 }
                 tx.execute(
-                    "INSERT INTO order_values(part_id, key, value, text, bbox_json, source, state, was, proposed_value, proposed_by, edited_by, edited_at) VALUES (?,?,?,?,?,?,?,NULL,?,?,?,?)",
-                    params![pid, v.key, v.value, v.text, v.bbox, v.source, new_state, v.value, u.username, u.username, now() as i64],
+                    "INSERT INTO order_values(part_id, key, value, text, bbox_json, source, state, flag, was, proposed_value, proposed_by, edited_by, edited_at) VALUES (?,?,?,?,?,?,?,?,NULL,?,?,?,?)",
+                    params![pid, v.key, v.value, v.text, v.bbox, v.source, new_state, flag, v.value, u.username, u.username, now() as i64],
                 )?;
                 (tx.last_insert_rowid(), "none".to_string())
             }
@@ -1738,7 +1908,7 @@ fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) ->
     for (pid, pno) in &parts {
         let rows = q_all(
             &tx,
-            "SELECT id, key, value, text, state, bbox_json, source FROM order_values WHERE part_id = ? ORDER BY key",
+            "SELECT id, key, value, text, state, bbox_json, source, flag FROM order_values WHERE part_id = ? ORDER BY key",
             params![pid],
             |r| {
                 Ok((
@@ -1749,16 +1919,25 @@ fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) ->
                     r.get::<_, String>(4)?,
                     r.get::<_, Option<String>>(5)?,
                     r.get::<_, String>(6)?,
+                    r.get::<_, Option<String>>(7)?,
                 ))
             },
         )?;
-        for (vid, key, val, text, state, bbox, src) in rows {
+        for (vid, key, val, text, state, bbox, src, flag) in rows {
             if val.is_none() {
                 missing += 1;
                 continue;
             }
             if state == "CONFIRMED" {
                 continue;
+            }
+            if flag_blocks(flag.as_deref()) {
+                return Err(unprocessable(
+                    "reading_conflict",
+                    &format!(
+                        "part '{pno}' {key} has a conflicting reading check; it stays proposed (JA: 読み取り確認が必要です)"
+                    ),
+                ));
             }
             tx.execute(
                 "UPDATE order_values SET state = 'CONFIRMED', edited_by = ?, edited_at = ? WHERE id = ?",
@@ -1875,16 +2054,17 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
                 &format!("part '{pno}' is excluded"),
             ));
         }
-        let (vid, val, text, state, bbox, src): (
+        let (vid, val, text, state, bbox, src, reading_flag): (
             i64,
             Option<f64>,
             String,
             String,
             Option<String>,
             String,
+            Option<String>,
         ) = tx
             .query_row(
-                "SELECT id, value, text, state, bbox_json, source FROM order_values WHERE part_id = ? AND key = ?",
+                "SELECT id, value, text, state, bbox_json, source, flag FROM order_values WHERE part_id = ? AND key = ?",
                 params![pid, key],
                 |r| {
                     Ok((
@@ -1894,6 +2074,7 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
                         r.get(3)?,
                         r.get(4)?,
                         r.get(5)?,
+                        r.get(6)?,
                     ))
                 },
             )
@@ -1918,6 +2099,14 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
                 StatusCode::CONFLICT,
                 "already_confirmed",
                 &format!("part '{pno}' {key} is confirmed already; undo that decision first"),
+            ));
+        }
+        if kind == "confirm" && flag_blocks(reading_flag.as_deref()) {
+            return Err(unprocessable(
+                "reading_conflict",
+                &format!(
+                    "part '{pno}' {key} has a conflicting reading check; it stays proposed (JA: 読み取り確認が必要です)"
+                ),
             ));
         }
         if kind == "accept_flag" {
@@ -2175,7 +2364,7 @@ async fn get_order(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) ->
     for (pid, mut p) in part_rows {
         let values = q_all(
             &db,
-            "SELECT id, key, value, text, bbox_json, source, state, was, proposed_value, proposed_by, edited_by, edited_at FROM order_values WHERE part_id = ? ORDER BY key",
+            "SELECT id, key, value, text, bbox_json, source, state, was, proposed_value, proposed_by, edited_by, edited_at, flag FROM order_values WHERE part_id = ? ORDER BY key",
             params![pid],
             |r| {
                 Ok(
@@ -2183,7 +2372,8 @@ async fn get_order(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) ->
                            "bbox": r.get::<_, Option<String>>(4)?.and_then(|b| serde_json::from_str::<Value>(&b).ok()),
                            "source": r.get::<_, String>(5)?, "state": r.get::<_, String>(6)?, "was": r.get::<_, Option<f64>>(7)?,
                            "proposed_value": r.get::<_, Option<f64>>(8)?, "proposed_by": r.get::<_, String>(9)?,
-                           "edited_by": r.get::<_, Option<String>>(10)?, "edited_at": r.get::<_, Option<i64>>(11)? }),
+                           "edited_by": r.get::<_, Option<String>>(10)?, "edited_at": r.get::<_, Option<i64>>(11)?,
+                           "flag": r.get::<_, Option<String>>(12)?.and_then(|f| serde_json::from_str::<Value>(&f).ok()) }),
                 )
             },
         )?;
@@ -2256,7 +2446,7 @@ fn load_compute_input(
     for (id, no, name, shape, attach, qty, group) in rows {
         let vals = q_all(
             db,
-            "SELECT key, value, source, state FROM order_values WHERE part_id = ? ORDER BY key",
+            "SELECT key, value, source, state, flag FROM order_values WHERE part_id = ? ORDER BY key",
             params![id],
             |r| {
                 Ok((
@@ -2264,6 +2454,7 @@ fn load_compute_input(
                     r.get::<_, Option<f64>>(1)?,
                     r.get::<_, String>(2)?,
                     r.get::<_, String>(3)?,
+                    r.get::<_, Option<String>>(4)?,
                 ))
             },
         )?;
@@ -2272,7 +2463,7 @@ fn load_compute_input(
         p.qty = qty.clamp(1, 9999) as u32;
         p.attach = attach.clone().filter(|a| !a.is_empty());
         p.group = group.clone().filter(|g| !g.is_empty());
-        for (key, value, source, state) in &vals {
+        for (key, value, source, state, flag) in &vals {
             let st = match state.as_str() {
                 "CONFIRMED" => oc::ValState::Confirmed,
                 "CORRECTED" => oc::ValState::Corrected,
@@ -2285,6 +2476,7 @@ fn load_compute_input(
                     value: *value,
                     state: st,
                     source: source.clone(),
+                    reading_verdict: flag_verdict(flag.as_deref()).map(|v| v.code().to_string()),
                 },
             );
         }
@@ -2296,7 +2488,15 @@ fn load_compute_input(
             attach,
             group,
             vals.iter()
-                .map(|(k, v, s, st)| json!([k, v.map(f64::to_bits), s, st]))
+                .map(|(k, v, s, st, f)| {
+                    json!([
+                        k,
+                        v.map(f64::to_bits),
+                        s,
+                        st,
+                        flag_verdict(f.as_deref()).map(|x| x.code())
+                    ])
+                })
                 .collect::<Vec<_>>()
         ]));
         parts.push(p);

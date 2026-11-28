@@ -1948,3 +1948,87 @@ async fn l10_a_held_part_gets_no_dxf_and_the_rules_come_from_the_order() {
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
     assert_eq!(v["code"], "order_rules");
 }
+
+#[tokio::test]
+async fn pz2_a_reading_verdict_is_stored_with_the_proposal_and_never_confirms_it() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let flag = json!({
+        "model_id": "nf-numread-verify-1",
+        "input_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "page": [2480.0, 3508.0],
+        "ocr": "disagrees",
+        "ocr_read": ["999"]
+    });
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [
+        { "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read",
+          "bbox": [10, 20, 90, 60], "flag": flag }
+    ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    let f = &o["parts"][0]["values"][0]["flag"];
+    assert_eq!(f["verdict"], "ocr_disagrees", "{o}");
+    assert_eq!(f["model_id"], "nf-numread-verify-1");
+    assert_eq!(f["input_sha256"], flag["input_sha256"]);
+    assert_eq!(o["parts"][0]["values"][0]["state"], "PROPOSED");
+    // a blocking verdict refuses both a direct confirmation and a confirm-all
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions"),
+            Some(json!({
+                "kind": "confirm", "part": "1", "key": "D"
+            })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_conflict")),
+        "{v}"
+    );
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/confirm"),
+            Some(json!({ "all": true })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_conflict")),
+        "{v}"
+    );
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [
+        { "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read",
+          "bbox": [10, 20, 90, 60], "confirm": true }
+    ] })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_conflict")),
+        "{v}"
+    );
+    // a second check that agrees replaces the first; then a person may confirm
+    let (st, v) = t.call("PUT", &format!("/api/orders/{oid}/values"), Some(json!({ "values": [
+        { "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read",
+          "bbox": [10, 20, 90, 60], "confirm": true, "flag": {
+            "model_id": "nf-numread-verify-1", "input_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "page": [2480.0, 3508.0], "ocr": "agrees", "ocr_read": ["216.3"]
+          } }
+    ] }))).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["parts"][0]["values"][0]["flag"]["verdict"], "ok");
+    assert_eq!(o["parts"][0]["values"][0]["state"], "CONFIRMED");
+}
