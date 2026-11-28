@@ -2231,3 +2231,130 @@ async fn pz2_malformed_stored_flag_fails_closed() {
         "{v}"
     );
 }
+
+/// Rebuild the same data directory, as an upgrade would, without losing the test's temp dir.
+fn reopen_after_upgrade(t: &mut T) {
+    let app = build_app(config(&t.dir)).unwrap();
+    let cookie = add_session(&app, "reopened", "admin");
+    *app.setup_token.lock().unwrap() = None;
+    t.app = app;
+    t.cookie = cookie;
+}
+
+#[tokio::test]
+async fn sec3_migration_downgrades_unproven_read_confirmations_and_compute_holds_them() {
+    let mut t = boot();
+    let oid = order_with_real_page(&t).await;
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [
+                { "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                  "bbox": [127.1, 268.8, 204.9, 289.7] },
+                { "part": "1", "key": "t", "value": 12.0, "text": "12", "source": "entered" },
+                { "part": "1", "key": "L", "value": 2000.0, "text": "2000", "source": "entered" }
+            ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    // Seed the pre-SECURITY-3 shape: a confirmed reading with no second read at all.
+    t.sql(&format!(
+        "UPDATE order_values SET source = 'entered', state = 'CONFIRMED' WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key IN ('t', 'L')"
+    ));
+    t.sql(&format!(
+        "UPDATE order_values SET source = 'read', read_source = NULL, flag = NULL, state = 'CONFIRMED' WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"
+    ));
+    t.app.db().pragma_update(None, "user_version", 8).unwrap();
+    t.sql("DELETE FROM meta WHERE key = 'pz2_read_confirmation_revalidated'");
+
+    reopen_after_upgrade(&mut t);
+
+    let (state, origin): (String, String) = t
+        .app
+        .db()
+        .query_row(
+            &format!("SELECT state, COALESCE(read_source, source) FROM order_values WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"),
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((state.as_str(), origin.as_str()), ("PROPOSED", "read"));
+
+    let part = |v: &Value| {
+        v["result"]["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["no"] == "1")
+            .unwrap()
+            .clone()
+    };
+    let has_issue = |v: &Value, code: &str| {
+        v["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|i| i["no"] == "1" && i["code"] == code)
+    };
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(part(&v)["state"], "held_missing", "{}", part(&v));
+    assert!(part(&v)["dxf"].is_null());
+    assert!(has_issue(&v, "value_proposed"), "{v}");
+
+    // Defense in depth: even after the one-time migration marker is set, a confirmed read row
+    // whose flag is damaged must not reach compute as confirmed.
+    t.sql(&format!(
+        "UPDATE order_values SET state = 'CONFIRMED', flag = 'not json' WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"
+    ));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(part(&v)["state"], "held_missing", "{}", part(&v));
+    assert!(has_issue(&v, "value_proposed"), "{v}");
+
+    // A fresh, page-bound second read still earns confirmation and a computed part.
+    t.sql(&format!(
+        "UPDATE order_values SET state = 'PROPOSED', flag = NULL WHERE part_id = (SELECT id FROM order_parts WHERE order_id = {oid} AND no = '1') AND key = 'D'"
+    ));
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": { "page_no": 1 }
+            }] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/confirm"),
+            Some(json!({ "all": true })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(part(&v)["state"], "computed", "{}", part(&v));
+}

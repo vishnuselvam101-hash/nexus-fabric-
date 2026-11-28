@@ -13,12 +13,17 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// 9: `order_values.read_source` (the immutable, server-derived read origin, PZ-2), on top of 8.
+/// SECURITY-3 also revalidates legacy read confirmations here, keyed by a meta marker rather than
+/// a new schema number, so a later valid confirmation is not downgraded on every start.
 /// 8: `order_values.flag` (the reading verdict stored with a proposal, PZ-2), on top of 7.
 /// 7: `order_results` (the supersede chain of order computes, NFJ-1 L10), on top of 6.
 /// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns). Rollback to an older build
 /// is a restore of the pre-update backup: an older program refuses a newer schema (see the check below) and does not
 /// undo the migration.
 pub const SCHEMA_VERSION: i64 = 9;
+
+/// One-time SECURITY-3 migration marker. Do not reuse this key for another migration.
+const PZ2_READ_REVALIDATED: &str = "pz2_read_confirmation_revalidated";
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
@@ -396,6 +401,21 @@ pub fn open_storage(data_dir: &Path, key_path: &Path) -> Result<(Connection, [u8
     // PZ-2: a value that was first stored as a page reading keeps that origin even if a later edit
     // relabels it. Backfill rows written before the column existed, so they cannot escape the gate.
     db.execute("UPDATE order_values SET read_source = source WHERE read_source IS NULL AND source IN ('read', 'drawing', 'table', 'note', 'count')", []).map_err(|e| format!("migration failed (read origin): {e}"))?;
+    // SECURITY-3: a confirmation written before the strict reading gate may have no second read.
+    // Reproducing `StoredCheck`'s strict parse and the page/box checks in SQL would duplicate the
+    // gate and drift from it, so downgrade every read-origin CONFIRMED value conservatively on the
+    // first open after this build. The value stays with its evidence; a person confirms it again
+    // through the gated route. The marker makes this one-time, so later valid checks keep their
+    // confirmation.
+    let revalidated = meta_get(&db, PZ2_READ_REVALIDATED)
+        .map_err(|e| format!("migration failed (read confirmation marker): {e}"))?
+        .is_some();
+    if !revalidated {
+        db.execute("UPDATE order_values SET state = 'PROPOSED' WHERE state = 'CONFIRMED' AND COALESCE(read_source, source) IN ('read', 'drawing', 'table', 'note', 'count')", [])
+            .map_err(|e| format!("migration failed (read confirmation revalidation): {e}"))?;
+        meta_set(&db, PZ2_READ_REVALIDATED, "1")
+            .map_err(|e| format!("migration failed (read confirmation marker): {e}"))?;
+    }
     // BE-011: record the engine per result. The stored engineering result itself is not rewritten.
     db.execute("UPDATE calculations SET engine = json_extract(result_json, '$.engine') WHERE engine IS NULL AND json_valid(result_json)", []).map_err(|e| format!("migration failed (engine per result): {e}"))?;
     // S-2: the database and the data directory must belong together. At first initialisation a random

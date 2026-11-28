@@ -55,7 +55,7 @@ const MAX_OUTPUT_BYTES: usize = 256 << 20;
 const MAX_CROPS_PER_PAGE: u32 = 40;
 /// The trusted ledger root when the installer has not configured one. It is never inside a job
 /// directory: a caller cannot start a fresh count by copying the same PDF somewhere else.
-const DEFAULT_CROP_ROOT: &str = "/var/lib/nf-raster/crop-ledger";
+const DEFAULT_CROP_ROOT: &str = "/var/lib/nexus-fabric/crop-ledger";
 /// Implementation limit: the largest input file.
 const MAX_INPUT_BYTES: u64 = 64 << 20;
 /// First bytes of the worker's answer on its standard output.
@@ -116,12 +116,23 @@ fn no_follow(opts: &mut OpenOptions) {
 #[cfg(not(unix))]
 fn no_follow(_opts: &mut OpenOptions) {}
 
-/// A directory is fit for the ledger only when its owner is root and neither group nor others can
-/// write into it. The server sets `NF_CROP_LEDGER_ROOT`; a caller who can set it but cannot create a
-/// root-owned directory cannot choose a fresh ledger.
+/// A directory is fit for the ledger only when it is owned by root or by the current effective
+/// user, and neither group nor others can write into it. The shipped service runs as `nexusfabric`
+/// and owns `/var/lib/nexus-fabric`; a caller outside the service cannot own that directory and
+/// cannot choose a fresh ledger by setting the environment.
+#[cfg(unix)]
+fn trusted_dir_parts(is_dir: bool, uid: u32, euid: u32, mode: u32) -> bool {
+    is_dir && (uid == 0 || uid == euid) && mode & 0o022 == 0
+}
+
 #[cfg(unix)]
 fn trusted_dir(md: &fs::Metadata) -> bool {
-    md.is_dir() && md.uid() == 0 && md.mode() & 0o022 == 0
+    trusted_dir_parts(
+        md.is_dir(),
+        md.uid(),
+        rustix::process::geteuid().as_raw(),
+        md.mode(),
+    )
 }
 
 #[cfg(not(unix))]
@@ -139,6 +150,17 @@ fn ledger_root() -> PathBuf {
 /// Opens the ledger root, creating it on first use, and refuses a root that is not trusted.
 fn open_ledger_root() -> Result<PathBuf, Outcome> {
     let configured = ledger_root();
+    // A symlink could redirect the count to a directory the caller prepared elsewhere. Refuse it
+    // before following the link; the per-crop files are also opened with O_NOFOLLOW.
+    if fs::symlink_metadata(&configured).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Err(failed(
+            2,
+            "refused",
+            "ledger_unreadable",
+            None,
+            "the crop count directory must not be a symbolic link",
+        ));
+    }
     let exists = configured.exists();
     fs::create_dir_all(&configured).map_err(|_| {
         failed(
@@ -1376,5 +1398,22 @@ mod tests {
         let max_out = MAX_OUTPUT_BYTES;
         let largest = FRAME_MAGIC.len() + 1 + 3 * 8 + MAX_LINE_BYTES + MAX_REPORT_BYTES + max_out;
         assert_eq!(frame_cap(max_out), largest);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn crop_ledger_owner_check_accepts_root_or_current_user_only() {
+        let euid = rustix::process::geteuid().as_raw();
+        let other = if euid == 1001 { 1002 } else { 1001 };
+        assert!(trusted_dir_parts(true, 0, euid, 0o700), "root-owned");
+        assert!(trusted_dir_parts(true, euid, euid, 0o700), "service-owned");
+        assert!(trusted_dir_parts(true, euid, euid, 0o750), "readable group");
+        assert!(!trusted_dir_parts(true, other, euid, 0o700), "another user");
+        assert!(!trusted_dir_parts(true, 0, euid, 0o770), "group write");
+        assert!(!trusted_dir_parts(true, euid, euid, 0o707), "other write");
+        assert!(
+            !trusted_dir_parts(false, euid, euid, 0o700),
+            "not a directory"
+        );
     }
 }

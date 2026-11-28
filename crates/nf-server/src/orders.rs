@@ -2753,7 +2753,7 @@ fn load_compute_input(
     for (id, no, name, shape, attach, qty, group) in rows {
         let vals = q_all(
             db,
-            "SELECT key, value, source, state, flag, read_source FROM order_values WHERE part_id = ? ORDER BY key",
+            "SELECT key, value, source, state, flag, bbox_json, read_source FROM order_values WHERE part_id = ? ORDER BY key",
             params![id],
             |r| {
                 Ok((
@@ -2763,6 +2763,7 @@ fn load_compute_input(
                     r.get::<_, String>(3)?,
                     r.get::<_, Option<String>>(4)?,
                     r.get::<_, Option<String>>(5)?,
+                    r.get::<_, Option<String>>(6)?,
                 ))
             },
         )?;
@@ -2771,14 +2772,36 @@ fn load_compute_input(
         p.qty = qty.clamp(1, 9999) as u32;
         p.attach = attach.clone().filter(|a| !a.is_empty());
         p.group = group.clone().filter(|g| !g.is_empty());
-        for (key, value, source, state, flag, read_source) in &vals {
-            let st = match state.as_str() {
+        let mut states = Vec::with_capacity(vals.len());
+        for (key, value, source, state, flag, bbox, read_source) in &vals {
+            let mut state_code = state.as_str();
+            let mut st = match state_code {
                 "CONFIRMED" => oc::ValState::Confirmed,
                 "CORRECTED" => oc::ValState::Corrected,
                 "PROPOSED" => oc::ValState::Proposed,
                 _ => oc::ValState::Missing,
             };
             let origin = read_source.as_deref().unwrap_or(source);
+            // SECURITY-3: a stored CONFIRMED is not authority for a read value. Reuse the same gate
+            // the write route uses; a damaged, stale or non-agreeing check can only hold the value
+            // as a proposal here. Never let a compute path trust a flag the write route refused.
+            if st == oc::ValState::Confirmed && READ_SOURCES.contains(&origin) {
+                let gate = reading_gate(&ReadingContext {
+                    db,
+                    oid,
+                    part_no: &no,
+                    key,
+                    flag: flag.as_deref(),
+                    value: *value,
+                    bbox: bbox.as_deref(),
+                    source: origin,
+                });
+                if !matches!(gate, Ok(ReadingGate::Pass)) {
+                    st = oc::ValState::Proposed;
+                    state_code = "PROPOSED";
+                }
+            }
+            states.push(state_code.to_string());
             p.values.insert(
                 key.clone(),
                 oc::Val {
@@ -2798,12 +2821,13 @@ fn load_compute_input(
             attach,
             group,
             vals.iter()
-                .map(|(k, v, s, st, f, rs)| {
+                .zip(states.iter())
+                .map(|((k, v, s, _st, f, _b, rs), state)| {
                     json!([
                         k,
                         v.map(f64::to_bits),
                         s,
-                        st,
+                        state,
                         flag_verdict(f.as_deref(), *v, rs.as_deref().unwrap_or(s))
                             .map(|x| x.code())
                     ])

@@ -79,6 +79,15 @@ fn run_with_ledger(args: &[&str]) -> Output {
     c.output().unwrap()
 }
 
+fn run_with_root(args: &[&str], root: &Path) -> Output {
+    let mut c = Command::new(env!("CARGO_BIN_EXE_nf-raster"));
+    c.args(args)
+        .env("NF_CROP_LEDGER_ROOT", root)
+        .env("HOME", std::env::temp_dir())
+        .stdin(Stdio::null());
+    c.output().unwrap()
+}
+
 /// The program treats the input's directory as the job directory; put each fixture there.
 fn input(t: &Tmp, name: &str) -> PathBuf {
     let p = t.p(name);
@@ -608,6 +617,55 @@ fn a_copy_of_the_same_pdf_cannot_start_a_fresh_crop_count() {
         String::from_utf8_lossy(&o.stderr)
     );
     assert!(String::from_utf8_lossy(&o.stderr).contains("crops_per_page"));
+}
+
+#[cfg(unix)]
+#[test]
+fn crop_ledger_accepts_the_service_owned_dir_and_refuses_redirects() {
+    let t = Tmp::new("crop-ledger-owner");
+    let pdf = input(&t, "scan_g4_small.pdf");
+    let (png, rep) = (t.p("c.png"), t.p("c.json"));
+    let args = [
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&png),
+        "--report",
+        s(&rep),
+        "--dpi",
+        "100",
+        "--gray",
+        "--bbox",
+        "10,10,20,20",
+    ];
+    // The child has the same effective uid as this test. The pure owner test covers a non-root uid.
+    let allowed = t.p("ledger-allowed");
+    std::fs::create_dir_all(&allowed).unwrap();
+    std::fs::set_permissions(&allowed, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let o = run_with_root(&args, &allowed);
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+
+    let loose = t.p("ledger-loose");
+    std::fs::create_dir_all(&loose).unwrap();
+    std::fs::set_permissions(&loose, std::fs::Permissions::from_mode(0o707)).unwrap();
+    let o = run_with_root(&args, &loose);
+    assert_eq!(o.status.code(), Some(2));
+    let line = String::from_utf8_lossy(&o.stderr);
+    assert!(line.contains("ledger_unreadable"), "{line}");
+
+    let link = t.p("ledger-link");
+    std::os::unix::fs::symlink(&allowed, &link).unwrap();
+    let o = run_with_root(&args, &link);
+    assert_eq!(o.status.code(), Some(2));
+    let line = String::from_utf8_lossy(&o.stderr);
+    assert!(line.contains("ledger_unreadable"), "{line}");
 }
 
 #[test]
