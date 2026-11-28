@@ -323,6 +323,8 @@ pub fn apply_edit(
                     ValState::Missing
                 },
                 source: "entered".into(),
+                // A person's preview edit has no reading verdict (PZ-2) unless it is replaced by a stored read.
+                reading_verdict: None,
             },
         );
         return Ok((out, rules.clone()));

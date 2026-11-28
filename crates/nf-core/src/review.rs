@@ -617,6 +617,7 @@ pub fn parts_and_context_from_reading(reading: &Value) -> (Vec<PartIn>, ReviewCo
                             value: Some(value),
                             state,
                             source: v["source"].as_str().unwrap_or("drawing").to_string(),
+                            reading_verdict: v["reading_verdict"].as_str().map(str::to_string),
                         },
                     );
                 }
