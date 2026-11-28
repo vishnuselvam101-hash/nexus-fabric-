@@ -71,13 +71,17 @@ async fn agent_typed_confirm(
     let mut confirm = value;
     confirm["confirm"] = json!(true);
     confirm["reading_id"] = json!(rid);
+    let mut ce = ev(
+        "confirm",
+        "confirm",
+        json!({ "ui": format!("part-1-{key}") }),
+        "typed from the page",
+    );
+    ce["write_ref"] = json!({ "part": "1", "key": key });
+    let mut confirm_body = with_ev(json!({ "values": [confirm] }));
+    confirm_body["events"] = json!([ce]);
     let (st, _, _) = t
-        .send(
-            "PUT",
-            &vals,
-            Some(with_ev(json!({ "values": [confirm] }))),
-            &[("cookie", ac)],
-        )
+        .send("PUT", &vals, Some(confirm_body), &[("cookie", ac)])
         .await;
     (StatusCode::OK, st, code)
 }
@@ -560,7 +564,8 @@ async fn aiop_undo_puts_a_typed_value_back_and_refuses_when_it_was_changed() {
         o["decisions"]
     );
     let ev_list = t.get(&format!("{base}/events")).await;
-    assert_eq!(ev_list["events"][0]["undone"], true);
+    assert_eq!(ev_list["events"][0]["undone"], false);
+    assert_eq!(ev_list["events"][1]["undone"], true);
     // nothing left to undo
     let (st, v) = person(&t, "POST", &format!("{base}/undo"), json!({})).await;
     assert_eq!(
@@ -748,12 +753,12 @@ async fn aiop_the_operator_confirms_only_against_a_clean_server_side_reading() {
     let forbidden = StatusCode::FORBIDDEN;
     let refused = StatusCode::UNPROCESSABLE_ENTITY;
     for (name, body, want, status) in [
-        // what the caller says about itself never grants authority: 0.99 and no flags, but no reading
+        // the agent must name the server-stored reading; claimed flags/confidence do not grant authority
         (
             "claimed 0.99, no reading_id",
             confirm_body("D", 216.3, None, json!([]), 0.99),
-            "confirm_needs_reading_state",
-            refused,
+            "agent_cannot_confirm",
+            forbidden,
         ),
         (
             "reading_id of another value",
