@@ -595,7 +595,7 @@ async function main() {
         for (const raw of found) {
           const t = raw.replace(/[.,]+$/, '');
           if (!t || seen.has(t)) continue;
-          if (NUM.test(t) || VERSION.test(t) || FILE.test(t) || DOMAIN.test(t) || TLD.test(t)) continue;
+          if (NUM.test(t) || VERSION.test(t) || FILE.test(t) || DOMAIN.test(t) || TLD.test(t) || /^src\.[0-9a-f]{8,}$/.test(t)) continue; // the engine build id is an identifier, not wording
           seen.add(t);
           tokens.push(t + ' ' + where);
         }

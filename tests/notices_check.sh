@@ -13,7 +13,7 @@ BIN=${1:-$ROOT/target/release/nf-server}
 CARGO=${2:-nf-cargo}
 VERSION=0.0.0-notices-check
 TARGETS="x86_64-unknown-linux-gnu x86_64-pc-windows-gnu"
-FIRST_PARTY="nf-core nf-digest nf-dxf nf-jobout nf-licence nf-numread nf-pdf nf-pdf-winjob nf-server uem"
+FIRST_PARTY="nf-amoeba-agent nf-amoeba-operator nf-cad nf-cadio nf-core nf-digest nf-dxf nf-estimate nf-jobout nf-licence nf-machine nf-numread nf-pdf nf-pdf-winjob nf-raster nf-server uem"
 fail=0
 
 check() { # check <description> <command...>
@@ -55,7 +55,7 @@ notices_match_graph() { # notices_match_graph <THIRD_PARTY_NOTICES.txt>
   local notices=$1 t
   : > "$TMP/graph.txt"
   for t in $TARGETS; do
-    if ! (cd "$ROOT" && $CARGO tree --locked -p nf-server -p nf-pdf -e normal,build \
+    if ! (cd "$ROOT" && $CARGO tree --locked -p nf-server -p nf-pdf -p nf-raster -e normal,build \
           --target "$t" --prefix none -f '{p}' > "$TMP/tree-$t.txt"); then
       echo "cargo tree failed for $t (command: $CARGO)"
       return 1
@@ -105,7 +105,7 @@ if [ -f "$NOTICES" ]; then
     grep -q 'Apache License' "$NOTICES"
   check "notices contain the MIT permission grant (full licence text)" \
     grep -q 'Permission is hereby granted, free of charge' "$NOTICES"
-  check "notices name+version set equals cargo tree -e normal,build of nf-server and nf-pdf for both targets" \
+  check "notices name+version set equals cargo tree -e normal,build of nf-server, nf-pdf and nf-raster for both targets" \
     notices_match_graph "$NOTICES"
   check "every web/vendor/*/LICENSE is listed verbatim in the notices" \
     vendor_licences_listed "$NOTICES"
