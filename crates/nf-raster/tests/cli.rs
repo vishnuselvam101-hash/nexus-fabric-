@@ -4,8 +4,12 @@
 
 mod common;
 
+use std::cell::RefCell;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use common::{decode_png, fixture_path};
 use sha2::{Digest, Sha256};
@@ -29,10 +33,7 @@ impl Drop for Tmp {
 }
 
 fn run(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_nf-raster"))
-        .args(args)
-        .output()
-        .unwrap()
+    run_with_ledger(args)
 }
 
 fn s(p: &Path) -> &str {
@@ -43,12 +44,49 @@ fn hex(b: &[u8]) -> String {
     format!("{:x}", Sha256::digest(b))
 }
 
+// A private ledger root per test thread, created root-owned in `nf-sandbox`. Each test's crops
+// are counted together even when the input is copied to another path.
+thread_local! {
+    static LEDGER_ROOT: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+}
+
+fn ledger_root() -> PathBuf {
+    LEDGER_ROOT.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        if let Some(p) = slot.as_ref() {
+            return p.clone();
+        }
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let p =
+            std::env::temp_dir().join(format!("nf-raster-ledger-{}-{nanos}", std::process::id()));
+        std::fs::create_dir_all(&p).unwrap();
+        #[cfg(unix)]
+        std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o700)).unwrap();
+        *slot = Some(p.clone());
+        p
+    })
+}
+
+fn run_with_ledger(args: &[&str]) -> Output {
+    let mut c = Command::new(env!("CARGO_BIN_EXE_nf-raster"));
+    c.args(args)
+        .env("NF_CROP_LEDGER_ROOT", ledger_root())
+        .env("HOME", std::env::temp_dir())
+        .stdin(Stdio::null());
+    c.output().unwrap()
+}
+
 /// The program treats the input's directory as the job directory; put each fixture there.
 fn input(t: &Tmp, name: &str) -> PathBuf {
     let p = t.p(name);
     // The cap test needs two distinct input paths for the same source PDF.
-    let source = if name == "cap.pdf" || name == "oob.pdf" {
+    let source = if name.starts_with("cap") {
         "scan_g4_small.pdf"
+    } else if name == "oob.pdf" {
+        "scan_g4.pdf"
     } else {
         name
     };
@@ -534,4 +572,133 @@ fn crop_refuses_an_out_of_page_box_and_the_42nd_crop_of_a_page() {
     );
     assert!(String::from_utf8_lossy(&escaped.stderr).contains("path_outside_job"));
     assert!(!Path::new("/tmp/nf-raster-escape.png").exists());
+}
+
+#[test]
+fn a_copy_of_the_same_pdf_cannot_start_a_fresh_crop_count() {
+    let t = Tmp::new("crop-copy");
+    let pdf = input(&t, "cap.pdf");
+    let copy = input(&t, "cap-copy.pdf");
+    let (png, rep) = (t.p("c.png"), t.p("c.json"));
+    let crop = |p: &Path| {
+        run(&[
+            "crop",
+            "1",
+            "--in",
+            s(p),
+            "--out",
+            s(&png),
+            "--report",
+            s(&rep),
+            "--dpi",
+            "100",
+            "--gray",
+            "--bbox",
+            "10,10,20,20",
+        ])
+    };
+    for _ in 1..=40 {
+        assert_eq!(crop(&pdf).status.code(), Some(0));
+    }
+    let o = crop(&copy);
+    assert_eq!(
+        o.status.code(),
+        Some(3),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(String::from_utf8_lossy(&o.stderr).contains("crops_per_page"));
+}
+
+#[test]
+fn a_direct_worker_crop_is_refused_without_a_parent_charge() {
+    let t = Tmp::new("crop-worker");
+    let pdf = input(&t, "scan_g4_small.pdf");
+    let o = Command::new(env!("CARGO_BIN_EXE_nf-raster"))
+        .args([
+            "--worker",
+            "1",
+            "crop",
+            "1",
+            "--in",
+            s(&pdf),
+            "--out",
+            s(&t.p("w.png")),
+            "--report",
+            s(&t.p("w.json")),
+            "--dpi",
+            "100",
+            "--gray",
+            "--bbox",
+            "10,10,20,20",
+        ])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(o.status.success(), "{:?}", o.status);
+    let answer = String::from_utf8_lossy(&o.stdout);
+    assert!(answer.contains("crop_not_charged"), "{answer}");
+    assert!(!t.p("w.png").exists());
+}
+
+#[test]
+fn a_spent_crop_charge_cannot_be_replayed_by_the_worker() {
+    let t = Tmp::new("crop-replay");
+    let pdf = input(&t, "scan_g4_small.pdf");
+    let crop = run(&[
+        "crop",
+        "1",
+        "--in",
+        s(&pdf),
+        "--out",
+        s(&t.p("c.png")),
+        "--report",
+        s(&t.p("c.json")),
+        "--dpi",
+        "100",
+        "--gray",
+        "--bbox",
+        "10,10,20,20",
+    ]);
+    assert_eq!(
+        crop.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&crop.stderr)
+    );
+    // The parent's proof is forgeable only with the trusted root's secret; even a valid proof must
+    // not authorize a second render once its one-use charge has been spent.
+    let secret = std::fs::read(ledger_root().join(".key")).unwrap();
+    let sha = hex(&std::fs::read(&pdf).unwrap());
+    let mut material = secret.clone();
+    material.extend_from_slice(format!("\0crop\0{sha}\0{}\0{}\0", 1, 1).as_bytes());
+    material.extend_from_slice(&secret);
+    let charge = format!("{}:{sha}:1:1", hex(&material));
+    let replay = Command::new(env!("CARGO_BIN_EXE_nf-raster"))
+        .args([
+            "--worker",
+            "1",
+            "crop",
+            "1",
+            "--in",
+            s(&pdf),
+            "--out",
+            s(&t.p("w.png")),
+            "--report",
+            s(&t.p("w.json")),
+            "--dpi",
+            "100",
+            "--gray",
+            "--bbox",
+            "10,10,20,20",
+        ])
+        .env("NF_CROP_LEDGER_ROOT", ledger_root())
+        .env("NF_CROP_CHARGE", charge)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(replay.status.success(), "{:?}", replay.status);
+    let answer = String::from_utf8_lossy(&replay.stdout);
+    assert!(answer.contains("crop_not_charged"), "{answer}");
+    assert!(!t.p("w.png").exists());
 }

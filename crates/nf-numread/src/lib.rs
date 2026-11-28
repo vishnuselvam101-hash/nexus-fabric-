@@ -317,7 +317,7 @@ impl Reader {
 
     /// Read a known box directly, without running the page detector again. The detector can miss a
     /// small, already located crop; the recogniser reads the crop at its own height.
-    fn read_box_text(&self, crop: &Gray) -> Result<Vec<(String, Option<f64>)>, Error> {
+    fn read_box_text(&self, crop: &Gray) -> Result<Vec<(String, Option<f64>, f32)>, Error> {
         let p = &self.params;
         let upright = rec::recognise(&self.rec, &self.dict, crop, p)?;
         let mut line = upright;
@@ -339,7 +339,7 @@ impl Reader {
                 add_phi(&mut tok, &line, p.phi_thresh);
             }
             if let Some(parsed) = text::parse(&tok.text()) {
-                out.push((parsed.text, parsed.value));
+                out.push((parsed.text, parsed.value, tok.conf()));
             }
         }
         Ok(out)
@@ -380,12 +380,21 @@ impl Reader {
                     input_sha256 = hex(&crop.data);
                     match self.read_box_text(&crop) {
                         Ok(tokens) => {
-                            let read: Vec<String> = tokens.iter().map(|(t, _)| t.clone()).collect();
-                            let agrees = tokens.iter().any(|(t, v)| {
+                            let read: Vec<String> =
+                                tokens.iter().map(|(t, _, _)| t.clone()).collect();
+                            let matching = |(t, v, _): &(String, Option<f64>, f32)| {
                                 v.is_some_and(|n| same_number(n, value))
                                     || text_contains_number(t, value)
-                            });
-                            if agrees {
+                            };
+                            let agrees = tokens.iter().any(matching);
+                            // A low-confidence agreement is evidence, not a confirmation: it stays
+                            // a proposal for a person to check.
+                            let weak = tokens
+                                .iter()
+                                .any(|tok| matching(tok) && tok.2 < LOW_CONFIDENCE_BELOW);
+                            if agrees && weak {
+                                OcrCheck::Unavailable("low_confidence".into())
+                            } else if agrees {
                                 OcrCheck::Agrees { read }
                             } else {
                                 OcrCheck::Disagrees { read }
@@ -478,9 +487,9 @@ fn add_phi(tok: &mut text::Tok, line: &rec::Line, thresh: f32) -> bool {
         .map_or(0, |c| c.step + 1);
     let from = prev_end.max(first.saturating_sub(4));
     let mut best = (0usize, 0f32);
-    for t in from..first {
-        if line.phi[t] > best.1 {
-            best = (t, line.phi[t]);
+    for (t, phi) in line.phi.iter().enumerate().take(first).skip(from) {
+        if *phi > best.1 {
+            best = (t, *phi);
         }
     }
     if best.1 >= thresh {

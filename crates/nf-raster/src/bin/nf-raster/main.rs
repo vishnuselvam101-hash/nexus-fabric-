@@ -30,6 +30,8 @@ mod sandbox;
 
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
+#[cfg(unix)]
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
@@ -51,6 +53,9 @@ const MAX_LINE_BYTES: usize = 64 << 10;
 const MAX_OUTPUT_BYTES: usize = 256 << 20;
 /// Implementation limit: crops of one page, counted by the parent across runs (PZ-2).
 const MAX_CROPS_PER_PAGE: u32 = 40;
+/// The trusted ledger root when the installer has not configured one. It is never inside a job
+/// directory: a caller cannot start a fresh count by copying the same PDF somewhere else.
+const DEFAULT_CROP_ROOT: &str = "/var/lib/nf-raster/crop-ledger";
 /// Implementation limit: the largest input file.
 const MAX_INPUT_BYTES: u64 = 64 << 20;
 /// First bytes of the worker's answer on its standard output.
@@ -99,6 +104,75 @@ fn exit_with(code: i32, status: &str, reason: &str, limit: Option<&str>, message
 
 fn invalid(code: &str, message: &str) -> ! {
     exit_with(2, "refused", code, None, message)
+}
+
+/// Adds `O_NOFOLLOW` where the platform has it. Every ledger and output open uses this so a
+/// symlink swapped in after a path check cannot redirect a write.
+#[cfg(unix)]
+fn no_follow(opts: &mut OpenOptions) {
+    opts.custom_flags(libc::O_NOFOLLOW);
+}
+
+#[cfg(not(unix))]
+fn no_follow(_opts: &mut OpenOptions) {}
+
+/// A directory is fit for the ledger only when its owner is root and neither group nor others can
+/// write into it. The server sets `NF_CROP_LEDGER_ROOT`; a caller who can set it but cannot create a
+/// root-owned directory cannot choose a fresh ledger.
+#[cfg(unix)]
+fn trusted_dir(md: &fs::Metadata) -> bool {
+    md.is_dir() && md.uid() == 0 && md.mode() & 0o022 == 0
+}
+
+#[cfg(not(unix))]
+fn trusted_dir(md: &fs::Metadata) -> bool {
+    md.is_dir()
+}
+
+fn ledger_root() -> PathBuf {
+    match std::env::var_os("NF_CROP_LEDGER_ROOT") {
+        Some(p) if !p.is_empty() => PathBuf::from(p),
+        _ => PathBuf::from(DEFAULT_CROP_ROOT),
+    }
+}
+
+/// Opens the ledger root, creating it on first use, and refuses a root that is not trusted.
+fn open_ledger_root() -> Result<PathBuf, Outcome> {
+    let configured = ledger_root();
+    let exists = configured.exists();
+    fs::create_dir_all(&configured).map_err(|_| {
+        failed(
+            2,
+            "refused",
+            "ledger_unreadable",
+            None,
+            "the crop count directory could not be created",
+        )
+    })?;
+    let root = fs::canonicalize(&configured).map_err(|_| {
+        failed(
+            2,
+            "refused",
+            "ledger_unreadable",
+            None,
+            "the crop count directory could not be opened",
+        )
+    })?;
+    #[cfg(unix)]
+    if !exists {
+        let _ = fs::set_permissions(&root, fs::Permissions::from_mode(0o700));
+    }
+    let ok = fs::metadata(&root).is_ok_and(|m| trusted_dir(&m));
+    if !ok {
+        return Err(failed(
+            2,
+            "refused",
+            "ledger_unreadable",
+            None,
+            "the crop count directory is not controlled by the server",
+        ));
+    }
+    Ok(root)
 }
 
 /// The input is the trust anchor: its directory is the job directory. Outputs may not be named
@@ -330,17 +404,15 @@ fn internal(reason: &str, message: &str) -> Outcome {
 }
 
 fn create(path: &Path, what: &str) -> File {
-    OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(path)
-        .unwrap_or_else(|e| {
-            invalid(
-                "output_unwritable",
-                &format!("cannot create the {what}: {e}"),
-            )
-        })
+    let mut opts = OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    no_follow(&mut opts);
+    opts.open(path).unwrap_or_else(|e| {
+        invalid(
+            "output_unwritable",
+            &format!("cannot create the {what}: {e}"),
+        )
+    })
 }
 
 /// `<path>.partial`: where a file is written before it is renamed to its final name.
@@ -355,11 +427,10 @@ fn partial(path: &Path) -> PathBuf {
 fn write_whole(path: &Path, bytes: &[u8]) -> bool {
     let tmp = partial(path);
     let written = (|| -> std::io::Result<()> {
-        let mut f = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&tmp)?;
+        let mut opts = OpenOptions::new();
+        opts.write(true).create(true).truncate(true);
+        no_follow(&mut opts);
+        let mut f = opts.open(&tmp)?;
         f.write_all(bytes)?;
         f.flush()?;
         drop(f);
@@ -371,52 +442,106 @@ fn write_whole(path: &Path, bytes: &[u8]) -> bool {
     written.is_ok()
 }
 
-/// The counter is keyed by the canonical input and page and lives in the input's own directory.
-/// A caller cannot start a fresh count by changing `--report` or by naming another output file.
-/// Each record is the page number and its count (two little-endian u32).
-fn crop_paths(input: &Path, page: u32) -> (PathBuf, PathBuf) {
-    let job_dir = input.parent().unwrap_or_else(|| Path::new("/"));
-    let key = sha256_hex(format!("{}\0{}", input.display(), page).as_bytes());
+/// Opens an existing file without following a final symlink.
+fn open_no_follow(path: &Path, what: &str) -> Result<File, Outcome> {
+    let mut opts = OpenOptions::new();
+    opts.read(true);
+    no_follow(&mut opts);
+    opts.open(path).map_err(|_| {
+        failed(
+            2,
+            "refused",
+            "ledger_unreadable",
+            None,
+            &format!("the {what} could not be opened safely"),
+        )
+    })
+}
+
+/// Opens a lock file, creating it in the same no-follow step. A symlink swapped in between a path
+/// check and the open is refused by the kernel.
+fn open_lock(path: &Path) -> Result<File, Outcome> {
+    let mut opts = OpenOptions::new();
+    opts.read(true).write(true).create(true);
+    no_follow(&mut opts);
+    opts.open(path).map_err(|_| {
+        failed(
+            2,
+            "refused",
+            "ledger_unreadable",
+            None,
+            "the crop lock could not be opened safely",
+        )
+    })
+}
+
+/// The counter is keyed by the bytes of the canonical input and the page, and lives in the trusted
+/// root. Copying the same PDF to another job directory cannot start a fresh count; changing
+/// `--report` or an output name cannot either. Each record is the page number and its count (two
+/// little-endian u32).
+fn crop_paths(root: &Path, content_sha: &str, page: u32) -> (PathBuf, PathBuf) {
+    let key = crop_key(content_sha, page);
     (
-        job_dir.join(format!(".nf-raster-crop-{key}.ledger")),
-        job_dir.join(format!(".nf-raster-crop-{key}.lock")),
+        root.join(format!(".nf-raster-crop-{key}.ledger")),
+        root.join(format!(".nf-raster-crop-{key}.lock")),
     )
 }
 
-fn no_symlink(path: &Path, what: &str) -> Result<(), Outcome> {
-    if fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) {
-        return Err(failed(
-            2,
-            "refused",
-            "path_outside_job",
-            None,
-            &format!("the {what} must not be a symbolic link"),
-        ));
-    }
-    Ok(())
+fn crop_key(content_sha: &str, page: u32) -> String {
+    sha256_hex(format!("{content_sha}\0{page}").as_bytes())
 }
 
-/// Charge one crop to a page before any rendering. The lock is held across the read, the check
-/// and the atomic write, so concurrent runs cannot both claim the last slot. An interrupted run
-/// leaves either the old count or the new one, never a half record.
-fn charge_crop(input: &Path, page: u32) -> Result<(), Outcome> {
-    let (ledger, lock_path) = crop_paths(input, page);
-    no_symlink(&lock_path, "crop lock")?;
-    let lock = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(&lock_path)
-        .map_err(|_| {
-            failed(
-                2,
-                "refused",
-                "ledger_unreadable",
-                None,
-                "the crop count could not be locked",
-            )
-        })?;
+/// A charge is a one-use file in the trusted root, named by the exact content, page and count that
+/// the parent charged. The worker consumes it before it renders; a replay has no file to consume.
+fn crop_token(root: &Path, content_sha: &str, page: u32, count: u32) -> PathBuf {
+    root.join(format!(
+        ".nf-raster-crop-{}.{count}.charge",
+        crop_key(content_sha, page)
+    ))
+}
+
+/// The SHA-256 of the exact input bytes. This is the identity the ledger counts, not a caller-chosen
+/// path or file name.
+fn input_sha(input: &Path) -> Result<String, Outcome> {
+    let md = fs::metadata(input).map_err(|_| {
+        failed(
+            2,
+            "refused",
+            "input_unreadable",
+            None,
+            "the input could not be read",
+        )
+    })?;
+    if md.len() > MAX_INPUT_BYTES {
+        return Err(failed(
+            3,
+            "limit_exceeded",
+            "limit_exceeded",
+            Some("input_bytes"),
+            "the input exceeds the size limit",
+        ));
+    }
+    let bytes = fs::read(input).map_err(|_| {
+        failed(
+            2,
+            "refused",
+            "input_unreadable",
+            None,
+            "the input could not be read",
+        )
+    })?;
+    Ok(sha256_hex(&bytes))
+}
+
+/// Charge one crop to a page before any rendering. The lock is held across the read, the check and
+/// the atomic write, so concurrent runs cannot both claim the last slot. An interrupted run leaves
+/// either the old count or the new one, never a half record. The returned count names a one-time
+/// charge that the worker must spend before it renders.
+fn charge_crop(input: &Path, page: u32) -> Result<(u32, String), Outcome> {
+    let root = open_ledger_root()?;
+    let content_sha = input_sha(input)?;
+    let (ledger, lock_path) = crop_paths(&root, &content_sha, page);
+    let lock = open_lock(&lock_path)?;
     lock.lock().map_err(|_| {
         failed(
             2,
@@ -426,19 +551,23 @@ fn charge_crop(input: &Path, page: u32) -> Result<(), Outcome> {
             "the crop count could not be locked",
         )
     })?;
-    no_symlink(&ledger, "crop ledger")?;
-    let old = match fs::read(&ledger) {
-        Ok(b) => b,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-        Err(_) => {
-            return Err(failed(
-                2,
-                "refused",
-                "ledger_unreadable",
-                None,
-                "the crop count could not be read",
-            ))
+    let old = match open_no_follow(&ledger, "crop ledger") {
+        Ok(f) => {
+            let mut bytes = Vec::new();
+            use std::io::Read;
+            f.take(64 * 1024 + 1).read_to_end(&mut bytes).map_err(|_| {
+                failed(
+                    2,
+                    "refused",
+                    "ledger_unreadable",
+                    None,
+                    "the crop count could not be read",
+                )
+            })?;
+            bytes
         }
+        Err(outcome) if outcome.code == 2 => Vec::new(),
+        Err(outcome) => return Err(outcome),
     };
     if old.len() > 64 * 1024 || old.len() % 8 != 0 {
         return Err(failed(
@@ -450,22 +579,14 @@ fn charge_crop(input: &Path, page: u32) -> Result<(), Outcome> {
         ));
     }
     let mut records: Vec<(u32, u32)> = Vec::new();
-    for pair in old.chunks_exact(8) {
-        let n = |i: usize| -> Option<u32> {
-            Some(u32::from_le_bytes(pair.get(i..i + 4)?.try_into().ok()?))
-        };
-        let (Some(p), Some(c)) = (n(0), n(4)) else {
-            return Err(failed(
-                2,
-                "refused",
-                "ledger_invalid",
-                None,
-                "the crop count is damaged",
-            ));
-        };
-        records.push((p, c));
+    let (pairs, _) = old.as_chunks::<8>();
+    for &[a, b, c, d, e, f, g, h] in pairs {
+        records.push((
+            u32::from_le_bytes([a, b, c, d]),
+            u32::from_le_bytes([e, f, g, h]),
+        ));
     }
-    match records.iter_mut().find(|(p, _)| *p == page) {
+    let count = match records.iter_mut().find(|(p, _)| *p == page) {
         Some((_, c)) => {
             if *c >= MAX_CROPS_PER_PAGE {
                 return Err(failed(
@@ -477,9 +598,13 @@ fn charge_crop(input: &Path, page: u32) -> Result<(), Outcome> {
                 ));
             }
             *c += 1;
+            *c
         }
-        None => records.push((page, 1)),
-    }
+        None => {
+            records.push((page, 1));
+            1
+        }
+    };
     let mut bytes = Vec::with_capacity(records.len() * 8);
     for (p, c) in records {
         bytes.extend_from_slice(&p.to_le_bytes());
@@ -494,7 +619,134 @@ fn charge_crop(input: &Path, page: u32) -> Result<(), Outcome> {
             "the crop count could not be written",
         ));
     }
-    Ok(())
+    // The worker spends this exact count exactly once. A proof cannot be replayed for a second
+    // render because the charge file is removed under the same lock while the worker is unsandboxed.
+    if !write_whole(&crop_token(&root, &content_sha, page, count), b"1") {
+        return Err(failed(
+            70,
+            "internal_error",
+            "ledger_write_failed",
+            None,
+            "the crop charge could not be recorded",
+        ));
+    }
+    Ok((count, content_sha))
+}
+
+/// Spend the one-time charge for this crop. The same lock the parent used guards the remove, so
+/// two workers holding the same proof cannot both render. This runs before the worker isolates
+/// itself; after isolation it has no file access.
+fn consume_crop_charge(
+    root: &Path,
+    content_sha: &str,
+    page: u32,
+    count: u32,
+) -> Result<(), Outcome> {
+    let (_, lock_path) = crop_paths(root, content_sha, page);
+    let lock = open_lock(&lock_path)?;
+    lock.lock().map_err(|_| {
+        failed(
+            2,
+            "refused",
+            "ledger_unreadable",
+            None,
+            "the crop charge could not be locked",
+        )
+    })?;
+    let token = crop_token(root, content_sha, page, count);
+    let f = open_no_follow(&token, "crop charge")?;
+    if !f.metadata().is_ok_and(|m| m.is_file()) {
+        return Err(failed(
+            2,
+            "refused",
+            "crop_not_charged",
+            None,
+            "the crop charge is not valid",
+        ));
+    }
+    std::fs::remove_file(&token).map_err(|_| {
+        failed(
+            2,
+            "refused",
+            "ledger_unreadable",
+            None,
+            "the crop charge could not be spent",
+        )
+    })
+}
+
+/// The install secret lets the parent mint a proof that a crop was charged. It lives in the
+/// trusted root and is never sent to a caller; the worker reads it directly before it isolates
+/// itself, so a direct `--worker crop` without the parent's proof is refused.
+fn crop_secret(root: &Path) -> Result<Vec<u8>, Outcome> {
+    let path = root.join(".key");
+    if let Ok(f) = open_no_follow(&path, "crop key") {
+        let meta = f.metadata().ok();
+        let mut key = Vec::new();
+        let trusted_key = meta.is_some_and(|m| {
+            #[cfg(unix)]
+            {
+                m.is_file() && m.uid() == 0 && m.mode() & 0o177 == 0
+            }
+            #[cfg(not(unix))]
+            {
+                m.is_file()
+            }
+        });
+        if f.take(33).read_to_end(&mut key).is_ok() && key.len() == 32 && trusted_key {
+            return Ok(key);
+        }
+        return Err(failed(
+            2,
+            "refused",
+            "ledger_unreadable",
+            None,
+            "the crop proof key is damaged",
+        ));
+    }
+    let mut bytes = [0u8; 32];
+    let random = File::open("/dev/urandom").map_err(|_| {
+        failed(
+            70,
+            "internal_error",
+            "ledger_write_failed",
+            None,
+            "the crop proof key could not be generated",
+        )
+    })?;
+    use std::io::Read;
+    let mut random = random;
+    if random.read_exact(&mut bytes).is_err() {
+        return Err(failed(
+            70,
+            "internal_error",
+            "ledger_write_failed",
+            None,
+            "the crop proof key could not be generated",
+        ));
+    }
+    if !write_whole(&path, &bytes) {
+        return Err(failed(
+            70,
+            "internal_error",
+            "ledger_write_failed",
+            None,
+            "the crop proof key could not be written",
+        ));
+    }
+    #[cfg(unix)]
+    let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+    Ok(bytes.to_vec())
+}
+
+/// A domain-separated digest of the install secret and the charge. The parent creates it; the
+/// worker derives the same digest from the root's secret and the value in its environment.
+fn crop_proof(secret: &[u8], content_sha: &str, page: u32, count: u32) -> String {
+    let mut material = Vec::with_capacity(secret.len() * 2 + 128);
+    material.extend_from_slice(secret);
+    material.extend_from_slice(format!("\0crop\0{content_sha}\0{page}\0{count}\0").as_bytes());
+    material.extend_from_slice(secret);
+    sha256_hex(&material)
 }
 
 /// The report written before the worker starts. If this program is ended from outside (a
@@ -540,17 +792,43 @@ fn parent(argv: &[String]) -> ! {
         invalid("output_unwritable", "cannot write the report");
     }
     // A crop is charged now, before its render starts: the 41st request does no work at all.
+    let mut crop_env = None;
     if args.command == Command_::Crop {
-        if let Err(outcome) = charge_crop(&args.input, args.options.page) {
-            remove_if_present(&out_partial);
-            let _ = write_whole(&args.report, &outcome.report);
-            eprintln!("{}", outcome.line);
-            std::process::exit(outcome.code);
+        match charge_crop(&args.input, args.options.page) {
+            Ok((count, content_sha)) => {
+                let charge = match open_ledger_root().and_then(|root| {
+                    crop_secret(&root).map(|secret| {
+                        (
+                            format!(
+                                "{}:{content_sha}:{}:{count}",
+                                crop_proof(&secret, &content_sha, args.options.page, count),
+                                args.options.page
+                            ),
+                            root,
+                        )
+                    })
+                }) {
+                    Ok(charge) => charge,
+                    Err(outcome) => {
+                        remove_if_present(&out_partial);
+                        let _ = write_whole(&args.report, &outcome.report);
+                        eprintln!("{}", outcome.line);
+                        std::process::exit(outcome.code);
+                    }
+                };
+                crop_env = Some(charge);
+            }
+            Err(outcome) => {
+                remove_if_present(&out_partial);
+                let _ = write_whole(&args.report, &outcome.report);
+                eprintln!("{}", outcome.line);
+                std::process::exit(outcome.code);
+            }
         }
     }
     let max_out = MAX_OUTPUT_BYTES;
 
-    let outcome = run_worker(argv, input, max_out);
+    let outcome = run_worker(argv, input, max_out, crop_env);
 
     if outcome.code == 0 {
         let mut out_file = create(&out_partial, "output");
@@ -610,13 +888,22 @@ fn remove_if_present(path: &Path) {
 }
 
 /// Starts the worker, collects its answer, and stops it after [`WORKER_WALL_LIMIT`].
-fn run_worker(argv: &[String], input: File, max_out: usize) -> Outcome {
+fn run_worker(
+    argv: &[String],
+    input: File,
+    max_out: usize,
+    crop_env: Option<(String, PathBuf)>,
+) -> Outcome {
     let mut cmd = Command::new(worker_program());
     cmd.arg(WORKER_FLAG)
         .arg(std::process::id().to_string())
         .args(argv.iter().skip(1))
-        .env_clear()
-        .stdin(Stdio::from(input))
+        .env_clear();
+    if let Some((charge, root)) = crop_env {
+        cmd.env("NF_CROP_CHARGE", charge)
+            .env("NF_CROP_LEDGER_ROOT", root);
+    }
+    cmd.stdin(Stdio::from(input))
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit());
     if cfg!(windows) {
@@ -823,6 +1110,92 @@ fn send_failure(code: u8, status: &str, reason: &str, message: &str) -> ! {
     send(code, &line, report.as_bytes(), b"")
 }
 
+/// The parent passes a proof that this crop was charged in the trusted ledger. A direct worker
+/// call has no such proof and is refused before it renders anything. The secret is read from the
+/// trusted root while the worker still has file access, before isolation.
+fn worker_crop_charge(
+    args: &Args,
+) -> Result<String, (u8, &'static str, &'static str, &'static str)> {
+    let charge = std::env::var("NF_CROP_CHARGE").map_err(|_| {
+        (
+            2,
+            "refused",
+            "crop_not_charged",
+            "a crop must be charged by the parent before rendering",
+        )
+    })?;
+    let parts: Vec<&str> = charge.split(':').collect();
+    let (Some(proof), Some(content_sha), Some(page), Some(count)) =
+        (parts.first(), parts.get(1), parts.get(2), parts.get(3))
+    else {
+        return Err((
+            2,
+            "refused",
+            "crop_not_charged",
+            "the crop charge is not valid",
+        ));
+    };
+    let (Ok(page), Ok(count)) = (page.parse::<u32>(), count.parse::<u32>()) else {
+        return Err((
+            2,
+            "refused",
+            "crop_not_charged",
+            "the crop charge is not valid",
+        ));
+    };
+    if page != args.options.page || count == 0 || count > MAX_CROPS_PER_PAGE {
+        return Err((
+            if count > MAX_CROPS_PER_PAGE { 3 } else { 2 },
+            if count > MAX_CROPS_PER_PAGE {
+                "limit_exceeded"
+            } else {
+                "refused"
+            },
+            if count > MAX_CROPS_PER_PAGE {
+                "crops_per_page"
+            } else {
+                "crop_not_charged"
+            },
+            "the crop charge does not authorize this render",
+        ));
+    }
+    let root = open_ledger_root().map_err(|_| {
+        (
+            2,
+            "refused",
+            "crop_not_charged",
+            "the crop charge is not trusted",
+        )
+    })?;
+    let secret = crop_secret(&root).map_err(|_| {
+        (
+            2,
+            "refused",
+            "crop_not_charged",
+            "the crop charge is not trusted",
+        )
+    })?;
+    if crop_proof(&secret, content_sha, page, count) != *proof {
+        return Err((
+            2,
+            "refused",
+            "crop_not_charged",
+            "the crop charge is not valid",
+        ));
+    }
+    // The proof is only a claim: the one-use charge must still exist, and spending it here is what
+    // stops a replay from rendering the same page again without another count.
+    consume_crop_charge(&root, content_sha, page, count).map_err(|_| {
+        (
+            2,
+            "refused",
+            "crop_not_charged",
+            "the crop charge has already been spent",
+        )
+    })?;
+    Ok((*content_sha).to_string())
+}
+
 fn worker(argv: &[String]) -> ! {
     // argv: program, --worker, parent process id, then the program's own arguments.
     let parent_pid: Option<u32> = argv.get(2).and_then(|p| p.parse().ok());
@@ -833,6 +1206,17 @@ fn worker(argv: &[String]) -> ! {
         .cloned()
         .collect();
     let args = parse_args(&own_args);
+
+    // The proof is read from the trusted root before the worker locks itself down. A direct worker
+    // invocation cannot read that root and has no proof from a parent.
+    let crop_content_sha = if args.command == Command_::Crop {
+        match worker_crop_charge(&args) {
+            Ok(sha) => Some(sha),
+            Err((code, status, reason, message)) => send_failure(code, status, reason, message),
+        }
+    } else {
+        None
+    };
 
     // Isolation comes first; the input is read only afterwards.
     // The output exists only as `<out>.partial` while the worker runs.
@@ -874,6 +1258,17 @@ fn worker(argv: &[String]) -> ! {
             "the input exceeds the size limit",
         );
         send(3, &line, report.as_bytes(), b"");
+    }
+    // The bytes just read must be the ones the parent hashed when it charged the crop.
+    if let Some(charged_sha) = crop_content_sha.as_deref() {
+        if sha256_hex(&data) != charged_sha {
+            send_failure(
+                2,
+                "refused",
+                "crop_changed",
+                "the crop input changed after it was charged",
+            );
+        }
     }
 
     let outcome = catch_unwind(AssertUnwindSafe(|| match args.command {

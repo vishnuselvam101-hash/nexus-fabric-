@@ -425,9 +425,11 @@ async fn l1_edits_are_audited_with_old_and_new_and_values_keep_provenance() {
         "{}",
         a[0]
     );
+    // SECURITY-2: the value was first read, so its origin stays immutable. Relabelling it
+    // "entered" cannot turn an unverified reading into a computed CORRECTED value.
     assert!(
         a[1].contains("old 216.3 [read PROPOSED]")
-            && a[1].contains("new 219.1 [entered CORRECTED]")
+            && a[1].contains("new 219.1 [entered PROPOSED]")
             && a[1].contains("typo on the scan"),
         "{}",
         a[1]
@@ -441,7 +443,7 @@ async fn l1_edits_are_audited_with_old_and_new_and_values_keep_provenance() {
             val["proposed_value"].clone(),
             val["state"].clone()
         ),
-        (json!(219.1), json!(216.3), json!(216.3), json!("CORRECTED"))
+        (json!(219.1), json!(216.3), json!(216.3), json!("PROPOSED"))
     );
     // parts too: change and exclusion are audited with the old state
     let (st, v) = t.call("PUT", &format!("/api/orders/{oid}/parts"), Some(json!({ "parts": [{ "id": 1, "no": "1", "name": "main", "shape": "cylinder", "qty": 3, "page": 1 }] }))).await;
@@ -2044,7 +2046,7 @@ async fn pz2_client_cannot_assert_a_second_read_or_an_out_of_page_box() {
         .await;
     assert_eq!(
         (st, v["code"].as_str()),
-        (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_conflict")),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("ocr_not_this_page")),
         "{v}"
     );
     // No second read at all cannot confirm a read-source value.
@@ -2084,6 +2086,115 @@ async fn pz2_client_cannot_assert_a_second_read_or_an_out_of_page_box() {
         o["parts"][0]["values"][0]["flag"]["model_id"],
         nf_numread::MODEL_ID
     );
+}
+
+#[tokio::test]
+async fn pz2_relabelling_a_read_value_cannot_drop_its_gate() {
+    let t = boot();
+    let oid = order_with_real_page(&t).await;
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 301.0, "text": "φ301.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": { "page_no": 1 }
+            }] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    // The caller cannot relabel this value as typed-in and confirm a different number: the stored
+    // read origin keeps the gate in force even when the request source changes.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 999.0, "text": "φ999.0", "source": "entered",
+                "confirm": true
+            }] })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_unverified")),
+        "{v}"
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["parts"][0]["values"][0]["value"], 301.0, "{o}");
+    assert_eq!(o["parts"][0]["values"][0]["source"], "read", "{o}");
+    assert_eq!(o["parts"][0]["values"][0]["state"], "PROPOSED", "{o}");
+}
+
+#[tokio::test]
+async fn pz2_a_disagreeing_flag_keeps_the_value_proposed() {
+    let t = boot();
+    let oid = order_with_real_page(&t).await;
+    // Even with confirm, the model's disagreement refuses the confirmation.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 999.0, "text": "φ999.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": { "page_no": 1 }, "confirm": true
+            }] })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("reading_conflict")),
+        "{v}"
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["parts"][0]["values"].as_array().unwrap().len(), 0, "{o}");
+    // Without confirm, the disagreeing value is stored only as a proposal.
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [{
+                "part": "1", "key": "D", "value": 999.0, "text": "φ999.0", "source": "read",
+                "bbox": [127.1, 268.8, 204.9, 289.7], "flag": { "page_no": 1 }
+            }] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["parts"][0]["values"][0]["value"], 999.0, "{o}");
+    assert_eq!(o["parts"][0]["values"][0]["state"], "PROPOSED", "{o}");
+}
+
+#[tokio::test]
+async fn pz2_too_many_flagged_values_in_one_batch_is_refused_before_ocr() {
+    let t = boot();
+    let oid = order_with_real_page(&t).await;
+    let values: Vec<Value> = (0..9)
+        .map(|i| {
+            json!({
+                "part": "1", "key": format!("k{i}"), "value": 301.0, "text": "φ301.0",
+                "source": "read", "bbox": [127.1, 268.8, 204.9, 289.7],
+                "flag": { "page_no": 1 }
+            })
+        })
+        .collect();
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": values })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Some("flagged_values_limit")
+        ),
+        "{v}"
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["parts"][0]["values"].as_array().unwrap().len(), 0, "{o}");
 }
 
 #[tokio::test]
