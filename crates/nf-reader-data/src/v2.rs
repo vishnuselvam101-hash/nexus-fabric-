@@ -160,6 +160,10 @@ pub struct Ctx {
     pub refused: usize,
     /// Linear dimensions whose drawn extent disagrees with the label (beyond one pixel).
     pub geom_fail: usize,
+    /// Polylines (mm, current view) drawn since the last `fit`: the geometry the drawn-vs-label checks measure.
+    pub vpolys: Vec<Vec<(f64, f64)>>,
+    /// Set while a label is deliberately not tied to one drawn element (checked explicitly or not geometric).
+    pub skip_chk: bool,
 }
 
 impl Ctx {
@@ -171,6 +175,7 @@ impl Ctx {
     }
     /// Fit mm bounding box `bb` into cell `cell` (px), centred, leaving room for dimensions.
     fn fit(&mut self, cell: [f64; 4], bb: [f64; 4]) {
+        self.vpolys.clear();
         let m = 110.0 * self.u;
         let cw = (cell[2] - cell[0] - 2.0 * m).max(10.0);
         let ch = (cell[3] - cell[1] - 2.0 * m).max(10.0);
@@ -196,6 +201,7 @@ impl Ctx {
         }
     }
     fn outline(&mut self, pts: &[(f64, f64)], fill: &str) {
+        self.vpolys.push(pts.to_vec());
         let q: Vec<(f64, f64)> = pts.iter().map(|&(x, y)| self.px(x, y)).collect();
         self.p.poly(&q, true, 1.6 * self.u, fill);
     }
@@ -209,6 +215,7 @@ impl Ctx {
         self.outline(&pts, "none");
     }
     fn mline(&mut self, a: (f64, f64), b: (f64, f64)) {
+        self.vpolys.push(vec![a, b]);
         let (x0, y0) = self.px(a.0, a.1);
         let (x1, y1) = self.px(b.0, b.1);
         self.p.line(x0, y0, x1, y1, 1.2 * self.u);
@@ -285,6 +292,56 @@ impl Ctx {
             self.geom_fail += 1;
         }
     }
+    /// A diameter/width label must match a drawn element of the current view: a polyline whose bounding box side or
+    /// one of whose edges has that length (one pixel plus 0.5 %).
+    fn check_size(&mut self, v: f64) {
+        let tol = 1.0 / self.sc + 0.005 * v.abs();
+        let ok = self.vpolys.iter().any(|p| {
+            let b = bbox(p);
+            let closed = p.len() > 2;
+            let n = p.len();
+            (b[2] - b[0] - v).abs() <= tol
+                || (b[3] - b[1] - v).abs() <= tol
+                || (0..if closed { n } else { n - 1 }).any(|i| {
+                    let (a, c) = (p[i], p[(i + 1) % n]);
+                    ((a.0 - c.0).hypot(a.1 - c.1) - v).abs() <= tol
+                })
+        });
+        if !ok {
+            self.geom_fail += 1;
+        }
+    }
+    /// An angle label must match the angle between two drawn straight edges of the current view, or between an edge
+    /// and the page axes (either the angle or its supplement; 0.25 deg plus 0.3 %).
+    fn check_angle(&mut self, v: f64) {
+        let mut dirs: Vec<f64> = vec![0.0, 90.0];
+        for p in self.vpolys.iter().filter(|p| p.len() != 36) {
+            let n = p.len();
+            let closed = n > 2;
+            for i in 0..if closed { n } else { n - 1 } {
+                let (a, c) = (p[i], p[(i + 1) % n]);
+                if (a.0 - c.0).hypot(a.1 - c.1) > 1e-9 {
+                    dirs.push((c.1 - a.1).atan2(c.0 - a.0).to_degrees().rem_euclid(180.0));
+                }
+            }
+        }
+        let tol = 0.25 + 0.003 * v.abs();
+        let ok = dirs.iter().any(|a| {
+            dirs.iter().any(|b| {
+                let d = (a - b).abs();
+                (d - v).abs() <= tol || (d - (180.0 - v)).abs() <= tol
+            })
+        });
+        if !ok {
+            self.geom_fail += 1;
+        }
+    }
+    /// Explicit comparison of a value measured from drawn points with its label.
+    fn check_val(&mut self, drawn: f64, v: f64, tol: f64) {
+        if (drawn - v).abs() > tol {
+            self.geom_fail += 1;
+        }
+    }
     fn tol(&mut self, v: f64) -> Option<f64> {
         if self.r.chance(0.2) {
             linear_tolerance(&self.gtol.to_string(), v)
@@ -333,6 +390,13 @@ impl Ctx {
                 .is_some()
             {
                 self.p.line(tx, ty, ex, ey, 1.0 * u);
+                if !self.skip_chk && kind == "dimension" {
+                    if unit == "mm" && prefix.contains('\u{00D8}') {
+                        self.check_size(v);
+                    } else if unit == "deg" {
+                        self.check_angle(v);
+                    }
+                }
                 return true;
             }
         }
@@ -587,6 +651,27 @@ fn triangulated_development(a: f64, b: f64, dd: f64, h: f64, n: usize) -> Vec<Ve
     tris
 }
 
+/// Intersection of the lines p + s u and q + t v.
+fn isect(p: (f64, f64), u: (f64, f64), q: (f64, f64), v: (f64, f64)) -> (f64, f64) {
+    let den = u.0 * v.1 - u.1 * v.0;
+    let s = ((q.0 - p.0) * v.1 - (q.1 - p.1) * v.0) / den;
+    (p.0 + s * u.0, p.1 + s * u.1)
+}
+
+/// Place developed pieces (each at its own origin, `w` wide) side by side with a gap and draw them in one cell.
+fn dev_row(c: &mut Ctx, cell: [f64; 4], pieces: &[(Vec<Vec<[f64; 2]>>, f64)], shape: &str) -> bool {
+    let wmax = pieces.iter().map(|p| p.1).fold(0.0, f64::max);
+    let mut x0 = 0.0;
+    let mut polys: Vec<Vec<[f64; 2]>> = vec![];
+    for (pl, w) in pieces {
+        for q in pl {
+            polys.push(q.iter().map(|p| [p[0] + x0, p[1]]).collect());
+        }
+        x0 += w + 0.15 * wmax;
+    }
+    dev_view(c, cell, &polys, shape)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn wye_flat(
     c: &mut Ctx,
@@ -615,12 +700,13 @@ fn wye_flat(
     };
     match nf_core::wye::wye(&spec) {
         Ok(r) => {
-            let polys: Vec<Vec<[f64; 2]>> = r
+            let row: Vec<(Vec<Vec<[f64; 2]>>, f64)> = r
                 .pieces
-                .first()
-                .map(|p| p.plates.clone())
-                .unwrap_or_default();
-            dev_view(c, cell, &polys, "wye_flat")
+                .iter()
+                .take(3)
+                .filter_map(|p| p.plates.first().map(|q| (vec![q.clone()], p.w)))
+                .collect();
+            dev_row(c, cell, &row, "wye_flat")
         }
         Err(_) => {
             c.refused += 1;
@@ -898,7 +984,19 @@ fn ring_flange(c: &mut Ctx) {
     let (bx, by) = c.px(-id / 2.0 * s45, -id / 2.0 * s45);
     c.leader(bx, by, "\u{00D8}", id, "mm", sp("id"), "dimension");
     let (kx, ky) = c.px(0.0, bcd / 2.0);
+    // pitch-circle diameter from the drawn bolt-hole centres (bounding-box centres of the bolt circles)
+    let pcd = c
+        .vpolys
+        .iter()
+        .map(|p| {
+            let b = bbox(p);
+            ((b[0] + b[2]) / 2.0).hypot((b[1] + b[3]) / 2.0) * 2.0
+        })
+        .fold(0.0, f64::max);
+    c.check_val(pcd, bcd, 1.0 / c.sc + 0.005 * bcd);
+    c.skip_chk = true;
     c.leader(kx, ky, "\u{00D8}", bcd, "mm", sp("bcd"), "dimension");
+    c.skip_chk = false;
     let a0 = std::f64::consts::PI / n;
     let (px_, py_) = c.px(bcd / 2.0 * a0.cos() * 0.98, bcd / 2.0 * a0.sin() * 0.98);
     c.leader(
@@ -1052,7 +1150,10 @@ fn flat_sheet(c: &mut Ctx) {
         "dimension",
     );
     let (ax, ay) = c.px(w, blank);
+    // the bend angle of a flat blank is not drawn (the blank is flat): no drawn angle to compare
+    c.skip_chk = true;
     c.leader(ax, ay, "", theta, "deg", sp("theta"), "dimension");
+    c.skip_chk = false;
     let (tx, ty) = c.px(0.0, blank);
     c.leader(tx, ty, "t=", t, "mm", sp("t"), "note");
 }
@@ -1324,6 +1425,25 @@ fn tank_shell(c: &mut Ctx) {
     let _ = rc;
 }
 
+/// Developed outline of one cylindrical bend piece from the closed-form cut z(psi) = (A + B cos psi) / (1 + D cos psi)
+/// (`nf_core::bend::cut_z`): front cut, then back cut reversed; x is the arc along the outer-basis circumference from
+/// the seam (45 deg from the heel).
+fn bend_piece_outline(m: &nf_core::bend::BendModel, p: &nf_core::bend::PieceModel) -> Vec<[f64; 2]> {
+    let rb = p.rho0 + m.ao;
+    let ph = 135f64.to_radians();
+    let n = 240;
+    let psi = |i: usize| ph + std::f64::consts::TAU * i as f64 / n as f64;
+    let mut v: Vec<[f64; 2]> = (0..=n)
+        .map(|i| [rb * (psi(i) - ph), nf_core::bend::cut_z(p, psi(i), false) - p.zlo])
+        .collect();
+    v.extend(
+        (0..=n)
+            .rev()
+            .map(|i| [rb * (psi(i) - ph), nf_core::bend::cut_z(p, psi(i), true) - p.zlo]),
+    );
+    v
+}
+
 fn mitred_bend(c: &mut Ctx) {
     let od = *c.r.pick(&[40.0, 60.0, 76.0, 89.0, 114.0, 140.0, 168.0]);
     let rk = *c.r.pick(&[1.5, 2.0, 2.5]);
@@ -1335,42 +1455,63 @@ fn mitred_bend(c: &mut Ctx) {
     for (k, v) in [("od", od), ("r", r), ("theta", theta), ("n", n)] {
         c.set(k, v);
     }
-    let joints: Vec<f64> = (0..n as usize)
-        .map(|j| theta * j as f64 / (n - 1.0))
+    // n - 1 joints, n pieces; the centre line is the polygon circumscribed about the arc of radius R, so the cut
+    // planes pass through the bend centre at phi_j = theta (2j - 1) / (2J) and the corners sit at radius R / cos(rho)
+    let jn = n as usize - 1;
+    let rho = (theta / (2.0 * jn as f64)).to_radians();
+    let cr = 1.0 / rho.cos();
+    let phis: Vec<f64> = (1..=jn)
+        .map(|j| theta * (2 * j - 1) as f64 / (2.0 * jn as f64))
         .collect();
-    let mut pts = vec![];
-    for &phi in &joints {
-        let a = phi.to_radians();
-        pts.push((ro * a.cos(), ro * a.sin()));
-    }
-    for &phi in joints.iter().rev() {
-        let a = phi.to_radians();
-        pts.push((ri * a.cos(), ri * a.sin()));
-    }
+    let at = |rad: f64, deg: f64| (rad * deg.to_radians().cos(), rad * deg.to_radians().sin());
+    let ring = |rad: f64| -> Vec<(f64, f64)> {
+        let mut v = vec![at(rad, 0.0)];
+        v.extend(phis.iter().map(|&p| at(rad * cr, p)));
+        v.push(at(rad, theta));
+        v
+    };
+    let mut pts = ring(ro);
+    pts.extend(ring(ri).into_iter().rev());
     c.shape = "bend".into();
-    c.fit(c.cell(2), bbox(&pts));
+    c.fit(c.cell(0), bbox(&pts));
     c.outline(&pts, "none");
+    for &p in &phis {
+        c.mline(at(ri * cr, p), at(ro * cr, p));
+    }
     c.shape = "dims".into();
     let (xa, ya) = c.px(ri, 0.0);
     let (xb, _) = c.px(ro, 0.0);
     let u = c.u;
     c.dim_h(xa, xb, ya, 42.0 * u, od, sp("od"), "", None);
     let (cx_, cy_) = c.px(0.0, 0.0);
+    // centre-line radius measured from the drawn end faces
+    let (p0o, p0i) = (pts[0], pts[pts.len() - 1]);
+    let r_drawn = (p0o.0.hypot(p0o.1) + p0i.0.hypot(p0i.1)) / 2.0;
+    c.check_val(r_drawn, r, 1.0 / c.sc + 0.005 * r);
     c.leader(cx_, cy_, "R", r, "mm", sp("r"), "dimension");
     let am = (theta / 2.0).to_radians();
     let (mx, my) = c.px(ro * am.cos(), ro * am.sin());
     c.leader(mx, my, "", theta, "deg", sp("theta"), "dimension");
-    let aj = joints[1].to_radians();
-    let (jx, jy) = c.px(ro * aj.cos(), ro * aj.sin());
+    // mitre cut angle from square: half the deflection between the first two drawn centre-line segments
+    let mut cl = vec![at(r, 0.0)];
+    cl.extend(phis.iter().map(|&p| at(r * cr, p)));
+    cl.push(at(r, theta));
+    let ang = |a: (f64, f64), b: (f64, f64)| (b.1 - a.1).atan2(b.0 - a.0);
+    let defl = (ang(cl[1], cl[2]) - ang(cl[0], cl[1])).to_degrees().abs();
+    let mitre = dv("mitre_cut", &[("theta", theta), ("n", n)]);
+    c.check_val(defl / 2.0, mitre, 0.25 + 0.003 * mitre);
+    let (jx, jy) = c.px(ro * cr * phis[0].to_radians().cos(), ro * cr * phis[0].to_radians().sin());
+    c.skip_chk = true;
     c.leader(
         jx,
         jy,
         "mitre ",
-        dv("mitre_cut", &[("theta", theta), ("n", n)]),
+        mitre,
         "deg",
         der("mitre_cut", &[("theta", theta), ("n", n)]),
         "dimension",
     );
+    c.skip_chk = false;
     let (lx, ly) = c.px(r * am.cos(), r * am.sin());
     c.leader(
         lx,
@@ -1381,6 +1522,24 @@ fn mitred_bend(c: &mut Ctx) {
         der("arc_length", &[("r", r), ("theta", theta)]),
         "dimension",
     );
+    // developed pieces: an end piece and a middle piece (all middle pieces are the same)
+    let mut spec = nf_core::bend::BendSpec::new(od, 3.0, r, theta, Some(jn as f64), 0.0, 0.0);
+    spec.basis = nf_core::shapes::Basis::Outer;
+    match nf_core::bend::bend(&spec) {
+        Ok(res) => {
+            let m = &res.model;
+            let mut row: Vec<(Vec<Vec<[f64; 2]>>, f64)> = vec![];
+            for idx in [0usize, 1] {
+                if let Some(p) = m.pieces.get(idx) {
+                    let o = bend_piece_outline(m, p);
+                    let w = o.iter().map(|q| q[0]).fold(0.0, f64::max);
+                    row.push((vec![o], w));
+                }
+            }
+            dev_row(c, c.cell(1), &row, "bend_flat");
+        }
+        Err(_) => c.refused += 1,
+    }
 }
 
 fn tee_lateral(c: &mut Ctx) {
@@ -1392,7 +1551,8 @@ fn tee_lateral(c: &mut Ctx) {
     let db = *c.r.pick(&db_opts);
     let alpha = *c.r.pick(&[45.0, 60.0, 90.0]);
     let hb = stepd(&mut c.r, dm * 1.2, dm * 2.5, 5.0);
-    let pad = (db * 1.6).floor();
+    // a lateral branch cuts a longer hole (db / sin alpha): widen the pad so the outline encloses it
+    let pad = (db * 1.6 / f64::to_radians(alpha).sin()).floor();
     let padt = *c.r.pick(&[6.0, 8.0, 10.0]);
     let l = 3.0 * dm;
     for (k, v) in [
@@ -1429,6 +1589,10 @@ fn tee_lateral(c: &mut Ctx) {
             (e.0 + sg * nrm.0 * h2, e.1 + sg * nrm.1 * h2),
         );
     }
+    c.mline(
+        (e.0 + nrm.0 * h2, e.1 + nrm.1 * h2),
+        (e.0 - nrm.0 * h2, e.1 - nrm.1 * h2),
+    );
     c.shape = "pad".into();
     c.outline(
         &[
@@ -1448,22 +1612,24 @@ fn tee_lateral(c: &mut Ctx) {
     c.leader(bx, by, "\u{00D8}", db, "mm", sp("d"), "dimension");
     let (px_, py_) = c.px(pad / 2.0, dm / 2.0 + padt);
     c.leader(px_, py_, "\u{00D8}", pad, "mm", sp("pad_od"), "dimension");
-    if alpha == 90.0 {
-        let rib = (0.5 * db).floor().max(10.0);
+    if alpha == 90.0 && nf_core::tee::rib_on_branch(Some(alpha)).is_ok() {
+        // ribs stand on the pad (top at dm/2 + padt) against the branch wall, inside the pad outline
+        let rib = (0.25 * db).floor().max(10.0);
+        let yb = dm / 2.0 + padt;
         c.set("rib_len", rib);
         c.shape = "rib".into();
         for sg in [1.0, -1.0] {
             c.outline(
                 &[
-                    (sg * h2, dm / 2.0),
-                    (sg * (h2 + rib), dm / 2.0),
-                    (sg * h2, dm / 2.0 + rib),
+                    (sg * h2, yb),
+                    (sg * (h2 + rib), yb),
+                    (sg * h2, yb + rib),
                 ],
                 "none",
             );
         }
         c.shape = "dims".into();
-        let (rx, ry) = c.px(h2 + 0.35 * rib, dm / 2.0 + 0.35 * rib);
+        let (rx, ry) = c.px(h2 + 0.35 * rib, yb + 0.35 * rib);
         c.leader(rx, ry, "rib=", rib, "mm", sp("rib_len"), "dimension");
     }
     let (ax, ay) = c.px(0.45 * dir.0 * s_end, 0.45 * dir.1 * s_end);
@@ -1478,7 +1644,31 @@ fn tee_lateral(c: &mut Ctx) {
         der("tee_outlet", &[("hb", hb), ("od", dm)]),
         "dimension",
     );
-    tee_branch_flat(c, c.cell(1), dm, db, hb, alpha);
+    let cell = c.cell(1);
+    let mid = (cell[1] + cell[3]) / 2.0;
+    tee_branch_flat(c, [cell[0], cell[1], cell[2], mid], dm, db, hb, alpha);
+    tee_pad_flat(c, [cell[0], mid, cell[2], cell[3]], dm, db, pad, padt, alpha);
+}
+
+/// Developed pad plate and its hole from `nf_core::tee_pad::pad` (the engine's polylines, drawn as given).
+fn tee_pad_flat(c: &mut Ctx, cell: [f64; 4], dm: f64, db: f64, pad: f64, padt: f64, alpha: f64) -> bool {
+    let spec = nf_core::tee_pad::PadSpec {
+        main_d: dm,
+        t: padt,
+        d: db,
+        e: 0.0,
+        angle_deg: Some(alpha),
+        outline: nf_core::tee_pad::PadOutline::Circle(pad),
+        split: None,
+        cut: nf_core::tee_pad::SplitCut::Cross,
+    };
+    match nf_core::tee_pad::pad(&spec) {
+        Ok(r) => dev_view(c, cell, &[r.outline.clone(), r.hole.clone()], "pad_flat"),
+        Err(_) => {
+            c.refused += 1;
+            false
+        }
+    }
 }
 
 fn wye(c: &mut Ctx) {
@@ -1506,32 +1696,31 @@ fn wye(c: &mut Ctx) {
         e1.0.max(e2.0) + d,
         (e1.1 + d / 2.0).max(d / 2.0),
     ];
+    // true silhouette of the equal-diameter wye: main edges to the joints, leg end faces square to the leg axes,
+    // the crotch where the two inner generatrices meet
+    let h = d / 2.0;
+    let (u1, u2) = ((a1.to_radians().cos(), a1.to_radians().sin()), (a2.to_radians().cos(), -a2.to_radians().sin()));
+    let (n1, n2) = ((-u1.1, u1.0), (-u2.1, u2.0));
+    let off = |p: (f64, f64), n: (f64, f64), k: f64| (p.0 + n.0 * k, p.1 + n.1 * k);
+    // n2 = rot90(u2) points up (towards leg 1): the inner side of leg 2 is +n2, the outer side -n2
+    let p1 = isect(off((0.0, 0.0), n1, h), u1, (0.0, h), (1.0, 0.0));
+    let cc = isect(off((0.0, 0.0), n1, -h), u1, off((0.0, 0.0), n2, h), u2);
+    let p2 = isect(off((0.0, 0.0), n2, -h), u2, (0.0, -h), (1.0, 0.0));
+    let sil = vec![
+        (-lm, -h),
+        (-lm, h),
+        p1,
+        off(e1, n1, h),
+        off(e1, n1, -h),
+        cc,
+        off(e2, n2, h),
+        off(e2, n2, -h),
+        p2,
+    ];
     c.shape = "main".into();
-    c.fit(c.cell(0), bb);
-    c.outline(
-        &[
-            (-lm, -d / 2.0),
-            (0.0, -d / 2.0),
-            (0.0, d / 2.0),
-            (-lm, d / 2.0),
-        ],
-        "none",
-    );
-    c.shape = "branch".into();
-    for (dir, len, ang) in [(e1, l1, a1), (e2, l2, -a2)] {
-        let a = ang.to_radians();
-        let nrm = (-a.sin(), a.cos());
-        let _ = len;
-        let h = d / 2.0;
-        c.mline(
-            (nrm.0 * h, nrm.1 * h),
-            (dir.0 + nrm.0 * h, dir.1 + nrm.1 * h),
-        );
-        c.mline(
-            (-nrm.0 * h, -nrm.1 * h),
-            (dir.0 - nrm.0 * h, dir.1 - nrm.1 * h),
-        );
-    }
+    c.fit(c.cell(0), bbox(&sil));
+    c.outline(&sil, "none");
+    let _ = bb;
     c.shape = "dims".into();
     let (mx, my) = c.px(-lm / 2.0, d / 2.0);
     c.leader(mx, my, "\u{00D8}", d, "mm", sp("D"), "dimension");
@@ -1539,9 +1728,9 @@ fn wye(c: &mut Ctx) {
     c.leader(bx, by, "L1=", l1, "mm", sp("l1"), "dimension");
     let (ax, ay) = c.px(e2.0 * 0.5, e2.1 * 0.5);
     c.leader(ax, ay, "L2=", l2, "mm", sp("l2"), "dimension");
-    let (q1x, q1y) = c.px(0.3 * e1.0, 0.3 * e1.1);
+    let (q1x, q1y) = c.px(0.75 * e1.0, 0.75 * e1.1);
     c.leader(q1x, q1y, "", a1, "deg", sp("a1"), "dimension");
-    let (q2x, q2y) = c.px(0.3 * e2.0, 0.3 * e2.1);
+    let (q2x, q2y) = c.px(0.75 * e2.0, 0.75 * e2.1);
     c.leader(q2x, q2y, "", a2, "deg", sp("a2"), "dimension");
     let (hx, hy) = c.px(e2.0, e2.1);
     c.leader(
@@ -2060,6 +2249,8 @@ pub fn build_new(
         h,
         refused: 0,
         geom_fail: 0,
+        vpolys: vec![],
+        skip_chk: false,
     };
     c.p.rect([20.0 * u, 20.0 * u, w - 20.0 * u, h - 20.0 * u], 2.2 * u);
     match fam {
