@@ -23,8 +23,29 @@ pub fn bbox(p: &[P]) -> (f64, f64, f64, f64) {
     b
 }
 
-/// Counter-clockwise, bbox minimum moved to the origin, no repeated closing point.
-pub fn normalise(p: &[P]) -> Vec<P> {
+/// Area centroid of a simple polygon.
+pub fn centroid(p: &[P]) -> P {
+    let n = p.len();
+    let (mut a, mut cx, mut cy) = (0.0, 0.0, 0.0);
+    for i in 0..n {
+        let (x0, y0) = p[i];
+        let (x1, y1) = p[(i + 1) % n];
+        let cr = x0 * y1 - x1 * y0;
+        a += cr;
+        cx += (x0 + x1) * cr;
+        cy += (y0 + y1) * cr;
+    }
+    if a.abs() < EPS {
+        return p.iter().fold((0.0, 0.0), |s, q| {
+            (s.0 + q.0 / n as f64, s.1 + q.1 / n as f64)
+        });
+    }
+    (cx / (3.0 * a), cy / (3.0 * a))
+}
+
+/// Counter-clockwise, area centroid at the origin, no repeated closing point. This is the frame jagua-rs
+/// uses: a placement is `rotate(centred, rot) + t` with `t` the centroid's position on the sheet.
+pub fn centre(p: &[P]) -> Vec<P> {
     let mut v: Vec<P> = p.to_vec();
     if v.len() > 1
         && (v[0].0 - v[v.len() - 1].0).abs() < EPS
@@ -41,8 +62,8 @@ pub fn normalise(p: &[P]) -> Vec<P> {
     if signed < 0.0 {
         v.reverse();
     }
-    let (x0, y0, _, _) = bbox(&v);
-    v.iter().map(|&(x, y)| (x - x0, y - y0)).collect()
+    let c = centroid(&v);
+    v.iter().map(|&(x, y)| (x - c.0, y - c.1)).collect()
 }
 
 /// Rotation about the origin by a multiple of 90 degrees (exact for the four steps).
@@ -58,13 +79,21 @@ pub fn rotate(p: &[P], deg: u32) -> Vec<P> {
         .collect()
 }
 
-/// The placed shape: rotate, then move so the bounding box starts at (x, y).
-pub fn place(normalised: &[P], rot: u32, at: P) -> Vec<P> {
-    let r = rotate(normalised, rot);
-    let (x0, y0, _, _) = bbox(&r);
-    r.iter()
-        .map(|&(x, y)| (x - x0 + at.0, y - y0 + at.1))
+/// Placement by pose: the centred outline turned by `rot` and moved to centroid position `t`.
+pub fn place(centred: &[P], rot: u32, t: P) -> Vec<P> {
+    rotate(centred, rot)
+        .iter()
+        .map(|&(x, y)| (x + t.0, y + t.1))
         .collect()
+}
+
+/// Placement by bounding-box corner: the pose `t` whose shape starts at `corner`, and the shape.
+pub fn place_corner(centred: &[P], rot: u32, corner: P) -> (P, Vec<P>) {
+    let r = rotate(centred, rot);
+    let (x0, y0, _, _) = bbox(&r);
+    let t = (corner.0 - x0, corner.1 - y0);
+    let pts = r.iter().map(|&(x, y)| (x + t.0, y + t.1)).collect();
+    (t, pts)
 }
 
 fn seg_dist(a: P, b: P, c: P, d: P) -> f64 {

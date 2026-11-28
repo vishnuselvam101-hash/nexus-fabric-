@@ -7,7 +7,7 @@
 
 use super::*;
 use nf_nest::check::check;
-use nf_nest::dxf_out::sheet_dxf;
+use nf_nest::dxf_out::{DxfFormat, sheet_dxf};
 use nf_nest::outline::outline_from_dxf;
 use nf_nest::{PartIn, Rules, nest, utilisation};
 
@@ -144,12 +144,14 @@ fn nest_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
     let (per, total) = utilisation(checked_nest.nest());
     let mut sheets = Vec::new();
     for (i, s) in checked_nest.nest().sheets.iter().enumerate() {
-        let dxf = sheet_dxf(&checked_nest, i)
+        let dxf = sheet_dxf(&checked_nest, i, DxfFormat::R2000Mtext)
             .ok_or_else(|| unprocessable("nest_internal", "a sheet is missing"))?;
+        // R2000 output is ASCII (Unicode as \U+ escapes), so it is valid UTF-8 for the JSON response
+        let dxf = String::from_utf8_lossy(&dxf).into_owned();
         let placed: Vec<Value> = s
             .placed
             .iter()
-            .map(|q| json!({ "part": q.id, "copy": q.copy + 1, "rot": q.rot, "at": [q.at.0, q.at.1] }))
+            .map(|q| json!({ "part": q.id, "copy": q.copy + 1, "rot": q.rot, "pose": [q.pose.0, q.pose.1] }))
             .collect();
         sheets.push(
             json!({ "index": i + 1, "utilisation_pct": per[i], "placed": placed, "dxf": dxf }),
@@ -167,6 +169,7 @@ fn nest_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
     )?;
     ok(json!({
         "status": "checked",
+        "engine": checked_nest.nest().engine,
         "not_released": true,
         "rules": rules_json(&rules),
         "utilisation_pct": total,

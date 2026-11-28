@@ -6,6 +6,8 @@ use crate::pipes::{PipeIn, PipePlan};
 use crate::{Nest, NestError, PartIn};
 
 const TOL: f64 = 1e-6;
+/// Tolerance on the clearance, mm: the engine works in f32, so its placements can sit 1e-4 mm off the f64 outline.
+const CLEARANCE_TOL: f64 = 1e-3;
 
 /// Proof that a nest passed `check`. The field is private: no other code can build one.
 #[derive(Debug)]
@@ -42,13 +44,28 @@ fn turn(p: (f64, f64), deg: u32) -> (f64, f64) {
     }
 }
 
-/// The outline a placement must show: the input turned by `rot` and moved so its box starts at `at`.
-fn expected_outline(input: &[(f64, f64)], rot: u32, at: (f64, f64)) -> Vec<(f64, f64)> {
-    let t: Vec<(f64, f64)> = input.iter().map(|&p| turn(p, rot)).collect();
-    let mx = t.iter().map(|p| p.0).fold(f64::MAX, f64::min);
-    let my = t.iter().map(|p| p.1).fold(f64::MAX, f64::min);
-    t.iter()
-        .map(|p| (p.0 - mx + at.0, p.1 - my + at.1))
+/// Own area centroid (not the placer's), used to re-derive the centred outline.
+fn own_centroid(p: &[(f64, f64)]) -> (f64, f64) {
+    let n = p.len();
+    let (mut a2, mut sx, mut sy) = (0.0, 0.0, 0.0);
+    for i in 0..n {
+        let (x0, y0) = p[i];
+        let (x1, y1) = p[(i + 1) % n];
+        let k = x0 * y1 - x1 * y0;
+        a2 += k;
+        sx += (x0 + x1) * k;
+        sy += (y0 + y1) * k;
+    }
+    (sx / (3.0 * a2), sy / (3.0 * a2))
+}
+
+/// The outline a placement must show: the input, centred on its centroid, turned by `rot` and moved to `t`.
+fn expected_outline(input: &[(f64, f64)], rot: u32, t: (f64, f64)) -> Vec<(f64, f64)> {
+    let c = own_centroid(input);
+    input
+        .iter()
+        .map(|&(x, y)| turn((x - c.0, y - c.1), rot))
+        .map(|p| (p.0 + t.0, p.1 + t.1))
         .collect()
 }
 
@@ -178,7 +195,7 @@ pub fn check(n: Nest) -> Result<CheckedNest, Vec<String>> {
                     q.rot
                 ));
             }
-            let want = expected_outline(&src.outline, q.rot, q.at);
+            let want = expected_outline(&src.outline, q.rot, q.pose);
             if !same_outline(&q.pts, &want) {
                 bad.push(format!(
                     "sheet {} part {} does not match its input outline at its stored place",
@@ -214,7 +231,7 @@ pub fn check(n: Nest) -> Result<CheckedNest, Vec<String>> {
                         s.placed[i].id,
                         s.placed[j].id
                     ));
-                } else if gap < clr - TOL {
+                } else if gap < clr - CLEARANCE_TOL {
                     bad.push(format!(
                         "sheet {}: parts {} and {} are {:.3} mm apart, need {:.3} mm (kerf + gap)",
                         si + 1,

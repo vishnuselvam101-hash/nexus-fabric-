@@ -5,12 +5,14 @@
 //! kerf, part gap and edge margin are named rules marked UNVERIFIED until a person of the factory confirms them.
 //! The crate is not a dependency of nf-digest.
 //!
-//! Engine choice: jagua-rs 2.0.0 (MPL-2.0, rust-version 1.90) was assessed and not embedded in this version; the
-//! bottom-left fill is the v1 placer. Its only workspace dependency is nf-dxf (read-only, for part outlines).
+//! Engines: jagua-rs 2.0.0 (MPL-2.0, unmodified, pinned) decides each placement; the bottom-left fill is the fallback
+//! when jagua-rs cannot run for an input. Both results must pass the checker. Other dependencies: nf-dxf (read
+//! the part outlines and write the CAM DXF), encoding_rs (Shift_JIS for the R12 hand-off). See NOTICES.
 
 pub mod check;
 pub mod dxf_out;
 pub mod geom;
+pub mod jagua;
 pub mod outline;
 pub mod pipes;
 
@@ -115,13 +117,13 @@ pub struct PartIn {
     pub qty: u32,
 }
 
-/// One placed copy. `pts` is the placed outline; `at` is the bounding-box corner after rotation.
+/// One placed copy. `pose` is the centroid position on the sheet; `pts` is the placed outline.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Placed {
     pub id: String,
     pub copy: u32,
     pub rot: u32,
-    pub at: P,
+    pub pose: P,
     pub pts: Vec<P>,
 }
 
@@ -135,6 +137,8 @@ pub struct Nest {
     pub rules: Rules,
     pub parts: Vec<PartIn>,
     pub sheets: Vec<Sheet>,
+    /// The engine that placed the parts: jagua-rs, or the bottom-left fill when jagua-rs could not run.
+    pub engine: String,
 }
 
 /// Utilisation: part area over sheet area, per sheet and over all sheets, in percent.
@@ -158,9 +162,29 @@ pub fn utilisation(n: &Nest) -> (Vec<f64>, f64) {
     (per, all)
 }
 
-/// Bottom-left fill. Parts are placed largest first; each copy goes to the lowest, then leftmost, feasible
-/// position over all allowed rotations on the first sheet that takes it. Candidate positions are the sheet
-/// corner and the corners next to placed parts. Every placement is re-tested with the full outline clearance.
+/// Each copy with its centred outline, largest first (the placement order of both engines).
+pub(crate) fn prepare(parts: &[PartIn]) -> Result<Vec<(usize, u32, Vec<P>)>, NestError> {
+    let mut out: Vec<(usize, u32, Vec<P>)> = Vec::new();
+    for (i, p) in parts.iter().enumerate() {
+        let c = geom::centre(&p.outline);
+        if c.len() < 3 || geom::area(&c) <= 0.0 {
+            return Err(NestError(format!("part {} has no usable outline", p.id)));
+        }
+        for k in 0..p.qty {
+            out.push((i, k, c.clone()));
+        }
+    }
+    out.sort_by(|a, b| {
+        geom::area(&b.2)
+            .total_cmp(&geom::area(&a.2))
+            .then(a.0.cmp(&b.0))
+            .then(a.1.cmp(&b.1))
+    });
+    Ok(out)
+}
+
+/// Nest with jagua-rs (its collision engine decides each placement). If jagua-rs cannot run for these inputs,
+/// the bottom-left fill is used and `engine` says so. Either result must still pass `check::check`.
 pub fn nest(parts: &[PartIn], rules: &Rules) -> Result<Nest, NestError> {
     rules.validate()?;
     if parts.len() > MAX_PARTS {
@@ -168,39 +192,58 @@ pub fn nest(parts: &[PartIn], rules: &Rules) -> Result<Nest, NestError> {
             "at most {MAX_PARTS} part kinds per nest"
         )));
     }
-    let clr = rules.clearance();
-    let edge = rules.edge_mm;
-    let mut prepared: Vec<(usize, u32, Vec<P>)> = Vec::new();
-    for (i, p) in parts.iter().enumerate() {
-        let norm = geom::normalise(&p.outline);
-        if norm.len() < 3 || geom::area(&norm) <= 0.0 {
-            return Err(NestError(format!("part {} has no usable outline", p.id)));
-        }
-        for c in 0..p.qty {
-            prepared.push((i, c, norm.clone()));
+    let prepared = prepare(parts)?;
+    match jagua::nest(parts, rules, &prepared) {
+        Ok(n) => Ok(n),
+        Err(e) => {
+            let mut n = blf(parts, rules, &prepared)?;
+            n.engine = format!("bottom-left fill (jagua-rs not used: {e})");
+            Ok(n)
         }
     }
-    prepared.sort_by(|a, b| {
-        geom::area(&b.2)
-            .total_cmp(&geom::area(&a.2))
-            .then(a.0.cmp(&b.0))
-            .then(a.1.cmp(&b.1))
-    });
+}
 
+/// The candidate corners of a sheet, lowest then leftmost first: the sheet corner and the corners beside placed parts.
+pub(crate) fn corners(sheet: &Sheet, clr: f64, edge: f64) -> Vec<P> {
+    let mut cands: Vec<P> = vec![(edge, edge)];
+    for p in &sheet.placed {
+        let (x0, y0, x1, y1) = geom::bbox(&p.pts);
+        cands.push((x1 + clr, y0));
+        cands.push((x0, y1 + clr));
+        cands.push((x1 + clr, edge));
+        cands.push((edge, y1 + clr));
+    }
+    cands.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.total_cmp(&b.0)));
+    cands
+}
+
+/// True when `a` is lower on the sheet than `b`, or level and further left.
+pub(crate) fn lower_left(a: P, b: P) -> bool {
+    a.1 < b.1 - geom::EPS || ((a.1 - b.1).abs() <= geom::EPS && a.0 < b.0 - geom::EPS)
+}
+
+/// Bottom-left fill (the fallback engine). Every placement is re-tested with the full outline clearance.
+pub(crate) fn blf(
+    parts: &[PartIn],
+    rules: &Rules,
+    prepared: &[(usize, u32, Vec<P>)],
+) -> Result<Nest, NestError> {
+    let clr = rules.clearance();
+    let edge = rules.edge_mm;
     let mut sheets: Vec<Sheet> = Vec::new();
-    for (i, copy, norm) in prepared {
+    for (i, copy, centred) in prepared {
         let mut done = false;
         for si in 0..=sheets.len() {
             if si == sheets.len() {
                 sheets.push(Sheet::default());
             }
-            if let Some(p) = best_position(&sheets[si], &norm, rules, clr, edge) {
+            if let Some((rot, t, pts)) = blf_position(&sheets[si], centred, rules, clr, edge) {
                 sheets[si].placed.push(Placed {
-                    id: parts[i].id.clone(),
-                    copy,
-                    rot: p.0,
-                    at: p.1,
-                    pts: geom::place(&norm, p.0, p.1),
+                    id: parts[*i].id.clone(),
+                    copy: *copy,
+                    rot,
+                    pose: t,
+                    pts,
                 });
                 done = true;
                 break;
@@ -208,7 +251,7 @@ pub fn nest(parts: &[PartIn], rules: &Rules) -> Result<Nest, NestError> {
             if si + 1 == sheets.len() && sheets[si].placed.is_empty() {
                 return Err(NestError(format!(
                     "part {} does not fit the stock sheet (rule {RULE_STOCK}, UNVERIFIED)",
-                    parts[i].id
+                    parts[*i].id
                 )));
             }
         }
@@ -220,29 +263,22 @@ pub fn nest(parts: &[PartIn], rules: &Rules) -> Result<Nest, NestError> {
         rules: rules.clone(),
         parts: parts.to_vec(),
         sheets,
+        engine: "bottom-left fill".into(),
     })
 }
 
-/// Lowest then leftmost feasible (rotation, bounding-box corner) on one sheet, or None.
-fn best_position(
+/// Lowest then leftmost feasible (rotation, pose, outline) on one sheet, or None.
+fn blf_position(
     sheet: &Sheet,
-    norm: &[P],
+    centred: &[P],
     rules: &Rules,
     clr: f64,
     edge: f64,
-) -> Option<(u32, P)> {
-    let mut cands: Vec<P> = vec![(edge, edge)];
-    for p in &sheet.placed {
-        let (x0, y0, x1, y1) = geom::bbox(&p.pts);
-        cands.push((x1 + clr, y0));
-        cands.push((x0, y1 + clr));
-        cands.push((x1 + clr, edge));
-        cands.push((edge, y1 + clr));
-    }
-    cands.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.total_cmp(&b.0)));
-    let mut best: Option<(u32, P)> = None;
+) -> Option<(u32, P, Vec<P>)> {
+    let cands = corners(sheet, clr, edge);
+    let mut best: Option<(u32, P, Vec<P>, P)> = None;
     for &rot in &rules.rotations {
-        let r = geom::rotate(norm, rot);
+        let r = geom::rotate(centred, rot);
         let (x0, y0, x1, y1) = geom::bbox(&r);
         let (w, h) = (x1 - x0, y1 - y0);
         for &c in &cands {
@@ -251,21 +287,17 @@ fn best_position(
             {
                 continue;
             }
-            if let Some((_, b)) = best {
-                if (c.1, c.0) >= (b.1, b.0) {
+            if let Some((_, _, _, bc)) = &best {
+                if !lower_left(c, *bc) {
                     break;
                 }
             }
-            let shape = geom::place(norm, rot, c);
-            if sheet
-                .placed
-                .iter()
-                .all(|p| geom::clear(&shape, &p.pts, clr))
-            {
-                best = Some((rot, c));
+            let (t, pts) = geom::place_corner(centred, rot, c);
+            if sheet.placed.iter().all(|p| geom::clear(&pts, &p.pts, clr)) {
+                best = Some((rot, t, pts, c));
                 break;
             }
         }
     }
-    best
+    best.map(|(rot, t, pts, _)| (rot, t, pts))
 }
