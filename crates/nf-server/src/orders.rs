@@ -179,7 +179,13 @@ mod raster_seam {
 // ---------------------------------------------------------------- small helpers
 
 fn refuse(status: StatusCode, code: &str, msg: &str) -> ApiError {
-    fail_code(status, code, &[], msg)
+    refuse_fields(status, code, &[], msg)
+}
+
+/// A refusal that names the fields (or review codes) it concerns. The web layer renders `{fields}` from this
+/// list; an empty list makes the refusal text blank for codes such as `review_never_wave`.
+fn refuse_fields(status: StatusCode, code: &str, fields: &[&str], msg: &str) -> ApiError {
+    fail_code(status, code, fields, msg)
 }
 
 fn unprocessable(code: &str, msg: &str) -> ApiError {
@@ -215,6 +221,24 @@ fn agent_reason(u: &User, reason: &str) -> Result<(), ApiError> {
         ));
     }
     Ok(())
+}
+
+/// A replacement of the page review inputs is a decision: every writer, person or AI operator, has to say why.
+/// `reason` is the explicit field; `note` is accepted as the earlier name for it.
+fn required_reason(body: &Value) -> Result<String, ApiError> {
+    let reason = text_field(body, "reason", MAX_NOTE_CHARS)?.unwrap_or_default();
+    let reason = if reason.trim().is_empty() {
+        text_field(body, "note", MAX_NOTE_CHARS)?.unwrap_or_default()
+    } else {
+        reason
+    };
+    if reason.trim().is_empty() {
+        return Err(unprocessable(
+            "decision_reason",
+            "a change to the material table or page notes needs a reason",
+        ));
+    }
+    Ok(reason)
 }
 
 /// The role and the active flag are read again inside a write's own transaction: a user deactivated or demoted
@@ -542,6 +566,155 @@ fn recompute_part_state(db: &Connection, part: i64) -> rusqlite::Result<()> {
     Ok(())
 }
 
+/// The page inputs of the review, in one fingerprint. Material rows and notes decide which holds are open; a
+/// change to either must make a decision that answered a hold stale, not silently apply it to different page data.
+fn review_context_json(db: &Connection, oid: i64) -> rusqlite::Result<Value> {
+    let materials = q_all(
+        db,
+        "SELECT page_no, no, name, size, length, qty, mass FROM order_material_rows WHERE order_id = ? ORDER BY page_no, no, id",
+        params![oid],
+        |r| {
+            Ok(json!([
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, String>(4)?,
+                r.get::<_, Option<f64>>(5)?.map(f64::to_bits),
+                r.get::<_, Option<f64>>(6)?.map(f64::to_bits),
+            ]))
+        },
+    )?;
+    let notes = q_all(
+        db,
+        "SELECT page_no, kind, text FROM order_page_notes WHERE order_id = ? ORDER BY id",
+        params![oid],
+        |r| {
+            Ok(json!([
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ]))
+        },
+    )?;
+    let pages = q_count(
+        db,
+        "SELECT COUNT(*) FROM order_pages WHERE order_id = ? AND skipped = 0",
+        params![oid],
+    )?;
+    Ok(json!([materials, notes, pages]))
+}
+
+/// An accept answers one review code against one value and one set of page inputs. All three are hashed: a note or
+/// material edit, or a change to the value, makes the earlier answer stale. `accept_flag` uses the same rule.
+fn review_accept_fp(value: &str, code: &str, context: &Value) -> String {
+    nf_core::sha256_hex(
+        json!([value, rv::canonical(code), context])
+            .to_string()
+            .as_bytes(),
+    )
+}
+
+/// The page inputs as they stand now, with the fingerprint a context decision is tied to.
+fn review_context_state(db: &Connection, oid: i64) -> rusqlite::Result<(Value, String)> {
+    let ctx = review_context_json(db, oid)?;
+    let fp = nf_core::sha256_hex(ctx.to_string().as_bytes());
+    Ok((ctx, fp))
+}
+
+/// Put a saved context back. Page count is not a PUT input, so it is left alone; the snapshot holds the material
+/// rows and the notes in the same shape as `review_context_json`.
+fn restore_review_context(db: &Connection, oid: i64, before: &Value) -> rusqlite::Result<()> {
+    db.execute(
+        "DELETE FROM order_material_rows WHERE order_id = ?",
+        params![oid],
+    )?;
+    db.execute(
+        "DELETE FROM order_page_notes WHERE order_id = ?",
+        params![oid],
+    )?;
+    let bits = |v: &Value| v.as_u64().map(f64::from_bits);
+    if let Some(rows) = before[0].as_array() {
+        for r in rows {
+            db.execute(
+                "INSERT INTO order_material_rows(order_id, page_no, no, name, size, length, qty, mass) VALUES (?,?,?,?,?,?,?,?)",
+                params![
+                    oid,
+                    r[0].as_i64().unwrap_or(1),
+                    r[1].as_str().unwrap_or_default(),
+                    r[2].as_str().unwrap_or_default(),
+                    r[3].as_str().unwrap_or_default(),
+                    r[4].as_str().unwrap_or_default(),
+                    bits(&r[5]),
+                    bits(&r[6])
+                ],
+            )?;
+        }
+    }
+    if let Some(notes) = before[1].as_array() {
+        for n in notes {
+            db.execute(
+                "INSERT INTO order_page_notes(order_id, page_no, kind, text) VALUES (?,?,?,?)",
+                params![
+                    oid,
+                    n[0].as_i64().unwrap_or(1),
+                    n[1].as_str().unwrap_or_default(),
+                    n[2].as_str().unwrap_or_default()
+                ],
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Review codes open on one part in the current compute. A designer exit may answer only one of these; a missing
+/// or stale compute names none, so an answer cannot be invented against a review that was never raised.
+fn review_holds_for_part(
+    db: &Connection,
+    oid: i64,
+    part_no: &str,
+) -> Result<Vec<String>, ApiError> {
+    let current: Option<(String, String)> = db
+        .query_row(
+            "SELECT result_json, input_hash FROM order_results WHERE order_id = ? AND state = 'CURRENT' ORDER BY id DESC LIMIT 1",
+            params![oid],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    let Some((json, hash)) = current else {
+        return Ok(Vec::new());
+    };
+    if hash != load_compute_input(db, oid)?.2 {
+        return Ok(Vec::new());
+    }
+    let result: Value = serde_json::from_str(&json).unwrap_or(Value::Null);
+    let mut out = Vec::new();
+    if let Some(parts) = result["parts"].as_array() {
+        for p in parts.iter().filter(|p| p["no"].as_str() == Some(part_no)) {
+            if let Some(holds) = p["holds"].as_array() {
+                out.extend(
+                    holds
+                        .iter()
+                        .filter_map(|h| h["code"].as_str().map(str::to_string)),
+                );
+            }
+        }
+    }
+    if let Some(issues) = result["review_issues"].as_array() {
+        out.extend(
+            issues
+                .iter()
+                .filter(|i| {
+                    i["part"].as_str() == Some(part_no) && i["level"].as_str() == Some("need")
+                })
+                .filter_map(|i| i["code"].as_str().map(str::to_string)),
+        );
+    }
+    out.sort();
+    out.dedup();
+    Ok(out)
+}
+
 /// Everything a "checked" mark is made against: the files, the pages (and which are skipped), the parts and
 /// every value with its text, box, source and state. Any change to one of them makes an earlier mark stale.
 fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
@@ -605,40 +778,10 @@ fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
         )?;
         all.push(json!([head, vals]));
     }
-    // PZ-1: the material table and the page notes are inputs to the review; changing either makes an earlier
-    // decision (or "checked" mark) stale rather than silently applying to different page data.
-    let materials = q_all(
-        db,
-        "SELECT page_no, no, name, size, length, qty, mass FROM order_material_rows WHERE order_id = ? ORDER BY page_no, no, id",
-        params![oid],
-        |r| {
-            Ok(json!([
-                r.get::<_, i64>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, String>(2)?,
-                r.get::<_, String>(3)?,
-                r.get::<_, String>(4)?,
-                r.get::<_, Option<f64>>(5)?.map(f64::to_bits),
-                r.get::<_, Option<f64>>(6)?.map(f64::to_bits),
-            ]))
-        },
-    )?;
-    let notes = q_all(
-        db,
-        "SELECT page_no, kind, text FROM order_page_notes WHERE order_id = ? ORDER BY id",
-        params![oid],
-        |r| {
-            Ok(json!([
-                r.get::<_, i64>(0)?,
-                r.get::<_, String>(1)?,
-                r.get::<_, String>(2)?,
-            ]))
-        },
-    )?;
-    // an accepted flag, and its undo, change what a "checked" mark was made against
+    // An accepted flag (or review answer), and its undo, change what a "checked" mark was made against.
     let accepts = q_all(
         db,
-        "SELECT id, COALESCE(value_id, 0), COALESCE(flag, ''), undone_at IS NULL FROM order_decisions WHERE order_id = ? AND kind = 'accept_flag' ORDER BY id",
+        "SELECT id, COALESCE(value_id, 0), COALESCE(flag, ''), undone_at IS NULL FROM order_decisions WHERE order_id = ? AND kind IN ('accept_flag', 'accept') ORDER BY id",
         params![oid],
         |r| {
             Ok(json!([
@@ -650,7 +793,7 @@ fn order_fingerprint(db: &Connection, oid: i64) -> rusqlite::Result<String> {
         },
     )?;
     Ok(nf_core::sha256_hex(
-        json!([files, pages, all, accepts, materials, notes])
+        json!([files, pages, all, accepts, review_context_json(db, oid)?])
             .to_string()
             .as_bytes(),
     ))
@@ -1892,28 +2035,34 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
     agent_reason(u, &reason)?;
     let agent = (u.kind == "agent").then_some(u.username.clone());
     let flag_kind = matches!(kind.as_str(), "accept_flag" | "accept");
-    // `accept` names the review code directly; `accept_flag` keeps the older field name.
-    let flag = if kind == "accept" || kind == "claim" {
+    // `accept`, `claim` and `hand_drawn` name the review code directly; `accept_flag` keeps the older field name.
+    // A hand-drawn exit may be a whole-order record without a code, but a code it does name must be real.
+    let flag = if matches!(kind.as_str(), "accept" | "claim" | "hand_drawn") {
         text_field(&body, "code", 64)?.filter(|s| !s.is_empty())
     } else {
         text_field(&body, "flag", 64)?.filter(|s| !s.is_empty())
     };
-    if flag_kind
-        && flag
-            .as_deref()
-            .and_then(rv::row)
-            .is_some_and(|r| !r.may_accept)
-    {
-        // A never-wave kind is a stop, not an answer. No reason and no identity can turn it into one: the
-        // same refusal covers a person and the AI operator, and `settle` puts it on the audit log.
-        return Err(refuse(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            nf_core::refusal::REVIEW_NEVER_WAVE,
-            &format!(
-                "{} is a review stop that cannot be accepted; enter the value or take the hand-drawn exit instead",
-                flag.as_deref().unwrap_or_default()
-            ),
-        ));
+    if flag_kind {
+        let code = flag.as_deref().unwrap_or_default();
+        let stopped = rv::is_never_wave(code)
+            || flag
+                .as_deref()
+                .and_then(rv::row)
+                .is_some_and(|r| !r.may_accept);
+        if stopped {
+            // A never-wave kind is a stop, not an answer. No reason and no identity can turn it into one: the
+            // same refusal covers a person and the AI operator, and `settle` puts it on the audit log. The
+            // canonical code is named in `fields` so the web's `{fields}` i18n string is not blank.
+            let canonical = rv::canonical(code);
+            return Err(refuse_fields(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                nf_core::refusal::REVIEW_NEVER_WAVE,
+                &[&canonical],
+                &format!(
+                    "{code} is a review stop that cannot be accepted; enter the value or take the hand-drawn exit instead"
+                ),
+            ));
+        }
     }
     if matches!(kind.as_str(), "hand_drawn" | "claim") && reason.trim().is_empty() {
         return Err(unprocessable(
@@ -1934,10 +2083,10 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
                 "a designer claim needs the text it claims",
             ));
         }
-        if claim_code.as_deref().and_then(rv::row).is_none() {
+        if claim_code.is_none() {
             return Err(unprocessable(
                 "claim_code",
-                "'code' must name a review catalogue code",
+                "a designer claim needs the review code it answers",
             ));
         }
     }
@@ -1974,8 +2123,33 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
                 &format!("part '{pno}' is excluded"),
             ));
         }
+        // A designer answer is not a waiver: if it names a code, that code must be a review actually open on
+        // this part. Alias spellings and case are folded the same way as the catalogue and the never-wave check.
+        if let Some(code) = flag.as_deref() {
+            let canonical = rv::canonical(code);
+            if rv::row(code).is_none() {
+                return Err(unprocessable(
+                    "decision_code",
+                    &format!("'{code}' is not a review catalogue code"),
+                ));
+            }
+            let holds = review_holds_for_part(&tx, oid, &pno)?;
+            if !holds.iter().any(|h| rv::canonical(h) == canonical) {
+                return Err(unprocessable(
+                    "review_hold_missing",
+                    &format!(
+                        "part '{pno}' has no open review '{canonical}' for this exit; {}",
+                        if holds.is_empty() {
+                            "no review is open".to_string()
+                        } else {
+                            format!("open: {}", holds.join(", "))
+                        }
+                    ),
+                ));
+            }
+        }
         d.part = Some(pid);
-        d.flag = claim_code.as_deref();
+        d.flag = flag.as_deref();
         d.against = order_fingerprint(&tx, oid)?;
     } else {
         let part = body
@@ -2027,7 +2201,13 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
         }
         d.part = Some(pid);
         d.value = Some(vid);
-        d.against = value_fp(&key, val, &text, bbox.as_deref(), &src);
+        let value = value_fp(&key, val, &text, bbox.as_deref(), &src);
+        d.against = if flag_kind {
+            let context = review_context_json(&tx, oid)?;
+            review_accept_fp(&value, flag.as_deref().unwrap_or_default(), &context)
+        } else {
+            value
+        };
         if kind == "confirm" && state == "CONFIRMED" {
             return Err(refuse(
                 StatusCode::CONFLICT,
@@ -2117,10 +2297,11 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
         Option<String>,
         bool,
         String,
+        Option<String>,
     );
     let row: Option<Row> = tx
         .query_row(
-            "SELECT kind, part_id, value_id, against_hash, prev_state, undone_at IS NOT NULL, decided_by FROM order_decisions WHERE id = ? AND order_id = ?",
+            "SELECT kind, part_id, value_id, against_hash, prev_state, undone_at IS NOT NULL, decided_by, claim_text FROM order_decisions WHERE id = ? AND order_id = ?",
             params![did, oid],
             |r| {
                 Ok((
@@ -2131,11 +2312,12 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
                     r.get(4)?,
                     r.get(5)?,
                     r.get(6)?,
+                    r.get(7)?,
                 ))
             },
         )
         .optional()?;
-    let Some((kind, part, value, against, prev, undone, decided_by)) = row else {
+    let Some((kind, part, value, against, prev, undone, decided_by, snapshot)) = row else {
         return Err(not_found());
     };
     // an AI operator undoes only its own decisions; a person's decision and a checked mark are a person's to undo
@@ -2159,7 +2341,7 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
     )?;
     let mut reverted = false;
     if kind == "confirm"
-        && let (Some(vid), Some(pid), Some(prev)) = (value, part, prev)
+        && let (Some(vid), Some(pid), Some(prev)) = (value, part, prev.clone())
     {
         type Cur = (String, Option<f64>, String, String, Option<String>, String);
         let cur: Option<Cur> = tx
@@ -2198,6 +2380,27 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
             reverted = true;
         }
     }
+    if kind == "review_context"
+        && let Some(snap) = snapshot
+    {
+        let saved: Value = serde_json::from_str(&snap).unwrap_or(Value::Null);
+        let current = review_context_state(&tx, oid)?.1;
+        // Restore only a snapshot that matches the inputs this decision was made against; a later edit is a
+        // separate decision and is not overwritten by undoing an older one.
+        if current == against
+            && saved["before"][0].is_array()
+            && saved["before"][1].is_array()
+            && saved["after"][0].is_array()
+            && saved["after"][1].is_array()
+        {
+            restore_review_context(&tx, oid, &saved["before"])?;
+            if review_context_state(&tx, oid)?.1 == prev.as_deref().unwrap_or_default() {
+                reverted = true;
+            } else {
+                restore_review_context(&tx, oid, &saved["after"])?;
+            }
+        }
+    }
     app.audit(
         &tx,
         &u.username,
@@ -2228,15 +2431,33 @@ fn decision_view(db: &Connection, oid: i64, only: Option<i64>) -> Result<Vec<Val
             let against: String = r.get(12)?;
             let bbox: Option<String> = r.get(18)?;
             let src: Option<String> = r.get(19)?;
-            let current = match (&key, &text, &src) {
-                (Some(k), Some(t), Some(sr)) => value_fp(k, value, t, bbox.as_deref(), sr),
-                _ => order_fp.clone(),
+            let kind: String = r.get(7)?;
+            let current = if kind == "review_context" {
+                review_context_state(db, oid)?.1
+            } else if matches!(kind.as_str(), "accept" | "accept_flag") {
+                // An answer to a review is bound to its code and to the page inputs it was read against.
+                let code = r
+                    .get::<_, Option<String>>(8)?
+                    .or_else(|| r.get::<_, Option<String>>(20).ok().flatten())
+                    .unwrap_or_default();
+                match (&key, &text, &src) {
+                    (Some(k), Some(t), Some(sr)) => {
+                        let v = value_fp(k, value, t, bbox.as_deref(), sr);
+                        review_accept_fp(&v, &code, &review_context_json(db, oid)?)
+                    }
+                    _ => order_fp.clone(),
+                }
+            } else {
+                match (&key, &text, &src) {
+                    (Some(k), Some(t), Some(sr)) => value_fp(k, value, t, bbox.as_deref(), sr),
+                    _ => order_fp.clone(),
+                }
             };
             let undone = r.get::<_, Option<i64>>(16)?.is_some();
             let stale = current != against;
             Ok(json!({
                 "id": r.get::<_, i64>(0)?, "part_id": r.get::<_, Option<i64>>(1)?, "part": r.get::<_, Option<String>>(2)?,
-                "value_id": r.get::<_, Option<i64>>(3)?, "key": key, "current_value": value, "kind": r.get::<_, String>(7)?,
+                "value_id": r.get::<_, Option<i64>>(3)?, "key": key, "current_value": value, "kind": kind,
                 "flag": r.get::<_, Option<String>>(8)?, "code": r.get::<_, Option<String>>(20)?,
                 "claim": r.get::<_, Option<String>>(21)?, "source": r.get::<_, String>(9)?, "agent": r.get::<_, Option<String>>(10)?,
                 "reason": r.get::<_, String>(11)?, "decided_by": r.get::<_, String>(13)?, "decided_at": r.get::<_, i64>(14)?,
@@ -2454,8 +2675,7 @@ async fn put_materials(
 
 fn put_materials_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
     let body = request_json(headers, raw)?;
-    let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
-    agent_reason(u, &note)?;
+    let reason = required_reason(&body)?;
     let rows = body
         .get("rows")
         .and_then(Value::as_array)
@@ -2492,6 +2712,7 @@ fn put_materials_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
     for r in &parsed {
         page_of(&tx, oid, r.page)?;
     }
+    let (before, before_fp) = review_context_state(&tx, oid)?;
     tx.execute(
         "DELETE FROM order_material_rows WHERE order_id = ?",
         params![oid],
@@ -2502,13 +2723,39 @@ fn put_materials_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
             params![oid, r.page, r.no, r.name, r.size, r.length, r.qty, r.mass],
         )?;
     }
+    let (after, after_fp) = review_context_state(&tx, oid)?;
+    let agent = (u.kind == "agent").then_some(u.username.clone());
+    let source = actor_source(u);
+    let did = insert_decision(
+        &tx,
+        &NewDecision {
+            order: oid,
+            part: None,
+            value: None,
+            kind: "review_context",
+            flag: Some("materials"),
+            source,
+            agent: agent.as_deref(),
+            reason: &reason,
+            against: after_fp.clone(),
+            prev_state: Some(&before_fp),
+            who: &u.username,
+        },
+    )?;
+    tx.execute(
+        "UPDATE order_decisions SET claim_text = ? WHERE id = ?",
+        params![json!({ "before": before, "after": after }).to_string(), did],
+    )?;
     app.audit(
         &tx,
         &u.username,
         "order_material_rows",
         &format!(
-            "order #{oid} material table replaced with {} rows",
-            parsed.len()
+            "order #{oid} material table replaced with {} rows; decision #{did} before={} after={} reason={}",
+            parsed.len(),
+            clip(&before.to_string(), 260),
+            clip(&after.to_string(), 260),
+            clip(&reason, 160)
         ),
     )?;
     tx.commit()?;
@@ -2530,8 +2777,7 @@ async fn put_notes(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, ra
 
 fn put_notes_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
     let body = request_json(headers, raw)?;
-    let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
-    agent_reason(u, &note)?;
+    let reason = required_reason(&body)?;
     let list = body
         .get("notes")
         .and_then(Value::as_array)
@@ -2573,6 +2819,7 @@ fn put_notes_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) 
     for (page, _, _) in &parsed {
         page_of(&tx, oid, *page)?;
     }
+    let (before, before_fp) = review_context_state(&tx, oid)?;
     tx.execute(
         "DELETE FROM order_page_notes WHERE order_id = ?",
         params![oid],
@@ -2583,13 +2830,39 @@ fn put_notes_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) 
             params![oid, page, kind, text],
         )?;
     }
+    let (after, after_fp) = review_context_state(&tx, oid)?;
+    let agent = (u.kind == "agent").then_some(u.username.clone());
+    let source = actor_source(u);
+    let did = insert_decision(
+        &tx,
+        &NewDecision {
+            order: oid,
+            part: None,
+            value: None,
+            kind: "review_context",
+            flag: Some("notes"),
+            source,
+            agent: agent.as_deref(),
+            reason: &reason,
+            against: after_fp.clone(),
+            prev_state: Some(&before_fp),
+            who: &u.username,
+        },
+    )?;
+    tx.execute(
+        "UPDATE order_decisions SET claim_text = ? WHERE id = ?",
+        params![json!({ "before": before, "after": after }).to_string(), did],
+    )?;
     app.audit(
         &tx,
         &u.username,
         "order_page_notes",
         &format!(
-            "order #{oid} page notes replaced with {} rows",
-            parsed.len()
+            "order #{oid} page notes replaced with {} rows; decision #{did} before={} after={} reason={}",
+            parsed.len(),
+            clip(&before.to_string(), 260),
+            clip(&after.to_string(), 260),
+            clip(&reason, 160)
         ),
     )?;
     tx.commit()?;

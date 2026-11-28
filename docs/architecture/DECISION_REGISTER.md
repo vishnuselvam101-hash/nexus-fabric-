@@ -104,6 +104,7 @@ Status vocabulary: **Accepted** · **Accepted in principle** (identity decided, 
 | D-59 | The listed ZK review kinds that cannot be waved (`FLAT_STOP`, missing/unreadable/empty/unsupported reading, split, bad tee/plate/bend/wye, branch count) refuse `accept` and `accept_flag` for a person and for the AI operator with coded 422 `review_never_wave` | Accepted for this development build | same; [refusal codes](../backend/REFUSAL_CODES.md) |
 | D-60 | `hand_drawn` and designer `claim` are hash-tied, reasoned, undoable records that do not release a DXF; they are carried into the job ZIP's `designer.txt` | Accepted for this development build | [Review catalogue](../backend/REVIEW_CATALOGUE.md) |
 | D-61 | Schema 8 adds `order_material_rows`, `order_page_notes`, `review_code` and `claim_text` additively on top of schema 7; material rows and page notes join the compute fingerprint | Accepted for this development build | `crates/nf-server/src/storage.rs`; [Review catalogue](../backend/REVIEW_CATALOGUE.md) |
+| D-62 | After REVIEW-1/SECURITY-1: a page `need` is carried by the first part and blocks its DXF; review codes are case/alias folded; an `accept` is bound to value, code and page context and joins the order fingerprint; a material/note PUT needs a reason, records a `review_context` decision with a before/after snapshot and is restoreable on undo only while still current | Accepted for this development build | [Review catalogue](../backend/REVIEW_CATALOGUE.md) |
 
 Earlier ADR-001…008 remain **Proposed**; no owner decision has been recorded on them.
 

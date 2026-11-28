@@ -1704,6 +1704,11 @@ fn val(part: &str, key: &str, v: f64) -> Value {
 async fn l10_compute_holds_missing_values_and_edits_supersede() {
     let t = boot();
     let oid = new_order(&t).await;
+    // The order has a real page: an empty reading is itself a review hold, so the fixture must not be page-less.
+    assert_eq!(
+        add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0,
+        StatusCode::OK
+    );
     put_parts_values(
         &t,
         oid,
@@ -2012,7 +2017,7 @@ async fn pz1_material_rows_and_notes_are_persisted_and_join_the_compute_identity
     let (st, v) = t.call(
         "PUT",
         &format!("/api/orders/{oid}/materials"),
-        Some(json!({ "rows": [
+        Some(json!({ "reason": "set the material table from the BOM", "rows": [
             { "page": 1, "no": "1", "name": "main", "size": "φ216.3×12", "length": "2000", "qty": 2, "mass": 2.0 },
             { "page": 1, "no": "9", "name": "loose", "size": "—", "length": "—", "qty": 1, "mass": 0.0 }
         ] })),
@@ -2023,7 +2028,7 @@ async fn pz1_material_rows_and_notes_are_persisted_and_join_the_compute_identity
         .call(
             "PUT",
             &format!("/api/orders/{oid}/notes"),
-            Some(json!({ "notes": [
+            Some(json!({ "reason": "record the page readings", "notes": [
             { "page": 1, "kind": "unit_mass_kg", "text": "5.0" },
             { "page": 1, "kind": "note", "text": "unreadable: 溶接記号" }
         ] })),
@@ -2052,6 +2057,22 @@ async fn pz1_material_rows_and_notes_are_persisted_and_join_the_compute_identity
     }
     let mass = review.iter().find(|r| r["code"] == "mass_total").unwrap();
     assert_eq!(mass["level"], "need", "{mass}");
+    // A page need is carried by the first part: it is a hold and it enters the DXF gate, not just the review list.
+    let parts = first["result"]["parts"].as_array().unwrap();
+    let first_part = parts.iter().find(|p| p["no"] == "1").unwrap();
+    for code in ["mass_total", "row_unmatched", "unreadable"] {
+        let r = review.iter().find(|r| r["code"] == code).unwrap();
+        assert_eq!(r["part"], json!("1"), "{r}");
+        assert!(
+            first_part["holds"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|h| h["code"] == code),
+            "{code} is not a hold on part 1: {first_part}"
+        );
+    }
+    assert_eq!(first_part["dxf_allowed"], false, "{first_part}");
     let (_, again) = t
         .call(
             "POST",
@@ -2065,7 +2086,7 @@ async fn pz1_material_rows_and_notes_are_persisted_and_join_the_compute_identity
         .call(
             "PUT",
             &format!("/api/orders/{oid}/notes"),
-            Some(json!({ "notes": [
+            Some(json!({ "reason": "the page note was reread", "notes": [
             { "page": 1, "kind": "unit_mass_kg", "text": "5.0" },
             { "page": 1, "kind": "note", "text": "unreadable: 別の記号" }
         ] })),
@@ -2088,9 +2109,12 @@ async fn pz1_never_wave_kinds_refuse_accept_for_a_person_and_an_agent() {
     let t = boot();
     let oid = order_with_parts(&t).await;
     let dec = format!("/api/orders/{oid}/decisions");
-    for (kind, code, field) in [
-        ("accept_flag", "FLAT_STOP", "flag"),
-        ("accept", "split_ring", "code"),
+    // Both spellings of the ZK aliases, case variants and the emitted canonical codes are the same stop.
+    for (kind, code, field, canonical) in [
+        ("accept_flag", "FLAT_STOP", "flag", "flat_stop"),
+        ("accept", "split_ring", "code", "split_ring"),
+        ("accept_flag", "seam_from", "flag", "seam_from_unknown"),
+        ("accept", "shape_unsupported", "code", "shape_unsupported"),
     ] {
         let body = if field == "flag" {
             json!({ "kind": kind, "part": "1", "key": "D", "flag": code, "reason": "trying to clear the stop" })
@@ -2106,24 +2130,36 @@ async fn pz1_never_wave_kinds_refuse_accept_for_a_person_and_an_agent() {
             ),
             "{v}"
         );
+        assert_eq!(
+            v["fields"].as_array().unwrap(),
+            &vec![json!(canonical)],
+            "the i18n {{fields}} string must not be blank: {v}"
+        );
     }
     let agent = add_agent(&t, "operator-ai");
     let ac = [("cookie", agent.as_str())];
-    let (st, _, b) = t.send(
-        "POST",
-        &dec,
-        Some(json!({ "kind": "accept", "part": "1", "code": "missing", "reason": "the AI says it is fine" })),
-        &ac,
-    ).await;
-    assert_eq!(
-        (st, code_of(&b)),
-        (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            json!(nf_core::refusal::REVIEW_NEVER_WAVE)
-        ),
-        "{}",
-        String::from_utf8_lossy(&b)
-    );
+    for (kind, field, code, canonical) in [
+        ("accept", "code", "missing", "missing"),
+        ("accept_flag", "flag", "flat stop", "flat_stop"),
+    ] {
+        let body = if field == "flag" {
+            json!({ "kind": kind, "part": "1", "key": "D", "flag": code, "reason": "the AI says it is fine" })
+        } else {
+            json!({ "kind": kind, "part": "1", "code": code, "reason": "the AI says it is fine" })
+        };
+        let (st, _, b) = t.send("POST", &dec, Some(body), &ac).await;
+        let v: Value = serde_json::from_slice(&b).unwrap();
+        assert_eq!(
+            (st, v["code"].as_str()),
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Some(nf_core::refusal::REVIEW_NEVER_WAVE)
+            ),
+            "{}",
+            String::from_utf8_lossy(&b)
+        );
+        assert_eq!(v["fields"][0].as_str(), Some(canonical), "{v}");
+    }
     assert_eq!(t.count("SELECT COUNT(*) FROM order_decisions"), 0);
     let refused = audit_details(&t, "order_refused");
     assert_eq!(
@@ -2131,7 +2167,7 @@ async fn pz1_never_wave_kinds_refuse_accept_for_a_person_and_an_agent() {
             .iter()
             .filter(|x| x.contains(nf_core::refusal::REVIEW_NEVER_WAVE))
             .count(),
-        3,
+        6,
         "{refused:?}"
     );
 }
@@ -2150,6 +2186,54 @@ async fn pz1_hand_drawn_exit_and_designer_claim_are_undoable_and_go_stale() {
         (st, v["code"].as_str()),
         (StatusCode::UNPROCESSABLE_ENTITY, Some("decision_reason")),
         "{v}"
+    );
+    // a designer answer may not invent a review: without a compute there is no open hold to answer
+    let (st, v) = t.call(
+        "POST",
+        &dec,
+        Some(json!({ "kind": "claim", "part": "1", "code": "mass_total", "claim": "合計は仮の値", "reason": "the designer wrote this on the sheet" })),
+    ).await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Some("review_hold_missing")
+        ),
+        "{v}"
+    );
+    let (st, v) = t.call(
+        "PUT",
+        &format!("/api/orders/{oid}/materials"),
+        Some(json!({ "reason": "record the BOM total", "rows": [
+            { "page": 1, "no": "1", "name": "main", "size": "φ216.3×12", "length": "2000", "qty": 2, "mass": 2.0 }
+        ] })),
+    ).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/notes"),
+            Some(json!({ "reason": "record the unit mass", "notes": [
+            { "page": 1, "kind": "unit_mass_kg", "text": "5.0" }
+        ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, comp) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{comp}");
+    assert!(
+        comp["review"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["code"] == "mass_total" && r["part"] == "1"),
+        "mass_total must be open on part 1: {comp}"
     );
     let (st, h) = t.call(
         "POST",
@@ -2194,8 +2278,8 @@ async fn pz1_hand_drawn_exit_and_designer_claim_are_undoable_and_go_stale() {
     let (st, v) = t.call(
         "PUT",
         &format!("/api/orders/{oid}/materials"),
-        Some(json!({ "rows": [
-            { "page": 1, "no": "1", "name": "main", "size": "φ216.3×12", "length": "2000", "qty": 2, "mass": 2.0 }
+        Some(json!({ "reason": "the row mass was corrected", "rows": [
+            { "page": 1, "no": "1", "name": "main", "size": "φ216.3×12", "length": "2000", "qty": 2, "mass": 2.5 }
         ] })),
     ).await;
     assert_eq!(st, StatusCode::OK, "{v}");
@@ -2212,5 +2296,148 @@ async fn pz1_hand_drawn_exit_and_designer_claim_are_undoable_and_go_stale() {
         .await;
     assert_eq!(st, StatusCode::OK, "{u}");
     assert_eq!(u["undone"], true);
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_decisions"), 5);
+}
+
+#[tokio::test]
+async fn pz1_an_accept_goes_stale_on_page_edits_and_a_new_accept_or_its_undo_is_recorded() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    read_val(&t, oid, "D", 216.3, "φ216.3").await;
+    let dec = format!("/api/orders/{oid}/decisions");
+    let (st, a) = t.call(
+        "POST",
+        &dec,
+        Some(json!({ "kind": "accept", "part": "1", "key": "D", "code": "size_vs_table", "reason": "the table agrees" })),
+    ).await;
+    assert_eq!(st, StatusCode::OK, "{a}");
+    let aid = a["id"].as_i64().unwrap();
+    assert_eq!(a["effective"], true, "{a}");
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/notes"),
+            Some(json!({ "reason": "the seam note was reread", "notes": [
+            { "page": 1, "kind": "seam_from", "text": "bottom" }
+        ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(decision(&o, aid)["stale"], true, "{o}");
+    assert_eq!(decision(&o, aid)["effective"], false, "{o}");
+    // a fresh answer against the edited page inputs counts; undoing it does not revive the older one
+    let (st, b) = t.call(
+        "POST",
+        &dec,
+        Some(json!({ "kind": "accept", "part": "1", "key": "D", "code": "size_vs_table", "reason": "accepted against the new note" })),
+    ).await;
+    assert_eq!(st, StatusCode::OK, "{b}");
+    let bid = b["id"].as_i64().unwrap();
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(decision(&o, bid)["effective"], true, "{o}");
+    let (st, u) = t
+        .call(
+            "POST",
+            &format!("{dec}/{bid}/undo"),
+            Some(json!({ "note": "the note changed again" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{u}");
+    let (st, v) = t.call(
+        "PUT",
+        &format!("/api/orders/{oid}/materials"),
+        Some(json!({ "reason": "a row was corrected", "rows": [
+            { "page": 1, "no": "1", "name": "main", "size": "φ216.3×12", "length": "2000", "qty": 2, "mass": 2.0 }
+        ] })),
+    ).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(decision(&o, aid)["stale"], true, "{o}");
+    assert_eq!(decision(&o, bid)["stale"], true, "{o}");
+    assert_eq!(decision(&o, bid)["effective"], false, "{o}");
+}
+
+#[tokio::test]
+async fn pz1_page_input_replacements_need_a_reason_and_are_undoable_decisions() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let (st, v) = t.call(
+        "PUT",
+        &format!("/api/orders/{oid}/materials"),
+        Some(json!({ "rows": [{ "page": 1, "no": "1", "name": "main", "size": "φ216.3×12", "length": "2000", "qty": 2, "mass": 2.0 }] })),
+    ).await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::UNPROCESSABLE_ENTITY, Some("decision_reason")),
+        "{v}"
+    );
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_decisions"), 0);
+    let (st, v) = t.call(
+        "PUT",
+        &format!("/api/orders/{oid}/materials"),
+        Some(json!({ "reason": "first BOM reading", "rows": [
+            { "page": 1, "no": "1", "name": "main", "size": "φ216.3×12", "length": "2000", "qty": 2, "mass": 2.0 }
+        ] })),
+    ).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/notes"),
+            Some(
+                json!({ "reason": "the seam side is written on page 1", "notes": [
+            { "page": 1, "kind": "seam_from", "text": "bottom" }
+        ] }),
+            ),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let a = audit_details(&t, "order_material_rows");
+    assert_eq!(a.len(), 1, "{a:?}");
+    assert!(
+        a[0].contains("before=[[")
+            && a[0].contains("after=[[")
+            && a[0].contains("reason=first BOM reading"),
+        "{a:?}"
+    );
+    let n = audit_details(&t, "order_page_notes");
+    assert!(
+        n[0].contains("before=[[") && n[0].contains("reason=the seam side"),
+        "{n:?}"
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    let ds = o["decisions"].as_array().unwrap();
+    let id_of = |f: &str| {
+        ds.iter()
+            .find(|d| d["kind"] == "review_context" && d["flag"] == f)
+            .unwrap()["id"]
+            .as_i64()
+            .unwrap()
+    };
+    let (nid, mid) = (id_of("notes"), id_of("materials"));
+    assert_eq!(decision(&o, nid)["effective"], true, "{o}");
+    let (st, u) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions/{nid}/undo"),
+            Some(json!({ "note": "the seam side was misread" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{u}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["notes"].as_array().unwrap().len(), 0, "{o}");
+    assert_eq!(o["material"].as_array().unwrap().len(), 1, "{o}");
+    let (st, u) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions/{mid}/undo"),
+            Some(json!({ "note": "the BOM reading was wrong" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{u}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["material"].as_array().unwrap().len(), 0, "{o}");
+    assert_eq!(decision(&o, mid)["undone"], true, "{o}");
     assert_eq!(t.count("SELECT COUNT(*) FROM order_decisions"), 2);
 }

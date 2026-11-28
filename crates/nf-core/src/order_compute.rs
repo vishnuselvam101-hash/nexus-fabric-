@@ -421,7 +421,8 @@ pub struct OrderResult {
     pub compute: &'static str,
     pub rules: Vec<Value>,
     pub parts: Vec<PartResult>,
-    /// Page-level review issues that have no single part (or that name one but do not change its numbers).
+    /// Review issues from page data. A page-level `need` also names the first part and is added to that part's
+    /// holds so it takes part in the DXF gate; informational rows stay here only.
     pub review_issues: Vec<crate::review::ReviewIssue>,
 }
 

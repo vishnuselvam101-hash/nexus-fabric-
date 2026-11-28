@@ -96,8 +96,10 @@ fn never_wave_list_covers_flat_stop_and_the_boundary_kinds() {
         "FLAT_STOP",
         "split_ring",
         "seam_from",
+        "seam_from_unknown",
         "missing",
         "unsupported",
+        "shape_unsupported",
         "empty",
         "split_cone",
         "tee_bad",
@@ -121,7 +123,99 @@ fn never_wave_list_covers_flat_stop_and_the_boundary_kinds() {
             review::row(code).is_some(),
             "never-wave code {code} is not catalogued"
         );
+        assert!(
+            review::is_never_wave(code),
+            "never-wave code {code} is not refused after folding"
+        );
     }
+    // ZK aliases and case/separator variants are refused as the emitted code is.
+    for spelling in [
+        "flat stop",
+        "FLAT-STOP",
+        "plate-c-big",
+        "SEAM_FROM",
+        "Shape_Unsupported",
+    ] {
+        assert!(
+            review::is_never_wave(spelling),
+            "{spelling} folds to a never-wave code"
+        );
+        assert!(
+            !review::may_accept(spelling),
+            "{spelling} cannot be accepted"
+        );
+        assert!(review::row(spelling).is_some(), "{spelling} is catalogued");
+    }
+    assert!(
+        review::may_accept("mass"),
+        "an information review may be accepted"
+    );
+    assert!(
+        !review::may_accept("mass_total"),
+        "a page need cannot be accepted"
+    );
+}
+
+#[test]
+fn page_level_needs_block_the_first_part_until_the_context_is_corrected() {
+    let p = [PartIn::new("1", "purchased")];
+    let r = OrderRules::default();
+    let mut c = ReviewContext {
+        pages: 1,
+        strict_quantity: true,
+        unit_mass_kg: Some(5.0),
+        ..Default::default()
+    };
+    c.page_notes.push("unreadable: 溶接記号".into());
+    c.material_rows.push(review::MaterialRow {
+        no: "9".into(),
+        mass: Some(2.0),
+        ..Default::default()
+    });
+    let got = review::compute_order_with_context(&p, &r, &c);
+    for code in ["unreadable", "row_unmatched", "mass_total"] {
+        let issue = got
+            .review_issues
+            .iter()
+            .find(|i| i.code == code)
+            .unwrap_or_else(|| panic!("no page issue {code}"));
+        assert_eq!(
+            issue.part.as_deref(),
+            Some("1"),
+            "{code} must name the first part"
+        );
+        let part = got.part("1").unwrap();
+        assert!(
+            part.has_hold(code),
+            "{code} must be a hold: {:?}",
+            part.holds
+        );
+        assert!(
+            part.dxf_blocked_by.iter().any(|x| x == code),
+            "{code} must be in the DXF gate: {:?}",
+            part.dxf_blocked_by
+        );
+        assert!(!part.dxf_allowed, "{code} must not allow a cut file");
+    }
+    // A corrected context is a valid answer to a page need. The page codes leave the gate; certification still
+    // keeps this lane's DXF off by design.
+    let clean = review::compute_order_with_context(
+        &p,
+        &r,
+        &ReviewContext {
+            pages: 1,
+            ..Default::default()
+        },
+    );
+    let part = clean.part("1").unwrap();
+    for code in ["unreadable", "row_unmatched", "mass_total"] {
+        assert!(!part.has_hold(code), "{code} still holds");
+        assert!(
+            !part.dxf_blocked_by.iter().any(|x| x == code),
+            "{code} still blocks"
+        );
+    }
+    assert!(!part.dxf_allowed, "no shape is certified in this lane");
 }
 
 fn ctx_with_mass(table_mass: f64, unit: f64) -> ReviewContext {
@@ -224,37 +318,52 @@ fn one_millimetre_boundaries_do_not_raise_a_length_hold() {
 #[test]
 fn mass_tolerance_is_half_a_percent() {
     let r = OrderRules::default();
-    let rows: &[(f64, bool)] = &[(100.0, false), (100.5, false), (100.51, true)];
-    for &(calc, want) in rows {
-        let p = [PartIn::new("1", "purchased")];
-        let mut c = ReviewContext {
+    let p = [PartIn::new("1", "plate")
+        .v("t", 16.0)
+        .v("plate_W", 400.0)
+        .v("plate_H", 300.0)];
+    // The engine's computed mass is the reference, not a constant repeated in the test.
+    let base = review::compute_order_with_context(
+        &p,
+        &r,
+        &ReviewContext {
             pages: 1,
             ..Default::default()
-        };
-        c.material_rows.push(review::MaterialRow {
-            no: "1".into(),
-            mass: Some(100.0),
-            part: Some("1".into()),
+        },
+    )
+    .part("1")
+    .unwrap()
+    .mass_kg
+    .expect("the plate has a computed mass");
+    for &delta in &[0.0, 0.005, 0.0051] {
+        let c = ReviewContext {
+            pages: 1,
+            material_rows: vec![review::MaterialRow {
+                no: "1".into(),
+                mass: Some(base * (1.0 + delta)),
+                part: Some("1".into()),
+                ..Default::default()
+            }],
             ..Default::default()
-        });
-        let mut got = review::compute_order_with_context(&p, &r, &c);
-        // Purchased parts have no computed mass. The table row is still reviewed; a computed value, when present,
-        // is the one compared. The explicit tolerance table is checked here so a change cannot pass silently.
-        if let Some(m) = got.part_mut("1") {
-            m.mass_kg = Some(calc);
-        }
-        assert!(
-            (calc - 100.0).abs() / 100.0 <= nf_core::order::MASS_TABLE_REL_TOL + f64::EPSILON
-                || want,
-            "tolerance table"
-        );
+        };
+        let got = review::compute_order_with_context(&p, &r, &c);
+        let issue = got
+            .review_issues
+            .iter()
+            .find(|i| i.code == "mass")
+            .expect("the table mass row is reviewed");
+        let want = delta > nf_core::order::MASS_TABLE_REL_TOL + 1e-9;
         assert_eq!(
+            issue.level == "need",
             want,
-            (calc - 100.0).abs() / 100.0 > nf_core::order::MASS_TABLE_REL_TOL
+            "computed mass {base}, table delta {delta}"
         );
-        assert!(
-            codes(&got).contains(&"mass"),
-            "a table mass row raises the mass review"
+        let part = got.part("1").unwrap();
+        assert_eq!(part.has_hold("mass"), want, "hold at delta {delta}");
+        assert_eq!(
+            part.dxf_blocked_by.iter().any(|x| x == "mass"),
+            want,
+            "DXF gate at delta {delta}"
         );
     }
 }

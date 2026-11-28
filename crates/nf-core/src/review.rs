@@ -13,13 +13,16 @@ use serde_json::{Value, json};
 use crate::order::TableRow;
 use crate::order_compute::{self, OrderResult, OrderRules, PartIn, Val, ValState};
 
-/// Kinds that no decision may ever wave through, including the ZK `FLAT_STOP`.
+/// Kinds that no decision may ever wave through, including the ZK `FLAT_STOP` and the canonical emitted forms
+/// of the ZK aliases (`seam_from` -> `seam_from_unknown`, `unsupported` -> `shape_unsupported`).
 pub const NEVER_WAVE: &[&str] = &[
     "FLAT_STOP",
     "split_ring",
     "seam_from",
+    "seam_from_unknown",
     "missing",
     "unsupported",
+    "shape_unsupported",
     "empty",
     "split_cone",
     "tee_bad",
@@ -290,11 +293,39 @@ fn actions_of(code: &str, may_accept: bool) -> Vec<String> {
     out
 }
 
-fn may_accept(code: &str) -> bool {
-    !NEVER_WAVE.contains(&code)
+/// Case-folded, alias-folded form used for lookups and hashes. `FLAT_STOP`, `flat stop`,
+/// `plate_C_big` and `plate-c-big` all name the same review row; ZK's aliases name the emitted code.
+pub fn canonical(code: &str) -> String {
+    let flat: String = code
+        .trim()
+        .to_ascii_lowercase()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect();
+    let alias = match flat.as_str() {
+        "seam_from" | "seam_from_unknown" => "seam_from_unknown",
+        "unsupported" | "shape_unsupported" => "shape_unsupported",
+        "empty" | "page_empty" => "page_empty",
+        "row" | "row_unmatched" => "row_unmatched",
+        _ => flat.as_str(),
+    };
+    alias.to_string()
+}
+
+/// True for a review kind that no reason, identity or decision may wave through. Both the emitted code and the
+/// ZK alias are refused, in any case and with any spelling of the separator.
+pub fn is_never_wave(code: &str) -> bool {
+    let c = canonical(code);
+    NEVER_WAVE.iter().any(|n| canonical(n) == c)
+}
+
+/// Whether an accept decision may answer this code. Catalogue answers never approve a job.
+pub fn may_accept(code: &str) -> bool {
+    let c = canonical(code);
+    !is_never_wave(code)
         && !matches!(
-            code,
-            "page_empty" | "empty" | "unreadable" | "row_unmatched" | "mass_total"
+            c.as_str(),
+            "page_empty" | "unreadable" | "row_unmatched" | "mass_total"
         )
 }
 
@@ -373,7 +404,8 @@ pub fn catalogue() -> Vec<CatalogueRow> {
 }
 
 pub fn row(code: &str) -> Option<CatalogueRow> {
-    catalogue().into_iter().find(|r| r.code == code)
+    let want = canonical(code);
+    catalogue().into_iter().find(|r| canonical(&r.code) == want)
 }
 
 pub fn codes() -> Vec<String> {
@@ -656,15 +688,17 @@ pub fn compute_order_with_context(
     let mut issues = Vec::new();
     let first = parts.first().map(|p| p.no.as_str());
 
+    // ZK carries a page-level `need` on the first part. Without a part there is no cut file to gate, but the
+    // issue is still reported so an empty reading cannot be mistaken for a clean one.
     if ctx.pages == 0 || (parts.is_empty() && ctx.material_rows.is_empty()) {
         push(
             &mut issues,
             &mut res,
             "page_empty",
-            None,
+            first,
             "need",
             &[],
-            false,
+            first.is_some(),
         );
     }
     for n in ctx
@@ -676,10 +710,10 @@ pub fn compute_order_with_context(
             &mut issues,
             &mut res,
             "unreadable",
-            None,
+            first,
             "need",
             &[n.as_str()],
-            false,
+            first.is_some(),
         );
     }
     if ctx.strict_quantity {
@@ -693,10 +727,10 @@ pub fn compute_order_with_context(
                     &mut issues,
                     &mut res,
                     "row_unmatched",
-                    None,
+                    first,
                     "need",
                     &[r.no.as_str()],
-                    false,
+                    first.is_some(),
                 );
             }
         }
@@ -707,16 +741,16 @@ pub fn compute_order_with_context(
     {
         let total: f64 = ctx.material_rows.iter().filter_map(|r| r.mass).sum();
         let bad = (total - unit).abs() > 1.0f64.max(unit * 0.002);
-        // ZK records the total review whether it agrees (`ok`) or not (`need`). The hold is only raised on a
-        // mismatch, and a hold on a page-level issue is carried by the first part when there is one.
+        // ZK records the total review whether it agrees (`ok`) or not (`need`). A `need` is carried by the
+        // first part so `finish()` and the DXF gate see it; an `ok` row stays an informational issue only.
         push(
             &mut issues,
             &mut res,
             "mass_total",
-            None,
+            if bad { first } else { None },
             if bad { "need" } else { "info" },
             &[&total.to_string(), &unit.to_string()],
-            false,
+            bad && first.is_some(),
         );
     }
     let plate_shape = parts.iter().any(|p| {
