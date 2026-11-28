@@ -22,6 +22,7 @@
 use super::*;
 use nf_core::reading::{BoxCheck, ItemRef, OcrCheck, Provenance, StoredCheck, Verdict};
 
+mod nest;
 mod operator;
 
 /// Implementation limits, stated to the user by the UI.
@@ -103,6 +104,7 @@ pub(crate) fn routes() -> Router<Arc<App>> {
         .route("/api/orders/{oid}/values", axum::routing::put(put_values))
         .route("/api/orders/{oid}/confirm", post(confirm))
         .route("/api/orders/{oid}/compute", post(compute).get(get_results))
+        .route("/api/orders/{oid}/nest", post(nest::nest_order))
         .route("/api/orders/{oid}/preview", post(preview_order))
         .route(
             "/api/orders/{oid}/rules",

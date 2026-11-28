@@ -884,6 +884,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nf-nest"
+version = "0.1.0"
+dependencies = [
+ "nf-dxf",
+]
+
+[[package]]
 name = "nf-numread"
 version = "0.1.0"
 dependencies = [
@@ -953,6 +960,7 @@ dependencies = [
  "nf-core",
  "nf-digest",
  "nf-licence",
+ "nf-nest",
  "nf-numread",
  "rand",
  "rusqlite",

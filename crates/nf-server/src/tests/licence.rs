@@ -713,6 +713,7 @@ async fn licence_pz3_preview_and_rules_are_gated_like_other_writes() {
                 json!({"parts_hash": "0".repeat(64), "edit": {"kind": "seam_side", "seam_from": "top"}}),
             ),
         ),
+        ("POST", format!("/api/orders/{oid}/nest"), Some(json!({}))),
         (
             "POST",
             format!("/api/orders/{oid}/rules/impact"),

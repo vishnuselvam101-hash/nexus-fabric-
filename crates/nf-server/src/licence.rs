@@ -321,7 +321,7 @@ pub(crate) fn gated(method: &Method, path: &str) -> bool {
             "api",
             "orders",
             id,
-            "confirm" | "decisions" | "compute" | "preview",
+            "confirm" | "decisions" | "compute" | "preview" | "nest",
         ] => id.parse::<i64>().is_ok(),
         ["api", "orders", id, "operator", "events" | "undo"] => id.parse::<i64>().is_ok(),
         ["api", "orders", id, "rules", "impact"] => id.parse::<i64>().is_ok(),
