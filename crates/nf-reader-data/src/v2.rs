@@ -91,6 +91,25 @@ fn names(fam: &str, lang: Lang) -> &'static str {
     if lang == Lang::En { en } else { ja }
 }
 
+/// Printed text of a plain number (rounding and degree sign as in `Page::num`, no tolerance).
+fn num_text(prefix: &str, v: f64, unit: &str, dec: usize) -> String {
+    let mut t = format!("{prefix}{:.dec$}", round_to(v, dec));
+    if unit == "deg" {
+        t.push('\u{00B0}');
+    }
+    t
+}
+
+/// Proper intersection test of two segments [x0,y0,x1,y1].
+fn seg_intersect(a: [f64; 4], b: [f64; 4]) -> bool {
+    let o = |p: (f64, f64), q: (f64, f64), r: (f64, f64)| {
+        (q.0 - p.0) * (r.1 - p.1) - (q.1 - p.1) * (r.0 - p.0)
+    };
+    let (p1, p2) = ((a[0], a[1]), (a[2], a[3]));
+    let (p3, p4) = ((b[0], b[1]), (b[2], b[3]));
+    o(p3, p4, p1) * o(p3, p4, p2) < 0.0 && o(p1, p2, p3) * o(p1, p2, p4) < 0.0
+}
+
 const CELL_HALF: f64 = 0.32;
 
 fn rot_box(b: B, th: f64, cx: f64, cy: f64) -> B {
@@ -275,15 +294,38 @@ impl Ctx {
         kind: &'static str,
     ) -> bool {
         let c = self.cands(tx, ty, 60.0 * self.u);
-        let Some(b) = self.put_num(kind, prefix, v, unit, None, src, &c) else {
-            return false;
-        };
-        let cx = (b[0] + b[2]) / 2.0;
-        let cy = (b[1] + b[3]) / 2.0;
-        let ex = if cx > tx { b[0] } else { b[2] };
-        let ey = if cy > ty { b[1] } else { b[3] };
-        self.p.line(tx, ty, ex, ey, 1.0 * self.u);
-        true
+        let text = num_text(prefix, v, unit, self.p.dec);
+        let u = self.u;
+        for &(x, y, a) in &c {
+            // the candidate box and the leader from the target to its nearest corner must cross nothing placed so far
+            let w = crate::layout::text_w(&text, self.fs);
+            let xl = match a {
+                Anchor::Start => x,
+                Anchor::Middle => x - w / 2.0,
+                Anchor::End => x - w,
+            };
+            let b = Page::text_box(xl, y, &text, self.fs);
+            let ex = if (b[0] + b[2]) / 2.0 > tx { b[0] } else { b[2] };
+            let ey = if (b[1] + b[3]) / 2.0 > ty { b[1] } else { b[3] };
+            let ls = [tx, ty, ex, ey];
+            if self
+                .p
+                .items
+                .iter()
+                .any(|i| crate::layout::seg_hits(ls, i.b, 2.0 * u))
+                || self.p.segs.iter().any(|sg| seg_intersect(ls, *sg))
+            {
+                continue;
+            }
+            if self
+                .put_num(kind, prefix, v, unit, None, src.clone(), &[(x, y, a)])
+                .is_some()
+            {
+                self.p.line(tx, ty, ex, ey, 1.0 * u);
+                return true;
+            }
+        }
+        false
     }
     /// Horizontal dimension between px x-positions xa, xb of a feature at px height y; line at y+off (off<0 above).
     #[allow(clippy::too_many_arguments)]
@@ -1420,17 +1462,26 @@ fn bom(c: &mut Ctx) {
         );
         let q = c.r.int(1, 8) as f64;
         let qx = x0 + cols[2] * (x1 - x0);
-        c.put_num(
-            "bom",
-            "",
-            q,
-            "",
-            None,
-            Source::Structure {
+        let it = Item {
+            kind: "bom",
+            text: format!("{}", q as i64),
+            value: json!(q as i64),
+            unit: "pcs",
+            tol: None,
+            tol_source: None,
+            src: Some(Source::Structure {
                 what: "quantity".into(),
-            },
-            &[(qx, y, Anchor::Start)],
-        );
+            }),
+            part: c.part.clone(),
+            decimals: Some(0),
+            b: [0.0; 4],
+        };
+        if c.p
+            .emit(it, qx, y, Anchor::Start, f, false, false)
+            .is_some()
+        {
+            c.shapes.push("bom".into());
+        }
         c.put_word(
             "bom",
             mats[k % mats.len()],
@@ -1508,14 +1559,25 @@ fn hand_note(c: &mut Ctx) {
     if !c.p.free(b) {
         return;
     }
-    let el = format!(
-        "<text x=\"{x:.1}\" y=\"{y:.1}\" font-size=\"{fs:.1}\" font-family=\"{FONT}\" font-style=\"italic\" transform=\"rotate({ang:.2} {x:.1} {y:.1})\" fill=\"#000\">{}</text>",
-        esc(&txt)
-    );
+    // stroke-jitter handwriting: each glyph gets its own rotation and baseline wobble (no handwriting font installed)
+    let mut el = String::new();
+    let mut gx = x;
+    for ch in txt.chars() {
+        let gr = c.r.range(-3.0, 3.0);
+        let gy = y + c.r.range(-1.5, 1.5) * c.u;
+        el.push_str(&format!(
+            "<text x=\"{gx:.1}\" y=\"{gy:.1}\" font-size=\"{fs:.1}\" font-family=\"{FONT}\" font-style=\"italic\" transform=\"rotate({gr:.2} {gx:.1} {gy:.1})\" fill=\"#000\">{}</text>",
+            esc(&ch.to_string())
+        ));
+        gx += crate::layout::glyph_adv(ch) * fs;
+    }
+    let el = format!("<g transform=\"rotate({ang:.2} {x:.1} {y:.1})\">{el}</g>");
     c.p.raw(&el);
     c.p.text_body.push_str(&el);
     c.p.text_body.push('\n');
-    let rb = rot_box(b, ang, x, y);
+    let pad = 0.2 * fs;
+    let bp = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+    let rb = rot_box(bp, ang, x, y);
     c.p.items.push(Item {
         kind: "note",
         text: txt.clone(),
