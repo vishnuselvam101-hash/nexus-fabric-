@@ -14,6 +14,8 @@ pub struct Fx {
     pub hi: u32,
     pub jpeg: u32,
     pub seed: u64,
+    /// Fax-like 1-bit output (threshold after light blur and noise; no JPEG stage).
+    pub fax: bool,
 }
 
 pub fn svg(p: &Page, skew: f64, paper: &str) -> String {
@@ -78,6 +80,35 @@ pub fn render_png(svg: &str, w: u32, h: u32, out: &Path, fx: Option<&Fx>) -> Res
     let mut r = spawn_rsvg(&["-w", &ws, "-h", &hs, "-f", "png"], svg, Stdio::piped())?;
     let rout = r.stdout.take().ok_or("no stdout")?;
     let outp = format!("png:{}", out.display());
+    if let Some(f) = fx.filter(|f| f.fax) {
+        let a: Vec<String> = vec![
+            "png:-".into(),
+            "-colorspace".into(),
+            "Gray".into(),
+            "-blur".into(),
+            "0x0.6".into(),
+            "-seed".into(),
+            f.seed.to_string(),
+            "-attenuate".into(),
+            format!("{}", f.noise),
+            "+noise".into(),
+            "Gaussian".into(),
+            "-threshold".into(),
+            format!("{}%", 58 + f.seed % 12),
+            "-monochrome".into(),
+            "-define".into(),
+            "png:color-type=0".into(),
+            outp.clone(),
+        ];
+        let c = Command::new("convert")
+            .args(&a)
+            .stdin(Stdio::from(rout))
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("convert: {e}"))?;
+        let res = finish(r, "rsvg-convert png");
+        return res.and(finish(c, "convert fax"));
+    }
     let mut cmds: Vec<Child> = vec![];
     match fx {
         None => {

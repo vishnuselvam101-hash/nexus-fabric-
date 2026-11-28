@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
-pub const SCHEMA: &str = "nf-reader-data/1";
+pub const SCHEMA: &str = "nf-reader-data/2";
 pub const SPLITS: [&str; 3] = ["train", "val", "test"];
 
 #[derive(Clone, Debug)]
@@ -178,6 +178,7 @@ pub fn build(spec: &Spec, req: &Request, out: JobOutput) -> Built {
             hi: if low { rfx.int(65, 85) as u32 } else { 100 },
             jpeg: rfx.int(25, 70) as u32,
             seed: rfx.int(1, 1_000_000) as u64,
+            fax: false,
         }
     });
     let skew = fx.as_ref().map(|f| f.skew).unwrap_or(0.0);
@@ -203,6 +204,7 @@ pub fn build(spec: &Spec, req: &Request, out: JobOutput) -> Built {
                 "box": r1(rot(it.b, skew, cx, cy)),
                 "box_page": r1(it.b),
                 "page": 0,
+                "shape": it.part,
                 "language": spec.lang.name(),
                 "style": spec.style.name(),
                 "family": spec.fam,
@@ -222,6 +224,8 @@ pub fn build(spec: &Spec, req: &Request, out: JobOutput) -> Built {
         "language": spec.lang.name(),
         "style": spec.style.name(),
         "scan": spec.scan,
+        "degradation": if spec.scan { "scan" } else { "clean" },
+        "spec": {"family": spec.fam, "params": req_json},
         "scan_effects": fx.as_ref().map(|f| json!({"skew_deg": (f.skew * 1000.0).round() / 1000.0, "blur_sigma": f.blur, "noise": f.noise,
             "level_lo_pct": f.lo, "level_hi_pct": f.hi, "jpeg_quality": f.jpeg, "noise_seed": f.seed})),
         "width": w, "height": h,

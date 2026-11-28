@@ -11,14 +11,29 @@ fn arg(a: &[String], k: &str) -> Option<String> {
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();
     let cmd = a.first().map(String::as_str).unwrap_or("");
-    if cmd != "generate" && cmd != "sample" {
+    if cmd != "generate" && cmd != "sample" && cmd != "smoke" {
         eprintln!(
-            "usage: nf-reader-data generate --out DIR [--seed N] [--train N] [--val N] [--test N] [--threads N] [--batch N]\n       nf-reader-data sample --out DIR [--seed N]   (20 pages)"
+            "usage: nf-reader-data generate --out DIR [--seed N] [--train N] [--val N] [--test N] [--threads N] [--batch N]\n       nf-reader-data sample --out DIR [--seed N]   (20 pages)\n       nf-reader-data smoke --out DIR [--n N] [--seed N] [--threads N]   (v2 families, split smoke)"
         );
         std::process::exit(2);
     }
     let num = |k: &str, d: u64| arg(&a, k).and_then(|v| v.parse().ok()).unwrap_or(d);
     let out = PathBuf::from(arg(&a, "--out").unwrap_or_else(|| "out".into()));
+    if cmd == "smoke" {
+        match nf_reader_data::v2::generate_smoke(
+            &out,
+            num("--n", 200),
+            num("--seed", 1),
+            num("--threads", 4) as usize,
+        ) {
+            Ok(n) => println!("smoke pages {n}"),
+            Err(e) => {
+                eprintln!("error: {e}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
     let counts: Vec<(String, u64)> = if cmd == "sample" {
         vec![("sample".into(), 20)]
     } else {

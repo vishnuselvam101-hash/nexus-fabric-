@@ -23,6 +23,13 @@ pub enum Source {
     Structure { what: String },
     /// Tolerance table of the stated general-tolerance standard (not an engine value).
     ToleranceTable { class: String },
+    /// v2: a parameter of the generator-owned shape spec stored in the truth line (`spec.params`), times `factor`.
+    Spec { field: String, factor: f64 },
+    /// v2: closed-form value of the stored inputs (see `derive::derive`); re-derivable from the truth line alone.
+    Derived {
+        name: String,
+        inputs: std::collections::BTreeMap<String, f64>,
+    },
 }
 
 pub fn request_field(req: &Request, field: &str) -> Option<f64> {
@@ -58,6 +65,7 @@ pub fn resolve(out: &JobOutput, src: &Source) -> Option<f64> {
             (hi >= lo).then_some(hi - lo)
         }
         Source::Structure { .. } | Source::ToleranceTable { .. } => None,
+        Source::Spec { .. } | Source::Derived { .. } => None,
     }
 }
 

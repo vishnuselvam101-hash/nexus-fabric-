@@ -1,47 +1,286 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "nf-reader-data truth, one JSON object per page (one line of truth.jsonl)",
+  "title": "nf-reader-data truth v2, one JSON object per page (one line of truth.jsonl)",
   "type": "object",
-  "required": ["schema", "page_id", "split", "family", "part_id", "seed", "language", "style", "scan", "width", "height", "decimals", "general_tolerance", "png", "pdf", "engine", "request", "items"],
+  "required": [
+    "decimals",
+    "degradation",
+    "engine",
+    "family",
+    "general_tolerance",
+    "height",
+    "items",
+    "language",
+    "page_id",
+    "part_id",
+    "pdf",
+    "png",
+    "request",
+    "scan",
+    "schema",
+    "seed",
+    "spec",
+    "split",
+    "style",
+    "width"
+  ],
   "properties": {
-    "schema": {"const": "nf-reader-data/1"},
-    "page_id": {"type": "string"},
-    "split": {"enum": ["train", "val", "test", "sample"]},
-    "family": {"enum": ["cylinder_shell", "cone_frustum", "eccentric_reducer", "branch_stub", "header_with_branch"]},
-    "part_id": {"type": "string"},
-    "seed": {"type": "integer"},
-    "language": {"enum": ["en", "ja"]},
-    "style": {"enum": ["iso", "jis"]},
-    "scan": {"type": "boolean"},
-    "scan_effects": {"type": ["object", "null"], "description": "skew_deg, blur_sigma, noise, level_lo_pct, level_hi_pct, jpeg_quality, noise_seed; null on clean pages"},
-    "width": {"type": "integer"}, "height": {"type": "integer"},
-    "decimals": {"enum": [1, 2]},
-    "general_tolerance": {"enum": ["f", "m", "c"]},
-    "png": {"type": "string"}, "pdf": {"type": "string"},
-    "engine": {"type": "string"},
-    "request": {"type": "object", "description": "the request NF's engine accepted; re-run it to re-query every engine value"},
+    "schema": {
+      "const": "nf-reader-data/2"
+    },
+    "page_id": {
+      "type": "string"
+    },
+    "split": {
+      "enum": [
+        "train",
+        "val",
+        "test",
+        "sample",
+        "smoke"
+      ]
+    },
+    "family": {
+      "enum": [
+        "cylinder_shell",
+        "cone_frustum",
+        "eccentric_reducer",
+        "branch_stub",
+        "header_with_branch",
+        "plate_holes",
+        "ring_flange",
+        "bracket_gusset",
+        "flat_sheet",
+        "duct_transition",
+        "tank_shell",
+        "mitred_bend",
+        "tee_lateral",
+        "wye",
+        "branch_on_cone",
+        "reducer_concentric"
+      ]
+    },
+    "part_id": {
+      "type": "string"
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "language": {
+      "enum": [
+        "en",
+        "ja"
+      ]
+    },
+    "style": {
+      "enum": [
+        "iso",
+        "jis"
+      ]
+    },
+    "scan": {
+      "type": "boolean"
+    },
+    "scan_effects": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "skew_deg, blur_sigma, noise, level_lo_pct, level_hi_pct, jpeg_quality, noise_seed, fax; null on clean/faint/hand pages"
+    },
+    "width": {
+      "type": "integer"
+    },
+    "height": {
+      "type": "integer"
+    },
+    "decimals": {
+      "enum": [
+        1,
+        2
+      ]
+    },
+    "general_tolerance": {
+      "enum": [
+        "f",
+        "m",
+        "c"
+      ]
+    },
+    "png": {
+      "type": "string"
+    },
+    "pdf": {
+      "type": "string"
+    },
+    "engine": {
+      "type": "string"
+    },
+    "request": {
+      "type": "object",
+      "description": "the request NF's engine accepted; re-run it to re-query every engine value"
+    },
     "items": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "type", "text", "value", "unit", "tolerance", "source", "box", "box_page", "page", "language", "style", "family", "part", "part_id", "seed"],
+        "required": [
+          "box",
+          "box_page",
+          "family",
+          "id",
+          "language",
+          "page",
+          "part",
+          "part_id",
+          "seed",
+          "shape",
+          "source",
+          "style",
+          "text",
+          "tolerance",
+          "type",
+          "unit",
+          "value"
+        ],
         "properties": {
-          "id": {"type": "string"},
-          "type": {"enum": ["dimension", "note", "tolerance_note", "bom", "bom_header", "title", "label"], "description": "aligns with kind of propose_read"},
-          "text": {"type": "string", "description": "the string exactly as printed"},
-          "value": {"type": ["number", "string"], "description": "number for measures and counts, the string for words"},
-          "unit": {"enum": ["mm", "deg", "pcs", ""]},
-          "tolerance": {"type": ["object", "null"], "properties": {"plus": {"type": "number"}, "minus": {"type": "number"}}},
-          "tolerance_source": {"type": ["object", "null"]},
-          "source": {"type": ["object", "null"], "description": "request | quantity | curve_length | bbox (engine values, re-queryable); structure | tolerance_table (not engine measures)"},
-          "decimals": {"type": ["integer", "null"]},
-          "box": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "[x0,y0,x1,y1] in PNG pixels (after skew)"},
-          "box_page": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "same box on the unskewed page; PDF point = px * 0.75"},
-          "page": {"const": 0},
-          "language": {"enum": ["en", "ja"]}, "style": {"enum": ["iso", "jis"]},
-          "family": {"type": "string"}, "part": {"type": "string"}, "part_id": {"type": "string"}, "seed": {"type": "integer"}
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "dimension",
+              "note",
+              "tolerance_note",
+              "bom",
+              "bom_header",
+              "title",
+              "label",
+              "weld",
+              "surface_finish"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "description": "the string exactly as printed"
+          },
+          "value": {
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "number for measures and counts, the string for words"
+          },
+          "unit": {
+            "enum": [
+              "mm",
+              "deg",
+              "pcs",
+              "um",
+              ""
+            ]
+          },
+          "tolerance": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "plus": {
+                "type": "number"
+              },
+              "minus": {
+                "type": "number"
+              }
+            }
+          },
+          "tolerance_source": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "source": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "request | quantity | curve_length | bbox (engine); spec (params field); derived (name + inputs, derive.rs); structure | tolerance_table | hand_note"
+          },
+          "decimals": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "box": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 4,
+            "maxItems": 4,
+            "description": "[x0,y0,x1,y1] in PNG pixels (after skew)"
+          },
+          "box_page": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 4,
+            "maxItems": 4,
+            "description": "same box on the unskewed page; PDF point = px * 0.75"
+          },
+          "page": {
+            "const": 0
+          },
+          "language": {
+            "enum": [
+              "en",
+              "ja"
+            ]
+          },
+          "style": {
+            "enum": [
+              "iso",
+              "jis"
+            ]
+          },
+          "family": {
+            "type": "string"
+          },
+          "part": {
+            "type": "string"
+          },
+          "part_id": {
+            "type": "string"
+          },
+          "seed": {
+            "type": "integer"
+          },
+          "shape": {
+            "type": "string",
+            "description": "geometry element the item belongs to (hole, flange, bolt, section, weld, finish, bom, title, ...)"
+          }
         }
       }
+    },
+    "degradation": {
+      "enum": [
+        "clean",
+        "scan",
+        "fax",
+        "faint",
+        "hand"
+      ]
+    },
+    "spec": {
+      "type": "object",
+      "required": [
+        "family",
+        "params"
+      ],
+      "description": "generator-owned spec (new families) or the engine request (engine families); Source::Spec reads params"
     }
   }
 }
