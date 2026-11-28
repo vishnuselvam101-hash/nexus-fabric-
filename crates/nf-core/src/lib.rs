@@ -197,6 +197,9 @@ pub mod refusal {
     // the order API: undoing a page-input decision needs a non-empty note for its restore reason
     pub const UNDO_NOTE: &str = "undo_note";
 
+    // the order API: a page-input decision cannot be undone after its materials/notes changed
+    pub const CONTEXT_UNDO_STALE: &str = "context_undo_stale";
+
     /// Every code of this build, in the order of the table in docs/backend/REFUSAL_CODES.md.
     /// The refusal codes of the zumen-kirizu shape modules (`shapes`, `bend`, `tee`, `tee_pad`, `conebranch`), wired in 0.5.0.
     pub const SHAPE_CODES: [&str; 80] = [
@@ -282,7 +285,7 @@ pub mod refusal {
         "conebranch_cut_not_continuous",
     ];
 
-    pub const ALL: [&str; 126] = [
+    pub const ALL: [&str; 127] = [
         REQUEST_NOT_OBJECT,
         FAMILY_UNKNOWN,
         FIELD_MISSING,
@@ -329,6 +332,7 @@ pub mod refusal {
         CONTEXT_UNDO_OUT_OF_ORDER,
         CONTEXT_RESTORE_NOT_UNDOABLE,
         UNDO_NOTE,
+        CONTEXT_UNDO_STALE,
         "shape_value_not_finite",
         "shape_value_not_positive",
         "shape_value_too_large",

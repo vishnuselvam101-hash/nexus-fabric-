@@ -2968,6 +2968,193 @@ async fn pz1_context_undo_needs_a_note_for_a_person() {
 }
 
 #[tokio::test]
+async fn pz1_a_page_skip_between_put_and_undo_still_restores_the_hold() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let notes = format!("/api/orders/{oid}/notes");
+    let latest = |flag: &str| -> i64 {
+        t.app
+            .db()
+            .query_row(
+                "SELECT MAX(id) FROM order_decisions WHERE kind = 'review_context' AND flag = ?1",
+                params![flag],
+                |r| r.get(0),
+            )
+            .unwrap()
+    };
+    let seam_is_unknown = |v: &Value| {
+        v["review"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["code"] == "seam_from_unknown")
+    };
+    let (st, v) = t
+        .call(
+            "PUT",
+            &notes,
+            Some(json!({ "reason": "not readable", "notes": [
+        { "page": 1, "kind": "seam_from", "text": "unknown" }
+    ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    read_val(&t, oid, "D", 216.3, "φ216.3").await;
+    let (st, comp) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{comp}");
+    assert!(seam_is_unknown(&comp), "{comp}");
+
+    let (st, v) = t
+        .call(
+            "PUT",
+            &notes,
+            Some(json!({ "reason": "A: bottom", "notes": [
+        { "page": 1, "kind": "seam_from", "text": "bottom" }
+    ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let aid = latest("notes");
+    let (st, comp) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{comp}");
+    assert!(!seam_is_unknown(&comp), "{comp}");
+
+    // A person can skip an unread page without a note. That audit event is not a page-input PUT and must not
+    // change the fingerprint the PUT's undo is bound to.
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/pages/3/skip"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(
+        (st, v["skipped"].clone()),
+        (StatusCode::OK, json!(true)),
+        "{v}"
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["pages"][2]["page_no"], 3, "{o}");
+    assert_eq!(o["pages"][2]["skipped"], true, "{o}");
+
+    let (st, u) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions/{aid}/undo"),
+            Some(json!({ "note": "A was misread" })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{u}");
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["notes"][0]["text"], "unknown", "{o}");
+    assert_eq!(decision(&o, aid)["undone"], true, "{o}");
+    let restore = decision(&o, latest("notes_restore"));
+    assert_eq!(restore["effective"], true, "{o}");
+    assert!(
+        restore["reason"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("A was misread"),
+        "{o}"
+    );
+    let (st, comp) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{comp}");
+    assert!(seam_is_unknown(&comp), "{comp}");
+    let audit = audit_details(&t, "order_decision_undone");
+    assert!(
+        audit
+            .iter()
+            .any(|d| d.contains(&format!("decision #{aid}")) && d.contains("value reverted true")),
+        "{audit:?}"
+    );
+}
+
+#[tokio::test]
+async fn pz1_a_stale_context_undo_is_refused_and_keeps_the_decision_active() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let notes = format!("/api/orders/{oid}/notes");
+    let latest = |flag: &str| -> i64 {
+        t.app
+            .db()
+            .query_row(
+                "SELECT MAX(id) FROM order_decisions WHERE kind = 'review_context' AND flag = ?1",
+                params![flag],
+                |r| r.get(0),
+            )
+            .unwrap()
+    };
+    let (st, v) = t
+        .call(
+            "PUT",
+            &notes,
+            Some(json!({ "reason": "not readable", "notes": [
+        { "page": 1, "kind": "seam_from", "text": "unknown" }
+    ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call(
+            "PUT",
+            &notes,
+            Some(json!({ "reason": "bottom", "notes": [
+        { "page": 1, "kind": "seam_from", "text": "bottom" }
+    ] })),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let aid = latest("notes");
+
+    // A bound input changed outside a review_context decision: the PUT is stale and must stay active on undo.
+    t.sql(&format!(
+        "UPDATE order_page_notes SET text = 'side' WHERE order_id = {oid} AND kind = 'seam_from'"
+    ));
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions/{aid}/undo"),
+            Some(json!({ "note": "misread" })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].as_str()),
+        (StatusCode::CONFLICT, Some("context_undo_stale")),
+        "{v}"
+    );
+    let o = t.get(&format!("/api/orders/{oid}")).await;
+    assert_eq!(o["notes"][0]["text"], "side", "{o}");
+    assert_eq!(decision(&o, aid)["undone"], false, "{o}");
+    assert_eq!(decision(&o, aid)["stale"], true, "{o}");
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM order_decisions WHERE flag = 'notes_restore'"),
+        0
+    );
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM audit WHERE action = 'order_decision_undone'"),
+        0
+    );
+}
+
+#[tokio::test]
 async fn pz1_named_review_codes_are_validated_for_person_and_agent() {
     let t = boot();
     let oid = order_with_parts(&t).await;

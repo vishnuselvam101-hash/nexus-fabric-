@@ -810,6 +810,7 @@ const EN = {
   "refusal.context_undo_out_of_order": "Undo the latest material or note decision first; an older page-input decision cannot be skipped.",
   "refusal.context_restore_not_undoable": "An automatic context restore is an audit record and cannot be undone; replaying it would clear a hold while its original page-input decision stayed undone.",
   "refusal.undo_note": "Undoing a page-input decision needs a non-empty note.",
+  "refusal.context_undo_stale": "The materials or notes changed since this page-input decision. Redo the page input before undoing it.",
   // keys the ported screens build at run time
   "math.result.1": "A flat pattern per part with its curves, lengths and estimated numerical error.",
   "math.result.2": "Independent verification checks with primary and reference values.",
@@ -1628,6 +1629,7 @@ const JA = {
   "refusal.context_undo_out_of_order": "先に最後の材料表または注記の決定を取り消してください。古いページ入力の決定は飛ばせません。",
   "refusal.context_restore_not_undoable": "自動的なコンテキストの復元は監査記録なので取り消せません。取り消すと、元のページ入力の決定が取り消されたまま保持が解除されます。",
   "refusal.undo_note": "ページ入力の決定を取り消すには、空でない理由が必要です。",
+  "refusal.context_undo_stale": "このページ入力の決定後、材料表または注記が変更されました。取り消す前にページ入力をやり直してください。",
   // keys the ported screens build at run time
   "math.result.1": "部材ごとの展開図（曲線、長さ、数値誤差の推定値）。",
   "math.result.2": "独立した検算による検証項目（計算値と参照値）。",

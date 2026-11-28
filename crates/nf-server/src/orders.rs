@@ -566,9 +566,9 @@ fn recompute_part_state(db: &Connection, part: i64) -> rusqlite::Result<()> {
     Ok(())
 }
 
-/// The page inputs of the review, in one fingerprint. Material rows and notes decide which holds are open; a
-/// change to either must make a decision that answered a hold stale, not silently apply it to different page data.
-fn review_context_json(db: &Connection, oid: i64) -> rusqlite::Result<Value> {
+/// The material rows and notes that review answers are made against. A page skip is a separate audit event and
+/// changes neither of these inputs, so it must not change the fingerprint an undo is checked against.
+fn review_context_parts(db: &Connection, oid: i64) -> rusqlite::Result<(Vec<Value>, Vec<Value>)> {
     let materials = q_all(
         db,
         "SELECT page_no, no, name, size, length, qty, mass FROM order_material_rows WHERE order_id = ? ORDER BY page_no, no, id",
@@ -597,6 +597,19 @@ fn review_context_json(db: &Connection, oid: i64) -> rusqlite::Result<Value> {
             ]))
         },
     )?;
+    Ok((materials, notes))
+}
+
+/// The inputs a `review_context` decision actually writes, with the fingerprint that binds an undo to that PUT.
+fn review_context_inputs_json(db: &Connection, oid: i64) -> rusqlite::Result<Value> {
+    let (materials, notes) = review_context_parts(db, oid)?;
+    Ok(json!([materials, notes]))
+}
+
+/// The page inputs of an accept, in one fingerprint, including the live page count. Material rows and notes decide
+/// which holds are open; a change to either, or to the set of live pages, makes an earlier answer stale.
+fn review_context_json(db: &Connection, oid: i64) -> rusqlite::Result<Value> {
+    let (materials, notes) = review_context_parts(db, oid)?;
     let pages = q_count(
         db,
         "SELECT COUNT(*) FROM order_pages WHERE order_id = ? AND skipped = 0",
@@ -617,13 +630,13 @@ fn review_accept_fp(value: &str, code: &str, context: &Value) -> String {
 
 /// The page inputs as they stand now, with the fingerprint a context decision is tied to.
 fn review_context_state(db: &Connection, oid: i64) -> rusqlite::Result<(Value, String)> {
-    let ctx = review_context_json(db, oid)?;
+    let ctx = review_context_inputs_json(db, oid)?;
     let fp = nf_core::sha256_hex(ctx.to_string().as_bytes());
     Ok((ctx, fp))
 }
 
 /// Put a saved context back. Page count is not a PUT input, so it is left alone; the snapshot holds the material
-/// rows and the notes in the same shape as `review_context_json`.
+/// rows and the notes in the same shape as `review_context_inputs_json`.
 fn restore_review_context(db: &Connection, oid: i64, before: &Value) -> rusqlite::Result<()> {
     db.execute(
         "DELETE FROM order_material_rows WHERE order_id = ?",
@@ -2400,6 +2413,18 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
                 StatusCode::CONFLICT,
                 nf_core::refusal::CONTEXT_UNDO_OUT_OF_ORDER,
                 "undo the latest page-input decision first",
+            ));
+        }
+    }
+    // Refuse a no-restore undo. If the inputs this PUT wrote are no longer current, marking it undone would leave a
+    // cleared hold with no effective decision behind it; the page input has to be redone before this undo.
+    if kind == "review_context" && snapshot.is_some() {
+        let (_, current_fp) = review_context_state(&tx, oid)?;
+        if current_fp != against {
+            return Err(refuse(
+                StatusCode::CONFLICT,
+                nf_core::refusal::CONTEXT_UNDO_STALE,
+                "the material rows or notes changed since this decision; redo the page input before undoing",
             ));
         }
     }
