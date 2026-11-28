@@ -23,7 +23,7 @@ fn schema_is_valid_json_schema_and_lists_exactly_the_allowed_tools() {
     }
     let names: Vec<&str> = defs.iter().map(|d| d["name"].as_str().unwrap()).collect();
     assert_eq!(names, TOOLS.to_vec());
-    assert_eq!(names.len(), 16);
+    assert_eq!(names.len(), 23);
 }
 
 #[test]

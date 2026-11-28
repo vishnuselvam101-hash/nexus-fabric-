@@ -30,6 +30,9 @@ pub struct Reading {
     pub confidence: f32,
     /// Names of the reader flags that are set (`repaired`, `ambiguous`, `phi_inferred`, `low_confidence`).
     pub flags: Vec<String>,
+    /// The number stands in the material list. It is kept as evidence, and when the same value is also written on
+    /// the drawing the drawing's reading is the one pointed at.
+    pub in_table: bool,
 }
 
 impl Reading {
@@ -113,6 +116,18 @@ pub struct Unit {
     /// `(key, from, factor)`: parameter `key` is `from` times `factor` (a development radius equal to the radius).
     pub derived: Vec<(String, String, f64)>,
     pub bom: Vec<BomRow>,
+    /// smaller requests that narrow some slots before the full check
+    pub pre: Vec<Pre>,
+}
+
+/// A smaller request of another family whose blank depends on some slots alone.
+#[derive(Debug, Clone)]
+pub struct Pre {
+    pub family: String,
+    /// (slot of the unit, slot of the smaller request)
+    pub map: Vec<(String, String)>,
+    /// (part of the unit's list, part of the smaller request)
+    pub row: (String, String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -237,6 +252,7 @@ fn key6(v: f64) -> i64 {
 fn better(a: &Reading, b: &Reading) -> std::cmp::Ordering {
     a.flagged()
         .cmp(&b.flagged())
+        .then(a.in_table.cmp(&b.in_table))
         .then(b.confidence.total_cmp(&a.confidence))
         .then(a.page.cmp(&b.page))
         .then(a.bbox[1].total_cmp(&b.bbox[1]))
@@ -267,6 +283,90 @@ fn candidates(slot: &Slot, readings: &[Reading]) -> Vec<(f64, Reading)> {
     by_value.into_values().collect()
 }
 
+/// Every assignment of one candidate per slot that the verifier accepts, in a fixed order, and how many were tried.
+fn enumerate(
+    unit: &Unit,
+    cands: &[Vec<(f64, Reading)>],
+    verifier: &dyn Verifier,
+) -> (Vec<Vec<usize>>, usize) {
+    let mut tried = 0usize;
+    let mut idx = vec![0usize; cands.len()];
+    let mut hits: Vec<Vec<usize>> = Vec::new();
+    loop {
+        let mut values: BTreeMap<String, f64> = unit.fixed.clone();
+        for (s, (c, i)) in unit.slots.iter().zip(cands.iter().zip(&idx)) {
+            values.insert(s.key.clone(), c[*i].0);
+        }
+        for (k, from, f) in &unit.derived {
+            if let Some(v) = values.get(from).copied() {
+                values.insert(k.clone(), v * f);
+            }
+        }
+        tried += 1;
+        if verifier.check(unit, &values) == Verdict::Match {
+            hits.push(idx.clone());
+        }
+        let mut p = cands.len();
+        let mut done = true;
+        while p > 0 {
+            p -= 1;
+            idx[p] += 1;
+            if idx[p] < cands[p].len() {
+                done = false;
+                break;
+            }
+            idx[p] = 0;
+        }
+        if done {
+            break;
+        }
+    }
+    (hits, tried)
+}
+
+/// Narrow the candidates of some slots with a smaller engine request that depends on them alone (a header's blank
+/// is that of a cylinder shell of the same radius and length). Only candidates are removed here: the answer is
+/// still verified by the full request, so a wrong pre-check can cost an answer but never produce a wrong one.
+fn narrow(unit: &Unit, cands: &mut [Vec<(f64, Reading)>], verifier: &dyn Verifier, tried: &mut usize) {
+    for pre in &unit.pre {
+        let Some(mut sub) = family_unit(&unit.id, &pre.family, vec![]) else { continue };
+        let Some(row) = unit.bom.iter().find(|b| b.part == pre.row.0) else { continue };
+        sub.bom = vec![BomRow { part: pre.row.1.clone(), ..row.clone() }];
+        sub.slots.clear();
+        let mut sub_cands = Vec::new();
+        let mut positions = Vec::new();
+        for (mk, sk) in &pre.map {
+            let Some(pos) = unit.slots.iter().position(|s| &s.key == mk) else { continue };
+            let mut slot = unit.slots[pos].clone();
+            slot.key = sk.clone();
+            sub.slots.push(slot);
+            sub_cands.push(cands[pos].clone());
+            positions.push(pos);
+        }
+        if sub.slots.len() != pre.map.len()
+            || sub_cands.iter().any(Vec::is_empty)
+            || sub_cands.iter().fold(1usize, |a, c| a.saturating_mul(c.len())) > MAX_COMBINATIONS
+        {
+            continue;
+        }
+        let (hits, t) = enumerate(&sub, &sub_cands, verifier);
+        *tried += t;
+        if hits.is_empty() {
+            continue;
+        }
+        for (j, pos) in positions.iter().enumerate() {
+            let keep: Vec<usize> = hits.iter().map(|h| h[j]).collect();
+            let kept: Vec<(f64, Reading)> = sub_cands[j]
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| keep.contains(i))
+                .map(|(_, c)| c.clone())
+                .collect();
+            cands[*pos] = kept;
+        }
+    }
+}
+
 /// Assign the readings of one unit's page to its slots. See the module comment for the rules.
 pub fn assign(unit: &Unit, readings: &[Reading], verifier: &dyn Verifier) -> Assignment {
     let mut out = Assignment {
@@ -284,7 +384,7 @@ pub fn assign(unit: &Unit, readings: &[Reading], verifier: &dyn Verifier) -> Ass
         ));
         return out;
     }
-    let cands: Vec<Vec<(f64, Reading)>> = unit.slots.iter().map(|s| candidates(s, readings)).collect();
+    let mut cands: Vec<Vec<(f64, Reading)>> = unit.slots.iter().map(|s| candidates(s, readings)).collect();
     if let Some(i) = cands.iter().position(Vec::is_empty) {
         let k = &unit.slots[i].key;
         out.question = Some(q(
@@ -294,6 +394,7 @@ pub fn assign(unit: &Unit, readings: &[Reading], verifier: &dyn Verifier) -> Ass
         ));
         return out;
     }
+    narrow(unit, &mut cands, verifier, &mut out.tried);
     let total = cands.iter().fold(1usize, |a, c| a.saturating_mul(c.len()));
     if total > MAX_COMBINATIONS {
         out.question = Some(q(
@@ -303,39 +404,8 @@ pub fn assign(unit: &Unit, readings: &[Reading], verifier: &dyn Verifier) -> Ass
         ));
         return out;
     }
-    // enumerate in a fixed order (slot order, candidate value order)
-    let mut idx = vec![0usize; cands.len()];
-    let mut hits: Vec<Vec<usize>> = Vec::new();
-    loop {
-        let mut values: BTreeMap<String, f64> = unit.fixed.clone();
-        for (s, (c, i)) in unit.slots.iter().zip(cands.iter().zip(&idx)) {
-            values.insert(s.key.clone(), c[*i].0);
-        }
-        for (k, from, f) in &unit.derived {
-            if let Some(v) = values.get(from).copied() {
-                values.insert(k.clone(), v * f);
-            }
-        }
-        out.tried += 1;
-        if verifier.check(unit, &values) == Verdict::Match {
-            hits.push(idx.clone());
-        }
-        // next combination (odometer)
-        let mut p = cands.len();
-        let mut done = true;
-        while p > 0 {
-            p -= 1;
-            idx[p] += 1;
-            if idx[p] < cands[p].len() {
-                done = false;
-                break;
-            }
-            idx[p] = 0;
-        }
-        if done {
-            break;
-        }
-    }
+    let (hits, tried) = enumerate(unit, &cands, verifier);
+    out.tried += tried;
     match hits.len() {
         0 => {
             out.question = Some(q(
@@ -350,35 +420,42 @@ pub fn assign(unit: &Unit, readings: &[Reading], verifier: &dyn Verifier) -> Ass
                 ),
             ));
         }
-        1 => {
-            let h = &hits[0];
-            for (s, (c, i)) in unit.slots.iter().zip(cands.iter().zip(h)) {
-                let (v, r) = &c[*i];
-                out.fills.push(Fill {
-                    key: s.key.clone(),
-                    value: *v,
-                    reading: r.id,
-                    text: r.text.clone(),
-                    page: r.page,
-                    bbox: r.bbox,
-                    confidence: r.confidence,
-                    flags: r.flags.clone(),
-                    status: if r.flagged() { Status::Proposed } else { Status::Confirmed },
-                });
-            }
-        }
         n => {
-            out.question = Some(q(
-                "ambiguous_assignment",
-                format!(
-                    "Unit {}: {n} different assignments reproduce the material list; which numbers are right?",
-                    unit.id
-                ),
-                format!(
-                    "ユニット {}: {n} 通りの割り当てが部品表と一致します。どの数値が正しいですか?",
-                    unit.id
-                ),
-            ));
+            // a slot that every accepted assignment gives the same value is determined by the list; the others are asked
+            let mut open: Vec<String> = Vec::new();
+            for (si, s) in unit.slots.iter().enumerate() {
+                let first = hits[0][si];
+                if hits.iter().all(|h| h[si] == first) {
+                    let (v, r) = &cands[si][first];
+                    out.fills.push(Fill {
+                        key: s.key.clone(),
+                        value: *v,
+                        reading: r.id,
+                        text: r.text.clone(),
+                        page: r.page,
+                        bbox: r.bbox,
+                        confidence: r.confidence,
+                        flags: r.flags.clone(),
+                        status: if r.flagged() { Status::Proposed } else { Status::Confirmed },
+                    });
+                } else {
+                    open.push(s.key.clone());
+                }
+            }
+            if n > 1 {
+                let list = open.join(", ");
+                out.question = Some(q(
+                    "ambiguous_assignment",
+                    format!(
+                        "Unit {}: {n} different assignments reproduce the material list; which numbers are right for {list}?",
+                        unit.id
+                    ),
+                    format!(
+                        "ユニット {}: {n} 通りの割り当てが部品表と一致します。{list} はどの数値が正しいですか?",
+                        unit.id
+                    ),
+                ));
+            }
         }
     }
     out
@@ -407,6 +484,7 @@ pub fn family_unit(id: &str, family: &str, bom: Vec<BomRow>) -> Option<Unit> {
         fixed: BTreeMap::new(),
         derived: vec![],
         bom,
+        pre: vec![],
     };
     match family {
         "cylinder_shell" => {
@@ -447,6 +525,15 @@ pub fn family_unit(id: &str, family: &str, bom: Vec<BomRow>) -> Option<Unit> {
                 ("branch_dev_radius".into(), "branch_radius".into(), 1.0),
             ];
             u.fixed.insert("delta".into(), 0.0);
+            let m = |a: &str, b: &str| (a.to_string(), b.to_string());
+            u.pre = vec![
+                Pre { family: "cylinder_shell".into(), map: vec![m("header_radius", "r_dev"), m("header_length", "length")], row: m("header", "shell") },
+                Pre {
+                    family: "branch_stub".into(),
+                    map: vec![m("header_radius", "header_radius"), m("branch_radius", "branch_radius"), m("beta_deg", "beta_deg"), m("s_end", "s_end")],
+                    row: m("branch", "branch"),
+                },
+            ];
         }
         _ => return None,
     }
@@ -496,6 +583,7 @@ mod tests {
             bbox: [id as f32 * 10.0, 0.0, id as f32 * 10.0 + 8.0, 5.0],
             confidence: 0.99,
             flags: vec![],
+            in_table: false,
         }
     }
 
@@ -616,6 +704,7 @@ mod tests {
             fixed: BTreeMap::new(),
             derived: vec![],
             bom: vec![BomRow { part: "p".into(), width: 1.0, height: 1.0, decimals: 0 }],
+            pre: vec![],
         };
         let rs: Vec<Reading> = ["2", "3", "7"].iter().enumerate().map(|(i, t)| rd(i, t)).collect();
         let a = assign(&u, &rs, &Prod);
@@ -641,6 +730,7 @@ mod tests {
         let cases = [
             json!({"family":"cone_frustum","r1":277.5,"r2":82.0,"h":186.0}),
             json!({"family":"eccentric_reducer","r1":305.0,"r2":205.0,"h":579.5,"e":26.5}),
+            json!({"family":"header_with_branch","beta_deg":80.0,"branch_dev_radius":161.0,"branch_radius":161.0,"branch_station":956.0,"delta":0.0,"header_dev_radius":500.0,"header_length":1996.0,"header_radius":500.0,"s_end":1007.0,"surface_reference":"outside"}),
             json!({"family":"branch_stub","header_radius":189.0,"branch_radius":79.0,"branch_dev_radius":79.0,"beta_deg":71.0,"delta":0.0,"s_end":679.0,"surface_reference":"outside"}),
         ];
         for req in cases {
@@ -663,9 +753,15 @@ mod tests {
             texts.extend(["269.84", "172.37", "Smax 227.09", "L515.22"].map(String::from));
             let rs: Vec<Reading> = texts.iter().enumerate().map(|(i, t)| rd(i, t)).collect();
             let a = assign(&u, &rs, &FamilyVerifier);
-            assert!(a.question.is_none(), "{fam}: {:?}", a.question);
+            // the blank of a header with branch does not depend on where the branch stands: that number is asked
+            let asked = if fam == "header_with_branch" { vec!["branch_station"] } else { vec![] };
+            assert_eq!(a.question.as_ref().map(|q| q.code), asked.first().map(|_| "ambiguous_assignment"), "{fam}: {:?}", a.question);
             for s in &u.slots {
-                assert!((val(&a, &s.key) - req[s.key.as_str()].as_f64().unwrap()).abs() < 1e-9, "{fam} {}", s.key);
+                if asked.contains(&s.key.as_str()) {
+                    assert!(a.fills.iter().all(|f| f.key != s.key), "{fam} {} must not be filled", s.key);
+                } else {
+                    assert!((val(&a, &s.key) - req[s.key.as_str()].as_f64().unwrap()).abs() < 1e-9, "{fam} {}", s.key);
+                }
             }
         }
     }

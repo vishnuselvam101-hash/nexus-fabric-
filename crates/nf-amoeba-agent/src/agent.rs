@@ -36,6 +36,7 @@ pub struct Agent<T: Transport> {
     // scratch state of the call in progress
     statuses: Vec<u16>,
     engine: Option<String>,
+    binary: Option<Vec<u8>>,
 }
 
 pub fn sha256_hex(bytes: &[u8]) -> String {
@@ -52,7 +53,13 @@ impl<T: Transport> Agent<T> {
             docs_dir: None,
             statuses: Vec::new(),
             engine: None,
+            binary: None,
         }
+    }
+
+    /// The bytes of the last `order_page_image` call, once. They are not part of the answer or the steps file.
+    pub fn take_binary(&mut self) -> Option<Vec<u8>> {
+        self.binary.take()
     }
 
     /// Sets the documents directory. Uploads may name only files inside it, after symlinks are resolved.
@@ -190,6 +197,43 @@ impl<T: Transport> Agent<T> {
             "amoeba_summary" => self.get_answer("/api/amoeba/summary"),
             "get_dxf_digest" => self.dxf_digest(a),
             "propose_read" => propose_read(a),
+            "order_get" => {
+                let o = int(a, "order")?;
+                self.get_answer(&format!("/api/orders/{o}"))
+            }
+            "order_page_image" => {
+                let (o, n) = (int(a, "order")?, int(a, "page")?);
+                let r = self.get_raw(&format!("/api/orders/{o}/pages/{n}.png"))?;
+                if r.status != 200 {
+                    return answer(&r);
+                }
+                let v = json!({ "order": o, "page": n, "size": r.body.len(), "sha256": sha256_hex(&r.body) });
+                self.binary = Some(r.body);
+                Ok(v)
+            }
+            "order_put_parts" => {
+                let o = int(a, "order")?;
+                let body = json!({ "parts": a["parts"], "note": a["reason"] });
+                self.send_json("PUT", &format!("/api/orders/{o}/parts"), body)
+            }
+            "order_put_values" => {
+                let o = int(a, "order")?;
+                let body = json!({ "values": a["values"] });
+                self.send_json("PUT", &format!("/api/orders/{o}/values"), body)
+            }
+            "order_compute" => {
+                let o = int(a, "order")?;
+                self.send_json("POST", &format!("/api/orders/{o}/compute"), json!({ "note": a["reason"] }))
+            }
+            "order_post_events" => {
+                let o = int(a, "order")?;
+                self.send_json("POST", &format!("/api/orders/{o}/operator/events"), json!({ "events": a["events"] }))
+            }
+            "order_poll_events" => {
+                let o = int(a, "order")?;
+                let after = a["after"].as_i64().unwrap_or(0).max(0);
+                self.get_answer(&format!("/api/orders/{o}/operator/events?after={after}"))
+            }
             _ => Err("tool not available".into()),
         }
     }
@@ -340,6 +384,11 @@ impl<T: Transport> Agent<T> {
 
     fn note_engine(&mut self, v: &Value) {
         self.engine = v["engine"].as_str().map(str::to_string);
+    }
+
+    fn send_json(&mut self, method: &'static str, path: &str, body: Value) -> Result<Value, String> {
+        let r = self.raw(method, path, json_headers(), body.to_string().into_bytes())?;
+        answer(&r)
     }
 
     fn get_answer(&mut self, path: &str) -> Result<Value, String> {

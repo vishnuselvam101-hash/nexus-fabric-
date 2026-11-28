@@ -4,7 +4,7 @@
 use serde_json::{Value, json};
 
 /// Allowed tools, in schema order. Nothing that writes a decision, a correction, an account, or the audit log is here.
-pub const TOOLS: [&str; 16] = [
+pub const TOOLS: [&str; 23] = [
     "list_projects",
     "get_project",
     "upload_document",
@@ -21,6 +21,15 @@ pub const TOOLS: [&str; 16] = [
     "amoeba_summary",
     "get_dxf_digest",
     "propose_read",
+    // AIOP-1: the order API and the operator's event stream. Writes are reasoned and made under the agent account;
+    // none of them confirms a person's check, approves or releases.
+    "order_get",
+    "order_page_image",
+    "order_put_parts",
+    "order_put_values",
+    "order_compute",
+    "order_post_events",
+    "order_poll_events",
 ];
 
 /// The five calculation families the server accepts (`family` of a calculation request).
@@ -171,6 +180,63 @@ pub fn definitions() -> Vec<Value> {
                     "kind": { "type": "string", "maxLength": 32, "description": "What the value is, e.g. header_radius." }
                 }),
                 &["document", "page", "box", "value", "unit", "kind"],
+            ),
+        ),
+        def(
+            "order_get",
+            "Get one order: files, pages, parts, values with their states, decisions.",
+            obj(json!({ "order": id("Order id.") }), &["order"]),
+        ),
+        def(
+            "order_page_image",
+            "Fetch the picture of one page of an order. Returns its size and sha256; the bytes stay with the caller that runs the reader.",
+            obj(
+                json!({ "order": id("Order id."), "page": id("Page number in the order.") }),
+                &["order", "page"],
+            ),
+        ),
+        def(
+            "order_put_parts",
+            "Create or update the parts list of an order. A reason is required.",
+            obj(
+                json!({
+                    "order": id("Order id."),
+                    "parts": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Parts: no, name, shape, qty, page, attach_part, group_key." },
+                    "reason": { "type": "string", "minLength": 1, "maxLength": 500, "description": "Why the operator makes this change." }
+                }),
+                &["order", "parts", "reason"],
+            ),
+        ),
+        def(
+            "order_put_values",
+            "Set values of parts. Each value has part, key, value, text, bbox, source and a note (the reason). A value that carries a reader flag must not be sent with confirm true.",
+            obj(
+                json!({ "order": id("Order id."), "values": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Values: part, key, value, text, bbox, source, confirm, note." } }),
+                &["order", "values"],
+            ),
+        ),
+        def(
+            "order_compute",
+            "Compute the order with the current engine. The result never approves or releases anything; held parts get no DXF.",
+            obj(
+                json!({ "order": id("Order id."), "reason": { "type": "string", "minLength": 1, "maxLength": 500, "description": "Why the operator computes now." } }),
+                &["order", "reason"],
+            ),
+        ),
+        def(
+            "order_post_events",
+            "Send operator events (what the cursor shows) to the server, which stores and audits them.",
+            obj(
+                json!({ "order": id("Order id."), "events": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Operator events: step, action, target, value, reason, confidence, flags, tool, write_ref." } }),
+                &["order", "events"],
+            ),
+        ),
+        def(
+            "order_poll_events",
+            "Read the operator events after a sequence number, and whether a person paused the operator.",
+            obj(
+                json!({ "order": id("Order id."), "after": { "type": "integer", "minimum": 0, "description": "Last seq already seen." } }),
+                &["order"],
             ),
         ),
     ]
