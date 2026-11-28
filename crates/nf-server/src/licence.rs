@@ -325,6 +325,13 @@ pub(crate) fn gated(method: &Method, path: &str) -> bool {
         ] => id.parse::<i64>().is_ok(),
         ["api", "orders", id, "operator", "events" | "undo"] => id.parse::<i64>().is_ok(),
         ["api", "orders", id, "rules", "impact"] => id.parse::<i64>().is_ok(),
+        // factory rule packs: import, assignment, the interview and undo are new work, refused when read-only
+        ["api", "rule-packs"] => true,
+        ["api", "rule-packs", id, "assign" | "unassign"] => id.parse::<i64>().is_ok(),
+        ["api", "rule-packs", id, "interview", "answers"] => id.parse::<i64>().is_ok(),
+        ["api", "rule-packs", id, "confirmations", cid, "undo"] => {
+            id.parse::<i64>().is_ok() && cid.parse::<i64>().is_ok()
+        }
         ["api", "orders", id, "decisions", did, "undo"] => {
             id.parse::<i64>().is_ok() && did.parse::<i64>().is_ok()
         }

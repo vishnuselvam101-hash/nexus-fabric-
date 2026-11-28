@@ -221,6 +221,13 @@ fn parse_rules(v: &Value) -> Result<(Value, nf_core::order_compute::OrderRules),
     if !v.is_object() {
         return Err(unprocessable("rules_type", "'rules' must be an object"));
     }
+    // the rule pack's open rules are set by the server only; a person's rules object cannot switch holds on or off
+    if v.get(nf_core::order_compute::PACK_HOLDS_KEY).is_some() {
+        return Err(unprocessable(
+            "rules_invalid",
+            "'pack_unconfirmed' is set by the assigned rule pack, not in the order's rules",
+        ));
+    }
     let s = v.to_string();
     if s.len() > MAX_RULES_BYTES {
         return Err(unprocessable(
@@ -298,7 +305,11 @@ fn rules_fingerprint(db: &Connection, oid: i64) -> Result<String, ApiError> {
             &format!("the order's rules cannot be used: {m}"),
         )
     })?;
-    Ok(r.fingerprint())
+    // a decision is bound to the pack too: its id, hash and every rule's status (no pack keeps the old fingerprint)
+    match super::rulepacks::pack_identity(db, oid)? {
+        Some(pack) => Ok(format!("{}|{pack}", r.fingerprint())),
+        None => Ok(r.fingerprint()),
+    }
 }
 
 /// A decision made by this build is tied to both the thing decided on and the effective rules. The prefix lets
@@ -1689,7 +1700,8 @@ async fn get_order_rules(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i6
     let own: Value = serde_json::from_str(&head.rules).unwrap_or(Value::Null);
     let (v, _) = parse_rules(&own)?;
     let effective = super::rulepacks::pack_overlay(&db, oid, own)?;
-    let (_, r) = parse_rules(&effective)?;
+    let r = nf_core::order_compute::OrderRules::from_json(&effective)
+        .map_err(|m| unprocessable("rules_invalid", &m))?;
     let (_, _, hash) = load_compute_input(&db, oid)?;
     let mut out = rules_view(&v, &r, "order");
     out["parts_hash"] = json!(hash);

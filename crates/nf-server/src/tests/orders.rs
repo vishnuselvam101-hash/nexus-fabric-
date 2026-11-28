@@ -2,7 +2,7 @@
 
 use super::*;
 
-const PDF_2_PAGES: &[u8] = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 2/Kids[3 0 R 4 0 R]>>endobj\n3 0 obj<</Type /Page/Parent 2 0 R>>endobj\n4 0 obj<</Type/Page/Parent 2 0 R>>endobj\nSECRET-MARKER-ORDER-PDF\n%%EOF\n";
+pub(super) const PDF_2_PAGES: &[u8] = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 2/Kids[3 0 R 4 0 R]>>endobj\n3 0 obj<</Type /Page/Parent 2 0 R>>endobj\n4 0 obj<</Type/Page/Parent 2 0 R>>endobj\nSECRET-MARKER-ORDER-PDF\n%%EOF\n";
 
 pub(super) fn png(w: u32, h: u32) -> Vec<u8> {
     let mut v = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13];
@@ -75,7 +75,7 @@ pub(super) async fn new_order(t: &T) -> i64 {
     v["id"].as_i64().unwrap()
 }
 
-async fn add_file(t: &T, oid: i64, bytes: Vec<u8>, name: &str) -> (StatusCode, Value) {
+pub(super) async fn add_file(t: &T, oid: i64, bytes: Vec<u8>, name: &str) -> (StatusCode, Value) {
     let (st, body) = raw(
         t,
         "POST",
@@ -1895,7 +1895,7 @@ async fn l1r2_a_persons_note_and_the_refusals_are_audited() {
 
 // ---------------------------------------------------------------- NFJ-1 L10: compute
 
-async fn put_parts_values(t: &T, oid: i64, parts: Value, values: Value) {
+pub(super) async fn put_parts_values(t: &T, oid: i64, parts: Value, values: Value) {
     let (st, v) = t
         .call(
             "PUT",
@@ -1914,7 +1914,7 @@ async fn put_parts_values(t: &T, oid: i64, parts: Value, values: Value) {
     assert_eq!(st, StatusCode::OK, "{v}");
 }
 
-fn val(part: &str, key: &str, v: f64) -> Value {
+pub(super) fn val(part: &str, key: &str, v: f64) -> Value {
     json!({ "part": part, "key": key, "value": v, "text": format!("{v}"), "source": "entered" })
 }
 

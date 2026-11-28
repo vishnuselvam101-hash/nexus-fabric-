@@ -728,6 +728,27 @@ async fn licence_pz3_preview_and_rules_are_gated_like_other_writes() {
             "/api/projects/1/rules".into(),
             Some(json!({"rules": {}})),
         ),
+        ("POST", "/api/rule-packs".into(), Some(json!({}))),
+        (
+            "POST",
+            "/api/rule-packs/1/assign".into(),
+            Some(json!({ "scope": "project", "target_id": 1 })),
+        ),
+        (
+            "POST",
+            "/api/rule-packs/1/unassign".into(),
+            Some(json!({ "scope": "project", "target_id": 1 })),
+        ),
+        (
+            "POST",
+            "/api/rule-packs/1/interview/answers".into(),
+            Some(json!({ "key": "allow", "action": "skip" })),
+        ),
+        (
+            "POST",
+            "/api/rule-packs/1/confirmations/1/undo".into(),
+            None,
+        ),
     ] {
         let (st, _, v) = t.send(m, &p, b, &[]).await;
         assert_eq!(st, StatusCode::FORBIDDEN, "{p}: {v:?}");
