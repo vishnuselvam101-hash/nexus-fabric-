@@ -205,6 +205,7 @@ const STATIC: &[(&str, &str, &str)] = &[
     ("main.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/cad/main.js")),
     ("view.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/cad/view.js")),
     ("measure.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/cad/measure.js")),
+    ("edit.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/cad/edit.js")),
     ("i18n.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/i18n/cad.js")),
 ];
 
