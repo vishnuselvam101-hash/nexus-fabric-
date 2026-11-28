@@ -27,6 +27,7 @@ pub mod deps;
 pub mod job;
 pub mod order;
 pub mod order_compute;
+pub mod preview;
 pub mod reading;
 pub mod review;
 pub mod shapes;

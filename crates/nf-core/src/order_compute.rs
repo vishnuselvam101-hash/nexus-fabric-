@@ -20,7 +20,7 @@
 //! Not here: DXF/AMOEBA wiring and `eps_rep` certification (lane L11), the JIS standard-table fill, the wye and the
 //! `Request`/`job::run` path (the five engine families keep their own route, unchanged).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -143,6 +143,10 @@ pub struct OrderRules {
     pub basis: Basis,
     /// Plate thickness convention of the cone-branch cone (default normal, DECISIONS 28 Nov).
     pub cone_thickness: ThicknessConvention,
+    /// The rule keys that the order's rules object sets itself (PZ-3): they decide the `source` of a rule in
+    /// `rules_out` ("set in the order's rules" instead of the provisional default's origin). Not part of the
+    /// fingerprint: two rule sets with the same effective values are the same rules.
+    pub explicit: BTreeSet<String>,
 }
 
 impl Default for OrderRules {
@@ -161,9 +165,84 @@ impl Default for OrderRules {
             pad_cut: SplitCut::Cross,
             basis: Basis::Mid,
             cone_thickness: ThicknessConvention::Normal,
+            explicit: BTreeSet::new(),
         }
     }
 }
+
+/// Where each provisional default rule comes from (ZK-PORT P18; zumen-kirizu README_en section 6, DECISIONS):
+/// (rule name, the rules-object keys that set it, English, Japanese). No rule here is confirmed by a factory.
+const RULE_SOURCES: [(&str, &[&str], &str, &str); 11] = [
+    (
+        "order.basis",
+        &["basis"],
+        "zumen-kirizu provisional default (developed at the plate mid surface); no factory has confirmed it",
+        "zumen-kirizu の仮の既定（板厚の中心で展開）。工場の確認なし",
+    ),
+    (
+        "order.allow_mm",
+        &["allow"],
+        "zumen-kirizu provisional default (4 mm per bend piece, as seen on one factory's bend cut sheet); no public source",
+        "zumen-kirizu の仮の既定（えび曲げの片ごとに 4 mm。ある工場の曲管の切図で見た値）。公の出典なし",
+    ),
+    (
+        "order.seam",
+        &["seam_deg", "seam_from"],
+        "zumen-kirizu provisional default (seam 45 deg from the bottom, as seen on one factory's bend cut sheet); not confirmed",
+        "zumen-kirizu の仮の既定（縦の継ぎ目は地から 45°。ある工場の曲管の切図で見た取り方）。未確認",
+    ),
+    (
+        "order.mount",
+        &["mount"],
+        "zumen-kirizu provisional default (the branch is set on the main); not checked against a factory cut sheet",
+        "zumen-kirizu の仮の既定（枝を本管に載せる）。工場の切図で未確認",
+    ),
+    (
+        "order.stock",
+        &["stock"],
+        "zumen-kirizu provisional default (one stock plate 2438 x 6096, 8 x 20 ft); a temporary value",
+        "zumen-kirizu の仮の既定（仕入れる板 2438×6096、8×20）。仮の値",
+    ),
+    (
+        "order.stock_margin_mm",
+        &["stock_margin"],
+        "zumen-kirizu provisional default (0 mm free at the plate edge); a temporary value",
+        "zumen-kirizu の仮の既定（板の縁の空き 0 mm）。仮の値",
+    ),
+    (
+        "order.seam_gap_mm",
+        &["seam_gap"],
+        "zumen-kirizu provisional default (5 x plate thickness between seam and hole, the wording of one drawing note); not confirmed",
+        "zumen-kirizu の仮の既定（継ぎ目と穴の空きは板厚の 5 倍。ある図面の注記の言い方）。未確認",
+    ),
+    (
+        "order.pad_cut",
+        &["pad_cut"],
+        "zumen-kirizu provisional default (a two-way pad split at a right angle to the main axis); not confirmed",
+        "zumen-kirizu の仮の既定（補強板の二つ割は本管の軸に直角な線）。未確認",
+    ),
+    (
+        "order.cone_thickness",
+        &["cone_thickness"],
+        "NF decision of 28 Nov 2026 (plate thickness normal to the cone wall); the zumen-kirizu radial reading is the named alternative",
+        "NF の決定（2026-11-28、板厚は円すいの面に直角）。zumen-kirizu の半径方向の読み方は別の決まりとして残す",
+    ),
+    (
+        "order.plausibility_band",
+        &[],
+        "NFJ-1 design 2.6 (D4): a proposed band that needs the factory's sign-off",
+        "NFJ-1 設計 2.6（D4）の案の範囲。工場の確認が要る",
+    ),
+    (
+        "order.mass",
+        &[],
+        "steel density 7.85e-6 kg/mm3 (common value); the table-mass tolerance follows the zumen-kirizu BOM check",
+        "鋼の密度 7.85e-6 kg/mm3（一般の値）。材料表の重さとの許容差は zumen-kirizu の照らし方",
+    ),
+];
+
+const RULE_SET_EN: &str = "set in this order's rules (by the factory, or copied from the project default); not a verified standard";
+const RULE_SET_JA: &str = "この工事の決まりで設定（工場が設定、またはプロジェクトの既定から写した）。確かめた規格ではない";
 
 /// Plausibility band (DESIGN 2.6, D4: proposal, needs factory sign-off). Out of band = hold "check value".
 pub const BAND_D_MM: (f64, f64) = (20.0, 4000.0);
@@ -255,12 +334,57 @@ impl OrderRules {
                 }
                 other => return Err(format!("unknown rule '{other}'")),
             }
+            r.explicit.insert(k.clone());
         }
         Ok(r)
     }
 
+    /// The effective rules as one canonical rules object: every key, with the provisional default where the order
+    /// sets none. `from_json(to_json(r))` gives the same effective rules (PZ-3: a rule edit is merged onto it).
+    pub fn to_json(&self) -> Value {
+        json!({
+            "allow": self.allow,
+            "seam_deg": self.seam_deg,
+            "seam_from": if self.seam_from_bottom { "bottom" } else { "top" },
+            "mount": match self.mount {
+                Mount::SetOn => "set_on",
+                Mount::SetIn => "set_in",
+            },
+            "stock": self.stock.iter().map(|s| json!([s.w, s.l])).collect::<Vec<_>>(),
+            "stock_margin": self.stock_margin,
+            "seam_gap": self.seam_gap,
+            "pad_cut": match self.pad_cut {
+                SplitCut::Cross => "cross",
+                SplitCut::Along => "along",
+            },
+            "basis": match self.basis {
+                Basis::Outer => "outer",
+                Basis::Mid => "mid",
+                Basis::Inner => "inner",
+            },
+            "cone_thickness": self.cone_thickness.name(),
+        })
+    }
+
+    /// Identity of the EFFECTIVE rules (SHA-256 of the canonical object): `{}` and a rules object that spells out the
+    /// defaults have the same fingerprint. A decision that depends on the rules is tied to it (PZ-3).
+    pub fn fingerprint(&self) -> String {
+        crate::sha256_hex(format!("nf order rules v1|{}", self.to_json()).as_bytes())
+    }
+
+    /// Every rule of the order with its value, where it comes from (`source`, `source_ja`) and its status. No rule is
+    /// confirmed by a factory: every status is `UNVERIFIED` (ZK-PORT P18).
     pub fn rules_out(&self) -> Vec<Value> {
-        let r = |n: &str, v: String| json!({"name": n, "value": v, "kind": "rule", "status": "UNVERIFIED", "source": "ZK provisional default (not factory confirmed)"});
+        let r = |n: &str, v: String| {
+            let (keys, en, ja) = RULE_SOURCES
+                .iter()
+                .find(|s| s.0 == n)
+                .map_or((&[][..], "", ""), |s| (s.1, s.2, s.3));
+            let set = keys.iter().any(|k| self.explicit.contains(*k));
+            json!({"name": n, "value": v, "kind": "rule", "status": "UNVERIFIED",
+                   "source": if set { RULE_SET_EN } else { en },
+                   "source_ja": if set { RULE_SET_JA } else { ja }})
+        };
         vec![
             r("order.basis", format!("{:?}", self.basis).to_lowercase()),
             r("order.allow_mm", self.allow.to_string()),
@@ -542,13 +666,13 @@ pub const LABELS: [(&str, &str, &str); 57] = [
     ("pclass", "class", "種類"),
 ];
 
-fn label_en(k: &str) -> String {
+pub(crate) fn label_en(k: &str) -> String {
     LABELS
         .iter()
         .find(|l| l.0 == k)
         .map_or_else(|| k.to_string(), |l| format!("{k} ({})", l.1))
 }
-fn label_ja(k: &str) -> String {
+pub(crate) fn label_ja(k: &str) -> String {
     LABELS
         .iter()
         .find(|l| l.0 == k)

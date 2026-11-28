@@ -15,8 +15,8 @@ use std::path::{Path, PathBuf};
 /// 10: the INT-5 union of the reviewed wave-1 work, all additive, on top of 8: AIOP-1 `operator_events`,
 /// `operator_state`, `order_readings`, `order_values` flags/confidence/edited_kind and the sticky
 /// `attached_reading_id`; PZ-1 `order_material_rows`, `order_page_notes` and the decision review columns;
-/// PZ-2 `order_values.flag`/`read_source`; PZ-3 `projects.default_rules_json`. PZ-2's one-time SECURITY-3
-/// revalidation is keyed by a marker in `meta`, not by another schema number.
+/// PZ-2 `order_values.flag`/`read_source`; PZ-3 `projects.default_rules_json` copied into new orders.
+/// PZ-2's one-time SECURITY-3 revalidation is keyed by a marker in `meta`, not by another schema number.
 /// 8: `order_results_immutable` trigger (only state -> SUPERSEDED may change), on top of 7.
 /// 7: `order_results` (the supersede chain of order computes, NFJ-1 L10), on top of 6.
 /// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns). Rollback to an older build
@@ -30,7 +30,7 @@ const PZ2_READ_REVALIDATED: &str = "pz2_read_confirmation_revalidated";
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, username TEXT UNIQUE NOT NULL, role TEXT NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires_at INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS projects(id INTEGER PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS projects(id INTEGER PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL, default_rules_json TEXT NOT NULL DEFAULT '{}');
 CREATE TABLE IF NOT EXISTS documents(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, filename TEXT NOT NULL, detected_type TEXT NOT NULL, size INTEGER NOT NULL, sha256 TEXT NOT NULL, extension_mismatch INTEGER NOT NULL, record_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, project_id INTEGER NOT NULL, family TEXT NOT NULL, kind TEXT NOT NULL, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS calculations(id INTEGER PRIMARY KEY, project_id INTEGER NOT NULL, family TEXT NOT NULL, state TEXT NOT NULL, closure_hash TEXT NOT NULL, result_json TEXT NOT NULL, replay_json TEXT, dxf_sha256 TEXT, supersedes INTEGER, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS order_page_notes(id INTEGER PRIMARY KEY, order_id INT
 
 /// Columns added after the first schema. Each is added only if absent, and a
 /// failure stops start-up (it used to be ignored).
-const ADDED_COLUMNS: [(&str, &str, &str); 23] = [
+const ADDED_COLUMNS: [(&str, &str, &str); 24] = [
     // RA-006: 0 for an attempt that was refused by the throttle (counted, but it does not open a slot)
     ("login_failures", "admitted", "INTEGER NOT NULL DEFAULT 1"),
     ("calculations", "supersedes", "INTEGER"),
@@ -106,6 +106,12 @@ const ADDED_COLUMNS: [(&str, &str, &str); 23] = [
     // PZ-2: immutable, server-derived read origin. The caller's `source` is only a description;
     // this records whether the value was actually read by the server, read on paper, or entered.
     ("order_values", "read_source", "TEXT"),
+    // PZ-3: factory rules copied from a project into orders created afterwards.
+    (
+        "projects",
+        "default_rules_json",
+        "TEXT NOT NULL DEFAULT '{}'",
+    ),
 ];
 
 /// Append-only at the database level (RC-20). Created at every start, so an older database gets them too.

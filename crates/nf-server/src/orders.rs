@@ -89,6 +89,10 @@ pub(crate) fn routes() -> Router<Arc<App>> {
             "/api/projects/{id}/orders",
             get(list_orders).post(create_order),
         )
+        .route(
+            "/api/projects/{id}/rules",
+            get(get_project_rules).put(put_project_rules),
+        )
         .route("/api/orders/{oid}", get(get_order))
         .route("/api/orders/{oid}/files", post(upload_file))
         .route("/api/orders/{oid}/pages/{n}", get(get_page_image))
@@ -99,6 +103,12 @@ pub(crate) fn routes() -> Router<Arc<App>> {
         .route("/api/orders/{oid}/values", axum::routing::put(put_values))
         .route("/api/orders/{oid}/confirm", post(confirm))
         .route("/api/orders/{oid}/compute", post(compute).get(get_results))
+        .route("/api/orders/{oid}/preview", post(preview_order))
+        .route(
+            "/api/orders/{oid}/rules",
+            get(get_order_rules).put(put_order_rules),
+        )
+        .route("/api/orders/{oid}/rules/impact", post(rule_impact_order))
         .route("/api/orders/{oid}/decisions", post(post_decision))
         .route(
             "/api/orders/{oid}/decisions/{did}/undo",
@@ -205,6 +215,56 @@ fn unprocessable(code: &str, msg: &str) -> ApiError {
     refuse(StatusCode::UNPROCESSABLE_ENTITY, code, msg)
 }
 
+/// A rules object from a request: bounded, strictly checked, and returned as sent. Every rule the caller
+/// names has to be one of the order's rules (PZ-3): an unrecognised key is refused, never kept silently.
+fn parse_rules(v: &Value) -> Result<(Value, nf_core::order_compute::OrderRules), ApiError> {
+    if !v.is_object() {
+        return Err(unprocessable("rules_type", "'rules' must be an object"));
+    }
+    let s = v.to_string();
+    if s.len() > MAX_RULES_BYTES {
+        return Err(unprocessable(
+            "rules_too_large",
+            "'rules' is larger than 8 KiB",
+        ));
+    }
+    let rules = nf_core::order_compute::OrderRules::from_json(v)
+        .map_err(|m| unprocessable("rules_invalid", &m))?;
+    Ok((v.clone(), rules))
+}
+
+fn preview_error(e: nf_core::preview::PreviewError) -> ApiError {
+    let fields: Vec<&str> = e.fields.iter().map(String::as_str).collect();
+    fail_code(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        e.code,
+        &fields,
+        &e.message,
+    )
+}
+
+fn hash_field(body: &Value) -> Result<String, ApiError> {
+    text_field(body, "parts_hash", 64)?
+        .filter(|h| !h.is_empty())
+        .ok_or_else(|| {
+            unprocessable(
+                "parts_hash_missing",
+                "'parts_hash' is required (from the order); preview a current order only",
+            )
+        })
+}
+
+fn bool_field(body: &Value, key: &str) -> Result<bool, ApiError> {
+    match body.get(key) {
+        None | Some(Value::Null) => Ok(false),
+        Some(Value::Bool(b)) => Ok(*b),
+        Some(_) => Err(unprocessable(
+            "field_type",
+            &format!("'{key}' must be true or false"),
+        )),
+    }
+}
+
 fn fmt_val(v: Option<f64>) -> String {
     v.map_or_else(|| "none".to_string(), |x| x.to_string())
 }
@@ -216,6 +276,36 @@ fn value_fp(key: &str, value: Option<f64>, text: &str, bbox: Option<&str>, sourc
         json!([key, value, text, bbox, source])
             .to_string()
             .as_bytes(),
+    )
+}
+
+/// Identity of the effective rules a decision was made against (PZ-3). Two rule objects that spell out the same
+/// rules give the same fingerprint, so writing out the defaults does not stale a decision.
+fn rules_fingerprint(db: &Connection, oid: i64) -> Result<String, ApiError> {
+    let rules: String = db
+        .query_row(
+            "SELECT rules_json FROM orders WHERE id = ?",
+            params![oid],
+            |r| r.get(0),
+        )
+        .optional()?
+        .ok_or_else(not_found)?;
+    let v: Value = serde_json::from_str(&rules).unwrap_or(Value::Null);
+    let r = nf_core::order_compute::OrderRules::from_json(&v).map_err(|m| {
+        unprocessable(
+            "order_rules",
+            &format!("the order's rules cannot be used: {m}"),
+        )
+    })?;
+    Ok(r.fingerprint())
+}
+
+/// A decision made by this build is tied to both the thing decided on and the effective rules. The prefix lets
+/// decisions written by earlier builds keep their old meaning instead of being silently marked stale on upgrade.
+fn decision_fp(base: &str, rules: &str) -> String {
+    format!(
+        "v2:{}",
+        nf_core::sha256_hex(format!("{base}|{rules}").as_bytes())
     )
 }
 
@@ -1405,21 +1495,24 @@ async fn create_order(
         .ok_or_else(|| {
             unprocessable("order_name", "the order needs a name (1 to 200 characters)")
         })?;
-    let rules = match body.get("rules") {
-        None | Some(Value::Null) => "{}".to_string(),
-        Some(v @ Value::Object(_)) => {
-            let s = v.to_string();
-            if s.len() > MAX_RULES_BYTES {
-                return Err(unprocessable(
-                    "rules_too_large",
-                    "'rules' is larger than 8 KiB",
-                ));
-            }
-            s
-        }
-        Some(_) => return Err(unprocessable("rules_type", "'rules' must be an object")),
+    // A new order starts from the project's rules (PZ-3). An explicit rules object in the request overrides them.
+    let default: String = {
+        let db = app.db();
+        db.query_row(
+            "SELECT default_rules_json FROM projects WHERE id = ?",
+            params![project],
+            |r| r.get(0),
+        )
+        .optional()?
+        .unwrap_or_else(|| "{}".to_string())
     };
     let events = write_events(&u, body.get("events"), false)?;
+    let chosen = match body.get("rules") {
+        None | Some(Value::Null) => serde_json::from_str(&default).unwrap_or(Value::Null),
+        Some(v) => v.clone(),
+    };
+    let (chosen, _) = parse_rules(&chosen)?;
+    let rules = chosen.to_string();
     let mut db = app.db();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, &u)?;
@@ -1462,6 +1555,303 @@ async fn list_orders(State(app): Ctx, headers: HeaderMap, Path(project): Path<i6
         },
     )?;
     ok(json!({ "orders": rows }))
+}
+
+// ---------------------------------------------------------------- rules and preview (PZ-3)
+
+fn rules_view(v: &Value, r: &nf_core::order_compute::OrderRules, scope: &str) -> Value {
+    json!({
+        "scope": scope,
+        "rules": v,
+        "effective": r.rules_out(),
+        "fingerprint": r.fingerprint(),
+    })
+}
+
+/// Decisions a proposed rules write would invalidate, read-only. A decision made by this build records the effective
+/// rules it was made against, so a rules fingerprint change stales it; older `v1:` decisions keep their old meaning
+/// and are not touched. Undone or already-stale decisions are not counted again.
+fn decisions_would_stale(
+    db: &Connection,
+    oid: i64,
+    new_fingerprint: &str,
+) -> Result<Vec<Value>, ApiError> {
+    if rules_fingerprint(db, oid)? == new_fingerprint {
+        return Ok(Vec::new());
+    }
+    let bound: BTreeSet<i64> = q_all(
+        db,
+        "SELECT id FROM order_decisions WHERE order_id = ? AND undone_at IS NULL AND against_hash LIKE 'v2:%'",
+        params![oid],
+        |r| r.get::<_, i64>(0),
+    )?
+    .into_iter()
+    .collect();
+    Ok(decision_view(db, oid, None)?
+        .into_iter()
+        .filter(|d| {
+            d["effective"] == json!(true) && bound.contains(&d["id"].as_i64().unwrap_or_default())
+        })
+        .map(|d| json!({ "id": d["id"], "kind": d["kind"], "part": d["part"] }))
+        .collect())
+}
+
+async fn get_project_rules(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> Api {
+    let db = app.db();
+    let u = auth_db(&db, &app, &headers)?;
+    project_guard(&app, &db, &u, id, "read project rules")?;
+    let raw: String = db.query_row(
+        "SELECT default_rules_json FROM projects WHERE id = ?",
+        params![id],
+        |r| r.get(0),
+    )?;
+    let v: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
+    let (v, r) = parse_rules(&v)?;
+    ok(rules_view(&v, &r, "project"))
+}
+
+async fn put_project_rules(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    raw: Bytes,
+) -> Api {
+    let u = {
+        let db = app.db();
+        let u = auth_db(&db, &app, &headers)?;
+        require(&u, &["admin", "engineer"])?;
+        project_guard(&app, &db, &u, id, "set project rules")?;
+        u
+    };
+    let body = request_json(&headers, &raw)?;
+    let reason = text_field(&body, "reason", MAX_NOTE_CHARS)?.unwrap_or_default();
+    agent_reason(&u, &reason)?;
+    let value = body
+        .get("rules")
+        .ok_or_else(|| unprocessable("rules_missing", "the body needs a 'rules' object"))?;
+    let (v, r) = parse_rules(value)?;
+    let mut db = app.db();
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    still_writer(&tx, &u)?;
+    project_guard(&app, &tx, &u, id, "set project rules")?;
+    tx.execute(
+        "UPDATE projects SET default_rules_json = ? WHERE id = ?",
+        params![v.to_string(), id],
+    )?;
+    app.audit(
+        &tx,
+        &u.username,
+        "project_rules_set",
+        &format!(
+            "project #{id} rules {} {}",
+            r.fingerprint(),
+            clip(&reason, 200)
+        ),
+    )?;
+    tx.commit()?;
+    ok(rules_view(&v, &r, "project"))
+}
+
+async fn get_order_rules(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>) -> Api {
+    let db = app.db();
+    let u = auth_db(&db, &app, &headers)?;
+    let head = guard_order(&app, &db, &u, oid, "read order rules")?;
+    let v: Value = serde_json::from_str(&head.rules).unwrap_or(Value::Null);
+    let (v, r) = parse_rules(&v)?;
+    let (_, _, hash) = load_compute_input(&db, oid)?;
+    let mut out = rules_view(&v, &r, "order");
+    out["parts_hash"] = json!(hash);
+    ok(out)
+}
+
+/// Write an order's rules. The caller sends the `parts_hash` and the `rules_fingerprint_before` from a preview, so a
+/// rule change cannot be applied after the order moved on. No value, result or decision is written here: existing
+/// decisions become stale because their hash includes the rules fingerprint.
+async fn put_order_rules(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path(oid): Path<i64>,
+    raw: Bytes,
+) -> Api {
+    let u = write_access(&app, &headers, oid, "set order rules")?;
+    let body = request_json(&headers, &raw)?;
+    let reason = text_field(&body, "reason", MAX_NOTE_CHARS)?.unwrap_or_default();
+    agent_reason(&u, &reason)?;
+    let value = body
+        .get("rules")
+        .ok_or_else(|| unprocessable("rules_missing", "the body needs a 'rules' object"))?;
+    let (v, r) = parse_rules(value)?;
+    let supplied = hash_field(&body)?;
+    let expected = text_field(&body, "expected_rules_hash", 64)?
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| {
+            unprocessable(
+                "rules_hash_missing",
+                "'expected_rules_hash' is required (from the rule preview)",
+            )
+        })?;
+    let mut db = app.db();
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    still_writer(&tx, &u)?;
+    guard_order(&app, &tx, &u, oid, "set order rules")?;
+    let (_, _, now_hash) = load_compute_input(&tx, oid)?;
+    if now_hash != supplied {
+        return Err(refuse(
+            StatusCode::CONFLICT,
+            "order_changed",
+            "the order changed since the preview; preview again",
+        ));
+    }
+    if rules_fingerprint(&tx, oid)? != expected {
+        return Err(refuse(
+            StatusCode::CONFLICT,
+            "rules_changed",
+            "the rules changed since the preview; preview again",
+        ));
+    }
+    tx.execute(
+        "UPDATE orders SET rules_json = ? WHERE id = ?",
+        params![v.to_string(), oid],
+    )?;
+    app.audit(
+        &tx,
+        &u.username,
+        "order_rules_set",
+        &format!(
+            "order #{oid} rules {} (was {expected}) {}",
+            r.fingerprint(),
+            clip(&reason, 200)
+        ),
+    )?;
+    let (_, _, hash) = load_compute_input(&tx, oid)?;
+    tx.commit()?;
+    let mut out = rules_view(&v, &r, "order");
+    out["parts_hash"] = json!(hash);
+    ok(out)
+}
+
+async fn preview_order(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path(oid): Path<i64>,
+    raw: Bytes,
+) -> Api {
+    let u = write_access(&app, &headers, oid, "preview an edit")?;
+    let body = request_json(&headers, &raw)?;
+    let edit = nf_core::preview::Edit::from_json(
+        body.get("edit")
+            .ok_or_else(|| unprocessable("edit_missing", "the body needs an 'edit' object"))?,
+    )
+    .map_err(preview_error)?;
+    let supplied = hash_field(&body)?;
+    let outlines = bool_field(&body, "outlines")?;
+    let (parts, _rules, hash) = {
+        let db = app.db();
+        load_compute_input(&db, oid)?
+    };
+    if hash != supplied {
+        return Err(refuse(
+            StatusCode::CONFLICT,
+            "order_changed",
+            "the order changed since this hash was read; preview again",
+        ));
+    }
+    if parts.is_empty() {
+        return Err(unprocessable(
+            "order_empty",
+            "the order has no parts to preview",
+        ));
+    }
+    let rules: Value = {
+        let db = app.db();
+        let raw: String = db.query_row(
+            "SELECT rules_json FROM orders WHERE id = ?",
+            params![oid],
+            |r| r.get(0),
+        )?;
+        serde_json::from_str(&raw).unwrap_or(Value::Null)
+    };
+    let preview = tokio::task::spawn_blocking(move || {
+        nf_core::preview::preview(&parts, &rules, &edit, outlines)
+    })
+    .await
+    .map_err(|_| {
+        fail(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the preview stopped unexpectedly",
+        )
+    })?
+    .map_err(preview_error)?;
+    let _ = u;
+    ok(json!({ "parts_hash": hash, "preview": preview }))
+}
+
+async fn rule_impact_order(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path(oid): Path<i64>,
+    raw: Bytes,
+) -> Api {
+    write_access(&app, &headers, oid, "preview rule impact")?;
+    let body = request_json(&headers, &raw)?;
+    let (rules_b, rules_b_obj) = parse_rules(
+        body.get("rules")
+            .ok_or_else(|| unprocessable("rules_missing", "the body needs a 'rules' object"))?,
+    )?;
+    let new_rules_fingerprint = rules_b_obj.fingerprint();
+    let supplied = hash_field(&body)?;
+    let outlines = bool_field(&body, "outlines")?;
+    let (parts, rules_a_obj, hash) = {
+        let db = app.db();
+        load_compute_input(&db, oid)?
+    };
+    if hash != supplied {
+        return Err(refuse(
+            StatusCode::CONFLICT,
+            "order_changed",
+            "the order changed since this hash was read; preview again",
+        ));
+    }
+    if parts.is_empty() {
+        return Err(unprocessable(
+            "order_empty",
+            "the order has no parts to preview",
+        ));
+    }
+    let rules_a: Value = {
+        let db = app.db();
+        let raw: String = db.query_row(
+            "SELECT rules_json FROM orders WHERE id = ?",
+            params![oid],
+            |r| r.get(0),
+        )?;
+        serde_json::from_str(&raw).unwrap_or(Value::Null)
+    };
+    let impact = tokio::task::spawn_blocking(move || {
+        nf_core::preview::rule_impact(&parts, &rules_a, &rules_b, outlines)
+    })
+    .await
+    .map_err(|_| {
+        fail(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the rule impact preview stopped unexpectedly",
+        )
+    })?
+    .map_err(preview_error)?;
+    let would_stale = if rules_a_obj.fingerprint() == new_rules_fingerprint {
+        Vec::new()
+    } else {
+        decisions_would_stale(&app.db(), oid, &new_rules_fingerprint)?
+    };
+    let n = would_stale.len();
+    let mut out = json!({ "parts_hash": hash, "impact": impact });
+    out["impact"]["decisions_would_stale"] = json!(would_stale);
+    out["impact"]["decisions_text_en"] = json!(format!(
+        "{n} decision{} would go stale",
+        if n == 1 { "" } else { "s" }
+    ));
+    out["impact"]["decisions_text_ja"] = json!(format!("なくなる判定 {n} 件"));
+    ok(out)
 }
 
 // ---------------------------------------------------------------- files and pages
@@ -2971,6 +3361,7 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
     guard_order_tx(app, &tx, u, oid, "edit values")?;
+    let rf = rules_fingerprint(&tx, oid)?;
     // The AI operator confirms only against a reading the server itself stored for the target part's page;
     // what the caller says about flags, confidence, source or bbox never grants anything.
     for v in values.iter_mut() {
@@ -3179,7 +3570,10 @@ pub(crate) fn put_values_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, 
                     source: actor_source(u),
                     agent: (u.kind == "agent").then_some(u.username.as_str()),
                     reason: &v.note,
-                    against: value_fp(&v.key, v.value, &v.text, v.bbox.as_deref(), &v.source),
+                    against: decision_fp(
+                        &value_fp(&v.key, v.value, &v.text, v.bbox.as_deref(), &v.source),
+                        &rf,
+                    ),
                     prev_state: old.as_ref().map(|o| o.5.as_str()),
                     who: &u.username,
                 },
@@ -3259,6 +3653,7 @@ fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) ->
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
     guard_order_tx(app, &tx, u, oid, "confirm values")?;
+    let rf = rules_fingerprint(&tx, oid)?;
     let parts: Vec<(i64, String)> = if all {
         q_all(
             &tx,
@@ -3337,7 +3732,7 @@ fn confirm_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) ->
                     source: actor_source(u),
                     agent: (u.kind == "agent").then_some(u.username.as_str()),
                     reason: &note,
-                    against: value_fp(&key, val, &text, bbox.as_deref(), &src),
+                    against: decision_fp(&value_fp(&key, val, &text, bbox.as_deref(), &src), &rf),
                     prev_state: Some(&state),
                     who: &u.username,
                 },
@@ -3492,6 +3887,7 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     still_writer(&tx, u)?;
     guard_order_tx(app, &tx, u, oid, "record decision")?;
+    let rf = rules_fingerprint(&tx, oid)?;
     store_write_events(app, &tx, u, oid, &events)?;
     let mut d = NewDecision {
         order: oid,
@@ -3508,7 +3904,7 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
     };
     let prev_state: String;
     if kind == "mark_checked" {
-        d.against = order_fingerprint(&tx, oid)?;
+        d.against = decision_fp(&order_fingerprint(&tx, oid)?, &rf);
     } else if matches!(kind.as_str(), "hand_drawn" | "claim") {
         // Neither exit changes a value or releases a file. It is tied to the whole order so an edit makes it stale.
         let part = body
@@ -3529,7 +3925,7 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
         }
         d.part = Some(pid);
         d.flag = flag.as_deref();
-        d.against = order_fingerprint(&tx, oid)?;
+        d.against = decision_fp(&order_fingerprint(&tx, oid)?, &rf);
     } else {
         let part = body
             .get("part")
@@ -3594,12 +3990,13 @@ fn post_decision_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u
         d.part = Some(pid);
         d.value = Some(vid);
         let value = value_fp(&key, val, &text, bbox.as_deref(), &src);
-        d.against = if flag_kind {
+        let base = if flag_kind {
             let context = review_context_json(&tx, oid)?;
             review_accept_fp(&value, flag.as_deref().unwrap_or_default(), &context)
         } else {
             value
         };
+        d.against = decision_fp(&base, &rf);
         if kind == "confirm" && state == "CONFIRMED" {
             return Err(refuse(
                 StatusCode::CONFLICT,
@@ -3838,14 +4235,21 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
         if let Some((key, val, text, state, bbox, src, _read_source)) = cur
             && state == "CONFIRMED"
             && others == 0
-            && value_fp(&key, val, &text, bbox.as_deref(), &src) == against
         {
-            tx.execute(
-                "UPDATE order_values SET state = ?, edited_by = ?, edited_at = ?, edited_kind = ? WHERE id = ?",
-                params![prev, u.username, now() as i64, u.kind, vid],
-            )?;
-            recompute_part_state(&tx, pid)?;
-            reverted = true;
+            let base = value_fp(&key, val, &text, bbox.as_deref(), &src);
+            let same = if against.starts_with("v2:") {
+                decision_fp(&base, &rules_fingerprint(&tx, oid)?) == against
+            } else {
+                base == against
+            };
+            if same {
+                tx.execute(
+                    "UPDATE order_values SET state = ?, edited_by = ?, edited_at = ?, edited_kind = ? WHERE id = ?",
+                    params![prev, u.username, now() as i64, u.kind, vid],
+                )?;
+                recompute_part_state(&tx, pid)?;
+                reverted = true;
+            }
         }
     }
     if kind == "review_context"
@@ -3926,6 +4330,7 @@ fn undo_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, did: i64, raw: &[
 /// value (or, for a "checked" mark, the order) is no longer what it was made against.
 fn decision_view(db: &Connection, oid: i64, only: Option<i64>) -> Result<Vec<Value>, ApiError> {
     let order_fp = order_fingerprint(db, oid)?;
+    let rf = rules_fingerprint(db, oid)?;
     let rows = q_all(
         db,
         "SELECT d.id, d.part_id, p.no, d.value_id, v.key, v.value, v.text, d.kind, d.flag, d.source, d.agent, d.reason, d.against_hash, d.decided_by, d.decided_at, d.undone_by, d.undone_at, d.undo_note, v.bbox_json, v.source, d.review_code, d.claim_text
@@ -3939,7 +4344,7 @@ fn decision_view(db: &Connection, oid: i64, only: Option<i64>) -> Result<Vec<Val
             let bbox: Option<String> = r.get(18)?;
             let src: Option<String> = r.get(19)?;
             let kind: String = r.get(7)?;
-            let current = if kind == "review_context" {
+            let base = if kind == "review_context" {
                 review_context_state(db, oid)?.1
             } else if matches!(kind.as_str(), "accept" | "accept_flag") {
                 // An answer to a review is bound to its code and to the page inputs it was read against.
@@ -3959,6 +4364,11 @@ fn decision_view(db: &Connection, oid: i64, only: Option<i64>) -> Result<Vec<Val
                     (Some(k), Some(t), Some(sr)) => value_fp(k, value, t, bbox.as_deref(), sr),
                     _ => order_fp.clone(),
                 }
+            };
+            let current = if against.starts_with("v2:") {
+                decision_fp(&base, &rf)
+            } else {
+                base
             };
             let undone = r.get::<_, Option<i64>>(16)?.is_some();
             let stale = current != against;
