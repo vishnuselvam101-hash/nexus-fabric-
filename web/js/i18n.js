@@ -76,8 +76,8 @@ const EN = {
   'jf1.res.ready': 'Ready',
   'jf1.res.held': 'Held, no DXF',
   'jf1.res.need': 'Needs an answer',
-  'jf1.download': 'Download (not available yet)',
-  'jf1.download.note': 'Downloading the DXF files and the record is not built yet. This page approves and releases nothing.',
+  'jf1.download': 'Download the job package (ZIP)',
+  'jf1.download.note': 'The ZIP has the material list (CSV and Excel), the issue list, the change record and the DXF files of parts that are certified and not held. A held part has no DXF and is listed in the issue list with its reasons. Everything is marked NOT RELEASED. This page approves and releases nothing.',
 
   // build status
   'build.short': 'Development build — not validated',
@@ -942,8 +942,8 @@ const JA = {
   'jf1.res.ready': '完了',
   'jf1.res.held': '保留（DXFなし）',
   'jf1.res.need': '確認待ち',
-  'jf1.download': 'ダウンロード（準備中）',
-  'jf1.download.note': 'DXFと記録のダウンロードはまだ作られていません。このページでは何も承認・リリースしません。',
+  'jf1.download': 'ジョブの出力をダウンロード（ZIP）',
+  'jf1.download.note': 'ZIPには、材料表（CSVとExcel）、課題一覧、変更記録、認証済みで保留されていない部材のDXFが入ります。保留の部材にはDXFがなく、理由とともに課題一覧に載ります。すべて「未リリース」と表示されます。このページでは何も承認・リリースしません。',
 
   'build.short': '開発版・未検証',
   'build.full': '開発版・未検証 — 出力を製造に使用してはなりません',

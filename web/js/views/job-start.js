@@ -73,7 +73,7 @@ async function render() {
         <ol class="jf1-log" data-log aria-live="polite"></ol>
       </section>
       <div class="jf1-download">
-        <button type="button" class="jf1-btn" disabled>${esc(t('jf1.download'))}</button>
+        ${resParts.length ? `<a class="jf1-btn jf1-primary" id="jf1-outputs" href="/api/orders/${oid}/outputs.zip" download>${esc(t('jf1.download'))}</a>` : `<button type="button" class="jf1-btn" disabled>${esc(t('jf1.download'))}</button>`}
         <p class="jf1-note">${esc(t('jf1.download.note'))}</p>
       </div>
     </div>`;

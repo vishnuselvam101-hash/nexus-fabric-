@@ -91,8 +91,11 @@ async function main() {
     const parts = (await (await api.get(`/api/orders/${oid}`)).json()).parts || [];
     check('result counts add up to the parts', counts.reduce((a, b) => a + b, 0) === parts.length, JSON.stringify(counts) + ' vs ' + parts.length);
     check('current step is 3', (await p.getAttribute('.jf1-panel', 'data-cur')) === '3');
-    const dl = p.locator('.jf1-download button');
-    check('download is not offered yet (no outputs route)', await dl.isDisabled());
+    const dl = p.locator('#jf1-outputs');
+    const dlHref = (await dl.count()) ? await dl.getAttribute('href') : '';
+    check('download links to the job package of the order', dlHref === `/api/orders/${oid}/outputs.zip`, dlHref);
+    const pkg = await api.get(dlHref);
+    check('the job package downloads as a ZIP', pkg.status() === 200 && (pkg.headers()['content-type'] || '').includes('application/zip'));
     check('no approve or release control on the page', (await p.locator('button', { hasText: /approve|release|承認|リリース/i }).count()) === 0);
     check('held parts never show a DXF link', (await p.locator('a[href*="dxf"]').count()) === 0);
     if (SHOT_DIR) await p.screenshot({ path: path.join(SHOT_DIR, 'f1-result-en-1440.png'), fullPage: true });
