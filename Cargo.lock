@@ -833,6 +833,7 @@ dependencies = [
 name = "nf-cad"
 version = "0.1.0"
 dependencies = [
+ "nf-amoeba-agent",
  "nf-amoeba-operator",
  "nf-cadio",
  "nf-dxf",
