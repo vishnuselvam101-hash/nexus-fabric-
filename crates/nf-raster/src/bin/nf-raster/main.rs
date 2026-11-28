@@ -140,6 +140,29 @@ fn trusted_dir(md: &fs::Metadata) -> bool {
     md.is_dir()
 }
 
+/// The proof key is fit only when owned by root or by the current effective user, with no group or
+/// other access bits and no owner-execute bit. The file is opened with O_NOFOLLOW below, so a
+/// symlink cannot redirect this check to a key prepared elsewhere.
+#[cfg(unix)]
+fn trusted_key_parts(is_file: bool, uid: u32, euid: u32, mode: u32) -> bool {
+    is_file && (uid == 0 || uid == euid) && mode & 0o177 == 0
+}
+
+#[cfg(unix)]
+fn trusted_key(md: &fs::Metadata) -> bool {
+    trusted_key_parts(
+        md.is_file(),
+        md.uid(),
+        rustix::process::geteuid().as_raw(),
+        md.mode(),
+    )
+}
+
+#[cfg(not(unix))]
+fn trusted_key(md: &fs::Metadata) -> bool {
+    md.is_file()
+}
+
 fn ledger_root() -> PathBuf {
     match std::env::var_os("NF_CROP_LEDGER_ROOT") {
         Some(p) if !p.is_empty() => PathBuf::from(p),
@@ -705,16 +728,7 @@ fn crop_secret(root: &Path) -> Result<Vec<u8>, Outcome> {
     if let Ok(f) = open_no_follow(&path, "crop key") {
         let meta = f.metadata().ok();
         let mut key = Vec::new();
-        let trusted_key = meta.is_some_and(|m| {
-            #[cfg(unix)]
-            {
-                m.is_file() && m.uid() == 0 && m.mode() & 0o177 == 0
-            }
-            #[cfg(not(unix))]
-            {
-                m.is_file()
-            }
-        });
+        let trusted_key = meta.as_ref().is_some_and(trusted_key);
         if f.take(33).read_to_end(&mut key).is_ok() && key.len() == 32 && trusted_key {
             return Ok(key);
         }
@@ -1415,5 +1429,20 @@ mod tests {
             !trusted_dir_parts(false, euid, euid, 0o700),
             "not a directory"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn crop_key_owner_check_accepts_root_or_current_user_only() {
+        let euid = rustix::process::geteuid().as_raw();
+        let other = if euid == 1001 { 1002 } else { 1001 };
+        assert!(trusted_key_parts(true, 0, euid, 0o600), "root-owned");
+        assert!(trusted_key_parts(true, euid, euid, 0o600), "service-owned");
+        assert!(trusted_key_parts(true, euid, euid, 0o400), "read-only key");
+        assert!(!trusted_key_parts(true, other, euid, 0o600), "another user");
+        assert!(!trusted_key_parts(true, 0, euid, 0o660), "group write");
+        assert!(!trusted_key_parts(true, euid, euid, 0o606), "other write");
+        assert!(!trusted_key_parts(true, euid, euid, 0o700), "owner execute");
+        assert!(!trusted_key_parts(false, euid, euid, 0o600), "not a file");
     }
 }

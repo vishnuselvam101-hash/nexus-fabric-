@@ -668,6 +668,123 @@ fn crop_ledger_accepts_the_service_owned_dir_and_refuses_redirects() {
     assert!(line.contains("ledger_unreadable"), "{line}");
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn crop_key_is_created_and_reused_by_an_unprivileged_service_user() {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::MetadataExt;
+    use std::os::unix::process::CommandExt;
+
+    // SAFETY: geteuid has no preconditions.
+    let euid = unsafe { libc::geteuid() };
+    assert_eq!(
+        euid, 0,
+        "setuid(nobody) needs root; this test fails rather than silently skipping"
+    );
+
+    let passwd = std::fs::read_to_string("/etc/passwd").unwrap();
+    let entry = passwd
+        .lines()
+        .find(|line| line.starts_with("nobody:"))
+        .unwrap();
+    let mut fields = entry.split(':');
+    assert_eq!(fields.next(), Some("nobody"));
+    assert!(fields.next().is_some(), "password field");
+    let uid: u32 = fields.next().unwrap().parse().unwrap();
+    let gid: u32 = fields.next().unwrap().parse().unwrap();
+    assert_ne!(uid, 0, "nobody must be unprivileged");
+
+    let chown = |path: &Path| {
+        let name = CString::new(path.as_os_str().as_bytes()).unwrap();
+        // SAFETY: `name` is a live NUL-terminated path for the duration of the call.
+        let rc = unsafe { libc::chown(name.as_ptr(), uid, gid) };
+        assert_eq!(rc, 0, "cannot chown {}", path.display());
+    };
+
+    let t = Tmp::new("crop-key-nobody");
+    let job = t.p("job");
+    let ledger = t.p("ledger");
+    std::fs::create_dir_all(&job).unwrap();
+    std::fs::create_dir_all(&ledger).unwrap();
+    for dir in [&job, &ledger] {
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        chown(dir);
+    }
+    let pdf = job.join("scan.pdf");
+    std::fs::copy(fixture_path("scan_g4_small.pdf"), &pdf).unwrap();
+    chown(&pdf);
+    // The worker re-executes /proc/self/exe. Copy the binary out of the root-only source tree so
+    // the unprivileged child can still reach it after setuid.
+    let exe = job.join("nf-raster");
+    std::fs::copy(env!("CARGO_BIN_EXE_nf-raster"), &exe).unwrap();
+    std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    let crop = |png: &str, report: &str| {
+        let mut c = Command::new(&exe);
+        c.args([
+            "crop",
+            "1",
+            "--in",
+            s(&pdf),
+            "--out",
+            s(&job.join(png)),
+            "--report",
+            s(&job.join(report)),
+            "--dpi",
+            "100",
+            "--gray",
+            "--bbox",
+            "10,10,20,20",
+        ])
+        .env("NF_CROP_LEDGER_ROOT", s(&ledger))
+        .env("HOME", s(&job))
+        .stdin(Stdio::null());
+        unsafe {
+            c.pre_exec(|| {
+                // SAFETY: setgid/setuid have no preconditions here; the test already proved euid 0
+                // and a freshly spawned child has no other threads to disturb.
+                if libc::setgid(gid) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                if libc::setuid(uid) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        c.output().unwrap()
+    };
+
+    let key = ledger.join(".key");
+    assert!(!key.exists(), "the ledger must start without a key");
+    let first = crop("first.png", "first.json");
+    assert_eq!(
+        first.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    assert!(key.exists(), "the first crop must create the key");
+    let meta = std::fs::metadata(&key).unwrap();
+    assert_eq!((meta.uid(), meta.mode() & 0o777), (uid, 0o600));
+    let created = std::fs::read(&key).unwrap();
+    assert_eq!(created.len(), 32);
+
+    let second = crop("second.png", "second.json");
+    assert_eq!(
+        second.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&second.stderr)
+    );
+    assert_eq!(
+        std::fs::read(&key).unwrap(),
+        created,
+        "the key must be reused, not replaced"
+    );
+}
+
 #[test]
 fn a_direct_worker_crop_is_refused_without_a_parent_charge() {
     let t = Tmp::new("crop-worker");

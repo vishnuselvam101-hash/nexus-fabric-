@@ -401,17 +401,20 @@ pub fn open_storage(data_dir: &Path, key_path: &Path) -> Result<(Connection, [u8
     // PZ-2: a value that was first stored as a page reading keeps that origin even if a later edit
     // relabels it. Backfill rows written before the column existed, so they cannot escape the gate.
     db.execute("UPDATE order_values SET read_source = source WHERE read_source IS NULL AND source IN ('read', 'drawing', 'table', 'note', 'count')", []).map_err(|e| format!("migration failed (read origin): {e}"))?;
-    // SECURITY-3: a confirmation written before the strict reading gate may have no second read.
-    // Reproducing `StoredCheck`'s strict parse and the page/box checks in SQL would duplicate the
-    // gate and drift from it, so downgrade every read-origin CONFIRMED value conservatively on the
-    // first open after this build. The value stays with its evidence; a person confirms it again
-    // through the gated route. The marker makes this one-time, so later valid checks keep their
-    // confirmation.
+    // SECURITY-3 / REVIEW-4: a confirmation or correction written before the strict reading gate
+    // may have no second read. Reproducing `StoredCheck`'s strict parse and the page/box checks in
+    // SQL would duplicate the gate and drift from it, so downgrade every read-origin CONFIRMED or
+    // CORRECTED value conservatively on the first open after this build. The value stays with its
+    // evidence; a person confirms or corrects it again through the gated route. The marker makes
+    // this one-time, so later valid checks keep their state. Accepted residual: a pre-v9 row that
+    // was already relabeled to a non-read source (for example `source='entered'` and no
+    // `read_source`) is indistinguishable from a legitimate entered value and is out of scope;
+    // widening this to all numeric values would hold legitimate person-entered data.
     let revalidated = meta_get(&db, PZ2_READ_REVALIDATED)
         .map_err(|e| format!("migration failed (read confirmation marker): {e}"))?
         .is_some();
     if !revalidated {
-        db.execute("UPDATE order_values SET state = 'PROPOSED' WHERE state = 'CONFIRMED' AND COALESCE(read_source, source) IN ('read', 'drawing', 'table', 'note', 'count')", [])
+        db.execute("UPDATE order_values SET state = 'PROPOSED' WHERE state IN ('CONFIRMED', 'CORRECTED') AND COALESCE(read_source, source) IN ('read', 'drawing', 'table', 'note', 'count')", [])
             .map_err(|e| format!("migration failed (read confirmation revalidation): {e}"))?;
         meta_set(&db, PZ2_READ_REVALIDATED, "1")
             .map_err(|e| format!("migration failed (read confirmation marker): {e}"))?;

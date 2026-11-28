@@ -2782,10 +2782,13 @@ fn load_compute_input(
                 _ => oc::ValState::Missing,
             };
             let origin = read_source.as_deref().unwrap_or(source);
-            // SECURITY-3: a stored CONFIRMED is not authority for a read value. Reuse the same gate
-            // the write route uses; a damaged, stale or non-agreeing check can only hold the value
-            // as a proposal here. Never let a compute path trust a flag the write route refused.
-            if st == oc::ValState::Confirmed && READ_SOURCES.contains(&origin) {
+            // SECURITY-3 / REVIEW-4: a stored CONFIRMED or CORRECTED is not authority for a read
+            // value. Reuse the same gate the write route uses; a damaged, stale or non-agreeing
+            // check can only hold the value as a proposal here. Never let a compute path trust a
+            // flag the write route refused.
+            if matches!(st, oc::ValState::Confirmed | oc::ValState::Corrected)
+                && READ_SOURCES.contains(&origin)
+            {
                 let gate = reading_gate(&ReadingContext {
                     db,
                     oid,
