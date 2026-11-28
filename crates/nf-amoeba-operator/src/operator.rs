@@ -181,6 +181,20 @@ impl Extensions {
     }
 }
 
+impl<'a> Ctx<'a> {
+    /// A fresh run context: the hands, the manifest, no pages, no units, empty extension slots.
+    pub fn new(hands: &'a mut dyn Hands, manifest: &'a Manifest) -> Ctx<'a> {
+        Ctx {
+            hands,
+            manifest,
+            pages: BTreeMap::new(),
+            units: BTreeMap::new(),
+            ext: Extensions::default(),
+            counter: 0,
+        }
+    }
+}
+
 impl Ctx<'_> {
     fn step(&mut self, kind: &str) -> String {
         self.counter += 1;
@@ -212,7 +226,7 @@ impl Registry {
         r.register("compute", Box::new(tool_compute));
         r
     }
-    fn run(&self, ctx: &mut Ctx<'_>, a: &Action) -> Result<ToolOut, String> {
+    pub fn run(&self, ctx: &mut Ctx<'_>, a: &Action) -> Result<ToolOut, String> {
         match self.tools.get(&a.tool) {
             Some(f) => f(ctx, &a.args),
             None => Err(format!("no tool named '{}'", a.tool)),

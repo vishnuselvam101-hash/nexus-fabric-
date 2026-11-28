@@ -6062,3 +6062,93 @@ async fn auth1_no_secret_reaches_the_audit_log_or_the_plain_database() {
     }
     assert!(auth::os_user_name().map(|n| !n.is_empty()).unwrap_or(true));
 }
+
+// ---------------------------------------------------------------- NF CAD phase 1 (read-only)
+
+async fn send_bytes(t: &T, method: &str, path: &str, body: &[u8], filename: &str, cookie: &str) -> (StatusCode, Value) {
+    let req = HttpRequest::builder()
+        .method(method)
+        .uri(path)
+        .header("x-nf-request", "1")
+        .header("host", "127.0.0.1:8787")
+        .header("cookie", cookie)
+        .header("x-filename", filename)
+        .header("content-type", "application/octet-stream")
+        .body(Body::from(body.to_vec()))
+        .unwrap();
+    let resp = router(t.app.clone()).oneshot(req).await.unwrap();
+    let (parts, b) = resp.into_parts();
+    let bytes = axum::body::to_bytes(b, 64 * 1024 * 1024).await.unwrap().to_vec();
+    (parts.status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+}
+
+const CAD_BASIC: &[u8] = include_bytes!("../../nf-cad/tests/fixtures/basic.dxf");
+
+#[tokio::test]
+async fn cad_open_measure_pick_and_checks_on_an_uploaded_dxf() {
+    let t = boot();
+    let (st, up) = send_bytes(&t, "POST", "/api/projects/1/documents", CAD_BASIC, "basic.dxf", &t.cookie).await;
+    assert_eq!(st, StatusCode::OK, "{up}");
+    let id = up["documents"][0]["id"].as_i64().or(up["id"].as_i64()).unwrap_or(1);
+    let m = t.get(&format!("/api/cad/documents/{id}")).await;
+    assert_eq!(m["units"], "millimeter");
+    assert_eq!(m["entity_count"], 7);
+    assert_eq!(m["entities"][0]["id"], "E0");
+    let meas = t.get(&format!("/api/cad/documents/{id}/measure?kind=length&entity=E0")).await;
+    assert!((meas["values"][0]["value"].as_f64().unwrap() - 5.0).abs() < 1e-9);
+    let pk = t.get(&format!("/api/cad/documents/{id}/pick?at=1.5,2&tol=0.01")).await;
+    assert_eq!(pk["entity"]["id"], "E0");
+    let ck = t.get(&format!("/api/cad/documents/{id}/checks")).await;
+    assert_eq!(ck["rules"].as_array().unwrap().len(), 14);
+    assert_eq!(ck["rules"][0]["rule"], "readable");
+    assert_eq!(ck["rules"][0]["pass"], false);
+    // each open is audited
+    assert!(t.count("SELECT COUNT(*) FROM audit WHERE action = 'cad_open'") >= 1);
+    // bad requests are refused with a reason, not a panic
+    let (st, v) = t.call("GET", &format!("/api/cad/documents/{id}/measure?kind=area&entity=E0"), None).await;
+    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
+    let (st, _) = t.call("GET", &format!("/api/cad/documents/{id}/measure?kind=teleport"), None).await;
+    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY);
+    let (st, _) = t.call("GET", &format!("/api/cad/documents/{id}/pick?at=x"), None).await;
+    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn cad_needs_a_session_and_project_membership() {
+    let t = boot();
+    let (st, _) = send_bytes(&t, "POST", "/api/projects/1/documents", CAD_BASIC, "basic.dxf", &t.cookie).await;
+    assert_eq!(st, StatusCode::OK);
+    let (st, _, _) = t.send("GET", "/api/cad/documents/1", None, &[("cookie", "none=1")]).await;
+    assert_eq!(st, StatusCode::UNAUTHORIZED);
+    let outsider = add_session(&t.app, "outsider", "viewer");
+    let (st, _) = t.call("GET", "/api/cad/documents/1", None).await;
+    assert_eq!(st, StatusCode::OK);
+    let (st, _, _) = t.send("GET", "/api/cad/documents/1", None, &[("cookie", &outsider)]).await;
+    assert_ne!(st, StatusCode::OK, "a user outside the project must not read the drawing");
+    let (st, _, _) = t.send("GET", "/api/cad/documents/999", None, &[]).await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn cad_refuses_malformed_input_without_panic() {
+    let t = boot();
+    let bad: &[u8] = b"0\nSECTION\n2\nENTITIES\n0\nLINE\n10\nnan\n";
+    let (st, up) = send_bytes(&t, "POST", "/api/projects/1/documents", bad, "bad.dxf", &t.cookie).await;
+    assert!(st.is_success() || st.is_client_error(), "{up}");
+    if st == StatusCode::OK {
+        let id = up["documents"][0]["id"].as_i64().or(up["id"].as_i64()).unwrap_or(1);
+        let (st, v) = t.call("GET", &format!("/api/cad/documents/{id}"), None).await;
+        assert!(st.is_client_error(), "malformed DXF must be refused: {v}");
+        assert!(v["code"].is_string());
+    }
+    let (st, _) = t.call("GET", "/api/cad/documents/1/checks", None).await;
+    assert!(st.is_success() || st.is_client_error());
+}
+
+#[test]
+fn cad_reads_stay_outside_the_licence_gate() {
+    use axum::http::Method;
+    for p in ["/api/cad/documents/1", "/api/cad/documents/1/measure", "/api/cad/calculations/1/cut/pick"] {
+        assert!(!crate::licence::gated(&Method::GET, p), "{p} is a read and must stay available on a read-only licence");
+    }
+}
