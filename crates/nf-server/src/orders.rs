@@ -291,6 +291,7 @@ fn rules_fingerprint(db: &Connection, oid: i64) -> Result<String, ApiError> {
         .optional()?
         .ok_or_else(not_found)?;
     let v: Value = serde_json::from_str(&rules).unwrap_or(Value::Null);
+    let v = super::rulepacks::pack_overlay(db, oid, v)?;
     let r = nf_core::order_compute::OrderRules::from_json(&v).map_err(|m| {
         unprocessable(
             "order_rules",
@@ -1685,11 +1686,14 @@ async fn get_order_rules(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i6
     let db = app.db();
     let u = auth_db(&db, &app, &headers)?;
     let head = guard_order(&app, &db, &u, oid, "read order rules")?;
-    let v: Value = serde_json::from_str(&head.rules).unwrap_or(Value::Null);
-    let (v, r) = parse_rules(&v)?;
+    let own: Value = serde_json::from_str(&head.rules).unwrap_or(Value::Null);
+    let (v, _) = parse_rules(&own)?;
+    let effective = super::rulepacks::pack_overlay(&db, oid, own)?;
+    let (_, r) = parse_rules(&effective)?;
     let (_, _, hash) = load_compute_input(&db, oid)?;
     let mut out = rules_view(&v, &r, "order");
     out["parts_hash"] = json!(hash);
+    out["rule_pack"] = super::rulepacks::pack_summary(&db, oid)?;
     ok(out)
 }
 
@@ -1801,6 +1805,7 @@ async fn preview_order(
         )?;
         serde_json::from_str(&raw).unwrap_or(Value::Null)
     };
+    let rules = super::rulepacks::pack_overlay(&app.db(), oid, rules)?;
     // The same review inputs the compute endpoint uses: a preview of an unchanged order must show the
     // exact result that is already persisted, including PZ-1's page and material-table holds.
     let ctx = {
@@ -1863,6 +1868,7 @@ async fn rule_impact_order(
         )?;
         serde_json::from_str(&raw).unwrap_or(Value::Null)
     };
+    let rules_a = super::rulepacks::pack_overlay(&app.db(), oid, rules_a)?;
     let ctx = {
         let db = app.db();
         load_review_context(&db, oid)?
@@ -5022,6 +5028,7 @@ fn load_compute_input(
     if !rules_v.is_object() {
         return Err(corrupt());
     }
+    let rules_v = super::rulepacks::pack_overlay(db, oid, rules_v)?;
     let rules = oc::OrderRules::from_json(&rules_v).map_err(|m| {
         unprocessable(
             "order_rules",

@@ -63,7 +63,7 @@ pub(super) async fn raw_with(
     (parts.status, bytes.to_vec())
 }
 
-async fn new_order(t: &T) -> i64 {
+pub(super) async fn new_order(t: &T) -> i64 {
     let (st, v) = t
         .call(
             "POST",

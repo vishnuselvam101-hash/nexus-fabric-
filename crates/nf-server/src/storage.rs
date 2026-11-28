@@ -56,6 +56,9 @@ CREATE TABLE IF NOT EXISTS operator_state(order_id INTEGER PRIMARY KEY REFERENCE
 CREATE TABLE IF NOT EXISTS order_decisions(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), part_id INTEGER, value_id INTEGER, kind TEXT NOT NULL, flag TEXT, source TEXT NOT NULL, agent TEXT, reason TEXT NOT NULL, against_hash TEXT NOT NULL, prev_state TEXT, decided_by TEXT NOT NULL, decided_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, undo_note TEXT);
 CREATE TABLE IF NOT EXISTS order_material_rows(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, no TEXT NOT NULL, name TEXT NOT NULL, size TEXT NOT NULL, length TEXT NOT NULL, qty REAL, mass REAL, UNIQUE(order_id, page_no, no));
 CREATE TABLE IF NOT EXISTS order_page_notes(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'note', text TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS rule_packs(id INTEGER PRIMARY KEY, name TEXT NOT NULL, version TEXT NOT NULL, pack_json TEXT NOT NULL, sha256 TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS rule_pack_assignments(scope TEXT NOT NULL, target_id INTEGER NOT NULL, pack_id INTEGER NOT NULL REFERENCES rule_packs(id), assigned_by TEXT NOT NULL, assigned_at INTEGER NOT NULL, PRIMARY KEY(scope, target_id));
+CREATE TABLE IF NOT EXISTS rule_confirmations(id INTEGER PRIMARY KEY, pack_id INTEGER NOT NULL REFERENCES rule_packs(id), rule_key TEXT NOT NULL, prev_json TEXT NOT NULL, new_json TEXT NOT NULL, confirmed_by TEXT NOT NULL, confirmed_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER);
 ";
 
 /// Columns added after the first schema. Each is added only if absent, and a
