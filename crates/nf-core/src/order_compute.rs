@@ -31,6 +31,7 @@ use crate::bend::{self, BendSpec, SeamFrom};
 use crate::conebranch::{self, ConeBranchSpec, ThicknessConvention};
 use crate::order::{self, CylParams, Hold, Level, PlateParams, RibGeo, RibParams, TableRow};
 use crate::shapes::{self, Basis, ConeSpec, RingSpec, ShapeRefusal, Stock};
+pub use crate::tee::CurveDecl;
 use crate::tee::{
     self, BranchOnMain, BranchPieceSpec, Mount, TeeMainSpec, TeeSeamFrom, signed_offset,
 };
@@ -492,6 +493,9 @@ pub struct PatternPiece {
     pub holes: Vec<Vec<[f64; 2]>>,
     /// Circular holes: centre x, centre y, radius.
     pub circles: Vec<[f64; 3]>,
+    /// L11: exact definitions (drawing parameters) of the certified drawn curves of this piece. Empty for a piece
+    /// whose representation is not certified.
+    pub curves: Vec<CurveDecl>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -2390,6 +2394,25 @@ fn compute_tee_group(
                     .iter()
                     .map(|hi| t_res.holes[*hi].pts.clone())
                     .collect();
+                if t_res.certified && t_res.holes.iter().all(|h| h.exact.is_some()) {
+                    pc.curves.push(CurveDecl {
+                        on_hole: false,
+                        index: 0,
+                        kind: "rect",
+                        params: vec![
+                            ("main_d", w.num("D").unwrap_or(0.0)),
+                            ("main_t", tt),
+                            ("seams", f64::from(t_res.seams_n)),
+                            ("l", t_res.l),
+                        ],
+                    });
+                    for (j, hi) in pl.holes.iter().enumerate() {
+                        if let Some(mut d) = t_res.holes[*hi].exact.clone() {
+                            d.index = j;
+                            pc.curves.push(d);
+                        }
+                    }
+                }
                 r.pattern.push(pc);
             }
             r.eps_rep = t_res
@@ -2471,6 +2494,7 @@ fn compute_tee_group(
                                 1,
                             );
                             pc.outline = open(bp.outline.clone());
+                            pc.curves.extend(bp.exact.clone());
                             r.pattern.push(pc);
                             for f in &bp.flags {
                                 // BranchPieceResult.flags are advisory in nf-core: here they are holds
@@ -2543,6 +2567,7 @@ fn compute_tee_group(
                                     );
                                     pc.outline = open(p.outline.clone());
                                     pc.holes = vec![open(p.hole.clone())];
+                                    pc.curves = p.exact.clone();
                                     r.pattern.push(pc);
                                 } else {
                                     for (k, pp) in p.pieces.iter().enumerate() {

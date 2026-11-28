@@ -153,6 +153,18 @@ pub const TEE_REFUSAL_CODES: [&str; 18] = [
 /// Codes that are not in the list above but are raised by the shared numerics.
 pub const TEE_EXTRA_REFUSAL_CODES: [&str; 2] = ["tee_area_not_converged", "tee_result_not_finite"];
 
+/// Exact definition of one certified drawn curve: the drawing parameters an independent checker needs to rebuild
+/// the curve in plate coordinates (serialized with the pattern piece, read by nf-digest).
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CurveDecl {
+    /// A hole of the piece (true) or its outline (false), by position in the drawn file.
+    pub on_hole: bool,
+    pub index: usize,
+    /// `rect`, `tee_hole`, `tee_cut`, `pad_hole` or `pad_circle`.
+    pub kind: &'static str,
+    pub params: Vec<(&'static str, f64)>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mount {
     /// Branch rests on the main (rule default).
@@ -922,6 +934,8 @@ fn sagitta_estimate(f: &dyn Fn(f64) -> [f64; 2], n: usize) -> f64 {
 #[derive(Debug, Clone, PartialEq)]
 pub struct HoleOut {
     pub name: String,
+    /// Exact definition of the drawn outline; present only when its representation bound is certified.
+    pub exact: Option<CurveDecl>,
     /// Plate index (0-based) holding the hole.
     pub plate: usize,
     /// Closed polygon in plate coordinates (`u`, axial `x`), without repeating the first vertex.
@@ -1035,6 +1049,8 @@ pub struct BranchMark {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BranchPieceResult {
+    /// Exact definition of the drawn cut line; present only when its representation bound is certified.
+    pub exact: Option<CurveDecl>,
     /// Circumference at the mid surface.
     pub circ: f64,
     pub marks: Vec<BranchMark>,
@@ -1313,7 +1329,22 @@ pub fn branch_piece(s: &BranchPieceSpec) -> Result<BranchPieceResult, ShapeRefus
     let cut_eps = cut_certified.unwrap_or_else(|| {
         sagitta_estimate(&|th| [w * (th - th0) / (2.0 * PI), len_at(th)], poly_n)
     });
+    let exact = cut_certified.map(|_| CurveDecl {
+        on_hole: false,
+        index: 0,
+        kind: "tee_cut",
+        params: vec![
+            ("main_d", s.main_d),
+            ("main_t", s.main_t),
+            ("set_in", if s.mount == Mount::SetIn { 1.0 } else { 0.0 }),
+            ("branch_d", s.d),
+            ("branch_t", s.t),
+            ("e", s.e),
+            ("h", s.h),
+        ],
+    });
     let res = BranchPieceResult {
+        exact,
         circ: w,
         marks,
         cut_length: polyline_len(&cut, false),
@@ -1524,7 +1555,7 @@ pub fn tee_main(s: &TeeMainSpec) -> Result<TeeMainResult, ShapeRefusal> {
         if x > 180.0 + 1e-9 { x - 360.0 } else { x }
     };
     let mut holes = Vec::new();
-    for h in &hs {
+    for (bi, h) in hs.iter().enumerate() {
         let off = mod_p(h.kc - ah, 2.0 * PI);
         let jj = (n - 1).min((off / step).floor() as usize);
         let left = ah + step * jj as f64;
@@ -1573,7 +1604,24 @@ pub fn tee_main(s: &TeeMainSpec) -> Result<TeeMainResult, ShapeRefusal> {
             }
         };
         let from = deg(h.lo);
+        let exact = certified.map(|_| CurveDecl {
+            on_hole: true,
+            index: 0,
+            kind: "tee_hole",
+            params: vec![
+                ("main_d", s.d),
+                ("main_t", s.t),
+                ("set_in", if s.mount == Mount::SetIn { 1.0 } else { 0.0 }),
+                ("branch_d", s.branches[bi].d),
+                ("branch_t", s.branches[bi].t),
+                ("e", h.e),
+                ("x0", h.x0),
+                // plate angle of the branch axis from the left edge of its plate strip: u = rm (plate_dir + asin(..))
+                ("plate_dir", u(h.c) / rm - clamp1(h.e / h.ri_main).asin()),
+            ],
+        });
         holes.push(HoleOut {
+            exact,
             name: h.name.clone(),
             plate: jj,
             marks: h.marks.iter().map(|m| [u(m.0), m.1]).collect(),

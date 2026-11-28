@@ -10,8 +10,11 @@
 //! Tolerance (E4 v3): tol = max(1e-9 x M, min(0.001 mm, 1e-6 x M)), M = the part's bounding-box diagonal, for
 //! positions, lengths, radii, joins and segments alike. Every finding that uses it reports the measured value and tol in mm.
 
+pub mod exact;
 pub mod geom;
 pub mod reader;
+
+pub use exact::ExactDecl;
 
 use geom::{
     Piece, bbox_of, contours, crossings, diagonal, duplicates, inside, loop_area, pieces, tolerance,
@@ -90,6 +93,9 @@ pub struct Reference {
     pub eps_rep: Option<f64>,
     /// The pattern's own certification statement for that bound. None or false means not certified.
     pub eps_rep_certified: Option<bool>,
+    /// L11: the exact definition of every certified drawn curve (drawing parameters). When present, the digest
+    /// recomputes each curve itself and every declared polyline curve needs an entry. None: no such claim is made.
+    pub exact: Option<Vec<ExactDecl>>,
 }
 
 #[derive(Clone, Debug)]
@@ -237,6 +243,7 @@ pub fn check_text(text: &str, reference: &Reference) -> Report {
         nf_metadata(&parsed),
         representation_certified(reference),
     ];
+    checks.extend(exact_recompute(&parsed, reference));
     let finite = parsed.nonfinite.is_empty();
     let geometry_skip = |name: &'static str| {
         check(
@@ -604,6 +611,80 @@ fn representation_certified(r: &Reference) -> Check {
             bad.join("; ")
         },
     )
+}
+
+/// L11: the drawn polylines of a certified part are recomputed from the declared drawing parameters, with the
+/// digest's own closed-form curves. FAIL when a drawn curve is not the declared curve or is further from it than
+/// the cap or the declared bound; INCONCLUSIVE when a declared polyline has no exact definition or cannot be judged.
+fn exact_recompute(parsed: &Parsed, r: &Reference) -> Option<Check> {
+    let decls = r.exact.as_ref()?;
+    let polys = |layer: &str| -> Vec<&Vec<reader::P>> {
+        parsed
+            .ents
+            .iter()
+            .filter_map(|e| match e {
+                Ent::Poly { layer: l, pts, .. } if l == layer => Some(pts),
+                _ => None,
+            })
+            .collect()
+    };
+    let (outer, inner) = (polys(OUTER_LAYER), polys(INNER_LAYER));
+    let (mut fails, mut holds) = (Vec::new(), Vec::new());
+    let (mut bound, mut measured, mut done) = (0.0f64, 0.0f64, 0usize);
+    for (on_hole, curves) in [(false, &r.outer), (true, &r.holes)] {
+        for (i, c) in curves.iter().enumerate() {
+            if c.eps_rep.is_none() {
+                continue;
+            }
+            let Some(d) = decls.iter().find(|d| d.on_hole == on_hole && d.index == i) else {
+                holds.push(format!(
+                    "{} {i} is declared as a drawn polyline without an exact definition",
+                    if on_hole { "hole" } else { "outline" }
+                ));
+                continue;
+            };
+            let set = if on_hole { &inner } else { &outer };
+            let Some(pts) = set.get(i) else {
+                fails.push(format!(
+                    "{} {i} is not in the file",
+                    if on_hole { "hole" } else { "outline" }
+                ));
+                continue;
+            };
+            let eps = c.eps_rep.or(r.eps_rep).unwrap_or(0.0);
+            match exact::check_curve(d, pts, eps) {
+                Ok(o) => {
+                    bound = bound.max(o.bound);
+                    measured = measured.max(o.measured);
+                    done += 1;
+                }
+                Err(p) if p.fail => fails.push(p.why),
+                Err(p) => holds.push(p.why),
+            }
+        }
+    }
+    fails.dedup();
+    holds.dedup();
+    let (verdict, detail) = if !fails.is_empty() {
+        (Verdict::Fail, fails.join("; "))
+    } else if !holds.is_empty() {
+        (Verdict::Inconclusive, holds.join("; "))
+    } else {
+        (
+            Verdict::Pass,
+            format!(
+                "{done} curve(s) recomputed from the drawing parameters: proved within {bound:.6} mm, largest sampled {measured:.6} mm"
+            ),
+        )
+    };
+    Some(check(
+        "exact_recompute",
+        verdict,
+        Some(bound),
+        Some(EPS_REP_CAP_MM),
+        None,
+        detail,
+    ))
 }
 
 fn geometry(

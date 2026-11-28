@@ -61,6 +61,7 @@ pub fn reference(part: &str, pattern: Option<&PatternView>) -> Reference {
                 eps_rep: (p.eps_rep > 0.0).then_some(p.eps_rep),
                 // no drawn-polyline bound means the certification statement does not apply to this reference
                 eps_rep_certified: (p.eps_rep > 0.0).then_some(certified),
+                exact: None,
             }
         }
         None => Reference {
@@ -69,6 +70,7 @@ pub fn reference(part: &str, pattern: Option<&PatternView>) -> Reference {
             holes: Vec::new(),
             eps_rep: None,
             eps_rep_certified: Some(false),
+            exact: None,
         },
     }
 }
@@ -101,7 +103,19 @@ pub fn reference_for_piece(part: &PartResult, piece: &PatternPiece) -> Reference
     };
     let mut outer = Vec::new();
     if !piece.outline.is_empty() {
-        outer.push(polyline(&piece.outline));
+        let mut c = polyline(&piece.outline);
+        // a plate rectangle is exact (straight edges): the digest checks it against the drawing parameters
+        if certified
+            && piece
+                .curves
+                .iter()
+                .any(|d| !d.on_hole && d.index == 0 && d.kind == "rect")
+        {
+            c.max_dev = 0.0;
+            c.eps_rep = None;
+            c.eps_rep_certified = None;
+        }
+        outer.push(c);
     }
     let mut holes: Vec<RefCurve> = piece
         .holes
@@ -137,6 +151,19 @@ pub fn reference_for_piece(part: &PartResult, piece: &PatternPiece) -> Reference
         eps_rep: bound,
         // the engine statement is carried even without a drawn-polyline bound: a withheld shape holds its DXF
         eps_rep_certified: Some(certified),
+        // a certified piece carries the exact definition of its curves; the digest recomputes them itself
+        exact: certified.then(|| {
+            piece
+                .curves
+                .iter()
+                .map(|d| nf_digest::ExactDecl {
+                    on_hole: d.on_hole,
+                    index: d.index,
+                    kind: d.kind.to_string(),
+                    params: d.params.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
+                })
+                .collect()
+        }),
     }
 }
 
@@ -585,7 +612,14 @@ mod tests {
         assert_eq!(r.eps_rep, p.eps_rep);
         assert_eq!(r.eps_rep_certified, Some(true));
         assert!(!r.outer.is_empty());
-        assert!(r.outer.iter().all(|c| c.eps_rep_certified == Some(true)));
+        // the plate rectangle is exact and checked against the drawing parameters, not by a chord bound
+        assert!(
+            r.outer
+                .iter()
+                .all(|c| c.eps_rep.is_none() || c.eps_rep_certified == Some(true))
+        );
+        assert!(r.holes.iter().all(|c| c.eps_rep_certified == Some(true)));
+        assert!(piece.curves.iter().any(|d| d.kind == "tee_hole"));
     }
 
     #[test]
@@ -630,5 +664,200 @@ mod tests {
             export["reasons"],
             json!(["held: part P1: amoeba_digest_failed"])
         );
+    }
+
+    fn tee_order(extra: Vec<PartIn>) -> nf_core::order_compute::OrderResult {
+        let mut parts = vec![
+            PartIn::new("T1", "tee_main")
+                .v("D", 1016.0)
+                .v("t", 12.0)
+                .v("L", 2000.0)
+                .v("branch_D", 508.0)
+                .v("branch_t", 9.0)
+                .v("branch_x", 1000.0)
+                .v("dir", 0.0),
+        ];
+        parts.extend(extra);
+        compute_order(&parts, &OrderRules::default())
+    }
+
+    fn digest_of(res: &nf_core::order_compute::OrderResult, no: &str) -> nf_digest::Report {
+        let p = res.parts.iter().find(|p| p.no == no).expect("part");
+        let text = p.dxf.clone().expect("certified part has a DXF");
+        nf_digest::check_text(&text, &reference_for_piece(p, &p.pattern[0]))
+    }
+
+    fn exact_check(r: &nf_digest::Report) -> &nf_digest::Check {
+        r.checks
+            .iter()
+            .find(|c| c.name == "exact_recompute")
+            .expect("exact_recompute check present")
+    }
+
+    /// Move one vertex of the n-th polyline on `layer` and write the file again.
+    fn tamper(text: &str, layer_name: &str, n: usize, vertex: usize, dx: f64, dy: f64) -> String {
+        let (mut ents, _) = nf_dxf::read(text).expect("read back");
+        let mut k = 0;
+        for e in ents.iter_mut() {
+            if let nf_dxf::Entity::Polyline { layer, pts, .. } = e
+                && layer == layer_name
+            {
+                if k == n {
+                    pts[vertex].0 += dx;
+                    pts[vertex].1 += dy;
+                }
+                k += 1;
+            }
+        }
+        nf_dxf::write_stated(&ents, &[], &[], &[])
+    }
+
+    #[test]
+    fn the_digest_recomputes_a_certified_tee_hole_and_a_moved_hole_vertex_fails() {
+        let res = tee_order(vec![]);
+        let r = digest_of(&res, "T1");
+        assert_eq!(r.verdict(), nf_digest::Verdict::Pass, "{:?}", r.checks);
+        let c = exact_check(&r);
+        assert_eq!(c.verdict, nf_digest::Verdict::Pass, "{}", c.detail);
+        assert!(c.measured.is_some_and(|b| b > 0.0 && b <= 0.05), "{c:?}");
+        let p = &res.parts[0];
+        let text = p.dxf.as_deref().expect("dxf");
+        let bad = tamper(text, "CUT_INNER", 0, 7, 0.0, 0.1);
+        let rep = nf_digest::check_text(&bad, &reference_for_piece(p, &p.pattern[0]));
+        assert_eq!(
+            exact_check(&rep).verdict,
+            nf_digest::Verdict::Fail,
+            "{:?}",
+            rep.checks
+        );
+        assert_eq!(rep.verdict(), nf_digest::Verdict::Fail);
+    }
+
+    #[test]
+    fn an_altered_branch_radius_in_the_definition_fails_the_recompute() {
+        let res = tee_order(vec![]);
+        let p = &res.parts[0];
+        let text = p.dxf.as_deref().expect("dxf");
+        let mut reference = reference_for_piece(p, &p.pattern[0]);
+        let exact = reference
+            .exact
+            .as_mut()
+            .expect("certified piece carries the exact definition");
+        let hole = exact
+            .iter_mut()
+            .find(|d| d.kind == "tee_hole")
+            .expect("hole");
+        for (k, v) in hole.params.iter_mut() {
+            if k == "branch_d" {
+                *v += 0.4; // branch radius + 0.2 mm
+            }
+        }
+        let rep = nf_digest::check_text(text, &reference);
+        assert_eq!(
+            exact_check(&rep).verdict,
+            nf_digest::Verdict::Fail,
+            "{:?}",
+            rep.checks
+        );
+        // dropping the definition of a declared polyline is not a pass either
+        let mut none = reference_for_piece(p, &p.pattern[0]);
+        none.exact = Some(vec![]);
+        let rep = nf_digest::check_text(text, &none);
+        assert_eq!(exact_check(&rep).verdict, nf_digest::Verdict::Inconclusive);
+    }
+
+    #[test]
+    fn the_digest_recomputes_a_certified_branch_cut_for_offsets_zero_and_minus_thirty() {
+        for e in [0.0, -30.0] {
+            let mut tee = PartIn::new("T1", "tee_main")
+                .v("D", 1016.0)
+                .v("t", 12.0)
+                .v("L", 2000.0)
+                .v("branch_D", 508.0)
+                .v("branch_t", 9.0)
+                .v("branch_x", 1000.0)
+                .v("dir", 0.0);
+            let mut br = PartIn::new("T1b", "tee_branch")
+                .v("D", 508.0)
+                .v("t", 9.0)
+                .v("H", 600.0)
+                .attached("T1");
+            if e != 0.0 {
+                tee = tee.v("e", e);
+                br = br.v("e", e);
+            }
+            let res = compute_order(&[tee, br], &OrderRules::default());
+            let b = res.parts.iter().find(|p| p.no == "T1b").expect("branch");
+            if b.dxf.is_none() {
+                assert!(
+                    e != 0.0,
+                    "the zero-offset branch must have a DXF: {:?}",
+                    b.dxf_blocked_by
+                );
+                continue;
+            }
+            let r = digest_of(&res, "T1b");
+            assert_eq!(
+                r.verdict(),
+                nf_digest::Verdict::Pass,
+                "e={e}: {:?}",
+                r.checks
+            );
+            assert_eq!(exact_check(&r).verdict, nf_digest::Verdict::Pass);
+            let text = b.dxf.as_deref().expect("dxf");
+            let bad = tamper(text, "CUT_OUTER", 0, 20, 0.0, 0.1);
+            let rep = nf_digest::check_text(&bad, &reference_for_piece(b, &b.pattern[0]));
+            assert_eq!(exact_check(&rep).verdict, nf_digest::Verdict::Fail, "e={e}");
+        }
+    }
+
+    #[test]
+    fn the_digest_recomputes_a_certified_circular_pad_and_an_uncertified_family_never_gets_a_definition()
+     {
+        let pad = PartIn::new("T1p", "tee_pad")
+            .v("t", 9.0)
+            .v("pad_D", 700.0)
+            .attached("T1");
+        let res = tee_order(vec![pad]);
+        let p = res.parts.iter().find(|p| p.no == "T1p").expect("pad");
+        assert!(p.certified && p.dxf.is_some(), "{:?}", p.dxf_blocked_by);
+        let r = digest_of(&res, "T1p");
+        assert_eq!(r.verdict(), nf_digest::Verdict::Pass, "{:?}", r.checks);
+        assert_eq!(exact_check(&r).verdict, nf_digest::Verdict::Pass);
+        let text = p.dxf.as_deref().expect("dxf");
+        for (layer, n) in [("CUT_OUTER", 0), ("CUT_INNER", 0)] {
+            let bad = tamper(text, layer, n, 5, 0.0, 0.1);
+            let rep = nf_digest::check_text(&bad, &reference_for_piece(p, &p.pattern[0]));
+            assert_eq!(
+                exact_check(&rep).verdict,
+                nf_digest::Verdict::Fail,
+                "{layer}"
+            );
+        }
+        // a width pad is not recomputed by the digest: not certified, no DXF
+        let wide = tee_order(vec![
+            PartIn::new("T1p", "tee_pad")
+                .v("t", 9.0)
+                .v("pad_B", 100.0)
+                .attached("T1"),
+        ]);
+        let w = wide.parts.iter().find(|p| p.no == "T1p").expect("pad");
+        assert!(w.dxf.is_none() && w.pattern.iter().all(|pc| pc.curves.is_empty()));
+        // a reducing bend is not certified: nothing is declared and no file reaches the digest
+        let bend = compute_order(
+            &[PartIn::new("B1", "miter_bend")
+                .v("D", 1016.0)
+                .v("t", 12.0)
+                .v("R", 1500.0)
+                .v("angle", 90.0)
+                .v("joints", 2.0)
+                .v("start_straight", 300.0)
+                .v("end_straight", 300.0)],
+            &OrderRules::default(),
+        );
+        let b = &bend.parts[0];
+        assert!(!b.certified && b.dxf.is_none());
+        assert!(b.pattern.iter().all(|pc| pc.curves.is_empty()));
+        assert!(reference_for_piece(b, &b.pattern[0]).exact.is_none());
     }
 }

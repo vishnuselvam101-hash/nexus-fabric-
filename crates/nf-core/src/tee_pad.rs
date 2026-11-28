@@ -130,6 +130,8 @@ pub struct PadPiece {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PadResult {
+    /// Exact definitions of the drawn hole and outline; empty unless the representation is certified.
+    pub exact: Vec<crate::tee::CurveDecl>,
     /// Outline polyline (closed, first point repeated) and the hole ring (open). Same number of points.
     pub outline: Vec<[f64; 2]>,
     pub hole: Vec<[f64; 2]>,
@@ -646,9 +648,9 @@ pub fn pad(s: &PadSpec) -> Result<PadResult, ShapeRefusal> {
             // The outline is the offset of the drawn hole polyline, so the hole's chord error and the
             // corner arc's own chord error add; taking the maximum would understate the total.
             eps = eps_hole + arc_bound;
-            if eps > L11_MAX_CHORD_ERROR_MM {
-                eps_certified = false;
-            }
+            // The offset outline has no independent recompute in nf-digest: it is not certified, so no cut
+            // file is served for it.
+            eps_certified = false;
         }
     }
     // the hole must lie inside the outline (a plan-view circle can fail to enclose a long lateral hole)
@@ -684,6 +686,33 @@ pub fn pad(s: &PadSpec) -> Result<PadResult, ShapeRefusal> {
             "pad area is not a finite positive number",
         ));
     }
+    let exact = if eps_certified && !thick {
+        let base = vec![
+            ("main_d", s.main_d),
+            ("t", s.t),
+            ("branch_d", s.d),
+            ("e", e),
+        ];
+        let mut v = vec![crate::tee::CurveDecl {
+            on_hole: true,
+            index: 0,
+            kind: "pad_hole",
+            params: base.clone(),
+        }];
+        if let PadOutline::Circle(dp) = s.outline {
+            let mut params = base;
+            params.push(("dp", dp));
+            v.push(crate::tee::CurveDecl {
+                on_hole: false,
+                index: 0,
+                kind: "pad_circle",
+                params,
+            });
+        }
+        v
+    } else {
+        Vec::new()
+    };
     let mut res = PadResult {
         outline: pts,
         hole: inn.clone(),
@@ -703,6 +732,7 @@ pub fn pad(s: &PadSpec) -> Result<PadResult, ShapeRefusal> {
         center: [rp * clamp1(e / ro_main).asin(), xs],
         pieces_mass_kg: mass,
         gross_box_mass_kg: mass_kg(w * h, s.t),
+        exact,
         eps_rep: eps,
         eps_rep_certified: eps_certified,
         certified: eps_certified && eps <= L11_MAX_CHORD_ERROR_MM,
