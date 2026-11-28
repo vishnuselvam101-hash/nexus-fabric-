@@ -15,6 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 nf-core = { version = "0.1.0", path = "../nf-core" }
+uem = { path = "../uem" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
 sha2 = "0.11.1"

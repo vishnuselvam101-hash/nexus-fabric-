@@ -20,6 +20,11 @@ pub fn derive(name: &str, i: &Inputs) -> Option<f64> {
         "slot_overall" => g("slot_c")? + g("slot_w")?,
         // 2:1 ellipsoidal head: height = D / (2 * ratio) with ratio 2
         "head_height" => g("od")? / (2.0 * g("ratio")?),
+        // depth of a spherical-cap head of crown radius rc_ratio*od (torispherical head approximated as a cap, knuckle omitted)
+        "head_depth" => {
+            let rc = g("rc_ratio")? * g("od")?;
+            rc - (rc * rc - (g("od")? / 2.0).powi(2)).sqrt()
+        }
         "tank_length" => g("l")? + 2.0 * g("od")? / (2.0 * g("ratio")?),
         // centreline length of a bend of centreline radius r over theta degrees
         "arc_length" => g("r")? * g("theta")?.to_radians(),
@@ -43,7 +48,13 @@ pub fn derive(name: &str, i: &Inputs) -> Option<f64> {
 
 fn bend_allow(i: &Inputs) -> Option<f64> {
     let g = |k: &str| i.get(k).copied();
-    Some(g("theta")?.to_radians() * (g("r")? + K_FACTOR * g("t")?))
+    // NF engine math: uem::bend_allowance(theta [rad], inner radius, K, thickness)
+    Some(uem::bend_allowance(
+        g("theta")?.to_radians(),
+        g("r")?,
+        K_FACTOR,
+        g("t")?,
+    ))
 }
 
 #[cfg(test)]

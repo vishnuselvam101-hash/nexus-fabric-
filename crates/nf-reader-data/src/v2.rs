@@ -860,6 +860,8 @@ fn duct_transition(c: &mut Ctx) {
     for (k, v) in [("A", a), ("B", b), ("D", dd), ("H", h)] {
         c.set(k, v);
     }
+    let u = c.u;
+    // view 0: plan (rectangle A x B with the round end D)
     c.shape = "plan".into();
     c.fit(c.cell(0), [-a / 2.0, -b / 2.0, a / 2.0, b / 2.0]);
     c.outline(
@@ -877,7 +879,6 @@ fn duct_transition(c: &mut Ctx) {
     let (x1, _) = c.px(a / 2.0, -b / 2.0);
     let (xr, yb0) = c.px(a / 2.0, -b / 2.0);
     let (_, yb1) = c.px(a / 2.0, b / 2.0);
-    let u = c.u;
     c.dim_h(x0, x1, y0, 42.0 * u, a, sp("A"), "", None);
     c.dim_v(xr, yb0, yb1, 42.0 * u, b, sp("B"), "", None);
     let s45 = std::f64::consts::FRAC_1_SQRT_2;
@@ -888,14 +889,20 @@ fn duct_transition(c: &mut Ctx) {
         px_,
         py_,
         "P=",
-        2.0 * (a + b),
+        dv("rect_perimeter", &[("a", a), ("b", b)]),
         "mm",
         der("rect_perimeter", &[("a", a), ("b", b)]),
         "dimension",
     );
-    c.shape = "elevation".into();
+    // view 1 (top half of the right cell): front elevation, width A at the rectangular end
     let big = a.max(dd);
-    c.fit(c.cell(1), [-big / 2.0, 0.0, big / 2.0, h]);
+    let right = c.cell(1);
+    let mid = (right[1] + right[3]) / 2.0;
+    c.shape = "front".into();
+    c.fit(
+        [right[0], right[1], right[2], mid],
+        [-big / 2.0, 0.0, big / 2.0, h],
+    );
     c.outline(
         &[
             (-a / 2.0, 0.0),
@@ -909,50 +916,123 @@ fn duct_transition(c: &mut Ctx) {
     let (xe, y0e) = c.px(big / 2.0, 0.0);
     let (_, yhe) = c.px(big / 2.0, h);
     c.dim_v(xe, y0e, yhe, 42.0 * u, h, sp("H"), "", None);
+    // view 2 (bottom half): side elevation, width B at the rectangular end
+    let bigs = b.max(dd);
+    c.shape = "side".into();
+    c.fit(
+        [right[0], mid, right[2], right[3]],
+        [-bigs / 2.0, 0.0, bigs / 2.0, h],
+    );
+    c.outline(
+        &[
+            (-b / 2.0, 0.0),
+            (b / 2.0, 0.0),
+            (dd / 2.0, h),
+            (-dd / 2.0, h),
+        ],
+        "none",
+    );
+    c.shape = "dims".into();
+    let (sx0, sy0) = c.px(-b / 2.0, 0.0);
+    let (sx1, _) = c.px(b / 2.0, 0.0);
+    c.dim_h(sx0, sx1, sy0, 42.0 * u, b, sp("B"), "", None);
+    let (sxe, sy0e) = c.px(bigs / 2.0, 0.0);
+    let (_, syhe) = c.px(bigs / 2.0, h);
+    c.dim_v(sxe, sy0e, syhe, 42.0 * u, h, sp("H"), "", None);
 }
 
 fn tank_shell(c: &mut Ctx) {
     let d = stepd(&mut c.r, 300.0, 1200.0, 10.0);
     let l = stepd(&mut c.r, 600.0, 2400.0, 10.0);
-    let nd = *c.r.pick(&[50.0, 80.0, 100.0, 150.0]);
+    let nd: f64 = *c.r.pick(&[50.0, 80.0, 100.0, 150.0]);
+    let pad_od = (nd * 1.8).floor();
+    let pad_t = *c.r.pick(&[8.0, 10.0, 12.0]);
     let nx = stepd(
         &mut c.r,
         (0.2 * l / 10.0).ceil() * 10.0,
         (0.8 * l / 10.0).floor() * 10.0,
         10.0,
     );
-    let h = d / 4.0;
+    let head = c.r.int(0, 2); // 0 ellipsoidal 2:1, 1 torispherical (crown D, spherical-cap approximation), 2 hemispherical
+    let rr = d / 2.0;
+    // head depth per type: the closed form the truth line re-derives (see derive.rs)
+    let (h, hsrc) = match head {
+        0 => (
+            dv("head_height", &[("od", d), ("ratio", 2.0)]),
+            der("head_height", &[("od", d), ("ratio", 2.0)]),
+        ),
+        1 => (
+            dv("head_depth", &[("od", d), ("rc_ratio", 1.0)]),
+            der("head_depth", &[("od", d), ("rc_ratio", 1.0)]),
+        ),
+        _ => (
+            dv("head_depth", &[("od", d), ("rc_ratio", 0.5)]),
+            der("head_depth", &[("od", d), ("rc_ratio", 0.5)]),
+        ),
+    };
+    let rc = match head {
+        1 => d,
+        _ => d / 2.0,
+    };
     for (k, v) in [
         ("D", d),
         ("L", l),
         ("nozzle_d", nd),
         ("nozzle_x", nx),
-        ("ratio", 2.0),
+        ("pad_od", pad_od),
+        ("pad_t", pad_t),
+        ("head_type", head as f64),
     ] {
         c.set(k, v);
     }
-    let rr = d / 2.0;
+    let top = rr + 0.8 * nd + pad_t;
+    // side view: head outlines, straight shell between tangent lines x = 0 and x = l
     let mut pts = vec![];
-    for k in 0..=16 {
-        let f = -90.0 + 180.0 * k as f64 / 16.0;
-        pts.push((-h * f.to_radians().cos(), rr * f.to_radians().sin()));
-    }
-    for k in 0..=16 {
-        let f = 90.0 - 180.0 * k as f64 / 16.0;
-        pts.push((l + h * f.to_radians().cos(), rr * f.to_radians().sin()));
-    }
-    let top = rr + 0.8 * nd;
+    let head_pts = |c: &mut Ctx, left: bool| -> Vec<(f64, f64)> {
+        let _ = c;
+        let mut v = vec![];
+        if head == 0 {
+            for k in 0..=16 {
+                let f = -90.0 + 180.0 * k as f64 / 16.0;
+                let (x, y) = (-h * f.to_radians().cos(), rr * f.to_radians().sin());
+                v.push(if left { (x, y) } else { (l - x, y) });
+            }
+        } else {
+            let th = (rr / rc).asin();
+            for k in 0..=16 {
+                let f = -th + 2.0 * th * k as f64 / 16.0;
+                let x = -h + rc - rc * f.cos();
+                let y = rc * f.sin();
+                v.push(if left { (x, y) } else { (l - x, y) });
+            }
+        }
+        v
+    };
+    pts.extend(head_pts(c, true));
+    let mut right = head_pts(c, false);
+    right.reverse();
+    pts.extend(right);
     let bb = [-h, -rr, l + h, top];
     c.shape = "shell".into();
-    c.fit(c.cell(2), bb);
+    c.fit(c.cell(0), bb);
     c.outline(&pts, "none");
+    c.shape = "head".into();
+    c.outline(
+        &[
+            (-pad_od / 2.0 + nx, rr),
+            (nx - pad_od / 2.0, rr + pad_t),
+            (nx + pad_od / 2.0, rr + pad_t),
+            (nx + pad_od / 2.0, rr),
+        ],
+        "none",
+    );
     c.shape = "nozzle".into();
     c.outline(
         &[
-            (nx - nd / 2.0, rr),
+            (nx - nd / 2.0, rr + pad_t),
             (nx - nd / 2.0, top),
             (nx + nd / 2.0, top),
-            (nx + nd / 2.0, rr),
+            (nx + nd / 2.0, rr + pad_t),
         ],
         "none",
     );
@@ -960,23 +1040,40 @@ fn tank_shell(c: &mut Ctx) {
     let (lx, ly) = c.px(0.0, -rr);
     let (rx, _) = c.px(l, -rr);
     let u = c.u;
-    c.dim_h(lx, rx, ly, 42.0 * u, l, sp("L"), "", None);
+    let tl = c.tol(l);
+    c.dim_h(lx, rx, ly, 42.0 * u, l, sp("L"), "", tl);
     let (nxp, _) = c.px(nx, -rr);
     c.dim_h(lx, nxp, ly, 84.0 * u, nx, sp("nozzle_x"), "", None);
     let (dx, dy) = c.px(l * 0.3, rr);
     c.leader(dx, dy, "\u{00D8}", d, "mm", sp("D"), "dimension");
     let (nx2, ny2) = c.px(nx + nd / 2.0, top);
     c.leader(nx2, ny2, "\u{00D8}", nd, "mm", sp("nozzle_d"), "dimension");
-    let (hx, hy) = c.px(l + h * 0.5, -rr * 0.5);
+    let (px2, py2) = c.px(nx + pad_od / 2.0, rr + pad_t);
     c.leader(
-        hx,
-        hy,
-        "h=",
-        dv("head_height", &[("od", d), ("ratio", 2.0)]),
+        px2,
+        py2,
+        "\u{00D8}",
+        pad_od,
         "mm",
-        der("head_height", &[("od", d), ("ratio", 2.0)]),
+        sp("pad_od"),
         "dimension",
     );
+    let (hx, hy) = c.px(l + h * 0.5, -rr * 0.5);
+    let hname = if head == 0 { "h=" } else { "h=" };
+    c.leader(hx, hy, hname, h, "mm", hsrc, "dimension");
+    // end view: outer circle, nozzle and pad circles at the top of the shell
+    c.shape = "end".into();
+    c.fit(c.cell(1), [-rr, -rr, rr, rr + pad_od / 2.0 + 2.0 * pad_t]);
+    c.circle(0.0, 0.0, rr);
+    c.circle(0.0, rr + pad_t * 0.5, pad_od / 2.0);
+    c.circle(0.0, rr + pad_t * 0.5, nd / 2.0);
+    c.shape = "dims".into();
+    let s45 = std::f64::consts::FRAC_1_SQRT_2;
+    let (ex, ey) = c.px(-rr * s45, -rr * s45);
+    c.leader(ex, ey, "\u{00D8}", d, "mm", sp("D"), "dimension");
+    let (nxo, nyo) = c.px(nd / 2.0 * s45, rr + pad_t * 0.5 + nd / 2.0 * s45);
+    c.leader(nxo, nyo, "\u{00D8}", nd, "mm", sp("nozzle_d"), "dimension");
+    let _ = rc;
 }
 
 fn mitred_bend(c: &mut Ctx) {
@@ -1103,6 +1200,24 @@ fn tee_lateral(c: &mut Ctx) {
     c.leader(bx, by, "\u{00D8}", db, "mm", sp("d"), "dimension");
     let (px_, py_) = c.px(pad / 2.0, dm / 2.0 + padt);
     c.leader(px_, py_, "\u{00D8}", pad, "mm", sp("pad_od"), "dimension");
+    if alpha == 90.0 {
+        let rib = (0.5 * db).floor().max(10.0);
+        c.set("rib_len", rib);
+        c.shape = "rib".into();
+        for sg in [1.0, -1.0] {
+            c.outline(
+                &[
+                    (sg * h2, dm / 2.0),
+                    (sg * (h2 + rib), dm / 2.0),
+                    (sg * h2, dm / 2.0 + rib),
+                ],
+                "none",
+            );
+        }
+        c.shape = "dims".into();
+        let (rx, ry) = c.px(h2 + 0.35 * rib, dm / 2.0 + 0.35 * rib);
+        c.leader(rx, ry, "rib=", rib, "mm", sp("rib_len"), "dimension");
+    }
     let (ax, ay) = c.px(0.45 * dir.0 * s_end, 0.45 * dir.1 * s_end);
     c.leader(ax, ay, "", alpha, "deg", sp("alpha"), "dimension");
     let (hx, hy) = c.px(-l / 4.0, hb);
