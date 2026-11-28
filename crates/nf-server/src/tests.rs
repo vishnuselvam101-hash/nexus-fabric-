@@ -6155,9 +6155,9 @@ async fn cad_refuses_malformed_input_without_panic() {
 fn cad_reads_stay_outside_the_licence_gate() {
     use axum::http::Method;
     for p in ["/api/cad/documents/1", "/api/cad/documents/1/measure", "/api/cad/calculations/1/cut/pick"] {
+        assert!(!crate::licence::gated(&Method::GET, p), "{p} is a read and must stay available on a read-only licence");
     }
 }
-    }
 
 // ---------------------------------------------------------------- machine export (nf-machine)
 
