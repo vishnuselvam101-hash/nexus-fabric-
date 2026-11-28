@@ -1,9 +1,10 @@
 //! AIOP-1 acceptance: the operator works synthetic orders (generator pages with known truth) through a real
 //! `nf-server` in desktop mode on a loopback port of 8796-8829.
 //!
-//! - `operator_pipeline_with_exact_readings`: the readings come from the truth boxes (no models). Fast.
-//! - `acceptance_with_the_number_reader` (ignored; run with --ignored): the real reader (NF_NUMREAD_MODELS)
-//!   on the PNG pages. Set NF_ACCEPT_PER_FAMILY (default 4) and NF_ACCEPT_OUT (a JSON result file).
+//! - `operator_pipeline_with_exact_readings`: the readings come from the truth boxes (no models); the test stores
+//!   them in the server's `order_readings` the way the server's reader would. Fast.
+//! - `acceptance_with_the_number_reader` (ignored; run with --ignored): the server's own reader on the PNG pages.
+//!   Needs NF_SERVER_BIN = a server built with `--features number-reader` and NF_NUMREAD_MODELS. Set NF_ACCEPT_PER_FAMILY (default 4) and NF_ACCEPT_OUT (a JSON result file).
 //!
 //! Needs a built server: `cargo build -p nf-server` (or NF_SERVER_BIN). Pages: NF_SYNTH_DIR (default
 //! /root/nf-data/reader-synth/v1b/test).
@@ -11,7 +12,6 @@
 use nf_amoeba_agent::agent::Agent;
 use nf_amoeba_agent::http::{Reply, Request, Tcp, Transport};
 use nf_amoeba_agent::steps::StepLog;
-use nf_amoeba_operator::eyes::{Eyes, FixedEyes, NumreadEyes};
 use nf_amoeba_operator::operator::{Manifest, Registry, RulePlanner, UnitSpec, run};
 use nf_amoeba_operator::replay::replay;
 use nf_core::assign::Reading;
@@ -591,18 +591,39 @@ fn print_score(tag: &str, sc: &Score) {
     );
 }
 
+type Readings = BTreeMap<i64, (Vec<Reading>, f32, f32)>;
+
+/// Store readings in the server's `order_readings`, as its reader would have (the server runs without models here).
+fn seed_readings(s: &Setup, readings: &Readings) {
+    let db = rusqlite::Connection::open(s.server.data.join("nexus-fabric/nexus-fabric.sqlite"))
+        .expect("open the server database");
+    db.busy_timeout(Duration::from_secs(10)).unwrap();
+    for (page, (list, _, _)) in readings {
+        for r in list {
+            db.execute(
+                "INSERT INTO order_readings(order_id, page_no, bbox_json, text, value, kind, flags_json, confidence, reader_id, model_sha256, created_by, created_at) VALUES (?,?,?,?,?,'number','[]',?,'test fixture',?,'fixture',0)",
+                rusqlite::params![s.oid, page, json!(r.bbox.map(f64::from)).to_string(), r.text, r.value, f64::from(r.confidence), "0".repeat(64)],
+            )
+            .expect("store a reading");
+        }
+    }
+}
+
 fn run_all(
     tag: &str,
     per_family: usize,
-    eyes: &mut dyn Eyes,
+    readings: Option<&Readings>,
     pages: Vec<Page>,
 ) -> (Score, Value, Setup, nf_amoeba_operator::operator::RunReport) {
     let _lock = ONE.lock().unwrap_or_else(|e| e.into_inner());
     let s = prepare(&pages, tag);
+    if let Some(r) = readings {
+        seed_readings(&s, r);
+    }
     let m = manifest_for(&s, &pages);
     let mut agent = operator_agent(&s);
     let mut brain = RulePlanner::new(&m);
-    let rep = run(&mut agent, eyes, &mut brain, &Registry::order_tools(), &m).expect("run");
+    let rep = run(&mut agent, &mut brain, &Registry::order_tools(), &m).expect("run");
     assert!(rep.errors.is_empty(), "errors: {:?}", rep.errors);
     let (sc, detail) = score(&s, &pages, &rep);
     print_score(&format!("{tag} ({per_family}/family)"), &sc);
@@ -659,7 +680,7 @@ fn assert_gate(sc: &Score) {
 #[test]
 fn operator_pipeline_with_exact_readings() {
     let pages = load_pages(2);
-    let mut eyes = FixedEyes::default();
+    let mut eyes = Readings::new();
     for (i, p) in pages.iter().enumerate() {
         let w = p.truth["width"].as_f64().unwrap() as f32;
         let h = p.truth["height"].as_f64().unwrap() as f32;
@@ -667,9 +688,9 @@ fn operator_pipeline_with_exact_readings() {
         for x in &mut r {
             x.page = (i + 1) as i64;
         }
-        eyes.pages.insert((i + 1) as i64, (r, w, h));
+        eyes.insert((i + 1) as i64, (r, w, h));
     }
-    let (sc, _, s, rep) = run_all("exact-readings", 2, &mut eyes, pages);
+    let (sc, _, s, rep) = run_all("exact-readings", 2, Some(&eyes), pages);
     assert_gate(&sc);
     assert_eq!(sc.held_with_dxf, 0);
     assert!(sc.events > 0);
@@ -683,10 +704,8 @@ fn operator_pipeline_with_exact_readings() {
     );
     let mut agent = operator_agent(&s);
     let mut brain = RulePlanner::new(&manifest_for_paused(&s, &rep));
-    let mut fresh = FixedEyes::default();
     let paused = run(
         &mut agent,
-        &mut fresh,
         &mut brain,
         &Registry::order_tools(),
         &manifest_for_paused(&s, &rep),
@@ -725,8 +744,7 @@ fn acceptance_with_the_number_reader() {
         .and_then(|v| v.parse().ok())
         .unwrap_or(4);
     let pages = load_pages(per);
-    let mut eyes = NumreadEyes::from_dir(&nf_numread::default_model_dir()).expect("models");
-    let (sc, detail, _s, rep) = run_all("number-reader", per, &mut eyes, pages);
+    let (sc, detail, _s, rep) = run_all("number-reader", per, None, pages);
     if let Some(out) = std::env::var_os("NF_ACCEPT_OUT") {
         let units: Vec<Value> = rep.units.iter().map(|u| json!({ "unit": u.spec.id, "family": u.spec.family, "job": u.job, "state": u.job_state, "held": u.held, "served": u.dxf_served, "question": u.assignment.as_ref().and_then(|a| a.question.as_ref()).map(|q| q.code), "tried": u.assignment.as_ref().map(|a| a.tried) })).collect();
         let doc = json!({ "score": format!("{sc:?}"), "slots": detail, "units": units });

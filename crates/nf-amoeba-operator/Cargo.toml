@@ -15,5 +15,7 @@ path = "src/main.rs"
 [dependencies]
 nf-amoeba-agent = { version = "0.1.0", path = "../nf-amoeba-agent" }
 nf-core = { version = "0.1.0", path = "../nf-core" }
-nf-numread = { version = "0.1.0", path = "../nf-numread" }
 serde_json = "1.0.154"
+
+[dev-dependencies]
+rusqlite = { version = "0.43.0", features = ["bundled"] }

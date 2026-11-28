@@ -4,7 +4,7 @@ use super::*;
 
 const PDF_2_PAGES: &[u8] = b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 2/Kids[3 0 R 4 0 R]>>endobj\n3 0 obj<</Type /Page/Parent 2 0 R>>endobj\n4 0 obj<</Type/Page/Parent 2 0 R>>endobj\nSECRET-MARKER-ORDER-PDF\n%%EOF\n";
 
-fn png(w: u32, h: u32) -> Vec<u8> {
+pub(super) fn png(w: u32, h: u32) -> Vec<u8> {
     let mut v = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13];
     v.extend_from_slice(b"IHDR");
     v.extend_from_slice(&w.to_be_bytes());
@@ -30,6 +30,18 @@ async fn raw(
     cookie: &str,
     filename: Option<&str>,
 ) -> (StatusCode, Vec<u8>) {
+    raw_with(t, method, path, body, cookie, filename, &[]).await
+}
+
+pub(super) async fn raw_with(
+    t: &T,
+    method: &str,
+    path: &str,
+    body: Vec<u8>,
+    cookie: &str,
+    filename: Option<&str>,
+    extra: &[(&str, &str)],
+) -> (StatusCode, Vec<u8>) {
     let mut b = HttpRequest::builder()
         .method(method)
         .uri(path)
@@ -38,6 +50,9 @@ async fn raw(
         .header("cookie", cookie);
     if let Some(f) = filename {
         b = b.header("x-filename", f);
+    }
+    for (k, v) in extra {
+        b = b.header(*k, *v);
     }
     let resp = router(t.app.clone())
         .oneshot(b.body(Body::from(body)).unwrap())
@@ -108,14 +123,33 @@ pub(super) fn with_ev(mut body: Value) -> Value {
     body
 }
 
+/// A reading the server's reader would have stored for a page of the order: the record an agent confirms against.
+pub(super) fn add_reading(
+    t: &T,
+    oid: i64,
+    text: &str,
+    value: f64,
+    flags: &[&str],
+    conf: f64,
+) -> i64 {
+    let db = t.app.db();
+    db.execute(
+        "INSERT INTO order_readings(order_id, page_no, bbox_json, text, value, kind, flags_json, confidence, reader_id, model_sha256, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        params![oid, 1, "[10.0,20.0,80.0,40.0]", text, value, "number", json!(flags).to_string(), conf, "test reader", "0".repeat(64), "test", 0],
+    )
+    .unwrap();
+    db.last_insert_rowid()
+}
+
 /// An order value the AI operator wrote and confirmed as a clean page reading (creates its own decision).
 pub(super) async fn agent_clean_read(t: &T, ac: &str, oid: i64, key: &str, v: f64, text: &str) {
+    let rid = add_reading(t, oid, text, v, &[], 0.97);
     let (st, _, b) = t
         .send(
             "PUT",
             &format!("/api/orders/{oid}/values"),
             Some(with_ev(json!({ "values": [{ "part": "1", "key": key, "value": v, "text": text, "source": "read",
-                "flags": [], "confidence": 0.97, "confirm": true, "note": "read from the page" }] }))),
+                "flags": [], "confidence": 0.97, "confirm": true, "reading_id": rid, "note": "read from the page" }] }))),
             &[("cookie", ac)],
         )
         .await;
@@ -616,7 +650,9 @@ async fn l1_a_decision_is_tied_to_its_value_and_can_be_undone() {
         .send(
             "POST",
             &dec,
-            Some(json!({ "kind": "confirm", "part": "1", "key": "D" })),
+            Some(with_ev(
+                json!({ "kind": "confirm", "part": "1", "key": "D" }),
+            )),
             &ac,
         )
         .await;
@@ -625,7 +661,7 @@ async fn l1_a_decision_is_tied_to_its_value_and_can_be_undone() {
         (st, v["code"].as_str()),
         (StatusCode::FORBIDDEN, Some("agent_cannot_confirm"))
     );
-    let (st, _, d) = t.send("POST", &dec, Some(json!({ "kind": "confirm", "part": "1", "key": "D", "reason": "in range of the standard table" })), &ac).await;
+    let (st, _, d) = t.send("POST", &dec, Some(with_ev(json!({ "kind": "confirm", "part": "1", "key": "D", "reason": "in range of the standard table" }))), &ac).await;
     let d: Value = serde_json::from_slice(&d).unwrap();
     assert_eq!(
         (st, d["code"].as_str()),
@@ -900,7 +936,12 @@ async fn l1r1_the_source_of_a_decision_comes_from_the_identity() {
     let agent = add_agent(&t, "operator-ai");
     let ac = [("cookie", agent.as_str())];
     let (st, _, b) = t
-        .send("POST", &dec, Some(json!({ "kind": "mark_checked" })), &ac)
+        .send(
+            "POST",
+            &dec,
+            Some(with_ev(json!({ "kind": "mark_checked" }))),
+            &ac,
+        )
         .await;
     let b: Value = serde_json::from_slice(&b).unwrap();
     assert_eq!(
@@ -908,7 +949,7 @@ async fn l1r1_the_source_of_a_decision_comes_from_the_identity() {
         (StatusCode::FORBIDDEN, Some("agent_cannot_check")),
         "{b}"
     );
-    let (st, _, b) = t.send("POST", &dec, Some(json!({ "kind": "accept_flag", "part": "1", "key": "D", "flag": "f", "reason": "r", "source": "person" })), &ac).await;
+    let (st, _, b) = t.send("POST", &dec, Some(with_ev(json!({ "kind": "accept_flag", "part": "1", "key": "D", "flag": "f", "reason": "r", "source": "person" }))), &ac).await;
     let b: Value = serde_json::from_slice(&b).unwrap();
     assert_eq!(
         (st, b["code"].as_str()),
@@ -1243,7 +1284,7 @@ async fn l1r1_the_ai_operator_gives_a_reason_for_every_order_write() {
     // a decision that the operator later undoes (its own: it made this one by a clean confirmed reading)
     let dec = format!("/api/orders/{oid}/decisions");
     let (st, _, b) = t
-        .send("POST", &dec, Some(json!({ "kind": "accept_flag", "part": "1", "key": "D", "flag": "f", "reason": "r" })), &ac)
+        .send("POST", &dec, Some(with_ev(json!({ "kind": "accept_flag", "part": "1", "key": "D", "flag": "f", "reason": "r" }))), &ac)
         .await;
     assert_eq!(
         (st, code(&b)),
@@ -1253,11 +1294,14 @@ async fn l1r1_the_ai_operator_gives_a_reason_for_every_order_write() {
     let did = t.count("SELECT id FROM order_decisions WHERE agent = 'operator-ai'");
     // with a reason they go through, and the parts reason is audited
     let (st, _, b) = t
-        .send("PUT", &vals, Some(with_ev(json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read", "note": "box 3" }] }))), &ac)
+        .send("PUT", &vals, Some(with_ev(json!({ "values": [{ "part": "1", "key": "L", "value": 216.3, "text": "φ216.3", "source": "read", "note": "box 3" }] }))), &ac)
         .await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
     let (st, _, b) = t
-        .send("PUT", &parts, Some(json!({ "parts": [{ "no": "9", "shape": "cylinder", "qty": 2 }], "note": "qty per drawing" })), &ac)
+        .send("PUT", &parts, Some(with_ev(json!({ "parts": [
+            { "id": 1, "no": "1", "name": "main", "shape": "cylinder", "qty": 2, "page": 1 },
+            { "id": 2, "no": "2", "name": "branch", "shape": "tee_branch", "page": 1, "attach_part": "1" },
+            { "no": "9", "shape": "cylinder", "qty": 2 }], "note": "qty per drawing" }))), &ac)
         .await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
     // the refused edit above (no reason) and this accepted one each keep their reason row
@@ -1323,14 +1367,10 @@ async fn aiop_a_confirmed_page_reading_must_be_clean_and_confident() {
             String::from_utf8_lossy(&b)
         );
     }
-    let (st, _, b) = t
-        .send(
-            "PUT",
-            &vals,
-            Some(value(Some(json!([])), Some(json!(0.97)))),
-            &ac,
-        )
-        .await;
+    let rid = add_reading(&t, oid, "φ216.3", 216.3, &[], 0.97);
+    let mut body = value(Some(json!([])), Some(json!(0.97)));
+    body["values"][0]["reading_id"] = json!(rid);
+    let (st, _, b) = t.send("PUT", &vals, Some(body), &ac).await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
     let o = t.get(&format!("/api/orders/{oid}")).await;
     let got = o["parts"][0]["values"]
@@ -1393,7 +1433,7 @@ async fn l1r2_limit_refusals_are_audited_and_leave_no_partial_write() {
         .send(
             "PUT",
             &parts_path,
-            Some(json!({ "parts": big, "note": "bulk" })),
+            Some(with_ev(json!({ "parts": big, "note": "bulk" }))),
             &ac,
         )
         .await;
@@ -1415,7 +1455,7 @@ async fn l1r2_limit_refusals_are_audited_and_leave_no_partial_write() {
         .send(
             "PUT",
             &parts_path,
-            Some(json!({ "parts": parts500, "note": "bulk load" })),
+            Some(with_ev(json!({ "parts": parts500, "note": "bulk load" }))),
             &ac,
         )
         .await;
@@ -1424,7 +1464,9 @@ async fn l1r2_limit_refusals_are_audited_and_leave_no_partial_write() {
         .send(
             "PUT",
             &parts_path,
-            Some(json!({ "parts": [{ "no": "extra", "shape": "cylinder" }], "note": "one more" })),
+            Some(with_ev(
+                json!({ "parts": [{ "no": "extra", "shape": "cylinder" }], "note": "one more" }),
+            )),
             &ac,
         )
         .await;
@@ -1571,13 +1613,15 @@ async fn l1r2_the_ai_operator_gives_a_reason_on_create_and_upload() {
             .count(),
         1
     );
-    let (st, body) = raw(
+    let ev = hex::encode(with_ev(json!({}))["events"].to_string());
+    let (st, body) = raw_with(
         &t,
         "POST",
         &format!("{up}?reason=new-scan"),
         PDF_2_PAGES.to_vec(),
         ac[0].1,
         Some("a.pdf"),
+        &[("x-operator-events", ev.as_str())],
     )
     .await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&body));

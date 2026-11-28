@@ -4,7 +4,7 @@
 use serde_json::{Value, json};
 
 /// Allowed tools, in schema order. Nothing that writes a decision, a correction, an account, or the audit log is here.
-pub const TOOLS: [&str; 23] = [
+pub const TOOLS: [&str; 25] = [
     "list_projects",
     "get_project",
     "upload_document",
@@ -25,6 +25,8 @@ pub const TOOLS: [&str; 23] = [
     // none of them confirms a person's check, approves or releases.
     "order_get",
     "order_page_image",
+    "order_page_readings",
+    "order_read_page",
     "order_put_parts",
     "order_put_values",
     "order_compute",
@@ -196,22 +198,39 @@ pub fn definitions() -> Vec<Value> {
             ),
         ),
         def(
+            "order_page_readings",
+            "The readings the server stored for one page of an order (text, value, box, flags, confidence, reader, id), and the page size. A value is confirmed only by naming the id of one of these.",
+            obj(
+                json!({ "order": id("Order id."), "page": id("Page number in the order.") }),
+                &["order", "page"],
+            ),
+        ),
+        def(
+            "order_read_page",
+            "Have the server read one page with its number reader; it stores every reading with an id. Returns the readings.",
+            obj(
+                json!({ "order": id("Order id."), "page": id("Page number in the order.") }),
+                &["order", "page"],
+            ),
+        ),
+        def(
             "order_put_parts",
             "Create or update the parts list of an order. A reason is required.",
             obj(
                 json!({
                     "order": id("Order id."),
                     "parts": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Parts: no, name, shape, qty, page, attach_part, group_key." },
-                    "reason": { "type": "string", "minLength": 1, "maxLength": 500, "description": "Why the operator makes this change." }
+                    "reason": { "type": "string", "minLength": 1, "maxLength": 500, "description": "Why the operator makes this change." },
+                    "events": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Operator events of this edit (at least one), stored in the same transaction." }
                 }),
-                &["order", "parts", "reason"],
+                &["order", "parts", "reason", "events"],
             ),
         ),
         def(
             "order_put_values",
-            "Set values of parts. Each value has part, key, value, text, bbox, source, flags, confidence and a note (the reason). A flagged or low-confidence reading is never confirmed. An agent may send its type events here so values and events commit together.",
+            "Set values of parts. Each value has part, key, value, text, bbox, source, flags, confidence and a note (the reason). The operator confirms only against a clean server reading (reading_id). At least one operator event is required; values and events commit together.",
             obj(
-                json!({ "order": id("Order id."), "values": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Values: part, key, value, text, bbox, source, flags, confidence, confirm, note." },
+                json!({ "order": id("Order id."), "values": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Values: part, key, value, text, bbox, source, flags, confidence, confirm, note, reading_id. To confirm, name the reading_id of a clean server reading; flags, confidence and source you claim are ignored." },
                         "events": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Optional operator type events, stored in the same transaction as the values." } }),
                 &["order", "values"],
             ),
@@ -220,8 +239,9 @@ pub fn definitions() -> Vec<Value> {
             "order_compute",
             "Compute the order with the current engine. The result never approves or releases anything; held parts get no DXF.",
             obj(
-                json!({ "order": id("Order id."), "reason": { "type": "string", "minLength": 1, "maxLength": 500, "description": "Why the operator computes now." } }),
-                &["order", "reason"],
+                json!({ "order": id("Order id."), "reason": { "type": "string", "minLength": 1, "maxLength": 500, "description": "Why the operator computes now." },
+                        "events": { "type": "array", "items": { "type": "object", "additionalProperties": true }, "description": "Operator events of this compute (at least one), stored in the same transaction." } }),
+                &["order", "reason", "events"],
             ),
         ),
         def(

@@ -1,7 +1,7 @@
 //! The operator loop: brain proposes an action, the registry runs the tool, the tool's events go to the server.
 
 use crate::events::{Event, Target};
-use crate::eyes::{Eyes, PageRead};
+use crate::eyes::PageRead;
 use crate::layout;
 use nf_amoeba_agent::agent::{Agent, Answer};
 use nf_amoeba_agent::http::Transport;
@@ -143,12 +143,8 @@ pub struct UnitState {
     pub written: bool,
 }
 
-/// Mirrors the server's AGENT_CONFIRM_MIN_CONFIDENCE: below it a reading is only proposed.
-const AGENT_CONFIRM_MIN_CONFIDENCE: f64 = 0.85;
-
 pub struct Ctx<'a> {
     pub hands: &'a mut dyn Hands,
-    pub eyes: &'a mut dyn Eyes,
     pub manifest: &'a Manifest,
     pub pages: BTreeMap<i64, PageRead>,
     pub units: BTreeMap<String, UnitState>,
@@ -244,11 +240,6 @@ fn tool_put_parts(ctx: &mut Ctx<'_>, _a: &Value) -> Result<ToolOut, String> {
         .map(|u| json!({ "no": u.no, "name": if u.name.is_empty() { &u.no } else { &u.name }, "shape": u.family, "qty": 1, "page": u.page }))
         .collect();
     let n = parts.len();
-    call_ok(
-        ctx.hands,
-        "order_put_parts",
-        json!({ "order": order, "parts": parts, "reason": "the job sheet names these parts and the page of each" }),
-    )?;
     let mut events = Vec::new();
     for u in &ctx.manifest.units {
         let s = ctx.step("part");
@@ -266,30 +257,56 @@ fn tool_put_parts(ctx: &mut Ctx<'_>, _a: &Value) -> Result<ToolOut, String> {
             ),
         );
     }
+    // the server stores these events in the transaction of the parts edit
+    let event_json = tool_events(events, "put_parts");
+    call_ok(
+        ctx.hands,
+        "order_put_parts",
+        json!({ "order": order, "parts": parts, "events": event_json, "reason": "the job sheet names these parts and the page of each" }),
+    )?;
     Ok(ToolOut {
-        events,
+        events: vec![],
         result: json!({ "parts": n }),
     })
+}
+
+/// The events of a tool call that writes, as the JSON the server stores with the write.
+fn tool_events(events: Vec<Event>, tool: &str) -> Vec<Value> {
+    events
+        .into_iter()
+        .map(|mut e| {
+            e.tool = tool.into();
+            e.to_json()
+        })
+        .collect()
 }
 
 fn tool_look(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
     let page = a["page"].as_i64().ok_or("'page' is missing")?;
     let order = ctx.manifest.order;
     if !ctx.pages.contains_key(&page) {
-        call_ok(
+        // the server's own readings of the page; if it has none yet, it reads the page now
+        let mut r = call_ok(
             ctx.hands,
-            "order_page_image",
+            "order_page_readings",
             json!({ "order": order, "page": page }),
         )?;
-        let png = ctx
-            .hands
-            .take_binary()
-            .ok_or("the page picture did not arrive")?;
-        let read = ctx.eyes.read(page, &png)?;
-        ctx.pages.insert(page, read);
+        if r["readings"].as_array().is_none_or(|a| a.is_empty()) {
+            call_ok(
+                ctx.hands,
+                "order_read_page",
+                json!({ "order": order, "page": page }),
+            )?;
+            r = call_ok(
+                ctx.hands,
+                "order_page_readings",
+                json!({ "order": order, "page": page }),
+            )?;
+        }
+        ctx.pages.insert(page, PageRead::from_server(page, &r));
     }
     let n = ctx.pages[&page].readings.len();
-    let name = ctx.eyes.name();
+    let name = ctx.pages[&page].reader.clone();
     let s = ctx.step("look");
     Ok(ToolOut {
         events: vec![
@@ -426,11 +443,15 @@ fn tool_write(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
     for f in &asg.fills {
         // The server lets the operator confirm only a clean reading of the page: a plain number (source "read"),
         // no flags, confidence at or above the server's threshold. Anything else is proposed for a person.
+        // The operator asks; the server decides from its own record of the reading (`reading_id`).
         let plain = assign::mark_of(&f.text) == assign::Mark::Plain;
-        let confirm = f.status == Status::Confirmed
-            && f.flags.is_empty()
-            && plain
-            && f64::from(f.confidence) >= AGENT_CONFIRM_MIN_CONFIDENCE;
+        let reading_id = ctx
+            .pages
+            .get(&f.page)
+            .and_then(|p| p.ids.get(f.reading))
+            .copied();
+        let confirm =
+            f.status == Status::Confirmed && f.flags.is_empty() && plain && reading_id.is_some();
         let source = if plain { "read" } else { "derived" };
         let (note, reason_key, reason_args) = if confirm {
             (
@@ -457,11 +478,13 @@ fn tool_write(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
                 json!({ "text": f.text, "page": f.page, "flags": f.flags.join(", ") }),
             )
         };
-        values.push(
-            json!({ "part": spec.no, "key": f.key, "value": f.value, "text": f.text,
+        let mut value = json!({ "part": spec.no, "key": f.key, "value": f.value, "text": f.text,
             "bbox": f.bbox.map(f64::from), "source": source, "flags": f.flags,
-            "confidence": f.confidence, "confirm": confirm, "note": note }),
-        );
+            "confidence": f.confidence, "confirm": confirm, "note": note });
+        if confirm {
+            value["reading_id"] = json!(reading_id);
+        }
+        values.push(value);
         shown.push((
             f.key.clone(),
             f.value,
@@ -506,7 +529,7 @@ fn tool_write(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
         );
     }
     // The server writes values and these events in one transaction; returning no events avoids a second post.
-    let event_json: Vec<Value> = events.iter().map(|e| e.to_json()).collect();
+    let event_json = tool_events(events, "write");
     call_ok(
         ctx.hands,
         "order_put_values",
@@ -627,10 +650,17 @@ fn tool_compute(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
         .reason_key("op.reason.job_state", json!({ "job": job, "state": state })),
     );
     if order_compute {
+        let ev = Event::new(
+            &format!("{s}o"),
+            "compute",
+            ui("order-compute-btn"),
+            "compute the order with the confirmed values",
+        )
+        .reason_key("op.reason.order_compute", json!({}));
         call_ok(
             ctx.hands,
             "order_compute",
-            json!({ "order": order, "reason": "compute the order with the confirmed values" }),
+            json!({ "order": order, "events": tool_events(vec![ev], "compute"), "reason": "compute the order with the confirmed values" }),
         )?;
     }
     let u = unit_of(ctx, a)?;
@@ -741,7 +771,6 @@ fn paused(hands: &mut dyn Hands, order: i64, after: i64) -> Result<bool, String>
 
 pub fn run(
     hands: &mut dyn Hands,
-    eyes: &mut dyn Eyes,
     brain: &mut dyn Brain,
     registry: &Registry,
     manifest: &Manifest,
@@ -766,7 +795,6 @@ pub fn run(
         .collect();
     let mut ctx = Ctx {
         hands,
-        eyes,
         manifest,
         pages: BTreeMap::new(),
         units,

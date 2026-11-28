@@ -15,6 +15,7 @@ hyper-util = { version = "0.1.20", features = ["tokio", "service", "server-grace
 nf-core = { version = "0.1.0", path = "../nf-core" }
 nf-digest = { version = "0.1.0", path = "../nf-digest" }
 nf-licence = { version = "0.1.0", path = "../nf-licence" }
+nf-numread = { version = "0.1.0", path = "../nf-numread", optional = true }
 rand = "0.10.4"
 rusqlite = { version = "0.43.0", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
@@ -22,6 +23,10 @@ serde_json = { version = "1.0.154", features = ["float_roundtrip"] }
 sha2 = "0.11.1"
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "signal"] }
 uem = { version = "0.1.0", path = "../uem" }
+
+[features]
+# The page reader (PP-OCRv4 on rten) inside the server. Off by default: the shipped server answers 501 reader_not_installed.
+number-reader = ["dep:nf-numread"]
 
 [dev-dependencies]
 tower = { version = "0.5.3", features = ["util"] }

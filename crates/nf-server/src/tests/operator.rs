@@ -1,6 +1,6 @@
 //! AIOP-1: the operator event stream, pause and undo, driven through the real router.
 
-use super::orders::{add_agent, order_with_parts, with_ev};
+use super::orders::{add_agent, add_reading, order_with_parts, png, raw_with, with_ev};
 use super::*;
 
 fn ev(step: &str, action: &str, target: Value, reason: &str) -> Value {
@@ -235,8 +235,9 @@ async fn aiop_values_and_their_type_events_commit_together() {
     );
     typed["value"] = json!(216.3);
     typed["write_ref"] = json!({ "part": "1", "key": "D" });
+    let rid = add_reading(&t, oid, "φ216.3", 216.3, &[], 0.97);
     let body = json!({
-        "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read", "flags": [], "confidence": 0.97, "confirm": true, "note": "matches the list" }],
+        "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "φ216.3", "source": "read", "flags": [], "confidence": 0.97, "confirm": true, "reading_id": rid, "note": "matches the list" }],
         "events": [typed],
     });
     let (st, _, b) = t.send("PUT", &vals, Some(body.clone()), &ac).await;
@@ -280,6 +281,7 @@ async fn aiop_undo_puts_a_typed_value_back_and_refuses_when_it_was_changed() {
     let base = format!("/api/orders/{oid}/operator");
     // the values and the type event that says what was typed commit together
     let write = |key: &str, v: f64, text: &str| {
+        let rid = add_reading(&t, oid, text, v, &[], 0.97);
         let mut e = ev(
             "type-x",
             "type",
@@ -288,7 +290,7 @@ async fn aiop_undo_puts_a_typed_value_back_and_refuses_when_it_was_changed() {
         );
         e["value"] = json!(v);
         e["write_ref"] = json!({ "part": "1", "key": key });
-        json!({ "values": [{ "part": "1", "key": key, "value": v, "text": text, "source": "read", "flags": [], "confidence": 0.97, "confirm": true, "note": "matches the list" }], "events": [e] })
+        json!({ "values": [{ "part": "1", "key": key, "value": v, "text": text, "source": "read", "flags": [], "confidence": 0.97, "confirm": true, "reading_id": rid, "note": "matches the list" }], "events": [e] })
     };
     let (st, _, b) = t
         .send(
@@ -461,11 +463,13 @@ async fn aiop_the_operator_cannot_confirm_by_confirm_all_or_by_decision() {
         ),
         (
             format!("/api/orders/{oid}/decisions"),
-            json!({ "kind": "confirm", "part": "1", "key": "D", "reason": "r" }),
+            with_ev(json!({ "kind": "confirm", "part": "1", "key": "D", "reason": "r" })),
         ),
         (
             format!("/api/orders/{oid}/decisions"),
-            json!({ "kind": "accept_flag", "part": "1", "key": "D", "flag": "repaired", "reason": "r" }),
+            with_ev(
+                json!({ "kind": "accept_flag", "part": "1", "key": "D", "flag": "repaired", "reason": "r" }),
+            ),
         ),
     ] {
         let (st, _, b) = t.send("POST", &path, Some(body.clone()), &ac).await;
@@ -499,43 +503,98 @@ async fn aiop_the_operator_cannot_confirm_by_confirm_all_or_by_decision() {
     assert_eq!(d_value(&o, "D")["state"], "CONFIRMED");
 }
 
+/// A confirming write of the operator naming a stored reading (or none).
+fn confirm_body(key: &str, v: f64, reading: Option<i64>, flags: Value, conf: f64) -> Value {
+    let mut b = put_body(key, v, "read", flags, conf, true);
+    if let Some(r) = reading {
+        b["values"][0]["reading_id"] = json!(r);
+    }
+    b
+}
+
 #[tokio::test]
-async fn aiop_the_operator_confirms_only_a_clean_confident_page_reading() {
+async fn aiop_the_operator_confirms_only_against_a_clean_server_side_reading() {
     let t = boot();
     let oid = order_with_parts(&t).await;
     let agent = add_agent(&t, "operator-ai");
     let ac = [("cookie", agent.as_str())];
     let vals = format!("/api/orders/{oid}/values");
-    // flags, low confidence (just under the threshold) and a source that is not a reading are all refused
-    for (body, want, status) in [
+    let clean = add_reading(&t, oid, "216.3", 216.3, &[], 0.97);
+    let at_threshold = add_reading(&t, oid, "216.3", 216.3, &[], 0.85);
+    let flagged = add_reading(&t, oid, "216.3", 216.3, &["ambiguous"], 0.99);
+    let weak = add_reading(&t, oid, "216.3", 216.3, &[], 0.84);
+    let other_value = add_reading(&t, oid, "100", 100.0, &[], 0.99);
+    let no_value = {
+        let db = t.app.db();
+        db.execute("INSERT INTO order_readings(order_id, page_no, bbox_json, text, value, kind, flags_json, confidence, reader_id, model_sha256, created_by, created_at) VALUES (?,1,'[1.0,1.0,2.0,2.0]','1/1',NULL,'number','[]',0.99,'r','0','t',0)", params![oid]).unwrap();
+        db.last_insert_rowid()
+    };
+    let other_order = {
+        let o2 = order_with_parts(&t).await;
+        add_reading(&t, o2, "216.3", 216.3, &[], 0.99)
+    };
+    let forbidden = StatusCode::FORBIDDEN;
+    let refused = StatusCode::UNPROCESSABLE_ENTITY;
+    for (name, body, want, status) in [
+        // what the caller says about itself never grants authority: 0.99 and no flags, but no reading
         (
-            put_body("D", 216.3, "read", json!(["ambiguous"]), 0.99, true),
+            "claimed 0.99, no reading_id",
+            confirm_body("D", 216.3, None, json!([]), 0.99),
+            "agent_cannot_confirm",
+            forbidden,
+        ),
+        (
+            "reading_id of another value",
+            confirm_body("D", 216.3, Some(other_value), json!([]), 0.99),
+            "agent_cannot_confirm",
+            forbidden,
+        ),
+        (
+            "stored flagged reading",
+            confirm_body("D", 216.3, Some(flagged), json!([]), 0.99),
+            "agent_cannot_confirm",
+            forbidden,
+        ),
+        (
+            "stored low confidence",
+            confirm_body("D", 216.3, Some(weak), json!([]), 0.99),
+            "agent_cannot_confirm",
+            forbidden,
+        ),
+        (
+            "reading without a number",
+            confirm_body("D", 216.3, Some(no_value), json!([]), 0.99),
+            "agent_cannot_confirm",
+            forbidden,
+        ),
+        (
+            "reading of another order",
+            confirm_body("D", 216.3, Some(other_order), json!([]), 0.99),
+            "agent_cannot_confirm",
+            forbidden,
+        ),
+        (
+            "unknown reading",
+            confirm_body("D", 216.3, Some(9999), json!([]), 0.99),
+            "agent_cannot_confirm",
+            forbidden,
+        ),
+        // claims can only make it stricter
+        (
+            "claimed flags",
+            confirm_body("D", 216.3, Some(clean), json!(["ambiguous"]), 0.99),
             "value_flagged",
-            StatusCode::UNPROCESSABLE_ENTITY,
+            refused,
         ),
         (
-            put_body("D", 216.3, "read", json!([]), 0.84, true),
+            "claimed low confidence",
+            confirm_body("D", 216.3, Some(clean), json!([]), 0.84),
             "value_low_confidence",
-            StatusCode::UNPROCESSABLE_ENTITY,
-        ),
-        (
-            put_body("D", 216.3, "derived", json!([]), 0.99, true),
-            "agent_cannot_confirm",
-            StatusCode::FORBIDDEN,
-        ),
-        (
-            put_body("D", 216.3, "fixed", json!([]), 1.0, true),
-            "agent_cannot_confirm",
-            StatusCode::FORBIDDEN,
-        ),
-        (
-            put_body("D", 216.3, "entered", json!([]), 1.0, true),
-            "agent_cannot_confirm",
-            StatusCode::FORBIDDEN,
+            refused,
         ),
     ] {
         let (st, _, b) = t.send("PUT", &vals, Some(body.clone()), &ac).await;
-        assert_eq!((st, code(&b)), (status, json!(want)), "{body}");
+        assert_eq!((st, code(&b)), (status, json!(want)), "{name}: {body}");
     }
     assert_eq!(
         t.count("SELECT COUNT(*) FROM order_values"),
@@ -543,18 +602,19 @@ async fn aiop_the_operator_confirms_only_a_clean_confident_page_reading() {
         "a refused write leaves nothing"
     );
     assert_eq!(t.count("SELECT COUNT(*) FROM operator_events"), 0);
-    // the same reading, clean and at the threshold, is confirmed by the operator and recorded as its own
-    let (st, _, b) = t
-        .send(
-            "PUT",
-            &vals,
-            Some(put_body("D", 216.3, "read", json!([]), 0.85, true)),
-            &ac,
-        )
-        .await;
+    // a clean stored reading at the threshold confirms; the stored record, not the claim, is what is kept
+    let mut body = confirm_body("D", 216.3, Some(at_threshold), json!([]), 0.99);
+    body["values"][0]["source"] = json!("derived");
+    body["values"][0]["text"] = json!("216.3");
+    let (st, _, b) = t.send("PUT", &vals, Some(body), &ac).await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
     let o = t.get(&format!("/api/orders/{oid}")).await;
     assert_eq!(d_value(&o, "D")["state"], "CONFIRMED");
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM order_values WHERE key = 'D' AND source = 'read' AND confidence = 0.85 AND flags_json = '[]'"),
+        1,
+        "source, flags and confidence come from the reading"
+    );
     assert_eq!(
         t.count("SELECT COUNT(*) FROM order_decisions WHERE source = 'auto' AND decided_by = 'operator-ai'"),
         1
@@ -571,6 +631,29 @@ async fn aiop_the_operator_confirms_only_a_clean_confident_page_reading() {
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
     let o = t.get(&format!("/api/orders/{oid}")).await;
     assert_eq!(d_value(&o, "t")["state"], "PROPOSED");
+    // a person cannot use reading_id, and a reading cannot be changed or deleted
+    let mut pb = json!({ "values": [{ "part": "1", "key": "L", "value": 5.0, "text": "5", "source": "read" }] });
+    pb["values"][0]["reading_id"] = json!(clean);
+    let (st, v) = person(&t, "PUT", &vals, pb).await;
+    assert_eq!(
+        (st, v["code"].clone()),
+        (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            json!("reading_agent_only")
+        )
+    );
+    assert!(
+        t.app
+            .db()
+            .execute("DELETE FROM order_readings", [])
+            .is_err()
+    );
+    assert!(
+        t.app
+            .db()
+            .execute("UPDATE order_readings SET confidence = 1.0", [])
+            .is_err()
+    );
 }
 
 #[tokio::test]
@@ -797,4 +880,352 @@ async fn aiop_schema_9_is_additive_over_a_schema_8_database() {
         db.query_row("SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name IN ('order_results_immutable', 'operator_events_no_delete')", [], |r| r.get::<_, i64>(0)).unwrap(),
         2
     );
+}
+
+// ---------------------------------------------------------------- round 2: person parts, events on every write
+
+fn parts_body(parts: Value) -> Value {
+    with_ev(json!({ "parts": parts, "note": "n" }))
+}
+
+fn part_1(qty: i64, exclude: bool) -> Value {
+    let mut p =
+        json!({ "id": 1, "no": "1", "name": "main", "shape": "cylinder", "qty": qty, "page": 1 });
+    if exclude {
+        p["state"] = json!("EXCLUDED");
+    }
+    p
+}
+fn part_2() -> Value {
+    json!({ "id": 2, "no": "2", "name": "branch", "shape": "tee_branch", "page": 1, "attach_part": "1" })
+}
+
+#[tokio::test]
+async fn aiop_the_operator_does_not_change_exclude_drop_or_skip_what_a_person_set() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let agent = add_agent(&t, "operator-ai");
+    let ac = [("cookie", agent.as_str())];
+    let parts = format!("/api/orders/{oid}/parts");
+    // before any person value the operator may reshape part 1
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &parts,
+            Some(parts_body(json!([part_1(3, false), part_2()]))),
+            &ac,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    // a person types D of part 1
+    let (st, _) = person(&t, "PUT", &format!("/api/orders/{oid}/values"), json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "216.3", "source": "read" }] })).await;
+    assert_eq!(st, StatusCode::OK);
+    let protected = StatusCode::CONFLICT;
+    let mut renamed = part_1(3, false);
+    renamed["name"] = json!("other");
+    let mut reshaped = part_1(3, false);
+    reshaped["shape"] = json!("cone");
+    let mut renumbered = part_1(3, false);
+    renumbered["no"] = json!("7");
+    let mut p2_free = part_2();
+    p2_free["attach_part"] = Value::Null;
+    let mut p2_follows = part_2();
+    p2_follows["attach_part"] = json!("7");
+    for (name, list) in [
+        ("exclude", json!([part_1(3, true), part_2()])),
+        ("qty", json!([part_1(4, false), part_2()])),
+        ("rename", json!([renamed, part_2()])),
+        ("shape", json!([reshaped, part_2()])),
+        ("renumber", json!([renumbered, p2_follows])),
+        ("drop", json!([p2_free])),
+    ] {
+        let (st, _, b) = t.send("PUT", &parts, Some(parts_body(list)), &ac).await;
+        assert_eq!(
+            (st, code(&b)),
+            (protected, json!("person_value_protected")),
+            "{name}"
+        );
+    }
+    assert_eq!(
+        t.count(
+            "SELECT COUNT(*) FROM order_parts WHERE state = 'EXCLUDED' OR (id = 1 AND qty <> 3)"
+        ),
+        0,
+        "a refused edit changes nothing"
+    );
+    // the same part sent as it is, and another part without a person's value, are the operator's to change
+    let mut p2 = part_2();
+    p2["qty"] = json!(5);
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &parts,
+            Some(parts_body(json!([part_1(3, false), p2]))),
+            &ac,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    // a page whose part holds a person's value cannot be skipped by the operator; a free page can
+    let skip = |n: i64, skipped: bool| {
+        (
+            format!("/api/orders/{oid}/pages/{n}/skip"),
+            with_ev(json!({ "skipped": skipped, "note": "n" })),
+        )
+    };
+    let (path, body) = skip(1, true);
+    let (st, _, b) = t.send("POST", &path, Some(body), &ac).await;
+    assert_eq!((st, code(&b)), (protected, json!("person_value_protected")));
+    let (path, body) = skip(2, true);
+    let (st, _, b) = t.send("POST", &path, Some(body), &ac).await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    // a CONFIRMED value of the operator's own protects its part and page the same way
+    t.sql("UPDATE order_values SET state = 'CONFIRMED', edited_kind = 'agent'");
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &parts,
+            Some(parts_body(json!([part_1(3, true), part_2()]))),
+            &ac,
+        )
+        .await;
+    assert_eq!((st, code(&b)), (protected, json!("person_value_protected")));
+    // a person may do all of it
+    let (st, _) = person(
+        &t,
+        "PUT",
+        &parts,
+        json!({ "parts": [part_1(3, true), part_2()] }),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(
+        audit_details("order_refused", &t)
+            .iter()
+            .any(|d| d.contains("person_value_protected (409)"))
+    );
+}
+
+#[tokio::test]
+async fn aiop_every_write_of_the_operator_needs_an_event() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let agent = add_agent(&t, "operator-ai");
+    let ac = [("cookie", agent.as_str())];
+    let no_event = (
+        StatusCode::UNPROCESSABLE_ENTITY,
+        json!("operator_event_required"),
+    );
+    let events_before = t.count("SELECT COUNT(*) FROM operator_events");
+    for (what, method, path, body) in [
+        (
+            "put_parts",
+            "PUT",
+            format!("/api/orders/{oid}/parts"),
+            json!({ "parts": [part_1(2, false), part_2()], "note": "n" }),
+        ),
+        (
+            "skip",
+            "POST",
+            format!("/api/orders/{oid}/pages/2/skip"),
+            json!({ "note": "n" }),
+        ),
+        (
+            "decision",
+            "POST",
+            format!("/api/orders/{oid}/decisions"),
+            json!({ "kind": "confirm", "part": "1", "key": "D", "reason": "r" }),
+        ),
+        (
+            "compute",
+            "POST",
+            format!("/api/orders/{oid}/compute"),
+            json!({ "note": "n" }),
+        ),
+        (
+            "put_values",
+            "PUT",
+            format!("/api/orders/{oid}/values"),
+            json!({ "values": [{ "part": "1", "key": "D", "value": 216.3, "text": "216.3", "source": "read", "note": "n" }] }),
+        ),
+    ] {
+        let (st, _, b) = t.send(method, &path, Some(body.clone()), &ac).await;
+        assert_eq!((st, code(&b)), no_event, "{what}");
+        // an empty list is no event either
+        let mut empty = body;
+        empty["events"] = json!([]);
+        let (st, _, _) = t.send(method, &path, Some(empty), &ac).await;
+        assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{what} empty");
+    }
+    // compute with no body at all
+    let (st, _, b) = t
+        .send("POST", &format!("/api/orders/{oid}/compute"), None, &ac)
+        .await;
+    assert_eq!(
+        (st, code(&b)),
+        (StatusCode::UNPROCESSABLE_ENTITY, json!("decision_reason")),
+        "a reason is asked first"
+    );
+    // an upload has no JSON body: its events travel in a header
+    let up = format!("/api/orders/{oid}/files?reason=page");
+    let (st, b) = raw_with(&t, "POST", &up, png(100, 100), &agent, Some("c.png"), &[]).await;
+    assert_eq!(
+        (
+            st,
+            serde_json::from_slice::<Value>(&b).unwrap()["code"].clone()
+        ),
+        no_event
+    );
+    assert_eq!(t.count("SELECT COUNT(*) FROM order_files"), 2);
+    assert_eq!(
+        t.count("SELECT COUNT(*) FROM operator_events"),
+        events_before,
+        "a refused write stores no event"
+    );
+    // each of them goes through with an event, and the events are stored with the write
+    let (st, _, b) = t
+        .send(
+            "PUT",
+            &format!("/api/orders/{oid}/parts"),
+            Some(parts_body(json!([part_1(2, false), part_2()]))),
+            &ac,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let (st, _, b) = t
+        .send(
+            "POST",
+            &format!("/api/orders/{oid}/pages/2/skip"),
+            Some(with_ev(json!({ "note": "n" }))),
+            &ac,
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    let (st, _, b) = t
+        .send(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(with_ev(json!({ "note": "n" }))),
+            &ac,
+        )
+        .await;
+    assert!(
+        st == StatusCode::OK || st == StatusCode::UNPROCESSABLE_ENTITY,
+        "{}",
+        String::from_utf8_lossy(&b)
+    );
+    let ev = hex::encode(
+        json!([{ "step": "up-1", "action": "type", "target": { "ui": "upload" }, "value": null, "reason": "a page", "confidence": null, "flags": [] }])
+            .to_string(),
+    );
+    let (st, b) = raw_with(
+        &t,
+        "POST",
+        &up,
+        png(100, 100),
+        &agent,
+        Some("c.png"),
+        &[("x-operator-events", ev.as_str())],
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&b));
+    assert!(t.count("SELECT COUNT(*) FROM operator_events") >= events_before + 3);
+    // a person's write carries none
+    let (st, v) = person(
+        &t,
+        "PUT",
+        &format!("/api/orders/{oid}/parts"),
+        parts_body(json!([part_1(2, false), part_2()])),
+    )
+    .await;
+    assert_eq!(
+        (st, v["code"].clone()),
+        (StatusCode::FORBIDDEN, json!("operator_agent_only"))
+    );
+    // a pause is read inside the transaction of each of them (events are stored there)
+    t.sql(&format!(
+        "INSERT INTO operator_state(order_id, paused, by_user, at) VALUES ({oid}, 1, 'admin', 0)"
+    ));
+    for (method, path, body) in [
+        (
+            "PUT",
+            format!("/api/orders/{oid}/parts"),
+            parts_body(json!([part_1(2, false), part_2()])),
+        ),
+        (
+            "POST",
+            format!("/api/orders/{oid}/pages/2/skip"),
+            with_ev(json!({ "skipped": false, "note": "n" })),
+        ),
+    ] {
+        let (st, _, b) = t.send(method, &path, Some(body), &ac).await;
+        assert_eq!(
+            (st, code(&b)),
+            (StatusCode::CONFLICT, json!("operator_paused"))
+        );
+    }
+}
+
+#[tokio::test]
+async fn aiop_the_server_stores_what_its_reader_found_and_serves_it() {
+    let t = boot();
+    let oid = order_with_parts(&t).await;
+    let u = crate::User {
+        id: t.count("SELECT id FROM users LIMIT 1"),
+        username: "admin".into(),
+        role: "admin".into(),
+        kind: "person".into(),
+    };
+    let out = crate::orders::ReaderOut {
+        reader_id: "test reader".into(),
+        model_sha256: "ab".repeat(32),
+        items: vec![
+            crate::orders::ReadingItem {
+                text: "φ216.3".into(),
+                value: Some(216.3),
+                kind: "diameter".into(),
+                bbox: [10.0, 20.0, 80.0, 40.0],
+                flags: vec![],
+                confidence: 0.97,
+            },
+            crate::orders::ReadingItem {
+                text: "1/1".into(),
+                value: None,
+                kind: "number".into(),
+                bbox: [1.0, 2.0, 3.0, 4.0],
+                flags: vec!["ambiguous".into()],
+                confidence: 0.5,
+            },
+        ],
+    };
+    let rows = {
+        let mut db = t.app.db();
+        let tx = db.transaction().unwrap();
+        let r = crate::orders::store_readings(&t.app, &tx, &u, oid, 1, &out)
+            .unwrap_or_else(|_| panic!("stored"));
+        tx.commit().unwrap();
+        r
+    };
+    assert_eq!(rows.len(), 2);
+    let v = t.get(&format!("/api/orders/{oid}/pages/1/readings")).await;
+    assert_eq!(v["readings"].as_array().unwrap().len(), 2);
+    assert_eq!(v["readings"][0]["id"], rows[0]["id"]);
+    assert_eq!(
+        (
+            v["readings"][0]["kind"].clone(),
+            v["readings"][0]["reader_id"].clone()
+        ),
+        (json!("diameter"), json!("test reader"))
+    );
+    assert_eq!(v["readings"][1]["flags"], json!(["ambiguous"]));
+    assert_eq!(v["readings"][1]["value"], Value::Null);
+    assert_eq!(
+        t.get(&format!("/api/orders/{oid}/pages/2/readings")).await["readings"],
+        json!([])
+    );
+    assert_eq!(audit_details("order_page_read", &t).len(), 1);
+    // a page that is not in the order has none to show
+    let (st, _) = t
+        .call("GET", &format!("/api/orders/{oid}/pages/99/readings"), None)
+        .await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
 }

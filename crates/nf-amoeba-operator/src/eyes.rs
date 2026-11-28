@@ -1,101 +1,66 @@
-//! Eyes: turn a page picture into numbers with boxes. The only contract is `Eyes`.
+//! Eyes: the readings of a page picture, as the server stored them.
+//!
+//! The operator does not read pictures itself. The server runs the number reader, stores every reading in
+//! `order_readings` and gives each an id; the operator takes the readings from the server and confirms a value only
+//! by naming the id of the reading it comes from. What the operator claims about a reading is never trusted.
 
 use nf_core::assign::Reading;
-use std::collections::BTreeMap;
 
 pub struct PageRead {
+    /// `Reading.id` is the index in this list.
     pub readings: Vec<Reading>,
+    /// The server's reading id of each entry of `readings`, by index.
+    pub ids: Vec<i64>,
     pub width: f32,
     pub height: f32,
+    /// Who read the page (the reader's name as the server recorded it).
+    pub reader: String,
 }
 
-pub trait Eyes {
-    fn name(&self) -> String;
-    fn read(&mut self, page: i64, png: &[u8]) -> Result<PageRead, String>;
-}
-
-/// Width and height from a PNG header.
-pub fn png_size(b: &[u8]) -> Option<(f32, f32)> {
-    if b.len() < 24 || &b[12..16] != b"IHDR" {
-        return None;
-    }
-    let w = u32::from_be_bytes(b[16..20].try_into().ok()?);
-    let h = u32::from_be_bytes(b[20..24].try_into().ok()?);
-    Some((w as f32, h as f32))
-}
-
-/// R0: the offline number reader (nf-numread).
-pub struct NumreadEyes {
-    reader: nf_numread::Reader,
-}
-
-impl NumreadEyes {
-    pub fn from_dir(dir: &std::path::Path) -> Result<NumreadEyes, String> {
-        let reader = nf_numread::Reader::from_dir(dir, nf_numread::Params::default())
-            .map_err(|e| format!("number reader: {e:?}"))?;
-        Ok(NumreadEyes { reader })
-    }
-}
-
-impl Eyes for NumreadEyes {
-    fn name(&self) -> String {
-        "nf-numread R0".into()
-    }
-    fn read(&mut self, page: i64, png: &[u8]) -> Result<PageRead, String> {
-        let (width, height) = png_size(png).ok_or("the page picture is not a PNG")?;
-        let items = self
-            .reader
-            .read_png(png)
-            .map_err(|e| format!("reading page {page}: {e:?}"))?;
-        let mut readings = Vec::new();
-        for it in items {
-            let Some(value) = it.value else { continue };
-            let mut flags = Vec::new();
-            for (on, name) in [
-                (it.repaired, "repaired"),
-                (it.ambiguous, "ambiguous"),
-                (it.phi_inferred, "phi_inferred"),
-                (it.low_confidence, "low_confidence"),
-            ] {
-                if on {
-                    flags.push(name.to_string());
-                }
+impl PageRead {
+    /// From the JSON the server gives for a page (`readings`, `width`, `height`). A reading without a number is left
+    /// out: it cannot fill a slot.
+    pub fn from_server(page: i64, v: &serde_json::Value) -> PageRead {
+        let (mut readings, mut ids) = (Vec::new(), Vec::new());
+        let mut reader = String::new();
+        for r in v["readings"].as_array().into_iter().flatten() {
+            let (Some(id), Some(value)) = (r["id"].as_i64(), r["value"].as_f64()) else {
+                continue;
+            };
+            let bbox: [f32; 4] =
+                std::array::from_fn(|k| r["bbox"][k].as_f64().unwrap_or_default() as f32);
+            if reader.is_empty() {
+                reader = r["reader_id"].as_str().unwrap_or_default().to_string();
             }
             readings.push(Reading {
                 id: readings.len(),
-                text: it.text,
+                text: r["text"].as_str().unwrap_or_default().to_string(),
                 value,
                 page,
-                bbox: it.bbox,
-                confidence: it.confidence,
-                flags,
+                bbox,
+                confidence: r["confidence"].as_f64().unwrap_or_default() as f32,
+                flags: r["flags"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|f| f.as_str().map(String::from))
+                    .collect(),
                 in_table: false,
             });
+            ids.push(id);
         }
-        Ok(PageRead {
+        if reader.is_empty() {
+            reader = v["reader"]
+                .as_str()
+                .unwrap_or("the server's reader")
+                .to_string();
+        }
+        PageRead {
             readings,
-            width,
-            height,
-        })
-    }
-}
-
-/// A reader that returns readings given beforehand (tests, and replaying a recorded read).
-#[derive(Default)]
-pub struct FixedEyes {
-    pub pages: BTreeMap<i64, (Vec<Reading>, f32, f32)>,
-}
-
-impl Eyes for FixedEyes {
-    fn name(&self) -> String {
-        "fixed readings".into()
-    }
-    fn read(&mut self, page: i64, _png: &[u8]) -> Result<PageRead, String> {
-        let (r, w, h) = self.pages.get(&page).ok_or("no readings for this page")?;
-        Ok(PageRead {
-            readings: r.clone(),
-            width: *w,
-            height: *h,
-        })
+            ids,
+            width: v["width"].as_f64().unwrap_or_default() as f32,
+            height: v["height"].as_f64().unwrap_or_default() as f32,
+            reader,
+        }
     }
 }

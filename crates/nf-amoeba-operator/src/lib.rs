@@ -1,9 +1,8 @@
 //! The AMOEBA operator. It is AMOEBA's own body, not a separate program: the hands are the AMOEBA tool bridge
-//! (`nf-amoeba-agent`), the checks are the server's gates and the engine, the eyes (a page reader) and the brain
-//! (a planner) are replaceable parts behind two traits.
+//! (`nf-amoeba-agent`), the checks are the server's gates and the engine. The eyes are the server's own page
+//! reader: it stores every reading and the operator takes them from it (`eyes::PageRead`). The brain (a planner)
+//! is a replaceable part behind a trait.
 //!
-//! - `Eyes`: today `NumreadEyes` (the offline number reader, R0); later a fine-tuned vision model. A new reader
-//!   is a new `Eyes`; nothing else changes.
 //! - `Brain`: today `RulePlanner`, a deterministic plan that calls the same tools a model would call; later a
 //!   local model that proposes the same `Action`s. The tools check what it proposes.
 //! - `Registry`: the tools by name. A tool does one thing, says what it did as events and returns data. A new

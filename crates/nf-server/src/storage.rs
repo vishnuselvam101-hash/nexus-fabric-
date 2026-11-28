@@ -12,8 +12,9 @@ use rusqlite::{Connection, OptionalExtension, params};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-/// 9: `operator_events`, `operator_state` and the `order_values` source/flags/confidence/edited-by columns (the AI
-/// operator; AIOP-1), on top of 8.
+/// 9: `operator_events`, `operator_state`, `order_readings` (the server's own record of every number the reader
+/// found on an order page) and the `order_values` source/flags/confidence/edited-by columns (the AI operator;
+/// AIOP-1), on top of 8.
 /// 8: `order_results_immutable` trigger (only state -> SUPERSEDED may change), on top of 7.
 /// 7: `order_results` (the supersede chain of order computes, NFJ-1 L10), on top of 6.
 /// 6: NFJ-1 order tables and users.kind, on top of 5 (AUTH-1 recovery/must_change columns). Rollback to an older build
@@ -43,6 +44,7 @@ CREATE TABLE IF NOT EXISTS order_files(id INTEGER PRIMARY KEY, order_id INTEGER 
 CREATE TABLE IF NOT EXISTS order_pages(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), file_id INTEGER NOT NULL REFERENCES order_files(id), page_no INTEGER NOT NULL, file_page INTEGER NOT NULL, png_sha256 TEXT, width INTEGER NOT NULL DEFAULT 0, height INTEGER NOT NULL DEFAULT 0, kind TEXT NOT NULL, read_state TEXT NOT NULL, skipped INTEGER NOT NULL DEFAULT 0, skipped_by TEXT, skipped_at INTEGER, UNIQUE(order_id, page_no));
 CREATE TABLE IF NOT EXISTS order_parts(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_id INTEGER REFERENCES order_pages(id), no TEXT NOT NULL, name TEXT NOT NULL, shape TEXT NOT NULL, attach_part TEXT, qty INTEGER NOT NULL, table_rows_json TEXT NOT NULL, group_key TEXT, state TEXT NOT NULL, UNIQUE(order_id, no));
 CREATE TABLE IF NOT EXISTS order_values(id INTEGER PRIMARY KEY, part_id INTEGER NOT NULL REFERENCES order_parts(id), key TEXT NOT NULL, value REAL, text TEXT NOT NULL, bbox_json TEXT, source TEXT NOT NULL, state TEXT NOT NULL, was REAL, proposed_value REAL, proposed_by TEXT NOT NULL, edited_by TEXT, edited_at INTEGER, UNIQUE(part_id, key));
+CREATE TABLE IF NOT EXISTS order_readings(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), page_no INTEGER NOT NULL, bbox_json TEXT NOT NULL, text TEXT NOT NULL, value REAL, kind TEXT NOT NULL, flags_json TEXT NOT NULL, confidence REAL NOT NULL, reader_id TEXT NOT NULL, model_sha256 TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS order_results(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), input_hash TEXT NOT NULL, engine TEXT NOT NULL, state TEXT NOT NULL, supersedes INTEGER, result_json TEXT NOT NULL, counts_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS operator_events(id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), seq INTEGER NOT NULL, event_json TEXT NOT NULL, created_by TEXT NOT NULL, created_at INTEGER NOT NULL, undone_by TEXT, undone_at INTEGER, UNIQUE(order_id, seq));
 CREATE TABLE IF NOT EXISTS operator_state(order_id INTEGER PRIMARY KEY REFERENCES orders(id), paused INTEGER NOT NULL, by_user TEXT NOT NULL, at INTEGER NOT NULL);
@@ -100,6 +102,8 @@ CREATE TRIGGER IF NOT EXISTS order_results_no_delete BEFORE DELETE ON order_resu
 CREATE TRIGGER IF NOT EXISTS operator_events_no_delete BEFORE DELETE ON operator_events BEGIN SELECT RAISE(ABORT, 'operator events are kept; undo marks them undone'); END;
 CREATE TRIGGER IF NOT EXISTS operator_events_no_edit BEFORE UPDATE OF order_id, seq, event_json, created_by, created_at ON operator_events BEGIN SELECT RAISE(ABORT, 'operator events are kept as written'); END;
 CREATE TRIGGER IF NOT EXISTS order_results_immutable BEFORE UPDATE ON order_results WHEN NOT (NEW.state = 'SUPERSEDED' AND NEW.id IS OLD.id AND NEW.order_id IS OLD.order_id AND NEW.input_hash IS OLD.input_hash AND NEW.engine IS OLD.engine AND NEW.supersedes IS OLD.supersedes AND NEW.result_json IS OLD.result_json AND NEW.counts_json IS OLD.counts_json AND NEW.created_by IS OLD.created_by AND NEW.created_at IS OLD.created_at) BEGIN SELECT RAISE(ABORT, 'computed results are immutable; only SUPERSEDED may be set'); END;
+CREATE TRIGGER IF NOT EXISTS order_readings_no_delete BEFORE DELETE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are kept as the reader produced them'); END;
+CREATE TRIGGER IF NOT EXISTS order_readings_no_edit BEFORE UPDATE ON order_readings BEGIN SELECT RAISE(ABORT, 'readings are immutable'); END;
 CREATE TRIGGER IF NOT EXISTS order_decisions_no_delete BEFORE DELETE ON order_decisions BEGIN SELECT RAISE(ABORT, 'decisions are kept; undo marks them undone'); END;
 ";
 
@@ -116,6 +120,7 @@ CREATE INDEX IF NOT EXISTS ix_conv_project ON pdf_conversions(project_id);
 CREATE INDEX IF NOT EXISTS ix_orders_project ON orders(project_id);
 CREATE INDEX IF NOT EXISTS ix_order_pages_order ON order_pages(order_id, page_no);
 CREATE INDEX IF NOT EXISTS ix_order_parts_order ON order_parts(order_id);
+CREATE INDEX IF NOT EXISTS ix_order_readings_page ON order_readings(order_id, page_no, id);
 CREATE INDEX IF NOT EXISTS ix_order_results_order ON order_results(order_id, id);
 CREATE INDEX IF NOT EXISTS ix_order_decisions_order ON order_decisions(order_id, value_id);
 CREATE INDEX IF NOT EXISTS ix_fail_user ON login_failures(username, at);

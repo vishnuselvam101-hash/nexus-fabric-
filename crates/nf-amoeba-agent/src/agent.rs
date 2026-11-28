@@ -211,9 +211,18 @@ impl<T: Transport> Agent<T> {
                 self.binary = Some(r.body);
                 Ok(v)
             }
+            "order_page_readings" => {
+                let (o, n) = (int(a, "order")?, int(a, "page")?);
+                self.get_answer(&format!("/api/orders/{o}/pages/{n}/readings"))
+            }
+            "order_read_page" => {
+                let (o, n) = (int(a, "order")?, int(a, "page")?);
+                self.post_answer(&format!("/api/orders/{o}/pages/{n}/read"), None)
+            }
             "order_put_parts" => {
                 let o = int(a, "order")?;
-                let body = json!({ "parts": a["parts"], "note": a["reason"] });
+                let body =
+                    json!({ "parts": a["parts"], "note": a["reason"], "events": a["events"] });
                 self.send_json("PUT", &format!("/api/orders/{o}/parts"), body)
             }
             "order_put_values" => {
@@ -229,7 +238,7 @@ impl<T: Transport> Agent<T> {
                 self.send_json(
                     "POST",
                     &format!("/api/orders/{o}/compute"),
-                    json!({ "note": a["reason"] }),
+                    json!({ "note": a["reason"], "events": a["events"] }),
                 )
             }
             "order_post_events" => {

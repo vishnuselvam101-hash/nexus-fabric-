@@ -1,10 +1,10 @@
 //! `nf-operator`: run the AMOEBA operator on one order. Environment: NF_AGENT_USER, NF_AGENT_PASS (an agent
-//! account), NF_NUMREAD_MODELS (the reader's models).
+//! account). The page reader runs inside the server (built with the number-reader feature); the operator takes
+//! its stored readings.
 
 use nf_amoeba_agent::agent::Agent;
 use nf_amoeba_agent::http::Tcp;
 use nf_amoeba_agent::steps::StepLog;
-use nf_amoeba_operator::eyes::NumreadEyes;
 use nf_amoeba_operator::operator::{Manifest, Registry, RulePlanner, run};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -51,15 +51,8 @@ fn main() -> ExitCode {
             log,
         );
         agent.login(&user, &pass)?;
-        let mut eyes = NumreadEyes::from_dir(&nf_numread::default_model_dir())?;
         let mut brain = RulePlanner::new(&m);
-        let rep = run(
-            &mut agent,
-            &mut eyes,
-            &mut brain,
-            &Registry::order_tools(),
-            &m,
-        )?;
+        let rep = run(&mut agent, &mut brain, &Registry::order_tools(), &m)?;
         Ok(format!(
             "{:?}: {} actions, {} events, {} errors",
             rep.status,

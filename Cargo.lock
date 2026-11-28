@@ -825,7 +825,7 @@ version = "0.1.0"
 dependencies = [
  "nf-amoeba-agent",
  "nf-core",
- "nf-numread",
+ "rusqlite",
  "serde_json",
 ]
 
@@ -952,6 +952,7 @@ dependencies = [
  "nf-core",
  "nf-digest",
  "nf-licence",
+ "nf-numread",
  "rand",
  "rusqlite",
  "serde",
