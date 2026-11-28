@@ -4720,7 +4720,10 @@ async fn get_estimate(
     guard_order(&app, &db, &u, oid, "view the estimate")?;
     let format = q.format.clone().unwrap_or_else(|| "json".into());
     if !matches!(format.as_str(), "json" | "csv" | "xlsx" | "txt") {
-        return Err(unprocessable("estimate_format", "format must be json, csv, xlsx or txt"));
+        return Err(unprocessable(
+            "estimate_format",
+            "format must be json, csv, xlsx or txt",
+        ));
     }
     let stored: Option<String> = db
         .query_row(
@@ -4730,7 +4733,12 @@ async fn get_estimate(
         )
         .optional()?;
     let Some(text) = stored else {
-        return Err(fail_code(StatusCode::CONFLICT, "estimate_no_result", &[], "compute the order first"));
+        return Err(fail_code(
+            StatusCode::CONFLICT,
+            "estimate_no_result",
+            &[],
+            "compute the order first",
+        ));
     };
     let rates = match std::env::var("NF_ESTIMATE_RATES") {
         Err(_) => nf_estimate::Rates::default(),
@@ -4743,17 +4751,26 @@ async fn get_estimate(
     };
     nf_estimate::validate_rates(&rates).map_err(|e| unprocessable("estimate_rates", &e))?;
     let order: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
-    let est = nf_estimate::estimate(&order, &rates).map_err(|e| unprocessable("estimate_result", &e))?;
+    let est =
+        nf_estimate::estimate(&order, &rates).map_err(|e| unprocessable("estimate_result", &e))?;
     let ja = q.lang.as_deref() == Some("ja");
     let suffix = if ja { "-ja" } else { "" };
     let (ctype, name, body): (&str, String, Vec<u8>) = match format.as_str() {
-        "csv" => ("text/csv; charset=utf-8", format!("estimate-{oid}{suffix}.csv"), nf_estimate::csv(&est, ja)),
+        "csv" => (
+            "text/csv; charset=utf-8",
+            format!("estimate-{oid}{suffix}.csv"),
+            nf_estimate::csv(&est, ja),
+        ),
         "xlsx" => (
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             format!("estimate-{oid}.xlsx"),
             nf_estimate::xlsx(&est).map_err(|e| unprocessable("estimate_xlsx", &e.to_string()))?,
         ),
-        "txt" => ("text/plain; charset=utf-8", format!("estimate-{oid}.txt"), nf_estimate::summary_text(&est).into_bytes()),
+        "txt" => (
+            "text/plain; charset=utf-8",
+            format!("estimate-{oid}.txt"),
+            nf_estimate::summary_text(&est).into_bytes(),
+        ),
         _ => {
             return ok(serde_json::to_value(&est).unwrap_or(Value::Null));
         }
@@ -5520,7 +5537,8 @@ fn job_package(
     let mut pieces: Vec<Piece> = Vec::new();
     let mut override_issues: Vec<Issue> = Vec::new();
     for p in &res.parts {
-        let mine: Vec<&overrides::ActiveOverride> = over.iter().filter(|o| o.part == p.no).collect();
+        let mine: Vec<&overrides::ActiveOverride> =
+            over.iter().filter(|o| o.part == p.no).collect();
         let normal = p.certified && p.dxf_allowed && p.dxf_blocked_by.is_empty();
         let codes: Vec<String> = mine.iter().map(|o| o.code.clone()).collect();
         let digest = digest_of(p);
@@ -5529,16 +5547,28 @@ fn job_package(
         for o in &mine {
             let when = utc_stamp(o.at.max(0) as u64);
             let (fate_en, fate_ja) = if through {
-                ("its DXF is marked and let through", "DXFに印を付けて出力しました")
+                (
+                    "its DXF is marked and let through",
+                    "DXFに印を付けて出力しました",
+                )
             } else {
-                ("no DXF: the part is not otherwise certified with a digest PASS", "DXFなし：他の条件（認証・ダイジェスト合格）を満たしていません")
+                (
+                    "no DXF: the part is not otherwise certified with a digest PASS",
+                    "DXFなし：他の条件（認証・ダイジェスト合格）を満たしていません",
+                )
             };
             override_issues.push(Issue {
                 code: "person_override".into(),
                 title_en: "PERSON OVERRIDE".into(),
                 title_ja: "担当者による上書き".into(),
-                message_en: format!("override #{}: {} overridden by {} at {when}: {} ({fate_en})", o.id, o.code, o.by, o.reason),
-                message_ja: format!("上書き #{}：{} を {} が {when} に上書き：{}（{fate_ja}）", o.id, o.code, o.by, o.reason),
+                message_en: format!(
+                    "override #{}: {} overridden by {} at {when}: {} ({fate_en})",
+                    o.id, o.code, o.by, o.reason
+                ),
+                message_ja: format!(
+                    "上書き #{}：{} を {} が {when} に上書き：{}（{fate_ja}）",
+                    o.id, o.code, o.by, o.reason
+                ),
                 no: p.no.clone(),
                 name: p.name.clone(),
                 ..Default::default()
@@ -5548,9 +5578,20 @@ fn job_package(
             let (dxf, label) = if through {
                 let notes: Vec<String> = mine
                     .iter()
-                    .map(|o| format!("override of {} by {} at {}: {}", o.code, o.by, utc_stamp(o.at.max(0) as u64), o.reason))
+                    .map(|o| {
+                        format!(
+                            "override of {} by {} at {}: {}",
+                            o.code,
+                            o.by,
+                            utc_stamp(o.at.max(0) as u64),
+                            o.reason
+                        )
+                    })
                     .collect();
-                (overrides::mark_dxf(d, &notes), Some("PERSON-OVERRIDE".to_string()))
+                (
+                    overrides::mark_dxf(d, &notes),
+                    Some("PERSON-OVERRIDE".to_string()),
+                )
             } else {
                 (d.clone(), None)
             };
@@ -5660,7 +5701,12 @@ async fn get_outputs_zip(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i6
     // piece is drawn here so the server digest can judge it; the gate still decides whether it goes out.
     for p in res.parts.iter_mut() {
         let overridden = over.iter().any(|o| o.part == p.no);
-        if overridden && p.dxf.is_none() && p.certified && p.refusal.is_none() && p.pattern.len() == 1 {
+        if overridden
+            && p.dxf.is_none()
+            && p.certified
+            && p.refusal.is_none()
+            && p.pattern.len() == 1
+        {
             p.dxf = p.pattern.first().map(oc::piece_dxf);
         }
     }
@@ -5670,7 +5716,15 @@ async fn get_outputs_zip(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i6
         let files: Vec<&str> = res.parts.iter().filter_map(|p| p.dxf.as_deref()).collect();
         refuse_edited_order(&db, oid, &files)?;
     }
-    let pkg = job_package(oid, &name, &utc_stamp(now()), &res, record, &over, &crate::amoeba::order_dxf_verdict);
+    let pkg = job_package(
+        oid,
+        &name,
+        &utc_stamp(now()),
+        &res,
+        record,
+        &over,
+        &crate::amoeba::order_dxf_verdict,
+    );
     let n_dxf = pkg.pieces.len();
     let n_held = res
         .parts

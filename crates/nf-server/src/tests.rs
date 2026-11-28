@@ -6071,7 +6071,14 @@ async fn auth1_no_secret_reaches_the_audit_log_or_the_plain_database() {
 
 // ---------------------------------------------------------------- NF CAD phase 1 (read-only)
 
-async fn send_bytes(t: &T, method: &str, path: &str, body: &[u8], filename: &str, cookie: &str) -> (StatusCode, Value) {
+async fn send_bytes(
+    t: &T,
+    method: &str,
+    path: &str,
+    body: &[u8],
+    filename: &str,
+    cookie: &str,
+) -> (StatusCode, Value) {
     let req = HttpRequest::builder()
         .method(method)
         .uri(path)
@@ -6084,8 +6091,14 @@ async fn send_bytes(t: &T, method: &str, path: &str, body: &[u8], filename: &str
         .unwrap();
     let resp = router(t.app.clone()).oneshot(req).await.unwrap();
     let (parts, b) = resp.into_parts();
-    let bytes = axum::body::to_bytes(b, 64 * 1024 * 1024).await.unwrap().to_vec();
-    (parts.status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    let bytes = axum::body::to_bytes(b, 64 * 1024 * 1024)
+        .await
+        .unwrap()
+        .to_vec();
+    (
+        parts.status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
 }
 
 const CAD_BASIC: &[u8] = include_bytes!("../../nf-cad/tests/fixtures/basic.dxf");
@@ -6093,16 +6106,33 @@ const CAD_BASIC: &[u8] = include_bytes!("../../nf-cad/tests/fixtures/basic.dxf")
 #[tokio::test]
 async fn cad_open_measure_pick_and_checks_on_an_uploaded_dxf() {
     let t = boot();
-    let (st, up) = send_bytes(&t, "POST", "/api/projects/1/documents", CAD_BASIC, "basic.dxf", &t.cookie).await;
+    let (st, up) = send_bytes(
+        &t,
+        "POST",
+        "/api/projects/1/documents",
+        CAD_BASIC,
+        "basic.dxf",
+        &t.cookie,
+    )
+    .await;
     assert_eq!(st, StatusCode::OK, "{up}");
-    let id = up["documents"][0]["id"].as_i64().or(up["id"].as_i64()).unwrap_or(1);
+    let id = up["documents"][0]["id"]
+        .as_i64()
+        .or(up["id"].as_i64())
+        .unwrap_or(1);
     let m = t.get(&format!("/api/cad/documents/{id}")).await;
     assert_eq!(m["units"], "millimeter");
     assert_eq!(m["entity_count"], 7);
     assert_eq!(m["entities"][0]["id"], "E0");
-    let meas = t.get(&format!("/api/cad/documents/{id}/measure?kind=length&entity=E0")).await;
+    let meas = t
+        .get(&format!(
+            "/api/cad/documents/{id}/measure?kind=length&entity=E0"
+        ))
+        .await;
     assert!((meas["values"][0]["value"].as_f64().unwrap() - 5.0).abs() < 1e-9);
-    let pk = t.get(&format!("/api/cad/documents/{id}/pick?at=1.5,2&tol=0.01")).await;
+    let pk = t
+        .get(&format!("/api/cad/documents/{id}/pick?at=1.5,2&tol=0.01"))
+        .await;
     assert_eq!(pk["entity"]["id"], "E0");
     let ck = t.get(&format!("/api/cad/documents/{id}/checks")).await;
     assert_eq!(ck["rules"].as_array().unwrap().len(), 14);
@@ -6111,26 +6141,61 @@ async fn cad_open_measure_pick_and_checks_on_an_uploaded_dxf() {
     // each open is audited
     assert!(t.count("SELECT COUNT(*) FROM audit WHERE action = 'cad_open'") >= 1);
     // bad requests are refused with a reason, not a panic
-    let (st, v) = t.call("GET", &format!("/api/cad/documents/{id}/measure?kind=area&entity=E0"), None).await;
+    let (st, v) = t
+        .call(
+            "GET",
+            &format!("/api/cad/documents/{id}/measure?kind=area&entity=E0"),
+            None,
+        )
+        .await;
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
-    let (st, _) = t.call("GET", &format!("/api/cad/documents/{id}/measure?kind=teleport"), None).await;
+    let (st, _) = t
+        .call(
+            "GET",
+            &format!("/api/cad/documents/{id}/measure?kind=teleport"),
+            None,
+        )
+        .await;
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY);
-    let (st, _) = t.call("GET", &format!("/api/cad/documents/{id}/pick?at=x"), None).await;
+    let (st, _) = t
+        .call("GET", &format!("/api/cad/documents/{id}/pick?at=x"), None)
+        .await;
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 #[tokio::test]
 async fn cad_needs_a_session_and_project_membership() {
     let t = boot();
-    let (st, _) = send_bytes(&t, "POST", "/api/projects/1/documents", CAD_BASIC, "basic.dxf", &t.cookie).await;
+    let (st, _) = send_bytes(
+        &t,
+        "POST",
+        "/api/projects/1/documents",
+        CAD_BASIC,
+        "basic.dxf",
+        &t.cookie,
+    )
+    .await;
     assert_eq!(st, StatusCode::OK);
-    let (st, _, _) = t.send("GET", "/api/cad/documents/1", None, &[("cookie", "none=1")]).await;
+    let (st, _, _) = t
+        .send("GET", "/api/cad/documents/1", None, &[("cookie", "none=1")])
+        .await;
     assert_eq!(st, StatusCode::UNAUTHORIZED);
     let outsider = add_session(&t.app, "outsider", "viewer");
     let (st, _) = t.call("GET", "/api/cad/documents/1", None).await;
     assert_eq!(st, StatusCode::OK);
-    let (st, _, _) = t.send("GET", "/api/cad/documents/1", None, &[("cookie", &outsider)]).await;
-    assert_ne!(st, StatusCode::OK, "a user outside the project must not read the drawing");
+    let (st, _, _) = t
+        .send(
+            "GET",
+            "/api/cad/documents/1",
+            None,
+            &[("cookie", &outsider)],
+        )
+        .await;
+    assert_ne!(
+        st,
+        StatusCode::OK,
+        "a user outside the project must not read the drawing"
+    );
     let (st, _, _) = t.send("GET", "/api/cad/documents/999", None, &[]).await;
     assert_eq!(st, StatusCode::NOT_FOUND);
 }
@@ -6139,11 +6204,24 @@ async fn cad_needs_a_session_and_project_membership() {
 async fn cad_refuses_malformed_input_without_panic() {
     let t = boot();
     let bad: &[u8] = b"0\nSECTION\n2\nENTITIES\n0\nLINE\n10\nnan\n";
-    let (st, up) = send_bytes(&t, "POST", "/api/projects/1/documents", bad, "bad.dxf", &t.cookie).await;
+    let (st, up) = send_bytes(
+        &t,
+        "POST",
+        "/api/projects/1/documents",
+        bad,
+        "bad.dxf",
+        &t.cookie,
+    )
+    .await;
     assert!(st.is_success() || st.is_client_error(), "{up}");
     if st == StatusCode::OK {
-        let id = up["documents"][0]["id"].as_i64().or(up["id"].as_i64()).unwrap_or(1);
-        let (st, v) = t.call("GET", &format!("/api/cad/documents/{id}"), None).await;
+        let id = up["documents"][0]["id"]
+            .as_i64()
+            .or(up["id"].as_i64())
+            .unwrap_or(1);
+        let (st, v) = t
+            .call("GET", &format!("/api/cad/documents/{id}"), None)
+            .await;
         assert!(st.is_client_error(), "malformed DXF must be refused: {v}");
         assert!(v["code"].is_string());
     }
@@ -6154,8 +6232,15 @@ async fn cad_refuses_malformed_input_without_panic() {
 #[test]
 fn cad_reads_stay_outside_the_licence_gate() {
     use axum::http::Method;
-    for p in ["/api/cad/documents/1", "/api/cad/documents/1/measure", "/api/cad/calculations/1/cut/pick"] {
-        assert!(!crate::licence::gated(&Method::GET, p), "{p} is a read and must stay available on a read-only licence");
+    for p in [
+        "/api/cad/documents/1",
+        "/api/cad/documents/1/measure",
+        "/api/cad/calculations/1/cut/pick",
+    ] {
+        assert!(
+            !crate::licence::gated(&Method::GET, p),
+            "{p} is a read and must stay available on a read-only licence"
+        );
     }
 }
 
@@ -6360,11 +6445,23 @@ async fn upload_raw(t: &T, cookie: &str, name: &str, bytes: Vec<u8>) -> StatusCo
 }
 
 fn last_doc(t: &T) -> i64 {
-    t.app.db().query_row("SELECT id FROM documents ORDER BY id DESC LIMIT 1", [], |r| r.get(0)).unwrap()
+    t.app
+        .db()
+        .query_row(
+            "SELECT id FROM documents ORDER BY id DESC LIMIT 1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap()
 }
 
 fn doc_sha(t: &T, id: i64) -> String {
-    t.app.db().query_row("SELECT sha256 FROM documents WHERE id = ?", [id], |r| r.get(0)).unwrap()
+    t.app
+        .db()
+        .query_row("SELECT sha256 FROM documents WHERE id = ?", [id], |r| {
+            r.get(0)
+        })
+        .unwrap()
 }
 
 fn move_op() -> Value {
@@ -6378,18 +6475,50 @@ async fn cad_edit_creates_a_new_version_and_never_changes_the_parent() {
     assert_eq!(parent_status, StatusCode::OK, "the DXF is admitted");
     let parent = last_doc(&t);
     let parent_sha = doc_sha(&t, parent);
-    let (st, v) = t.call("POST", &format!("/api/cad/documents/{parent}/edit"), Some(move_op())).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/cad/documents/{parent}/edit"),
+            Some(move_op()),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let child = v["document_id"].as_i64().unwrap();
     assert_ne!(child, parent, "a new document");
     assert_eq!(v["parent_sha256"], parent_sha);
-    assert_eq!(doc_sha(&t, parent), parent_sha, "the parent row is unchanged");
-    assert_eq!(v["checks"].as_array().unwrap().len(), 14, "the quality gate ran on the new version");
-    let flag: i64 = t.app.db().query_row("SELECT cad_edited FROM documents WHERE id = ?", [child], |r| r.get(0)).unwrap();
+    assert_eq!(
+        doc_sha(&t, parent),
+        parent_sha,
+        "the parent row is unchanged"
+    );
+    assert_eq!(
+        v["checks"].as_array().unwrap().len(),
+        14,
+        "the quality gate ran on the new version"
+    );
+    let flag: i64 = t
+        .app
+        .db()
+        .query_row(
+            "SELECT cad_edited FROM documents WHERE id = ?",
+            [child],
+            |r| r.get(0),
+        )
+        .unwrap();
     assert_eq!(flag, 1, "the child is flagged");
-    let pflag: i64 = t.app.db().query_row("SELECT cad_edited FROM documents WHERE id = ?", [parent], |r| r.get(0)).unwrap();
+    let pflag: i64 = t
+        .app
+        .db()
+        .query_row(
+            "SELECT cad_edited FROM documents WHERE id = ?",
+            [parent],
+            |r| r.get(0),
+        )
+        .unwrap();
     assert_eq!(pflag, 0, "the parent is not flagged");
-    let vers = t.get(&format!("/api/cad/documents/{parent}/versions")).await;
+    let vers = t
+        .get(&format!("/api/cad/documents/{parent}/versions"))
+        .await;
     assert_eq!(vers["children"][0]["document_id"], child);
 }
 
@@ -6399,15 +6528,44 @@ async fn agent_identity_gets_403_on_edit_and_the_refusal_is_audited() {
     upload_raw(&t, &t.cookie, "part.dxf", CAD_DXF.as_bytes().to_vec()).await;
     let parent = last_doc(&t);
     let bot = add_session(&t.app, "bot", "engineer");
-    t.app.db().execute("UPDATE users SET kind = 'agent' WHERE username = 'bot'", []).unwrap();
-    let (st, _, _) = t.send("POST", &format!("/api/cad/documents/{parent}/edit"), Some(move_op()), &[("cookie", &bot)]).await;
+    t.app
+        .db()
+        .execute("UPDATE users SET kind = 'agent' WHERE username = 'bot'", [])
+        .unwrap();
+    let (st, _, _) = t
+        .send(
+            "POST",
+            &format!("/api/cad/documents/{parent}/edit"),
+            Some(move_op()),
+            &[("cookie", &bot)],
+        )
+        .await;
     assert_eq!(st, StatusCode::FORBIDDEN);
-    let n: i64 = t.app.db().query_row("SELECT COUNT(*) FROM documents", [], |r| r.get(0)).unwrap();
+    let n: i64 = t
+        .app
+        .db()
+        .query_row("SELECT COUNT(*) FROM documents", [], |r| r.get(0))
+        .unwrap();
     assert_eq!(n, 1, "no version was written");
-    let audited: i64 = t.app.db().query_row("SELECT COUNT(*) FROM audit WHERE action = 'cad_edit_refused'", [], |r| r.get(0)).unwrap();
+    let audited: i64 = t
+        .app
+        .db()
+        .query_row(
+            "SELECT COUNT(*) FROM audit WHERE action = 'cad_edit_refused'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
     assert_eq!(audited, 1);
     // the agent may still read the versions and is refused on undo too
-    let (st, _, _) = t.send("POST", &format!("/api/cad/documents/{parent}/undo"), None, &[("cookie", &bot)]).await;
+    let (st, _, _) = t
+        .send(
+            "POST",
+            &format!("/api/cad/documents/{parent}/undo"),
+            None,
+            &[("cookie", &bot)],
+        )
+        .await;
     assert_eq!(st, StatusCode::FORBIDDEN);
 }
 
@@ -6416,14 +6574,31 @@ async fn undo_reverts_to_the_parent_and_keeps_the_edit() {
     let t = boot();
     upload_raw(&t, &t.cookie, "part.dxf", CAD_DXF.as_bytes().to_vec()).await;
     let parent = last_doc(&t);
-    let (_, v) = t.call("POST", &format!("/api/cad/documents/{parent}/edit"), Some(move_op())).await;
+    let (_, v) = t
+        .call(
+            "POST",
+            &format!("/api/cad/documents/{parent}/edit"),
+            Some(move_op()),
+        )
+        .await;
     let child = v["document_id"].as_i64().unwrap();
-    let (st, u) = t.call("POST", &format!("/api/cad/documents/{child}/undo"), None).await;
+    let (st, u) = t
+        .call("POST", &format!("/api/cad/documents/{child}/undo"), None)
+        .await;
     assert_eq!(st, StatusCode::OK, "{u}");
     assert_eq!(u["revert_to"], parent);
-    assert!(doc_sha(&t, child).len() == 64, "the edited version still exists");
-    let (st, u) = t.call("POST", &format!("/api/cad/documents/{parent}/undo"), None).await;
-    assert_eq!(st, StatusCode::CONFLICT, "an original has nothing to undo: {u}");
+    assert!(
+        doc_sha(&t, child).len() == 64,
+        "the edited version still exists"
+    );
+    let (st, u) = t
+        .call("POST", &format!("/api/cad/documents/{parent}/undo"), None)
+        .await;
+    assert_eq!(
+        st,
+        StatusCode::CONFLICT,
+        "an original has nothing to undo: {u}"
+    );
 }
 
 #[tokio::test]
@@ -6431,39 +6606,109 @@ async fn bad_edits_are_refused_and_an_edited_upload_is_marked() {
     let t = boot();
     upload_raw(&t, &t.cookie, "part.dxf", CAD_DXF.as_bytes().to_vec()).await;
     let parent = last_doc(&t);
-    let (st, v) = t.call("POST", &format!("/api/cad/documents/{parent}/edit"), Some(move_op())).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/cad/documents/{parent}/edit"),
+            Some(move_op()),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "a move of a line is fine: {v}");
     let too_many = json!({ "ops": vec![json!({ "op": "delete", "ids": ["E0"] }); 51] });
-    let (st, _) = t.call("POST", &format!("/api/cad/documents/{parent}/edit"), Some(too_many)).await;
-    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "more than 50 operations");
-    let (st, v) = t.call("POST", &format!("/api/cad/documents/{parent}/edit"), Some(json!({ "ops": [{ "op": "delete", "ids": ["E9"] }] }))).await;
+    let (st, _) = t
+        .call(
+            "POST",
+            &format!("/api/cad/documents/{parent}/edit"),
+            Some(too_many),
+        )
+        .await;
+    assert_eq!(
+        st,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "more than 50 operations"
+    );
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/cad/documents/{parent}/edit"),
+            Some(json!({ "ops": [{ "op": "delete", "ids": ["E9"] }] })),
+        )
+        .await;
     assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{v}");
     assert_eq!(v["code"], "unknown_entity");
     // an edited file re-uploaded keeps its mark (no laundering through download and upload)
-    let (_, v) = t.call("POST", &format!("/api/cad/documents/{parent}/edit"), Some(move_op())).await;
+    let (_, v) = t
+        .call(
+            "POST",
+            &format!("/api/cad/documents/{parent}/edit"),
+            Some(move_op()),
+        )
+        .await;
     let child = v["document_id"].as_i64().unwrap();
-    let edited = t.app.db().query_row("SELECT filename FROM documents WHERE id = ?", [child], |r| r.get::<_, String>(0)).unwrap();
+    let edited = t
+        .app
+        .db()
+        .query_row(
+            "SELECT filename FROM documents WHERE id = ?",
+            [child],
+            |r| r.get::<_, String>(0),
+        )
+        .unwrap();
     assert!(edited.ends_with("(NF CAD edit).dxf"));
     let _ = edited;
     let text = {
-        let blob = nf_cad::edit::apply(CAD_DXF.as_bytes(), &[nf_cad::edit::Op::Move { ids: vec!["E0".into()], dx: 1.0, dy: 0.0 }]).unwrap();
+        let blob = nf_cad::edit::apply(
+            CAD_DXF.as_bytes(),
+            &[nf_cad::edit::Op::Move {
+                ids: vec!["E0".into()],
+                dx: 1.0,
+                dy: 0.0,
+            }],
+        )
+        .unwrap();
         blob
     };
-    assert_eq!(upload_raw(&t, &t.cookie, "again.dxf", text).await, StatusCode::OK);
+    assert_eq!(
+        upload_raw(&t, &t.cookie, "again.dxf", text).await,
+        StatusCode::OK
+    );
     let re = last_doc(&t);
-    let flag: i64 = t.app.db().query_row("SELECT cad_edited FROM documents WHERE id = ?", [re], |r| r.get(0)).unwrap();
+    let flag: i64 = t
+        .app
+        .db()
+        .query_row("SELECT cad_edited FROM documents WHERE id = ?", [re], |r| {
+            r.get(0)
+        })
+        .unwrap();
     assert_eq!(flag, 1, "a marked upload is flagged");
 }
 
 #[test]
 fn an_edited_file_is_never_served_as_a_certified_pattern() {
-    let marked = nf_cad::edit::apply(CAD_DXF.as_bytes(), &[nf_cad::edit::Op::Move { ids: vec!["E0".into()], dx: 1.0, dy: 0.0 }]).unwrap();
+    let marked = nf_cad::edit::apply(
+        CAD_DXF.as_bytes(),
+        &[nf_cad::edit::Op::Move {
+            ids: vec!["E0".into()],
+            dx: 1.0,
+            dy: 0.0,
+        }],
+    )
+    .unwrap();
     assert!(crate::cad::refuse_if_edited(&marked).is_err());
     assert!(crate::cad::refuse_if_edited(CAD_DXF.as_bytes()).is_ok());
     // the edit route is a licence-gated write
-    assert!(crate::licence::gated(&axum::http::Method::POST, "/api/cad/documents/3/edit"));
-    assert!(crate::licence::gated(&axum::http::Method::POST, "/api/cad/documents/3/undo"));
-    assert!(!crate::licence::gated(&axum::http::Method::GET, "/api/cad/documents/3/versions"));
+    assert!(crate::licence::gated(
+        &axum::http::Method::POST,
+        "/api/cad/documents/3/edit"
+    ));
+    assert!(crate::licence::gated(
+        &axum::http::Method::POST,
+        "/api/cad/documents/3/undo"
+    ));
+    assert!(!crate::licence::gated(
+        &axum::http::Method::GET,
+        "/api/cad/documents/3/versions"
+    ));
 }
 
 #[tokio::test]
@@ -6471,17 +6716,50 @@ async fn cad_versions_cannot_be_updated_or_deleted_and_the_helper_sees_both_side
     let t = boot();
     upload_raw(&t, &t.cookie, "part.dxf", CAD_DXF.as_bytes().to_vec()).await;
     let parent = last_doc(&t);
-    let (st, v) = t.call("POST", &format!("/api/cad/documents/{parent}/edit"), Some(move_op())).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/cad/documents/{parent}/edit"),
+            Some(move_op()),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let child = v["document_id"].as_i64().unwrap();
     let db = t.app.db();
-    assert!(db.execute("UPDATE cad_versions SET author = 'x'", []).is_err(), "update refused");
-    assert!(db.execute("DELETE FROM cad_versions", []).is_err(), "delete refused");
+    assert!(
+        db.execute("UPDATE cad_versions SET author = 'x'", [])
+            .is_err(),
+        "update refused"
+    );
+    assert!(
+        db.execute("DELETE FROM cad_versions", []).is_err(),
+        "delete refused"
+    );
     assert!(crate::cad::is_cad_edited(&db, child), "child is an edit");
-    assert!(!crate::cad::is_cad_edited(&db, parent), "the original stays certifiable");
-    let psha: String = db.query_row("SELECT sha256 FROM documents WHERE id = ?", [parent], |r| r.get(0)).unwrap();
-    let csha: String = db.query_row("SELECT sha256 FROM documents WHERE id = ?", [child], |r| r.get(0)).unwrap();
-    assert!(crate::cad::refuse_if_edited_sha(&db, &csha).is_err(), "the edited bytes are refused by hash");
-    assert!(crate::cad::refuse_if_edited_sha(&db, &psha).is_ok(), "the original bytes stay certifiable");
-    assert!(!crate::cad::is_cad_edited(&db, 999), "unknown document is not edited");
+    assert!(
+        !crate::cad::is_cad_edited(&db, parent),
+        "the original stays certifiable"
+    );
+    let psha: String = db
+        .query_row("SELECT sha256 FROM documents WHERE id = ?", [parent], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    let csha: String = db
+        .query_row("SELECT sha256 FROM documents WHERE id = ?", [child], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert!(
+        crate::cad::refuse_if_edited_sha(&db, &csha).is_err(),
+        "the edited bytes are refused by hash"
+    );
+    assert!(
+        crate::cad::refuse_if_edited_sha(&db, &psha).is_ok(),
+        "the original bytes stay certifiable"
+    );
+    assert!(
+        !crate::cad::is_cad_edited(&db, 999),
+        "unknown document is not edited"
+    );
 }

@@ -11,13 +11,33 @@ pub struct Vtx {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Geom {
-    Point { at: P },
-    Line { a: P, b: P },
-    Circle { c: P, r: f64 },
+    Point {
+        at: P,
+    },
+    Line {
+        a: P,
+        b: P,
+    },
+    Circle {
+        c: P,
+        r: f64,
+    },
     /// Counter-clockwise from `start` to `end` (degrees).
-    Arc { c: P, r: f64, start: f64, end: f64 },
-    Poly { v: Vec<Vtx>, closed: bool },
-    Text { at: P, height: f64, text: String },
+    Arc {
+        c: P,
+        r: f64,
+        start: f64,
+        end: f64,
+    },
+    Poly {
+        v: Vec<Vtx>,
+        closed: bool,
+    },
+    Text {
+        at: P,
+        height: f64,
+        text: String,
+    },
     /// An entity kind phase 1 does not read (INSERT, HATCH, ...). It is listed, never measured.
     Unsupported,
 }
@@ -28,7 +48,10 @@ pub fn dist(a: P, b: P) -> f64 {
 
 /// Direction of a -> b in degrees, in [0, 360).
 pub fn angle_deg(a: P, b: P) -> f64 {
-    (b[1] - a[1]).atan2(b[0] - a[0]).to_degrees().rem_euclid(360.0)
+    (b[1] - a[1])
+        .atan2(b[0] - a[0])
+        .to_degrees()
+        .rem_euclid(360.0)
 }
 
 /// Unsigned angle between two lines a1-a2 and b1-b2, in [0, 90] (lines have no direction).
@@ -46,7 +69,11 @@ pub fn vertex_angle_deg(v: P, a: P, b: P) -> f64 {
 /// Counter-clockwise sweep from `start` to `end`, in [0, 360). A zero sweep is 0 (use a circle for 360).
 pub fn sweep_deg(start: f64, end: f64) -> f64 {
     let s = (end - start).rem_euclid(360.0);
-    if s < 1e-12 || (360.0 - s) < 1e-12 { 0.0 } else { s }
+    if s < 1e-12 || (360.0 - s) < 1e-12 {
+        0.0
+    } else {
+        s
+    }
 }
 
 /// True when angle `a` (degrees) lies on the counter-clockwise arc from `start` over `sweep`.
@@ -119,7 +146,12 @@ pub fn extents(g: &Geom) -> Option<[f64; 4]> {
     let mut add = |p: P| {
         b = Some(match b {
             None => [p[0], p[1], p[0], p[1]],
-            Some(e) => [e[0].min(p[0]), e[1].min(p[1]), e[2].max(p[0]), e[3].max(p[1])],
+            Some(e) => [
+                e[0].min(p[0]),
+                e[1].min(p[1]),
+                e[2].max(p[0]),
+                e[3].max(p[1]),
+            ],
         });
     };
     match g {
@@ -152,7 +184,12 @@ pub fn extents(g: &Geom) -> Option<[f64; 4]> {
             for i in 0..segs {
                 if v[i].bulge.abs() >= 1e-12 {
                     for k in 1..32 {
-                        add(bulge_point(v[i].p, v[(i + 1) % n].p, v[i].bulge, k as f64 / 32.0));
+                        add(bulge_point(
+                            v[i].p,
+                            v[(i + 1) % n].p,
+                            v[i].bulge,
+                            k as f64 / 32.0,
+                        ));
                     }
                 }
             }
@@ -254,8 +291,24 @@ pub const MAX_CURVE_POINTS: usize = 20_000;
 /// Adaptive sampling of `f` over [t0, t1]: 16 uniform spans, then bisection until the midpoint of each span lies
 /// within `tol` of its chord. Returns every sample, including both ends. Errors when more than `max` points are
 /// needed.
-pub fn sample_curve(f: &dyn Fn(f64) -> P, t0: f64, t1: f64, tol: f64, max: usize) -> Result<Vec<P>, String> {
-    fn rec(f: &dyn Fn(f64) -> P, a: f64, b: f64, pa: P, pb: P, tol: f64, depth: u32, out: &mut Vec<P>, max: usize) -> Result<(), String> {
+pub fn sample_curve(
+    f: &dyn Fn(f64) -> P,
+    t0: f64,
+    t1: f64,
+    tol: f64,
+    max: usize,
+) -> Result<Vec<P>, String> {
+    fn rec(
+        f: &dyn Fn(f64) -> P,
+        a: f64,
+        b: f64,
+        pa: P,
+        pb: P,
+        tol: f64,
+        depth: u32,
+        out: &mut Vec<P>,
+        max: usize,
+    ) -> Result<(), String> {
         let m = 0.5 * (a + b);
         let pm = f(m);
         let chord_mid = [(pa[0] + pb[0]) / 2.0, (pa[1] + pb[1]) / 2.0];
@@ -296,7 +349,11 @@ pub fn nurbs_at(p: usize, u: &[f64], cp: &[P], w: &[f64], t: f64) -> P {
         let (mut lo, mut hi) = (p, n);
         while lo < hi {
             let mid = (lo + hi + 1) / 2;
-            if u[mid] <= t { lo = mid } else { hi = mid - 1 }
+            if u[mid] <= t {
+                lo = mid
+            } else {
+                hi = mid - 1
+            }
         }
         lo
     };
@@ -317,7 +374,11 @@ pub fn nurbs_at(p: usize, u: &[f64], cp: &[P], w: &[f64], t: f64) -> P {
         }
     }
     let wt = d[p][2];
-    if wt == 0.0 { [0.0, 0.0] } else { [d[p][0] / wt, d[p][1] / wt] }
+    if wt == 0.0 {
+        [0.0, 0.0]
+    } else {
+        [d[p][0] / wt, d[p][1] / wt]
+    }
 }
 
 /// An affine map x' = a x + c y + e, y' = b x + d y + f.
@@ -329,11 +390,17 @@ pub struct Affine {
 
 impl Affine {
     pub fn identity() -> Affine {
-        Affine { m: [1.0, 0.0, 0.0, 1.0], t: [0.0, 0.0] }
+        Affine {
+            m: [1.0, 0.0, 0.0, 1.0],
+            t: [0.0, 0.0],
+        }
     }
     pub fn apply(&self, p: P) -> P {
         let [a, b, c, d] = self.m;
-        [a * p[0] + c * p[1] + self.t[0], b * p[0] + d * p[1] + self.t[1]]
+        [
+            a * p[0] + c * p[1] + self.t[0],
+            b * p[0] + d * p[1] + self.t[1],
+        ]
     }
     /// The linear part applied to a vector (no translation).
     pub fn linear(&self, v: P) -> P {
@@ -354,15 +421,24 @@ impl Affine {
         }
     }
     pub fn translate(dx: f64, dy: f64) -> Affine {
-        Affine { m: [1.0, 0.0, 0.0, 1.0], t: [dx, dy] }
+        Affine {
+            m: [1.0, 0.0, 0.0, 1.0],
+            t: [dx, dy],
+        }
     }
     /// Rotation by `deg` counter-clockwise about the origin.
     pub fn rotate(deg: f64) -> Affine {
         let (s, c) = deg.to_radians().sin_cos();
-        Affine { m: [c, s, -s, c], t: [0.0, 0.0] }
+        Affine {
+            m: [c, s, -s, c],
+            t: [0.0, 0.0],
+        }
     }
     pub fn scale(sx: f64, sy: f64) -> Affine {
-        Affine { m: [sx, 0.0, 0.0, sy], t: [0.0, 0.0] }
+        Affine {
+            m: [sx, 0.0, 0.0, sy],
+            t: [0.0, 0.0],
+        }
     }
     /// Reflection across the line through `a` and `b`.
     pub fn mirror(a: P, b: P) -> Affine {
@@ -370,10 +446,18 @@ impl Affine {
         let l2 = dx * dx + dy * dy;
         let (ux, uy) = (dx / l2.sqrt(), dy / l2.sqrt());
         // reflection matrix 2 u u^T - I
-        let m = [2.0 * ux * ux - 1.0, 2.0 * ux * uy, 2.0 * ux * uy, 2.0 * uy * uy - 1.0];
+        let m = [
+            2.0 * ux * ux - 1.0,
+            2.0 * ux * uy,
+            2.0 * ux * uy,
+            2.0 * uy * uy - 1.0,
+        ];
         let lin = Affine { m, t: [0.0, 0.0] };
         let ta = lin.linear(a);
-        Affine { m, t: [a[0] - ta[0], a[1] - ta[1]] }
+        Affine {
+            m,
+            t: [a[0] - ta[0], a[1] - ta[1]],
+        }
     }
     /// True when the map preserves angles and scales lengths by one factor (rotation, mirror, uniform scale).
     pub fn is_similarity(&self) -> Option<f64> {
@@ -381,7 +465,11 @@ impl Affine {
         let s1 = (a * a + b * b).sqrt();
         let s2 = (c * c + d * d).sqrt();
         let orth = (a * c + b * d).abs() <= 1e-9 * s1 * s2;
-        if s1 > 0.0 && (s1 - s2).abs() <= 1e-9 * s1 && orth { Some(s1) } else { None }
+        if s1 > 0.0 && (s1 - s2).abs() <= 1e-9 * s1 && orth {
+            Some(s1)
+        } else {
+            None
+        }
     }
 }
 

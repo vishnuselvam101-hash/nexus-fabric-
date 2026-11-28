@@ -5551,7 +5551,14 @@ impl Config {
             desktop: false,
             licence_path,
             licence_enforce,
-            export_dirs: std::env::var("NF_MACHINE_EXPORT_DIRS").map(|v| v.split(':').filter(|x| !x.is_empty()).map(PathBuf::from).collect()).unwrap_or_default(),
+            export_dirs: std::env::var("NF_MACHINE_EXPORT_DIRS")
+                .map(|v| {
+                    v.split(':')
+                        .filter(|x| !x.is_empty())
+                        .map(PathBuf::from)
+                        .collect()
+                })
+                .unwrap_or_default(),
         })
     }
 }

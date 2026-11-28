@@ -13,7 +13,8 @@ use serde_json::Value;
 use std::f64::consts::PI;
 
 /// Named rule for the density (a physical value, not a price). UNVERIFIED until the factory confirms it.
-pub const DENSITY_RULE: &str = "STEEL_DENSITY nominal 7850 kg/m3 (UNVERIFIED: factory to confirm its own density)";
+pub const DENSITY_RULE: &str =
+    "STEEL_DENSITY nominal 7850 kg/m3 (UNVERIFIED: factory to confirm its own density)";
 const STEEL_DENSITY_KG_M3: f64 = 7850.0;
 
 /// The factory's own rates. Zero or empty means "not set": the parts that need it are held.
@@ -59,7 +60,10 @@ pub struct Reason {
 }
 
 fn reason(en: impl Into<String>, ja: impl Into<String>) -> Reason {
-    Reason { en: en.into(), ja: ja.into() }
+    Reason {
+        en: en.into(),
+        ja: ja.into(),
+    }
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -201,25 +205,55 @@ fn hold_reason(p: &PartIn) -> Option<Reason> {
         ));
     }
     // Info-level holds (e.g. "stock_checked") are notes; only need-level holds keep a part out.
-    let blocking = p.holds.iter().filter(|h| h.get("level").and_then(Value::as_str) != Some("info"));
-    if let Some(code) = blocking.clone().find_map(|h| h.get("code").and_then(Value::as_str)) {
-        return Some(reason(format!("not priced: hold {code}"), format!("保留のため見積対象外: {code}")));
+    let blocking = p
+        .holds
+        .iter()
+        .filter(|h| h.get("level").and_then(Value::as_str) != Some("info"));
+    if let Some(code) = blocking
+        .clone()
+        .find_map(|h| h.get("code").and_then(Value::as_str))
+    {
+        return Some(reason(
+            format!("not priced: hold {code}"),
+            format!("保留のため見積対象外: {code}"),
+        ));
     }
-    if let Some(code) = p.questions.iter().find_map(|q| q.get("code").and_then(Value::as_str)) {
-        return Some(reason(format!("not priced: open question {code}"), format!("未回答の質問のため見積対象外: {code}")));
+    if let Some(code) = p
+        .questions
+        .iter()
+        .find_map(|q| q.get("code").and_then(Value::as_str))
+    {
+        return Some(reason(
+            format!("not priced: open question {code}"),
+            format!("未回答の質問のため見積対象外: {code}"),
+        ));
     }
     if p.mass_provisional {
-        return Some(reason("not priced: provisional result (open question)", "暫定結果のため見積対象外（未回答の質問）"));
+        return Some(reason(
+            "not priced: provisional result (open question)",
+            "暫定結果のため見積対象外（未回答の質問）",
+        ));
     }
     if p.pattern.is_empty() {
-        return Some(reason("not priced: no pattern (purchased or not computed)", "展開なし（購入品または未計算）のため見積対象外"));
+        return Some(reason(
+            "not priced: no pattern (purchased or not computed)",
+            "展開なし（購入品または未計算）のため見積対象外",
+        ));
     }
     match p.t_mm {
         Some(t) if t > 0.0 => {}
-        _ => return Some(reason("not priced: thickness missing", "板厚がないため見積対象外")),
+        _ => {
+            return Some(reason(
+                "not priced: thickness missing",
+                "板厚がないため見積対象外",
+            ))
+        }
     }
     if p.pattern.iter().any(|pc| pc.area_mm2.is_none()) {
-        return Some(reason("not priced: area not computed", "面積が未計算のため見積対象外"));
+        return Some(reason(
+            "not priced: area not computed",
+            "面積が未計算のため見積対象外",
+        ));
     }
     None
 }
@@ -262,7 +296,14 @@ struct Geo {
 
 fn geometry(p: &PartIn, r: &Rates) -> Geo {
     let t = p.t_mm.unwrap_or(0.0);
-    let mut g = Geo { t, pieces: 0, mass_kg: 0.0, cut_mm: 0.0, weld_mm: 0.0, pierces: 0 };
+    let mut g = Geo {
+        t,
+        pieces: 0,
+        mass_kg: 0.0,
+        cut_mm: 0.0,
+        weld_mm: 0.0,
+        pierces: 0,
+    };
     for pc in &p.pattern {
         let copies = pc.copies as u64;
         let c = copies as f64;
@@ -284,7 +325,10 @@ fn geometry(p: &PartIn, r: &Rates) -> Geo {
 }
 
 fn price(g: &Geo, r: &Rates, bands: &[CutBand]) -> Result<Costs, Reason> {
-    let band = bands.iter().filter(|b| g.t <= b.max_t_mm).min_by(|a, b| a.max_t_mm.total_cmp(&b.max_t_mm));
+    let band = bands
+        .iter()
+        .filter(|b| g.t <= b.max_t_mm)
+        .min_by(|a, b| a.max_t_mm.total_cmp(&b.max_t_mm));
     let Some(band) = band else {
         return Err(reason(
             format!("set your rates: no cut cost for {} mm thickness", g.t),
@@ -293,7 +337,10 @@ fn price(g: &Geo, r: &Rates, bands: &[CutBand]) -> Result<Costs, Reason> {
     };
     let weld_m = g.weld_mm / 1000.0;
     if weld_m > 0.0 && r.weld_cost_per_m <= 0.0 {
-        return Err(reason("set your rates: weld_cost_per_m", "溶接単価が未設定"));
+        return Err(reason(
+            "set your rates: weld_cost_per_m",
+            "溶接単価が未設定",
+        ));
     }
     let material = g.mass_kg * r.material_price_per_kg;
     let cut = g.cut_mm / 1000.0 * band.per_m;
@@ -301,7 +348,15 @@ fn price(g: &Geo, r: &Rates, bands: &[CutBand]) -> Result<Costs, Reason> {
     let labour = g.pieces as f64 * r.labour_min_per_piece / 60.0 * r.labour_rate_per_h;
     let subtotal = material + cut + weld + labour;
     let margin = subtotal * r.margin_pct / 100.0;
-    Ok(Costs { material, cut, weld, labour, subtotal, margin, price: subtotal + margin })
+    Ok(Costs {
+        material,
+        cut,
+        weld,
+        labour,
+        subtotal,
+        margin,
+        price: subtotal + margin,
+    })
 }
 
 /// Refuses negative or non-finite rates: a negative price is never a valid quote input.
@@ -337,7 +392,8 @@ pub fn weld_basis() -> Reason {
 /// Build the estimate from a stored engine result (JSON of `nf_core::order_compute::OrderResult`).
 pub fn estimate(order: &Value, rates: &Rates) -> Result<Estimate, String> {
     validate_rates(rates)?;
-    let o: OrderIn = serde_json::from_value(order.clone()).map_err(|e| format!("order result: {e}"))?;
+    let o: OrderIn =
+        serde_json::from_value(order.clone()).map_err(|e| format!("order result: {e}"))?;
     let unset = unset_rates(rates);
     let unset_names = unset.join(", ");
     let mut bands = rates.cut_cost_per_m.clone();
@@ -356,7 +412,11 @@ pub fn estimate(order: &Value, rates: &Rates) -> Result<Estimate, String> {
     };
     for p in &o.parts {
         if let Some(rs) = hold_reason(p) {
-            est.not_priced.push(NotPriced { no: p.no.clone(), name: p.name.clone(), reason: rs });
+            est.not_priced.push(NotPriced {
+                no: p.no.clone(),
+                name: p.name.clone(),
+                reason: rs,
+            });
             continue;
         }
         let g = geometry(p, rates);
@@ -372,7 +432,11 @@ pub fn estimate(order: &Value, rates: &Rates) -> Result<Estimate, String> {
             Ok(c) => (Some(c), None),
             Err(rs) => (None, Some(rs)),
         };
-        let sums = if costs.is_some() { &mut est.totals.priced } else { &mut est.totals.unpriced };
+        let sums = if costs.is_some() {
+            &mut est.totals.priced
+        } else {
+            &mut est.totals.unpriced
+        };
         sums.parts += 1;
         sums.mass_kg += g.mass_kg;
         sums.cut_m += g.cut_mm / 1000.0;
@@ -399,11 +463,12 @@ pub fn estimate(order: &Value, rates: &Rates) -> Result<Estimate, String> {
             reason: rs,
         });
     }
-    est.status = if est.not_priced.is_empty() && est.totals.unpriced.parts == 0 && !est.parts.is_empty() {
-        "draft"
-    } else {
-        "incomplete"
-    };
+    est.status =
+        if est.not_priced.is_empty() && est.totals.unpriced.parts == 0 && !est.parts.is_empty() {
+            "draft"
+        } else {
+            "incomplete"
+        };
     Ok(est)
 }
 
@@ -418,16 +483,74 @@ fn t(s: &str) -> Cell {
 /// Table rows of the quote in EN or JA headers. Text cells pass the CSV formula guard in nf-jobout.
 pub fn rows(e: &Estimate, ja: bool) -> Vec<Vec<Cell>> {
     let head = if ja {
-        ["部材番号", "部材名", "形状", "数量", "板厚 (mm)", "枚数", "質量 (kg)", "切断長 (m)", "溶接長 (m)", "穴明け回数", "材料費", "切断費", "溶接費", "工賃", "小計", "利益", "見積額", "備考"]
+        [
+            "部材番号",
+            "部材名",
+            "形状",
+            "数量",
+            "板厚 (mm)",
+            "枚数",
+            "質量 (kg)",
+            "切断長 (m)",
+            "溶接長 (m)",
+            "穴明け回数",
+            "材料費",
+            "切断費",
+            "溶接費",
+            "工賃",
+            "小計",
+            "利益",
+            "見積額",
+            "備考",
+        ]
     } else {
-        ["No", "Name", "Shape", "Qty", "t (mm)", "Pieces", "Mass (kg)", "Cut (m)", "Weld (m)", "Pierces", "Material", "Cut cost", "Weld cost", "Labour", "Subtotal", "Margin", "Price", "Note"]
+        [
+            "No",
+            "Name",
+            "Shape",
+            "Qty",
+            "t (mm)",
+            "Pieces",
+            "Mass (kg)",
+            "Cut (m)",
+            "Weld (m)",
+            "Pierces",
+            "Material",
+            "Cut cost",
+            "Weld cost",
+            "Labour",
+            "Subtotal",
+            "Margin",
+            "Price",
+            "Note",
+        ]
     };
     let mut out = vec![head.iter().map(|h| t(h)).collect::<Vec<_>>()];
     let note = |r: &Reason| if ja { r.ja.clone() } else { r.en.clone() };
     for p in &e.parts {
-        let mut row = vec![t(&p.no), t(&p.name), t(&p.shape), n(p.qty as f64, 0), n(p.t_mm, 2), n(p.pieces as f64, 0), n(p.mass_kg, 3), n(p.cut_m, 3), n(p.weld_m, 3), n(p.pierces as f64, 0)];
+        let mut row = vec![
+            t(&p.no),
+            t(&p.name),
+            t(&p.shape),
+            n(p.qty as f64, 0),
+            n(p.t_mm, 2),
+            n(p.pieces as f64, 0),
+            n(p.mass_kg, 3),
+            n(p.cut_m, 3),
+            n(p.weld_m, 3),
+            n(p.pierces as f64, 0),
+        ];
         match (&p.costs, &p.reason) {
-            (Some(c), _) => row.extend([n(c.material, 2), n(c.cut, 2), n(c.weld, 2), n(c.labour, 2), n(c.subtotal, 2), n(c.margin, 2), n(c.price, 2), t("")]),
+            (Some(c), _) => row.extend([
+                n(c.material, 2),
+                n(c.cut, 2),
+                n(c.weld, 2),
+                n(c.labour, 2),
+                n(c.subtotal, 2),
+                n(c.margin, 2),
+                n(c.price, 2),
+                t(""),
+            ]),
             (None, r) => {
                 row.extend(std::iter::repeat_n(Cell::Empty, 7));
                 row.push(t(&r.as_ref().map(note).unwrap_or_default()));
@@ -443,14 +566,40 @@ pub fn rows(e: &Estimate, ja: bool) -> Vec<Vec<Cell>> {
     }
     out.push(vec![]);
     let (pl, ul) = if ja {
-        ("合計（見積済み部材）", "計算済み・未見積（単価未設定）: 形状数値のみ、金額なし")
+        (
+            "合計（見積済み部材）",
+            "計算済み・未見積（単価未設定）: 形状数値のみ、金額なし",
+        )
     } else {
-        ("Total: priced parts", "Computed, not priced (rate unset): geometry only, no money")
+        (
+            "Total: priced parts",
+            "Computed, not priced (rate unset): geometry only, no money",
+        )
     };
     let sum_row = |label: &str, s: &Sums, money: bool| {
-        let mut r = vec![t(label), t(""), t(""), t(""), t(""), n(s.pieces as f64, 0), n(s.mass_kg, 3), n(s.cut_m, 3), n(s.weld_m, 3), n(s.pierces as f64, 0)];
+        let mut r = vec![
+            t(label),
+            t(""),
+            t(""),
+            t(""),
+            t(""),
+            n(s.pieces as f64, 0),
+            n(s.mass_kg, 3),
+            n(s.cut_m, 3),
+            n(s.weld_m, 3),
+            n(s.pierces as f64, 0),
+        ];
         if money {
-            r.extend([Cell::Empty, Cell::Empty, Cell::Empty, Cell::Empty, n(s.subtotal, 2), n(s.margin, 2), n(s.price, 2), t("")]);
+            r.extend([
+                Cell::Empty,
+                Cell::Empty,
+                Cell::Empty,
+                Cell::Empty,
+                n(s.subtotal, 2),
+                n(s.margin, 2),
+                n(s.price, 2),
+                t(""),
+            ]);
         } else {
             r.extend(std::iter::repeat_n(Cell::Empty, 8));
         }
@@ -464,8 +613,19 @@ pub fn rows(e: &Estimate, ja: bool) -> Vec<Vec<Cell>> {
         (true, _) => "状態: 不完全（未見積の部材または未設定の単価あり）".to_string(),
     };
     out.push(vec![t(&status)]);
-    out.push(vec![t(if ja { &e.weld_basis.ja } else { &e.weld_basis.en })]);
-    out.push(vec![t(if ja { "通貨" } else { "Currency" }), t(if e.currency.is_empty() { "(not set)" } else { &e.currency })]);
+    out.push(vec![t(if ja {
+        &e.weld_basis.ja
+    } else {
+        &e.weld_basis.en
+    })]);
+    out.push(vec![
+        t(if ja { "通貨" } else { "Currency" }),
+        t(if e.currency.is_empty() {
+            "(not set)"
+        } else {
+            &e.currency
+        }),
+    ]);
     out.push(vec![t(if ja { &e.marking_ja } else { &e.marking_en })]);
     out
 }
@@ -476,14 +636,26 @@ pub fn csv(e: &Estimate, ja: bool) -> Vec<u8> {
 
 pub fn xlsx(e: &Estimate) -> Result<Vec<u8>, nf_jobout::ZipError> {
     nf_jobout::xlsx::write_xlsx(&[
-        Sheet { name: "Quote".into(), rows: rows(e, false) },
-        Sheet { name: "見積".into(), rows: rows(e, true) },
+        Sheet {
+            name: "Quote".into(),
+            rows: rows(e, false),
+        },
+        Sheet {
+            name: "見積".into(),
+            rows: rows(e, true),
+        },
     ])
 }
 
 /// Plain EN then JA summary. Figures only; no release or approval wording.
 pub fn summary_text(e: &Estimate) -> String {
-    let price = |v: f64| if e.rates_unset.is_empty() { format!("{v:.2} {}", e.currency) } else { "-".into() };
+    let price = |v: f64| {
+        if e.rates_unset.is_empty() {
+            format!("{v:.2} {}", e.currency)
+        } else {
+            "-".into()
+        }
+    };
     let set = e.rates_unset.join(", ");
     let (p, u) = (&e.totals.priced, &e.totals.unpriced);
     format!(

@@ -4,10 +4,10 @@
 
 use crate::geom::Geom;
 use crate::{Drawing, Measure, RuleCheck};
-use serde::Deserialize;
 use nf_amoeba_operator::events::{Event, Target};
 use nf_amoeba_operator::operator::{Ctx, Registry, ToolOut};
-use serde_json::{Value, json};
+use serde::Deserialize;
+use serde_json::{json, Value};
 
 /// The open drawing, its quality checks and the selection, kept in the operator's extension slot for the run.
 #[derive(Default)]
@@ -44,13 +44,32 @@ struct PickArgs {
 #[derive(Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 enum MeasureArgs {
-    Distance { from: [f64; 2], to: [f64; 2] },
-    Vector { from: [f64; 2], to: [f64; 2] },
-    LineAngle { a: [[f64; 2]; 2], b: [[f64; 2]; 2] },
-    VertexAngle { at: [f64; 2], a: [f64; 2], b: [f64; 2] },
-    ArcRadius { entity: String },
-    Length { entity: String },
-    Area { entity: String },
+    Distance {
+        from: [f64; 2],
+        to: [f64; 2],
+    },
+    Vector {
+        from: [f64; 2],
+        to: [f64; 2],
+    },
+    LineAngle {
+        a: [[f64; 2]; 2],
+        b: [[f64; 2]; 2],
+    },
+    VertexAngle {
+        at: [f64; 2],
+        a: [f64; 2],
+        b: [f64; 2],
+    },
+    ArcRadius {
+        entity: String,
+    },
+    Length {
+        entity: String,
+    },
+    Area {
+        entity: String,
+    },
 }
 
 fn parse<T: for<'de> Deserialize<'de>>(a: &Value) -> Result<T, String> {
@@ -84,22 +103,62 @@ fn open_tool(ctx: &mut Ctx<'_>, _a: &Value) -> Result<ToolOut, String> {
         "extents": d.extents,
         "warnings": d.warnings,
     });
-    out(vec![ev("cad_open", "look", Target::Cad { canvas: None, entity: None }, "drawing opened", result.clone())], result)
+    out(
+        vec![ev(
+            "cad_open",
+            "look",
+            Target::Cad {
+                canvas: None,
+                entity: None,
+            },
+            "drawing opened",
+            result.clone(),
+        )],
+        result,
+    )
 }
 
 fn layers_tool(ctx: &mut Ctx<'_>, _a: &Value) -> Result<ToolOut, String> {
     let d = drawing(ctx)?;
     let result = json!(d.layers);
-    out(vec![ev("cad_layers", "look", Target::Cad { canvas: None, entity: None }, "layers listed", result.clone())], result)
+    out(
+        vec![ev(
+            "cad_layers",
+            "look",
+            Target::Cad {
+                canvas: None,
+                entity: None,
+            },
+            "layers listed",
+            result.clone(),
+        )],
+        result,
+    )
 }
 
 fn select_tool(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
     let args: SelectArgs = parse(a)?;
-    let ids: Vec<String> = drawing(ctx)?.on_layer(&args.layer).into_iter().map(str::to_string).collect();
+    let ids: Vec<String> = drawing(ctx)?
+        .on_layer(&args.layer)
+        .into_iter()
+        .map(str::to_string)
+        .collect();
     let n = ids.len();
     ctx.ext.get_or_insert_with(CadState::default).selection = ids.clone();
     let result = json!({ "layer": args.layer, "count": n, "entities": ids });
-    out(vec![ev("cad_select", "click", Target::Cad { canvas: None, entity: None }, "layer selected", result.clone())], result)
+    out(
+        vec![ev(
+            "cad_select",
+            "click",
+            Target::Cad {
+                canvas: None,
+                entity: None,
+            },
+            "layer selected",
+            result.clone(),
+        )],
+        result,
+    )
 }
 
 fn pick_tool(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
@@ -109,31 +168,115 @@ fn pick_tool(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
     }
     let hit = drawing(ctx)?.pick(args.at, args.tol).map(|e| e.id.clone());
     let result = json!({ "entity": hit });
-    let target = Target::Cad { canvas: Some(args.at), entity: hit.clone() };
-    out(vec![ev("cad_pick", "point", target, "entity picked at canvas point", result.clone())], result)
+    let target = Target::Cad {
+        canvas: Some(args.at),
+        entity: hit.clone(),
+    };
+    out(
+        vec![ev(
+            "cad_pick",
+            "point",
+            target,
+            "entity picked at canvas point",
+            result.clone(),
+        )],
+        result,
+    )
 }
 
 fn measure_tool(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
     let args: MeasureArgs = parse(a)?;
     let (m, target) = match args {
-        MeasureArgs::Distance { from, to } => (Measure::Distance { from, to }, Target::Cad { canvas: Some(from), entity: None }),
-        MeasureArgs::Vector { from, to } => (Measure::Vector { from, to }, Target::Cad { canvas: Some(from), entity: None }),
-        MeasureArgs::LineAngle { a, b } => (Measure::LineAngle { a, b }, Target::Cad { canvas: None, entity: None }),
-        MeasureArgs::VertexAngle { at, a, b } => (Measure::VertexAngle { at, a, b }, Target::Cad { canvas: Some(at), entity: None }),
-        MeasureArgs::ArcRadius { entity } => (Measure::ArcRadius { entity: entity.clone() }, Target::Cad { canvas: None, entity: Some(entity) }),
-        MeasureArgs::Length { entity } => (Measure::Length { entity: entity.clone() }, Target::Cad { canvas: None, entity: Some(entity) }),
-        MeasureArgs::Area { entity } => (Measure::Area { entity: entity.clone() }, Target::Cad { canvas: None, entity: Some(entity) }),
+        MeasureArgs::Distance { from, to } => (
+            Measure::Distance { from, to },
+            Target::Cad {
+                canvas: Some(from),
+                entity: None,
+            },
+        ),
+        MeasureArgs::Vector { from, to } => (
+            Measure::Vector { from, to },
+            Target::Cad {
+                canvas: Some(from),
+                entity: None,
+            },
+        ),
+        MeasureArgs::LineAngle { a, b } => (
+            Measure::LineAngle { a, b },
+            Target::Cad {
+                canvas: None,
+                entity: None,
+            },
+        ),
+        MeasureArgs::VertexAngle { at, a, b } => (
+            Measure::VertexAngle { at, a, b },
+            Target::Cad {
+                canvas: Some(at),
+                entity: None,
+            },
+        ),
+        MeasureArgs::ArcRadius { entity } => (
+            Measure::ArcRadius {
+                entity: entity.clone(),
+            },
+            Target::Cad {
+                canvas: None,
+                entity: Some(entity),
+            },
+        ),
+        MeasureArgs::Length { entity } => (
+            Measure::Length {
+                entity: entity.clone(),
+            },
+            Target::Cad {
+                canvas: None,
+                entity: Some(entity),
+            },
+        ),
+        MeasureArgs::Area { entity } => (
+            Measure::Area {
+                entity: entity.clone(),
+            },
+            Target::Cad {
+                canvas: None,
+                entity: Some(entity),
+            },
+        ),
     };
     let values = drawing(ctx)?.measure(&m)?;
-    let result = json!(values.iter().map(|v| json!({ "value": v.value, "unit": v.unit, "from": v.from })).collect::<Vec<_>>());
-    out(vec![ev("cad_measure", "compute", target, "measured", result.clone())], result)
+    let result = json!(values
+        .iter()
+        .map(|v| json!({ "value": v.value, "unit": v.unit, "from": v.from }))
+        .collect::<Vec<_>>());
+    out(
+        vec![ev(
+            "cad_measure",
+            "compute",
+            target,
+            "measured",
+            result.clone(),
+        )],
+        result,
+    )
 }
 
 fn check_tool(ctx: &mut Ctx<'_>, _a: &Value) -> Result<ToolOut, String> {
     let st = ctx.ext.get::<CadState>().ok_or("no drawing is open")?;
     let result = json!(st.checks);
     let pass = st.checks.iter().all(|c| c.pass);
-    out(vec![ev("cad_check", "look", Target::Cad { canvas: None, entity: None }, "quality checks read", json!({ "pass": pass }))], result)
+    out(
+        vec![ev(
+            "cad_check",
+            "look",
+            Target::Cad {
+                canvas: None,
+                entity: None,
+            },
+            "quality checks read",
+            json!({ "pass": pass }),
+        )],
+        result,
+    )
 }
 
 /// Registers every CAD tool kind under its name.
@@ -163,7 +306,19 @@ fn blocks_tool(ctx: &mut Ctx<'_>, _a: &Value) -> Result<ToolOut, String> {
         })
         .collect();
     let result = json!(rows);
-    out(vec![ev("cad_blocks", "look", Target::Cad { canvas: None, entity: None }, "blocks listed", result.clone())], result)
+    out(
+        vec![ev(
+            "cad_blocks",
+            "look",
+            Target::Cad {
+                canvas: None,
+                entity: None,
+            },
+            "blocks listed",
+            result.clone(),
+        )],
+        result,
+    )
 }
 
 /// DIMENSION text as shown (measured value substituted). Read-only.
@@ -179,7 +334,19 @@ fn dimensions_tool(ctx: &mut Ctx<'_>, _a: &Value) -> Result<ToolOut, String> {
         })
         .collect();
     let result = json!(rows);
-    out(vec![ev("cad_dimensions", "look", Target::Cad { canvas: None, entity: None }, "dimensions read", result.clone())], result)
+    out(
+        vec![ev(
+            "cad_dimensions",
+            "look",
+            Target::Cad {
+                canvas: None,
+                entity: None,
+            },
+            "dimensions read",
+            result.clone(),
+        )],
+        result,
+    )
 }
 
 /// HATCH boundaries with their enclosed area (boundary loops are read-only). Read-only.
@@ -190,12 +357,29 @@ fn hatches_tool(ctx: &mut Ctx<'_>, _a: &Value) -> Result<ToolOut, String> {
         .iter()
         .filter(|e| e.kind == "HATCH")
         .map(|e| {
-            let area = d.measure(&Measure::Area { entity: e.id.clone() }).ok().and_then(|v| v.first().map(|x| x.value));
+            let area = d
+                .measure(&Measure::Area {
+                    entity: e.id.clone(),
+                })
+                .ok()
+                .and_then(|v| v.first().map(|x| x.value));
             json!({ "id": e.id, "layer": e.layer, "area": area, "warnings": e.warnings })
         })
         .collect();
     let result = json!(rows);
-    out(vec![ev("cad_hatches", "look", Target::Cad { canvas: None, entity: None }, "hatch boundaries read", result.clone())], result)
+    out(
+        vec![ev(
+            "cad_hatches",
+            "look",
+            Target::Cad {
+                canvas: None,
+                entity: None,
+            },
+            "hatch boundaries read",
+            result.clone(),
+        )],
+        result,
+    )
 }
 
 /// Turns the model's edit into a PROPOSAL for the person. It validates the operations' shape and the entity ids,
@@ -219,12 +403,23 @@ fn propose_edit_tool(ctx: &mut Ctx<'_>, a: &Value) -> Result<ToolOut, String> {
     for id in crate::edit::touched_ids(&args.ops) {
         match d.entity(&id) {
             None => return Err(format!("no entity '{id}'")),
-            Some(e) if e.parent.is_some() => return Err(format!("'{id}' is inside a block: propose on its INSERT")),
+            Some(e) if e.parent.is_some() => {
+                return Err(format!("'{id}' is inside a block: propose on its INSERT"))
+            }
             Some(_) => {}
         }
     }
     let proposal = json!({ "ops": args.ops, "question": args.question, "applied": false });
-    let e = ev("cad_propose_edit", "ask", Target::Cad { canvas: None, entity: None }, "edit proposed as a question", proposal.clone());
+    let e = ev(
+        "cad_propose_edit",
+        "ask",
+        Target::Cad {
+            canvas: None,
+            entity: None,
+        },
+        "edit proposed as a question",
+        proposal.clone(),
+    );
     let mut e = e;
     e.flags.push("proposal".into());
     out(vec![e], proposal)

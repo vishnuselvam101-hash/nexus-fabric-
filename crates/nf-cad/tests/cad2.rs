@@ -19,7 +19,9 @@ fn dxf(entities: &str, blocks: &str) -> Vec<u8> {
 
 fn len_of(bytes: &[u8], id: &str) -> f64 {
     let d = open(bytes).expect("open");
-    d.measure(&Measure::Length { entity: id.into() }).expect("length")[0].value
+    d.measure(&Measure::Length { entity: id.into() })
+        .expect("length")[0]
+        .value
 }
 
 fn ent<'a>(d: &'a nf_cad::Drawing, kind: &str) -> Vec<&'a nf_cad::read::Entity> {
@@ -49,7 +51,10 @@ fn rational_quarter_circle_spline_matches_pi_r_over_2() {
         }
         g => panic!("spline should be a polyline, got {g:?}"),
     }
-    assert!(d.entities[0].warnings.iter().any(|w| w.contains("chord tolerance")));
+    assert!(d.entities[0]
+        .warnings
+        .iter()
+        .any(|w| w.contains("chord tolerance")));
 }
 
 #[test]
@@ -69,8 +74,17 @@ fn ellipse_circle_length_and_area_are_closed_form() {
     let bytes = dxf(s, "");
     let l = len_of(&bytes, "E0");
     // chord error <= tol => relative length error <= tol/(3 r), so |error| <= 2 pi tol / 3 for any radius
-    assert!((l - 4.0 * std::f64::consts::PI).abs() <= 2.0 * std::f64::consts::PI * CHORD_TOL, "length {l}");
-    let a = open(&bytes).unwrap().measure(&Measure::Area { entity: "E0".into() }).unwrap()[0].value;
+    assert!(
+        (l - 4.0 * std::f64::consts::PI).abs() <= 2.0 * std::f64::consts::PI * CHORD_TOL,
+        "length {l}"
+    );
+    let a = open(&bytes)
+        .unwrap()
+        .measure(&Measure::Area {
+            entity: "E0".into(),
+        })
+        .unwrap()[0]
+        .value;
     assert!((a - 4.0 * std::f64::consts::PI).abs() < 1e-2, "area {a}");
 }
 
@@ -82,11 +96,23 @@ fn ellipse_general_length_and_area_within_stated_bounds() {
     let want = nf_cad::geom::ellipse_perimeter_series(2.0, 1.0);
     let l = len_of(&bytes, "E0");
     // relative error <= tol / (3 rho_min), rho_min = b^2/a = 0.5 here
-    assert!((l - want).abs() <= want * CHORD_TOL * 2.0, "length {l} vs {want}");
+    assert!(
+        (l - want).abs() <= want * CHORD_TOL * 2.0,
+        "length {l} vs {want}"
+    );
     // area error of a chord polygon is at most (2/3) perimeter * tolerance
-    let a = open(&bytes).unwrap().measure(&Measure::Area { entity: "E0".into() }).unwrap()[0].value;
+    let a = open(&bytes)
+        .unwrap()
+        .measure(&Measure::Area {
+            entity: "E0".into(),
+        })
+        .unwrap()[0]
+        .value;
     let bound = want * CHORD_TOL;
-    assert!((a - 2.0 * std::f64::consts::PI).abs() <= bound, "area {a} bound {bound}");
+    assert!(
+        (a - 2.0 * std::f64::consts::PI).abs() <= bound,
+        "area {a} bound {bound}"
+    );
 }
 
 #[test]
@@ -95,11 +121,18 @@ fn insert_applies_scale_rotation_and_base_point() {
     let blocks = "0\nBLOCK\n8\n0\n2\nB\n10\n0\n20\n0\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n1\n21\n0\n0\nENDBLK\n";
     let s = "0\nINSERT\n8\n0\n2\nB\n10\n10\n20\n5\n41\n2\n42\n2\n50\n90\n";
     let d = open(&dxf(s, blocks)).unwrap();
-    let child = d.entities.iter().find(|e| e.parent.as_deref() == Some("E0")).expect("child");
+    let child = d
+        .entities
+        .iter()
+        .find(|e| e.parent.as_deref() == Some("E0"))
+        .expect("child");
     match child.geom {
         Geom::Line { a, b } => {
             assert!((a[0] - 10.0).abs() < 1e-9 && (a[1] - 5.0).abs() < 1e-9);
-            assert!((b[0] - 10.0).abs() < 1e-9 && (b[1] - 7.0).abs() < 1e-9, "b {b:?}");
+            assert!(
+                (b[0] - 10.0).abs() < 1e-9 && (b[1] - 7.0).abs() < 1e-9,
+                "b {b:?}"
+            );
         }
         ref g => panic!("expected line, got {g:?}"),
     }
@@ -113,9 +146,16 @@ fn insert_with_base_point_and_nested_blocks_compose() {
                   0\nBLOCK\n8\n0\n2\nO\n10\n0\n20\n0\n0\nINSERT\n8\n0\n2\nI\n10\n5\n20\n0\n0\nENDBLK\n";
     let s = "0\nINSERT\n8\n0\n2\nO\n10\n0\n20\n10\n";
     let d = open(&dxf(s, blocks)).unwrap();
-    let inner = d.entities.iter().find(|e| e.kind == "LINE").expect("inner line");
+    let inner = d
+        .entities
+        .iter()
+        .find(|e| e.kind == "LINE")
+        .expect("inner line");
     match inner.geom {
-        Geom::Line { a, .. } => assert!((a[0] - 5.0).abs() < 1e-9 && (a[1] - 10.0).abs() < 1e-9, "a {a:?}"),
+        Geom::Line { a, .. } => assert!(
+            (a[0] - 5.0).abs() < 1e-9 && (a[1] - 10.0).abs() < 1e-9,
+            "a {a:?}"
+        ),
         ref g => panic!("{g:?}"),
     }
 }
@@ -147,11 +187,18 @@ fn deep_chain_is_refused_by_depth_and_self_insert_by_cycle() {
     }
     blocks.push_str("0\nBLOCK\n8\n0\n2\nC10\n10\n0\n20\n0\n0\nENDBLK\n");
     let s = "0\nINSERT\n8\n0\n2\nC0\n10\n0\n20\n0\n";
-    assert_eq!(open(&dxf(s, &blocks)).expect_err("depth").code, "block_too_deep");
+    assert_eq!(
+        open(&dxf(s, &blocks)).expect_err("depth").code,
+        "block_too_deep"
+    );
 
-    let selfref = "0\nBLOCK\n8\n0\n2\nA\n10\n0\n20\n0\n0\nINSERT\n8\n0\n2\nA\n10\n0\n20\n0\n0\nENDBLK\n";
+    let selfref =
+        "0\nBLOCK\n8\n0\n2\nA\n10\n0\n20\n0\n0\nINSERT\n8\n0\n2\nA\n10\n0\n20\n0\n0\nENDBLK\n";
     let s = "0\nINSERT\n8\n0\n2\nA\n10\n0\n20\n0\n";
-    assert_eq!(open(&dxf(s, selfref)).expect_err("cycle").code, "block_cycle");
+    assert_eq!(
+        open(&dxf(s, selfref)).expect_err("cycle").code,
+        "block_cycle"
+    );
 }
 
 #[test]
@@ -165,7 +212,13 @@ fn dimension_shows_its_measurement_and_expands_its_block() {
         Geom::Text { text, .. } => assert_eq!(text, "R12.5"),
         g => panic!("{g:?}"),
     }
-    assert_eq!(d.entities.iter().filter(|e| e.parent.as_deref() == Some("E0")).count(), 1);
+    assert_eq!(
+        d.entities
+            .iter()
+            .filter(|e| e.parent.as_deref() == Some("E0"))
+            .count(),
+        1
+    );
 }
 
 #[test]
@@ -175,7 +228,12 @@ fn hatch_boundaries_are_read_only_polylines() {
     let d = open(&dxf(s, "")).unwrap();
     let h = ent(&d, "HATCH");
     assert_eq!(h.len(), 1);
-    let a = d.measure(&Measure::Area { entity: h[0].id.clone() }).unwrap()[0].value;
+    let a = d
+        .measure(&Measure::Area {
+            entity: h[0].id.clone(),
+        })
+        .unwrap()[0]
+        .value;
     assert!((a - 4.0).abs() < 1e-12, "area {a}");
 }
 
@@ -187,13 +245,19 @@ fn hatch_edge_loop_of_lines_and_arc() {
              72\n1\n10\n2\n20\n2\n11\n0\n21\n2\n72\n1\n10\n0\n20\n2\n11\n0\n21\n0\n75\n0\n76\n1\n";
     let d = open(&dxf(s, "")).unwrap();
     let h = ent(&d, "HATCH");
-    let a = d.measure(&Measure::Area { entity: h[0].id.clone() }).unwrap()[0].value;
+    let a = d
+        .measure(&Measure::Area {
+            entity: h[0].id.clone(),
+        })
+        .unwrap()[0]
+        .value;
     assert!((a - 4.0).abs() < 1e-12, "area {a}");
 }
 
 #[test]
 fn entity_record_index_points_at_the_top_level_record() {
-    let s = "0\nLINE\n8\n0\n10\n0\n20\n0\n11\n1\n21\n0\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n2\n21\n0\n";
+    let s =
+        "0\nLINE\n8\n0\n10\n0\n20\n0\n11\n1\n21\n0\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n2\n21\n0\n";
     let d = open(&dxf(s, "")).unwrap();
     assert_eq!(d.entities[0].record, Some(0));
     assert_eq!(d.entities[1].record, Some(1));

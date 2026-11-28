@@ -192,7 +192,12 @@ pub fn order_dxf_verdict(p: &nf_core::order_compute::PartResult) -> Option<Strin
     let text = p.dxf.as_ref()?;
     let pc = p.pattern.first()?;
     let reference = reference_for_piece(p, pc);
-    Some(nf_digest::check_text(text, &reference).verdict().as_str().to_string())
+    Some(
+        nf_digest::check_text(text, &reference)
+            .verdict()
+            .as_str()
+            .to_string(),
+    )
 }
 
 /// One digest of one DXF file, ready to be stored.

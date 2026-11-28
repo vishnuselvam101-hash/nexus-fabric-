@@ -34,10 +34,17 @@ fn locked() -> std::sync::MutexGuard<'static, Entries> {
 async fn parsed(bytes: Vec<u8>) -> Result<Arc<Cached>, ApiError> {
     tokio::task::spawn_blocking(move || {
         let key = nf_core::sha256_hex(&bytes);
-        if let Some(hit) = locked().iter().find(|(k, _)| *k == key).map(|(_, v)| v.clone()) {
+        if let Some(hit) = locked()
+            .iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, v)| v.clone())
+        {
             return hit;
         }
-        let entry = Arc::new(Cached { drawing: nf_cad::open(&bytes), checks: nf_cad::quality_checks(&bytes) });
+        let entry = Arc::new(Cached {
+            drawing: nf_cad::open(&bytes),
+            checks: nf_cad::quality_checks(&bytes),
+        });
         let mut c = locked();
         c.push_back((key, entry.clone()));
         while c.len() > CACHE_ENTRIES {
@@ -46,7 +53,12 @@ async fn parsed(bytes: Vec<u8>) -> Result<Arc<Cached>, ApiError> {
         entry
     })
     .await
-    .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "the drawing could not be read"))
+    .map_err(|_| {
+        fail(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the drawing could not be read",
+        )
+    })
 }
 
 fn drawing_of(c: &Cached) -> Result<&nf_cad::Drawing, ApiError> {
@@ -60,7 +72,12 @@ enum Src {
 }
 
 /// Loads the bytes behind `src` after the same authorisation the existing routes use, and audits the open.
-async fn load(app: &Arc<App>, headers: &HeaderMap, src: &Src, action: &str) -> Result<Vec<u8>, ApiError> {
+async fn load(
+    app: &Arc<App>,
+    headers: &HeaderMap,
+    src: &Src,
+    action: &str,
+) -> Result<Vec<u8>, ApiError> {
     let (bytes, label) = match src {
         Src::Doc(id) => {
             let (u, sha) = {
@@ -87,27 +104,49 @@ async fn load(app: &Arc<App>, headers: &HeaderMap, src: &Src, action: &str) -> R
                 if size < 0 || size as u64 > nf_cad::MAX_BYTES as u64 {
                     return Err(refused(nf_cad::Refusal {
                         code: "too_large",
-                        message: format!("file is {size} bytes; the limit is {}", nf_cad::MAX_BYTES),
+                        message: format!(
+                            "file is {size} bytes; the limit is {}",
+                            nf_cad::MAX_BYTES
+                        ),
                     }));
                 }
                 (u, sha)
             };
-            let bytes = storage::load_blob(&app.data_dir, &app.key, &sha)
-                .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "the stored file cannot be read"))?;
+            let bytes = storage::load_blob(&app.data_dir, &app.key, &sha).map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "the stored file cannot be read",
+                )
+            })?;
             let _ = u;
             (bytes, format!("document {id}"))
         }
         Src::Calc(id, part) => {
-            let resp = get_dxf(State(app.clone()), headers.clone(), Path((*id, part.clone()))).await?;
+            let resp = get_dxf(
+                State(app.clone()),
+                headers.clone(),
+                Path((*id, part.clone())),
+            )
+            .await?;
             let bytes = axum::body::to_bytes(resp.into_body(), nf_cad::MAX_BYTES)
                 .await
-                .map_err(|_| fail(StatusCode::PAYLOAD_TOO_LARGE, "the file is over the NF CAD limit"))?;
+                .map_err(|_| {
+                    fail(
+                        StatusCode::PAYLOAD_TOO_LARGE,
+                        "the file is over the NF CAD limit",
+                    )
+                })?;
             (bytes.to_vec(), format!("job {id} part {part}"))
         }
     };
     let db = app.db();
     let u = auth_db(&db, app, headers)?;
-    if let Err(e) = app.audit(&db, &u.username, action, &format!("{label} ({} bytes)", bytes.len())) {
+    if let Err(e) = app.audit(
+        &db,
+        &u.username,
+        action,
+        &format!("{label} ({} bytes)", bytes.len()),
+    ) {
         elog!("nf-server: could not audit a CAD open: {e}");
     }
     Ok(bytes)
@@ -127,8 +166,18 @@ fn q_map(q: &HashMap<String, String>) -> impl Fn(&str) -> Option<String> + '_ {
 
 fn model(d: &nf_cad::Drawing, q: &HashMap<String, String>) -> Api {
     let offset: usize = q.get("offset").and_then(|s| s.parse().ok()).unwrap_or(0);
-    let limit: usize = q.get("limit").and_then(|s| s.parse().ok()).unwrap_or(500).clamp(1, 2000);
-    let page: Vec<Value> = d.entities.iter().skip(offset).take(limit).map(nf_cad::entity_json).collect();
+    let limit: usize = q
+        .get("limit")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(500)
+        .clamp(1, 2000);
+    let page: Vec<Value> = d
+        .entities
+        .iter()
+        .skip(offset)
+        .take(limit)
+        .map(nf_cad::entity_json)
+        .collect();
     Ok(Json(json!({
         "version": d.version,
         "units": d.units,
@@ -143,8 +192,11 @@ fn model(d: &nf_cad::Drawing, q: &HashMap<String, String>) -> Api {
 }
 
 fn measure(d: &nf_cad::Drawing, q: &HashMap<String, String>) -> Api {
-    let m = nf_cad::measure_from_query(&q_map(q)).map_err(|e| fail(StatusCode::UNPROCESSABLE_ENTITY, &e))?;
-    let values = d.measure(&m).map_err(|e| fail(StatusCode::UNPROCESSABLE_ENTITY, &e))?;
+    let m = nf_cad::measure_from_query(&q_map(q))
+        .map_err(|e| fail(StatusCode::UNPROCESSABLE_ENTITY, &e))?;
+    let values = d
+        .measure(&m)
+        .map_err(|e| fail(StatusCode::UNPROCESSABLE_ENTITY, &e))?;
     Ok(Json(json!({
         "values": values.iter().map(|v| json!({ "value": v.value, "unit": v.unit, "from": v.from })).collect::<Vec<_>>(),
     }))
@@ -152,8 +204,15 @@ fn measure(d: &nf_cad::Drawing, q: &HashMap<String, String>) -> Api {
 }
 
 fn pick(d: &nf_cad::Drawing, q: &HashMap<String, String>) -> Api {
-    let at = q.get("at").and_then(|s| nf_cad::parse_point(s)).ok_or_else(|| fail(StatusCode::UNPROCESSABLE_ENTITY, "'at' must be x,y"))?;
-    let tol = q.get("tol").and_then(|s| s.parse::<f64>().ok()).filter(|t| t.is_finite() && *t >= 0.0).unwrap_or(1.0);
+    let at = q
+        .get("at")
+        .and_then(|s| nf_cad::parse_point(s))
+        .ok_or_else(|| fail(StatusCode::UNPROCESSABLE_ENTITY, "'at' must be x,y"))?;
+    let tol = q
+        .get("tol")
+        .and_then(|s| s.parse::<f64>().ok())
+        .filter(|t| t.is_finite() && *t >= 0.0)
+        .unwrap_or(1.0);
     let hit = d.pick(at, tol).map(nf_cad::entity_json);
     Ok(Json(json!({ "entity": hit })).into_response())
 }
@@ -166,7 +225,12 @@ fn checks(c: &Cached) -> Api {
     .into_response())
 }
 
-async fn doc_model(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Query(q): Query<HashMap<String, String>>) -> Api {
+async fn doc_model(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Query(q): Query<HashMap<String, String>>,
+) -> Api {
     let c = parsed(load(&app, &headers, &Src::Doc(id), "cad_open").await?).await?;
     model(drawing_of(&c)?, &q)
 }
@@ -174,44 +238,100 @@ async fn doc_checks(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) ->
     let c = parsed(load(&app, &headers, &Src::Doc(id), "cad_check").await?).await?;
     checks(&c)
 }
-async fn doc_measure(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Query(q): Query<HashMap<String, String>>) -> Api {
+async fn doc_measure(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Query(q): Query<HashMap<String, String>>,
+) -> Api {
     let c = parsed(load(&app, &headers, &Src::Doc(id), "cad_measure").await?).await?;
     measure(drawing_of(&c)?, &q)
 }
-async fn doc_pick(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, Query(q): Query<HashMap<String, String>>) -> Api {
+async fn doc_pick(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Query(q): Query<HashMap<String, String>>,
+) -> Api {
     let c = parsed(load(&app, &headers, &Src::Doc(id), "cad_pick").await?).await?;
     pick(drawing_of(&c)?, &q)
 }
-async fn calc_model(State(app): Ctx, headers: HeaderMap, Path((id, part)): Path<(i64, String)>, Query(q): Query<HashMap<String, String>>) -> Api {
+async fn calc_model(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path((id, part)): Path<(i64, String)>,
+    Query(q): Query<HashMap<String, String>>,
+) -> Api {
     let c = parsed(load(&app, &headers, &Src::Calc(id, part), "cad_open").await?).await?;
     model(drawing_of(&c)?, &q)
 }
-async fn calc_checks(State(app): Ctx, headers: HeaderMap, Path((id, part)): Path<(i64, String)>) -> Api {
+async fn calc_checks(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path((id, part)): Path<(i64, String)>,
+) -> Api {
     let c = parsed(load(&app, &headers, &Src::Calc(id, part), "cad_check").await?).await?;
     checks(&c)
 }
-async fn calc_measure(State(app): Ctx, headers: HeaderMap, Path((id, part)): Path<(i64, String)>, Query(q): Query<HashMap<String, String>>) -> Api {
+async fn calc_measure(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path((id, part)): Path<(i64, String)>,
+    Query(q): Query<HashMap<String, String>>,
+) -> Api {
     let c = parsed(load(&app, &headers, &Src::Calc(id, part), "cad_measure").await?).await?;
     measure(drawing_of(&c)?, &q)
 }
-async fn calc_pick(State(app): Ctx, headers: HeaderMap, Path((id, part)): Path<(i64, String)>, Query(q): Query<HashMap<String, String>>) -> Api {
+async fn calc_pick(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path((id, part)): Path<(i64, String)>,
+    Query(q): Query<HashMap<String, String>>,
+) -> Api {
     let c = parsed(load(&app, &headers, &Src::Calc(id, part), "cad_pick").await?).await?;
     pick(drawing_of(&c)?, &q)
 }
 
 /// The viewer's files: the page and its modules, embedded at build time (no build step, no CDN).
 const STATIC: &[(&str, &str, &str)] = &[
-    ("style.css", "text/css; charset=utf-8", include_str!("../../../web/cad/style.css")),
-    ("main.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/cad/main.js")),
-    ("view.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/cad/view.js")),
-    ("measure.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/cad/measure.js")),
-    ("edit.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/cad/edit.js")),
-    ("i18n.js", "text/javascript; charset=utf-8", include_str!("../../../web/js/i18n/cad.js")),
+    (
+        "style.css",
+        "text/css; charset=utf-8",
+        include_str!("../../../web/cad/style.css"),
+    ),
+    (
+        "main.js",
+        "text/javascript; charset=utf-8",
+        include_str!("../../../web/js/cad/main.js"),
+    ),
+    (
+        "view.js",
+        "text/javascript; charset=utf-8",
+        include_str!("../../../web/js/cad/view.js"),
+    ),
+    (
+        "measure.js",
+        "text/javascript; charset=utf-8",
+        include_str!("../../../web/js/cad/measure.js"),
+    ),
+    (
+        "edit.js",
+        "text/javascript; charset=utf-8",
+        include_str!("../../../web/js/cad/edit.js"),
+    ),
+    (
+        "i18n.js",
+        "text/javascript; charset=utf-8",
+        include_str!("../../../web/js/i18n/cad.js"),
+    ),
 ];
 
 async fn page() -> Response {
     let mut r = Html(include_str!("../../../web/cad/index.html")).into_response();
-    r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
+    r.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("text/html; charset=utf-8"),
+    );
     r
 }
 
@@ -219,7 +339,8 @@ async fn static_file(Path(name): Path<String>) -> Response {
     match STATIC.iter().find(|(n, _, _)| *n == name) {
         Some((_, ct, body)) => {
             let mut r = (*body).into_response();
-            r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static(ct));
+            r.headers_mut()
+                .insert(header::CONTENT_TYPE, HeaderValue::from_static(ct));
             r
         }
         None => StatusCode::NOT_FOUND.into_response(),
@@ -257,7 +378,15 @@ fn doc_row(db: &rusqlite::Connection, id: i64) -> Result<Doc, ApiError> {
     db.query_row(
         "SELECT project_id, detected_type, sha256, filename, size FROM documents WHERE id = ?",
         [id],
-        |r| Ok(Doc { project: r.get(0)?, detected: r.get(1)?, sha: r.get(2)?, filename: r.get(3)?, size: r.get(4)? }),
+        |r| {
+            Ok(Doc {
+                project: r.get(0)?,
+                detected: r.get(1)?,
+                sha: r.get(2)?,
+                filename: r.get(3)?,
+                size: r.get(4)?,
+            })
+        },
     )
     .optional()?
     .ok_or_else(|| fail(StatusCode::NOT_FOUND, "no such document"))
@@ -268,16 +397,25 @@ fn refuse_agent(app: &App, db: &rusqlite::Connection, u: &User, what: &str) -> A
     if let Err(e) = app.audit(db, &u.username, "cad_edit_refused", what) {
         elog!("nf-server: could not audit a refused CAD edit: {e}");
     }
-    fail_json(StatusCode::FORBIDDEN, json!({ "error": "an agent may not edit a drawing: only a person can", "code": "agent_forbidden" }))
+    fail_json(
+        StatusCode::FORBIDDEN,
+        json!({ "error": "an agent may not edit a drawing: only a person can", "code": "agent_forbidden" }),
+    )
 }
 
 fn edited_name(name: &str) -> String {
-    let stem = name.strip_suffix(".dxf").or_else(|| name.strip_suffix(".DXF")).unwrap_or(name);
+    let stem = name
+        .strip_suffix(".dxf")
+        .or_else(|| name.strip_suffix(".DXF"))
+        .unwrap_or(name);
     clip(&format!("{stem} (NF CAD edit).dxf"), 200)
 }
 
 fn edit_refused(e: nf_cad::edit::EditError) -> ApiError {
-    fail_json(StatusCode::UNPROCESSABLE_ENTITY, json!({ "error": e.message, "code": e.code }))
+    fail_json(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        json!({ "error": e.message, "code": e.code }),
+    )
 }
 
 #[derive(serde::Deserialize)]
@@ -286,7 +424,12 @@ struct EditBody {
 }
 
 /// POST: one person-only edit. Creates a NEW document version; the parent document and its blob are not touched.
-async fn doc_edit(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, body: axum::body::Bytes) -> Api {
+async fn doc_edit(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    body: axum::body::Bytes,
+) -> Api {
     let (u, doc) = {
         let db = app.db();
         let u = auth_db(&db, &app, &headers)?;
@@ -297,36 +440,74 @@ async fn doc_edit(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, body
         let doc = doc_row(&db, id)?;
         project_guard(&app, &db, &u, doc.project, "edit a drawing")?;
         if doc.detected != "dxf" {
-            return Err(fail_json(StatusCode::UNSUPPORTED_MEDIA_TYPE, json!({ "error": "only a DXF can be edited in NF CAD", "code": "not_a_dxf" })));
+            return Err(fail_json(
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                json!({ "error": "only a DXF can be edited in NF CAD", "code": "not_a_dxf" }),
+            ));
         }
         if doc.size < 0 || doc.size as u64 > nf_cad::MAX_BYTES as u64 {
-            return Err(refused(nf_cad::Refusal { code: "too_large", message: format!("file is {} bytes; the limit is {}", doc.size, nf_cad::MAX_BYTES) }));
+            return Err(refused(nf_cad::Refusal {
+                code: "too_large",
+                message: format!(
+                    "file is {} bytes; the limit is {}",
+                    doc.size,
+                    nf_cad::MAX_BYTES
+                ),
+            }));
         }
         (u, doc)
     };
-    let req: EditBody = serde_json::from_slice(&body)
-        .map_err(|e| fail_json(StatusCode::UNPROCESSABLE_ENTITY, json!({ "error": format!("bad edit: {e}"), "code": "bad_request" })))?;
+    let req: EditBody = serde_json::from_slice(&body).map_err(|e| {
+        fail_json(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            json!({ "error": format!("bad edit: {e}"), "code": "bad_request" }),
+        )
+    })?;
     if req.ops.is_empty() || req.ops.len() > MAX_EDIT_OPS {
-        return Err(fail_json(StatusCode::UNPROCESSABLE_ENTITY, json!({ "error": format!("1 to {MAX_EDIT_OPS} operations per edit"), "code": "bad_request" })));
+        return Err(fail_json(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            json!({ "error": format!("1 to {MAX_EDIT_OPS} operations per edit"), "code": "bad_request" }),
+        ));
     }
-    let ops_json = serde_json::to_string(&req.ops).map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "the edit could not be recorded"))?;
+    let ops_json = serde_json::to_string(&req.ops).map_err(|_| {
+        fail(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the edit could not be recorded",
+        )
+    })?;
     let n_ops = req.ops.len();
-    let bytes = storage::load_blob(&app.data_dir, &app.key, &doc.sha)
-        .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "the stored file cannot be read"))?;
+    let bytes = storage::load_blob(&app.data_dir, &app.key, &doc.sha).map_err(|_| {
+        fail(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the stored file cannot be read",
+        )
+    })?;
     let ops = req.ops;
-    let (new_bytes, checks) = tokio::task::spawn_blocking(move || -> Result<(Vec<u8>, Vec<nf_cad::RuleCheck>), nf_cad::edit::EditError> {
-        let b = nf_cad::edit::apply(&bytes, &ops)?;
-        let c = nf_cad::quality_checks(&b);
-        Ok((b, c))
-    })
+    let (new_bytes, checks) = tokio::task::spawn_blocking(
+        move || -> Result<(Vec<u8>, Vec<nf_cad::RuleCheck>), nf_cad::edit::EditError> {
+            let b = nf_cad::edit::apply(&bytes, &ops)?;
+            let c = nf_cad::quality_checks(&b);
+            Ok((b, c))
+        },
+    )
     .await
     .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "the edit could not run"))?
     .map_err(edit_refused)?;
     if new_bytes.len() > nf_cad::MAX_BYTES {
-        return Err(refused(nf_cad::Refusal { code: "too_large", message: format!("the edited file would be over the limit of {} bytes", nf_cad::MAX_BYTES) }));
+        return Err(refused(nf_cad::Refusal {
+            code: "too_large",
+            message: format!(
+                "the edited file would be over the limit of {} bytes",
+                nf_cad::MAX_BYTES
+            ),
+        }));
     }
-    if !matches!(crate::membrane::admit(&new_bytes), crate::membrane::Admission::Accepted { detected_type } if detected_type == "dxf") {
-        return Err(fail(StatusCode::UNPROCESSABLE_ENTITY, "the edited file was not admitted as a DXF"));
+    if !matches!(crate::membrane::admit(&new_bytes), crate::membrane::Admission::Accepted { detected_type } if detected_type == "dxf")
+    {
+        return Err(fail(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "the edited file was not admitted as a DXF",
+        ));
     }
     let filename = edited_name(&doc.filename);
     let (child, child_sha, snapshot) = {
@@ -334,12 +515,23 @@ async fn doc_edit(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>, body
         let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         project_guard(&app, &tx, &u, doc.project, "edit a drawing")?;
         let stored = register_document(&app, &tx, &u, doc.project, &filename, &new_bytes, "dxf")?;
-        tx.execute("UPDATE documents SET cad_edited = 1 WHERE id = ?", [stored.id])?;
+        tx.execute(
+            "UPDATE documents SET cad_edited = 1 WHERE id = ?",
+            [stored.id],
+        )?;
         tx.execute(
             "INSERT INTO cad_versions(child_document, parent_document, parent_sha256, child_sha256, kind, ops_json, author, created_at) VALUES (?,?,?,?,?,?,?,?)",
             rusqlite::params![stored.id, id, doc.sha, stored.sha, "edit", ops_json, u.username, now() as i64],
         )?;
-        app.audit(&tx, &u.username, "cad_edit", &format!("document #{id} -> #{} parent {} child {} ops {n_ops}", stored.id, doc.sha, stored.sha))?;
+        app.audit(
+            &tx,
+            &u.username,
+            "cad_edit",
+            &format!(
+                "document #{id} -> #{} parent {} child {} ops {n_ops}",
+                stored.id, doc.sha, stored.sha
+            ),
+        )?;
         tx.commit()?;
         (stored.id, stored.sha, stored.snapshot)
     };
@@ -375,13 +567,21 @@ async fn doc_undo(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) -> A
         )
         .optional()?;
     let Some((parent, psha, csha)) = row else {
-        return Err(fail_json(StatusCode::CONFLICT, json!({ "error": "nothing to undo: this document is not an NF CAD edit", "code": "not_an_edit" })));
+        return Err(fail_json(
+            StatusCode::CONFLICT,
+            json!({ "error": "nothing to undo: this document is not an NF CAD edit", "code": "not_an_edit" }),
+        ));
     };
     tx.execute(
         "INSERT INTO cad_versions(child_document, parent_document, parent_sha256, child_sha256, kind, ops_json, author, created_at) VALUES (?,?,?,?,?,?,?,?)",
         rusqlite::params![id, parent, psha, csha, "undo", "[]", u.username, now() as i64],
     )?;
-    app.audit(&tx, &u.username, "cad_undo", &format!("document #{id} undone; current is parent #{parent} {psha}"))?;
+    app.audit(
+        &tx,
+        &u.username,
+        "cad_undo",
+        &format!("document #{id} undone; current is parent #{parent} {psha}"),
+    )?;
     tx.commit()?;
     ok(json!({ "undone": id, "revert_to": parent, "sha256": psha }))
 }
@@ -399,22 +599,43 @@ async fn doc_versions(State(app): Ctx, headers: HeaderMap, Path(id): Path<i64>) 
     let children: Vec<Value> = stmt
         .query_map([id], |r| Ok(json!({ "document_id": r.get::<_, i64>(0)?, "sha256": r.get::<_, String>(1)?, "author": r.get::<_, String>(2)?, "created_at": r.get::<_, i64>(3)? })))?
         .collect::<Result<_, _>>()?;
-    ok(json!({ "document_id": id, "cad_edited": doc.size >= 0 && is_cad_edited(&db, id), "parent": parent, "children": children }))
+    ok(
+        json!({ "document_id": id, "cad_edited": doc.size >= 0 && is_cad_edited(&db, id), "parent": parent, "children": children }),
+    )
 }
 
 /// True when a document is an NF CAD edit (the flag set on an edited version, or a version row for it). The original
 /// document a version was made from is NOT an edit: it stays certifiable. Shared helper for the export and nest routes.
 pub(crate) fn is_cad_edited(db: &rusqlite::Connection, id: i64) -> bool {
-    let flagged = db.query_row("SELECT cad_edited FROM documents WHERE id = ?", [id], |r| r.get::<_, i64>(0)).map(|v| v == 1).unwrap_or(false);
-    let versioned = db.query_row("SELECT COUNT(*) FROM cad_versions WHERE child_document = ?", [id], |r| r.get::<_, i64>(0)).map(|n| n > 0).unwrap_or(false);
+    let flagged = db
+        .query_row("SELECT cad_edited FROM documents WHERE id = ?", [id], |r| {
+            r.get::<_, i64>(0)
+        })
+        .map(|v| v == 1)
+        .unwrap_or(false);
+    let versioned = db
+        .query_row(
+            "SELECT COUNT(*) FROM cad_versions WHERE child_document = ?",
+            [id],
+            |r| r.get::<_, i64>(0),
+        )
+        .map(|n| n > 0)
+        .unwrap_or(false);
     flagged || versioned
 }
 
 /// The same question for a stored file by its hash: a certified pattern whose bytes are an edited document's are refused.
 pub(crate) fn refuse_if_edited_sha(db: &rusqlite::Connection, sha: &str) -> Result<(), ApiError> {
-    let edited: i64 = db.query_row("SELECT COUNT(*) FROM documents WHERE sha256 = ? AND cad_edited = 1", [sha], |r| r.get(0))?;
+    let edited: i64 = db.query_row(
+        "SELECT COUNT(*) FROM documents WHERE sha256 = ? AND cad_edited = 1",
+        [sha],
+        |r| r.get(0),
+    )?;
     if edited > 0 {
-        return Err(fail_json(StatusCode::CONFLICT, json!({ "error": "this file is an NF CAD edit: it is not a verified NF pattern and cannot be served as one", "code": "edited_not_certified" })));
+        return Err(fail_json(
+            StatusCode::CONFLICT,
+            json!({ "error": "this file is an NF CAD edit: it is not a verified NF pattern and cannot be served as one", "code": "edited_not_certified" }),
+        ));
     }
     Ok(())
 }
@@ -430,7 +651,10 @@ pub(crate) fn routes() -> Router<Arc<App>> {
         .route("/api/cad/documents/{id}/pick", get(doc_pick))
         .route("/api/cad/calculations/{id}/{part}", get(calc_model))
         .route("/api/cad/calculations/{id}/{part}/checks", get(calc_checks))
-        .route("/api/cad/calculations/{id}/{part}/measure", get(calc_measure))
+        .route(
+            "/api/cad/calculations/{id}/{part}/measure",
+            get(calc_measure),
+        )
         .route("/api/cad/calculations/{id}/{part}/pick", get(calc_pick))
         .route("/api/cad/documents/{id}/edit", post(doc_edit))
         .route("/api/cad/documents/{id}/undo", post(doc_undo))
@@ -446,7 +670,8 @@ mod tests {
     }
 
     fn dxf(i: usize) -> Vec<u8> {
-        format!("0\nSECTION\n2\nENTITIES\n0\nPOINT\n10\n{i}\n20\n0\n0\nENDSEC\n0\nEOF\n").into_bytes()
+        format!("0\nSECTION\n2\nENTITIES\n0\nPOINT\n10\n{i}\n20\n0\n0\nENDSEC\n0\nEOF\n")
+            .into_bytes()
     }
 
     #[tokio::test]

@@ -101,7 +101,9 @@ pub(crate) fn mark_dxf(dxf: &str, notes: &[String]) -> String {
     for l in std::iter::once(OVERRIDE_MARK).chain(notes.iter().map(String::as_str)) {
         out.push_str(&format!("999\n{}\n", l.replace(['\r', '\n'], " ")));
     }
-    let text = format!("0\nTEXT\n8\nNF_OVERRIDE\n10\n0.0\n20\n0.0\n30\n0.0\n40\n5.0\n1\n{OVERRIDE_MARK}\n");
+    let text = format!(
+        "0\nTEXT\n8\nNF_OVERRIDE\n10\n0.0\n20\n0.0\n30\n0.0\n40\n5.0\n1\n{OVERRIDE_MARK}\n"
+    );
     for (n, l) in lines.drain(..).enumerate() {
         if Some(n) == at {
             out.push_str(&text);
@@ -166,23 +168,38 @@ async fn list_overrides(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64
         params![oid],
         |r| {
             let (h, undone): (String, Option<i64>) = (r.get(4)?, r.get(8)?);
-            Ok(json!({ "id": r.get::<_, i64>(0)?, "part": r.get::<_, String>(1)?, "code": r.get::<_, String>(2)?,
+            Ok(
+                json!({ "id": r.get::<_, i64>(0)?, "part": r.get::<_, String>(1)?, "code": r.get::<_, String>(2)?,
                 "reason": r.get::<_, String>(3)?, "by": r.get::<_, String>(5)?, "at": r.get::<_, i64>(6)?,
                 "undone_by": r.get::<_, Option<String>>(7)?, "undone_at": undone, "undo_note": r.get::<_, Option<String>>(9)?,
                 "active": undone.is_none() && h == hash, "stale": undone.is_none() && h != hash,
-                "mark": OVERRIDE_MARK }))
+                "mark": OVERRIDE_MARK }),
+            )
         },
     )?;
-    ok(json!({ "allow_list": ALLOW_LIST, "min_reason_chars": MIN_REASON_CHARS, "mark": OVERRIDE_MARK, "overrides": rows }))
+    ok(
+        json!({ "allow_list": ALLOW_LIST, "min_reason_chars": MIN_REASON_CHARS, "mark": OVERRIDE_MARK, "overrides": rows }),
+    )
 }
 
-async fn post_override(State(app): Ctx, headers: HeaderMap, Path(oid): Path<i64>, raw: Bytes) -> Api {
+async fn post_override(
+    State(app): Ctx,
+    headers: HeaderMap,
+    Path(oid): Path<i64>,
+    raw: Bytes,
+) -> Api {
     let u = write_access(&app, &headers, oid, "override a hold")?;
     let res = post_override_do(&app, &headers, &u, oid, &raw).await;
     settle(&app, &u, oid, "override", body_text(&raw, "reason"), res).await
 }
 
-async fn post_override_do(app: &Arc<App>, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Api {
+async fn post_override_do(
+    app: &Arc<App>,
+    headers: &HeaderMap,
+    u: &User,
+    oid: i64,
+    raw: &[u8],
+) -> Api {
     person_only(u)?;
     let body = request_json(headers, raw)?;
     let reason = text_field(&body, "reason", MAX_NOTE_CHARS)?.unwrap_or_default();
@@ -199,7 +216,10 @@ async fn post_override_do(app: &Arc<App>, headers: &HeaderMap, u: &User, oid: i6
             StatusCode::CONFLICT,
             "override_not_allowed",
             &[&code],
-            &format!("{code} cannot be overridden; only {} can", ALLOW_LIST.join(", ")),
+            &format!(
+                "{code} cannot be overridden; only {} can",
+                ALLOW_LIST.join(", ")
+            ),
         ));
     }
     let part = text_field(&body, "part", 40)?.unwrap_or_default();
@@ -208,9 +228,15 @@ async fn post_override_do(app: &Arc<App>, headers: &HeaderMap, u: &User, oid: i6
         let (p, r, h) = load_compute_input(&db, oid)?;
         (p, r, h, load_review_context(&db, oid)?)
     };
-    let res = tokio::task::spawn_blocking(move || rv::compute_order_with_context(&parts, &rules, &ctx))
-        .await
-        .map_err(|_| fail(StatusCode::INTERNAL_SERVER_ERROR, "the compute stopped unexpectedly"))?;
+    let res =
+        tokio::task::spawn_blocking(move || rv::compute_order_with_context(&parts, &rules, &ctx))
+            .await
+            .map_err(|_| {
+                fail(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "the compute stopped unexpectedly",
+                )
+            })?;
     let Some(p) = res.parts.iter().find(|p| p.no == part) else {
         return Err(unprocessable("override_part", "the order has no such part"));
     };
@@ -239,7 +265,11 @@ async fn post_override_do(app: &Arc<App>, headers: &HeaderMap, u: &User, oid: i6
         |r| r.get(0),
     )?;
     if dup > 0 {
-        return Err(refuse(StatusCode::CONFLICT, "override_exists", "this hold is overridden already; undo it first"));
+        return Err(refuse(
+            StatusCode::CONFLICT,
+            "override_exists",
+            "this hold is overridden already; undo it first",
+        ));
     }
     tx.execute(
         "INSERT INTO order_hold_overrides(order_id, part_no, code, reason, against_hash, by_user, at) VALUES (?,?,?,?,?,?,?)",
@@ -250,10 +280,16 @@ async fn post_override_do(app: &Arc<App>, headers: &HeaderMap, u: &User, oid: i6
         &tx,
         &u.username,
         "order_override",
-        &format!("order #{oid} override #{id} of {code} on part '{part}' by {}: {}", u.username, clip(&reason, 300)),
+        &format!(
+            "order #{oid} override #{id} of {code} on part '{part}' by {}: {}",
+            u.username,
+            clip(&reason, 300)
+        ),
     )?;
     tx.commit()?;
-    ok(json!({ "id": id, "part": part, "code": code, "by": u.username, "reason": reason, "mark": OVERRIDE_MARK }))
+    ok(
+        json!({ "id": id, "part": part, "code": code, "by": u.username, "reason": reason, "mark": OVERRIDE_MARK }),
+    )
 }
 
 async fn undo_override(
@@ -265,7 +301,11 @@ async fn undo_override(
     let u = write_access(&app, &headers, oid, "undo override")?;
     let res = (|| -> Api {
         person_only(&u)?;
-        let body = if raw.is_empty() { json!({}) } else { request_json(&headers, &raw)? };
+        let body = if raw.is_empty() {
+            json!({})
+        } else {
+            request_json(&headers, &raw)?
+        };
         let note = text_field(&body, "note", MAX_NOTE_CHARS)?.unwrap_or_default();
         let mut db = app.db();
         let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -282,7 +322,11 @@ async fn undo_override(
             return Err(not_found());
         };
         if undone {
-            return Err(refuse(StatusCode::CONFLICT, "already_undone", "this override was undone already"));
+            return Err(refuse(
+                StatusCode::CONFLICT,
+                "already_undone",
+                "this override was undone already",
+            ));
         }
         tx.execute(
             "UPDATE order_hold_overrides SET undone_by = ?, undone_at = ?, undo_note = ? WHERE id = ?",
@@ -292,7 +336,11 @@ async fn undo_override(
             &tx,
             &u.username,
             "order_override_undo",
-            &format!("order #{oid} override #{id} of {code} on part '{part}' undone by {} {}", u.username, clip(&note, 200)),
+            &format!(
+                "order #{oid} override #{id} of {code} on part '{part}' undone by {} {}",
+                u.username,
+                clip(&note, 200)
+            ),
         )?;
         tx.commit()?;
         ok(json!({ "undone": id }))
@@ -318,22 +366,88 @@ mod unit {
     fn gate(blocked: &[&str], certified: bool, over: &[&str], digest: Option<&str>) -> Gate {
         let (b, c) = input(blocked, certified);
         let o: Vec<String> = over.iter().map(|s| s.to_string()).collect();
-        override_gate(&GateInput { blocked_by: &b, certified: c, refused: false, has_dxf: true }, &o, digest)
+        override_gate(
+            &GateInput {
+                blocked_by: &b,
+                certified: c,
+                refused: false,
+                has_dxf: true,
+            },
+            &o,
+            digest,
+        )
     }
 
     #[test]
     fn gate_lets_only_an_overridden_allow_list_hold_through() {
-        assert_eq!(gate(&["source_inferred"], true, &["source_inferred"], Some("PASS")), Gate::Allowed);
-        assert_eq!(gate(&["source_inferred", "out_of_band"], true, &["source_inferred", "out_of_band"], Some("PASS")), Gate::Allowed);
+        assert_eq!(
+            gate(
+                &["source_inferred"],
+                true,
+                &["source_inferred"],
+                Some("PASS")
+            ),
+            Gate::Allowed
+        );
+        assert_eq!(
+            gate(
+                &["source_inferred", "out_of_band"],
+                true,
+                &["source_inferred", "out_of_band"],
+                Some("PASS")
+            ),
+            Gate::Allowed
+        );
         // one hold not overridden, a digest that is not PASS or missing, uncertified, never-wave or non-list codes: blocked
-        assert!(matches!(gate(&["source_inferred", "out_of_band"], true, &["source_inferred"], Some("PASS")), Gate::Blocked(_)));
-        assert!(matches!(gate(&["source_inferred"], true, &["source_inferred"], Some("FAIL")), Gate::Blocked(_)));
-        assert!(matches!(gate(&["source_inferred"], true, &["source_inferred"], None), Gate::Blocked(_)));
-        assert!(matches!(gate(&["source_inferred", "not_certified"], false, &["source_inferred"], Some("PASS")), Gate::Blocked(_)));
-        assert!(matches!(gate(&["missing"], true, &["missing"], Some("PASS")), Gate::Blocked(_)));
-        assert!(matches!(gate(&["mass_total"], true, &["mass_total"], Some("PASS")), Gate::Blocked(_)));
-        let refused = GateInput { blocked_by: &["refused".to_string()], certified: true, refused: true, has_dxf: true };
-        assert!(matches!(override_gate(&refused, &["refused".into()], Some("PASS")), Gate::Blocked(_)));
+        assert!(matches!(
+            gate(
+                &["source_inferred", "out_of_band"],
+                true,
+                &["source_inferred"],
+                Some("PASS")
+            ),
+            Gate::Blocked(_)
+        ));
+        assert!(matches!(
+            gate(
+                &["source_inferred"],
+                true,
+                &["source_inferred"],
+                Some("FAIL")
+            ),
+            Gate::Blocked(_)
+        ));
+        assert!(matches!(
+            gate(&["source_inferred"], true, &["source_inferred"], None),
+            Gate::Blocked(_)
+        ));
+        assert!(matches!(
+            gate(
+                &["source_inferred", "not_certified"],
+                false,
+                &["source_inferred"],
+                Some("PASS")
+            ),
+            Gate::Blocked(_)
+        ));
+        assert!(matches!(
+            gate(&["missing"], true, &["missing"], Some("PASS")),
+            Gate::Blocked(_)
+        ));
+        assert!(matches!(
+            gate(&["mass_total"], true, &["mass_total"], Some("PASS")),
+            Gate::Blocked(_)
+        ));
+        let refused = GateInput {
+            blocked_by: &["refused".to_string()],
+            certified: true,
+            refused: true,
+            has_dxf: true,
+        };
+        assert!(matches!(
+            override_gate(&refused, &["refused".into()], Some("PASS")),
+            Gate::Blocked(_)
+        ));
     }
 
     const DXF: &str = "0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nLINE\n8\nCUT\n10\n0\n20\n0\n11\n1\n21\n1\n0\nENDSEC\n0\nEOF\n";
@@ -341,7 +455,9 @@ mod unit {
     #[test]
     fn marking_is_a_comment_and_a_visible_text_inside_entities() {
         let m = mark_dxf(DXF, &["override #1 by Vishnu".to_string()]);
-        assert!(m.starts_with("999\nPERSON OVERRIDE — NOT VERIFIED BY NF\n999\noverride #1 by Vishnu\n"));
+        assert!(m.starts_with(
+            "999\nPERSON OVERRIDE — NOT VERIFIED BY NF\n999\noverride #1 by Vishnu\n"
+        ));
         let ents = m.split("2\nENTITIES\n").nth(1).unwrap();
         let text_at = ents.find("0\nTEXT\n8\nNF_OVERRIDE\n").unwrap();
         let end_at = ents.find("0\nENDSEC\n").unwrap();

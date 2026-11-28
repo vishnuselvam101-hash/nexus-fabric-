@@ -11,9 +11,9 @@ pub mod read;
 pub mod tools;
 
 use geom::{Geom, P};
-use std::collections::HashMap;
 use nf_cadio::{Document, Limits};
 use read::{Entity, Layer};
+use std::collections::HashMap;
 
 /// Caps for the viewer. Above these the file is refused with a reason, never truncated.
 pub const MAX_BYTES: usize = 8 << 20;
@@ -46,7 +46,11 @@ pub fn open(bytes: &[u8]) -> Result<Drawing, Refusal> {
             message: format!("file is {} bytes; the limit is {MAX_BYTES}", bytes.len()),
         });
     }
-    let limits = Limits { max_bytes: MAX_BYTES, max_entities: MAX_ENTITIES, ..Limits::default() };
+    let limits = Limits {
+        max_bytes: MAX_BYTES,
+        max_entities: MAX_ENTITIES,
+        ..Limits::default()
+    };
     let doc = Document::parse_with(bytes, &limits).map_err(|e| Refusal {
         code: match e.reason {
             nf_cadio::Reason::TooManyEntities { .. } => "too_many_entities",
@@ -63,7 +67,11 @@ pub fn open(bytes: &[u8]) -> Result<Drawing, Refusal> {
     let empty = Vec::new();
     let tables = doc.section("TABLES").map(|s| &s.pairs).unwrap_or(&empty);
     let mut layers = read::layers(tables);
-    let mut index: HashMap<String, usize> = layers.iter().enumerate().map(|(i, l)| (l.name.clone(), i)).collect();
+    let mut index: HashMap<String, usize> = layers
+        .iter()
+        .enumerate()
+        .map(|(i, l)| (l.name.clone(), i))
+        .collect();
     let entities_pairs = match doc.section("ENTITIES") {
         Some(s) => s.pairs.as_slice(),
         None => {
@@ -71,14 +79,24 @@ pub fn open(bytes: &[u8]) -> Result<Drawing, Refusal> {
             &[]
         }
     };
-    let block_pairs = doc.section("BLOCKS").map(|s| s.pairs.as_slice()).unwrap_or(&[]);
+    let block_pairs = doc
+        .section("BLOCKS")
+        .map(|s| s.pairs.as_slice())
+        .unwrap_or(&[]);
     let blocks = read::blocks(block_pairs);
-    let (entities, expand_warnings) = read::entities(entities_pairs, &blocks, MAX_ENTITIES).map_err(|(code, message)| Refusal { code, message })?;
+    let (entities, expand_warnings) = read::entities(entities_pairs, &blocks, MAX_ENTITIES)
+        .map_err(|(code, message)| Refusal { code, message })?;
     warnings.extend(expand_warnings);
     for e in &entities {
         if !index.contains_key(&e.layer) {
             index.insert(e.layer.clone(), layers.len());
-            layers.push(Layer { name: e.layer.clone(), colour: 7, on: true, frozen: false, count: 0 });
+            layers.push(Layer {
+                name: e.layer.clone(),
+                colour: 7,
+                on: true,
+                frozen: false,
+                count: 0,
+            });
         }
     }
     let mut counts: HashMap<&str, usize> = HashMap::new();
@@ -88,12 +106,22 @@ pub fn open(bytes: &[u8]) -> Result<Drawing, Refusal> {
     for l in layers.iter_mut() {
         l.count = counts.get(l.name.as_str()).copied().unwrap_or(0);
     }
-    let extents = entities.iter().filter_map(|e| geom::extents(&e.geom)).reduce(|a, b| {
-        [a[0].min(b[0]), a[1].min(b[1]), a[2].max(b[2]), a[3].max(b[3])]
-    });
+    let extents = entities
+        .iter()
+        .filter_map(|e| geom::extents(&e.geom))
+        .reduce(|a, b| {
+            [
+                a[0].min(b[0]),
+                a[1].min(b[1]),
+                a[2].max(b[2]),
+                a[3].max(b[3]),
+            ]
+        });
     let unsupported = read::unread(&entities);
     if unsupported > 0 {
-        warnings.push(format!("{unsupported} entities of a type phase 1 does not measure (listed, not read)"));
+        warnings.push(format!(
+            "{unsupported} entities of a type phase 1 does not measure (listed, not read)"
+        ));
     }
     Ok(Drawing {
         version,
@@ -112,7 +140,11 @@ impl Drawing {
 
     /// Ids of the entities on `layer`, in file order.
     pub fn on_layer(&self, layer: &str) -> Vec<&str> {
-        self.entities.iter().filter(|e| e.layer == layer).map(|e| e.id.as_str()).collect()
+        self.entities
+            .iter()
+            .filter(|e| e.layer == layer)
+            .map(|e| e.id.as_str())
+            .collect()
     }
 
     /// The entity nearest to `p` within `tol` (drawing units), ties broken by file order.
@@ -161,20 +193,50 @@ impl Drawing {
     pub fn measure(&self, m: &Measure) -> Result<Vec<Value>, String> {
         let u = "drawing units";
         let ent = |id: &str| self.entity(id).ok_or_else(|| format!("no entity '{id}'"));
-        let one = |v: f64, unit: &'static str, from: Vec<String>| Ok(vec![Value { value: v, unit, from }]);
+        let one = |v: f64, unit: &'static str, from: Vec<String>| {
+            Ok(vec![Value {
+                value: v,
+                unit,
+                from,
+            }])
+        };
         match m {
             Measure::Distance { from, to } => one(geom::dist(*from, *to), u, vec![]),
             Measure::Vector { from, to } => Ok(vec![
-                Value { value: to[0] - from[0], unit: u, from: vec![] },
-                Value { value: to[1] - from[1], unit: u, from: vec![] },
-                Value { value: geom::angle_deg(*from, *to), unit: "deg", from: vec![] },
+                Value {
+                    value: to[0] - from[0],
+                    unit: u,
+                    from: vec![],
+                },
+                Value {
+                    value: to[1] - from[1],
+                    unit: u,
+                    from: vec![],
+                },
+                Value {
+                    value: geom::angle_deg(*from, *to),
+                    unit: "deg",
+                    from: vec![],
+                },
             ]),
-            Measure::LineAngle { a, b } => one(geom::line_angle_deg(a[0], a[1], b[0], b[1]), "deg", vec![]),
-            Measure::VertexAngle { at, a, b } => one(geom::vertex_angle_deg(*at, *a, *b), "deg", vec![]),
+            Measure::LineAngle { a, b } => {
+                one(geom::line_angle_deg(a[0], a[1], b[0], b[1]), "deg", vec![])
+            }
+            Measure::VertexAngle { at, a, b } => {
+                one(geom::vertex_angle_deg(*at, *a, *b), "deg", vec![])
+            }
             Measure::ArcRadius { entity } => match &ent(entity)?.geom {
                 Geom::Arc { r, start, end, .. } => Ok(vec![
-                    Value { value: *r, unit: u, from: vec![entity.clone()] },
-                    Value { value: geom::sweep_deg(*start, *end), unit: "deg", from: vec![entity.clone()] },
+                    Value {
+                        value: *r,
+                        unit: u,
+                        from: vec![entity.clone()],
+                    },
+                    Value {
+                        value: geom::sweep_deg(*start, *end),
+                        unit: "deg",
+                        from: vec![entity.clone()],
+                    },
                 ]),
                 Geom::Circle { r, .. } => one(*r, u, vec![entity.clone()]),
                 _ => Err(format!("'{entity}' is not an arc or circle")),
@@ -225,7 +287,11 @@ pub fn quality_checks(bytes: &[u8]) -> Vec<RuleCheck> {
                 .filter(|f| f.rule == *rule)
                 .map(|f| f.detail.clone())
                 .collect();
-            RuleCheck { rule, pass: findings.is_empty(), findings }
+            RuleCheck {
+                rule,
+                pass: findings.is_empty(),
+                findings,
+            }
         })
         .collect()
 }
@@ -237,13 +303,17 @@ pub fn entity_json(e: &Entity) -> serde_json::Value {
         Geom::Point { at } => json!({ "type": "point", "at": at }),
         Geom::Line { a, b } => json!({ "type": "line", "a": a, "b": b }),
         Geom::Circle { c, r } => json!({ "type": "circle", "c": c, "r": r }),
-        Geom::Arc { c, r, start, end } => json!({ "type": "arc", "c": c, "r": r, "start": start, "end": end }),
+        Geom::Arc { c, r, start, end } => {
+            json!({ "type": "arc", "c": c, "r": r, "start": start, "end": end })
+        }
         Geom::Poly { v, closed } => json!({
             "type": "poly",
             "closed": closed,
             "v": v.iter().map(|x| json!([x.p[0], x.p[1], x.bulge])).collect::<Vec<_>>(),
         }),
-        Geom::Text { at, height, text } => json!({ "type": "text", "at": at, "height": height, "text": text }),
+        Geom::Text { at, height, text } => {
+            json!({ "type": "text", "at": at, "height": height, "text": text })
+        }
         Geom::Unsupported => json!({ "type": "unsupported" }),
     };
     json!({
@@ -269,15 +339,30 @@ pub fn parse_point(s: &str) -> Option<P> {
 /// Builds a measurement from named query arguments: `kind` plus its points and entity ids.
 pub fn measure_from_query(q: &dyn Fn(&str) -> Option<String>) -> Result<Measure, String> {
     let pt = |k: &str| -> Result<P, String> {
-        q(k).as_deref().and_then(parse_point).ok_or_else(|| format!("'{k}' must be x,y"))
+        q(k).as_deref()
+            .and_then(parse_point)
+            .ok_or_else(|| format!("'{k}' must be x,y"))
     };
     let ent = || q("entity").ok_or_else(|| "'entity' is missing".to_string());
     let kind = q("kind").ok_or("'kind' is missing")?;
     Ok(match kind.as_str() {
-        "distance" => Measure::Distance { from: pt("from")?, to: pt("to")? },
-        "vector" => Measure::Vector { from: pt("from")?, to: pt("to")? },
-        "line_angle" => Measure::LineAngle { a: [pt("a1")?, pt("a2")?], b: [pt("b1")?, pt("b2")?] },
-        "vertex_angle" => Measure::VertexAngle { at: pt("at")?, a: pt("a")?, b: pt("b")? },
+        "distance" => Measure::Distance {
+            from: pt("from")?,
+            to: pt("to")?,
+        },
+        "vector" => Measure::Vector {
+            from: pt("from")?,
+            to: pt("to")?,
+        },
+        "line_angle" => Measure::LineAngle {
+            a: [pt("a1")?, pt("a2")?],
+            b: [pt("b1")?, pt("b2")?],
+        },
+        "vertex_angle" => Measure::VertexAngle {
+            at: pt("at")?,
+            a: pt("a")?,
+            b: pt("b")?,
+        },
         "arc_radius" => Measure::ArcRadius { entity: ent()? },
         "length" => Measure::Length { entity: ent()? },
         "area" => Measure::Area { entity: ent()? },

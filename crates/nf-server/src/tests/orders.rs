@@ -4710,20 +4710,42 @@ async fn order_with_inferred_hold(t: &T) -> i64 {
         t,
         oid,
         json!([{ "no": "C1", "name": "pipe", "shape": "cylinder", "qty": 1 }]),
-        json!([inferred("C1", "D", 216.3), val("C1", "t", 12.0), val("C1", "L", 2000.0)]),
+        json!([
+            inferred("C1", "D", 216.3),
+            val("C1", "t", 12.0),
+            val("C1", "L", 2000.0)
+        ]),
     )
     .await;
     let (st, v) = t
-        .call("POST", &format!("/api/orders/{oid}/confirm"), Some(json!({ "all": true })))
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/confirm"),
+            Some(json!({ "all": true })),
+        )
         .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let (st, v) = t
-        .call("POST", &format!("/api/orders/{oid}/compute"), Some(json!({})))
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
         .await;
     assert_eq!(st, StatusCode::OK, "{v}");
-    let c1 = v["result"]["parts"].as_array().unwrap().iter().find(|p| p["no"] == "C1").unwrap().clone();
+    let c1 = v["result"]["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["no"] == "C1")
+        .unwrap()
+        .clone();
     assert!(
-        c1["holds"].as_array().unwrap().iter().any(|h| h["code"] == "source_inferred"),
+        c1["holds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|h| h["code"] == "source_inferred"),
         "fixture must hold C1 with source_inferred: {c1}"
     );
     oid
@@ -4731,7 +4753,12 @@ async fn order_with_inferred_hold(t: &T) -> i64 {
 
 async fn post_override(t: &T, oid: i64, cookie: &str, body: Value) -> (StatusCode, Value) {
     let (st, _, b) = t
-        .send("POST", &format!("/api/orders/{oid}/overrides"), Some(body), &[("cookie", cookie)])
+        .send(
+            "POST",
+            &format!("/api/orders/{oid}/overrides"),
+            Some(body),
+            &[("cookie", cookie)],
+        )
         .await;
     (st, serde_json::from_slice(&b).unwrap_or(Value::Null))
 }
@@ -4746,49 +4773,143 @@ async fn override_is_person_only_reasoned_allow_listed_audited_and_undoable() {
     let body = json!({ "part": "C1", "code": "source_inferred", "reason": GOOD_REASON });
     // an agent is refused whatever it says, and the refusal is on record
     let (st, v) = post_override(&t, oid, &ac, body.clone()).await;
-    assert_eq!((st, v["code"].clone()), (StatusCode::FORBIDDEN, json!("override_person_only")), "{v}");
-    assert!(audit_details(&t, "order_refused").iter().any(|d| d.contains("override_person_only")));
+    assert_eq!(
+        (st, v["code"].clone()),
+        (StatusCode::FORBIDDEN, json!("override_person_only")),
+        "{v}"
+    );
+    assert!(
+        audit_details(&t, "order_refused")
+            .iter()
+            .any(|d| d.contains("override_person_only"))
+    );
     // reason shorter than 20 characters
-    let (st, v) = post_override(&t, oid, &t.cookie.clone(), json!({ "part": "C1", "code": "source_inferred", "reason": "too short" })).await;
-    assert_eq!((st, v["code"].clone()), (StatusCode::UNPROCESSABLE_ENTITY, json!("override_reason")), "{v}");
+    let (st, v) = post_override(
+        &t,
+        oid,
+        &t.cookie.clone(),
+        json!({ "part": "C1", "code": "source_inferred", "reason": "too short" }),
+    )
+    .await;
+    assert_eq!(
+        (st, v["code"].clone()),
+        (StatusCode::UNPROCESSABLE_ENTITY, json!("override_reason")),
+        "{v}"
+    );
     // codes outside the allow-list: never-wave, uncertified and anything else are 409
-    for code in ["missing", "not_certified", "refused", "reading_conflict", "mass_total", "FLAT_STOP"] {
-        let (st, v) = post_override(&t, oid, &t.cookie.clone(), json!({ "part": "C1", "code": code, "reason": GOOD_REASON })).await;
-        assert_eq!((st, v["code"].clone()), (StatusCode::CONFLICT, json!("override_not_allowed")), "{code}: {v}");
+    for code in [
+        "missing",
+        "not_certified",
+        "refused",
+        "reading_conflict",
+        "mass_total",
+        "FLAT_STOP",
+    ] {
+        let (st, v) = post_override(
+            &t,
+            oid,
+            &t.cookie.clone(),
+            json!({ "part": "C1", "code": code, "reason": GOOD_REASON }),
+        )
+        .await;
+        assert_eq!(
+            (st, v["code"].clone()),
+            (StatusCode::CONFLICT, json!("override_not_allowed")),
+            "{code}: {v}"
+        );
     }
     // an allow-list code the part does not hold
-    let (st, v) = post_override(&t, oid, &t.cookie.clone(), json!({ "part": "C1", "code": "out_of_band", "reason": GOOD_REASON })).await;
-    assert_eq!((st, v["code"].clone()), (StatusCode::CONFLICT, json!("override_no_hold")), "{v}");
+    let (st, v) = post_override(
+        &t,
+        oid,
+        &t.cookie.clone(),
+        json!({ "part": "C1", "code": "out_of_band", "reason": GOOD_REASON }),
+    )
+    .await;
+    assert_eq!(
+        (st, v["code"].clone()),
+        (StatusCode::CONFLICT, json!("override_no_hold")),
+        "{v}"
+    );
     assert!(audit_details(&t, "order_override").is_empty());
     // a person's override is recorded with name, time and reason
     let (st, v) = post_override(&t, oid, &t.cookie.clone(), body.clone()).await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let id = v["id"].as_i64().unwrap();
-    assert!(audit_details(&t, "order_override").iter().any(|d| d.contains("source_inferred") && d.contains(GOOD_REASON)));
+    assert!(
+        audit_details(&t, "order_override")
+            .iter()
+            .any(|d| d.contains("source_inferred") && d.contains(GOOD_REASON))
+    );
     let (st, v) = post_override(&t, oid, &t.cookie.clone(), body).await;
-    assert_eq!((st, v["code"].clone()), (StatusCode::CONFLICT, json!("override_exists")), "{v}");
+    assert_eq!(
+        (st, v["code"].clone()),
+        (StatusCode::CONFLICT, json!("override_exists")),
+        "{v}"
+    );
     let l = t.get(&format!("/api/orders/{oid}/overrides")).await;
     let row = &l["overrides"][0];
-    assert_eq!((row["part"].clone(), row["code"].clone(), row["active"].clone()), (json!("C1"), json!("source_inferred"), json!(true)), "{l}");
+    assert_eq!(
+        (
+            row["part"].clone(),
+            row["code"].clone(),
+            row["active"].clone()
+        ),
+        (json!("C1"), json!("source_inferred"), json!(true)),
+        "{l}"
+    );
     assert_eq!(row["reason"], GOOD_REASON);
-    assert!(row["by"].as_str().is_some_and(|b| !b.is_empty()) && row["at"].as_i64().unwrap() > 0, "{l}");
+    assert!(
+        row["by"].as_str().is_some_and(|b| !b.is_empty()) && row["at"].as_i64().unwrap() > 0,
+        "{l}"
+    );
     // the issue list lists it, and no DXF went out (no digest exists before L11)
-    let (st, _, z) = t.send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[]).await;
+    let (st, _, z) = t
+        .send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[])
+        .await;
     assert_eq!(st, StatusCode::OK, "{}", String::from_utf8_lossy(&z));
     let issues = zip_entry_text(&z, "pkg", "issues.txt");
-    assert!(issues.contains("person_override") || issues.contains("PERSON OVERRIDE"), "{issues}");
-    assert!(zip_entry_names(&z, "pkg").iter().all(|n| !n.starts_with("dxf/")));
+    assert!(
+        issues.contains("person_override") || issues.contains("PERSON OVERRIDE"),
+        "{issues}"
+    );
+    assert!(
+        zip_entry_names(&z, "pkg")
+            .iter()
+            .all(|n| !n.starts_with("dxf/"))
+    );
     // an agent cannot undo it; a person can, once
-    let (st, _, _) = t.send("POST", &format!("/api/orders/{oid}/overrides/{id}/undo"), Some(json!({})), &[("cookie", &ac)]).await;
+    let (st, _, _) = t
+        .send(
+            "POST",
+            &format!("/api/orders/{oid}/overrides/{id}/undo"),
+            Some(json!({})),
+            &[("cookie", &ac)],
+        )
+        .await;
     assert_eq!(st, StatusCode::FORBIDDEN);
-    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/overrides/{id}/undo"), Some(json!({ "note": "changed my mind" }))).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/overrides/{id}/undo"),
+            Some(json!({ "note": "changed my mind" })),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     assert!(!audit_details(&t, "order_override_undo").is_empty());
-    let (st, _) = t.call("POST", &format!("/api/orders/{oid}/overrides/{id}/undo"), Some(json!({}))).await;
+    let (st, _) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/overrides/{id}/undo"),
+            Some(json!({})),
+        )
+        .await;
     assert_eq!(st, StatusCode::CONFLICT);
     let l = t.get(&format!("/api/orders/{oid}/overrides")).await;
     assert_eq!(l["overrides"][0]["active"], false, "{l}");
-    let (_, _, z) = t.send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[]).await;
+    let (_, _, z) = t
+        .send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[])
+        .await;
     assert!(!zip_entry_text(&z, "pkg", "issues.txt").contains("person_override"));
 }
 
@@ -4796,19 +4917,41 @@ async fn override_is_person_only_reasoned_allow_listed_audited_and_undoable() {
 async fn an_edit_after_the_override_makes_it_stale() {
     let t = boot();
     let oid = order_with_inferred_hold(&t).await;
-    let (st, v) = post_override(&t, oid, &t.cookie.clone(), json!({ "part": "C1", "code": "source_inferred", "reason": GOOD_REASON })).await;
+    let (st, v) = post_override(
+        &t,
+        oid,
+        &t.cookie.clone(),
+        json!({ "part": "C1", "code": "source_inferred", "reason": GOOD_REASON }),
+    )
+    .await;
     assert_eq!(st, StatusCode::OK, "{v}");
-    let (st, v) = t.call("PUT", &format!("/api/orders/{oid}/values"), Some(json!({ "values": [val("C1", "L", 2100.0)] }))).await;
+    let (st, v) = t
+        .call(
+            "PUT",
+            &format!("/api/orders/{oid}/values"),
+            Some(json!({ "values": [val("C1", "L", 2100.0)] })),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let l = t.get(&format!("/api/orders/{oid}/overrides")).await;
-    assert_eq!((l["overrides"][0]["active"].clone(), l["overrides"][0]["stale"].clone()), (json!(false), json!(true)), "{l}");
+    assert_eq!(
+        (
+            l["overrides"][0]["active"].clone(),
+            l["overrides"][0]["stale"].clone()
+        ),
+        (json!(false), json!(true)),
+        "{l}"
+    );
 }
 
 #[tokio::test]
 async fn override_lets_a_certified_digest_pass_dxf_through_marked() {
     let t = boot();
     let oid = new_order(&t).await;
-    assert_eq!(add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0, StatusCode::OK);
+    assert_eq!(
+        add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0,
+        StatusCode::OK
+    );
     // a certified shape (the tee) whose main diameter is inferred: held with source_inferred only
     put_parts_values(
         &t,
@@ -4832,20 +4975,53 @@ async fn override_lets_a_certified_digest_pass_dxf_through_marked() {
         ]),
     )
     .await;
-    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/confirm"), Some(json!({ "all": true }))).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/confirm"),
+            Some(json!({ "all": true })),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
-    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/compute"), Some(json!({}))).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
-    let main = v["result"]["parts"].as_array().unwrap().iter().find(|p| p["no"] == "T1").unwrap().clone();
-    assert!(main["holds"].as_array().unwrap().iter().any(|h| h["code"] == "source_inferred"), "{main}");
+    let main = v["result"]["parts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["no"] == "T1")
+        .unwrap()
+        .clone();
+    assert!(
+        main["holds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|h| h["code"] == "source_inferred"),
+        "{main}"
+    );
     let path = format!("/api/orders/{oid}/outputs.zip");
     let (st, _, z) = t.send("GET", &path, None, &[]).await;
     assert_eq!(st, StatusCode::OK);
     assert!(
-        !zip_entry_names(&z, "ov0").iter().any(|n| n.contains("T1.dxf") || n.contains("T1_")),
+        !zip_entry_names(&z, "ov0")
+            .iter()
+            .any(|n| n.contains("T1.dxf") || n.contains("T1_")),
         "the held part has no DXF before the override"
     );
-    let (st, v) = post_override(&t, oid, &t.cookie.clone(), json!({ "part": "T1", "code": "source_inferred", "reason": GOOD_REASON })).await;
+    let (st, v) = post_override(
+        &t,
+        oid,
+        &t.cookie.clone(),
+        json!({ "part": "T1", "code": "source_inferred", "reason": GOOD_REASON }),
+    )
+    .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let (st, _, z) = t.send("GET", &path, None, &[]).await;
     assert_eq!(st, StatusCode::OK);
@@ -4853,9 +5029,15 @@ async fn override_lets_a_certified_digest_pass_dxf_through_marked() {
     let marked: Vec<&String> = names
         .iter()
         .filter(|n| n.starts_with("dxf/") && n.ends_with(".dxf"))
-        .filter(|n| zip_entry_text(&z, "ov1", n).contains("PERSON OVERRIDE \u{2014} NOT VERIFIED BY NF"))
+        .filter(|n| {
+            zip_entry_text(&z, "ov1", n).contains("PERSON OVERRIDE \u{2014} NOT VERIFIED BY NF")
+        })
         .collect();
-    assert_eq!(marked.len(), 1, "exactly the overridden part goes out marked: {names:?}");
+    assert_eq!(
+        marked.len(),
+        1,
+        "exactly the overridden part goes out marked: {names:?}"
+    );
     assert!(zip_entry_text(&z, "ov1", "issues.txt").contains("override #1"));
 }
 
@@ -4864,7 +5046,10 @@ async fn override_lets_a_certified_digest_pass_dxf_through_marked() {
 async fn an_override_of_a_held_non_allow_list_code_still_gives_no_dxf() {
     let t = boot();
     let oid = new_order(&t).await;
-    assert_eq!(add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0, StatusCode::OK);
+    assert_eq!(
+        add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0,
+        StatusCode::OK
+    );
     put_parts_values(
         &t,
         oid,
@@ -4872,25 +5057,60 @@ async fn an_override_of_a_held_non_allow_list_code_still_gives_no_dxf() {
         json!([val("P1", "t", 16.0)]),
     )
     .await;
-    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/confirm"), Some(json!({ "all": true }))).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/confirm"),
+            Some(json!({ "all": true })),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
-    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/compute"), Some(json!({}))).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     assert_eq!(v["result"]["parts"][0]["state"], "held_missing", "{v}");
-    let hash: String = t.app.db().query_row("SELECT input_hash FROM order_results WHERE order_id = ?1 ORDER BY id DESC LIMIT 1", [oid], |r| r.get(0)).unwrap();
+    let hash: String = t
+        .app
+        .db()
+        .query_row(
+            "SELECT input_hash FROM order_results WHERE order_id = ?1 ORDER BY id DESC LIMIT 1",
+            [oid],
+            |r| r.get(0),
+        )
+        .unwrap();
     t.sql(&format!("INSERT INTO order_hold_overrides(order_id, part_no, code, reason, against_hash, by_user, at) VALUES ({oid}, 'P1', 'missing', '{GOOD_REASON}', '{hash}', 'admin', 1)"));
-    let (st, _, z) = t.send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[]).await;
+    let (st, _, z) = t
+        .send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[])
+        .await;
     assert_eq!(st, StatusCode::OK);
-    assert!(zip_entry_names(&z, "ov2").iter().all(|n| !n.starts_with("dxf/")));
+    assert!(
+        zip_entry_names(&z, "ov2")
+            .iter()
+            .all(|n| !n.starts_with("dxf/"))
+    );
     assert!(zip_entry_text(&z, "ov2", "issues.txt").contains("no DXF"));
 }
 
 #[test]
 fn a_read_only_licence_stops_the_override_routes() {
     use axum::http::Method;
-    assert!(crate::licence::gated(&Method::POST, "/api/orders/1/overrides"));
-    assert!(crate::licence::gated(&Method::POST, "/api/orders/1/overrides/2/undo"));
-    assert!(!crate::licence::gated(&Method::GET, "/api/orders/1/overrides"));
+    assert!(crate::licence::gated(
+        &Method::POST,
+        "/api/orders/1/overrides"
+    ));
+    assert!(crate::licence::gated(
+        &Method::POST,
+        "/api/orders/1/overrides/2/undo"
+    ));
+    assert!(!crate::licence::gated(
+        &Method::GET,
+        "/api/orders/1/overrides"
+    ));
 }
 
 // ---------------------------------------------------------------- INT-6: certified DXFs reach every consumer
@@ -4930,17 +5150,28 @@ async fn int6_certified_tee_dxf_reaches_package_nest_and_machine_export() {
     )
     .await;
     let (st, v) = t
-        .call("POST", &format!("/api/orders/{oid}/confirm"), Some(json!({ "all": true })))
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/confirm"),
+            Some(json!({ "all": true })),
+        )
         .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let (st, v) = t
-        .call("POST", &format!("/api/orders/{oid}/compute"), Some(json!({})))
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
         .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     for p in v["result"]["parts"].as_array().unwrap() {
         assert_eq!(p["state"], "computed", "{p}");
         assert_eq!(p["dxf_allowed"], true, "{p}");
-        assert!(p["dxf"].as_str().is_some_and(|d| d.contains("SECTION")), "{p}");
+        assert!(
+            p["dxf"].as_str().is_some_and(|d| d.contains("SECTION")),
+            "{p}"
+        );
     }
     // the job package carries a DXF per certified part
     let (st, _, z) = t
@@ -4948,26 +5179,56 @@ async fn int6_certified_tee_dxf_reaches_package_nest_and_machine_export() {
         .await;
     assert_eq!(st, StatusCode::OK);
     let names = zip_entry_names(&z, "int6");
-    assert!(names.iter().filter(|n| n.starts_with("dxf/") && n.ends_with(".dxf")).count() >= 2, "{names:?}");
+    assert!(
+        names
+            .iter()
+            .filter(|n| n.starts_with("dxf/") && n.ends_with(".dxf"))
+            .count()
+            >= 2,
+        "{names:?}"
+    );
     // nesting: a person marks the order checked, then a sheet DXF comes back
     let (st, v) = t
-        .call("POST", &format!("/api/orders/{oid}/decisions"), Some(json!({ "kind": "mark_checked" })))
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions"),
+            Some(json!({ "kind": "mark_checked" })),
+        )
         .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let (st, v) = t
-        .call("POST", &format!("/api/orders/{oid}/nest"), Some(json!({ "sheet_w": 6000.0, "sheet_h": 3000.0 })))
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/nest"),
+            Some(json!({ "sheet_w": 6000.0, "sheet_h": 3000.0 })),
+        )
         .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let sheets = v["sheets"].as_array().unwrap();
     assert!(!sheets.is_empty(), "{v}");
-    assert!(sheets[0]["dxf"].as_str().is_some_and(|d| d.contains("SECTION")), "{v}");
+    assert!(
+        sheets[0]["dxf"]
+            .as_str()
+            .is_some_and(|d| d.contains("SECTION")),
+        "{v}"
+    );
     // machine export: a person writes the certified DXF of a project calculation
-    let (st, v) = t.call("POST", "/api/machine/profiles", Some(machine_profile_json())).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            "/api/machine/profiles",
+            Some(machine_profile_json()),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let id = t.job(good_assembly()).await;
     replay_matches(&mut t, id).await;
     let (st, v) = t
-        .call("POST", &format!("/api/calculations/{id}/export"), Some(json!({ "profile": "PLASMA-A", "folder": 0 })))
+        .call(
+            "POST",
+            &format!("/api/calculations/{id}/export"),
+            Some(json!({ "profile": "PLASMA-A", "folder": 0 })),
+        )
         .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     assert_eq!(v["written"], json!(true));
@@ -4978,29 +5239,69 @@ async fn int6_certified_tee_dxf_reaches_package_nest_and_machine_export() {
 async fn int7_an_order_with_an_nf_cad_edit_gets_no_package_and_no_nest() {
     let t = boot();
     let oid = new_order(&t).await;
-    assert_eq!(add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0, StatusCode::OK);
+    assert_eq!(
+        add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0,
+        StatusCode::OK
+    );
     put_parts_values(
         &t,
         oid,
         json!([{ "no": "C1", "name": "pipe", "shape": "cylinder", "qty": 1 }]),
-        json!([val("C1", "D", 216.3), val("C1", "t", 12.0), val("C1", "L", 2000.0)]),
+        json!([
+            val("C1", "D", 216.3),
+            val("C1", "t", 12.0),
+            val("C1", "L", 2000.0)
+        ]),
     )
     .await;
-    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/confirm"), Some(json!({ "all": true }))).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/confirm"),
+            Some(json!({ "all": true })),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
-    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/compute"), Some(json!({}))).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/compute"),
+            Some(json!({})),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
-    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/decisions"), Some(json!({ "kind": "mark_checked" }))).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/orders/{oid}/decisions"),
+            Some(json!({ "kind": "mark_checked" })),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     // the same order is served before an edited file is attached
-    let (st, _, _) = t.send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[]).await;
+    let (st, _, _) = t
+        .send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[])
+        .await;
     assert_eq!(st, StatusCode::OK);
     t.sql("INSERT INTO documents(project_id, filename, detected_type, size, sha256, extension_mismatch, record_id, created_by, created_at, cad_edited) VALUES (1,'e.dxf','dxf',1,'ee11','0','r','admin',0,1)");
     t.sql(&format!("INSERT INTO order_files(order_id, document_id, ord) SELECT {oid}, id, 99 FROM documents WHERE sha256 = 'ee11'"));
-    let (st, _, b) = t.send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[]).await;
-    assert_eq!((st, code_of(&b)), (StatusCode::CONFLICT, json!("edited_not_certified")), "{}", String::from_utf8_lossy(&b));
-    let (st, v) = t.call("POST", &format!("/api/orders/{oid}/nest"), Some(json!({}))).await;
-    assert_eq!((st, v["code"].clone()), (StatusCode::CONFLICT, json!("edited_not_certified")), "{v}");
+    let (st, _, b) = t
+        .send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[])
+        .await;
+    assert_eq!(
+        (st, code_of(&b)),
+        (StatusCode::CONFLICT, json!("edited_not_certified")),
+        "{}",
+        String::from_utf8_lossy(&b)
+    );
+    let (st, v) = t
+        .call("POST", &format!("/api/orders/{oid}/nest"), Some(json!({})))
+        .await;
+    assert_eq!(
+        (st, v["code"].clone()),
+        (StatusCode::CONFLICT, json!("edited_not_certified")),
+        "{v}"
+    );
 }
 
 /// The machine export refuses a job whose DXF bytes are an NF CAD edit, and writes nothing.
@@ -5009,13 +5310,37 @@ async fn int7_machine_export_refuses_the_bytes_of_an_nf_cad_edit() {
     let out = temp_dir("int7-machine-out");
     std::fs::create_dir_all(&out).unwrap();
     let mut t = boot_with_exports(vec![out.clone()]);
-    let (st, v) = t.call("POST", "/api/machine/profiles", Some(machine_profile_json())).await;
+    let (st, v) = t
+        .call(
+            "POST",
+            "/api/machine/profiles",
+            Some(machine_profile_json()),
+        )
+        .await;
     assert_eq!(st, StatusCode::OK, "{v}");
     let id = t.job(good_assembly()).await;
     replay_matches(&mut t, id).await;
-    let sha: String = t.app.db().query_row("SELECT dxf_sha256 FROM amoeba_digests WHERE calc_id = ?1 LIMIT 1", [id], |r| r.get(0)).unwrap();
+    let sha: String = t
+        .app
+        .db()
+        .query_row(
+            "SELECT dxf_sha256 FROM amoeba_digests WHERE calc_id = ?1 LIMIT 1",
+            [id],
+            |r| r.get(0),
+        )
+        .unwrap();
     t.sql(&format!("INSERT INTO documents(project_id, filename, detected_type, size, sha256, extension_mismatch, record_id, created_by, created_at, cad_edited) VALUES (1,'e.dxf','dxf',1,'{sha}','0','r','admin',0,1)"));
-    let (st, v) = t.call("POST", &format!("/api/calculations/{id}/export"), Some(json!({ "profile": "PLASMA-A", "folder": 0 }))).await;
-    assert_eq!((st, v["code"].clone()), (StatusCode::CONFLICT, json!("edited_not_certified")), "{v}");
+    let (st, v) = t
+        .call(
+            "POST",
+            &format!("/api/calculations/{id}/export"),
+            Some(json!({ "profile": "PLASMA-A", "folder": 0 })),
+        )
+        .await;
+    assert_eq!(
+        (st, v["code"].clone()),
+        (StatusCode::CONFLICT, json!("edited_not_certified")),
+        "{v}"
+    );
     assert_eq!(files_in(&out), 0);
 }

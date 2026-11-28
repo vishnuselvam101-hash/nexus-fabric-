@@ -24,16 +24,33 @@ const POLY: &str = "0\nPOLYLINE\n8\n0\n5\nC1\n66\n1\n70\n0\n10\n0\n20\n0\n\
 
 fn only(bytes: &[u8], kind: &str) -> nf_cad::read::Entity {
     let d = open(bytes).unwrap();
-    d.entities.into_iter().find(|e| e.kind == kind).expect("entity")
+    d.entities
+        .into_iter()
+        .find(|e| e.kind == kind)
+        .expect("entity")
 }
 
 #[test]
 fn move_creates_a_new_marked_version_and_leaves_the_input_alone() {
     let parent = dxf(LINE);
-    let child = apply(&parent, &[Op::Move { ids: vec!["E0".into()], dx: 5.0, dy: -1.0 }]).unwrap();
+    let child = apply(
+        &parent,
+        &[Op::Move {
+            ids: vec!["E0".into()],
+            dx: 5.0,
+            dy: -1.0,
+        }],
+    )
+    .unwrap();
     assert!(is_edited(&child), "child carries the marker");
     assert!(!is_edited(&parent), "parent is untouched and unmarked");
-    assert_eq!(open(&parent).unwrap().entities[0].geom, Geom::Line { a: [0.0, 0.0], b: [3.0, 0.0] });
+    assert_eq!(
+        open(&parent).unwrap().entities[0].geom,
+        Geom::Line {
+            a: [0.0, 0.0],
+            b: [3.0, 0.0]
+        }
+    );
     match open(&child).unwrap().entities[0].geom.clone() {
         Geom::Line { a, b } => {
             assert_eq!((a, b), ([5.0, -1.0], [8.0, -1.0]));
@@ -47,20 +64,49 @@ fn move_creates_a_new_marked_version_and_leaves_the_input_alone() {
 fn rotate_and_mirror_of_an_arc_match_closed_forms() {
     // arc centre (1,1) r 1 from 0 to 90; rotate 90 about the origin -> centre (-1,1), angles 90..180
     let bytes = dxf(ARC);
-    let r = apply(&bytes, &[Op::Rotate { ids: vec!["E0".into()], cx: 0.0, cy: 0.0, deg: 90.0 }]).unwrap();
+    let r = apply(
+        &bytes,
+        &[Op::Rotate {
+            ids: vec!["E0".into()],
+            cx: 0.0,
+            cy: 0.0,
+            deg: 90.0,
+        }],
+    )
+    .unwrap();
     match only(&r, "ARC").geom {
         Geom::Arc { c, start, end, .. } => {
-            assert!((c[0] + 1.0).abs() < 1e-9 && (c[1] - 1.0).abs() < 1e-9, "c {c:?}");
-            assert!((start - 90.0).abs() < 1e-9 && (end - 180.0).abs() < 1e-9, "{start} {end}");
+            assert!(
+                (c[0] + 1.0).abs() < 1e-9 && (c[1] - 1.0).abs() < 1e-9,
+                "c {c:?}"
+            );
+            assert!(
+                (start - 90.0).abs() < 1e-9 && (end - 180.0).abs() < 1e-9,
+                "{start} {end}"
+            );
         }
         g => panic!("{g:?}"),
     }
     // mirror across the x axis: centre (1,-1), swept ccw from 270 to 0
-    let m = apply(&bytes, &[Op::Mirror { ids: vec!["E0".into()], a: [0.0, 0.0], b: [1.0, 0.0] }]).unwrap();
+    let m = apply(
+        &bytes,
+        &[Op::Mirror {
+            ids: vec!["E0".into()],
+            a: [0.0, 0.0],
+            b: [1.0, 0.0],
+        }],
+    )
+    .unwrap();
     match only(&m, "ARC").geom {
         Geom::Arc { c, start, end, .. } => {
-            assert!((c[0] - 1.0).abs() < 1e-9 && (c[1] + 1.0).abs() < 1e-9, "c {c:?}");
-            assert!((start - 270.0).abs() < 1e-9 && end.abs() < 1e-9, "{start} {end}");
+            assert!(
+                (c[0] - 1.0).abs() < 1e-9 && (c[1] + 1.0).abs() < 1e-9,
+                "c {c:?}"
+            );
+            assert!(
+                (start - 270.0).abs() < 1e-9 && end.abs() < 1e-9,
+                "{start} {end}"
+            );
         }
         g => panic!("{g:?}"),
     }
@@ -69,36 +115,80 @@ fn rotate_and_mirror_of_an_arc_match_closed_forms() {
 #[test]
 fn scale_and_delete_polyline_removes_its_whole_span() {
     let bytes = dxf(POLY);
-    let s = apply(&bytes, &[Op::Scale { ids: vec!["E0".into()], cx: 0.0, cy: 0.0, factor: 2.0 }]).unwrap();
+    let s = apply(
+        &bytes,
+        &[Op::Scale {
+            ids: vec!["E0".into()],
+            cx: 0.0,
+            cy: 0.0,
+            factor: 2.0,
+        }],
+    )
+    .unwrap();
     match only(&s, "POLYLINE").geom {
         Geom::Poly { v, .. } => assert_eq!(v[2].p, [4.0, 4.0]),
         g => panic!("{g:?}"),
     }
-    let d = apply(&bytes, &[Op::Delete { ids: vec!["E0".into()] }]).unwrap();
+    let d = apply(
+        &bytes,
+        &[Op::Delete {
+            ids: vec!["E0".into()],
+        }],
+    )
+    .unwrap();
     let text = String::from_utf8_lossy(&d);
-    assert!(!text.contains("VERTEX") && !text.contains("SEQEND"), "span removed");
+    assert!(
+        !text.contains("VERTEX") && !text.contains("SEQEND"),
+        "span removed"
+    );
     assert_eq!(open(&d).unwrap().entities.len(), 0);
 }
 
 #[test]
 fn set_layer_and_add_use_the_table_and_a_fresh_handle() {
     let bytes = dxf(LINE);
-    let l = apply(&bytes, &[Op::SetLayer { ids: vec!["E0".into()], layer: "CUT".into() }]).unwrap();
+    let l = apply(
+        &bytes,
+        &[Op::SetLayer {
+            ids: vec!["E0".into()],
+            layer: "CUT".into(),
+        }],
+    )
+    .unwrap();
     assert_eq!(only(&l, "LINE").layer, "CUT");
-    let bad = apply(&bytes, &[Op::SetLayer { ids: vec!["E0".into()], layer: "NOPE".into() }]);
+    let bad = apply(
+        &bytes,
+        &[Op::SetLayer {
+            ids: vec!["E0".into()],
+            layer: "NOPE".into(),
+        }],
+    );
     assert_eq!(bad.unwrap_err().code, "layer_missing");
 
     let added = apply(
         &bytes,
-        &[Op::Add { entity: NewEntity::Circle { c: [5.0, 5.0], r: 2.0, layer: "CUT".into() } }],
+        &[Op::Add {
+            entity: NewEntity::Circle {
+                c: [5.0, 5.0],
+                r: 2.0,
+                layer: "CUT".into(),
+            },
+        }],
     )
     .unwrap();
     let text = String::from_utf8_lossy(&added).to_string();
-    assert_eq!(only(&added, "CIRCLE").handle.as_deref(), Some("100"), "max handle FF + 1");
+    assert_eq!(
+        only(&added, "CIRCLE").handle.as_deref(),
+        Some("100"),
+        "max handle FF + 1"
+    );
     // $HANDSEED was FF; the new circle takes 100 (hex, after the largest handle in the file: B1 is below FF)
     let c = only(&added, "CIRCLE");
     assert_eq!(c.layer, "CUT");
-    assert!(text.contains("$HANDSEED\n5\n101\n"), "handseed moved past the new handle");
+    assert!(
+        text.contains("$HANDSEED\n5\n101\n"),
+        "handseed moved past the new handle"
+    );
     match c.geom {
         Geom::Circle { c, r } => assert_eq!((c, r), ([5.0, 5.0], 2.0)),
         g => panic!("{g:?}"),
@@ -108,31 +198,85 @@ fn set_layer_and_add_use_the_table_and_a_fresh_handle() {
 #[test]
 fn refusals_are_explicit_and_leave_nothing_behind() {
     let bytes = dxf("0\nELLIPSE\n8\n0\n10\n0\n20\n0\n11\n2\n21\n0\n40\n0.5\n41\n0\n42\n6.28\n");
-    let e = apply(&bytes, &[Op::Move { ids: vec!["E0".into()], dx: 1.0, dy: 0.0 }]).unwrap_err();
+    let e = apply(
+        &bytes,
+        &[Op::Move {
+            ids: vec!["E0".into()],
+            dx: 1.0,
+            dy: 0.0,
+        }],
+    )
+    .unwrap_err();
     assert_eq!(e.code, "unsupported_op", "ellipse is listed, not editable");
 
     let t = dxf("0\nTEXT\n8\n0\n10\n0\n20\n0\n40\n2\n1\nHI\n");
-    let e = apply(&t, &[Op::Mirror { ids: vec!["E0".into()], a: [0.0, 0.0], b: [0.0, 1.0] }]).unwrap_err();
+    let e = apply(
+        &t,
+        &[Op::Mirror {
+            ids: vec!["E0".into()],
+            a: [0.0, 0.0],
+            b: [0.0, 1.0],
+        }],
+    )
+    .unwrap_err();
     assert_eq!(e.code, "unsupported_op");
 
-    let e = apply(&bytes, &[Op::Delete { ids: vec!["E9".into()] }]).unwrap_err();
+    let e = apply(
+        &bytes,
+        &[Op::Delete {
+            ids: vec!["E9".into()],
+        }],
+    )
+    .unwrap_err();
     assert_eq!(e.code, "unknown_entity");
 
-    let e = apply(&bytes, &[Op::Scale { ids: vec![], cx: 0.0, cy: 0.0, factor: -1.0 }]).unwrap_err();
+    let e = apply(
+        &bytes,
+        &[Op::Scale {
+            ids: vec![],
+            cx: 0.0,
+            cy: 0.0,
+            factor: -1.0,
+        }],
+    )
+    .unwrap_err();
     assert_eq!(e.code, "bad_request");
 }
 
 #[test]
 fn block_contents_are_edited_only_through_their_insert() {
     let blocks = "0\nSECTION\n2\nBLOCKS\n0\nBLOCK\n8\n0\n2\nB\n10\n0\n20\n0\n0\nLINE\n8\n0\n10\n0\n20\n0\n11\n1\n21\n0\n0\nENDBLK\n0\nENDSEC\n";
-    let base = format!("{}", String::from_utf8_lossy(&dxf("0\nINSERT\n8\n0\n2\nB\n10\n0\n20\n0\n")));
+    let base = format!(
+        "{}",
+        String::from_utf8_lossy(&dxf("0\nINSERT\n8\n0\n2\nB\n10\n0\n20\n0\n"))
+    );
     let with_blocks = base.replace("0\nEOF\n", &format!("{blocks}0\nEOF\n"));
     let d = open(with_blocks.as_bytes()).unwrap();
-    let child = d.entities.iter().find(|e| e.parent.is_some()).expect("child");
-    let e = apply(with_blocks.as_bytes(), &[Op::Move { ids: vec![child.id.clone()], dx: 1.0, dy: 0.0 }]).unwrap_err();
+    let child = d
+        .entities
+        .iter()
+        .find(|e| e.parent.is_some())
+        .expect("child");
+    let e = apply(
+        with_blocks.as_bytes(),
+        &[Op::Move {
+            ids: vec![child.id.clone()],
+            dx: 1.0,
+            dy: 0.0,
+        }],
+    )
+    .unwrap_err();
     assert_eq!(e.code, "unknown_entity");
     // the INSERT itself can move
-    let moved = apply(with_blocks.as_bytes(), &[Op::Move { ids: vec!["E0".into()], dx: 4.0, dy: 0.0 }]).unwrap();
+    let moved = apply(
+        with_blocks.as_bytes(),
+        &[Op::Move {
+            ids: vec!["E0".into()],
+            dx: 4.0,
+            dy: 0.0,
+        }],
+    )
+    .unwrap();
     let c2 = open(&moved).unwrap();
     let ins = c2.entities.iter().find(|e| e.kind == "INSERT").unwrap();
     assert_eq!(ins.kind, "INSERT");
@@ -145,9 +289,21 @@ fn block_contents_are_edited_only_through_their_insert() {
 
 #[test]
 fn quality_gate_runs_on_an_edited_version_and_marks_it() {
-    let child = apply(&dxf(LINE), &[Op::Move { ids: vec!["E0".into()], dx: 1.0, dy: 1.0 }]).unwrap();
+    let child = apply(
+        &dxf(LINE),
+        &[Op::Move {
+            ids: vec!["E0".into()],
+            dx: 1.0,
+            dy: 1.0,
+        }],
+    )
+    .unwrap();
     let checks = nf_cad::quality_checks(&child);
-    assert_eq!(checks.len(), nf_dxf::quality::RULES.len(), "every rule reported");
+    assert_eq!(
+        checks.len(),
+        nf_dxf::quality::RULES.len(),
+        "every rule reported"
+    );
     assert!(is_edited(&child));
 }
 
@@ -155,7 +311,15 @@ fn quality_gate_runs_on_an_edited_version_and_marks_it() {
 fn mirror_about_any_line_angle_through_a_point() {
     // line (0,0)-(3,0); mirror about the vertical line through the origin (90 degrees) -> (0,0)-(-3,0)
     let bytes = dxf(LINE);
-    let m = apply(&bytes, &[Op::MirrorAngle { ids: vec!["E0".into()], c: [0.0, 0.0], deg: 90.0 }]).unwrap();
+    let m = apply(
+        &bytes,
+        &[Op::MirrorAngle {
+            ids: vec!["E0".into()],
+            c: [0.0, 0.0],
+            deg: 90.0,
+        }],
+    )
+    .unwrap();
     match only(&m, "LINE").geom {
         Geom::Line { a, b } => {
             assert!(a[0].abs() < 1e-9 && a[1].abs() < 1e-9, "a {a:?}");
@@ -164,7 +328,15 @@ fn mirror_about_any_line_angle_through_a_point() {
         g => panic!("{g:?}"),
     }
     // 0 degrees through the origin: the x axis, so (3,0) stays put
-    let m = apply(&bytes, &[Op::MirrorAngle { ids: vec!["E0".into()], c: [0.0, 0.0], deg: 0.0 }]).unwrap();
+    let m = apply(
+        &bytes,
+        &[Op::MirrorAngle {
+            ids: vec!["E0".into()],
+            c: [0.0, 0.0],
+            deg: 0.0,
+        }],
+    )
+    .unwrap();
     match only(&m, "LINE").geom {
         Geom::Line { b, .. } => assert!((b[0] - 3.0).abs() < 1e-9 && b[1].abs() < 1e-9, "b {b:?}"),
         g => panic!("{g:?}"),
@@ -177,8 +349,18 @@ fn non_finite_results_are_refused() {
     let e = apply(
         &dxf(LINE),
         &[
-            Op::Scale { ids: vec!["E0".into()], cx: 0.0, cy: 0.0, factor: 1e200 },
-            Op::Scale { ids: vec!["E0".into()], cx: 0.0, cy: 0.0, factor: 1e200 },
+            Op::Scale {
+                ids: vec!["E0".into()],
+                cx: 0.0,
+                cy: 0.0,
+                factor: 1e200,
+            },
+            Op::Scale {
+                ids: vec!["E0".into()],
+                cx: 0.0,
+                cy: 0.0,
+                factor: 1e200,
+            },
         ],
     )
     .unwrap_err();
@@ -189,9 +371,20 @@ fn non_finite_results_are_refused() {
 fn untouched_records_are_copied_byte_for_byte() {
     // a line (E0) and an arc (E1); edit only the arc. The line's record must appear unchanged in the output.
     let parent = dxf(&format!("{LINE}{ARC}"));
-    let child = apply(&parent, &[Op::Move { ids: vec!["E1".into()], dx: 1.0, dy: 0.0 }]).unwrap();
+    let child = apply(
+        &parent,
+        &[Op::Move {
+            ids: vec!["E1".into()],
+            dx: 1.0,
+            dy: 0.0,
+        }],
+    )
+    .unwrap();
     assert!(String::from_utf8_lossy(&parent).contains(LINE));
-    assert!(String::from_utf8_lossy(&child).contains(LINE), "untouched LINE copied exactly");
+    assert!(
+        String::from_utf8_lossy(&child).contains(LINE),
+        "untouched LINE copied exactly"
+    );
     // the moved arc is the one that changed
     match only(&child, "ARC").geom {
         Geom::Arc { c, .. } => assert_eq!(c, [2.0, 1.0]),
@@ -201,7 +394,15 @@ fn untouched_records_are_copied_byte_for_byte() {
 
 #[test]
 fn repeated_ids_in_one_op_move_an_entity_once() {
-    let child = apply(&dxf(LINE), &[Op::Move { ids: vec!["E0".into(), "E0".into()], dx: 1.0, dy: 0.0 }]).unwrap();
+    let child = apply(
+        &dxf(LINE),
+        &[Op::Move {
+            ids: vec!["E0".into(), "E0".into()],
+            dx: 1.0,
+            dy: 0.0,
+        }],
+    )
+    .unwrap();
     match only(&child, "LINE").geom {
         Geom::Line { a, .. } => assert_eq!(a, [1.0, 0.0]),
         g => panic!("{g:?}"),
@@ -210,9 +411,29 @@ fn repeated_ids_in_one_op_move_an_entity_once() {
 
 #[test]
 fn an_edited_file_edited_again_keeps_exactly_one_marker() {
-    let once = apply(&dxf(LINE), &[Op::Move { ids: vec!["E0".into()], dx: 1.0, dy: 0.0 }]).unwrap();
-    let twice = apply(&once, &[Op::Move { ids: vec!["E0".into()], dx: 1.0, dy: 0.0 }]).unwrap();
+    let once = apply(
+        &dxf(LINE),
+        &[Op::Move {
+            ids: vec!["E0".into()],
+            dx: 1.0,
+            dy: 0.0,
+        }],
+    )
+    .unwrap();
+    let twice = apply(
+        &once,
+        &[Op::Move {
+            ids: vec!["E0".into()],
+            dx: 1.0,
+            dy: 0.0,
+        }],
+    )
+    .unwrap();
     let text = String::from_utf8_lossy(&twice).to_string();
-    assert_eq!(text.matches("EDITED IN NF CAD").count(), 1, "one marker line, replaced not stacked");
+    assert_eq!(
+        text.matches("EDITED IN NF CAD").count(),
+        1,
+        "one marker line, replaced not stacked"
+    );
     assert!(is_edited(&twice));
 }

@@ -58,7 +58,10 @@ pub(crate) fn records(pairs: &[Pair]) -> Vec<Rec<'_>> {
             while j < pairs.len() && pairs[j].code != 0 {
                 j += 1;
             }
-            out.push(Rec { kind: pairs[i].value.trim(), body: &pairs[start..j] });
+            out.push(Rec {
+                kind: pairs[i].value.trim(),
+                body: &pairs[start..j],
+            });
             i = j;
         } else {
             i += 1;
@@ -68,7 +71,9 @@ pub(crate) fn records(pairs: &[Pair]) -> Vec<Rec<'_>> {
 }
 
 fn get(body: &[Pair], code: u16) -> Option<&str> {
-    body.iter().find(|p| p.code == code).map(|p| p.value.as_str())
+    body.iter()
+        .find(|p| p.code == code)
+        .map(|p| p.value.as_str())
 }
 
 fn getf(body: &[Pair], code: u16) -> Option<f64> {
@@ -130,7 +135,10 @@ pub(crate) fn primaries<'a>(recs: &[Rec<'a>]) -> Vec<Primary<'a>> {
                 if recs[i].kind == "VERTEX" {
                     let mut w = Vec::new();
                     match coord(recs[i].body, 10, 20, &mut w) {
-                        Some(p) => v.push(Vtx { p, bulge: getf(recs[i].body, 42).unwrap_or(0.0) }),
+                        Some(p) => v.push(Vtx {
+                            p,
+                            bulge: getf(recs[i].body, 42).unwrap_or(0.0),
+                        }),
                         None => warn.push("polyline vertex without coordinates".into()),
                     }
                 }
@@ -141,11 +149,27 @@ pub(crate) fn primaries<'a>(recs: &[Rec<'a>]) -> Vec<Primary<'a>> {
             } else {
                 warn.push("POLYLINE without SEQEND: the records after it to the end of the section were consumed, not read".into());
             }
-            out.push(Primary { kind: "POLYLINE", body: r.body, verts: v, record: idx, warnings: warn });
-        } else if r.kind == "SEQEND" || r.kind == "VERTEX" || r.kind == "BLOCK" || r.kind == "ENDBLK" {
+            out.push(Primary {
+                kind: "POLYLINE",
+                body: r.body,
+                verts: v,
+                record: idx,
+                warnings: warn,
+            });
+        } else if r.kind == "SEQEND"
+            || r.kind == "VERTEX"
+            || r.kind == "BLOCK"
+            || r.kind == "ENDBLK"
+        {
             continue;
         } else {
-            out.push(Primary { kind: r.kind, body: r.body, verts: Vec::new(), record: idx, warnings: Vec::new() });
+            out.push(Primary {
+                kind: r.kind,
+                body: r.body,
+                verts: Vec::new(),
+                record: idx,
+                warnings: Vec::new(),
+            });
         }
     }
     out
@@ -169,8 +193,15 @@ fn geometry(p: &Primary<'_>, warn: &mut Vec<String>) -> Vec<Geom> {
             }
             _ => vec![],
         },
-        "ARC" => match (coord(body, 10, 20, warn), scalar(body, 40, warn), scalar(body, 50, warn), scalar(body, 51, warn)) {
-            (Some(c), Some(r), Some(start), Some(end)) if r > 0.0 => vec![Geom::Arc { c, r, start, end }],
+        "ARC" => match (
+            coord(body, 10, 20, warn),
+            scalar(body, 40, warn),
+            scalar(body, 50, warn),
+            scalar(body, 51, warn),
+        ) {
+            (Some(c), Some(r), Some(start), Some(end)) if r > 0.0 => {
+                vec![Geom::Arc { c, r, start, end }]
+            }
             (Some(_), Some(_), Some(_), Some(_)) => {
                 warn.push("radius is not positive".into());
                 vec![]
@@ -182,7 +213,10 @@ fn geometry(p: &Primary<'_>, warn: &mut Vec<String>) -> Vec<Geom> {
             let mut v: Vec<Vtx> = Vec::new();
             for q in body {
                 match q.code {
-                    10 => v.push(Vtx { p: [num(&q.value).unwrap_or(f64::NAN), 0.0], bulge: 0.0 }),
+                    10 => v.push(Vtx {
+                        p: [num(&q.value).unwrap_or(f64::NAN), 0.0],
+                        bulge: 0.0,
+                    }),
                     20 => match v.last_mut() {
                         Some(last) => last.p[1] = num(&q.value).unwrap_or(f64::NAN),
                         None => warn.push("vertex Y before X".into()),
@@ -204,7 +238,11 @@ fn geometry(p: &Primary<'_>, warn: &mut Vec<String>) -> Vec<Geom> {
         "TEXT" | "MTEXT" => match coord(body, 10, 20, warn) {
             Some(at) => {
                 let text = if p.kind == "MTEXT" {
-                    let mut s: String = body.iter().filter(|q| q.code == 3).map(|q| q.value.as_str()).collect();
+                    let mut s: String = body
+                        .iter()
+                        .filter(|q| q.code == 3)
+                        .map(|q| q.value.as_str())
+                        .collect();
                     s.push_str(get(body, 1).unwrap_or(""));
                     s
                 } else {
@@ -226,7 +264,11 @@ fn geometry(p: &Primary<'_>, warn: &mut Vec<String>) -> Vec<Geom> {
                     Some(t) if !t.is_empty() => t.replace("<>", &fmt),
                     _ => fmt,
                 };
-                vec![Geom::Text { at, height: 0.0, text }]
+                vec![Geom::Text {
+                    at,
+                    height: 0.0,
+                    text,
+                }]
             }
             None => vec![],
         },
@@ -237,7 +279,11 @@ fn geometry(p: &Primary<'_>, warn: &mut Vec<String>) -> Vec<Geom> {
 fn fmt_value(v: f64) -> String {
     let s = format!("{v:.4}");
     let t = s.trim_end_matches('0').trim_end_matches('.');
-    if t.is_empty() || t == "-" { "0".into() } else { t.into() }
+    if t.is_empty() || t == "-" {
+        "0".into()
+    } else {
+        t.into()
+    }
 }
 
 fn poly(v: Vec<Vtx>, closed: bool, warn: &mut Vec<String>) -> Option<Geom> {
@@ -253,10 +299,18 @@ fn poly(v: Vec<Vtx>, closed: bool, warn: &mut Vec<String>) -> Option<Geom> {
 }
 
 /// Samples a curve to a polyline with the chord tolerance, or warns and returns None.
-fn sampled(f: &dyn Fn(f64) -> P, t0: f64, t1: f64, warn: &mut Vec<String>, what: &str) -> Option<Vec<P>> {
+fn sampled(
+    f: &dyn Fn(f64) -> P,
+    t0: f64,
+    t1: f64,
+    warn: &mut Vec<String>,
+    what: &str,
+) -> Option<Vec<P>> {
     match geom::sample_curve(f, t0, t1, CHORD_TOL, MAX_CURVE_POINTS) {
         Ok(pts) => {
-            warn.push(format!("{what} evaluated to a polyline, chord tolerance {CHORD_TOL} drawing units"));
+            warn.push(format!(
+                "{what} evaluated to a polyline, chord tolerance {CHORD_TOL} drawing units"
+            ));
             Some(pts)
         }
         Err(e) => {
@@ -274,7 +328,10 @@ fn to_poly(pts: Vec<P>, closed: bool) -> Option<Geom> {
     if pts.len() < 2 {
         return None;
     }
-    Some(Geom::Poly { v: pts.into_iter().map(|p| Vtx { p, bulge: 0.0 }).collect(), closed })
+    Some(Geom::Poly {
+        v: pts.into_iter().map(|p| Vtx { p, bulge: 0.0 }).collect(),
+        closed,
+    })
 }
 
 /// SPLINE: NURBS evaluated by de Boor (weights from group 41, knots from 40). A fit-point-only spline is drawn
@@ -305,7 +362,9 @@ fn spline(body: &[Pair], warn: &mut Vec<String>) -> Option<Geom> {
         }
     }
     if ctrl.is_empty() && fit.len() >= 2 {
-        warn.push("spline stored by fit points: drawn through its fit points, not its exact curve".into());
+        warn.push(
+            "spline stored by fit points: drawn through its fit points, not its exact curve".into(),
+        );
         let pts = fit;
         if pts.iter().any(|p| !p[0].is_finite() || !p[1].is_finite()) {
             warn.push("spline fit point is not finite".into());
@@ -366,7 +425,17 @@ fn ellipse(body: &[Pair], warn: &mut Vec<String>) -> Option<Geom> {
     }
     let full = end - start >= std::f64::consts::TAU - 1e-12;
     let f = |t: f64| geom::ellipse_at(c, a, ratio, t);
-    let pts = sampled(&f, start, if full { start + std::f64::consts::TAU } else { end }, warn, "ellipse")?;
+    let pts = sampled(
+        &f,
+        start,
+        if full {
+            start + std::f64::consts::TAU
+        } else {
+            end
+        },
+        warn,
+        "ellipse",
+    )?;
     to_poly(pts, full)
 }
 
@@ -374,7 +443,10 @@ fn ellipse(body: &[Pair], warn: &mut Vec<String>) -> Option<Geom> {
 /// are sampled. A loop with an ellipse or spline edge is listed, not read.
 fn hatch(body: &[Pair], warn: &mut Vec<String>) -> Vec<Geom> {
     let loops = getf(body, 91).unwrap_or(0.0).max(0.0) as usize;
-    let mut i = body.iter().position(|q| q.code == 91).map_or(body.len(), |p| p + 1);
+    let mut i = body
+        .iter()
+        .position(|q| q.code == 91)
+        .map_or(body.len(), |p| p + 1);
     let mut out = Vec::new();
     let next = |i: &mut usize, code: u16| -> Option<&str> {
         while *i < body.len() && body[*i].code != code {
@@ -399,7 +471,10 @@ fn hatch(body: &[Pair], warn: &mut Vec<String>) -> Vec<Geom> {
             closed = next(&mut i, 73).and_then(num).unwrap_or(1.0) as i64 != 0;
             let n = next(&mut i, 93).and_then(num).unwrap_or(0.0).max(0.0) as usize;
             for _ in 0..n {
-                let (Some(x), Some(y)) = (next(&mut i, 10).and_then(num), next(&mut i, 20).and_then(num)) else {
+                let (Some(x), Some(y)) = (
+                    next(&mut i, 10).and_then(num),
+                    next(&mut i, 20).and_then(num),
+                ) else {
                     ok = false;
                     break;
                 };
@@ -407,7 +482,10 @@ fn hatch(body: &[Pair], warn: &mut Vec<String>) -> Vec<Geom> {
                 if bulge_flag {
                     b = next(&mut i, 42).and_then(num).unwrap_or(0.0);
                 }
-                verts.push(Vtx { p: [x, y], bulge: b });
+                verts.push(Vtx {
+                    p: [x, y],
+                    bulge: b,
+                });
             }
         } else {
             let n = next(&mut i, 93).and_then(num).unwrap_or(0.0).max(0.0) as usize;
@@ -415,8 +493,14 @@ fn hatch(body: &[Pair], warn: &mut Vec<String>) -> Vec<Geom> {
                 let ty = next(&mut i, 72).and_then(num).unwrap_or(0.0) as i64;
                 match ty {
                     1 => {
-                        let a = (next(&mut i, 10).and_then(num), next(&mut i, 20).and_then(num));
-                        let b = (next(&mut i, 11).and_then(num), next(&mut i, 21).and_then(num));
+                        let a = (
+                            next(&mut i, 10).and_then(num),
+                            next(&mut i, 20).and_then(num),
+                        );
+                        let b = (
+                            next(&mut i, 11).and_then(num),
+                            next(&mut i, 21).and_then(num),
+                        );
                         match (a, b) {
                             ((Some(ax), Some(ay)), (Some(bx), Some(by))) => {
                                 pts.push([ax, ay]);
@@ -426,7 +510,10 @@ fn hatch(body: &[Pair], warn: &mut Vec<String>) -> Vec<Geom> {
                         }
                     }
                     2 => {
-                        let c = (next(&mut i, 10).and_then(num), next(&mut i, 20).and_then(num));
+                        let c = (
+                            next(&mut i, 10).and_then(num),
+                            next(&mut i, 20).and_then(num),
+                        );
                         let r = next(&mut i, 40).and_then(num);
                         let s = next(&mut i, 50).and_then(num);
                         let e = next(&mut i, 51).and_then(num);
@@ -436,7 +523,13 @@ fn hatch(body: &[Pair], warn: &mut Vec<String>) -> Vec<Geom> {
                                 let (s, e) = if ccw { (s, e) } else { (e, s) };
                                 let f = |t: f64| geom::point_at([cx, cy], r, t);
                                 let sweep_end = if e <= s { e + 360.0 } else { e };
-                                match geom::sample_curve(&|t| f(t), s.to_radians(), sweep_end.to_radians(), CHORD_TOL, MAX_CURVE_POINTS) {
+                                match geom::sample_curve(
+                                    &|t| f(t),
+                                    s.to_radians(),
+                                    sweep_end.to_radians(),
+                                    CHORD_TOL,
+                                    MAX_CURVE_POINTS,
+                                ) {
                                     Ok(v) => pts.extend(v),
                                     Err(_) => ok = false,
                                 }
@@ -445,7 +538,10 @@ fn hatch(body: &[Pair], warn: &mut Vec<String>) -> Vec<Geom> {
                         }
                     }
                     _ => {
-                        warn.push(format!("hatch boundary {} has an ellipse or spline edge: listed, not read", k + 1));
+                        warn.push(format!(
+                            "hatch boundary {} has an ellipse or spline edge: listed, not read",
+                            k + 1
+                        ));
                         ok = false;
                         break;
                     }
@@ -458,7 +554,10 @@ fn hatch(body: &[Pair], warn: &mut Vec<String>) -> Vec<Geom> {
         }
         if flags & 2 != 0 {
             if verts.len() < 2 {
-                warn.push(format!("hatch boundary {} has fewer than two vertices", k + 1));
+                warn.push(format!(
+                    "hatch boundary {} has fewer than two vertices",
+                    k + 1
+                ));
                 continue;
             }
             out.push(Geom::Poly { v: verts, closed });
@@ -481,9 +580,19 @@ pub fn layers(tables: &[Pair]) -> Vec<Layer> {
         .filter(|r| r.kind == "LAYER")
         .filter_map(|r| {
             let name = get(r.body, 2)?.trim().to_string();
-            let raw = get(r.body, 62).and_then(|s| s.trim().parse::<i64>().ok()).unwrap_or(7);
-            let flags = get(r.body, 70).and_then(|s| s.trim().parse::<i64>().ok()).unwrap_or(0);
-            Some(Layer { name, colour: raw.abs(), on: raw >= 0, frozen: flags & 1 == 1, count: 0 })
+            let raw = get(r.body, 62)
+                .and_then(|s| s.trim().parse::<i64>().ok())
+                .unwrap_or(7);
+            let flags = get(r.body, 70)
+                .and_then(|s| s.trim().parse::<i64>().ok())
+                .unwrap_or(0);
+            Some(Layer {
+                name,
+                colour: raw.abs(),
+                on: raw >= 0,
+                frozen: flags & 1 == 1,
+                count: 0,
+            })
         })
         .collect()
 }
@@ -509,7 +618,10 @@ pub fn blocks(pairs: &[Pair]) -> HashMap<String, Block<'_>> {
                     out.entry(n).or_insert(Block { base: b, recs: v });
                 }
                 let name = get(r.body, 2).unwrap_or("").trim().to_string();
-                let base = [getf(r.body, 10).unwrap_or(0.0), getf(r.body, 20).unwrap_or(0.0)];
+                let base = [
+                    getf(r.body, 10).unwrap_or(0.0),
+                    getf(r.body, 20).unwrap_or(0.0),
+                ];
                 cur = Some((name, base, Vec::new()));
             }
             "ENDBLK" => {
@@ -531,7 +643,13 @@ pub fn blocks(pairs: &[Pair]) -> HashMap<String, Block<'_>> {
 }
 
 /// The transform an INSERT applies to its block: base point out, scale, array offset, rotation, insertion point.
-fn insert_transform(body: &[Pair], base: P, col: usize, row: usize, warn: &mut Vec<String>) -> Affine {
+fn insert_transform(
+    body: &[Pair],
+    base: P,
+    col: usize,
+    row: usize,
+    warn: &mut Vec<String>,
+) -> Affine {
     let ins = [getf(body, 10).unwrap_or(0.0), getf(body, 20).unwrap_or(0.0)];
     let sx = getf(body, 41).unwrap_or(1.0);
     let sy = getf(body, 42).unwrap_or(1.0);
@@ -554,13 +672,23 @@ fn place(g: &Geom, xf: &Affine, warn: &mut Vec<String>) -> Geom {
     let s = xf.is_similarity();
     match g {
         Geom::Point { at } => Geom::Point { at: xf.apply(*at) },
-        Geom::Line { a, b } => Geom::Line { a: xf.apply(*a), b: xf.apply(*b) },
+        Geom::Line { a, b } => Geom::Line {
+            a: xf.apply(*a),
+            b: xf.apply(*b),
+        },
         Geom::Text { at, height, text } => {
             let k = xf.det().abs().sqrt();
-            Geom::Text { at: xf.apply(*at), height: height * k, text: text.clone() }
+            Geom::Text {
+                at: xf.apply(*at),
+                height: height * k,
+                text: text.clone(),
+            }
         }
         Geom::Circle { c, r } => match s {
-            Some(k) => Geom::Circle { c: xf.apply(*c), r: r * k },
+            Some(k) => Geom::Circle {
+                c: xf.apply(*c),
+                r: r * k,
+            },
             None => sample_geom(g, xf, warn),
         },
         Geom::Arc { c, r, start, end } => match s {
@@ -572,13 +700,23 @@ fn place(g: &Geom, xf: &Affine, warn: &mut Vec<String>) -> Geom {
                 let ang = |v: P| v[1].atan2(v[0]).to_degrees().rem_euclid(360.0);
                 let (a, b) = (ang(dir(*start)), ang(dir(*end)));
                 let (ns, ne) = if det_neg { (b, a) } else { (a, b) };
-                Geom::Arc { c: xf.apply(*c), r: r * k, start: ns, end: ne }
+                Geom::Arc {
+                    c: xf.apply(*c),
+                    r: r * k,
+                    start: ns,
+                    end: ne,
+                }
             }
             None => sample_geom(g, xf, warn),
         },
         Geom::Poly { v, closed } => match s {
             Some(_) => Geom::Poly {
-                v: v.iter().map(|x| Vtx { p: xf.apply(x.p), bulge: if det_neg { -x.bulge } else { x.bulge } }).collect(),
+                v: v.iter()
+                    .map(|x| Vtx {
+                        p: xf.apply(x.p),
+                        bulge: if det_neg { -x.bulge } else { x.bulge },
+                    })
+                    .collect(),
                 closed: *closed,
             },
             None => sample_geom(g, xf, warn),
@@ -593,11 +731,15 @@ fn sample_geom(g: &Geom, xf: &Affine, warn: &mut Vec<String>) -> Geom {
         warn.push("non-uniform scale in a block: circles, arcs and polylines with bulges are evaluated to polylines".into());
     }
     let pts: Vec<P> = match g {
-        Geom::Circle { c, r } => (0..=64).map(|k| geom::point_at(*c, *r, k as f64 * 360.0 / 64.0)).collect(),
+        Geom::Circle { c, r } => (0..=64)
+            .map(|k| geom::point_at(*c, *r, k as f64 * 360.0 / 64.0))
+            .collect(),
         Geom::Arc { c, r, start, end } => {
             let sw = geom::sweep_deg(*start, *end);
             let steps = ((sw / 2.0).ceil() as usize).max(2);
-            (0..=steps).map(|k| geom::point_at(*c, *r, start + sw * k as f64 / steps as f64)).collect()
+            (0..=steps)
+                .map(|k| geom::point_at(*c, *r, start + sw * k as f64 / steps as f64))
+                .collect()
         }
         Geom::Poly { v, closed } => {
             let n = v.len();
@@ -642,19 +784,42 @@ fn bulge_pt(a: P, b: P, bulge: f64, t: f64) -> P {
 
 /// Builds the ENTITIES of a file (top-level records, with INSERT and DIMENSION blocks expanded beneath them).
 /// `limit` caps the total number of entities, expanded ones included.
-pub fn entities(pairs: &[Pair], blocks: &HashMap<String, Block<'_>>, limit: usize) -> Result<(Vec<Entity>, Vec<String>), Refuse> {
+pub fn entities(
+    pairs: &[Pair],
+    blocks: &HashMap<String, Block<'_>>,
+    limit: usize,
+) -> Result<(Vec<Entity>, Vec<String>), Refuse> {
     let recs = records(pairs);
     let prims = primaries(&recs);
-    let mut ex = Expander { blocks, out: Vec::new(), limit, warnings: Vec::new() };
+    let mut ex = Expander {
+        blocks,
+        out: Vec::new(),
+        limit,
+        warnings: Vec::new(),
+    };
     for p in &prims {
         let mut warn = p.warnings.clone();
         let geoms = geometry(p, &mut warn);
         let layer = get(p.body, 8).unwrap_or("0").to_string();
-        let handle = get(p.body, 5).map(|h| h.trim().to_string()).filter(|h| !h.is_empty());
+        let handle = get(p.body, 5)
+            .map(|h| h.trim().to_string())
+            .filter(|h| !h.is_empty());
         if p.kind == "INSERT" || p.kind == "DIMENSION" {
             let name = get(p.body, 2).unwrap_or("").trim().to_string();
-            let geoms = if geoms.is_empty() { vec![Geom::Unsupported] } else { geoms };
-            let first = ex.push(p.kind, handle.clone(), &layer, geoms.into_iter().next().unwrap(), warn, Some(p.record), None)?;
+            let geoms = if geoms.is_empty() {
+                vec![Geom::Unsupported]
+            } else {
+                geoms
+            };
+            let first = ex.push(
+                p.kind,
+                handle.clone(),
+                &layer,
+                geoms.into_iter().next().unwrap(),
+                warn,
+                Some(p.record),
+                None,
+            )?;
             if p.kind == "INSERT" {
                 ex.expand_insert(&first, p, &name, &layer, 0, &mut Vec::new())?;
             } else if !name.is_empty() {
@@ -664,7 +829,15 @@ pub fn entities(pairs: &[Pair], blocks: &HashMap<String, Block<'_>>, limit: usiz
             continue;
         }
         if geoms.is_empty() {
-            ex.push(p.kind, handle, &layer, Geom::Unsupported, warn, Some(p.record), None)?;
+            ex.push(
+                p.kind,
+                handle,
+                &layer,
+                Geom::Unsupported,
+                warn,
+                Some(p.record),
+                None,
+            )?;
             continue;
         }
         for (k, g) in geoms.into_iter().enumerate() {
@@ -684,32 +857,73 @@ struct Expander<'b, 'a> {
 
 impl<'b, 'a> Expander<'b, 'a> {
     #[allow(clippy::too_many_arguments)]
-    fn push(&mut self, kind: &str, handle: Option<String>, layer: &str, geom: Geom, warnings: Vec<String>, record: Option<usize>, parent: Option<String>) -> Result<String, Refuse> {
+    fn push(
+        &mut self,
+        kind: &str,
+        handle: Option<String>,
+        layer: &str,
+        geom: Geom,
+        warnings: Vec<String>,
+        record: Option<usize>,
+        parent: Option<String>,
+    ) -> Result<String, Refuse> {
         if self.out.len() >= self.limit {
-            return Err(("too_many_entities", format!("more than {} entities (blocks expanded included)", self.limit)));
+            return Err((
+                "too_many_entities",
+                format!(
+                    "more than {} entities (blocks expanded included)",
+                    self.limit
+                ),
+            ));
         }
         let id = format!("E{}", self.out.len());
-        self.out.push(Entity { id: id.clone(), kind: kind.to_string(), handle, layer: layer.to_string(), geom, warnings, record, parent });
+        self.out.push(Entity {
+            id: id.clone(),
+            kind: kind.to_string(),
+            handle,
+            layer: layer.to_string(),
+            geom,
+            warnings,
+            record,
+            parent,
+        });
         Ok(id)
     }
 
     /// Expands the INSERT `p` (already pushed as `owner`).
-    fn expand_insert(&mut self, owner: &str, p: &Primary<'_>, name: &str, layer: &str, depth: usize, path: &mut Vec<String>) -> Result<(), Refuse> {
+    fn expand_insert(
+        &mut self,
+        owner: &str,
+        p: &Primary<'_>,
+        name: &str,
+        layer: &str,
+        depth: usize,
+        path: &mut Vec<String>,
+    ) -> Result<(), Refuse> {
         let Some(block) = self.blocks.get(name) else {
-            self.warnings.push(format!("INSERT of unknown block '{name}': listed, not expanded"));
+            self.warnings.push(format!(
+                "INSERT of unknown block '{name}': listed, not expanded"
+            ));
             return Ok(());
         };
         let cols = getf(p.body, 70).unwrap_or(1.0).max(1.0) as usize;
         let rows = getf(p.body, 71).unwrap_or(1.0).max(1.0) as usize;
         if cols.saturating_mul(rows) > self.limit {
-            return Err(("too_many_entities", format!("INSERT '{name}' array of {cols}x{rows} exceeds {} entities", self.limit)));
+            return Err((
+                "too_many_entities",
+                format!(
+                    "INSERT '{name}' array of {cols}x{rows} exceeds {} entities",
+                    self.limit
+                ),
+            ));
         }
         let base = block.base;
         for j in 0..rows {
             for i in 0..cols {
                 let mut warn = Vec::new();
                 let xf = insert_transform(p.body, base, i, j, &mut warn);
-                self.warnings.extend(warn.into_iter().map(|w| format!("INSERT '{name}': {w}")));
+                self.warnings
+                    .extend(warn.into_iter().map(|w| format!("INSERT '{name}': {w}")));
                 self.expand_block(owner, name, &xf, layer, depth + 1, path)?;
             }
         }
@@ -717,12 +931,23 @@ impl<'b, 'a> Expander<'b, 'a> {
     }
 
     /// Expands block `name` under `owner` with the transform `xf` (block coordinates to the drawing).
-    fn expand_block(&mut self, owner: &str, name: &str, xf: &Affine, layer: &str, depth: usize, path: &mut Vec<String>) -> Result<(), Refuse> {
+    fn expand_block(
+        &mut self,
+        owner: &str,
+        name: &str,
+        xf: &Affine,
+        layer: &str,
+        depth: usize,
+        path: &mut Vec<String>,
+    ) -> Result<(), Refuse> {
         if path.iter().any(|n| n == name) {
             return Err(("block_cycle", format!("block '{name}' contains itself")));
         }
         if depth > MAX_DEPTH {
-            return Err(("block_too_deep", format!("blocks nested deeper than {MAX_DEPTH} levels")));
+            return Err((
+                "block_too_deep",
+                format!("blocks nested deeper than {MAX_DEPTH} levels"),
+            ));
         }
         let Some(block) = self.blocks.get(name) else {
             return Ok(());
@@ -733,21 +958,43 @@ impl<'b, 'a> Expander<'b, 'a> {
             let mut warn = p.warnings.clone();
             let geoms = geometry(p, &mut warn);
             let own_layer = get(p.body, 8).unwrap_or("0");
-            let lay = if own_layer == "0" { layer.to_string() } else { own_layer.to_string() };
-            let handle = get(p.body, 5).map(|h| h.trim().to_string()).filter(|h| !h.is_empty());
+            let lay = if own_layer == "0" {
+                layer.to_string()
+            } else {
+                own_layer.to_string()
+            };
+            let handle = get(p.body, 5)
+                .map(|h| h.trim().to_string())
+                .filter(|h| !h.is_empty());
             if p.kind == "INSERT" {
                 let child_name = get(p.body, 2).unwrap_or("").trim().to_string();
-                let id = self.push("INSERT", handle, &lay, Geom::Unsupported, warn, None, Some(owner.to_string()))?;
+                let id = self.push(
+                    "INSERT",
+                    handle,
+                    &lay,
+                    Geom::Unsupported,
+                    warn,
+                    None,
+                    Some(owner.to_string()),
+                )?;
                 // the nested INSERT's own transform is applied before the outer one
                 let nested_name = child_name.clone();
                 let Some(nb) = self.blocks.get(&nested_name) else {
-                    self.warnings.push(format!("INSERT of unknown block '{nested_name}': listed, not expanded"));
+                    self.warnings.push(format!(
+                        "INSERT of unknown block '{nested_name}': listed, not expanded"
+                    ));
                     continue;
                 };
                 let cols = getf(p.body, 70).unwrap_or(1.0).max(1.0) as usize;
                 let rows = getf(p.body, 71).unwrap_or(1.0).max(1.0) as usize;
                 if cols.saturating_mul(rows) > self.limit {
-                    return Err(("too_many_entities", format!("INSERT '{nested_name}' array exceeds {} entities", self.limit)));
+                    return Err((
+                        "too_many_entities",
+                        format!(
+                            "INSERT '{nested_name}' array exceeds {} entities",
+                            self.limit
+                        ),
+                    ));
                 }
                 let base = nb.base;
                 for j in 0..rows {
@@ -760,11 +1007,23 @@ impl<'b, 'a> Expander<'b, 'a> {
                 }
                 continue;
             }
-            let geoms = if geoms.is_empty() { vec![Geom::Unsupported] } else { geoms };
+            let geoms = if geoms.is_empty() {
+                vec![Geom::Unsupported]
+            } else {
+                geoms
+            };
             for (k, g) in geoms.iter().enumerate() {
                 let placed = place(g, xf, &mut warn);
                 let w = if k == 0 { warn.clone() } else { Vec::new() };
-                self.push(p.kind, handle.clone(), &lay, placed, w, None, Some(owner.to_string()))?;
+                self.push(
+                    p.kind,
+                    handle.clone(),
+                    &lay,
+                    placed,
+                    w,
+                    None,
+                    Some(owner.to_string()),
+                )?;
             }
         }
         path.pop();
@@ -772,8 +1031,10 @@ impl<'b, 'a> Expander<'b, 'a> {
     }
 }
 
-
 /// How many entities are listed but not read (Unsupported geometry).
 pub fn unread(entities: &[Entity]) -> usize {
-    entities.iter().filter(|e| matches!(e.geom, Geom::Unsupported)).count()
+    entities
+        .iter()
+        .filter(|e| matches!(e.geom, Geom::Unsupported))
+        .count()
 }

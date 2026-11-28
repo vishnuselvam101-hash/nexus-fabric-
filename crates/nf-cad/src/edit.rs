@@ -32,31 +32,81 @@ pub struct EditError {
 }
 
 fn err(code: &'static str, message: impl Into<String>) -> EditError {
-    EditError { code, message: message.into() }
+    EditError {
+        code,
+        message: message.into(),
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Op {
-    Move { ids: Vec<String>, dx: f64, dy: f64 },
-    Rotate { ids: Vec<String>, cx: f64, cy: f64, deg: f64 },
-    Mirror { ids: Vec<String>, a: P, b: P },
+    Move {
+        ids: Vec<String>,
+        dx: f64,
+        dy: f64,
+    },
+    Rotate {
+        ids: Vec<String>,
+        cx: f64,
+        cy: f64,
+        deg: f64,
+    },
+    Mirror {
+        ids: Vec<String>,
+        a: P,
+        b: P,
+    },
     /// Mirror about the line through `c` at `deg` degrees from +X (any line: an angle through a point).
-    MirrorAngle { ids: Vec<String>, c: P, deg: f64 },
-    Scale { ids: Vec<String>, cx: f64, cy: f64, factor: f64 },
-    Delete { ids: Vec<String> },
-    SetLayer { ids: Vec<String>, layer: String },
-    Add { entity: NewEntity },
+    MirrorAngle {
+        ids: Vec<String>,
+        c: P,
+        deg: f64,
+    },
+    Scale {
+        ids: Vec<String>,
+        cx: f64,
+        cy: f64,
+        factor: f64,
+    },
+    Delete {
+        ids: Vec<String>,
+    },
+    SetLayer {
+        ids: Vec<String>,
+        layer: String,
+    },
+    Add {
+        entity: NewEntity,
+    },
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NewEntity {
-    Line { a: P, b: P, layer: String },
-    Circle { c: P, r: f64, layer: String },
+    Line {
+        a: P,
+        b: P,
+        layer: String,
+    },
+    Circle {
+        c: P,
+        r: f64,
+        layer: String,
+    },
     /// Counter-clockwise from `start` to `end` (degrees).
-    Arc { c: P, r: f64, start: f64, end: f64, layer: String },
-    Polyline { v: Vec<P>, closed: bool, layer: String },
+    Arc {
+        c: P,
+        r: f64,
+        start: f64,
+        end: f64,
+        layer: String,
+    },
+    Polyline {
+        v: Vec<P>,
+        closed: bool,
+        layer: String,
+    },
 }
 
 /// One raw DXF pair as written in the file (code and value text are kept verbatim).
@@ -67,7 +117,10 @@ struct RawPair {
 }
 
 fn pair(code: &str, value: impl Into<String>) -> RawPair {
-    RawPair { code: code.to_string(), value: value.into() }
+    RawPair {
+        code: code.to_string(),
+        value: value.into(),
+    }
 }
 
 fn fmt(v: f64) -> String {
@@ -81,8 +134,15 @@ fn unique(ids: &[String]) -> Vec<&String> {
 
 /// The header without the marker, with the value after $HANDSEED blanked: what must not change.
 fn normal_head(v: &[RawPair]) -> Vec<RawPair> {
-    let mut out: Vec<RawPair> = v.iter().filter(|p| !(p.code == MARK_CODE && p.value.starts_with(MARK_PREFIX))).cloned().collect();
-    if let Some(k) = out.iter().position(|p| p.code == "9" && p.value.trim() == "$HANDSEED") {
+    let mut out: Vec<RawPair> = v
+        .iter()
+        .filter(|p| !(p.code == MARK_CODE && p.value.starts_with(MARK_PREFIX)))
+        .cloned()
+        .collect();
+    if let Some(k) = out
+        .iter()
+        .position(|p| p.code == "9" && p.value.trim() == "$HANDSEED")
+    {
         if k + 1 < out.len() {
             out[k + 1].value = String::new();
         }
@@ -102,14 +162,23 @@ fn num_of(s: &str) -> Option<f64> {
 fn split(bytes: &[u8]) -> Result<(bool, Vec<RawPair>), EditError> {
     let text: String = bytes.iter().map(|&b| b as char).collect();
     let crlf = text.contains("\r\n");
-    let mut lines: Vec<&str> = text.split('\n').map(|l| l.strip_suffix('\r').unwrap_or(l)).collect();
+    let mut lines: Vec<&str> = text
+        .split('\n')
+        .map(|l| l.strip_suffix('\r').unwrap_or(l))
+        .collect();
     while lines.last().is_some_and(|l| l.trim().is_empty()) {
         lines.pop();
     }
     if lines.len() % 2 != 0 {
         return Err(err("malformed", "odd number of lines: not a DXF pair file"));
     }
-    let pairs = lines.chunks(2).map(|c| RawPair { code: c[0].trim().to_string(), value: c[1].to_string() }).collect();
+    let pairs = lines
+        .chunks(2)
+        .map(|c| RawPair {
+            code: c[0].trim().to_string(),
+            value: c[1].to_string(),
+        })
+        .collect();
     Ok((crlf, pairs))
 }
 
@@ -129,10 +198,17 @@ fn join(pairs: &[RawPair], crlf: bool) -> Vec<u8> {
 /// Index of the first pair of the ENTITIES section's content, and the index of its ENDSEC.
 fn entities_range(pairs: &[RawPair]) -> Result<(usize, usize), EditError> {
     for i in 0..pairs.len().saturating_sub(1) {
-        if pairs[i].code == "0" && pairs[i].value.trim() == "SECTION" && pairs[i + 1].code == "2" && pairs[i + 1].value.trim() == "ENTITIES" {
+        if pairs[i].code == "0"
+            && pairs[i].value.trim() == "SECTION"
+            && pairs[i + 1].code == "2"
+            && pairs[i + 1].value.trim() == "ENTITIES"
+        {
             let start = i + 2;
-            let end = (start..pairs.len()).find(|&j| pairs[j].code == "0" && pairs[j].value.trim() == "ENDSEC");
-            return end.map(|e| (start, e)).ok_or_else(|| err("malformed", "ENTITIES section has no ENDSEC"));
+            let end = (start..pairs.len())
+                .find(|&j| pairs[j].code == "0" && pairs[j].value.trim() == "ENDSEC");
+            return end
+                .map(|e| (start, e))
+                .ok_or_else(|| err("malformed", "ENTITIES section has no ENDSEC"));
         }
     }
     Ok((pairs.len(), pairs.len()))
@@ -141,9 +217,14 @@ fn entities_range(pairs: &[RawPair]) -> Result<(usize, usize), EditError> {
 fn table_layers(pairs: &[RawPair]) -> Vec<String> {
     let mut out = Vec::new();
     for i in 0..pairs.len().saturating_sub(1) {
-        if pairs[i].code == "0" && pairs[i].value.trim() == "SECTION" && pairs[i + 1].value.trim() == "TABLES" {
+        if pairs[i].code == "0"
+            && pairs[i].value.trim() == "SECTION"
+            && pairs[i + 1].value.trim() == "TABLES"
+        {
             let mut j = i + 2;
-            while j + 1 < pairs.len() && !(pairs[j].code == "0" && pairs[j].value.trim() == "ENDSEC") {
+            while j + 1 < pairs.len()
+                && !(pairs[j].code == "0" && pairs[j].value.trim() == "ENDSEC")
+            {
                 if pairs[j].code == "0" && pairs[j].value.trim() == "LAYER" {
                     let mut k = j + 1;
                     while k < pairs.len() && pairs[k].code != "0" {
@@ -162,11 +243,22 @@ fn table_layers(pairs: &[RawPair]) -> Vec<String> {
 }
 
 fn check_layer(name: &str, layers: &[String]) -> Result<(), EditError> {
-    if name.is_empty() || name.len() > 255 || name != name.trim() || !name.is_ascii() || name.contains(['\n', '\r']) {
-        return Err(err("bad_request", "layer names are 1 to 255 ASCII characters, no line breaks, no surrounding spaces"));
+    if name.is_empty()
+        || name.len() > 255
+        || name != name.trim()
+        || !name.is_ascii()
+        || name.contains(['\n', '\r'])
+    {
+        return Err(err(
+            "bad_request",
+            "layer names are 1 to 255 ASCII characters, no line breaks, no surrounding spaces",
+        ));
     }
     if !layers.iter().any(|l| l == name) {
-        return Err(err("layer_missing", format!("layer '{name}' is not in the drawing's table")));
+        return Err(err(
+            "layer_missing",
+            format!("layer '{name}' is not in the drawing's table"),
+        ));
     }
     Ok(())
 }
@@ -184,9 +276,13 @@ impl Xf {
     fn affine(&self) -> Affine {
         match *self {
             Xf::Move(dx, dy) => Affine::translate(dx, dy),
-            Xf::Rotate(c, d) => Affine::translate(-c[0], -c[1]).then(&Affine::rotate(d)).then(&Affine::translate(c[0], c[1])),
+            Xf::Rotate(c, d) => Affine::translate(-c[0], -c[1])
+                .then(&Affine::rotate(d))
+                .then(&Affine::translate(c[0], c[1])),
             Xf::Mirror(a, b) => Affine::mirror(a, b),
-            Xf::Scale(c, f) => Affine::translate(-c[0], -c[1]).then(&Affine::scale(f, f)).then(&Affine::translate(c[0], c[1])),
+            Xf::Scale(c, f) => Affine::translate(-c[0], -c[1])
+                .then(&Affine::scale(f, f))
+                .then(&Affine::translate(c[0], c[1])),
         }
     }
     fn len_factor(&self) -> f64 {
@@ -213,7 +309,10 @@ impl Xf {
 }
 
 fn unsupported(kind: &str, what: &str) -> EditError {
-    err("unsupported_op", format!("{what} is not supported for {kind}"))
+    err(
+        "unsupported_op",
+        format!("{what} is not supported for {kind}"),
+    )
 }
 
 /// Transforms one record's pairs in place. `kind` is the record's type; `rest` is the record's other records
@@ -239,7 +338,10 @@ fn transform_pairs(kind: &str, pairs: &mut [RawPair], xf: Xf) -> Result<(), Edit
     while i < pairs.len() {
         let c = code_of(&pairs[i]);
         // coordinate pairs: 10/20, 11/21
-        if matches!(c, Some(10) | Some(11)) && i + 1 < pairs.len() && code_of(&pairs[i + 1]) == c.map(|x| x + 10) {
+        if matches!(c, Some(10) | Some(11))
+            && i + 1 < pairs.len()
+            && code_of(&pairs[i + 1]) == c.map(|x| x + 10)
+        {
             let (x, y) = (num_of(&pairs[i].value), num_of(&pairs[i + 1].value));
             match (x, y) {
                 (Some(x), Some(y)) => {
@@ -247,7 +349,12 @@ fn transform_pairs(kind: &str, pairs: &mut [RawPair], xf: Xf) -> Result<(), Edit
                     pairs[i].value = fmt(p[0]);
                     pairs[i + 1].value = fmt(p[1]);
                 }
-                _ => return Err(err("malformed", format!("{kind} has a non-finite coordinate"))),
+                _ => {
+                    return Err(err(
+                        "malformed",
+                        format!("{kind} has a non-finite coordinate"),
+                    ))
+                }
             }
             i += 2;
             continue;
@@ -256,15 +363,18 @@ fn transform_pairs(kind: &str, pairs: &mut [RawPair], xf: Xf) -> Result<(), Edit
             if scalars.contains(&code) {
                 if kind == "ARC" || kind == "CIRCLE" || kind == "TEXT" {
                     if code == 40 {
-                        let v = num_of(&pairs[i].value).ok_or_else(|| err("malformed", "non-finite size"))?;
+                        let v = num_of(&pairs[i].value)
+                            .ok_or_else(|| err("malformed", "non-finite size"))?;
                         pairs[i].value = fmt(v * xf.len_factor());
                     }
                 } else if kind == "INSERT" {
-                    let v = num_of(&pairs[i].value).ok_or_else(|| err("malformed", "non-finite scale"))?;
+                    let v = num_of(&pairs[i].value)
+                        .ok_or_else(|| err("malformed", "non-finite scale"))?;
                     pairs[i].value = fmt(v * xf.len_factor());
                 }
             } else if angles.contains(&code) {
-                let v = num_of(&pairs[i].value).ok_or_else(|| err("malformed", "non-finite angle"))?;
+                let v =
+                    num_of(&pairs[i].value).ok_or_else(|| err("malformed", "non-finite angle"))?;
                 pairs[i].value = fmt(xf.angle(v));
             } else if code == 42 && bulge_kinds && xf.mirrors() {
                 let v = num_of(&pairs[i].value).unwrap_or(0.0);
@@ -313,7 +423,11 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
     let mut touched = vec![false; recs.len()];
     let orig_recs = recs.clone();
     let orig_head = head.clone();
-    let kind_of = |r: &[RawPair]| r.first().map(|p| p.value.trim().to_string()).unwrap_or_default();
+    let kind_of = |r: &[RawPair]| {
+        r.first()
+            .map(|p| p.value.trim().to_string())
+            .unwrap_or_default()
+    };
 
     // Maximum handle in the file: new entities take the next ones.
     let mut next_handle = pairs
@@ -326,11 +440,20 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
     let mut new_recs: Vec<Vec<RawPair>> = Vec::new();
 
     let resolve = |id: &str| -> Result<usize, EditError> {
-        let e = drawing.entity(id).ok_or_else(|| err("unknown_entity", format!("no entity '{id}' in this version")))?;
+        let e = drawing.entity(id).ok_or_else(|| {
+            err(
+                "unknown_entity",
+                format!("no entity '{id}' in this version"),
+            )
+        })?;
         if e.parent.is_some() {
-            return Err(err("unknown_entity", format!("'{id}' is inside a block: edit its INSERT or DIMENSION instead")));
+            return Err(err(
+                "unknown_entity",
+                format!("'{id}' is inside a block: edit its INSERT or DIMENSION instead"),
+            ));
         }
-        e.record.ok_or_else(|| err("unknown_entity", format!("'{id}' has no record")))
+        e.record
+            .ok_or_else(|| err("unknown_entity", format!("'{id}' has no record")))
     };
     // The records of one entity: a POLYLINE is its header, its VERTEX records and its SEQEND.
     let span = |r: usize, recs: &[Vec<RawPair>]| -> Result<Vec<usize>, EditError> {
@@ -351,7 +474,10 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
             }
             j += 1;
         }
-        Err(err("unsupported_op", "a POLYLINE without SEQEND is not editable"))
+        Err(err(
+            "unsupported_op",
+            "a POLYLINE without SEQEND is not editable",
+        ))
     };
 
     for op0 in ops {
@@ -360,7 +486,11 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
         let op: &Op = match op0 {
             Op::MirrorAngle { ids, c, deg } => {
                 let (sn, cs) = deg.to_radians().sin_cos();
-                converted = Op::Mirror { ids: ids.clone(), a: *c, b: [c[0] + cs, c[1] + sn] };
+                converted = Op::Mirror {
+                    ids: ids.clone(),
+                    a: *c,
+                    b: [c[0] + cs, c[1] + sn],
+                };
                 &converted
             }
             other => other,
@@ -368,12 +498,30 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
         match op {
             Op::Move { ids, dx, dy } => {
                 for id in unique(ids) {
-                    transform_entity(&drawing, &resolve, &span, &mut recs, &deleted, id, Xf::Move(*dx, *dy), &mut touched)?;
+                    transform_entity(
+                        &drawing,
+                        &resolve,
+                        &span,
+                        &mut recs,
+                        &deleted,
+                        id,
+                        Xf::Move(*dx, *dy),
+                        &mut touched,
+                    )?;
                 }
             }
             Op::Rotate { ids, cx, cy, deg } => {
                 for id in unique(ids) {
-                    transform_entity(&drawing, &resolve, &span, &mut recs, &deleted, id, Xf::Rotate([*cx, *cy], *deg), &mut touched)?;
+                    transform_entity(
+                        &drawing,
+                        &resolve,
+                        &span,
+                        &mut recs,
+                        &deleted,
+                        id,
+                        Xf::Rotate([*cx, *cy], *deg),
+                        &mut touched,
+                    )?;
                 }
             }
             Op::Mirror { ids, a, b } => {
@@ -381,22 +529,48 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
                     return Err(err("bad_request", "mirror axis needs two different points"));
                 }
                 for id in unique(ids) {
-                    transform_entity(&drawing, &resolve, &span, &mut recs, &deleted, id, Xf::Mirror(*a, *b), &mut touched)?;
+                    transform_entity(
+                        &drawing,
+                        &resolve,
+                        &span,
+                        &mut recs,
+                        &deleted,
+                        id,
+                        Xf::Mirror(*a, *b),
+                        &mut touched,
+                    )?;
                 }
             }
-            Op::Scale { ids, cx, cy, factor } => {
+            Op::Scale {
+                ids,
+                cx,
+                cy,
+                factor,
+            } => {
                 if !(factor.is_finite() && *factor > 0.0) {
                     return Err(err("bad_request", "scale factor must be a positive number"));
                 }
                 for id in unique(ids) {
-                    transform_entity(&drawing, &resolve, &span, &mut recs, &deleted, id, Xf::Scale([*cx, *cy], *factor), &mut touched)?;
+                    transform_entity(
+                        &drawing,
+                        &resolve,
+                        &span,
+                        &mut recs,
+                        &deleted,
+                        id,
+                        Xf::Scale([*cx, *cy], *factor),
+                        &mut touched,
+                    )?;
                 }
             }
             Op::Delete { ids } => {
                 for id in unique(ids) {
                     let r = resolve(id)?;
                     if deleted[r] {
-                        return Err(err("unknown_entity", format!("'{id}' is already deleted in this edit")));
+                        return Err(err(
+                            "unknown_entity",
+                            format!("'{id}' is already deleted in this edit"),
+                        ));
                     }
                     for j in span(r, &recs)? {
                         deleted[j] = true;
@@ -408,7 +582,10 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
                 for id in unique(ids) {
                     let r = resolve(id)?;
                     if deleted[r] {
-                        return Err(err("unknown_entity", format!("'{id}' is deleted in this edit")));
+                        return Err(err(
+                            "unknown_entity",
+                            format!("'{id}' is deleted in this edit"),
+                        ));
                     }
                     touched[r] = true;
                     let rec = &mut recs[r];
@@ -422,7 +599,11 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
             Op::Add { entity } => {
                 let (kind, layer, body) = new_body(entity, &layers)?;
                 next_handle += 1;
-                let mut r = vec![pair("0", kind), pair("8", layer), pair("5", format!("{next_handle:X}"))];
+                let mut r = vec![
+                    pair("0", kind),
+                    pair("8", layer),
+                    pair("5", format!("{next_handle:X}")),
+                ];
                 r.extend(body);
                 new_recs.push(r);
             }
@@ -430,8 +611,14 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
     }
 
     // Header: keep $HANDSEED ahead of every handle written.
-    let mut head: Vec<RawPair> = head.into_iter().filter(|p| !(p.code == MARK_CODE && p.value.starts_with(MARK_PREFIX))).collect();
-    if let Some(k) = head.iter().position(|p| p.code == "9" && p.value.trim() == "$HANDSEED") {
+    let mut head: Vec<RawPair> = head
+        .into_iter()
+        .filter(|p| !(p.code == MARK_CODE && p.value.starts_with(MARK_PREFIX)))
+        .collect();
+    if let Some(k) = head
+        .iter()
+        .position(|p| p.code == "9" && p.value.trim() == "$HANDSEED")
+    {
         if k + 1 < head.len() && head[k + 1].code == "5" {
             head[k + 1].value = format!("{:X}", next_handle + 1);
         }
@@ -441,11 +628,17 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
     // marker and $HANDSEED may differ).
     for r in 0..recs.len() {
         if !deleted[r] && !touched[r] && recs[r] != orig_recs[r] {
-            return Err(err("edit_integrity", format!("record {r} changed without being edited")));
+            return Err(err(
+                "edit_integrity",
+                format!("record {r} changed without being edited"),
+            ));
         }
     }
     if normal_head(&head) != normal_head(&orig_head) || tail.as_slice() != &pairs[ee..] {
-        return Err(err("edit_integrity", "the header or the trailer changed outside the marker and $HANDSEED"));
+        return Err(err(
+            "edit_integrity",
+            "the header or the trailer changed outside the marker and $HANDSEED",
+        ));
     }
     let mut body: Vec<RawPair> = Vec::new();
     for (r, rec) in recs.iter().enumerate() {
@@ -467,7 +660,10 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
             if (10..=59).contains(&code) {
                 if let Ok(v) = p.value.trim().parse::<f64>() {
                     if !v.is_finite() {
-                        return Err(err("non_finite", format!("group {code} would be {v}: the edit is refused")));
+                        return Err(err(
+                            "non_finite",
+                            format!("group {code} would be {v}: the edit is refused"),
+                        ));
                     }
                 }
             }
@@ -476,7 +672,12 @@ pub fn apply(bytes: &[u8], ops: &[Op]) -> Result<Vec<u8>, EditError> {
     let bytes_out = join(&out, crlf);
 
     // The result must read back as a drawing; a version that does not is never returned.
-    open(&bytes_out).map_err(|r| err("malformed", format!("the edited file does not read back: {}", r.message)))?;
+    open(&bytes_out).map_err(|r| {
+        err(
+            "malformed",
+            format!("the edited file does not read back: {}", r.message),
+        )
+    })?;
     Ok(bytes_out)
 }
 
@@ -493,20 +694,36 @@ fn transform_entity(
 ) -> Result<(), EditError> {
     let r = resolve(id)?;
     if deleted[r] {
-        return Err(err("unknown_entity", format!("'{id}' is deleted in this edit")));
+        return Err(err(
+            "unknown_entity",
+            format!("'{id}' is deleted in this edit"),
+        ));
     }
-    let kind = drawing.entity(id).map(|e| e.kind.clone()).unwrap_or_default();
+    let kind = drawing
+        .entity(id)
+        .map(|e| e.kind.clone())
+        .unwrap_or_default();
     let supported = match kind.as_str() {
         "POINT" | "LINE" | "CIRCLE" | "ARC" | "LWPOLYLINE" | "POLYLINE" | "SPLINE" => true,
         "TEXT" | "INSERT" => !xf.mirrors(),
         _ => false,
     };
     if !supported {
-        return Err(unsupported(&kind, if xf.mirrors() { "mirror" } else { "this operation" }));
+        return Err(unsupported(
+            &kind,
+            if xf.mirrors() {
+                "mirror"
+            } else {
+                "this operation"
+            },
+        ));
     }
     for j in span(r, recs)? {
         touched[j] = true;
-        let k = recs[j].first().map(|p| p.value.trim().to_string()).unwrap_or_default();
+        let k = recs[j]
+            .first()
+            .map(|p| p.value.trim().to_string())
+            .unwrap_or_default();
         // a POLYLINE header holds an elevation point, not geometry: only its VERTEX records move
         match k.as_str() {
             "VERTEX" => transform_pairs("VERTEX", &mut recs[j][1..], xf)?,
@@ -517,9 +734,18 @@ fn transform_entity(
     Ok(())
 }
 
-fn new_body(e: &NewEntity, layers: &[String]) -> Result<(&'static str, String, Vec<RawPair>), EditError> {
+fn new_body(
+    e: &NewEntity,
+    layers: &[String],
+) -> Result<(&'static str, String, Vec<RawPair>), EditError> {
     let finite = |v: &[f64]| v.iter().all(|x| x.is_finite());
-    let z = |c: P| vec![pair("10", fmt(c[0])), pair("20", fmt(c[1])), pair("30", "0")];
+    let z = |c: P| {
+        vec![
+            pair("10", fmt(c[0])),
+            pair("20", fmt(c[1])),
+            pair("30", "0"),
+        ]
+    };
     match e {
         NewEntity::Line { a, b, layer } => {
             check_layer(layer, layers)?;
@@ -535,16 +761,28 @@ fn new_body(e: &NewEntity, layers: &[String]) -> Result<(&'static str, String, V
         NewEntity::Circle { c, r, layer } => {
             check_layer(layer, layers)?;
             if !(finite(&[c[0], c[1], *r]) && *r > 0.0) {
-                return Err(err("bad_request", "circle needs a finite centre and a positive radius"));
+                return Err(err(
+                    "bad_request",
+                    "circle needs a finite centre and a positive radius",
+                ));
             }
             let mut body = z(*c);
             body.push(pair("40", fmt(*r)));
             Ok(("CIRCLE", layer.clone(), body))
         }
-        NewEntity::Arc { c, r, start, end, layer } => {
+        NewEntity::Arc {
+            c,
+            r,
+            start,
+            end,
+            layer,
+        } => {
             check_layer(layer, layers)?;
             if !(finite(&[c[0], c[1], *r, *start, *end]) && *r > 0.0) {
-                return Err(err("bad_request", "arc needs a finite centre, a positive radius and finite angles"));
+                return Err(err(
+                    "bad_request",
+                    "arc needs a finite centre, a positive radius and finite angles",
+                ));
             }
             let mut body = z(*c);
             body.push(pair("40", fmt(*r)));
@@ -555,9 +793,15 @@ fn new_body(e: &NewEntity, layers: &[String]) -> Result<(&'static str, String, V
         NewEntity::Polyline { v, closed, layer } => {
             check_layer(layer, layers)?;
             if v.len() < 2 || v.len() > 10_000 || v.iter().any(|p| !finite(&[p[0], p[1]])) {
-                return Err(err("bad_request", "polyline needs 2 to 10000 finite vertices"));
+                return Err(err(
+                    "bad_request",
+                    "polyline needs 2 to 10000 finite vertices",
+                ));
             }
-            let mut body = vec![pair("90", v.len().to_string()), pair("70", if *closed { "1" } else { "0" })];
+            let mut body = vec![
+                pair("90", v.len().to_string()),
+                pair("70", if *closed { "1" } else { "0" }),
+            ];
             for p in v {
                 body.push(pair("10", fmt(p[0])));
                 body.push(pair("20", fmt(p[1])));
@@ -572,9 +816,13 @@ pub fn touched_ids(ops: &[Op]) -> Vec<String> {
     let mut out = Vec::new();
     for op in ops {
         match op {
-            Op::Move { ids, .. } | Op::Rotate { ids, .. } | Op::Mirror { ids, .. } | Op::MirrorAngle { ids, .. } | Op::Scale { ids, .. } | Op::Delete { ids } | Op::SetLayer { ids, .. } => {
-                out.extend(ids.iter().cloned())
-            }
+            Op::Move { ids, .. }
+            | Op::Rotate { ids, .. }
+            | Op::Mirror { ids, .. }
+            | Op::MirrorAngle { ids, .. }
+            | Op::Scale { ids, .. }
+            | Op::Delete { ids }
+            | Op::SetLayer { ids, .. } => out.extend(ids.iter().cloned()),
             Op::Add { .. } => {}
         }
     }
