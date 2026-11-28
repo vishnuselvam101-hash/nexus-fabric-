@@ -122,7 +122,7 @@ fn export_refuses_held_and_untouched_on_any_failure() {
         PartSource::file("P1", f, Some(cert("P1", &body))),
         PartSource::file("P2", f2, Some(held)),
     ];
-    let p = profile(TextEncoding::Utf8, DxfVersion::R2000);
+    let p = profile(TextEncoding::Utf8, DxfVersion::R12);
     let a = person();
     let req = ExportRequest {
         job_id: "J3",

@@ -6083,7 +6083,7 @@ fn boot_with_exports(dirs: Vec<PathBuf>) -> T {
 fn machine_profile_json() -> Value {
     json!({
         "id": "PLASMA-A", "version": 1, "name": "Plasma A (test fixture)",
-        "dxf_version": "R2000", "text_encoding": "shift_jis", "units": "mm",
+        "dxf_version": "R12", "text_encoding": "shift_jis", "units": "mm",
         "layer_map": { "CUT_OUTER": "OUTER", "CUT_INNER": "INNER", "NF_NOT_RELEASED": "NOTE", "0": "0" },
         "file_name": "{job}_{part}_{profile}.dxf",
         "kerf_mm": null, "lead_in_mm": null,
@@ -6132,13 +6132,18 @@ async fn machine_export_agent_is_refused_and_a_person_writes_only_certified_part
     assert_eq!(st, StatusCode::FORBIDDEN);
     assert_eq!(files_in(&out), 0, "agent export must write nothing");
 
-    // a person's export of the engine's DXF is refused: nf-dxf writes no $INSUNITS, and the profile
-    // requires it (review round 1). Nothing is written, and the refusal is audited.
+    // a person exports the engine's DXF: it states its units (NF-UNITS: mm) with no $INSUNITS, so the hand-off
+    // file gets $INSUNITS 4 added to its header and the manifest is written with the export
     let (st, v) = t.call("POST", &path, Some(body.clone())).await;
-    assert_eq!(st, StatusCode::CONFLICT, "{v}");
-    assert_eq!(v["code"], json!("missing_units"), "{v}");
-    assert_eq!(v["written"], json!(false));
-    assert_eq!(files_in(&out), 0);
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(v["written"], json!(true));
+    assert!(out.join(format!("manifest-calc-{id}-v1.json")).exists());
+    let dxf_file = v["files"][0]["file"].as_str().unwrap().to_string();
+    let written = std::fs::read_to_string(out.join(&dxf_file)).unwrap();
+    assert!(
+        written.contains("$INSUNITS\r\n70\r\n4\r\n"),
+        "hand-off header lacks $INSUNITS 4"
+    );
     assert!(t.app.data_dir.join("machine-audit.jsonl").exists());
 
     // a folder that was not configured is refused

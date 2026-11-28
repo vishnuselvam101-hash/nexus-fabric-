@@ -36,14 +36,14 @@ fn req<'a>(
 
 #[test]
 fn profile_rejects_line_breaks_in_layers_and_bad_file_names() {
-    let mut p = profile(TextEncoding::Utf8, DxfVersion::R2000);
+    let mut p = profile(TextEncoding::Utf8, DxfVersion::R12);
     p.layer_map.insert("CUT_OUTER".into(), "OUT\n0\nEOF".into());
     assert!(matches!(p.validate(), Err(ProfileError::ControlInLayer(_))));
-    let mut p = profile(TextEncoding::Utf8, DxfVersion::R2000);
+    let mut p = profile(TextEncoding::Utf8, DxfVersion::R12);
     p.layer_map.insert("CUT_OUTER".into(), "OUT\r".into());
     assert!(matches!(p.validate(), Err(ProfileError::ControlInLayer(_))));
 
-    let mut p = profile(TextEncoding::Utf8, DxfVersion::R2000);
+    let mut p = profile(TextEncoding::Utf8, DxfVersion::R12);
     p.file_name = "{part}:stream.dxf".into();
     assert_eq!(p.validate(), Err(ProfileError::BadFileName));
     p.file_name = format!("{{part}}{}.dxf", "x".repeat(120));
@@ -55,14 +55,14 @@ fn profile_rejects_line_breaks_in_layers_and_bad_file_names() {
 #[test]
 fn dxf_refuses_injected_layer_missing_units_and_ambiguous_sjis() {
     // validate() is bypassed on purpose: convert() must still refuse a line break in a layer value
-    let mut p = profile(TextEncoding::Utf8, DxfVersion::R2000);
+    let mut p = profile(TextEncoding::Utf8, DxfVersion::R12);
     p.layer_map.insert("CUT_OUTER".into(), "OUT\n0\nEOF".into());
     assert!(matches!(
         dxf::convert(dxf("x", "CUT_OUTER").as_bytes(), &p),
         Err(DxfError::Malformed(_))
     ));
 
-    let p = profile(TextEncoding::Utf8, DxfVersion::R2000);
+    let p = profile(TextEncoding::Utf8, DxfVersion::R12);
     let no_units = dxf("x", "CUT_OUTER").replace("9\n$INSUNITS\n70\n4\n", "");
     assert_eq!(
         dxf::convert(no_units.as_bytes(), &p),
@@ -93,16 +93,54 @@ fn r12_target_drops_r13_only_header_and_subclass_markers() {
     let s = String::from_utf8(r12).unwrap();
     assert!(!s.contains("AcDbEntity") && !s.contains("$HANDSEED"));
     assert!(s.contains("AC1009") && s.contains("$INSUNITS"));
-    // geometry lines survive
     assert!(s.contains("LINE") && s.contains("OUTER"));
 
+    // R2000 keeps markers and header variables when every entity carries its marker
+    let marked = dxf("x", "CUT_OUTER")
+        .replace("0\nLINE\n", "0\nLINE\n100\nAcDbEntity\n")
+        .replace("0\nTEXT\n", "0\nTEXT\n100\nAcDbEntity\n")
+        .replace("9\n$INSUNITS\n", "9\n$HANDSEED\n5\nFF\n9\n$INSUNITS\n");
     let r2000 = dxf::convert(
-        src.as_bytes(),
+        marked.as_bytes(),
         &profile(TextEncoding::Utf8, DxfVersion::R2000),
     )
     .unwrap();
     let s = String::from_utf8(r2000).unwrap();
     assert!(s.contains("AcDbEntity") && s.contains("$HANDSEED") && s.contains("AC1015"));
+
+    // R2000 is refused for R12-style input: an entity without its subclass marker
+    assert!(matches!(
+        dxf::convert(
+            dxf("x", "CUT_OUTER").as_bytes(),
+            &profile(TextEncoding::Utf8, DxfVersion::R2000)
+        ),
+        Err(DxfError::NeedsSubclassMarkers(_))
+    ));
+}
+
+#[test]
+fn engine_units_statement_adds_insunits_and_foreign_file_without_units_is_refused() {
+    // NF's own DXF: no $INSUNITS, but the 999 units statement says mm
+    let engine = dxf("x", "CUT_OUTER")
+        .replace("9\n$INSUNITS\n70\n4\n", "")
+        .replace("0\nHEADER\n", "")
+        .replace("2\nHEADER\n", "2\nHEADER\n999\nNF-UNITS: mm\n");
+    let p = profile(TextEncoding::Utf8, DxfVersion::R12);
+    let out = String::from_utf8(dxf::convert(engine.as_bytes(), &p).unwrap()).unwrap();
+    assert!(out.contains("9\r\n$INSUNITS\r\n70\r\n4\r\n"));
+    assert!(out.contains("NF-UNITS: mm") && out.contains("LINE"));
+
+    // a foreign file without units is refused, and so is a units statement that is not mm
+    let foreign = dxf("x", "CUT_OUTER").replace("9\n$INSUNITS\n70\n4\n", "");
+    assert_eq!(
+        dxf::convert(foreign.as_bytes(), &p),
+        Err(DxfError::MissingUnits)
+    );
+    let inch = engine.replace("NF-UNITS: mm", "NF-UNITS: inch");
+    assert_eq!(
+        dxf::convert(inch.as_bytes(), &p),
+        Err(DxfError::MissingUnits)
+    );
 }
 
 #[test]
@@ -116,7 +154,7 @@ fn export_never_follows_links_or_replaces_without_a_person_flag() {
     let f = src.join("P1.dxf");
     fs::write(&f, &body).unwrap();
     let parts = vec![PartSource::file("P1", f.clone(), Some(cert("P1", &body)))];
-    let p = profile(TextEncoding::Utf8, DxfVersion::R2000);
+    let p = profile(TextEncoding::Utf8, DxfVersion::R12);
     let a = person();
     let mut audit = AuditLog::open(&root.join("a.jsonl")).unwrap();
     let name = "J1_P1_PLASMA-A.dxf";
@@ -161,7 +199,7 @@ fn manifest_is_versioned_and_never_overwritten() {
     let f = root.join("P1.dxf");
     fs::write(&f, &body).unwrap();
     let parts = vec![PartSource::file("P1", f, Some(cert("P1", &body)))];
-    let p = profile(TextEncoding::Utf8, DxfVersion::R2000);
+    let p = profile(TextEncoding::Utf8, DxfVersion::R12);
     let a = person();
     let mut audit = AuditLog::open(&root.join("a.jsonl")).unwrap();
     fs::write(out.join("manifest-J1-v1.json"), "earlier").unwrap();
@@ -182,7 +220,7 @@ fn audit_failure_removes_files_and_refusal_audit_failure_is_an_error() {
     let f = root.join("P1.dxf");
     fs::write(&f, &body).unwrap();
     let parts = vec![PartSource::file("P1", f, Some(cert("P1", &body)))];
-    let p = profile(TextEncoding::Utf8, DxfVersion::R2000);
+    let p = profile(TextEncoding::Utf8, DxfVersion::R12);
     let a = person();
 
     // the audit path becomes a folder after open: every append fails

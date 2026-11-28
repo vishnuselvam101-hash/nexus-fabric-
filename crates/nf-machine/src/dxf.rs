@@ -23,8 +23,10 @@ pub enum DxfError {
     UnitsMismatch(String),
     /// A character the target encoding cannot represent, or one that is ambiguous in it (U+00A5, U+203E).
     Unencodable(char),
-    /// The source header has no $INSUNITS, so its units cannot be checked.
+    /// The source header has no $INSUNITS and carries no NF units statement of millimetres.
     MissingUnits,
+    /// R2000 target, but this entity has no subclass marker (group code 100): the source is R12-style.
+    NeedsSubclassMarkers(String),
 }
 
 impl std::fmt::Display for DxfError {
@@ -47,13 +49,20 @@ impl std::fmt::Display for DxfError {
                 *c as u32
             ),
             DxfError::MissingUnits => {
-                write!(f, "header has no $INSUNITS; profile needs millimetres (4)")
+                write!(f, "header has no $INSUNITS and no NF units statement; profile needs millimetres (4)")
             }
+            DxfError::NeedsSubclassMarkers(e) => write!(
+                f,
+                "entity {e} has no subclass marker (code 100); R2000 is refused for this source"
+            ),
         }
     }
 }
 
 impl std::error::Error for DxfError {}
+
+/// The units statement NEXUS FABRIC writes in its 999 comment block (same text as nf-dxf writes).
+const NF_UNITS_MM: &str = "NF-UNITS: mm";
 
 /// Convert the source bytes for the profile. Output is CRLF-terminated.
 /// R12 targets drop what R13+ adds (subclass markers, code 100; the $HANDSEED header variable). Nothing
@@ -84,6 +93,18 @@ pub fn convert(src: &[u8], p: &MachineProfile) -> Result<Vec<u8>, DxfError> {
     let r12 = p.dxf_version == DxfVersion::R12;
     let mut saw_units = false;
     let mut skip_value = false;
+    // A file without $INSUNITS is accepted only with NF's own units statement (mm); $INSUNITS 4 is then added.
+    let nf_units_mm = lines
+        .chunks(2)
+        .any(|c| c.len() == 2 && c[0].trim() == "999" && c[1].trim() == NF_UNITS_MM);
+    let header_has_units = lines
+        .chunks(2)
+        .any(|c| c.len() == 2 && c[0].trim() == "9" && c[1].trim() == "$INSUNITS");
+    let insert_units = !header_has_units && nf_units_mm;
+    let mut inserted_units = false;
+    // R2000 needs a subclass marker (code 100) after every entity's leading 0 record; R12-style input has none.
+    let mut in_entities = false;
+    let mut entity_open = false;
 
     for pair in lines.chunks(2) {
         let code = pair[0].trim();
@@ -94,6 +115,12 @@ pub fn convert(src: &[u8], p: &MachineProfile) -> Result<Vec<u8>, DxfError> {
         if r12 && code == "100" {
             continue;
         }
+        if code == "100" {
+            entity_open = false;
+        }
+        if code == "2" && last_zero == "SECTION" {
+            in_entities = pair[1].trim() == "ENTITIES";
+        }
         let mut value = pair[1].to_string();
         let var_before = pending_var.clone();
         if code == "9" && pair[1].trim() == "$HANDSEED" && r12 {
@@ -102,6 +129,16 @@ pub fn convert(src: &[u8], p: &MachineProfile) -> Result<Vec<u8>, DxfError> {
         }
         match code {
             "0" => {
+                if !r12 {
+                    if entity_open {
+                        return Err(DxfError::NeedsSubclassMarkers(last_zero));
+                    }
+                    if value.trim() == "ENDSEC" {
+                        in_entities = false;
+                    } else if in_entities {
+                        entity_open = true;
+                    }
+                }
                 last_zero = value.trim().to_string();
                 if p.dxf_version == DxfVersion::R12 && NOT_IN_R12.contains(&last_zero.as_str()) {
                     return Err(DxfError::UnsupportedEntity(last_zero));
@@ -137,6 +174,10 @@ pub fn convert(src: &[u8], p: &MachineProfile) -> Result<Vec<u8>, DxfError> {
         out.push_str("\r\n");
         out.push_str(&value);
         out.push_str("\r\n");
+        if insert_units && code == "2" && value.trim() == "HEADER" && last_zero == "SECTION" {
+            out.push_str("9\r\n$INSUNITS\r\n70\r\n4\r\n");
+            inserted_units = true;
+        }
         if let (Some(cp), false, Some("$ACADVER"), "1") =
             (codepage, header_has_cp, var_before.as_deref(), code)
         {
@@ -146,7 +187,10 @@ pub fn convert(src: &[u8], p: &MachineProfile) -> Result<Vec<u8>, DxfError> {
         }
     }
 
-    if !saw_units {
+    if entity_open {
+        return Err(DxfError::NeedsSubclassMarkers(last_zero));
+    }
+    if !saw_units && !inserted_units {
         return Err(DxfError::MissingUnits);
     }
     match p.text_encoding {

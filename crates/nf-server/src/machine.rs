@@ -171,6 +171,7 @@ fn export_code(e: &ExportError) -> &'static str {
             nf_machine::dxf::DxfError::UnitsMismatch(_) => "units_mismatch",
             nf_machine::dxf::DxfError::Unencodable(_) => "unencodable",
             nf_machine::dxf::DxfError::MissingUnits => "missing_units",
+            nf_machine::dxf::DxfError::NeedsSubclassMarkers(_) => "needs_subclass_markers",
         },
         ExportError::Exists(_) => "exists",
         ExportError::Io(_) | ExportError::Audit(_) => "io",
