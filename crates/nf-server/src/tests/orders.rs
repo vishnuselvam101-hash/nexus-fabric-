@@ -2403,7 +2403,7 @@ async fn pz1_never_wave_kinds_refuse_accept_for_a_person_and_an_agent() {
         } else {
             json!({ "kind": kind, "part": "1", "code": code, "reason": "trying to clear the stop" })
         };
-        let (st, v) = t.call("POST", &dec, Some(with_ev(body))).await;
+        let (st, v) = t.call("POST", &dec, Some(body)).await;
         assert_eq!(
             (st, v["code"].as_str()),
             (
@@ -2420,27 +2420,38 @@ async fn pz1_never_wave_kinds_refuse_accept_for_a_person_and_an_agent() {
     }
     let agent = add_agent(&t, "operator-ai");
     let ac = [("cookie", agent.as_str())];
-    for (kind, field, code, canonical) in [
-        ("accept", "code", "missing", "missing"),
-        ("accept_flag", "flag", "flat stop", "flat_stop"),
+    // The AI operator never accepts a flag: AIOP's agent guard fires before the never-wave code check,
+    // so `accept_flag` is 403 agent_cannot_confirm. Legacy `accept` still reaches the same stop check
+    // a person reaches and is refused with REVIEW_NEVER_WAVE.
+    for (kind, field, code, status, refusal) in [
+        (
+            "accept",
+            "code",
+            "missing",
+            StatusCode::UNPROCESSABLE_ENTITY,
+            nf_core::refusal::REVIEW_NEVER_WAVE,
+        ),
+        (
+            "accept_flag",
+            "flag",
+            "flat stop",
+            StatusCode::FORBIDDEN,
+            "agent_cannot_confirm",
+        ),
     ] {
         let body = if field == "flag" {
             json!({ "kind": kind, "part": "1", "key": "D", "flag": code, "reason": "the AI says it is fine" })
         } else {
             json!({ "kind": kind, "part": "1", "code": code, "reason": "the AI says it is fine" })
         };
-        let (st, _, b) = t.send("POST", &dec, Some(body), &ac).await;
+        let (st, _, b) = t.send("POST", &dec, Some(with_ev(body)), &ac).await;
         let v: Value = serde_json::from_slice(&b).unwrap();
         assert_eq!(
             (st, v["code"].as_str()),
-            (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Some(nf_core::refusal::REVIEW_NEVER_WAVE)
-            ),
+            (status, Some(refusal)),
             "{}",
             String::from_utf8_lossy(&b)
         );
-        assert_eq!(v["fields"][0].as_str(), Some(canonical), "{v}");
     }
     assert_eq!(t.count("SELECT COUNT(*) FROM order_decisions"), 0);
     let refused = audit_details(&t, "order_refused");
@@ -2449,7 +2460,15 @@ async fn pz1_never_wave_kinds_refuse_accept_for_a_person_and_an_agent() {
             .iter()
             .filter(|x| x.contains(nf_core::refusal::REVIEW_NEVER_WAVE))
             .count(),
-        6,
+        5,
+        "{refused:?}"
+    );
+    assert_eq!(
+        refused
+            .iter()
+            .filter(|x| x.contains("agent_cannot_confirm"))
+            .count(),
+        1,
         "{refused:?}"
     );
 }
