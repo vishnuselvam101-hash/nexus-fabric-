@@ -4692,3 +4692,82 @@ async fn f1_job_package_holds_no_dxf_is_gated_audited_and_csv_safe() {
         &format!("/api/orders/{oid}/compute")
     ));
 }
+
+// ---------------------------------------------------------------- INT-6: certified DXFs reach every consumer
+
+/// A certified tee order: its DXFs are in outputs.zip, nesting places them on a sheet DXF, and the machine
+/// export writes the engine's DXF for a certified part of a project calculation.
+#[tokio::test]
+async fn int6_certified_tee_dxf_reaches_package_nest_and_machine_export() {
+    let out = temp_dir("int6-machine-out");
+    std::fs::create_dir_all(&out).unwrap();
+    let t = boot_with_exports(vec![out.clone()]);
+    let oid = new_order(&t).await;
+    assert_eq!(
+        add_file(&t, oid, PDF_2_PAGES.to_vec(), "a.pdf").await.0,
+        StatusCode::OK
+    );
+    put_parts_values(
+        &t,
+        oid,
+        json!([
+            { "no": "T1", "name": "main", "shape": "tee_main", "qty": 1, "page": 1 },
+            { "no": "T1b", "name": "branch", "shape": "tee_branch", "attach_part": "T1", "qty": 1, "page": 1 }
+        ]),
+        json!([
+            val("T1", "D", 1016.0),
+            val("T1", "t", 12.0),
+            val("T1", "L", 2000.0),
+            val("T1", "branch_D", 508.0),
+            val("T1", "branch_t", 9.0),
+            val("T1", "branch_x", 1000.0),
+            val("T1", "dir", 0.0),
+            val("T1", "e", 0.0),
+            val("T1b", "D", 508.0),
+            val("T1b", "t", 9.0),
+            val("T1b", "H", 600.0)
+        ]),
+    )
+    .await;
+    let (st, v) = t
+        .call("POST", &format!("/api/orders/{oid}/confirm"), Some(json!({ "all": true })))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call("POST", &format!("/api/orders/{oid}/compute"), Some(json!({})))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    for p in v["result"]["parts"].as_array().unwrap() {
+        assert_eq!(p["state"], "computed", "{p}");
+        assert_eq!(p["dxf_allowed"], true, "{p}");
+        assert!(p["dxf"].as_str().is_some_and(|d| d.contains("SECTION")), "{p}");
+    }
+    // the job package carries a DXF per certified part
+    let (st, _, z) = t
+        .send("GET", &format!("/api/orders/{oid}/outputs.zip"), None, &[])
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    let names = zip_entry_names(&z, "int6");
+    assert!(names.iter().filter(|n| n.starts_with("dxf/") && n.ends_with(".dxf")).count() >= 2, "{names:?}");
+    // nesting: a person marks the order checked, then a sheet DXF comes back
+    let (st, v) = t
+        .call("POST", &format!("/api/orders/{oid}/decisions"), Some(json!({ "kind": "mark_checked" })))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let (st, v) = t
+        .call("POST", &format!("/api/orders/{oid}/nest"), Some(json!({ "sheet_w": 6000.0, "sheet_h": 3000.0 })))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let sheets = v["sheets"].as_array().unwrap();
+    assert!(!sheets.is_empty(), "{v}");
+    assert!(sheets[0]["dxf"].as_str().is_some_and(|d| d.contains("SECTION")), "{v}");
+    // machine export: a person writes the certified DXF of a project calculation
+    let (st, v) = t.call("POST", "/api/machine/profiles", Some(machine_profile_json())).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    let id = t.job(good_assembly()).await;
+    let (st, v) = t
+        .call("POST", &format!("/api/calculations/{id}/export"), Some(json!({ "profile": "PLASMA-A", "folder": 0 })))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(v["written"], json!(true));
+}

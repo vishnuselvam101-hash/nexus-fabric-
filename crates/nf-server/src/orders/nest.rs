@@ -172,6 +172,7 @@ fn nest_do(app: &App, headers: &HeaderMap, u: &User, oid: i64, raw: &[u8]) -> Ap
             json!({ "index": i + 1, "utilisation_pct": per[i], "placed": placed, "dxf": dxf }),
         );
     }
+    drop(db);
     record_alone(
         app,
         &u.username,
